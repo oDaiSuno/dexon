@@ -250,7 +250,7 @@ function ProviderDetail({
 
 // ── ThinkingLevelMap editor ───────────────────────────────────────────────────
 
-const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh"] as const;
+const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 function thinkingLevelLabel(level: ThinkingLevel, t: (key: string, fallback: string) => string): string {
@@ -267,6 +267,8 @@ function thinkingLevelLabel(level: ThinkingLevel, t: (key: string, fallback: str
       return t("thinkingHigh", "High");
     case "xhigh":
       return t("thinkingXHigh", "Extra high");
+    case "max":
+      return t("thinkingMax", "Max");
   }
 }
 
@@ -293,6 +295,7 @@ const LEVEL_COLORS: Record<ThinkingLevel, string> = {
   medium: "#ea580c",
   high: "#c2410c",
   xhigh: "#9a3412",
+  max: "#7c2d12",
 };
 
 function ThinkingLevelMapEditor({

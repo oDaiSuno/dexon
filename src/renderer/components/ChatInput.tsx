@@ -91,8 +91,8 @@ interface Props {
   compactResult?: CompactResultInfo | null;
   toolPreset?: "none" | "default" | "full";
   onToolPresetChange?: (preset: "none" | "default" | "full") => void;
-  thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh";
-  onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh") => void;
+  thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+  onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   availableThinkingLevels?: string[] | null;
   thinkingLevelMap?: Record<string, string | null> | null;
   retryInfo?: { attempt: number; maxAttempts: number; errorMessage?: string } | null;
@@ -134,7 +134,7 @@ function compareModelOptions(a: ModelOption, b: ModelOption): number {
   );
 }
 
-const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh"] as const;
+const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
 function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
@@ -1315,6 +1315,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     medium: t("thinkingMedium", "Medium"),
     high: t("thinkingHigh", "High"),
     xhigh: t("thinkingXHigh", "Extra high"),
+    max: t("thinkingMax", "Max"),
   };
   const thinkingDescriptions: Record<(typeof THINKING_LEVELS)[number], string> = {
     auto: t("thinkingDefaultDescription", "Use Pi default"),
@@ -1323,7 +1324,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     low: t("thinkingLowDescription", "Low reasoning"),
     medium: t("thinkingMediumDescription", "Medium reasoning"),
     high: t("thinkingHighDescription", "High reasoning"),
-    xhigh: t("thinkingXHighDescription", "Max reasoning"),
+    xhigh: t("thinkingXHighDescription", "Extra-high reasoning"),
+    max: t("thinkingMaxDescription", "Maximum reasoning"),
   };
   const translateThinkingValue = (value: string): string => {
     return (THINKING_LEVELS as readonly string[]).includes(value)

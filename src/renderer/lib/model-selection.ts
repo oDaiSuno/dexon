@@ -1,6 +1,6 @@
 import type { ModelInfo } from "@contract/types";
 
-const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh"]);
+const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
 function stripThinkingSuffix(modelRef: string): string {
   const trimmed = modelRef.trim();
