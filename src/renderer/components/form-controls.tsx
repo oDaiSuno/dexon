@@ -25,7 +25,10 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   return (
     <FieldControlIdContext.Provider value={controlId}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label htmlFor={controlId} style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+        <label
+          htmlFor={controlId}
+          style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}
+        >
           {label}
         </label>
         {children}
@@ -36,12 +39,12 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
 export const inputStyle = {
   minHeight: 36,
-  padding: "7px 10px",
+  padding: "8px 12px",
   background: "var(--bg-panel)",
   border: "1px solid var(--border)",
-  borderRadius: 5,
+  borderRadius: "var(--radius-control)",
   color: "var(--text)",
-  fontSize: 13,
+  fontSize: "var(--text-body)",
   outline: "none",
   width: "100%",
   boxSizing: "border-box" as const,
@@ -235,11 +238,11 @@ export function Check({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 6,
+        gap: 8,
         minHeight: 36,
         padding: "4px 0",
         cursor: "pointer",
-        fontSize: 13,
+        fontSize: "var(--text-body)",
         color: "var(--text-muted)",
       }}
     >
@@ -258,7 +261,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        fontSize: 11,
+        fontSize: "var(--text-meta)",
         fontWeight: 600,
         color: "var(--text-dim)",
         textTransform: "uppercase",

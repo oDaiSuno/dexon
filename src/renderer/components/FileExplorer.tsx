@@ -166,7 +166,7 @@ function TreeNode({
             cursor: "pointer",
             background: hovered || focusedWithin ? "var(--bg-hover)" : "transparent",
             border: "none",
-            borderRadius: 6,
+            borderRadius: "var(--radius-control)",
             userSelect: "none",
             textAlign: "left",
             transition: "background 0.12s, padding-right 0.12s",
@@ -193,7 +193,7 @@ function TreeNode({
           </span>
           <span
             style={{
-              fontSize: 13,
+              fontSize: "var(--text-body)",
               color: "var(--text)",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -238,10 +238,10 @@ function TreeNode({
               height: 30,
               background: "var(--bg-panel)",
               border: "1px solid var(--border)",
-              borderRadius: 4,
+              borderRadius: "var(--radius-chip)",
               color: "var(--accent)",
               cursor: "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               fontWeight: 600,
               whiteSpace: "nowrap",
             }}
@@ -284,15 +284,15 @@ function TreeNode({
               alignItems: "center",
               justifyContent: "center",
               gap: 4,
-              padding: "0 5px",
+              padding: "0 4px",
               width: 30,
               height: 30,
               background: "var(--bg-panel)",
               border: "1px solid var(--border)",
-              borderRadius: 4,
+              borderRadius: "var(--radius-chip)",
               color: "var(--text-muted)",
               cursor: downloading ? "wait" : "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               fontWeight: 600,
               whiteSpace: "nowrap",
             }}
@@ -333,7 +333,7 @@ function TreeNode({
             <div
               style={{
                 paddingLeft: 8 + (depth + 1) * 14,
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 color: "var(--text-dim)",
                 height: 32,
                 display: "flex",
@@ -428,14 +428,14 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
 
   if (loading) {
     return (
-      <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>
+      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
         {t("loadingFiles", "Loading files…")}
       </div>
     );
   }
 
   if (error) {
-    return <div style={{ padding: "8px 12px", fontSize: 11, color: "#f87171" }}>{error}</div>;
+    return <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--danger)" }}>{error}</div>;
   }
 
   return (
@@ -444,12 +444,12 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 7,
-          padding: "5px 8px 7px",
-          fontSize: 10.5,
+          gap: 8,
+          padding: "4px 8px 8px",
+          fontSize: "var(--text-micro)",
           color: "var(--text-dim)",
           borderBottom: "1px solid var(--border)",
-          marginBottom: 3,
+          marginBottom: 4,
         }}
       >
         <span
@@ -530,7 +530,7 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
         />
       ))}
       {roots.length === 0 && (
-        <div style={{ padding: "8px 12px", fontSize: 11, color: "var(--text-dim)" }}>
+        <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
           {t("noFilesFound", "No files found")}
         </div>
       )}

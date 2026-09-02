@@ -34,12 +34,12 @@ test("channel bubbles keep distinct light/dark brand palettes; local follows the
     assert.equal(dark.foreground, "#faf9f7");
   }
 
-  // local bubble: theme-aware through chat.css tokens (field bg + ink text)
+  // local bubble: theme-aware through chat.css tokens (bubble bg + ink text)
   const localLight = getUserBubbleStyle(undefined, false);
   const localDark = getUserBubbleStyle(undefined, true);
-  assert.equal(localLight.background, "var(--bui-field)");
+  assert.equal(localLight.background, "var(--bui-bubble)");
   assert.equal(localLight.foreground, "var(--bui-ink)");
-  assert.equal(localDark.background, "var(--bui-field)");
+  assert.equal(localDark.background, "var(--bui-bubble)");
   assert.equal(localDark.foreground, "var(--bui-ink)");
   assert.deepEqual(localLight, localDark);
 });
@@ -54,10 +54,10 @@ test("every channel bubble palette meets WCAG AA text contrast", () => {
 });
 
 test("the local bubble tokens meet WCAG AA text contrast in both themes", () => {
-  // field/ink pairs from chat.css (Beautiful UI palette)
+  // bubble/ink pairs from chat.css (Vercel A palette: gray-200 bubble)
   const pairs = [
-    { background: "#f2f2f3", foreground: "#1f2124" }, // light field / ink
-    { background: "#2b2c2f", foreground: "#f2f3f4" }, // dark field / ink
+    { background: "#eaeaea", foreground: "#0a0a0a" }, // light bubble / ink
+    { background: "#262626", foreground: "#ededed" }, // dark bubble / ink
   ];
   for (const { background, foreground } of pairs) {
     assert.ok(contrastRatio(background, foreground) >= 4.5, `${background}/${foreground}`);

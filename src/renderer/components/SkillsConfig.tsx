@@ -62,7 +62,7 @@ function Toggle({ enabled, loading, onToggle }: { enabled: boolean; loading: boo
         flexShrink: 0,
         width: 48,
         height: 32,
-        borderRadius: 16,
+        borderRadius: "var(--radius-pill)",
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
@@ -188,12 +188,12 @@ const SkillDetail = forwardRef<
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Path + tag + toggle */}
-      <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span
           style={{
-            fontSize: 10,
-            padding: "1px 5px",
-            borderRadius: 3,
+            fontSize: "var(--text-micro)",
+            padding: "1px 4px",
+            borderRadius: "var(--radius-chip)",
             flexShrink: 0,
             background: label === "project" ? "rgba(99,102,241,0.12)" : "rgba(120,120,120,0.12)",
             color: label === "project" ? "rgba(99,102,241,0.8)" : "var(--text-dim)",
@@ -204,7 +204,7 @@ const SkillDetail = forwardRef<
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 11,
+            fontSize: "var(--text-meta)",
             color: "var(--text-dim)",
             flex: 1,
             overflow: "hidden",
@@ -215,15 +215,19 @@ const SkillDetail = forwardRef<
           {displayPath(skill.filePath)}
         </span>
         <Toggle enabled={enabled} loading={toggling} onToggle={() => onToggle(skill)} />
-        {saveError && <span style={{ fontSize: 12, color: "#f87171", flexShrink: 0 }}>{saveError}</span>}
+        {saveError && (
+          <span style={{ fontSize: "var(--text-label)", color: "var(--danger)", flexShrink: 0 }}>{saveError}</span>
+        )}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>{t("name", "Name")}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
+          {t("name", "Name")}
+        </span>
         <span
           style={{
             fontFamily: "var(--font-mono)",
-            fontSize: 14,
+            fontSize: "var(--text-body-lg)",
             color: "var(--text)",
           }}
         >
@@ -231,9 +235,9 @@ const SkillDetail = forwardRef<
         </span>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 7, minHeight: 260 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 260 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+          <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
             {t("skillFileName", "SKILL.md")}
           </span>
           <button
@@ -242,20 +246,20 @@ const SkillDetail = forwardRef<
             disabled={contentLoading || contentSaving || content === savedContent}
             style={{
               minHeight: 32,
-              padding: "0 11px",
-              borderRadius: 5,
+              padding: "0 12px",
+              borderRadius: "var(--radius-control)",
               border: "1px solid var(--border)",
               background: content !== savedContent ? "var(--accent)" : "var(--bg-panel)",
-              color: content !== savedContent ? "#fff" : "var(--text-dim)",
+              color: content !== savedContent ? "var(--on-accent)" : "var(--text-dim)",
               cursor: contentLoading || contentSaving || content === savedContent ? "default" : "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
             }}
           >
             {contentSaving ? t("saving", "Saving…") : t("saveChanges", "Save changes")}
           </button>
         </div>
         {contentLoading ? (
-          <div style={{ padding: 12, color: "var(--text-dim)", fontSize: 12 }}>
+          <div style={{ padding: 12, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
             {t("loadingSkillFile", "Loading skill file…")}
           </div>
         ) : (
@@ -271,25 +275,27 @@ const SkillDetail = forwardRef<
               minHeight: 240,
               resize: "vertical",
               border: "1px solid var(--border)",
-              borderRadius: 7,
+              borderRadius: "var(--radius-card)",
               background: "var(--bg-panel)",
               color: "var(--text)",
               padding: 12,
               fontFamily: "var(--font-mono)",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               lineHeight: 1.55,
               outline: "none",
             }}
           />
         )}
-        {contentError && <span style={{ fontSize: 11, color: "#f87171" }}>{contentError}</span>}
+        {contentError && <span style={{ fontSize: "var(--text-meta)", color: "var(--danger)" }}>{contentError}</span>}
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-        <span style={{ fontSize: 12, color: "var(--text-muted)", fontWeight: 500 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
           {t("description", "Description")}
         </span>
-        <span style={{ fontSize: 14, color: "var(--text-muted)", lineHeight: 1.6 }}>{skill.description}</span>
+        <span style={{ fontSize: "var(--text-body-lg)", color: "var(--text-muted)", lineHeight: 1.6 }}>
+          {skill.description}
+        </span>
       </div>
     </div>
   );
@@ -408,7 +414,9 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
           marginBottom: 20,
         }}
       >
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{t("addSkill", "Add skill")}</div>
+        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 600, color: "var(--text)" }}>
+          {t("addSkill", "Add skill")}
+        </div>
 
         {/* Search row */}
         <div style={{ display: "flex", gap: 8 }}>
@@ -425,11 +433,11 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
             style={{
               flex: 1,
               minHeight: 36,
-              padding: "7px 10px",
-              fontSize: 13,
+              padding: "8px 12px",
+              fontSize: "var(--text-body)",
               background: "var(--bg-panel)",
               border: "1px solid var(--border)",
-              borderRadius: 6,
+              borderRadius: "var(--radius-control)",
               color: "var(--text)",
               outline: "none",
             }}
@@ -440,12 +448,12 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
             disabled={searching || !query.trim()}
             style={{
               minHeight: 36,
-              padding: "7px 16px",
-              fontSize: 13,
-              borderRadius: 6,
+              padding: "8px 16px",
+              fontSize: "var(--text-body)",
+              borderRadius: "var(--radius-control)",
               border: "none",
-              background: "var(--accent)",
-              color: "#fff",
+              background: "var(--btn-bg)",
+              color: "var(--btn-fg)",
               cursor: searching || !query.trim() ? "not-allowed" : "pointer",
               opacity: searching || !query.trim() ? 0.5 : 1,
               flexShrink: 0,
@@ -456,14 +464,14 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
         </div>
 
         {/* Scope + install path row */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <div
             style={{
               display: "flex",
-              borderRadius: 5,
+              borderRadius: "var(--radius-control)",
               border: "1px solid var(--border)",
               overflow: "hidden",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               flexShrink: 0,
             }}
           >
@@ -472,7 +480,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                 key={s}
                 onClick={() => setScope(s)}
                 style={{
-                  padding: "3px 10px",
+                  padding: "4px 12px",
                   border: "none",
                   cursor: "pointer",
                   background: scope === s ? "var(--bg-selected)" : "none",
@@ -487,7 +495,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
           </div>
           <span
             style={{
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               color: "var(--text-dim)",
               fontFamily: "var(--font-mono)",
               overflow: "hidden",
@@ -500,7 +508,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
         </div>
 
         {/* Errors */}
-        {searchError && <div style={{ fontSize: 12, color: "#f87171" }}>{searchError}</div>}
+        {searchError && <div style={{ fontSize: "var(--text-label)", color: "var(--danger)" }}>{searchError}</div>}
         {capabilityIssue && pendingInstallPackage && (
           <CapabilityRequired
             issue={capabilityIssue}
@@ -512,7 +520,11 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
             }}
           />
         )}
-        {installError && <div style={{ fontSize: 12, color: "#f87171", wordBreak: "break-word" }}>{installError}</div>}
+        {installError && (
+          <div style={{ fontSize: "var(--text-label)", color: "var(--danger)", wordBreak: "break-word" }}>
+            {installError}
+          </div>
+        )}
       </div>
 
       {/* ── Results list ── */}
@@ -531,7 +543,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 14,
+                  gap: 16,
                   padding: "12px 0",
                   borderBottom: "1px solid var(--border)",
                 }}
@@ -540,10 +552,10 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                   {/* skill name prominent */}
                   <div
                     style={{
-                      fontSize: 13,
+                      fontSize: "var(--text-body)",
                       fontWeight: 600,
                       color: "var(--text)",
-                      marginBottom: 3,
+                      marginBottom: 4,
                     }}
                   >
                     {skillpart ?? repopart}
@@ -553,14 +565,14 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      gap: 10,
+                      gap: 12,
                       flexWrap: "wrap",
                     }}
                   >
                     <span
                       style={{
                         fontFamily: "var(--font-mono)",
-                        fontSize: 11,
+                        fontSize: "var(--text-meta)",
                         color: "var(--text-dim)",
                       }}
                     >
@@ -569,7 +581,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                     {r.installs > 0 && (
                       <span
                         style={{
-                          fontSize: 12,
+                          fontSize: "var(--text-label)",
                           color: "var(--text-muted)",
                           fontWeight: 500,
                         }}
@@ -586,7 +598,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                         target="_blank"
                         rel="noreferrer"
                         style={{
-                          fontSize: 12,
+                          fontSize: "var(--text-label)",
                           color: "var(--accent)",
                           textDecoration: "none",
                         }}
@@ -601,14 +613,14 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
                   disabled={isInstalled || isInstalling || installing !== null}
                   style={{
                     flexShrink: 0,
-                    padding: "5px 14px",
-                    fontSize: 12,
+                    padding: "4px 16px",
+                    fontSize: "var(--text-label)",
                     fontWeight: 500,
-                    borderRadius: 5,
+                    borderRadius: "var(--radius-control)",
                     border: "1px solid var(--border)",
                     cursor: isInstalled || isInstalling || installing !== null ? "not-allowed" : "pointer",
                     background: isInstalled ? "rgba(34,197,94,0.1)" : "none",
-                    color: isInstalled ? "#16a34a" : isInstalling ? "var(--accent)" : "var(--text-muted)",
+                    color: isInstalled ? "var(--success)" : isInstalling ? "var(--accent)" : "var(--text-muted)",
                     transition: "color 0.12s",
                   }}
                 >
@@ -625,7 +637,7 @@ function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => v
       ) : (
         !searchError &&
         !searching && (
-          <div style={{ fontSize: 13, color: "var(--text-dim)", lineHeight: 1.8 }}>
+          <div style={{ fontSize: "var(--text-body)", color: "var(--text-dim)", lineHeight: 1.8 }}>
             {t("searchSkillsCatalogPrefix", "Search")}{" "}
             <a
               href="https://skills.sh"
@@ -849,16 +861,18 @@ export const SkillsConfig = forwardRef<
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
-              padding: "12px 18px",
+              padding: "12px 20px",
               borderBottom: "1px solid var(--border)",
               flexShrink: 0,
             }}
           >
-            <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{t("skills", "Skills")}</span>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+                {t("skills", "Skills")}
+              </span>
               <code
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-meta)",
                   color: "var(--text-muted)",
                   fontFamily: "var(--font-mono)",
                   maxWidth: 320,
@@ -877,9 +891,9 @@ export const SkillsConfig = forwardRef<
                 border: "none",
                 color: "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 20,
+                fontSize: "var(--text-display)",
                 lineHeight: 1,
-                padding: "2px 6px",
+                padding: "2px 8px",
               }}
             >
               ×
@@ -902,12 +916,12 @@ export const SkillsConfig = forwardRef<
               background: "var(--bg-panel)",
             }}
           >
-            <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px" }}>
+            <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
               {loading ? (
                 <div
                   style={{
-                    padding: "10px 8px",
-                    fontSize: 12,
+                    padding: "12px 8px",
+                    fontSize: "var(--text-label)",
                     color: "var(--text-muted)",
                   }}
                 >
@@ -916,9 +930,9 @@ export const SkillsConfig = forwardRef<
               ) : error ? (
                 <div
                   style={{
-                    padding: "10px 8px",
-                    fontSize: 11,
-                    color: "#f87171",
+                    padding: "12px 8px",
+                    fontSize: "var(--text-meta)",
+                    color: "var(--danger)",
                   }}
                 >
                   {error}
@@ -926,8 +940,8 @@ export const SkillsConfig = forwardRef<
               ) : skills.length === 0 ? (
                 <div
                   style={{
-                    padding: "10px 8px",
-                    fontSize: 11,
+                    padding: "12px 8px",
+                    fontSize: "var(--text-meta)",
                     color: "var(--text-dim)",
                   }}
                 >
@@ -941,11 +955,11 @@ export const SkillsConfig = forwardRef<
                     if (grpSkills.length > 0) groups.push({ label: grpLabel, skills: grpSkills });
                   }
                   return groups.map(({ label: grpLabel, skills: grpSkills }) => (
-                    <div key={grpLabel} style={{ marginBottom: 6 }}>
+                    <div key={grpLabel} style={{ marginBottom: 8 }}>
                       <div
                         style={{
-                          padding: "4px 8px 3px",
-                          fontSize: 10,
+                          padding: "4px 8px 4px",
+                          fontSize: "var(--text-micro)",
                           fontWeight: 600,
                           color: "var(--text-dim)",
                           textTransform: "uppercase",
@@ -970,9 +984,9 @@ export const SkillsConfig = forwardRef<
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 7,
+                              gap: 8,
                               padding: "8px 8px",
-                              borderRadius: 5,
+                              borderRadius: "var(--radius-control)",
                               cursor: "pointer",
                               background: isSelected ? "var(--bg-selected)" : "none",
                             }}
@@ -996,7 +1010,7 @@ export const SkillsConfig = forwardRef<
                             />
                             <span
                               style={{
-                                fontSize: 12,
+                                fontSize: "var(--text-label)",
                                 fontWeight: isSelected ? 600 : 400,
                                 color: disabled ? "var(--text-dim)" : "var(--text)",
                                 fontFamily: "var(--font-mono)",
@@ -1019,7 +1033,7 @@ export const SkillsConfig = forwardRef<
             {/* Add skill button */}
             <div
               style={{
-                padding: "8px 6px",
+                padding: "8px 8px",
                 borderTop: "1px solid var(--border)",
                 flexShrink: 0,
               }}
@@ -1029,13 +1043,13 @@ export const SkillsConfig = forwardRef<
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 6,
-                  padding: "7px 8px",
-                  borderRadius: 5,
+                  gap: 8,
+                  padding: "8px 8px",
+                  borderRadius: "var(--radius-control)",
                   cursor: "pointer",
                   background: addMode ? "var(--bg-selected)" : "none",
                   color: addMode ? "var(--accent)" : "var(--text-dim)",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                 }}
                 onMouseEnter={(e) => {
                   if (!addMode) e.currentTarget.style.background = "var(--bg-hover)";
@@ -1091,7 +1105,7 @@ export const SkillsConfig = forwardRef<
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--text-dim)",
-                  fontSize: 13,
+                  fontSize: "var(--text-body)",
                 }}
               >
                 {t("selectSkill", "Select a skill")}
@@ -1107,7 +1121,7 @@ export const SkillsConfig = forwardRef<
               display: "flex",
               alignItems: "center",
               justifyContent: "flex-end",
-              padding: "10px 18px",
+              padding: "12px 20px",
               borderTop: "1px solid var(--border)",
               flexShrink: 0,
             }}
@@ -1115,13 +1129,13 @@ export const SkillsConfig = forwardRef<
             <button
               onClick={() => requestTransition(onClose)}
               style={{
-                padding: "6px 14px",
+                padding: "8px 16px",
                 background: "none",
                 border: "1px solid var(--border)",
-                borderRadius: 6,
+                borderRadius: "var(--radius-control)",
                 color: "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 13,
+                fontSize: "var(--text-body)",
               }}
             >
               {t("close", "Close")}
@@ -1159,17 +1173,24 @@ export const SkillsConfig = forwardRef<
             style={{
               width: 420,
               maxWidth: "100%",
-              padding: 18,
+              padding: 20,
               border: "1px solid var(--border)",
-              borderRadius: 9,
+              borderRadius: "var(--radius-card)",
               background: "var(--bg)",
               boxShadow: "0 16px 48px rgba(0,0,0,0.3)",
             }}
           >
-            <h3 id="unsaved-skill-title" style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>
+            <h3 id="unsaved-skill-title" style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
               {t("unsavedSkillChanges", "Unsaved skill changes")}
             </h3>
-            <p style={{ margin: "8px 0 16px", fontSize: 12, lineHeight: 1.55, color: "var(--text-muted)" }}>
+            <p
+              style={{
+                margin: "8px 0 16px",
+                fontSize: "var(--text-label)",
+                lineHeight: 1.55,
+                color: "var(--text-muted)",
+              }}
+            >
               {t("unsavedSkillChangesDescription", "Save your SKILL.md changes before leaving this editor?")}
             </p>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
@@ -1195,9 +1216,9 @@ export const SkillsConfig = forwardRef<
                 onClick={() => void saveAndContinue()}
                 style={{
                   ...leavePromptButtonStyle,
-                  borderColor: "var(--accent)",
-                  background: "var(--accent)",
-                  color: "#fff",
+                  borderColor: "transparent",
+                  background: "var(--btn-bg)",
+                  color: "var(--btn-fg)",
                 }}
               >
                 {transitionSaving ? t("saving", "Saving…") : t("save", "Save")}
@@ -1212,11 +1233,11 @@ export const SkillsConfig = forwardRef<
 
 const leavePromptButtonStyle: React.CSSProperties = {
   minHeight: 34,
-  padding: "6px 12px",
+  padding: "8px 12px",
   border: "1px solid var(--border)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg-panel)",
   color: "var(--text-muted)",
   cursor: "pointer",
-  fontSize: 12,
+  fontSize: "var(--text-label)",
 };

@@ -522,7 +522,7 @@ export function ChatWindow({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 10,
+                  gap: 12,
                   lineHeight: 1.4,
                 }}
               >
@@ -558,7 +558,7 @@ export function ChatWindow({
               style={
                 {
                   "--line-i": 1,
-                  marginTop: 14,
+                  marginTop: 16,
                   marginBottom: 12,
                   fontSize: scaledChatFont(13),
                   lineHeight: 1.6,
@@ -609,12 +609,12 @@ export function ChatWindow({
                         onClick={() => void loadOlder()}
                         style={{
                           border: "1px solid var(--border)",
-                          borderRadius: 7,
+                          borderRadius: "var(--radius-card)",
                           background: "var(--bg-panel)",
                           color: "var(--text-muted)",
                           cursor: loadingOlder ? "default" : "pointer",
                           fontSize: scaledChatFont(11),
-                          padding: "5px 10px",
+                          padding: "4px 12px",
                         }}
                       >
                         {loadingOlder ? "Loading earlier messages…" : "Load earlier messages"}
@@ -988,18 +988,18 @@ export function ChatWindow({
 function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text: string }> }) {
   if (statuses.length === 0) return null;
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
       {statuses.map((status) => (
         <div
           key={status.key}
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 8,
             maxWidth: "100%",
             padding: "4px 8px",
             border: "1px solid color-mix(in srgb, var(--accent) 24%, var(--border))",
-            borderRadius: 6,
+            borderRadius: "var(--radius-control)",
             background: "color-mix(in srgb, var(--accent) 7%, var(--bg))",
             color: "var(--text-muted)",
             fontSize: scaledChatFont(12),
@@ -1020,20 +1020,20 @@ function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text:
 function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: string[] }> }) {
   if (widgets.length === 0) return null;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
       {widgets.map((widget) => (
         <div
           key={widget.key}
           style={{
             border: "1px solid var(--border)",
-            borderRadius: 7,
+            borderRadius: "var(--radius-card)",
             background: "var(--bg-panel)",
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              padding: "5px 9px",
+              padding: "4px 8px",
               borderBottom: "1px solid var(--border)",
               color: "var(--text-dim)",
               fontSize: scaledChatFont(11),
@@ -1045,7 +1045,7 @@ function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; lines: st
           <pre
             style={{
               margin: 0,
-              padding: "8px 9px",
+              padding: "8px 8px",
               color: "var(--text-muted)",
               fontSize: scaledChatFont(12),
               lineHeight: 1.5,
@@ -1098,20 +1098,20 @@ function NoticeShelf({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 10,
+              gap: 12,
               minHeight: 60,
               height: 60,
               maxHeight: 60,
               marginBottom: index === notices.length - 1 ? 0 : 6,
               overflow: "hidden",
-              borderRadius: 14,
+              borderRadius: "var(--bui-r-card)",
               border: "1px solid var(--bui-line)",
               background: "var(--bui-surface)",
               color: "var(--bui-ink-2)",
               width: "fit-content",
               maxWidth: "min(100%, 620px)",
               boxShadow: floating ? "var(--bui-shadow-card)" : "var(--bui-shadow-btn)",
-              fontSize: 18,
+              fontSize: "var(--text-heading-lg)",
               lineHeight: 1.45,
               transformOrigin: "top center",
               animation: notice.exiting
@@ -1131,7 +1131,7 @@ function NoticeShelf({
             />
             <span
               style={{
-                padding: "14px 0",
+                padding: "16px 0",
                 minWidth: 0,
                 maxWidth: "100%",
                 overflow: "hidden",
@@ -1193,17 +1193,17 @@ function ExtensionDialog({
         style={{
           width: "min(560px, 100%)",
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg)",
           boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
           overflow: "hidden",
         }}
       >
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--border)" }}>
+        <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
           <div style={{ color: "var(--text)", fontSize: scaledChatFont(14), fontWeight: 650 }}>{request.title}</div>
           <div
             style={{
-              marginTop: 3,
+              marginTop: 4,
               color: "var(--text-dim)",
               fontSize: scaledChatFont(11),
               fontFamily: "var(--font-mono)",
@@ -1213,7 +1213,7 @@ function ExtensionDialog({
           </div>
         </div>
 
-        <div style={{ padding: 14 }}>
+        <div style={{ padding: 16 }}>
           {request.method === "confirm" && (
             <div
               style={{
@@ -1234,8 +1234,8 @@ function ExtensionDialog({
                   onClick={() => onRespond(request, { value: option })}
                   style={{
                     width: "100%",
-                    padding: "9px 10px",
-                    borderRadius: 7,
+                    padding: "8px 12px",
+                    borderRadius: "var(--radius-card)",
                     border: "1px solid var(--border)",
                     background: "var(--bg-panel)",
                     color: "var(--text)",
@@ -1261,8 +1261,8 @@ function ExtensionDialog({
               }}
               style={{
                 width: "100%",
-                padding: "9px 10px",
-                borderRadius: 7,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-card)",
                 border: "1px solid var(--border)",
                 background: "var(--bg-panel)",
                 color: "var(--text)",
@@ -1283,8 +1283,8 @@ function ExtensionDialog({
               style={{
                 width: "100%",
                 minHeight: 220,
-                padding: 10,
-                borderRadius: 7,
+                padding: 12,
+                borderRadius: "var(--radius-card)",
                 border: "1px solid var(--border)",
                 background: "var(--bg-panel)",
                 color: "var(--text)",
@@ -1303,7 +1303,7 @@ function ExtensionDialog({
             display: "flex",
             justifyContent: "flex-end",
             gap: 8,
-            padding: "10px 14px",
+            padding: "12px 16px",
             borderTop: "1px solid var(--border)",
             background: "var(--bg-panel)",
           }}
@@ -1311,8 +1311,8 @@ function ExtensionDialog({
           <button
             onClick={() => onRespond(request, { cancelled: true })}
             style={{
-              padding: "6px 10px",
-              borderRadius: 6,
+              padding: "8px 12px",
+              borderRadius: "var(--radius-control)",
               border: "1px solid var(--border)",
               background: "var(--bg)",
               color: "var(--text-muted)",
@@ -1325,11 +1325,12 @@ function ExtensionDialog({
             <button
               onClick={submitValue}
               style={{
-                padding: "6px 10px",
-                borderRadius: 6,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-control)",
                 border: "1px solid var(--accent)",
-                background: "var(--accent)",
-                color: "#fff",
+                background: "var(--btn-bg)",
+                borderColor: "transparent",
+                color: "var(--btn-fg)",
                 cursor: "pointer",
               }}
             >
@@ -1339,11 +1340,12 @@ function ExtensionDialog({
             <button
               onClick={submitValue}
               style={{
-                padding: "6px 10px",
-                borderRadius: 6,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-control)",
                 border: "1px solid var(--accent)",
-                background: "var(--accent)",
-                color: "#fff",
+                background: "var(--btn-bg)",
+                borderColor: "transparent",
+                color: "var(--btn-fg)",
                 cursor: "pointer",
               }}
             >
@@ -1446,7 +1448,7 @@ function ExtensionCustomPanel({
           width: "min(920px, 100%)",
           maxHeight: "min(760px, calc(100vh - 40px))",
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg)",
           boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
           overflow: "hidden",
@@ -1459,7 +1461,7 @@ function ExtensionCustomPanel({
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            padding: "10px 12px",
+            padding: "12px 12px",
             borderBottom: "1px solid var(--border)",
           }}
         >
@@ -1467,8 +1469,8 @@ function ExtensionCustomPanel({
           <button
             onClick={() => onInput(request, "\x03")}
             style={{
-              padding: "5px 9px",
-              borderRadius: 6,
+              padding: "4px 8px",
+              borderRadius: "var(--radius-control)",
               border: "1px solid var(--border)",
               background: "var(--bg-panel)",
               color: "var(--text-muted)",
@@ -1482,7 +1484,7 @@ function ExtensionCustomPanel({
         <pre
           style={{
             margin: 0,
-            padding: 14,
+            padding: 16,
             maxHeight: "calc(min(760px, 100vh - 40px) - 48px)",
             overflow: "auto",
             background: "var(--bg-panel)",

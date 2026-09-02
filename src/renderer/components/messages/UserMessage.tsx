@@ -121,7 +121,7 @@ export function UserMessageView({
                     style={{
                       maxWidth: 240,
                       maxHeight: 240,
-                      borderRadius: 6,
+                      borderRadius: "var(--radius-control)",
                       objectFit: "contain",
                       display: "block",
                       border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,

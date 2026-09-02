@@ -99,7 +99,7 @@ export function App() {
         <div style={cardStyle}>
           <h1 style={titleStyle}>Cannot connect to Agent Host</h1>
           <p style={bodyStyle}>{error}</p>
-          <p style={{ ...bodyStyle, fontSize: 12 }}>
+          <p style={{ ...bodyStyle, fontSize: "var(--text-label)" }}>
             Host must be running (utilityProcess). Check logs if this persists.
           </p>
           <button type="button" onClick={() => window.location.reload()} style={btnPrimary}>
@@ -117,8 +117,8 @@ export function App() {
     return (
       <div style={centerStyle}>
         <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 8 }}>{status}</div>
-          <div style={{ fontSize: 12, color: "var(--text-dim)" }}>Dexon</div>
+          <div style={{ fontSize: "var(--text-body)", color: "var(--text-muted)", marginBottom: 8 }}>{status}</div>
+          <div style={{ fontSize: "var(--text-label)", color: "var(--text-dim)" }}>Dexon</div>
         </div>
       </div>
     );
@@ -155,20 +155,20 @@ const cardStyle: CSSProperties = {
 };
 
 const titleStyle: CSSProperties = {
-  fontSize: 18,
+  fontSize: "var(--text-heading-lg)",
   margin: "0 0 12px",
   fontFamily: "var(--font-mono)",
 };
 
 const bodyStyle: CSSProperties = {
-  fontSize: 13.5,
+  fontSize: "var(--text-body)",
   lineHeight: 1.55,
   color: "var(--text-muted)",
   margin: "0 0 8px",
 };
 
 const preStyle: CSSProperties = {
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
   overflow: "auto",
   maxHeight: 200,
   background: "var(--tool-bg)",
@@ -176,13 +176,13 @@ const preStyle: CSSProperties = {
   border: "1px solid var(--tool-border)",
   fontFamily: "var(--font-mono)",
   padding: 12,
-  borderRadius: 8,
+  borderRadius: "var(--radius-card)",
 };
 
 const btnPrimary: CSSProperties = {
   marginTop: 16,
-  padding: "8px 14px",
-  borderRadius: 8,
+  padding: "8px 16px",
+  borderRadius: "var(--radius-card)",
   border: "1px solid var(--border)",
   background: "var(--user-bg)",
   color: "var(--user-fg)",

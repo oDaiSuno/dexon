@@ -388,10 +388,10 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
           lineNumberStyle={{ color: "var(--text-dim)", fontStyle: "normal" }}
           customStyle={{
             margin: 0,
-            padding: "11px 13px",
+            padding: "12px 12px",
             fontSize: scaledChatFont(12.5),
             lineHeight: 1.62,
-            borderRadius: 0,
+            borderRadius: "0",
             background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
           }}
           codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
@@ -402,7 +402,7 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
         <pre
           style={{
             margin: 0,
-            padding: "11px 13px",
+            padding: "12px 12px",
             fontSize: scaledChatFont(12.5),
             lineHeight: 1.62,
             overflow: "auto",

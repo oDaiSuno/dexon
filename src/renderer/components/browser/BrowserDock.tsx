@@ -138,7 +138,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
     return (
       <div style={emptyStyle}>
         <div>{t("browserDisabled", "Built-in Browser is disabled.")}</div>
-        <div style={{ marginTop: 7, color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
           {t("browserEnableInSettings", "Enable it in Settings → Browser.")}
         </div>
       </div>
@@ -153,7 +153,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           alignItems: "center",
           gap: 4,
           minHeight: 34,
-          padding: "3px 5px",
+          padding: "4px 4px",
           borderBottom: "1px solid var(--border)",
           overflowX: "auto",
           background: "var(--bg-panel)",
@@ -171,14 +171,14 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
               height: 27,
               display: "flex",
               alignItems: "center",
-              gap: 5,
-              padding: "0 7px",
+              gap: 4,
+              padding: "0 8px",
               background: tab.id === state.activeTabId ? "var(--bg)" : "transparent",
-              color: tab.crashed ? "#d45" : "var(--text-muted)",
+              color: tab.crashed ? "var(--danger)" : "var(--text-muted)",
               border: `1px solid ${tab.id === state.activeTabId ? "var(--border)" : "transparent"}`,
-              borderRadius: 5,
+              borderRadius: "var(--radius-control)",
               cursor: "pointer",
-              fontSize: 10,
+              fontSize: "var(--text-micro)",
             }}
           >
             {tab.loading ? (
@@ -226,7 +226,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           display: "flex",
           alignItems: "center",
           gap: 4,
-          padding: 5,
+          padding: 4,
           borderBottom: "1px solid var(--border)",
           background: "var(--bg-panel)",
         }}
@@ -276,12 +276,12 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
               width: "100%",
               height: 29,
               boxSizing: "border-box",
-              padding: "0 9px",
-              border: `1px solid ${activeTab?.url.startsWith("http:") ? "#d9872f" : "var(--border)"}`,
-              borderRadius: 6,
+              padding: "0 8px",
+              border: `1px solid ${activeTab?.url.startsWith("http:") ? "var(--warning-border)" : "var(--border)"}`,
+              borderRadius: "var(--radius-control)",
               background: "var(--bg)",
               color: "var(--text)",
-              fontSize: 11,
+              fontSize: "var(--text-meta)",
               outline: "none",
             }}
           />
@@ -324,13 +324,13 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           style={{
             display: "grid",
             gap: 4,
-            padding: "5px 7px",
+            padding: "4px 8px",
             borderBottom: "1px solid var(--border)",
             background: "var(--bg-panel)",
-            fontSize: 10,
+            fontSize: "var(--text-micro)",
           }}
         >
-          {error && <div style={{ color: "#d45" }}>{error}</div>}
+          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
           {state.permissionRequests.map((request) => (
             <PermissionPrompt key={request.id} request={request} onRespond={refresh} />
           ))}
@@ -351,7 +351,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
         <div style={emptyStyle}>
           <div>{t("browserTabCrashed", "This tab’s renderer crashed.")}</div>
           <button
-            style={{ ...primaryButtonStyle, marginTop: 9 }}
+            style={{ ...primaryButtonStyle, marginTop: 8 }}
             onClick={() => void window.piBridge.browserReload(activeTab.id)}
           >
             {t("browserReload", "Reload")}
@@ -371,11 +371,11 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
             minHeight: 22,
             display: "flex",
             alignItems: "center",
-            gap: 6,
-            padding: "0 7px",
+            gap: 8,
+            padding: "0 8px",
             borderTop: "1px solid var(--border)",
             color: "var(--text-dim)",
-            fontSize: 9,
+            fontSize: "var(--text-micro)",
             background: "var(--bg-panel)",
           }}
         >
@@ -410,7 +410,7 @@ function PermissionPrompt({
   const respond = (decision: "allow-once" | "allow-session" | "deny") =>
     void window.piBridge.browserRespondPermission(request.id, decision).then(onRespond);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-muted)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)" }}>
       <span style={{ flex: 1 }}>
         {formatMessage(t("browserPermissionRequest", "{origin} requests {permission}"), {
           origin: request.origin,
@@ -435,7 +435,7 @@ function DownloadStatus({ download }: { download: BrowserDownloadInfo }) {
   const percent = download.totalBytes > 0 ? Math.round((download.receivedBytes / download.totalBytes) * 100) : null;
   const stateLabel = downloadStateLabel(t, download.state);
   return (
-    <div style={{ color: download.state === "interrupted" ? "#d45" : "var(--text-dim)" }}>
+    <div style={{ color: download.state === "interrupted" ? "var(--danger)" : "var(--text-dim)" }}>
       {formatMessage(t("browserDownloadStatus", "Download {filename}: {state}{percent}"), {
         filename: download.filename,
         state: stateLabel,
@@ -449,11 +449,11 @@ function Badge({ children, danger }: { children: string; danger?: boolean }) {
   return (
     <span
       style={{
-        padding: "1px 3px",
-        borderRadius: 3,
-        color: danger ? "#d45" : "#b87924",
-        border: `1px solid ${danger ? "#d45" : "#b87924"}`,
-        fontSize: 7,
+        padding: "1px 4px",
+        borderRadius: "var(--radius-chip)",
+        color: danger ? "var(--danger)" : "var(--warning)",
+        border: `1px solid ${danger ? "var(--danger)" : "var(--warning)"}`,
+        fontSize: "var(--text-micro)",
         fontWeight: 700,
       }}
     >
@@ -541,10 +541,10 @@ const emptyStyle = {
   flexDirection: "column" as const,
   alignItems: "center",
   justifyContent: "center",
-  padding: 18,
+  padding: 20,
   textAlign: "center" as const,
   color: "var(--text-muted)",
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
 };
 const iconButtonStyle = {
   width: 28,
@@ -555,37 +555,37 @@ const iconButtonStyle = {
   justifyContent: "center",
   padding: 0,
   border: "1px solid transparent",
-  borderRadius: 5,
+  borderRadius: "var(--radius-control)",
   background: "transparent",
   color: "var(--text-muted)",
   cursor: "pointer",
-  fontSize: 14,
+  fontSize: "var(--text-body-lg)",
 };
 const selectStyle = {
   height: 29,
   border: "1px solid var(--border)",
-  borderRadius: 5,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text-muted)",
-  fontSize: 10,
+  fontSize: "var(--text-micro)",
 };
 const primaryButtonStyle = {
   minHeight: 32,
   padding: "0 12px",
   border: "1px solid var(--accent)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--accent-soft)",
   color: "var(--accent)",
   cursor: "pointer",
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
 };
 const tinyButtonStyle = {
   minHeight: 22,
-  padding: "0 6px",
+  padding: "0 8px",
   border: "1px solid var(--border)",
-  borderRadius: 4,
+  borderRadius: "var(--radius-chip)",
   background: "var(--bg)",
   color: "var(--text-muted)",
   cursor: "pointer",
-  fontSize: 9,
+  fontSize: "var(--text-micro)",
 };

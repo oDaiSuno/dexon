@@ -169,7 +169,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
 
   return (
     <>
-      <div ref={rootRef} style={{ position: "relative", marginLeft: 10, minWidth: 0, flexShrink: 1 }}>
+      <div ref={rootRef} style={{ position: "relative", marginLeft: 12, minWidth: 0, flexShrink: 1 }}>
         <button
           ref={triggerRef}
           type="button"
@@ -185,15 +185,15 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
           style={{
             minWidth: 0,
             maxWidth: isMobile ? 148 : 280,
-            padding: "5px 9px",
+            padding: "4px 8px",
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 8,
             border: `1px solid ${bound ? `color-mix(in srgb, ${accent} 38%, var(--border))` : "var(--border)"}`,
-            borderRadius: 999,
+            borderRadius: "var(--radius-pill)",
             background: bound ? `color-mix(in srgb, ${accent} 9%, var(--bg-panel))` : "var(--bg)",
             color: "var(--text-muted)",
-            fontSize: 11,
+            fontSize: "var(--text-meta)",
             whiteSpace: "nowrap",
             cursor: "pointer",
             overflow: "hidden",
@@ -216,7 +216,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
               ? ` · ${currentBindings.length} ${t("conversations", "conversations")}`
               : ""}
           </span>
-          <span aria-hidden="true" style={{ fontSize: 9, opacity: 0.7 }}>
+          <span aria-hidden="true" style={{ fontSize: "var(--text-micro)", opacity: 0.7 }}>
             ▾
           </span>
         </button>
@@ -245,17 +245,17 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
               overflowY: "auto",
               overscrollBehavior: "contain",
               border: "1px solid var(--border)",
-              borderRadius: 9,
+              borderRadius: "var(--radius-card)",
               background: "var(--bg)",
               boxShadow: "0 12px 34px rgba(0,0,0,.22)",
               padding: 12,
               outline: "none",
             }}
           >
-            <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 700 }}>
+            <div style={{ color: "var(--text)", fontSize: "var(--text-body)", fontWeight: 700 }}>
               {t("quickChannelBinding", "Quick messaging-channel binding")}
             </div>
-            <div style={{ marginTop: 4, color: "var(--text-dim)", fontSize: 10, lineHeight: 1.5 }}>
+            <div style={{ marginTop: 4, color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
               {t(
                 "quickChannelBindingDescription",
                 "Choose the messaging conversation that should share this active UI session.",
@@ -263,18 +263,22 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
             </div>
 
             {error && (
-              <div style={{ marginTop: 9, color: "#ef4444", fontSize: 11, overflowWrap: "anywhere" }}>{error}</div>
+              <div
+                style={{ marginTop: 8, color: "var(--danger)", fontSize: "var(--text-meta)", overflowWrap: "anywhere" }}
+              >
+                {error}
+              </div>
             )}
 
-            <div style={{ display: "grid", gap: 8, marginTop: 11 }}>
+            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
               {snapshot.bindings.length === 0 ? (
                 <div
                   style={{
                     border: "1px dashed var(--border)",
-                    borderRadius: 7,
+                    borderRadius: "var(--radius-card)",
                     padding: 12,
                     color: "var(--text-dim)",
-                    fontSize: 11,
+                    fontSize: "var(--text-meta)",
                     lineHeight: 1.6,
                   }}
                 >
@@ -296,20 +300,20 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         display: "grid",
                         gridTemplateColumns: "minmax(0,1fr) auto",
                         alignItems: "center",
-                        gap: 10,
+                        gap: 12,
                         border: `1px solid ${boundHere ? "color-mix(in srgb, var(--accent) 35%, var(--border))" : "var(--border)"}`,
-                        borderRadius: 7,
+                        borderRadius: "var(--radius-card)",
                         background: boundHere
                           ? "color-mix(in srgb, var(--accent) 7%, var(--bg-panel))"
                           : "var(--bg-panel)",
-                        padding: "9px 10px",
+                        padding: "8px 12px",
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
                         <div
                           style={{
                             color: "var(--text)",
-                            fontSize: 11,
+                            fontSize: "var(--text-meta)",
                             fontWeight: 650,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
@@ -324,10 +328,10 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         <div
                           title={binding.peerId}
                           style={{
-                            marginTop: 3,
+                            marginTop: 4,
                             color: "var(--text-dim)",
                             fontFamily: "var(--font-mono)",
-                            fontSize: 10,
+                            fontSize: "var(--text-micro)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -338,9 +342,9 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         {(boundHere || boundElsewhere) && (
                           <div
                             style={{
-                              marginTop: 3,
+                              marginTop: 4,
                               color: boundHere ? "var(--accent)" : "var(--text-dim)",
-                              fontSize: 10,
+                              fontSize: "var(--text-micro)",
                             }}
                           >
                             {boundHere
@@ -354,12 +358,12 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         disabled={busyBindingId !== null}
                         onClick={() => void updateBinding(binding, !boundHere)}
                         style={{
-                          border: `1px solid ${boundHere ? "#ef444466" : "var(--accent)"}`,
-                          borderRadius: 6,
-                          background: boundHere ? "var(--bg)" : "var(--accent)",
-                          color: boundHere ? "#ef4444" : "white",
-                          padding: "6px 9px",
-                          fontSize: 10,
+                          border: `1px solid ${boundHere ? "color-mix(in srgb, var(--danger) 40%, transparent)" : "var(--accent)"}`,
+                          borderRadius: "var(--radius-control)",
+                          background: boundHere ? "var(--bg)" : "var(--btn-bg)",
+                          color: boundHere ? "var(--danger)" : "var(--btn-fg)",
+                          padding: "8px 8px",
+                          fontSize: "var(--text-micro)",
                           whiteSpace: "nowrap",
                           cursor: busyBindingId !== null ? "default" : "pointer",
                           opacity: busyBindingId !== null && !busy ? 0.55 : 1,

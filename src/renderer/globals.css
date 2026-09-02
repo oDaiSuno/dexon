@@ -1,5 +1,22 @@
 @import "tailwindcss";
 
+/* Geist (SIL OFL 1.1, © Vercel) — vendored for offline-first; see fonts/LICENSE-Geist.txt.
+   CJK text falls through to system CJK fonts by design. */
+@font-face {
+  font-family: "Geist";
+  src: url("./fonts/GeistSans.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("./fonts/GeistMono.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 @theme {
   --color-bg: var(--bg);
   --color-bg-panel: var(--bg-panel);
@@ -20,91 +37,191 @@
   --color-accent-soft-border: var(--accent-soft-border);
 }
 
-/* Warm paper + orange accent design system (from design.html) */
+/* ─────────────────────────────────────────────────────────
+ * Dexon design system — personality: "Vercel A" (user-approved
+ * 2026-09-03, preview .artifacts/ui-vercel/preview-vercel.html).
+ * Geist Sans/Mono (vendored), monochrome gray ramp + blue accent
+ * reserved for focus/selection/links, black/white inverted primary
+ * buttons, semantic colors only for runtime states.
+ * All app surfaces consume the semantic vars below; raw values live
+ * only in the gray ramp / state colors.
+ * ───────────────────────────────────────────────────────── */
 :root {
-  --bg: #f7f6f3;
-  --bg-panel: #fcfbf9;
-  --bg-hover: #f0eeea;
-  --bg-selected: #fff0e6;
-  --border: #e4e1da;
-  --text: #1c1a17;
-  --text-muted: #57534a;
-  --text-dim: #746f66;
-  --accent: #c2410c;
-  --accent-hover: #9a3412;
+  /* gray ramp — light */
+  --gray-0: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f2f2f2;
+  --gray-200: #eaeaea;
+  --gray-300: #d4d4d4;
+  --gray-400: #a1a1a1;
+  --gray-500: #8f8f8f;
+  --gray-600: #666666;
+  --gray-800: #333333;
+  --gray-900: #171717;
+  --gray-1000: #0a0a0a;
+
+  /* semantic surfaces & ink */
+  --bg: var(--gray-50);
+  --bg-panel: var(--gray-0);
+  --bg-hover: var(--gray-100);
+  --bg-selected: var(--gray-200);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-1000);
+  --text-muted: var(--gray-600);
+  --text-dim: var(--gray-400);
+
+  /* accent: blue, reserved for focus / selection / links */
+  --accent: #0060dd;
+  --accent-hover: #0052c4;
   --accent-contrast: #ffffff;
-  --user-bg: #1c1a17;
-  --user-fg: #faf9f7;
-  --assistant-bg: #ffffff;
-  --tool-bg: #1c1a17;
-  --tool-fg: #c9c5bb;
-  --tool-border: #33302a;
-  --bg-subtle: rgba(28, 26, 23, 0.035);
-  --accent-soft: #fff0e6;
-  --accent-soft-border: #f7d9bd;
-  --accent-chip-bg: #fbeee0;
-  --accent-chip-fg: #8b5e2c;
-  --success: #15803d;
-  --success-soft: rgba(21, 128, 61, 0.09);
-  --success-border: rgba(21, 128, 61, 0.32);
-  --danger: #dc2626;
-  --danger-soft: rgba(220, 38, 38, 0.08);
-  --danger-border: rgba(220, 38, 38, 0.3);
-  --warning: #a16207;
-  --warning-soft: rgba(161, 98, 7, 0.09);
-  --warning-border: rgba(161, 98, 7, 0.32);
-  --info: #0369a1;
-  --info-soft: rgba(3, 105, 161, 0.08);
-  --info-border: rgba(3, 105, 161, 0.3);
+  --accent-soft: rgba(0, 96, 221, 0.08);
+  --accent-soft-border: rgba(0, 96, 221, 0.28);
+  --accent-chip-bg: rgba(0, 96, 221, 0.08);
+  --accent-chip-fg: #0060dd;
+
+  /* primary button: black/white inversion (signature move) */
+  --btn-bg: var(--gray-1000);
+  --btn-bg-hover: var(--gray-900);
+  --btn-fg: #ffffff;
+
+  --user-bg: var(--gray-200);
+  --user-fg: var(--gray-1000);
+  --assistant-bg: var(--gray-0);
+  --tool-bg: var(--gray-1000);
+  --tool-fg: #ededed;
+  --tool-border: var(--gray-800);
+  --bg-subtle: rgba(10, 10, 10, 0.04);
+
+  /* state colors — only ever encode runtime state */
+  --success: #29a383;
+  --success-soft: rgba(41, 163, 131, 0.1);
+  --success-border: rgba(41, 163, 131, 0.32);
+  --danger: #e00000;
+  --danger-soft: rgba(224, 0, 0, 0.08);
+  --danger-border: rgba(224, 0, 0, 0.3);
+  --warning: #f5a623;
+  --warning-soft: rgba(245, 166, 35, 0.12);
+  --warning-border: rgba(245, 166, 35, 0.38);
+  --info: #0060dd;
+  --info-soft: rgba(0, 96, 221, 0.08);
+  --info-border: rgba(0, 96, 221, 0.28);
   --on-accent: var(--accent-contrast);
-  --grid-line: #ece9e2;
-  --selection: #fed7aa;
-  --thinking-bg: #fbfaf8;
-  --thinking-border: #d6d3cd;
+  --on-danger: #ffffff;
+  --grid-line: var(--gray-200);
+  --selection: rgba(0, 96, 221, 0.15);
+  --thinking-bg: var(--gray-50);
+  --thinking-border: var(--gray-200);
+
+  /* data heat scale (reasoning effort etc.) — derived from state anchors,
+     theme-aware by construction; minimal → max */
+  --heat-1: var(--gray-400);
+  --heat-2: color-mix(in srgb, var(--warning) 78%, var(--danger));
+  --heat-3: color-mix(in srgb, var(--warning) 55%, var(--danger));
+  --heat-4: color-mix(in srgb, var(--warning) 32%, var(--danger));
+  --heat-5: color-mix(in srgb, var(--warning) 12%, var(--danger));
+  --heat-6: color-mix(in srgb, var(--danger) 82%, var(--text));
+
+  /* type scale — the only allowed UI font sizes */
+  --text-display: 20px; /* page-defining statements only */
+  --text-heading-lg: 18px; /* panel section headers */
+  --text-title: 16px; /* screen titles */
+  --text-heading: 14px; /* section headings */
+  --text-body-lg: 14px; /* emphasized body / list rows */
+  --text-body: 13px; /* reading & controls */
+  --text-label: 12px; /* compact labels */
+  --text-meta: 11px; /* metadata, timestamps */
+  --text-micro: 10px; /* dense logs only */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* radii — named stops + pill */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-pill: 999px;
+  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+
   --chat-font-scale: 1;
   --chat-content-max-width: 760px;
 }
 
 html.dark {
-  --bg: #141210;
-  --bg-panel: #1c1a17;
-  --bg-hover: #26231f;
-  --bg-selected: #3a2a1f;
-  --border: #33302a;
-  --text: #faf9f7;
-  --text-muted: #a19d92;
-  --text-dim: #8f8a81;
-  --accent: #f97316;
-  --accent-hover: #fb923c;
-  --accent-contrast: #1c1a17;
-  --user-bg: #2a2620;
-  --user-fg: #faf9f7;
-  --assistant-bg: #1c1a17;
-  --tool-bg: #0f0e0c;
-  --tool-fg: #c9c5bb;
-  --tool-border: #33302a;
-  --bg-subtle: rgba(255, 255, 255, 0.04);
-  --accent-soft: rgba(234, 88, 12, 0.16);
-  --accent-soft-border: rgba(234, 88, 12, 0.38);
-  --accent-chip-bg: rgba(234, 88, 12, 0.18);
-  --accent-chip-fg: #e8b07a;
-  --success: #4ade80;
-  --success-soft: rgba(74, 222, 128, 0.1);
-  --success-border: rgba(74, 222, 128, 0.34);
-  --danger: #f87171;
-  --danger-soft: rgba(248, 113, 113, 0.1);
-  --danger-border: rgba(248, 113, 113, 0.34);
-  --warning: #fbbf24;
-  --warning-soft: rgba(251, 191, 36, 0.1);
-  --warning-border: rgba(251, 191, 36, 0.34);
-  --info: #38bdf8;
-  --info-soft: rgba(56, 189, 248, 0.1);
-  --info-border: rgba(56, 189, 248, 0.34);
+  /* gray ramp — dark (Vercel true-black family) */
+  --gray-0: #0f0f0f;
+  --gray-50: #0a0a0a;
+  --gray-100: #1c1c1c;
+  --gray-200: #262626;
+  --gray-300: #333333;
+  --gray-400: #444444;
+  --gray-500: #707070;
+  --gray-600: #a1a1a1;
+  --gray-800: #3d3d3d;
+  --gray-900: #e5e5e5;
+  --gray-1000: #ededed;
+
+  --bg: var(--gray-50);
+  --bg-panel: var(--gray-0);
+  --bg-hover: var(--gray-100);
+  --bg-selected: var(--gray-200);
+  --border: var(--gray-300);
+  --border-strong: var(--gray-400);
+  --text: var(--gray-1000);
+  --text-muted: var(--gray-600);
+  --text-dim: var(--gray-500);
+
+  --accent: #3291ff;
+  --accent-hover: #5ba2ff;
+  --accent-contrast: #0a0a0a;
+  --accent-soft: rgba(50, 145, 255, 0.14);
+  --accent-soft-border: rgba(50, 145, 255, 0.36);
+  --accent-chip-bg: rgba(50, 145, 255, 0.14);
+  --accent-chip-fg: #8ec5ff;
+
+  --btn-bg: #ededed;
+  --btn-bg-hover: #ffffff;
+  --btn-fg: #0a0a0a;
+
+  --user-bg: var(--gray-200);
+  --user-fg: var(--gray-1000);
+  --assistant-bg: var(--gray-50);
+  --tool-bg: #050505;
+  --tool-fg: #ededed;
+  --tool-border: var(--gray-300);
+  --bg-subtle: rgba(255, 255, 255, 0.06);
+
+  --success: #45c4a0;
+  --success-soft: rgba(69, 196, 160, 0.12);
+  --success-border: rgba(69, 196, 160, 0.36);
+  --danger: #ff5c5c;
+  --danger-soft: rgba(255, 92, 92, 0.12);
+  --danger-border: rgba(255, 92, 92, 0.36);
+  --warning: #f5b94a;
+  --warning-soft: rgba(245, 185, 74, 0.12);
+  --warning-border: rgba(245, 185, 74, 0.38);
+  --info: #3291ff;
+  --info-soft: rgba(50, 145, 255, 0.12);
+  --info-border: rgba(50, 145, 255, 0.34);
   --on-accent: var(--accent-contrast);
-  --grid-line: #2a2620;
-  --selection: rgba(234, 88, 12, 0.38);
-  --thinking-bg: #1a1815;
-  --thinking-border: #4a453c;
+  --on-danger: #0a0a0a;
+  --grid-line: var(--gray-200);
+  --selection: rgba(50, 145, 255, 0.35);
+  --thinking-bg: #111111;
+  --thinking-border: var(--gray-300);
+
+  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .chat-appearance-scope {
@@ -253,11 +370,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d6d3cd;
+  background: var(--border-strong);
   border-radius: 4px;
 }
 html.dark ::-webkit-scrollbar-thumb {
-  background: #4a453c;
+  background: var(--gray-400);
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-dim);
@@ -265,10 +382,10 @@ html.dark ::-webkit-scrollbar-thumb {
 
 :root {
   --font-sans:
-    ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei",
-    "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
+    "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
   --font-mono:
-    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Microsoft YaHei UI",
+    "Geist Mono", ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
     "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
 }
 
@@ -932,15 +1049,15 @@ span.linenumber {
 @keyframes saved-pop {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.55);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--success) 55%, transparent);
   }
   40% {
     transform: scale(1.08);
-    box-shadow: 0 0 0 6px rgba(74, 222, 128, 0.25);
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--success) 25%, transparent);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(74, 222, 128, 0);
+    box-shadow: 0 0 0 0 transparent;
   }
 }
 

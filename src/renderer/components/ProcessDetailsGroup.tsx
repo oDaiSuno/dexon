@@ -38,7 +38,7 @@ export function ProcessDetailsGroup({
       ];
 
   return (
-    <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 14 }}>
+    <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 16 }}>
       <button
         type="button"
         className="chat-quiet-head"
@@ -84,7 +84,7 @@ export function ProcessDetailsGroup({
       </button>
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
-          {contentMounted && <div style={{ marginTop: 8, paddingLeft: 5 }}>{children}</div>}
+          {contentMounted && <div style={{ marginTop: 8, paddingLeft: 4 }}>{children}</div>}
         </div>
       </div>
     </div>

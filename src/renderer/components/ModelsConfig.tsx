@@ -178,13 +178,13 @@ function ProviderDetail({
           onClick={onDelete}
           style={{
             minHeight: 32,
-            padding: "0 10px",
+            padding: "0 12px",
             background: "none",
-            border: "1px solid rgba(239,68,68,0.3)",
-            borderRadius: 4,
-            color: "#ef4444",
+            border: "1px solid var(--danger-border)",
+            borderRadius: "var(--radius-chip)",
+            color: "var(--danger)",
             cursor: "pointer",
-            fontSize: 12,
+            fontSize: "var(--text-label)",
           }}
         >
           {t("delete", "Delete")}
@@ -201,12 +201,12 @@ function ProviderDetail({
               marginTop: 4,
               minHeight: 32,
               padding: "0 12px",
-              background: "var(--accent)",
+              background: "var(--btn-bg)",
               border: "none",
-              borderRadius: 4,
-              color: "#fff",
+              borderRadius: "var(--radius-chip)",
+              color: "var(--btn-fg)",
               cursor: "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               alignSelf: "flex-start",
             }}
           >
@@ -231,7 +231,7 @@ function ProviderDetail({
           placeholder={t("modelApiKeySourcePlaceholder", "ENV_VAR_NAME, !shell-command, or literal key")}
           mono
         />
-        <span style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
+        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
           {t("modelApiKeySourceHint", "Prefix with ! to run a shell command, or use an environment variable name.")}
         </span>
       </Field>
@@ -290,12 +290,12 @@ function modelCostLabel(
 
 const LEVEL_COLORS: Record<ThinkingLevel, string> = {
   off: "var(--text-dim)",
-  minimal: "#a19d92",
-  low: "#d97706",
-  medium: "#ea580c",
-  high: "#c2410c",
-  xhigh: "#9a3412",
-  max: "#7c2d12",
+  minimal: "var(--heat-1)",
+  low: "var(--warning)",
+  medium: "var(--heat-3)",
+  high: "var(--heat-4)",
+  xhigh: "var(--heat-5)",
+  max: "var(--heat-6)",
 };
 
 function ThinkingLevelMapEditor({
@@ -328,8 +328,8 @@ function ThinkingLevelMapEditor({
 
         const btnBase: React.CSSProperties = {
           minHeight: 32,
-          padding: "0 10px",
-          fontSize: 12,
+          padding: "0 12px",
+          fontSize: "var(--text-label)",
           border: "none",
           cursor: "pointer",
           fontWeight: 400,
@@ -340,12 +340,13 @@ function ThinkingLevelMapEditor({
         };
         const btnActive: React.CSSProperties = {
           background: "var(--accent)",
-          color: "#fff",
+          color: "var(--on-accent)",
           fontWeight: 600,
         };
         const btnActiveDisabled: React.CSSProperties = {
-          background: "#ef4444",
-          color: "#fff",
+          background: "var(--danger-soft)",
+          color: "var(--danger)",
+          boxShadow: "inset 0 0 0 1px var(--danger-border)",
           fontWeight: 600,
         };
 
@@ -356,14 +357,14 @@ function ThinkingLevelMapEditor({
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "5px 4px",
-              borderRadius: 6,
+              padding: "4px 4px",
+              borderRadius: "var(--radius-control)",
               background: "transparent",
               border: "1px solid transparent",
             }}
           >
             {/* Level badge */}
-            <div style={{ display: "flex", alignItems: "center", gap: 5, width: 68, flexShrink: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 4, width: 68, flexShrink: 0 }}>
               <span
                 style={{
                   width: 6,
@@ -376,7 +377,7 @@ function ThinkingLevelMapEditor({
               />
               <span
                 style={{
-                  fontSize: 11,
+                  fontSize: "var(--text-meta)",
                   fontFamily: "var(--font-mono)",
                   color: state === "null" ? "var(--text-dim)" : "var(--text-muted)",
                   textDecoration: state === "null" ? "line-through" : "none",
@@ -390,7 +391,7 @@ function ThinkingLevelMapEditor({
             <div
               style={{
                 display: "flex",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 border: "1px solid var(--border)",
                 overflow: "hidden",
                 flexShrink: 0,
@@ -418,7 +419,7 @@ function ThinkingLevelMapEditor({
             <div
               style={{
                 display: "flex",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 border: `1px solid ${state === "string" ? "var(--accent)" : "var(--border)"}`,
                 overflow: "hidden",
                 transition: "border-color 0.1s",
@@ -450,8 +451,8 @@ function ThinkingLevelMapEditor({
                   outline: "none",
                   color: state === "string" ? "var(--text)" : "var(--text-dim)",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  padding: "4px 7px",
+                  fontSize: "var(--text-meta)",
+                  padding: "4px 8px",
                   transition: "background 0.1s, color 0.1s",
                 }}
               />
@@ -575,7 +576,7 @@ function ModelDetail({
                 height: 24,
                 padding: "0 8px",
                 border: `1px solid ${testState.phase === "error" ? "var(--danger-border)" : testState.phase === "success" ? "var(--success-border)" : "var(--border)"}`,
-                borderRadius: 4,
+                borderRadius: "var(--radius-chip)",
                 background:
                   testState.phase === "error"
                     ? "var(--danger-soft)"
@@ -588,7 +589,7 @@ function ModelDetail({
                     : testState.phase === "success"
                       ? "var(--success)"
                       : "var(--text-muted)",
-                fontSize: 11,
+                fontSize: "var(--text-meta)",
                 display: "inline-flex",
                 alignItems: "center",
                 whiteSpace: "nowrap",
@@ -607,10 +608,10 @@ function ModelDetail({
             title={t("modelTestConnection", "Test model connection")}
             style={{
               height: 32,
-              padding: "0 10px",
+              padding: "0 12px",
               background: testState.phase === "success" ? "var(--success)" : "none",
               border: `1px solid ${testState.phase === "success" ? "var(--success)" : "var(--border)"}`,
-              borderRadius: 4,
+              borderRadius: "var(--radius-chip)",
               color:
                 testState.phase === "success"
                   ? "var(--on-accent)"
@@ -618,12 +619,12 @@ function ModelDetail({
                     ? "var(--text-dim)"
                     : "var(--text-muted)",
               cursor: !model.id.trim() || testState.phase === "testing" ? "not-allowed" : "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "center",
               boxSizing: "border-box",
-              gap: 5,
+              gap: 4,
             }}
           >
             {testState.phase === "success" && (
@@ -651,13 +652,13 @@ function ModelDetail({
             onClick={onDelete}
             style={{
               height: 32,
-              padding: "0 10px",
+              padding: "0 12px",
               background: "none",
-              border: "1px solid rgba(239,68,68,0.3)",
-              borderRadius: 4,
-              color: "#ef4444",
+              border: "1px solid var(--danger-border)",
+              borderRadius: "var(--radius-chip)",
+              color: "var(--danger)",
               cursor: "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               boxSizing: "border-box",
             }}
           >
@@ -666,7 +667,7 @@ function ModelDetail({
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Field label={t("modelId", "ID *")}>
           <TextInput value={model.id} onChange={(v) => set("id", v)} placeholder="model-id" mono />
         </Field>
@@ -712,11 +713,11 @@ function ModelDetail({
                   onClick={() => set("thinkingLevelMap", undefined)}
                   style={{
                     minHeight: 32,
-                    fontSize: 12,
-                    padding: "0 9px",
+                    fontSize: "var(--text-label)",
+                    padding: "0 8px",
                     background: "none",
                     border: "1px solid var(--border)",
-                    borderRadius: 4,
+                    borderRadius: "var(--radius-chip)",
                     color: "var(--text-dim)",
                     cursor: "pointer",
                   }}
@@ -730,7 +731,7 @@ function ModelDetail({
         </>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <Field label={t("modelContextWindow", "Context window (tokens)")}>
           <NumInput
             value={model.contextWindow !== undefined ? String(model.contextWindow) : ""}
@@ -801,7 +802,7 @@ function ManagedModelsControl({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 10,
+        gap: 12,
         paddingTop: 16,
         borderTop: "1px solid var(--border)",
       }}
@@ -809,7 +810,7 @@ function ManagedModelsControl({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <SectionTitle>{t("models", "Models")}</SectionTitle>
         {!loading && preferences && (
-          <span style={{ fontSize: 11, color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "var(--text-meta)", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
             {t("modelEnabledCount", "{enabled} of {total} enabled")
               .replace("{enabled}", String(enabledCount))
               .replace("{total}", String(providerModels.length))}
@@ -817,7 +818,7 @@ function ManagedModelsControl({
         )}
       </div>
 
-      <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)", lineHeight: 1.5 }}>
         {t(
           "modelSelectionDescription",
           "Choose which models appear in the model picker. The active model in an existing session is not changed.",
@@ -825,19 +826,19 @@ function ManagedModelsControl({
       </p>
 
       {loading && (
-        <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
           {t("modelLoadingModels", "Loading models…")}
         </p>
       )}
       {!loading && preferences && providerModels.length === 0 && (
-        <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
           {t("modelNoAvailableModels", "No models are currently available for this provider.")}
         </p>
       )}
 
       {!loading && preferences && providerModels.length > 0 && (
         <>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             <button
               type="button"
               disabled={saving || enabledCount === providerModels.length}
@@ -845,13 +846,13 @@ function ManagedModelsControl({
                 void onChange(setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, true))
               }
               style={{
-                padding: "4px 9px",
+                padding: "4px 8px",
                 background: "none",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 color: "var(--text-muted)",
                 cursor: saving || enabledCount === providerModels.length ? "not-allowed" : "pointer",
-                fontSize: 11,
+                fontSize: "var(--text-meta)",
               }}
             >
               {t("modelEnableAll", "Enable all")}
@@ -865,13 +866,13 @@ function ManagedModelsControl({
                 )
               }
               style={{
-                padding: "4px 9px",
+                padding: "4px 8px",
                 background: "none",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 color: "var(--text-muted)",
                 cursor: saving || enabledCount === 0 ? "not-allowed" : "pointer",
-                fontSize: 11,
+                fontSize: "var(--text-meta)",
               }}
             >
               {t("modelDisableAll", "Disable all")}
@@ -888,12 +889,12 @@ function ManagedModelsControl({
               style={{
                 width: "100%",
                 boxSizing: "border-box",
-                padding: "6px 9px",
+                padding: "8px 8px",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 color: "var(--text)",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 outline: "none",
               }}
             />
@@ -906,7 +907,7 @@ function ManagedModelsControl({
               maxHeight: 300,
               overflowY: "auto",
               border: "1px solid var(--border)",
-              borderRadius: 6,
+              borderRadius: "var(--radius-control)",
             }}
           >
             {visibleModels.map((model, index) => {
@@ -917,8 +918,8 @@ function ManagedModelsControl({
                   style={{
                     display: "flex",
                     alignItems: "flex-start",
-                    gap: 9,
-                    padding: "8px 10px",
+                    gap: 8,
+                    padding: "8px 12px",
                     borderTop: index > 0 ? "1px solid var(--border)" : undefined,
                     cursor: saving ? "not-allowed" : "pointer",
                   }}
@@ -939,7 +940,7 @@ function ManagedModelsControl({
                       style={{
                         display: "block",
                         color: "var(--text)",
-                        fontSize: 12,
+                        fontSize: "var(--text-label)",
                         lineHeight: 1.35,
                         overflowWrap: "anywhere",
                       }}
@@ -952,7 +953,7 @@ function ManagedModelsControl({
                           display: "block",
                           marginTop: 2,
                           color: "var(--text-dim)",
-                          fontSize: 10,
+                          fontSize: "var(--text-micro)",
                           fontFamily: "var(--font-mono)",
                           overflowWrap: "anywhere",
                         }}
@@ -965,7 +966,7 @@ function ManagedModelsControl({
               );
             })}
             {visibleModels.length === 0 && (
-              <span style={{ padding: "10px", color: "var(--text-muted)", fontSize: 12 }}>
+              <span style={{ padding: "12px", color: "var(--text-muted)", fontSize: "var(--text-label)" }}>
                 {t("modelNoMatchingModels", "No matching models.")}
               </span>
             )}
@@ -974,11 +975,13 @@ function ManagedModelsControl({
       )}
 
       {saving && (
-        <p style={{ margin: 0, fontSize: 11, color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)" }}>
           {t("modelSavingSelection", "Saving selection…")}
         </p>
       )}
-      {error && <p style={{ margin: 0, fontSize: 11, color: "#f87171", lineHeight: 1.4 }}>{error}</p>}
+      {error && (
+        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--danger)", lineHeight: 1.4 }}>{error}</p>
+      )}
     </div>
   );
 }
@@ -1226,17 +1229,19 @@ function OAuthDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionTitle>{t("modelSubscription", "Subscription")}</SectionTitle>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: provider.loggedIn ? "#4ade80" : "var(--border)",
+              background: provider.loggedIn ? "var(--success)" : "var(--border)",
               display: "inline-block",
             }}
           />
-          <span style={{ fontSize: 11, color: provider.loggedIn ? "#4ade80" : "var(--text-dim)" }}>
+          <span
+            style={{ fontSize: "var(--text-meta)", color: provider.loggedIn ? "var(--success)" : "var(--text-dim)" }}
+          >
             {provider.loggedIn ? t("modelConnected", "connected") : t("modelNotConnected", "not connected")}
           </span>
         </div>
@@ -1245,33 +1250,35 @@ function OAuthDetail({
       {/* Status */}
       <div style={{ minHeight: 48 }}>
         {loginState.phase === "idle" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
             {provider.loggedIn
               ? t("modelAlreadyConnected", "Already connected. You can re-login or disconnect.")
               : t("modelConnectAccount", "Connect your {provider} account.").replace("{provider}", provider.name)}
           </p>
         )}
         {loginState.phase === "connecting" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
             {t("modelOpeningBrowser", "Opening browser…")}
           </p>
         )}
         {loginState.phase === "select" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>{loginState.message}</p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+              {loginState.message}
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {loginState.options.map((option) => (
                 <button
                   key={option.id}
                   onClick={() => submitSelection(loginState.token, option.id)}
                   style={{
-                    padding: "6px 9px",
+                    padding: "8px 8px",
                     background: "var(--bg)",
                     border: "1px solid var(--border)",
-                    borderRadius: 5,
+                    borderRadius: "var(--radius-control)",
                     color: "var(--text)",
                     cursor: "pointer",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                     textAlign: "left",
                   }}
                 >
@@ -1282,8 +1289,8 @@ function OAuthDetail({
           </div>
         )}
         {(loginState.phase === "auth" || loginState.phase === "prompt") && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {loginState.phase === "auth"
                 ? t(
                     "modelCompleteSignIn",
@@ -1292,7 +1299,7 @@ function OAuthDetail({
                 : loginState.message}
             </p>
             {loginState.phase === "auth" && (
-              <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-dim)", lineHeight: 1.5 }}>
                 {t("modelBrowserDidNotOpen", "If the browser window did not open,")}{" "}
                 <a
                   href={loginState.url}
@@ -1305,7 +1312,7 @@ function OAuthDetail({
                 .
               </p>
             )}
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <input
                 ref={inputRef}
                 value={inputValue}
@@ -1320,12 +1327,12 @@ function OAuthDetail({
                 }
                 style={{
                   flex: 1,
-                  padding: "6px 9px",
+                  padding: "8px 8px",
                   background: "var(--bg)",
                   border: "1px solid var(--border)",
-                  borderRadius: 5,
+                  borderRadius: "var(--radius-control)",
                   color: "var(--text)",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                   outline: "none",
                   fontFamily: "var(--font-mono)",
                   boxSizing: "border-box",
@@ -1335,13 +1342,13 @@ function OAuthDetail({
                 onClick={() => submitCode(loginState.token, inputValue)}
                 disabled={!inputValue.trim()}
                 style={{
-                  padding: "6px 12px",
-                  background: inputValue.trim() ? "var(--accent)" : "var(--bg-panel)",
+                  padding: "8px 12px",
+                  background: inputValue.trim() ? "var(--btn-bg)" : "var(--bg-panel)",
                   border: "none",
-                  borderRadius: 5,
-                  color: inputValue.trim() ? "#fff" : "var(--text-dim)",
+                  borderRadius: "var(--radius-control)",
+                  color: inputValue.trim() ? "var(--btn-fg)" : "var(--text-dim)",
                   cursor: inputValue.trim() ? "pointer" : "not-allowed",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                   fontWeight: 600,
                   flexShrink: 0,
                 }}
@@ -1352,18 +1359,18 @@ function OAuthDetail({
           </div>
         )}
         {loginState.phase === "device_code" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
               {t("modelOpenVerificationPage", "Open the verification page and enter this code:")}
             </p>
             <div
               style={{
-                padding: "8px 10px",
+                padding: "8px 12px",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
-                borderRadius: 5,
+                borderRadius: "var(--radius-control)",
                 color: "var(--text)",
-                fontSize: 16,
+                fontSize: "var(--text-title)",
                 fontWeight: 700,
                 fontFamily: "var(--font-mono)",
                 letterSpacing: 0,
@@ -1371,7 +1378,7 @@ function OAuthDetail({
             >
               {loginState.userCode}
             </div>
-            <p style={{ margin: 0, fontSize: 11, color: "var(--text-dim)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-dim)", lineHeight: 1.5 }}>
               <a
                 href={loginState.verificationUri}
                 target="_blank"
@@ -1390,15 +1397,21 @@ function OAuthDetail({
           </div>
         )}
         {loginState.phase === "progress" && (
-          <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>{loginState.message}</p>
         )}
         {loginState.phase === "success" && (
-          <p style={{ margin: 0, fontSize: 12, color: loginState.warning ? "#d97706" : "#4ade80" }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "var(--text-label)",
+              color: loginState.warning ? "var(--warning)" : "var(--success)",
+            }}
+          >
             {loginState.message ?? t("modelConnectedSuccessfully", "Connected successfully.")}
           </p>
         )}
         {loginState.phase === "error" && (
-          <p style={{ margin: 0, fontSize: 12, color: "#f87171" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--danger)" }}>{loginState.message}</p>
         )}
       </div>
 
@@ -1408,13 +1421,13 @@ function OAuthDetail({
           <button
             onClick={handleCancelLogin}
             style={{
-              padding: "5px 12px",
+              padding: "4px 12px",
               background: "none",
               border: "1px solid var(--border)",
-              borderRadius: 5,
+              borderRadius: "var(--radius-control)",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
             }}
           >
             {t("cancel", "Cancel")}
@@ -1424,13 +1437,13 @@ function OAuthDetail({
             <button
               onClick={handleLogin}
               style={{
-                padding: "5px 14px",
-                background: "var(--accent)",
+                padding: "4px 16px",
+                background: "var(--btn-bg)",
                 border: "none",
-                borderRadius: 5,
-                color: "#fff",
+                borderRadius: "var(--radius-control)",
+                color: "var(--btn-fg)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 fontWeight: 600,
               }}
             >
@@ -1440,13 +1453,13 @@ function OAuthDetail({
               <button
                 onClick={handleLogout}
                 style={{
-                  padding: "5px 12px",
+                  padding: "4px 12px",
                   background: "none",
-                  border: "1px solid rgba(239,68,68,0.3)",
-                  borderRadius: 5,
-                  color: "#ef4444",
+                  border: "1px solid var(--danger-border)",
+                  borderRadius: "var(--radius-control)",
+                  color: "var(--danger)",
                   cursor: "pointer",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                 }}
               >
                 {t("modelDisconnect", "Disconnect")}
@@ -1552,23 +1565,25 @@ function ApiKeyDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionTitle>{t("modelApiKey", "API Key")}</SectionTitle>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <span
             style={{
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: provider.configured ? "#4ade80" : "var(--border)",
+              background: provider.configured ? "var(--success)" : "var(--border)",
               display: "inline-block",
             }}
           />
-          <span style={{ fontSize: 11, color: provider.configured ? "#4ade80" : "var(--text-dim)" }}>
+          <span
+            style={{ fontSize: "var(--text-meta)", color: provider.configured ? "var(--success)" : "var(--text-dim)" }}
+          >
             {provider.configured ? t("configured", "configured") : t("notConfigured", "not configured")}
           </span>
         </div>
       </div>
 
-      <p style={{ margin: 0, fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
         {provider.configured
           ? t(
               "modelApiKeyStored",
@@ -1586,7 +1601,7 @@ function ApiKeyDetail({
           placeholder={t("modelBaseUrlPlaceholder", "Leave empty to use the provider default")}
           mono
         />
-        <span style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
+        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
           {t(
             "modelBaseUrlHint",
             "Overrides the endpoint for this provider. Use the Save button below to apply changes.",
@@ -1595,7 +1610,7 @@ function ApiKeyDetail({
       </Field>
 
       <Field label={t("modelApiKey", "API Key")}>
-        <div style={{ display: "flex", gap: 6 }}>
+        <div style={{ display: "flex", gap: 8 }}>
           <SecretTextInput
             value={apiKey}
             onChange={setApiKey}
@@ -1612,18 +1627,18 @@ function ApiKeyDetail({
             onClick={handleSave}
             disabled={saving || !apiKey.trim() || savedOk}
             style={{
-              padding: "6px 12px",
-              background: savedOk ? "#16a34a" : apiKey.trim() ? "var(--accent)" : "var(--bg-panel)",
+              padding: "8px 12px",
+              background: savedOk ? "var(--success-soft)" : apiKey.trim() ? "var(--accent)" : "var(--bg-panel)",
               border: "none",
-              borderRadius: 5,
-              color: apiKey.trim() || savedOk ? "#fff" : "var(--text-dim)",
+              borderRadius: "var(--radius-control)",
+              color: savedOk ? "var(--success)" : apiKey.trim() ? "var(--on-accent)" : "var(--text-dim)",
               cursor: saving || !apiKey.trim() || savedOk ? "not-allowed" : "pointer",
-              fontSize: 12,
+              fontSize: "var(--text-label)",
               fontWeight: 600,
               flexShrink: 0,
               display: "flex",
               alignItems: "center",
-              gap: 5,
+              gap: 4,
             }}
           >
             {savedOk && (
@@ -1645,8 +1660,8 @@ function ApiKeyDetail({
         </div>
       </Field>
 
-      {error && <p style={{ margin: 0, fontSize: 12, color: "#f87171" }}>{error}</p>}
-      {warning && <p style={{ margin: 0, fontSize: 12, color: "#d97706" }}>{warning}</p>}
+      {error && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--danger)" }}>{error}</p>}
+      {warning && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--warning)" }}>{warning}</p>}
 
       {provider.configured && <ManagedModelsControl providerId={provider.id} {...modelSelection} />}
 
@@ -1656,13 +1671,13 @@ function ApiKeyDetail({
           disabled={removing}
           style={{
             alignSelf: "flex-start",
-            padding: "5px 12px",
+            padding: "4px 12px",
             background: "none",
-            border: "1px solid rgba(239,68,68,0.3)",
-            borderRadius: 5,
-            color: "#ef4444",
+            border: "1px solid var(--danger-border)",
+            borderRadius: "var(--radius-control)",
+            color: "var(--danger)",
             cursor: removing ? "not-allowed" : "pointer",
-            fontSize: 12,
+            fontSize: "var(--text-label)",
           }}
         >
           {removing ? t("modelRemoving", "Removing…") : t("modelDisconnect", "Disconnect")}
@@ -1692,7 +1707,7 @@ function ProviderIcon({ id, size }: { id: string; size: number }) {
           width: size,
           height: size,
           border: "1px solid var(--border)",
-          borderRadius: 4,
+          borderRadius: "var(--radius-chip)",
           color: "var(--text-dim)",
           display: "inline-flex",
           alignItems: "center",
@@ -1764,10 +1779,10 @@ function AddProviderPicker({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-    padding: "10px 12px",
+    padding: "12px 12px",
     background: "var(--bg-panel)",
     border: "1px solid var(--border)",
-    borderRadius: 7,
+    borderRadius: "var(--radius-card)",
     boxSizing: "border-box",
     cursor: "pointer",
     minWidth: 0,
@@ -1798,7 +1813,7 @@ function AddProviderPicker({
           maxHeight: "min(72vh, calc(100vh - 32px))",
           background: "var(--bg)",
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: "var(--radius-card)",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
@@ -1808,7 +1823,7 @@ function AddProviderPicker({
         {/* Search */}
         <div
           style={{
-            padding: "10px 14px",
+            padding: "12px 16px",
             borderBottom: "1px solid var(--border)",
             flexShrink: 0,
             display: "flex",
@@ -1844,16 +1859,23 @@ function AddProviderPicker({
               border: "none",
               outline: "none",
               color: "var(--text)",
-              fontSize: 13,
+              fontSize: "var(--text-body)",
               boxSizing: "border-box",
             }}
           />
         </div>
 
         {/* Card grid */}
-        <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
           {totalCount === 0 ? (
-            <div style={{ padding: "20px 0", fontSize: 12, color: "var(--text-dim)", textAlign: "center" }}>
+            <div
+              style={{
+                padding: "20px 0",
+                fontSize: "var(--text-label)",
+                color: "var(--text-dim)",
+                textAlign: "center",
+              }}
+            >
               {t("modelNoProvidersMatch", "No providers match")}
             </div>
           ) : (
@@ -1868,7 +1890,7 @@ function AddProviderPicker({
                 <div
                   style={{
                     gridColumn: "1 / -1",
-                    fontSize: 10,
+                    fontSize: "var(--text-micro)",
                     fontWeight: 600,
                     color: "var(--text-dim)",
                     textTransform: "uppercase",
@@ -1897,7 +1919,7 @@ function AddProviderPicker({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 12,
+                        fontSize: "var(--text-label)",
                         fontWeight: 600,
                         color: "var(--text)",
                         lineHeight: 1.3,
@@ -1908,7 +1930,7 @@ function AddProviderPicker({
                     >
                       {t("modelCompatibleProvider", "OpenAI / Anthropic compatible")}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
                       {t("modelCustomEndpointFormat", "Custom endpoint format")}
                     </div>
                   </div>
@@ -1916,7 +1938,7 @@ function AddProviderPicker({
                     style={{
                       width: 26,
                       height: 26,
-                      borderRadius: 5,
+                      borderRadius: "var(--radius-control)",
                       background: "var(--bg-hover)",
                       border: "1px dashed var(--border)",
                       display: "flex",
@@ -1948,7 +1970,7 @@ function AddProviderPicker({
                   style={{
                     gridColumn: "1 / -1",
                     paddingTop: showCustom ? 6 : 0,
-                    fontSize: 10,
+                    fontSize: "var(--text-micro)",
                     fontWeight: 600,
                     color: "var(--text-dim)",
                     textTransform: "uppercase",
@@ -1978,7 +2000,7 @@ function AddProviderPicker({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 12,
+                        fontSize: "var(--text-label)",
                         fontWeight: 600,
                         color: "var(--text)",
                         lineHeight: 1.3,
@@ -1989,7 +2011,7 @@ function AddProviderPicker({
                     >
                       {p.name}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
                   </div>
                   <ProviderIcon id={p.id} size={28} />
                 </button>
@@ -2000,7 +2022,7 @@ function AddProviderPicker({
                   style={{
                     gridColumn: "1 / -1",
                     paddingTop: availableOAuth.length > 0 ? 6 : 0,
-                    fontSize: 10,
+                    fontSize: "var(--text-micro)",
                     fontWeight: 600,
                     color: "var(--text-dim)",
                     textTransform: "uppercase",
@@ -2030,7 +2052,7 @@ function AddProviderPicker({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
-                        fontSize: 12,
+                        fontSize: "var(--text-label)",
                         fontWeight: 600,
                         color: "var(--text)",
                         lineHeight: 1.3,
@@ -2041,7 +2063,7 @@ function AddProviderPicker({
                     >
                       {p.displayName}
                     </div>
-                    <div style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
                       {t("modelCount", "{count} models").replace("{count}", String(p.modelCount))}
                     </div>
                   </div>
@@ -2414,7 +2436,7 @@ export function ModelsConfig({
                   maxHeight: "calc(100dvh - 16px)",
                   background: "var(--bg)",
                   border: "1px solid var(--border)",
-                  borderRadius: 10,
+                  borderRadius: "var(--radius-card)",
                   display: "flex",
                   flexDirection: "column",
                   boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
@@ -2429,14 +2451,18 @@ export function ModelsConfig({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "12px 18px",
+                padding: "12px 20px",
                 borderBottom: "1px solid var(--border)",
                 flexShrink: 0,
               }}
             >
-              <div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>
-                <span style={{ fontSize: 15, fontWeight: 700, color: "var(--text)" }}>{t("models", "Models")}</span>
-                <code style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
+                <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+                  {t("models", "Models")}
+                </span>
+                <code
+                  style={{ fontSize: "var(--text-meta)", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                >
                   ~/.pi/agent/models.json
                 </code>
               </div>
@@ -2450,12 +2476,12 @@ export function ModelsConfig({
                   border: "none",
                   color: "var(--text-muted)",
                   cursor: "pointer",
-                  fontSize: 20,
+                  fontSize: "var(--text-display)",
                   lineHeight: 1,
                   width: 36,
                   height: 36,
                   padding: 0,
-                  borderRadius: 7,
+                  borderRadius: "var(--radius-card)",
                 }}
               >
                 ×
@@ -2478,7 +2504,7 @@ export function ModelsConfig({
                 background: "var(--bg-panel)",
               }}
             >
-              <div style={{ flex: 1, overflowY: "auto", padding: "8px 6px" }}>
+              <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
                 {/* Active OAuth subscriptions */}
                 {activeOAuth.map((p) => {
                   const isSelected = selection?.type === "oauth" && selection.providerId === p.id;
@@ -2489,9 +2515,9 @@ export function ModelsConfig({
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 7,
-                        padding: "5px 8px",
-                        borderRadius: 5,
+                        gap: 8,
+                        padding: "4px 8px",
+                        borderRadius: "var(--radius-control)",
                         cursor: "pointer",
                         background: isSelected ? "var(--bg-selected)" : "none",
                       }}
@@ -2505,7 +2531,7 @@ export function ModelsConfig({
                       <ProviderIcon id={p.id} size={16} />
                       <span
                         style={{
-                          fontSize: 12,
+                          fontSize: "var(--text-label)",
                           color: "var(--text)",
                           flex: 1,
                           overflow: "hidden",
@@ -2529,9 +2555,9 @@ export function ModelsConfig({
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 7,
-                        padding: "5px 8px",
-                        borderRadius: 5,
+                        gap: 8,
+                        padding: "4px 8px",
+                        borderRadius: "var(--radius-control)",
                         cursor: "pointer",
                         background: isSelected ? "var(--bg-selected)" : "none",
                       }}
@@ -2545,7 +2571,7 @@ export function ModelsConfig({
                       <ProviderIcon id={p.id} size={16} />
                       <span
                         style={{
-                          fontSize: 12,
+                          fontSize: "var(--text-label)",
                           color: "var(--text)",
                           flex: 1,
                           overflow: "hidden",
@@ -2566,7 +2592,7 @@ export function ModelsConfig({
 
                 {/* Custom providers */}
                 {loading ? (
-                  <div style={{ padding: "10px 8px", fontSize: 12, color: "var(--text-muted)" }}>
+                  <div style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
                     {t("loading", "Loading…")}
                   </div>
                 ) : (
@@ -2581,9 +2607,9 @@ export function ModelsConfig({
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: 6,
-                            padding: "7px 8px",
-                            borderRadius: 5,
+                            gap: 8,
+                            padding: "8px 8px",
+                            borderRadius: "var(--radius-control)",
                             cursor: "pointer",
                             background: isProviderSelected ? "var(--bg-selected)" : "none",
                           }}
@@ -2618,7 +2644,7 @@ export function ModelsConfig({
                           </svg>
                           <span
                             style={{
-                              fontSize: 12,
+                              fontSize: "var(--text-label)",
                               fontWeight: isProviderSelected ? 600 : 400,
                               color: "var(--text)",
                               fontFamily: "var(--font-mono)",
@@ -2643,9 +2669,9 @@ export function ModelsConfig({
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 6,
-                                padding: "5px 8px 5px 26px",
-                                borderRadius: 5,
+                                gap: 8,
+                                padding: "4px 8px 4px 28px",
+                                borderRadius: "var(--radius-control)",
                                 cursor: "pointer",
                                 background: isModelSelected ? "var(--bg-selected)" : "none",
                               }}
@@ -2658,7 +2684,7 @@ export function ModelsConfig({
                             >
                               <span
                                 style={{
-                                  fontSize: 11,
+                                  fontSize: "var(--text-meta)",
                                   fontFamily: "var(--font-mono)",
                                   color: m.id ? "var(--text-muted)" : "var(--text-dim)",
                                   flex: 1,
@@ -2672,11 +2698,11 @@ export function ModelsConfig({
                               {m.reasoning && (
                                 <span
                                   style={{
-                                    fontSize: 9,
+                                    fontSize: "var(--text-micro)",
                                     padding: "1px 4px",
                                     background: "rgba(99,102,241,0.12)",
                                     color: "rgba(99,102,241,0.8)",
-                                    borderRadius: 3,
+                                    borderRadius: "var(--radius-chip)",
                                     flexShrink: 0,
                                   }}
                                 >
@@ -2697,8 +2723,8 @@ export function ModelsConfig({
                             display: "flex",
                             alignItems: "center",
                             gap: 4,
-                            padding: "4px 8px 4px 26px",
-                            borderRadius: 5,
+                            padding: "4px 8px 4px 28px",
+                            borderRadius: "var(--radius-control)",
                             cursor: "pointer",
                             color: "var(--text-dim)",
                           }}
@@ -2711,7 +2737,7 @@ export function ModelsConfig({
                             e.currentTarget.style.background = "none";
                           }}
                         >
-                          <span style={{ fontSize: 11 }}>+ {t("modelAddModel", "model")}</span>
+                          <span style={{ fontSize: "var(--text-meta)" }}>+ {t("modelAddModel", "model")}</span>
                         </div>
                       </div>
                     );
@@ -2720,22 +2746,22 @@ export function ModelsConfig({
               </div>
 
               {/* Add provider */}
-              <div style={{ borderTop: "1px solid var(--border)", padding: "8px 6px" }}>
+              <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
                 <button
                   onClick={() => setPickerOpen(true)}
                   style={{
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    gap: 5,
+                    gap: 4,
                     width: "100%",
-                    padding: "6px 0",
+                    padding: "8px 0",
                     background: "none",
                     border: "1px dashed var(--border)",
-                    borderRadius: 5,
+                    borderRadius: "var(--radius-control)",
                     color: "var(--text-muted)",
                     cursor: "pointer",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = "var(--accent)";
@@ -2763,7 +2789,7 @@ export function ModelsConfig({
                         alignItems: "center",
                         justifyContent: "center",
                         color: "var(--text-dim)",
-                        fontSize: 13,
+                        fontSize: "var(--text-body)",
                       }}
                     >
                       {t("selectProviderOrModel", "Select a provider or model")}
@@ -2778,13 +2804,15 @@ export function ModelsConfig({
               display: "flex",
               alignItems: "center",
               justifyContent: "flex-end",
-              gap: 10,
-              padding: "10px 18px",
+              gap: 12,
+              padding: "12px 20px",
               borderTop: "1px solid var(--border)",
               flexShrink: 0,
             }}
           >
-            {saveError && <span style={{ fontSize: 12, color: "#f87171", flex: 1 }}>{saveError}</span>}
+            {saveError && (
+              <span style={{ fontSize: "var(--text-label)", color: "var(--danger)", flex: 1 }}>{saveError}</span>
+            )}
             {saveConflict && (
               <button
                 type="button"
@@ -2792,13 +2820,13 @@ export function ModelsConfig({
                 disabled={loading || saving}
                 title={t("modelReloadDiskVersionHint", "Discard local edits and load the current models.json")}
                 style={{
-                  padding: "6px 12px",
+                  padding: "8px 12px",
                   background: "none",
                   border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  borderRadius: "var(--radius-control)",
                   color: "var(--text)",
                   cursor: loading || saving ? "default" : "pointer",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                 }}
               >
                 {t("modelReloadDiskVersion", "Reload disk version")}
@@ -2808,13 +2836,13 @@ export function ModelsConfig({
               <button
                 onClick={onClose}
                 style={{
-                  padding: "6px 14px",
+                  padding: "8px 16px",
                   background: "none",
                   border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  borderRadius: "var(--radius-control)",
                   color: "var(--text-muted)",
                   cursor: "pointer",
-                  fontSize: 13,
+                  fontSize: "var(--text-body)",
                 }}
               >
                 {t("cancel", "Cancel")}
@@ -2828,29 +2856,30 @@ export function ModelsConfig({
               }
               style={{
                 position: "relative",
-                padding: "6px 16px",
+                padding: "8px 16px",
                 minWidth: 92,
                 background: savedOk
-                  ? "#16a34a"
+                  ? "var(--success-soft)"
                   : saving || loadFailed || saveConflict || !configLoaded || !configVersion
                     ? "var(--bg-panel)"
                     : "var(--accent)",
                 border: "none",
-                borderRadius: 6,
-                color:
-                  savedOk || !(saving || loadFailed || saveConflict || !configLoaded || !configVersion)
-                    ? "#fff"
+                borderRadius: "var(--radius-control)",
+                color: savedOk
+                  ? "var(--success)"
+                  : !(saving || loadFailed || saveConflict || !configLoaded || !configVersion)
+                    ? "var(--on-accent)"
                     : "var(--text-muted)",
                 cursor:
                   saving || savedOk || loading || loadFailed || saveConflict || !configLoaded || !configVersion
                     ? "default"
                     : "pointer",
-                fontSize: 13,
+                fontSize: "var(--text-body)",
                 fontWeight: 600,
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 6,
+                gap: 8,
                 transition: "background-color 0.2s ease, color 0.2s ease",
                 animation: savedOk ? "saved-pop 0.45s ease" : undefined,
               }}

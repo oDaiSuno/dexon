@@ -43,11 +43,11 @@ const TOOL_PRESETS = {
 function buttonStyle(primary = false): React.CSSProperties {
   return {
     border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
-    borderRadius: 6,
+    borderRadius: "var(--radius-control)",
     background: primary ? "var(--accent)" : "var(--bg)",
     color: primary ? "var(--on-accent)" : "var(--text-muted)",
     minHeight: 36,
-    fontSize: 13,
+    fontSize: "var(--text-body)",
     padding: "0 12px",
     cursor: "pointer",
   };
@@ -56,12 +56,12 @@ function buttonStyle(primary = false): React.CSSProperties {
 const inputStyle: React.CSSProperties = {
   width: "100%",
   border: "1px solid var(--border)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
   minHeight: 36,
-  fontSize: 13,
-  padding: "8px 9px",
+  fontSize: "var(--text-body)",
+  padding: "8px 8px",
 };
 
 function statusFor(snapshot: ChannelsSnapshot, accountId: string): ChannelStatus | undefined {
@@ -348,18 +348,18 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
   const configuredCount = snapshot.accounts.filter((account) => account.configured).length;
 
   return (
-    <div style={{ width: "100%", overflowY: "auto", padding: "22px clamp(16px, 4vw, 36px)" }}>
+    <div style={{ width: "100%", overflowY: "auto", padding: "24px clamp(16px, 4vw, 36px)" }}>
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
           <div>
-            <h2 style={{ margin: 0, color: "var(--text)", fontSize: 16 }}>
+            <h2 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
               {t("messagingChannels", "Messaging channels")}
             </h2>
-            <p style={{ margin: "6px 0 0", color: "var(--text-dim)", fontSize: 12, lineHeight: 1.6 }}>
+            <p style={{ margin: "8px 0 0", color: "var(--text-dim)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
               {t("channelsDescription", "Connect IM accounts, control access, and bind conversations to Pi sessions.")}
             </p>
           </div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 7 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
             <button
               type="button"
               disabled={busy}
@@ -391,13 +391,13 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
         {error && (
           <div
             style={{
-              marginTop: 14,
+              marginTop: 16,
               border: "1px solid var(--danger-border)",
               background: "var(--danger-soft)",
               color: "var(--danger)",
-              borderRadius: 7,
-              padding: 10,
-              fontSize: 12,
+              borderRadius: "var(--radius-card)",
+              padding: 12,
+              fontSize: "var(--text-label)",
             }}
           >
             {error}
@@ -407,7 +407,7 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
         <section style={{ marginTop: 20 }}>
           <div
             style={{
-              fontSize: 11,
+              fontSize: "var(--text-meta)",
               color: "var(--text-dim)",
               textTransform: "uppercase",
               letterSpacing: ".08em",
@@ -417,16 +417,16 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
             {t("channelOverview", "Overview")} · {configuredCount} {t("configuredAccounts", "accounts configured")}
           </div>
           {loading ? (
-            <div style={{ color: "var(--text-dim)", fontSize: 12 }}>{t("loading", "Loading…")}</div>
+            <div style={{ color: "var(--text-dim)", fontSize: "var(--text-label)" }}>{t("loading", "Loading…")}</div>
           ) : snapshot.accounts.length === 0 ? (
             <div
               style={{
                 border: "1px dashed var(--border)",
-                borderRadius: 9,
+                borderRadius: "var(--radius-card)",
                 padding: 28,
                 textAlign: "center",
                 color: "var(--text-dim)",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
               }}
             >
               {t(
@@ -704,14 +704,21 @@ export function AccountCard({
   const label = channelLabel(account.channel, t, account.domain);
 
   return (
-    <div style={{ border: "1px solid var(--border)", borderRadius: 9, background: "var(--bg-panel)", padding: 15 }}>
+    <div
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: "var(--radius-card)",
+        background: "var(--bg-panel)",
+        padding: 16,
+      }}
+    >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div
             style={{
               width: 34,
               height: 34,
-              borderRadius: 9,
+              borderRadius: "var(--radius-card)",
               display: "grid",
               placeItems: "center",
               background: `color-mix(in srgb, ${accent} 12%, transparent)`,
@@ -728,19 +735,27 @@ export function AccountCard({
                 : "微"}
           </div>
           <div>
-            <div style={{ color: "var(--text)", fontSize: 13, fontWeight: 700 }}>{account.name}</div>
-            <div style={{ color: statusColor(status), fontSize: 11, marginTop: 2 }}>
+            <div style={{ color: "var(--text)", fontSize: "var(--text-body)", fontWeight: 700 }}>{account.name}</div>
+            <div style={{ color: statusColor(status), fontSize: "var(--text-meta)", marginTop: 2 }}>
               {channelStatusLabel(status?.state ?? "stopped", t)} ·{" "}
               {account.credentialFingerprint ?? t("notConfigured", "not configured")}
             </div>
-            <div style={{ color: "var(--text-dim)", fontSize: 10, marginTop: 2 }}>
+            <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)", marginTop: 2 }}>
               {label}
               {account.providerUsername ? ` · ${account.providerUsername}` : ""}
               {account.providerAccountId ? ` · ${account.providerAccountId}` : ""}
             </div>
           </div>
         </div>
-        <label style={{ fontSize: 11, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
+        <label
+          style={{
+            fontSize: "var(--text-meta)",
+            color: "var(--text-muted)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+          }}
+        >
           <input
             type="checkbox"
             checked={draft.enabled}
@@ -752,11 +767,11 @@ export function AccountCard({
       </div>
 
       {status?.lastError && (
-        <div style={{ color: "var(--danger)", fontSize: 11, marginTop: 10 }}>{status.lastError}</div>
+        <div style={{ color: "var(--danger)", fontSize: "var(--text-meta)", marginTop: 12 }}>{status.lastError}</div>
       )}
 
       <div
-        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 10, marginTop: 14 }}
+        style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginTop: 16 }}
       >
         <Field label={t("channelName", "Name")}>
           <input
@@ -843,7 +858,7 @@ export function AccountCard({
           />
         </Field>
         <Field label={t("groupMentionRequired", "Group mention required")}>
-          <label style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 34, color: "var(--text-muted)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--text-muted)" }}>
             <input
               type="checkbox"
               checked={draft.requireMention}
@@ -854,7 +869,7 @@ export function AccountCard({
           </label>
         </Field>
         <Field label={t("imCommands", "IM commands")}>
-          <label style={{ display: "flex", alignItems: "center", gap: 7, minHeight: 34, color: "var(--text-muted)" }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--text-muted)" }}>
             <input
               type="checkbox"
               checked={draft.commandsEnabled === true}
@@ -877,7 +892,7 @@ export function AccountCard({
             <option value="read">{t("toolPresetRead", "Read-only tools")}</option>
             <option value="full">{t("toolPresetFull", "Full coding tools")}</option>
           </select>
-          <span style={{ color: "var(--text-dim)", fontSize: 10, lineHeight: 1.5 }}>
+          <span style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
             {t(
               "defaultToolsHint",
               "Used for new channel sessions and synchronized to sessions currently bound to this account when saved.",
@@ -885,7 +900,7 @@ export function AccountCard({
           </span>
         </Field>
         <Field label={t("defaultProjectDirectory", "Default project directory")}>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", gap: 8 }}>
             <input
               aria-label={t("defaultProjectDirectory", "Default project directory")}
               style={inputStyle}
@@ -911,7 +926,7 @@ export function AccountCard({
             style={{
               display: "grid",
               gridTemplateColumns: "minmax(220px,1fr) auto",
-              gap: 7,
+              gap: 8,
             }}
           >
             <input
@@ -931,7 +946,7 @@ export function AccountCard({
               {updatingToken ? t("saving", "Saving…") : t("updateTelegramToken", "Update token")}
             </button>
           </div>
-          <div style={{ marginTop: 6, color: "var(--text-dim)", fontSize: 10, lineHeight: 1.5 }}>
+          <div style={{ marginTop: 8, color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
             {t(
               "telegramGroupSetupHint",
               "Basic groups and supergroups are supported; topics require a forum supergroup. Send /status@bot_username first, then copy the chat ID from Recent activity into Allowed group IDs.",
@@ -946,7 +961,7 @@ export function AccountCard({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit,minmax(160px,1fr))",
-            gap: 7,
+            gap: 8,
             marginTop: 12,
           }}
         >
@@ -980,7 +995,9 @@ export function AccountCard({
           >
             {updatingToken ? t("saving", "Saving…") : t("updateFeishuCredential", "Update credentials")}
           </button>
-          <div style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: 10, lineHeight: 1.5 }}>
+          <div
+            style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
+          >
             {t(
               "feishuCredentialHint",
               "Changing the App Secret, App ID, or domain verifies the bot and hot-reloads its WebSocket connection without restarting Pi Desktop.",
@@ -988,7 +1005,7 @@ export function AccountCard({
           </div>
           <div
             data-testid="feishu-rich-card-hint"
-            style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: 10, lineHeight: 1.5 }}
+            style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
           >
             {t(
               "feishuRichCardHint",
@@ -998,7 +1015,7 @@ export function AccountCard({
         </div>
       )}
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 13 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
         <button
           type="button"
           disabled={busy}
@@ -1056,13 +1073,13 @@ export function AccountCard({
           role="status"
           data-testid="channel-probe-feedback"
           style={{
-            marginTop: 9,
-            padding: "7px 9px",
+            marginTop: 8,
+            padding: "8px 8px",
             border: `1px solid ${probeFeedback.ok ? "var(--success-border)" : "var(--danger-border)"}`,
-            borderRadius: 6,
+            borderRadius: "var(--radius-control)",
             background: probeFeedback.ok ? "var(--success-soft)" : "var(--danger-soft)",
             color: probeFeedback.ok ? "var(--success)" : "var(--danger)",
-            fontSize: 11,
+            fontSize: "var(--text-meta)",
           }}
         >
           {probeFeedback.ok ? "✓" : "!"} {probeFeedback.message} ·{" "}
@@ -1074,7 +1091,7 @@ export function AccountCard({
         style={{
           display: "grid",
           gridTemplateColumns: "minmax(150px,1fr) minmax(220px,2fr) auto",
-          gap: 7,
+          gap: 8,
           marginTop: 12,
         }}
       >
@@ -1126,12 +1143,12 @@ function PairingSection({
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
-              gap: 10,
-              padding: "9px 0",
+              gap: 12,
+              padding: "8px 0",
               borderBottom: "1px solid var(--border)",
             }}
           >
-            <div style={{ fontSize: 12, color: "var(--text-muted)" }}>
+            <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
               <div>
                 {channelLabel(
                   pairing.channel,
@@ -1140,12 +1157,12 @@ function PairingSection({
                 )}{" "}
                 · {pairing.peerId}
               </div>
-              <div style={{ color: "var(--text-dim)", marginTop: 3 }}>
+              <div style={{ color: "var(--text-dim)", marginTop: 4 }}>
                 {t("pairingCode", "Code")} {pairing.code} · {t("expiresAt", "expires")}{" "}
                 {new Date(pairing.expiresAt).toLocaleTimeString(language)}
               </div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 8 }}>
               <button
                 disabled={busy}
                 style={buttonStyle(true)}
@@ -1216,11 +1233,18 @@ function BindingRow({
         gridTemplateColumns: "minmax(150px,1fr) minmax(220px,2fr) auto",
         alignItems: "center",
         gap: 8,
-        padding: "9px 0",
+        padding: "8px 0",
         borderBottom: "1px solid var(--border)",
       }}
     >
-      <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis" }}>
+      <div
+        style={{
+          fontSize: "var(--text-meta)",
+          color: "var(--text-muted)",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
         {channelLabel(binding.channel, t)} · {binding.peerId}
         {binding.threadId ? ` · ${t("topic", "topic")} ${binding.threadId}` : ""}
       </div>
@@ -1232,7 +1256,7 @@ function BindingRow({
           </option>
         ))}
       </select>
-      <div style={{ display: "flex", gap: 5 }}>
+      <div style={{ display: "flex", gap: 4 }}>
         <button
           disabled={busy}
           style={buttonStyle()}
@@ -1268,11 +1292,11 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
   return (
     <section
       style={{
-        marginTop: 22,
+        marginTop: 24,
         border: "1px solid var(--border)",
-        borderRadius: 9,
+        borderRadius: "var(--radius-card)",
         background: "var(--bg-panel)",
-        padding: "4px 15px",
+        padding: "4px 16px",
       }}
     >
       <button
@@ -1296,10 +1320,10 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
         }}
       >
         <span>
-          <span style={{ display: "block", fontSize: 12, fontWeight: 700 }}>
+          <span style={{ display: "block", fontSize: "var(--text-label)", fontWeight: 700 }}>
             {t("recentActivity", "Recent activity")} ({snapshot.activities.length})
           </span>
-          <span style={{ display: "block", marginTop: 3, fontSize: 10, color: "var(--text-dim)" }}>
+          <span style={{ display: "block", marginTop: 4, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
             {t("recentActivityDescription", "Message content is never logged; the latest 100 records are retained.")}
           </span>
         </span>
@@ -1307,7 +1331,7 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
           aria-hidden="true"
           style={{
             color: "var(--text-dim)",
-            fontSize: 15,
+            fontSize: "var(--text-title)",
             transform: expanded ? "rotate(180deg)" : "none",
             transition: "transform .15s ease",
           }}
@@ -1327,10 +1351,10 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
                 style={{
                   display: "flex",
                   justifyContent: "space-between",
-                  gap: 10,
-                  padding: "7px 0",
+                  gap: 12,
+                  padding: "8px 0",
                   borderBottom: "1px solid var(--border)",
-                  fontSize: 11,
+                  fontSize: "var(--text-meta)",
                 }}
               >
                 <span style={{ color: activity.outcome === "failed" ? "var(--danger)" : "var(--text-muted)" }}>
@@ -1348,7 +1372,7 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
           {snapshot.activities.length > 12 && (
             <button
               type="button"
-              style={{ ...buttonStyle(), marginTop: 9 }}
+              style={{ ...buttonStyle(), marginTop: 8 }}
               onClick={() => setShowAll((value) => !value)}
             >
               {showAll
@@ -1391,14 +1415,16 @@ export function TelegramTokenDialog({
           width: 430,
           maxWidth: "calc(100vw - 28px)",
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg)",
-          padding: 22,
+          padding: 24,
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: 16 }}>{t("connectTelegram", "Connect Telegram")}</h3>
-        <p style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>
+        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+          {t("connectTelegram", "Connect Telegram")}
+        </h3>
+        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
           {t(
             "telegramTokenDescription",
             "Create a bot with @BotFather, paste its token here, then Pi Desktop will verify it with getMe and store it using OS encryption.",
@@ -1417,12 +1443,18 @@ export function TelegramTokenDialog({
           <div
             role="alert"
             data-testid="telegram-connect-error"
-            style={{ marginTop: 10, color: "var(--danger)", fontSize: 11, lineHeight: 1.5, overflowWrap: "anywhere" }}
+            style={{
+              marginTop: 12,
+              color: "var(--danger)",
+              fontSize: "var(--text-meta)",
+              lineHeight: 1.5,
+              overflowWrap: "anywhere",
+            }}
           >
             {error}
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
           <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
             {t("cancel", "Cancel")}
           </button>
@@ -1477,14 +1509,16 @@ export function FeishuCredentialDialog({
           maxHeight: "calc(100dvh - 32px)",
           overflowY: "auto",
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg)",
-          padding: 22,
+          padding: 24,
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: 16 }}>{t("connectFeishu", "Connect Feishu / Lark")}</h3>
-        <p style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>
+        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+          {t("connectFeishu", "Connect Feishu / Lark")}
+        </h3>
+        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
           {mode === "scan"
             ? t(
                 "feishuScanDescription",
@@ -1499,7 +1533,7 @@ export function FeishuCredentialDialog({
         <div
           role="tablist"
           aria-label={t("feishuConnectionMethod", "Connection method")}
-          style={{ display: "flex", gap: 7 }}
+          style={{ display: "flex", gap: 8 }}
         >
           <button
             type="button"
@@ -1524,8 +1558,8 @@ export function FeishuCredentialDialog({
         </div>
 
         {mode === "scan" ? (
-          <div data-testid="feishu-scan-create" style={{ marginTop: 14 }}>
-            <label style={{ display: "grid", gap: 6, color: "var(--text-muted)", fontSize: 11 }}>
+          <div data-testid="feishu-scan-create" style={{ marginTop: 16 }}>
+            <label style={{ display: "grid", gap: 8, color: "var(--text-muted)", fontSize: "var(--text-meta)" }}>
               {t("feishuTenantRegion", "Account region")}
               <select
                 autoFocus
@@ -1541,11 +1575,11 @@ export function FeishuCredentialDialog({
               style={{
                 marginTop: 12,
                 border: "1px solid var(--border)",
-                borderRadius: 8,
+                borderRadius: "var(--radius-card)",
                 background: "var(--bg-panel)",
-                padding: "11px 13px",
+                padding: "12px 12px",
                 color: "var(--text-muted)",
-                fontSize: 11,
+                fontSize: "var(--text-meta)",
                 lineHeight: 1.65,
               }}
             >
@@ -1556,7 +1590,7 @@ export function FeishuCredentialDialog({
                   "The scanning user is the only allowed DM sender by default. Groups, commands, and Agent tools remain disabled until you enable them.",
                 )}
               </div>
-              <div style={{ marginTop: 6 }}>
+              <div style={{ marginTop: 8 }}>
                 {t(
                   "feishuScanExistingHint",
                   "Already have an app? Use the Existing app tab instead; scanning never reads an existing App Secret.",
@@ -1564,7 +1598,7 @@ export function FeishuCredentialDialog({
               </div>
             </div>
             <FeishuDialogError error={error} />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 16 }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
               <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
                 {t("cancel", "Cancel")}
               </button>
@@ -1600,7 +1634,13 @@ function FeishuDialogError({ error }: { error: string }) {
     <div
       role="alert"
       data-testid="feishu-connect-error"
-      style={{ marginTop: 10, color: "var(--danger)", fontSize: 11, lineHeight: 1.5, overflowWrap: "anywhere" }}
+      style={{
+        marginTop: 12,
+        color: "var(--danger)",
+        fontSize: "var(--text-meta)",
+        lineHeight: 1.5,
+        overflowWrap: "anywhere",
+      }}
     >
       {error}
     </div>
@@ -1636,7 +1676,7 @@ function FeishuManualForm({
     }
   };
   return (
-    <div data-testid="feishu-existing-app" style={{ marginTop: 14 }}>
+    <div data-testid="feishu-existing-app" style={{ marginTop: 16 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 150px", gap: 8 }}>
         <input
           autoFocus
@@ -1662,18 +1702,18 @@ function FeishuManualForm({
 
       <div
         style={{
-          marginTop: 14,
+          marginTop: 16,
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg-panel)",
-          padding: "11px 13px",
+          padding: "12px 12px",
           color: "var(--text-muted)",
-          fontSize: 11,
+          fontSize: "var(--text-meta)",
           lineHeight: 1.6,
         }}
       >
         <div style={{ color: "var(--text)", fontWeight: 700 }}>{t("feishuSetupChecklist", "Quick setup")}</div>
-        <ol style={{ margin: "7px 0 0", paddingLeft: 19 }}>
+        <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>{t("feishuSetupBot", "Create an enterprise self-built app and enable Bot capability.")}</li>
           <li>
             {t(
@@ -1703,15 +1743,15 @@ function FeishuManualForm({
         <pre
           data-testid="feishu-permission-json"
           style={{
-            margin: "9px 0 0",
+            margin: "8px 0 0",
             maxHeight: 176,
             overflow: "auto",
             border: "1px solid var(--border)",
-            borderRadius: 6,
+            borderRadius: "var(--radius-control)",
             background: "var(--bg)",
             color: "var(--text-muted)",
-            padding: "9px 10px",
-            fontSize: 10,
+            padding: "8px 12px",
+            fontSize: "var(--text-micro)",
             lineHeight: 1.45,
             whiteSpace: "pre",
             userSelect: "text",
@@ -1720,11 +1760,11 @@ function FeishuManualForm({
           {FEISHU_PERMISSION_IMPORT_JSON}
         </pre>
         {permissionCopyState === "error" && (
-          <div role="alert" style={{ marginTop: 6, color: "var(--danger)" }}>
+          <div role="alert" style={{ marginTop: 8, color: "var(--danger)" }}>
             {t("feishuPermissionCopyFailed", "Copy failed. Select and copy the JSON above manually.")}
           </div>
         )}
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 9 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
           <button
             type="button"
             data-testid="copy-feishu-permission-json"
@@ -1746,7 +1786,7 @@ function FeishuManualForm({
       </div>
 
       <FeishuDialogError error={error} />
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 7, marginTop: 16 }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
         <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
           {t("cancel", "Cancel")}
         </button>
@@ -1807,14 +1847,14 @@ export function LoginDialog({
           width: 390,
           maxWidth: "calc(100vw - 28px)",
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg)",
-          padding: 22,
+          padding: 24,
           textAlign: "center",
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: 16 }}>
+        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
           {isFeishu
             ? t("feishuScanCreateTitle", "Scan to create Feishu / Lark bot")
             : t("connectWeixin", "Connect WeChat")}
@@ -1824,10 +1864,10 @@ export function LoginDialog({
             style={{
               width: 236,
               height: 236,
-              padding: 10,
+              padding: 12,
               background: "white",
-              borderRadius: 8,
-              margin: "18px auto 12px",
+              borderRadius: "var(--radius-card)",
+              margin: "20px auto 12px",
             }}
           >
             <QRCodeSVG
@@ -1844,21 +1884,21 @@ export function LoginDialog({
           </div>
         )}
         {remainingSeconds !== undefined && !terminal && (
-          <div style={{ color: "var(--text-dim)", fontSize: 11, marginTop: 8 }}>
+          <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)", marginTop: 8 }}>
             {t("qrCodeExpiresIn", "QR code expires in")} {remainingSeconds}s
           </div>
         )}
         <p
           style={{
             color: event.phase === "error" ? "var(--danger)" : "var(--text-muted)",
-            fontSize: 12,
+            fontSize: "var(--text-label)",
             lineHeight: 1.6,
           }}
         >
           {event.message}
         </p>
         {event.phase === "verification_required" && (
-          <div style={{ display: "flex", gap: 7, marginTop: 12 }}>
+          <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <input
               autoFocus
               style={inputStyle}
@@ -1872,13 +1912,13 @@ export function LoginDialog({
           </div>
         )}
         {(event.phase === "waiting" || event.phase === "scanned") && (
-          <div style={{ color: "var(--text-dim)", fontSize: 11 }}>
+          <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
             {isFeishu
               ? t("waitingForFeishuAuthorization", "Waiting securely for Feishu / Lark authorization…")
               : t("pollingSecurely", "Polling securely…")}
           </div>
         )}
-        <div style={{ display: "flex", justifyContent: "center", gap: 7, marginTop: 16 }}>
+        <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
           {retryable && onRetry && (
             <button type="button" style={buttonStyle(true)} onClick={onRetry}>
               {t("regenerateQrCode", "Generate a new QR code")}
@@ -1895,7 +1935,7 @@ export function LoginDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gap: 5, color: "var(--text-dim)", fontSize: 12 }}>
+    <div style={{ display: "grid", gap: 4, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
       <span>{label}</span>
       {children}
     </div>
@@ -1906,19 +1946,21 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section
       style={{
-        marginTop: 22,
+        marginTop: 24,
         border: "1px solid var(--border)",
-        borderRadius: 9,
+        borderRadius: "var(--radius-card)",
         background: "var(--bg-panel)",
-        padding: "13px 15px",
+        padding: "12px 16px",
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 5 }}>{title}</div>
+      <div style={{ fontSize: "var(--text-label)", fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
+        {title}
+      </div>
       {children}
     </section>
   );
 }
 
 function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <div style={{ color: "var(--text-dim)", fontSize: 11, padding: "9px 0" }}>{children}</div>;
+  return <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)", padding: "8px 0" }}>{children}</div>;
 }

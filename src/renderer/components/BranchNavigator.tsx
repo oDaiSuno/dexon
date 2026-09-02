@@ -89,7 +89,13 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
       {row.depth > row.guideLines.length && (
         <div
           title={t("branchDepth", "Branch depth {depth}").replace("{depth}", formatNumber(row.depth + 1, language))}
-          style={{ width: 16, flexShrink: 0, color: "var(--text-dim)", fontSize: 10, textAlign: "center" }}
+          style={{
+            width: 16,
+            flexShrink: 0,
+            color: "var(--text-dim)",
+            fontSize: "var(--text-micro)",
+            textAlign: "center",
+          }}
         >
           …
         </div>
@@ -130,7 +136,7 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
           flexShrink: 0,
           background: isActive ? "var(--accent)" : isOnPath ? "var(--text-muted)" : "var(--border)",
           border: isActive ? "none" : "1px solid var(--text-dim)",
-          marginRight: 6,
+          marginRight: 8,
           transition: "background 0.12s",
         }}
       />
@@ -139,14 +145,14 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
       {role && (
         <span
           style={{
-            fontSize: 9,
+            fontSize: "var(--text-micro)",
             fontFamily: "var(--font-mono)",
             color: role === "user" ? "var(--accent)" : "var(--text-dim)",
             background: role === "user" ? "var(--accent-soft)" : "var(--bg-hover)",
             border: `1px solid ${role === "user" ? "var(--accent-soft-border)" : "var(--border)"}`,
-            borderRadius: 3,
+            borderRadius: "var(--radius-chip)",
             padding: "0 4px",
-            marginRight: 5,
+            marginRight: 4,
             flexShrink: 0,
             lineHeight: "16px",
           }}
@@ -157,13 +163,15 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
 
       {/* Skipped indicator */}
       {row.skipped > 0 && (
-        <span style={{ fontSize: 10, color: "var(--text-dim)", marginRight: 5, flexShrink: 0 }}>+{row.skipped}</span>
+        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginRight: 4, flexShrink: 0 }}>
+          +{row.skipped}
+        </span>
       )}
 
       {/* Label */}
       <span
         style={{
-          fontSize: 11,
+          fontSize: "var(--text-meta)",
           color: isActive ? "var(--text)" : isOnPath ? "var(--text-muted)" : "var(--text-dim)",
           fontWeight: isActive ? 500 : 400,
           overflow: "hidden",
@@ -320,7 +328,7 @@ export function BranchNavigator({
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 8,
             height: "100%",
             padding: "0 12px",
             background: open ? "var(--bg-selected)" : "none",
@@ -329,7 +337,7 @@ export function BranchNavigator({
             borderRight: "1px solid var(--border)",
             cursor: "pointer",
             color: open ? "var(--text)" : "var(--text-muted)",
-            fontSize: 11,
+            fontSize: "var(--text-meta)",
             whiteSpace: "nowrap",
             transition: "color 0.1s, background 0.1s",
           }}
@@ -363,7 +371,14 @@ export function BranchNavigator({
                 <BranchTreeRows rows={rows} activePathIds={activePathIds} onSelect={handleSelect} />
               </div>
             ) : (
-              <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+              <div
+                style={{
+                  padding: "12px 16px",
+                  fontSize: "var(--text-label)",
+                  color: "var(--text-muted)",
+                  fontStyle: "italic",
+                }}
+              >
                 {noBranchReason}
               </div>
             )}
@@ -383,14 +398,14 @@ export function BranchNavigator({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 8,
           width: "100%",
-          padding: "5px 12px",
+          padding: "4px 12px",
           background: "none",
           border: "none",
           cursor: "pointer",
           color: "var(--text-muted)",
-          fontSize: 11,
+          fontSize: "var(--text-meta)",
           textAlign: "left",
         }}
       >
@@ -418,7 +433,14 @@ export function BranchNavigator({
               <BranchTreeRows rows={rows} activePathIds={activePathIds} onSelect={handleSelect} />
             </div>
           ) : (
-            <div style={{ padding: "10px 16px", fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+            <div
+              style={{
+                padding: "12px 16px",
+                fontSize: "var(--text-label)",
+                color: "var(--text-muted)",
+                fontStyle: "italic",
+              }}
+            >
               {noBranchReason ?? t("sessionHasNoBranches", "This session has no branches")}
             </div>
           )}

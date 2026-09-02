@@ -91,24 +91,24 @@ export function CapabilityRequired({
     <div
       role="alert"
       style={{
-        padding: 13,
-        border: "1px solid color-mix(in srgb, #f59e0b 45%, var(--border))",
-        borderRadius: 8,
-        background: "color-mix(in srgb, #f59e0b 8%, var(--bg-panel))",
+        padding: 12,
+        border: "1px solid var(--warning-border)",
+        borderRadius: "var(--radius-card)",
+        background: "var(--warning-soft)",
         color: "var(--text)",
       }}
     >
-      <div style={{ fontSize: 12, fontWeight: 700 }}>
+      <div style={{ fontSize: "var(--text-label)", fontWeight: 700 }}>
         {t("capabilityRequiredTitle", "{tool} is required for this operation.").replace("{tool}", label)}
       </div>
-      <p style={{ margin: "5px 0 10px", fontSize: 11, lineHeight: 1.55, color: "var(--text-muted)" }}>
+      <p style={{ margin: "4px 0 12px", fontSize: "var(--text-meta)", lineHeight: 1.55, color: "var(--text-muted)" }}>
         {t(
           "capabilityRequiredDescription",
           "No verified tool satisfying this operation was found. Pi Desktop will not download one in the background.",
         )}
       </p>
-      {error && <p style={{ margin: "0 0 9px", fontSize: 11, color: "#f87171" }}>{error}</p>}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+      {error && <p style={{ margin: "0 0 8px", fontSize: "var(--text-meta)", color: "var(--danger)" }}>{error}</p>}
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {installAction && (
           <PromptButton primary disabled={pending !== null} onClick={() => void installAndContinue()}>
             {pending === "install"
@@ -152,12 +152,12 @@ function PromptButton({
       onClick={onClick}
       style={{
         minHeight: 31,
-        padding: "6px 10px",
+        padding: "8px 12px",
         border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: 6,
+        borderRadius: "var(--radius-control)",
         background: primary ? "var(--accent)" : "var(--bg)",
         color: primary ? "white" : "var(--text)",
-        fontSize: 11,
+        fontSize: "var(--text-meta)",
         fontWeight: 600,
         cursor: disabled ? "wait" : "pointer",
         opacity: disabled ? 0.6 : 1,

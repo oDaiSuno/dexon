@@ -195,7 +195,7 @@ export function CustomMessageView({
                       style={{
                         maxWidth: 240,
                         maxHeight: 240,
-                        borderRadius: 6,
+                        borderRadius: "var(--radius-control)",
                         objectFit: "contain",
                         display: "block",
                         border: "1px solid var(--bui-line)",

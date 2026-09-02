@@ -24,21 +24,21 @@ function formatDuration(startedAt: number | undefined, stoppedAt: number | undef
 }
 
 function stateColor(process: ManagedProcessPublicInfo): string {
-  if (process.state === "ready") return "#4ade80";
-  if (isManagedProcessActiveState(process.state)) return "#60a5fa";
+  if (process.state === "ready") return "var(--success)";
+  if (isManagedProcessActiveState(process.state)) return "var(--info)";
   if (process.state === "exited" && process.exit?.code === 0) return "var(--text-dim)";
-  if (process.state === "killed" || process.state === "reaped") return "#fbbf24";
-  return "#f87171";
+  if (process.state === "killed" || process.state === "reaped") return "var(--warning)";
+  return "var(--danger)";
 }
 
 const buttonStyle = {
   height: 28,
   border: "1px solid var(--border)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg-panel)",
   color: "var(--text-muted)",
-  padding: "0 9px",
-  fontSize: 11,
+  padding: "0 8px",
+  fontSize: "var(--text-meta)",
   cursor: "pointer",
 } as const;
 
@@ -216,7 +216,12 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
       {error && (
         <div
           role="alert"
-          style={{ padding: "8px 10px", color: "#f87171", fontSize: 11, borderBottom: "1px solid var(--border)" }}
+          style={{
+            padding: "8px 12px",
+            color: "var(--danger)",
+            fontSize: "var(--text-meta)",
+            borderBottom: "1px solid var(--border)",
+          }}
         >
           {error}
         </div>
@@ -224,9 +229,11 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
       <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 32%) minmax(0, 1fr)", flex: 1, minHeight: 0 }}>
         <div style={{ borderRight: "1px solid var(--border)", overflowY: "auto", background: "var(--bg-panel)" }}>
           {loading ? (
-            <div style={{ padding: 14, color: "var(--text-dim)", fontSize: 12 }}>{t("loading", "Loading…")}</div>
+            <div style={{ padding: 16, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
+              {t("loading", "Loading…")}
+            </div>
           ) : processes.length === 0 ? (
-            <div style={{ padding: 14, color: "var(--text-dim)", fontSize: 12, lineHeight: 1.6 }}>
+            <div style={{ padding: 16, color: "var(--text-dim)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
               {t("noManagedProcesses", "No managed processes")}
             </div>
           ) : (
@@ -241,18 +248,18 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   borderBottom: "1px solid var(--border)",
                   background: selectedId === process.processId ? "var(--bg)" : "transparent",
                   color: "var(--text)",
-                  padding: "10px",
+                  padding: "12px",
                   textAlign: "left",
                   cursor: "pointer",
                 }}
               >
-                <div style={{ display: "flex", gap: 7, alignItems: "center", minWidth: 0 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
                   <span
                     style={{ width: 7, height: 7, borderRadius: "50%", background: stateColor(process), flexShrink: 0 }}
                   />
                   <span
                     style={{
-                      fontSize: 12,
+                      fontSize: "var(--text-label)",
                       fontWeight: 600,
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -264,8 +271,8 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 </div>
                 <div
                   style={{
-                    marginTop: 5,
-                    fontSize: 10,
+                    marginTop: 4,
+                    fontSize: "var(--text-micro)",
                     color: "var(--text-dim)",
                     display: "flex",
                     justifyContent: "space-between",
@@ -277,8 +284,8 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 {process.lastOutput && (
                   <div
                     style={{
-                      marginTop: 6,
-                      fontSize: 10,
+                      marginTop: 8,
+                      fontSize: "var(--text-micro)",
                       color: "var(--text-dim)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -295,13 +302,20 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
 
         {selected ? (
           <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div style={{ padding: "10px 12px", borderBottom: "1px solid var(--border)", display: "grid", gap: 7 }}>
+            <div style={{ padding: "12px 12px", borderBottom: "1px solid var(--border)", display: "grid", gap: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <strong style={{ fontSize: 13, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <strong
+                  style={{
+                    fontSize: "var(--text-body)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
                   {selected.label}
                 </strong>
-                <span style={{ color: stateColor(selected), fontSize: 11 }}>{selected.state}</span>
-                <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: 10 }}>
+                <span style={{ color: stateColor(selected), fontSize: "var(--text-meta)" }}>{selected.state}</span>
+                <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
                   run {selected.generation}
                 </span>
               </div>
@@ -310,7 +324,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 style={{
                   color: "var(--text-muted)",
                   fontFamily: "var(--font-mono)",
-                  fontSize: 10,
+                  fontSize: "var(--text-micro)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -318,15 +332,15 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
               >
                 {selected.commandDisplay}
               </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 10 }}>
+              <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
                 {selected.cwdDisplay} · {selected.kind} · {selected.readiness}
                 {selected.exit ? ` · exit ${selected.exit.code ?? selected.exit.signal ?? "unknown"}` : ""}
               </div>
-              <div style={{ color: "var(--text-dim)", fontSize: 10 }} title={selected.ownerSessionId}>
+              <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)" }} title={selected.ownerSessionId}>
                 {t("ownerTask", "Owner task")}: {selected.ownerSessionId.slice(-12)}
               </div>
               {selected.networkWarnings.map((warning) => (
-                <div key={warning} style={{ color: "#fbbf24", fontSize: 10 }}>
+                <div key={warning} style={{ color: "var(--warning)", fontSize: "var(--text-micro)" }}>
                   {warning === "Process may be reachable from the local network"
                     ? t("managedProcessLanWarning", "Process may be reachable from the local network")
                     : warning}
@@ -335,7 +349,13 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
               {selected.state === "lost" && (
                 <div
                   role="alert"
-                  style={{ padding: 9, border: "1px solid #ef4444", borderRadius: 6, color: "#fca5a5", fontSize: 11 }}
+                  style={{
+                    padding: 8,
+                    border: "1px solid var(--danger-border)",
+                    borderRadius: "var(--radius-control)",
+                    color: "var(--danger)",
+                    fontSize: "var(--text-meta)",
+                  }}
                 >
                   <div>
                     {t(
@@ -343,7 +363,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                       "This process tree could not be safely confirmed as stopped. New starts are disabled; stop all processes and restart the app.",
                     )}
                   </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button
                       type="button"
                       disabled={busy}
@@ -374,7 +394,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   {t("openInBrowser", "Open in Browser")}: {endpoint.url}
                 </button>
               ))}
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {isManagedProcessActiveState(selected.state) ? (
                   <>
                     <button
@@ -470,9 +490,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
 
             <div
               style={{
-                padding: "7px 9px",
+                padding: "8px 8px",
                 display: "flex",
-                gap: 6,
+                gap: 8,
                 borderBottom: "1px solid var(--border)",
                 alignItems: "center",
                 flexWrap: "wrap",
@@ -487,17 +507,23 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   minWidth: 100,
                   height: 26,
                   border: "1px solid var(--border)",
-                  borderRadius: 6,
+                  borderRadius: "var(--radius-control)",
                   background: "var(--bg)",
                   color: "var(--text)",
-                  padding: "0 7px",
-                  fontSize: 11,
+                  padding: "0 8px",
+                  fontSize: "var(--text-meta)",
                 }}
               />
               {(["stdout", "stderr", "system"] as ManagedProcessLogStream[]).map((stream) => (
                 <label
                   key={stream}
-                  style={{ fontSize: 10, color: "var(--text-muted)", display: "flex", gap: 3, alignItems: "center" }}
+                  style={{
+                    fontSize: "var(--text-micro)",
+                    color: "var(--text-muted)",
+                    display: "flex",
+                    gap: 4,
+                    alignItems: "center",
+                  }}
                 >
                   <input
                     type="checkbox"
@@ -533,9 +559,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 flex: 1,
                 minHeight: 0,
                 overflow: "auto",
-                padding: "8px 10px",
+                padding: "8px 12px",
                 fontFamily: "var(--font-mono)",
-                fontSize: 10.5,
+                fontSize: "var(--text-micro)",
                 lineHeight: 1.55,
                 whiteSpace: "pre-wrap",
                 overflowWrap: "anywhere",
@@ -547,9 +573,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   style={{
                     color:
                       record.stream === "stderr"
-                        ? "#fca5a5"
+                        ? "var(--danger)"
                         : record.stream === "system"
-                          ? "#fbbf24"
+                          ? "var(--warning)"
                           : "var(--text-muted)",
                   }}
                 >
@@ -583,7 +609,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     setStdin("");
                   });
                 }}
-                style={{ padding: 8, borderTop: "1px solid var(--border)", display: "flex", gap: 6 }}
+                style={{ padding: 8, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}
               >
                 <input
                   value={stdin}
@@ -594,11 +620,11 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     minWidth: 0,
                     height: 28,
                     border: "1px solid var(--border)",
-                    borderRadius: 6,
+                    borderRadius: "var(--radius-control)",
                     background: "var(--bg)",
                     color: "var(--text)",
-                    padding: "0 7px",
-                    fontSize: 11,
+                    padding: "0 8px",
+                    fontSize: "var(--text-meta)",
                   }}
                 />
                 <button type="submit" disabled={busy || !stdin} style={buttonStyle}>
@@ -627,7 +653,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
             )}
           </div>
         ) : (
-          <div style={{ display: "grid", placeItems: "center", color: "var(--text-dim)", fontSize: 12 }}>
+          <div
+            style={{ display: "grid", placeItems: "center", color: "var(--text-dim)", fontSize: "var(--text-label)" }}
+          >
             {t("noManagedProcesses", "No managed processes")}
           </div>
         )}

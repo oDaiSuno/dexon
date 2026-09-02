@@ -99,6 +99,7 @@ test("accent contrast meets WCAG AA in both themes and has no component fallback
   }
 
   const browserSettings = readFileSync(new URL("components/browser/BrowserSettings.tsx", import.meta.url), "utf8");
-  assert.match(browserSettings, /color:\s*"var\(--accent-contrast\)"/);
+  // Primary buttons invert via --btn-bg/--btn-fg; text on accent fills uses --accent-contrast.
+  assert.match(browserSettings, /color:\s*"var\(--btn-fg\)"/);
   assert.doesNotMatch(browserSettings, /var\(--accent-contrast\s*,/);
 });

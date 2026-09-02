@@ -1,11 +1,11 @@
 /* ─────────────────────────────────────────────────────────
- * Dexon chat surface — Beautiful UI language
- * Tokens adapted from beautifului.dev (MIT, © Shane Levine):
- * cool-gray canvas, hairline layering, three ink levels,
- * low concentric radii, blue reserved for signals.
- * Motion tokens from transitions.dev (_root.css scale).
- * All chat-scoped tokens live under .chat-appearance-scope
- * so the surrounding app chrome keeps its own palette.
+ * Dexon chat surface — "Vercel A" personality (user-approved
+ * 2026-09-03; preview .artifacts/ui-vercel/preview-vercel.html).
+ * Chat tokens are aliases onto the app gray ramp in globals.css
+ * (single source of truth): flat canvas, hairline layering, three
+ * ink levels, blue reserved for signals. Motion tokens from
+ * transitions.dev (_root.css scale) — unchanged by the re-skin.
+ * Chat-scoped tokens live under .chat-appearance-scope.
  * ───────────────────────────────────────────────────────── */
 
 :root {
@@ -37,44 +37,44 @@
 }
 
 .chat-appearance-scope {
-  /* Beautiful UI chat palette — light */
-  --bui-page: #fafafb;
-  --bui-canvas: #f1f2f3;
+  /* Vercel A chat palette — light (aliases onto the app gray ramp) */
+  --bui-page: #fafafa; /* var(--gray-50) */
+  --bui-canvas: #ffffff; /* chat reads as a document on the page */
   --bui-surface: #ffffff;
-  --bui-inset: #f7f8f9;
-  --bui-hover: #f4f5f6;
-  --bui-hover-2: #e7e9eb;
-  --bui-ink: #1f2124;
-  --bui-ink-2: #62656b;
-  --bui-ink-3: #9a9da3;
-  --bui-line: #ecedef;
-  --bui-line-strong: #e0e2e5;
-  --bui-field: #f2f2f3;
-  --bui-stripe: #49494913;
-  --bui-stripe-bg: #f5f5f5;
-  --bui-accent: #0285ff;
-  --bui-accent-ink: #0170dd;
-  --bui-accent-tint: #e9f3ff;
-  --bui-green: #189a4d;
-  --bui-green-tint: #e8f5ed;
-  --bui-orange: #ef720c;
-  --bui-orange-tint: #fdf1e5;
-  --bui-red: #e3474c;
-  --bui-red-tint: #fcecec;
+  --bui-inset: #fafafa;
+  --bui-hover: var(--gray-100);
+  --bui-hover-2: var(--gray-200);
+  --bui-ink: var(--gray-1000);
+  --bui-ink-2: var(--gray-600);
+  --bui-ink-3: var(--gray-400);
+  --bui-line: var(--gray-200);
+  --bui-line-strong: var(--gray-300);
+  --bui-field: var(--gray-100); /* quiet boxes: thinking traces, insets */
+  --bui-bubble: var(--gray-200); /* local user bubble */
+  --bui-accent: #0060dd;
+  --bui-accent-ink: #0052c4;
+  --bui-accent-tint: rgba(0, 96, 221, 0.08);
+  --bui-green: #29a383;
+  --bui-green-tint: rgba(41, 163, 131, 0.1);
+  --bui-orange: #f5a623;
+  --bui-orange-tint: rgba(245, 166, 35, 0.12);
+  --bui-red: #e00000;
+  --bui-red-tint: rgba(224, 0, 0, 0.08);
   --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px #1018280d;
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px #1018280a, 0 2px 6px #10182808;
+  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.05);
+  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.03);
   /* concentric radii: chip 6 / control 8 / card 10 */
   --bui-r-chip: 6px;
   --bui-r-control: 8px;
   --bui-r-card: 10px;
   /* chat type scale (multiplied by --chat-font-scale) */
+  --chat-f-chip: 11.5px;
   --chat-f-micro: 11px;
+  --chat-f-name: 12.5px;
   --chat-f-meta: 12px;
   --chat-f-body: 13.5px;
-  /* chat canvas = diagonal hairline stripes on cool gray */
-  background: var(--bui-stripe-bg)
-    repeating-linear-gradient(-45deg, transparent 0, transparent 7px, var(--bui-stripe) 7px, var(--bui-stripe) 8px);
+  /* chat canvas = flat surface; texture-free per Vercel personality */
+  background: var(--bui-canvas);
   color: var(--bui-ink);
 
   /* B11: alias the app-level warm tokens to the chat palette so every
@@ -98,38 +98,37 @@
   --thinking-bg: transparent;
   --thinking-border: var(--bui-line);
   --assistant-bg: transparent;
-  --user-bg: var(--bui-field);
+  --user-bg: var(--bui-bubble);
   --user-fg: var(--bui-ink);
 }
 
 html.dark .chat-appearance-scope {
-  /* Beautiful UI chat palette — dark */
-  --bui-page: #17181a;
-  --bui-canvas: #1c1d1f;
-  --bui-surface: #232427;
-  --bui-inset: #1f2022;
-  --bui-hover: #2a2b2e;
-  --bui-hover-2: #313236;
-  --bui-ink: #f2f3f4;
-  --bui-ink-2: #a5a8ad;
-  --bui-ink-3: #6c6f75;
-  --bui-line: #2e3033;
-  --bui-line-strong: #3a3c40;
-  --bui-field: #2b2c2f;
-  --bui-stripe: #ffffff0e;
-  --bui-stripe-bg: #1b1c1e;
-  --bui-accent: #3d9aff;
-  --bui-accent-ink: #7ec0ff;
-  --bui-accent-tint: #3d9aff29;
-  --bui-green: #3dbb72;
-  --bui-green-tint: #3dbb7224;
-  --bui-orange: #f68f3c;
-  --bui-orange-tint: #f68f3c24;
-  --bui-red: #ee5c61;
-  --bui-red-tint: #ee5c6124;
+  /* Vercel A chat palette — dark (true-black family) */
+  --bui-page: #0a0a0a;
+  --bui-canvas: #0a0a0a;
+  --bui-surface: #111111;
+  --bui-inset: #141414;
+  --bui-hover: var(--gray-100);
+  --bui-hover-2: var(--gray-200);
+  --bui-ink: var(--gray-1000);
+  --bui-ink-2: var(--gray-600);
+  --bui-ink-3: var(--gray-500);
+  --bui-line: var(--gray-300);
+  --bui-line-strong: var(--gray-400);
+  --bui-field: var(--gray-100);
+  --bui-bubble: var(--gray-200);
+  --bui-accent: #3291ff;
+  --bui-accent-ink: #5ba2ff;
+  --bui-accent-tint: rgba(50, 145, 255, 0.14);
+  --bui-green: #45c4a0;
+  --bui-green-tint: rgba(69, 196, 160, 0.12);
+  --bui-orange: #f5b94a;
+  --bui-orange-tint: rgba(245, 185, 74, 0.12);
+  --bui-red: #ff5c5c;
+  --bui-red-tint: rgba(255, 92, 92, 0.12);
   --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--line-strong), 0 1px 2px #0000004d;
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px #0003, 0 2px 6px #0003;
+  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.3);
+  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.2);
 
   /* B11 aliases (same targets; --bui-* resolve to dark values above) */
   --border: var(--bui-line);
@@ -352,10 +351,15 @@ html.dark .chat-appearance-scope {
 
 .chat-tool-name {
   flex-shrink: 0;
-  font-size: 12.5px;
+  font-size: var(--chat-f-name);
   font-weight: 500;
   color: var(--bui-ink);
   white-space: nowrap;
+}
+
+html.dark .chat-tool-chip {
+  background: var(--bui-field);
+  color: var(--bui-ink-2);
 }
 
 .chat-tool-chip {
@@ -367,18 +371,13 @@ html.dark .chat-appearance-scope {
   border-radius: var(--bui-r-chip);
   background: var(--bui-hover-2);
   padding: 0 6px;
-  font-size: 11.5px;
-  color: #43464c;
+  font-size: var(--chat-f-chip);
+  color: var(--bui-ink-2);
   box-shadow: var(--bui-shadow-hairline);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: var(--font-mono);
-}
-
-html.dark .chat-tool-chip {
-  background: var(--bui-field);
-  color: var(--bui-ink-2);
 }
 
 .chat-tool-meta {
@@ -388,7 +387,7 @@ html.dark .chat-tool-chip {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--chat-f-micro);
   color: var(--bui-ink-3);
   font-variant-numeric: tabular-nums;
 }
@@ -424,7 +423,7 @@ html.dark .chat-tool-chip {
   padding: 2px 4px;
   border-radius: var(--bui-r-chip);
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: var(--chat-f-chip);
   color: var(--bui-accent);
 }
 .chat-tool-open-browser:hover {

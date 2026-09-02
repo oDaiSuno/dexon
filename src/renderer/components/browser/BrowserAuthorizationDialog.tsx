@@ -101,20 +101,20 @@ export function BrowserAuthorizationDialog({
           overflowY: "auto",
           display: "grid",
           gap: 16,
-          padding: "22px",
+          padding: "24px",
           border: "1px solid var(--border)",
-          borderRadius: 12,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg-panel)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
         }}
       >
         <div>
-          <h2 id="browser-agent-authorization-title" style={{ margin: 0, fontSize: 18 }}>
+          <h2 id="browser-agent-authorization-title" style={{ margin: 0, fontSize: "var(--text-heading-lg)" }}>
             {t("browserAuthorizationTitle", "Allow Agent Browser access?")}
           </h2>
           <p
             id="browser-agent-authorization-description"
-            style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: 13, lineHeight: 1.55 }}
+            style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: "var(--text-body)", lineHeight: 1.55 }}
           >
             {t(
               "browserAuthorizationDescription",
@@ -127,8 +127,8 @@ export function BrowserAuthorizationDialog({
             margin: 0,
             display: "grid",
             gridTemplateColumns: "minmax(90px, auto) minmax(0, 1fr)",
-            gap: "8px 14px",
-            fontSize: 13,
+            gap: "8px 16px",
+            fontSize: "var(--text-body)",
           }}
         >
           <dt style={{ color: "var(--text-muted)" }}>{t("browserAuthorizationSession", "Session")}</dt>
@@ -145,15 +145,15 @@ export function BrowserAuthorizationDialog({
         <div
           style={{
             padding: 12,
-            borderRadius: 8,
+            borderRadius: "var(--radius-card)",
             background: "color-mix(in srgb, var(--accent) 8%, var(--bg))",
-            fontSize: 13,
+            fontSize: "var(--text-body)",
             lineHeight: 1.55,
           }}
         >
           {capability}
         </div>
-        <div style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.55 }}>
+        <div style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.55 }}>
           {t(
             "browserAuthorizationSessionOnly",
             "Allowing here lasts only for this running Agent session. Permanent permissions can only be saved in Browser settings.",
@@ -179,7 +179,7 @@ const buttonStyle: CSSProperties = {
   minHeight: 34,
   padding: "0 12px",
   border: "1px solid var(--border)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
   cursor: "pointer",
@@ -187,7 +187,7 @@ const buttonStyle: CSSProperties = {
 
 const primaryButtonStyle: CSSProperties = {
   ...buttonStyle,
-  borderColor: "var(--accent)",
-  background: "var(--accent)",
-  color: "white",
+  borderColor: "transparent",
+  background: "var(--btn-bg)",
+  color: "var(--btn-fg)",
 };

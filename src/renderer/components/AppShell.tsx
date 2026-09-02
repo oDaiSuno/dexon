@@ -710,13 +710,13 @@ export function AppShell({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: 7,
+            gap: 8,
             background: "none",
             border: "none",
-            borderRadius: 9,
+            borderRadius: "var(--radius-card)",
             color: "var(--text-muted)",
             cursor: "pointer",
-            fontSize: 12,
+            fontSize: "var(--text-label)",
             transition: "background 0.12s, color 0.12s",
           }}
           onMouseEnter={(e) => {
@@ -1013,7 +1013,7 @@ export function AppShell({
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
                   color: "var(--text)",
-                  fontSize: 13,
+                  fontSize: "var(--text-body)",
                   fontWeight: 650,
                 }}
               >
@@ -1044,8 +1044,8 @@ export function AppShell({
                 let ctxStr: string | null = null;
                 if (contextUsage?.contextWindow) {
                   const pct = contextUsage.percent;
-                  if (pct !== null && pct > 90) ctxColor = "#ef4444";
-                  else if (pct !== null && pct > 70) ctxColor = "rgba(234,179,8,0.95)";
+                  if (pct !== null && pct > 90) ctxColor = "var(--danger)";
+                  else if (pct !== null && pct > 70) ctxColor = "var(--warning)";
                   ctxStr =
                     pct !== null
                       ? `${pct.toFixed(0)}% / ${fmt(contextUsage.contextWindow)}`
@@ -1090,7 +1090,7 @@ export function AppShell({
                       background: activeTopPanel === "session" ? "var(--bg-selected)" : "none",
                       border: "none",
                       borderTop: activeTopPanel === "session" ? "2px solid var(--accent)" : "2px solid transparent",
-                      fontSize: 12,
+                      fontSize: "var(--text-label)",
                       color: "var(--text-muted)",
                       whiteSpace: "nowrap",
                       cursor: "pointer",
@@ -1226,7 +1226,14 @@ export function AppShell({
                           compact = false,
                         ) => (
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>
+                            <div
+                              style={{
+                                fontSize: "var(--text-label)",
+                                fontWeight: 700,
+                                color: "var(--text)",
+                                marginBottom: 8,
+                              }}
+                            >
                               {title}
                             </div>
                             <div
@@ -1284,10 +1291,10 @@ export function AppShell({
                                 width: 22,
                                 height: 22,
                                 marginTop: -2,
-                                color: failed ? "var(--error, #ef4444)" : copied ? "var(--accent)" : "var(--text-dim)",
+                                color: failed ? "var(--danger)" : copied ? "var(--accent)" : "var(--text-dim)",
                                 background: "transparent",
                                 border: "1px solid var(--border)",
-                                borderRadius: 4,
+                                borderRadius: "var(--radius-chip)",
                                 cursor: "pointer",
                                 flex: "0 0 auto",
                                 transition: "color 0.12s, border-color 0.12s, background 0.12s",
@@ -1299,7 +1306,7 @@ export function AppShell({
                               }}
                               onMouseLeave={(e) => {
                                 e.currentTarget.style.color = failed
-                                  ? "var(--error, #ef4444)"
+                                  ? "var(--danger)"
                                   : copied
                                     ? "var(--accent)"
                                     : "var(--text-dim)";
@@ -1357,7 +1364,14 @@ export function AppShell({
                         };
                         const sessionInfoSection = (
                           <div style={{ minWidth: 0 }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>
+                            <div
+                              style={{
+                                fontSize: "var(--text-label)",
+                                fontWeight: 700,
+                                color: "var(--text)",
+                                marginBottom: 8,
+                              }}
+                            >
                               {t("sessionInfo", "Session info")}
                             </div>
                             <div
@@ -1388,7 +1402,7 @@ export function AppShell({
                               ))}
                             </div>
                             {sessionCopyFeedback?.status === "error" && (
-                              <div role="alert" style={{ marginTop: 8, color: "var(--error, #ef4444)" }}>
+                              <div role="alert" style={{ marginTop: 8, color: "var(--danger)" }}>
                                 {t("copyFailed", "Copy failed")}.{" "}
                                 {t("checkClipboardPermission", "Check clipboard permission and retry.")}
                               </div>
@@ -1404,7 +1418,7 @@ export function AppShell({
                                 ? "1fr"
                                 : "minmax(360px, 1.7fr) minmax(140px, 0.55fr) minmax(190px, 0.75fr)",
                               gap: isMobile ? 16 : 24,
-                              fontSize: 12,
+                              fontSize: "var(--text-label)",
                               lineHeight: 1.5,
                               fontFamily: "var(--font-mono)",
                             }}
@@ -1416,7 +1430,7 @@ export function AppShell({
                         );
                       })()
                     ) : (
-                      <div style={{ fontSize: 12, color: "var(--text-muted)", fontStyle: "italic" }}>
+                      <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontStyle: "italic" }}>
                         {t("loadSessionInfoHint", "Send a message or run /session to load session info")}
                       </div>
                     )}
@@ -1459,7 +1473,7 @@ export function AppShell({
                     alignItems: "center",
                     justifyContent: "center",
                     color: "var(--text-muted)",
-                    fontSize: 15,
+                    fontSize: "var(--text-title)",
                   }}
                 >
                   {t("selectSession", "Select a session from the sidebar")}
@@ -1492,14 +1506,21 @@ export function AppShell({
                     <polyline points="10 6 4 12 10 18" />
                   </svg>
                   <div>
-                    <div style={{ fontSize: 18, fontWeight: 600, color: "var(--text)", marginBottom: 8 }}>
+                    <div
+                      style={{
+                        fontSize: "var(--text-heading-lg)",
+                        fontWeight: 600,
+                        color: "var(--text)",
+                        marginBottom: 8,
+                      }}
+                    >
                       {t("getStarted", "Get Started")}
                     </div>
-                    <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.8 }}>
-                      <span style={{ color: "var(--text-dim)", marginRight: 6 }}>1.</span>
+                    <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.8 }}>
+                      <span style={{ color: "var(--text-dim)", marginRight: 8 }}>1.</span>
                       {t("selectProject", "Select a project directory from the sidebar")}
                       <br />
-                      <span style={{ color: "var(--text-dim)", marginRight: 6 }}>2.</span>
+                      <span style={{ color: "var(--text-dim)", marginRight: 8 }}>2.</span>
                       {t("addModelsFromSettings", "Open Settings at the bottom, then add models")}
                     </div>
                   </div>
@@ -1559,7 +1580,7 @@ export function AppShell({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 8,
                 height: 36,
                 padding: "0 12px",
                 flexShrink: 0,
@@ -1568,7 +1589,7 @@ export function AppShell({
                 borderRight: "1px solid var(--border)",
                 color: activeFileTabId === EXPLORER_TAB_ID ? "var(--text)" : "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 fontWeight: activeFileTabId === EXPLORER_TAB_ID ? 500 : 400,
               }}
             >
@@ -1594,7 +1615,7 @@ export function AppShell({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 8,
                 height: 36,
                 padding: "0 12px",
                 flexShrink: 0,
@@ -1603,7 +1624,7 @@ export function AppShell({
                 borderRight: "1px solid var(--border)",
                 color: activeFileTabId === BROWSER_TAB_ID ? "var(--text)" : "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 fontWeight: activeFileTabId === BROWSER_TAB_ID ? 500 : 400,
               }}
             >
@@ -1630,7 +1651,7 @@ export function AppShell({
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 6,
+                gap: 8,
                 height: 36,
                 padding: "0 12px",
                 flexShrink: 0,
@@ -1639,7 +1660,7 @@ export function AppShell({
                 borderRight: "1px solid var(--border)",
                 color: activeFileTabId === PROCESSES_TAB_ID ? "var(--text)" : "var(--text-muted)",
                 cursor: "pointer",
-                fontSize: 12,
+                fontSize: "var(--text-label)",
                 fontWeight: activeFileTabId === PROCESSES_TAB_ID ? 500 : 400,
               }}
             >
@@ -1666,10 +1687,10 @@ export function AppShell({
                     padding: "0 4px",
                     display: "inline-grid",
                     placeItems: "center",
-                    borderRadius: 8,
-                    background: managedProcessAttention ? "#dc2626" : "var(--accent)",
-                    color: "white",
-                    fontSize: 9,
+                    borderRadius: "var(--radius-card)",
+                    background: managedProcessAttention ? "var(--danger)" : "var(--accent)",
+                    color: "var(--on-danger)",
+                    fontSize: "var(--text-micro)",
                     fontWeight: 700,
                   }}
                 >
@@ -1704,7 +1725,7 @@ export function AppShell({
                   border: "none",
                   color: "var(--text-dim)",
                   cursor: "pointer",
-                  borderRadius: 5,
+                  borderRadius: "var(--radius-control)",
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.color = "var(--text)";
@@ -1763,7 +1784,7 @@ export function AppShell({
                     alignItems: "center",
                     justifyContent: "center",
                     color: "var(--text-dim)",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                   }}
                 >
                   {t("selectProjectToBrowseFiles", "Select a project to browse files")}
@@ -1784,7 +1805,7 @@ export function AppShell({
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--text-dim)",
-                  fontSize: 12,
+                  fontSize: "var(--text-label)",
                 }}
               >
                 {t("selectRightPanelContent", "Select Browser, Explorer, Processes or open a file")}

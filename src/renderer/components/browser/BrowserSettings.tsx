@@ -101,8 +101,8 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
 
   return (
     <>
-      <div style={{ width: "100%", overflowY: "auto", padding: "20px clamp(16px, 4vw, 42px) 40px" }}>
-        <div style={{ maxWidth: 820, margin: "0 auto", display: "grid", gap: 18, opacity: busy ? 0.72 : 1 }}>
+      <div style={{ width: "100%", overflowY: "auto", padding: "20px clamp(16px, 4vw, 44px) 40px" }}>
+        <div style={{ maxWidth: 820, margin: "0 auto", display: "grid", gap: 20, opacity: busy ? 0.72 : 1 }}>
           <div>
             <h2 style={headingStyle}>{t("browserSettingsTitle", "Built-in Browser")}</h2>
             <p style={descriptionStyle}>
@@ -483,7 +483,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
                       {t("browserRemoveCredentials", "Remove stored credentials")}
                     </button>
                   )}
-                  <span style={{ color: "var(--text-dim)", fontSize: 11 }}>
+                  <span style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
                     {settings.proxy.credentialSecretRef
                       ? t("browserCredentialsStored", "Credentials are stored with Electron safeStorage.")
                       : t("browserNoCredentials", "No credentials stored.")}
@@ -641,7 +641,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
           />
 
           <Section title={t("browserDiagnosticsReset", "Diagnostics and reset")}>
-            <div style={{ ...gridStyle, fontSize: 12, color: "var(--text-muted)" }}>
+            <div style={{ ...gridStyle, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
               <span>Electron {state.diagnostics.electronVersion}</span>
               <span>Chromium {state.diagnostics.chromiumVersion}</span>
               <span>
@@ -714,7 +714,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
                 {t("browserCloseAllTabs", "Close all tabs")}
               </button>
               <button
-                style={{ ...buttonStyle, color: "#c43" }}
+                style={{ ...buttonStyle, color: "var(--danger)" }}
                 onClick={() => {
                   if (
                     window.confirm(
@@ -861,7 +861,7 @@ function HeaderRulesSection({
           )}
         </div>
       )}
-      <div style={{ display: "grid", gap: 7 }}>
+      <div style={{ display: "grid", gap: 8 }}>
         {rules.map((rule) => (
           <div
             key={rule.id}
@@ -871,7 +871,7 @@ function HeaderRulesSection({
               gap: 8,
               padding: 8,
               border: "1px solid var(--border)",
-              borderRadius: 6,
+              borderRadius: "var(--radius-control)",
             }}
           >
             <input
@@ -887,7 +887,7 @@ function HeaderRulesSection({
               }
               aria-label={formatMessage(t("browserEnableRule", "Enable {header} rule"), { header: rule.header })}
             />
-            <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: "var(--text-muted)" }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)" }}>
               <div style={{ color: "var(--text)" }}>
                 {headerOperationLabel(t, rule.operation)} {rule.header}{" "}
                 {rule.secretRef ? t("browserSecureValue", "(secure value)") : (rule.value ?? "")}
@@ -988,7 +988,7 @@ function SnippetSection({
         )}
       </div>
       {snippets.length === 0 ? (
-        <div style={{ color: "var(--text-dim)", fontSize: 12 }}>
+        <div style={{ color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
           {t("browserNoJavascriptExperience", "No saved JavaScript experiences.")}
         </div>
       ) : (
@@ -1000,22 +1000,22 @@ function SnippetSection({
                 display: "flex",
                 gap: 8,
                 alignItems: "center",
-                padding: 10,
+                padding: 12,
                 border: "1px solid var(--border)",
-                borderRadius: 7,
+                borderRadius: "var(--radius-card)",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
                     color: snippet.enabled ? "var(--text)" : "var(--text-dim)",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                     fontWeight: 650,
                   }}
                 >
                   {snippet.label}
                 </div>
-                <div style={{ color: "var(--text-dim)", fontSize: 11 }}>
+                <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
                   {snippet.host}
                   {formatMessage(t("browserJavascriptExperienceUsage", "{path} · {size} · used {count} times"), {
                     path: snippet.pathPattern,
@@ -1129,14 +1129,16 @@ function ProfileSection({
                 display: "flex",
                 gap: 8,
                 alignItems: "center",
-                padding: 10,
+                padding: 12,
                 border: "1px solid var(--border)",
-                borderRadius: 7,
+                borderRadius: "var(--radius-card)",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: "var(--text)", fontSize: 12, fontWeight: 650 }}>{profile.name}</div>
-                <div style={{ color: "var(--text-dim)", fontSize: 11 }}>
+                <div style={{ color: "var(--text)", fontSize: "var(--text-label)", fontWeight: 650 }}>
+                  {profile.name}
+                </div>
+                <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
                   {profileModeLabel(t, profile.mode)} · {t("browserProxyMode", "Proxy mode")}{" "}
                   {proxyModeLabel(t, profile.proxyMode)}
                 </div>
@@ -1292,10 +1294,15 @@ function TextPromptDialog({
           }
         }}
       >
-        <div id="browser-text-prompt-title" style={{ color: "var(--text)", fontSize: 14, fontWeight: 650 }}>
+        <div
+          id="browser-text-prompt-title"
+          style={{ color: "var(--text)", fontSize: "var(--text-body-lg)", fontWeight: 650 }}
+        >
           {prompt.title}
         </div>
-        <div style={{ color: "var(--text-muted)", fontSize: 12, lineHeight: 1.6 }}>{prompt.message}</div>
+        <div style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+          {prompt.message}
+        </div>
         {prompt.requiredValue && <code style={confirmationPhraseStyle}>{prompt.requiredValue}</code>}
         <input
           ref={inputRef}
@@ -1381,12 +1388,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
         display: "grid",
         gap: 12,
         border: "1px solid var(--border)",
-        borderRadius: 9,
+        borderRadius: "var(--radius-card)",
         padding: 16,
         background: "var(--bg-panel)",
       }}
     >
-      <h3 style={{ margin: 0, fontSize: 13, color: "var(--text)" }}>{title}</h3>
+      <h3 style={{ margin: 0, fontSize: "var(--text-body)", color: "var(--text)" }}>{title}</h3>
       {children}
     </section>
   );
@@ -1414,8 +1421,8 @@ function Toggle({
         alignItems: "center",
         justifyContent: "space-between",
         gap: 12,
-        color: danger ? "#d45" : warning ? "#b87924" : "var(--text-muted)",
-        fontSize: 12,
+        color: danger ? "var(--danger)" : warning ? "var(--warning)" : "var(--text-muted)",
+        fontSize: "var(--text-label)",
       }}
     >
       <span>{label}</span>
@@ -1431,7 +1438,7 @@ function Toggle({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label style={{ display: "grid", gap: 6, color: "var(--text-muted)", fontSize: 11 }}>
+    <label style={{ display: "grid", gap: 8, color: "var(--text-muted)", fontSize: "var(--text-meta)" }}>
       <span>{label}</span>
       {children}
     </label>
@@ -1513,35 +1520,40 @@ function formatBytes(value: number): string {
   return `${(value / (1_024 * 1_024)).toFixed(1)} MiB`;
 }
 
-const headingStyle = { margin: 0, color: "var(--text)", fontSize: 18 };
-const descriptionStyle = { margin: "6px 0 0", color: "var(--text-dim)", fontSize: 12, lineHeight: 1.6 };
-const emptyStyle = { margin: "auto", color: "var(--text-muted)", fontSize: 12 };
+const headingStyle = { margin: 0, color: "var(--text)", fontSize: "var(--text-heading-lg)" };
+const descriptionStyle = {
+  margin: "8px 0 0",
+  color: "var(--text-dim)",
+  fontSize: "var(--text-label)",
+  lineHeight: 1.6,
+};
+const emptyStyle = { margin: "auto", color: "var(--text-muted)", fontSize: "var(--text-label)" };
 const inputStyle = {
   width: "100%",
   minHeight: 34,
   boxSizing: "border-box" as const,
   border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: "6px 9px",
+  borderRadius: "var(--radius-control)",
+  padding: "8px 8px",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 12,
+  fontSize: "var(--text-label)",
 };
 const buttonStyle = {
   minHeight: 32,
   border: "1px solid var(--border)",
-  borderRadius: 6,
-  padding: "0 11px",
+  borderRadius: "var(--radius-control)",
+  padding: "0 12px",
   background: "var(--bg)",
   color: "var(--text-muted)",
   cursor: "pointer",
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
 };
 const primaryButtonStyle = {
   ...buttonStyle,
-  borderColor: "var(--accent)",
-  background: "var(--accent)",
-  color: "var(--accent-contrast)",
+  borderColor: "transparent",
+  background: "var(--btn-bg)",
+  color: "var(--btn-fg)",
 };
 const smallButtonStyle = { ...buttonStyle, minHeight: 27, padding: "0 8px" };
 const promptBackdropStyle = {
@@ -1557,36 +1569,36 @@ const promptBackdropStyle = {
 const promptDialogStyle = {
   width: "min(480px, 100%)",
   display: "grid",
-  gap: 13,
-  padding: 18,
+  gap: 12,
+  padding: 20,
   border: "1px solid var(--border)",
-  borderRadius: 9,
+  borderRadius: "var(--radius-card)",
   background: "var(--bg-panel)",
   boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
 };
 const confirmationPhraseStyle = {
   display: "block",
   width: "fit-content",
-  padding: "5px 7px",
-  borderRadius: 5,
+  padding: "4px 8px",
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
   userSelect: "all" as const,
 };
-const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 };
+const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 };
 const noticeStyle = {
-  padding: 9,
-  borderRadius: 6,
+  padding: 8,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text-dim)",
-  fontSize: 11,
+  fontSize: "var(--text-meta)",
   lineHeight: 1.5,
 };
 const warningStyle = {
   ...noticeStyle,
-  color: "#b87924",
-  border: "1px solid color-mix(in srgb, #b87924 35%, transparent)",
+  color: "var(--warning)",
+  border: "1px solid var(--warning-border)",
 };
-const dangerStyle = { ...noticeStyle, color: "#d45", border: "1px solid color-mix(in srgb, #d45 45%, transparent)" };
-const errorStyle = { ...noticeStyle, color: "#d45", border: "1px solid color-mix(in srgb, #d45 35%, transparent)" };
+const dangerStyle = { ...noticeStyle, color: "var(--danger)", border: "1px solid var(--danger-border)" };
+const errorStyle = { ...noticeStyle, color: "var(--danger)", border: "1px solid var(--danger-border)" };

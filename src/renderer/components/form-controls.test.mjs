@@ -26,7 +26,7 @@ function assertFieldAssociation(Control, props, tagName) {
   const controlId = labelMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   assert.match(html, new RegExp(`<${tagName}[^>]*id="${controlId}"`));
   assert.match(html, /min-height:36px/);
-  assert.match(html, /font-size:13px/);
+  assert.match(html, /font-size:var\(--text-body\)/);
 }
 
 test("Field associates its label with every shared input type", () => {
@@ -46,5 +46,5 @@ test("compact shared controls expose at least a 32px pointer target", () => {
   const checkHtml = renderToStaticMarkup(createElement(Check, { label: "Reasoning", checked: true, onChange() {} }));
   assert.match(checkHtml, /min-height:36px/);
   assert.match(checkHtml, /width:18px;height:18px/);
-  assert.match(checkHtml, /font-size:13px/);
+  assert.match(checkHtml, /font-size:var\(--text-body\)/);
 });

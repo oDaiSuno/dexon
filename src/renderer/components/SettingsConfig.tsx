@@ -158,7 +158,7 @@ export function SettingsConfig({
           maxHeight: "calc(100dvh - 16px)",
           background: "var(--bg)",
           border: "1px solid var(--border)",
-          borderRadius: 10,
+          borderRadius: "var(--radius-card)",
           display: "flex",
           flexDirection: "column",
           boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
@@ -171,15 +171,17 @@ export function SettingsConfig({
             alignItems: "center",
             justifyContent: "space-between",
             gap: 12,
-            padding: "13px 18px",
+            padding: "12px 20px",
             borderBottom: "1px solid var(--border)",
             flexShrink: 0,
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text)" }}>{t("settings", "Settings")}</div>
+            <div style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+              {t("settings", "Settings")}
+            </div>
             {!isMobile && (
-              <div style={{ marginTop: 2, fontSize: 11, color: "var(--text-dim)" }}>
+              <div style={{ marginTop: 2, fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
                 {t("settingsDescription", "Manage app preferences, models, skills, and plugins.")}
               </div>
             )}
@@ -194,12 +196,12 @@ export function SettingsConfig({
               border: "none",
               color: "var(--text-muted)",
               cursor: "pointer",
-              fontSize: 20,
+              fontSize: "var(--text-display)",
               lineHeight: 1,
               width: 36,
               height: 36,
               padding: 0,
-              borderRadius: 7,
+              borderRadius: "var(--radius-card)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -261,10 +263,10 @@ export function SettingsConfig({
                     minHeight: 40,
                     padding: isMobile ? "8px 10px" : "8px 12px",
                     border: `1px solid ${active ? "var(--accent)" : "transparent"}`,
-                    borderRadius: 7,
+                    borderRadius: "var(--radius-card)",
                     background: active ? "var(--accent-soft)" : "transparent",
                     color: active ? "var(--accent)" : "var(--text-muted)",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                     lineHeight: 1.35,
                     fontWeight: active ? 650 : 500,
                     textAlign: "left",
@@ -337,7 +339,7 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
       style={{
         width: "100%",
         overflowY: "auto",
-        padding: "28px clamp(18px, 5vw, 52px)",
+        padding: "28px clamp(20px, 5vw, 52px)",
         display: "flex",
       }}
     >
@@ -347,7 +349,7 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
             display: "flex",
             alignItems: "center",
             gap: 16,
-            paddingBottom: 26,
+            paddingBottom: 28,
           }}
         >
           <img
@@ -363,21 +365,21 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
             }}
           />
           <div>
-            <h2 style={{ margin: 0, fontSize: 18, color: "var(--text)" }}>{APP_DISPLAY_NAME}</h2>
-            <p style={{ margin: "5px 0 0", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+            <h2 style={{ margin: 0, fontSize: "var(--text-heading-lg)", color: "var(--text)" }}>{APP_DISPLAY_NAME}</h2>
+            <p style={{ margin: "4px 0 0", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
               {t("aboutDescription", "App, Pi, and project information.")}
             </p>
           </div>
         </section>
 
         <section>
-          <h2 style={{ margin: "0 0 12px", fontSize: 14, color: "var(--text)" }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
             {t("applicationInformation", "Application information")}
           </h2>
           <div
             style={{
               border: "1px solid var(--border)",
-              borderRadius: 8,
+              borderRadius: "var(--radius-card)",
               background: "var(--bg-panel)",
               overflow: "hidden",
             }}
@@ -399,7 +401,7 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
                     background: "none",
                     color: "var(--accent)",
                     fontFamily: "var(--font-mono)",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                     cursor: "pointer",
                     overflowWrap: "anywhere",
                     textAlign: "right",
@@ -423,7 +425,7 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
                     background: "none",
                     color: "var(--accent)",
                     fontFamily: "var(--font-mono)",
-                    fontSize: 12,
+                    fontSize: "var(--text-label)",
                     cursor: "pointer",
                     overflowWrap: "anywhere",
                     textAlign: "right",
@@ -497,17 +499,17 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
 
   return (
     <section aria-labelledby={headingId} style={{ marginTop: 28 }}>
-      <h2 id={headingId} style={{ margin: "0 0 6px", fontSize: 14, color: "var(--text)" }}>
+      <h2 id={headingId} style={{ margin: "0 0 8px", fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
         {t("softwareUpdate", "Software update")}
       </h2>
-      <p style={{ margin: "0 0 12px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+      <p style={{ margin: "0 0 12px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
         {t("softwareUpdateDescription", "Check stable releases and choose when a downloaded update is installed.")}
       </p>
 
       <div
         style={{
           border: "1px solid var(--border)",
-          borderRadius: 8,
+          borderRadius: "var(--radius-card)",
           background: "var(--bg-panel)",
           overflow: "hidden",
         }}
@@ -517,23 +519,23 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
             role="status"
             aria-live="polite"
             aria-atomic="true"
-            style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
+            style={{ display: "flex", alignItems: "flex-start", gap: 12 }}
           >
             <span
               aria-hidden="true"
               style={{
                 width: 8,
                 height: 8,
-                marginTop: 5,
+                marginTop: 4,
                 borderRadius: "50%",
                 flexShrink: 0,
                 background: updateStatusColor(phase),
               }}
             />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 650, color: "var(--text)" }}>{statusTitle}</div>
+              <div style={{ fontSize: "var(--text-body)", fontWeight: 650, color: "var(--text)" }}>{statusTitle}</div>
               {state && (
-                <div style={{ marginTop: 3, fontSize: 11, color: "var(--text-dim)" }}>
+                <div style={{ marginTop: 4, fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
                   {t("currentVersion", "Current version")}: {displayVersion(state.currentVersion)}
                 </div>
               )}
@@ -577,17 +579,20 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
 
           {state?.phase === "error" && state.error && (
             <div role="alert" aria-atomic="true" style={{ marginTop: 12 }}>
-              <p style={{ margin: 0, fontSize: 12, lineHeight: 1.55, color: "#f87171" }}>
+              <p style={{ margin: 0, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}>
                 {getUpdateErrorMessage(state.error, t)}
               </p>
-              <code style={{ display: "block", marginTop: 5, fontSize: 10, color: "var(--text-dim)" }}>
+              <code style={{ display: "block", marginTop: 4, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
                 {state.error.code}
               </code>
             </div>
           )}
 
           {actionFailed && (
-            <p role="alert" style={{ margin: "12px 0 0", fontSize: 12, lineHeight: 1.55, color: "#f87171" }}>
+            <p
+              role="alert"
+              style={{ margin: "12px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+            >
               {t("updateActionFailed", "The update action could not be completed. Try again or open the logs.")}
             </p>
           )}
@@ -668,7 +673,7 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
         <div
           style={{
             minHeight: 56,
-            padding: "10px 14px",
+            padding: "12px 16px",
             borderTop: "1px solid var(--border)",
             display: "flex",
             alignItems: "center",
@@ -677,12 +682,12 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
           }}
         >
           <div>
-            <label htmlFor={automaticChecksControlId} style={{ fontSize: 12, color: "var(--text)" }}>
+            <label htmlFor={automaticChecksControlId} style={{ fontSize: "var(--text-label)", color: "var(--text)" }}>
               {t("automaticUpdateChecks", "Automatically check for updates")}
             </label>
             <div
               id={automaticChecksDescriptionId}
-              style={{ marginTop: 3, fontSize: 10, lineHeight: 1.45, color: "var(--text-dim)" }}
+              style={{ marginTop: 4, fontSize: "var(--text-micro)", lineHeight: 1.45, color: "var(--text-dim)" }}
             >
               {t("automaticUpdateChecksDescription", "Checks periodically without downloading updates automatically.")}
             </div>
@@ -711,7 +716,7 @@ function SoftwareUpdate({ onClose }: { onClose: () => void }) {
 function UpdateReleaseDetails({ state, language }: { state: DesktopUpdateState; language: AppLanguage }) {
   const { t } = useI18n();
   return (
-    <div style={{ marginTop: 12, fontSize: 12, lineHeight: 1.55, color: "var(--text-muted)" }}>
+    <div style={{ marginTop: 12, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-muted)" }}>
       {state.availableVersion && (
         <div>
           {t("availableVersion", "Available version")}: {displayVersion(state.availableVersion)}
@@ -724,8 +729,8 @@ function UpdateReleaseDetails({ state, language }: { state: DesktopUpdateState; 
         </div>
       )}
       {state.releaseNotes && (
-        <div style={{ marginTop: 10 }}>
-          <div style={{ marginBottom: 5, fontWeight: 650, color: "var(--text)" }}>
+        <div style={{ marginTop: 12 }}>
+          <div style={{ marginBottom: 4, fontWeight: 650, color: "var(--text)" }}>
             {t("releaseNotes", "Release notes")}
           </div>
           <pre
@@ -735,13 +740,13 @@ function UpdateReleaseDetails({ state, language }: { state: DesktopUpdateState; 
               margin: 0,
               maxHeight: 180,
               overflowY: "auto",
-              padding: 10,
+              padding: 12,
               border: "1px solid var(--border)",
-              borderRadius: 6,
+              borderRadius: "var(--radius-control)",
               background: "var(--bg)",
               color: "var(--text-muted)",
               fontFamily: "inherit",
-              fontSize: 11,
+              fontSize: "var(--text-meta)",
               lineHeight: 1.55,
               whiteSpace: "pre-wrap",
               overflowWrap: "anywhere",
@@ -760,7 +765,7 @@ function UpdateDownloadProgress({ state, language }: { state: DesktopUpdateState
   const percent = Number.isFinite(state.percent) ? Math.max(0, Math.min(100, state.percent ?? 0)) : 0;
   const progressText = `${percent.toFixed(1)}%`;
   return (
-    <div style={{ marginTop: 14 }}>
+    <div style={{ marginTop: 16 }}>
       <progress
         max={100}
         value={percent}
@@ -770,12 +775,12 @@ function UpdateDownloadProgress({ state, language }: { state: DesktopUpdateState
       />
       <div
         style={{
-          marginTop: 5,
+          marginTop: 4,
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: 10,
+          fontSize: "var(--text-micro)",
           color: "var(--text-dim)",
         }}
       >
@@ -815,12 +820,12 @@ function UpdateButton({
       onClick={onClick}
       style={{
         minHeight: 34,
-        padding: "7px 12px",
+        padding: "8px 12px",
         border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
-        borderRadius: 6,
+        borderRadius: "var(--radius-control)",
         background: primary ? "var(--accent)" : "var(--bg)",
         color: primary ? "white" : "var(--text)",
-        fontSize: 12,
+        fontSize: "var(--text-label)",
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
@@ -885,9 +890,9 @@ function getUpdateErrorMessage(
 }
 
 function updateStatusColor(phase: DesktopUpdateState["phase"] | undefined): string {
-  if (phase === "error") return "#f87171";
+  if (phase === "error") return "var(--danger)";
   if (phase === "available" || phase === "downloaded") return "var(--accent)";
-  if (phase === "up-to-date") return "#4ade80";
+  if (phase === "up-to-date") return "var(--success)";
   return "var(--text-dim)";
 }
 
@@ -911,7 +916,7 @@ function formatBytes(value: number, language: AppLanguage): string {
 
 const updateDetailStyle: React.CSSProperties = {
   margin: "12px 0 0",
-  fontSize: 12,
+  fontSize: "var(--text-label)",
   lineHeight: 1.55,
   color: "var(--text-muted)",
 };
@@ -921,7 +926,7 @@ function AboutRow({ label, value, last = false }: { label: string; value: React.
     <div
       style={{
         minHeight: 52,
-        padding: "10px 12px",
+        padding: "12px 12px",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -929,13 +934,13 @@ function AboutRow({ label, value, last = false }: { label: string; value: React.
         borderBottom: last ? "none" : "1px solid var(--border)",
       }}
     >
-      <span style={{ flexShrink: 0, fontSize: 13, color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ flexShrink: 0, fontSize: "var(--text-body)", color: "var(--text-muted)" }}>{label}</span>
       <span
         style={{
           minWidth: 0,
           color: "var(--text)",
           fontFamily: "var(--font-mono)",
-          fontSize: 12,
+          fontSize: "var(--text-label)",
           textAlign: "right",
         }}
       >
@@ -1075,12 +1080,12 @@ function GeneralSettings({
   })();
   const managedProcessesUnavailable = !managedProcessCapability?.ready;
   return (
-    <div style={{ width: "100%", overflowY: "auto", padding: "28px clamp(18px, 5vw, 52px)" }}>
+    <div style={{ width: "100%", overflowY: "auto", padding: "28px clamp(20px, 5vw, 52px)" }}>
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
           {t("interfaceLanguage", "Interface language")}
         </h2>
-        <p style={{ margin: "6px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t("interfaceLanguageDescription", "Choose the language used by the app. Changes take effect immediately.")}
         </p>
         <SettingRow label={t("language", "Language")} controlId={languageControlId}>
@@ -1099,8 +1104,10 @@ function GeneralSettings({
       <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>{t("managedProcesses", "Managed processes")}</h2>
-        <p style={{ margin: "6px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+          {t("managedProcesses", "Managed processes")}
+        </h2>
+        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t(
             "managedProcessesDescription",
             "Let Agents run development servers and watchers under app-owned lifecycle control. Processes have the same local access as Bash and are not a sandbox.",
@@ -1137,19 +1144,22 @@ function GeneralSettings({
           </label>
         </SettingRow>
         {managedProcessCapabilityMessage && (
-          <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.55, color: "var(--text-dim)" }}>
+          <p style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-dim)" }}>
             {managedProcessCapabilityMessage}
           </p>
         )}
         {managedProcessCapability?.ready &&
           managedProcessCapability.backend === "windows-job" &&
           managedProcessCapability.helperProvenance === "windows-native-dev" && (
-            <p style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.55, color: "var(--text-dim)" }}>
+            <p style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-dim)" }}>
               {t("managedProcessesDeveloperBuild", "Developer build — not a release-validated Windows helper.")}
             </p>
           )}
         {managedProcessesError && (
-          <p role="alert" style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.55, color: "#f87171" }}>
+          <p
+            role="alert"
+            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+          >
             {managedProcessesError === "save"
               ? t(
                   "managedProcessesSaveFailed",
@@ -1166,8 +1176,10 @@ function GeneralSettings({
       <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>{t("backgroundMode", "Background mode")}</h2>
-        <p style={{ margin: "6px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+          {t("backgroundMode", "Background mode")}
+        </h2>
+        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t("backgroundModeDescription", "Keep messaging channels connected when the window is closed.")}
         </p>
         <SettingRow label={t("closeToTray", "Close window to tray")} controlId={backgroundModeControlId}>
@@ -1201,7 +1213,10 @@ function GeneralSettings({
           </label>
         </SettingRow>
         {backgroundModeError && (
-          <p role="alert" style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.55, color: "#f87171" }}>
+          <p
+            role="alert"
+            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+          >
             {backgroundModeError === "save"
               ? t("backgroundModeSaveFailed", "Background mode could not be saved. The previous setting was restored.")
               : t("backgroundModeLoadFailed", "Background mode could not be loaded. The default remains selected.")}
@@ -1212,14 +1227,16 @@ function GeneralSettings({
       <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>{t("conversationSettings", "Conversation")}</h2>
-        <p style={{ margin: "6px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+          {t("conversationSettings", "Conversation")}
+        </h2>
+        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t(
             "conversationSettingsDescription",
             "Control automatic titles, chat text size, and the conversation reading width.",
           )}
         </p>
-        <div style={{ display: "grid", gap: 10 }}>
+        <div style={{ display: "grid", gap: 12 }}>
           <SettingRow label={t("autoSessionTitle", "Auto-title new sessions")} controlId={autoSessionTitleControlId}>
             <label
               htmlFor={autoSessionTitleControlId}
@@ -1289,7 +1306,10 @@ function GeneralSettings({
           </SettingRow>
         </div>
         {chatAppearanceError && (
-          <p role="alert" style={{ margin: "8px 0 0", fontSize: 12, lineHeight: 1.55, color: "var(--danger)" }}>
+          <p
+            role="alert"
+            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+          >
             {t("chatAppearanceSaveFailed", "Chat appearance could not be saved. The previous settings were restored.")}
           </p>
         )}
@@ -1298,8 +1318,10 @@ function GeneralSettings({
       <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: 14, color: "var(--text)" }}>{t("appearance", "Appearance")}</h2>
-        <p style={{ margin: "6px 0 16px", fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+          {t("appearance", "Appearance")}
+        </h2>
+        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t("appearanceDescription", "Choose the color mode used by the app.")}
         </p>
         <SettingRow label={t("theme", "Theme")} controlId={themeControlId}>
@@ -1327,13 +1349,16 @@ function SettingRow({ label, controlId, children }: { label: string; controlId: 
         justifyContent: "space-between",
         gap: 20,
         minHeight: 52,
-        padding: "10px 12px",
+        padding: "12px 12px",
         border: "1px solid var(--border)",
-        borderRadius: 8,
+        borderRadius: "var(--radius-card)",
         background: "var(--bg-panel)",
       }}
     >
-      <label htmlFor={controlId} style={{ fontSize: 13, color: "var(--text-muted)", cursor: "pointer" }}>
+      <label
+        htmlFor={controlId}
+        style={{ fontSize: "var(--text-body)", color: "var(--text-muted)", cursor: "pointer" }}
+      >
         {label}
       </label>
       {children}
@@ -1355,10 +1380,10 @@ function ProjectRequired() {
       }}
     >
       <div style={{ maxWidth: 380 }}>
-        <div style={{ fontSize: 14, fontWeight: 650, color: "var(--text)" }}>
+        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 650, color: "var(--text)" }}>
           {t("projectRequiredTitle", "Select a project first")}
         </div>
-        <div style={{ marginTop: 7, fontSize: 12, lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 8, fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
           {t(
             "projectRequiredDescription",
             "Skills and plugins depend on the current project. Select a project directory from the sidebar first.",
@@ -1372,11 +1397,11 @@ function ProjectRequired() {
 const selectStyle: React.CSSProperties = {
   minWidth: 160,
   minHeight: 36,
-  padding: "7px 30px 7px 10px",
+  padding: "8px 32px 8px 12px",
   border: "1px solid var(--border)",
-  borderRadius: 6,
+  borderRadius: "var(--radius-control)",
   background: "var(--bg)",
   color: "var(--text)",
-  fontSize: 13,
+  fontSize: "var(--text-body)",
   cursor: "pointer",
 };
