@@ -151,15 +151,10 @@ export function AssistantMessageView({
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
 
   return (
-    <div
-      style={{ marginBottom: 14, maxWidth: "68ch" }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Meta line: model · streaming stats (Beautiful UI quiet meta).
-          Inside process details the model name would repeat every turn —
-          the final answer's meta line already carries it. */}
-      {(!inProcessGroup || isStreaming) && (
+    <div style={{ marginBottom: 14 }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+      {/* Streaming meta: token estimate + live t/s (quiet mono). The model
+          name joins the usage line once the turn completes. */}
+      {isStreaming && (
         <div
           style={{
             fontSize: scaledChatFont(12),
@@ -171,61 +166,55 @@ export function AssistantMessageView({
             fontFamily: "var(--font-mono)",
           }}
         >
-          {!inProcessGroup && message.provider && (
-            <span>
-              {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
-            </span>
-          )}
-          {isStreaming &&
-            (() => {
-              let chars = 0;
-              for (const b of blocks) {
-                if (b.type === "text") chars += (b as TextContent).text?.length ?? 0;
-                else if (b.type === "thinking") chars += (b as ThinkingContent).thinking?.length ?? 0;
-                else if (b.type === "toolCall") chars += JSON.stringify((b as ToolCallContent).input ?? {}).length;
-              }
-              const est = Math.round(chars / 4);
-              return (
-                <>
-                  {est > 0 && (
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 5,
-                        color: "var(--bui-ink-3)",
-                        fontVariantNumeric: "tabular-nums",
-                      }}
-                      title="Estimated token count while streaming"
-                    >
-                      <span>{est.toLocaleString()} tok</span>
-                      {tps !== null && (
+          {(() => {
+            let chars = 0;
+            for (const b of blocks) {
+              if (b.type === "text") chars += (b as TextContent).text?.length ?? 0;
+              else if (b.type === "thinking") chars += (b as ThinkingContent).thinking?.length ?? 0;
+              else if (b.type === "toolCall") chars += JSON.stringify((b as ToolCallContent).input ?? {}).length;
+            }
+            const est = Math.round(chars / 4);
+            return (
+              <>
+                {est > 0 && (
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      color: "var(--bui-ink-3)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                    title="Estimated token count while streaming"
+                  >
+                    <span>{est.toLocaleString()} tok</span>
+                    {tps !== null && (
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
+                      >
+                        {/* speed tier uses status colors only: green fast → orange → red slow */}
                         <span
+                          aria-hidden="true"
                           style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 4,
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background:
+                              tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
                           }}
-                        >
-                          {/* speed tier uses status colors only: green fast → orange → red slow */}
-                          <span
-                            aria-hidden="true"
-                            style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: "50%",
-                              background:
-                                tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
-                            }}
-                          />
-                          <span>{tps.toFixed(1)} t/s</span>
-                        </span>
-                      )}
-                    </span>
-                  )}
-                </>
-              );
-            })()}
+                        />
+                        <span>{tps.toFixed(1)} t/s</span>
+                      </span>
+                    )}
+                  </span>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -290,6 +279,13 @@ export function AssistantMessageView({
               marginRight: 2,
             }}
           >
+            {/* model identity lives here, joined to the usage figures;
+                suppressed inside process details where it repeats per turn */}
+            {!inProcessGroup && message.provider && (
+              <span style={{ marginRight: 8 }}>
+                {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
+              </span>
+            )}
             {formatUsage(message.usage)}
           </div>
         )}
