@@ -388,6 +388,25 @@ export class ApiEventSource {
         .split("/")
         .filter(Boolean);
 
+      // NOTE: specific routes must precede the generic /agent/{id}/events
+      // match, otherwise /api/agent/running/events is captured by it (with
+      // "running" mistaken for a session id) and the sidebar never receives
+      // any running-status frames.
+      if (segs[0] === "agent" && segs[1] === "running" && segs[2] === "events") {
+        this.unsub = await subscribeRunning((event) => {
+          if (this.closed || gen !== this.generation) return;
+          this.readyState = ApiEventSource.OPEN;
+          this.onmessage?.({ data: JSON.stringify(event) } as MessageEvent);
+        });
+        if (this.closed || gen !== this.generation) {
+          this.unsub?.();
+          return;
+        }
+        this.readyState = ApiEventSource.OPEN;
+        this.onopen?.(new Event("open"));
+        return;
+      }
+
       if (segs[0] === "agent" && segs[2] === "events") {
         const sessionId = decodeURIComponent(segs[1]);
         this.unsub = await subscribeAgentEvents(sessionId, (event) => {
@@ -403,21 +422,6 @@ export class ApiEventSource {
         this.readyState = ApiEventSource.OPEN;
         this.onopen?.(new Event("open"));
         this.onmessage?.({ data: JSON.stringify({ type: "connected" }) } as MessageEvent);
-        return;
-      }
-
-      if (segs[0] === "agent" && segs[1] === "running" && segs[2] === "events") {
-        this.unsub = await subscribeRunning((event) => {
-          if (this.closed || gen !== this.generation) return;
-          this.readyState = ApiEventSource.OPEN;
-          this.onmessage?.({ data: JSON.stringify(event) } as MessageEvent);
-        });
-        if (this.closed || gen !== this.generation) {
-          this.unsub?.();
-          return;
-        }
-        this.readyState = ApiEventSource.OPEN;
-        this.onopen?.(new Event("open"));
         return;
       }
 
