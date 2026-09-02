@@ -482,26 +482,42 @@ export function SessionSidebar({
 
   useEffect(() => {
     // Live running status via IPC stream (shimmed as EventSource).
-    const source = new EventSource("/api/agent/running/events");
-
-    source.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data) as {
-          type?: string;
-          runningSessionIds?: string[];
-          sessionIds?: string[];
-        };
-        if (data.type === "running") {
-          streamAuthoritativeRef.current = true;
-          setRunningSessionIds(new Set(data.runningSessionIds ?? data.sessionIds ?? []));
+    // The shim pins the subscription to the current RPC client, so an Agent
+    // Host restart kills it silently. Reconnect on restart and drop the
+    // authoritative flag so the next fetch can repopulate the running set.
+    let source: EventSource | null = null;
+    const connectRunningStream = () => {
+      source = new EventSource("/api/agent/running/events");
+      source.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data) as {
+            type?: string;
+            runningSessionIds?: string[];
+            sessionIds?: string[];
+          };
+          if (data.type === "running") {
+            streamAuthoritativeRef.current = true;
+            setRunningSessionIds(new Set(data.runningSessionIds ?? data.sessionIds ?? []));
+          }
+        } catch {
+          // ignore malformed frames
         }
-      } catch {
-        // ignore malformed frames
-      }
+      };
     };
+    connectRunningStream();
 
-    return () => source.close();
-  }, []);
+    const offRestart = window.piBridge?.onHostRestarted?.(() => {
+      streamAuthoritativeRef.current = false;
+      source?.close();
+      connectRunningStream();
+      void loadSessions(false);
+    });
+
+    return () => {
+      offRestart?.();
+      source?.close();
+    };
+  }, [loadSessions]);
 
   // sessions.changed (CLI / disk watcher) → refresh sidebar without polling
   useEffect(() => {
@@ -2001,6 +2017,7 @@ export function SessionSidebar({
                           void loadSessions();
                         }}
                         depth={0}
+                        homeDir={homeDir}
                       />
                     ))}
                   </div>
@@ -2022,6 +2039,7 @@ function SessionTreeItem({
   onRenamed,
   onSessionDeleted,
   depth,
+  homeDir,
 }: {
   node: SessionTreeNode;
   selectedSessionId: string | null;
@@ -2031,6 +2049,7 @@ function SessionTreeItem({
   onRenamed?: () => void;
   onSessionDeleted?: (id: string) => void;
   depth: number;
+  homeDir: string;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const hasChildren = node.children.length > 0;
@@ -2064,6 +2083,7 @@ function SessionTreeItem({
           hasChildren={hasChildren}
           collapsed={collapsed}
           onToggleCollapse={() => setCollapsed((v) => !v)}
+          homeDir={homeDir}
         />
       </div>
       {hasChildren && !collapsed && (
@@ -2079,6 +2099,7 @@ function SessionTreeItem({
               onRenamed={onRenamed}
               onSessionDeleted={onSessionDeleted}
               depth={depth + 1}
+              homeDir={homeDir}
             />
           ))}
         </div>
@@ -2175,6 +2196,7 @@ function SessionItem({
   hasChildren = false,
   collapsed = false,
   onToggleCollapse,
+  homeDir = "",
 }: {
   session: SessionInfo;
   isSelected: boolean;
@@ -2187,6 +2209,7 @@ function SessionItem({
   hasChildren?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  homeDir?: string;
 }) {
   const { language, t } = useI18n();
   const [hovered, setHovered] = useState(false);
@@ -2221,6 +2244,20 @@ function SessionItem({
   );
 
   const title = getSessionDisplayTitle(session);
+
+  // Single-line rows keep only title + relative time visible; everything else
+  // (full title, message count, worktree branch, cwd, modified time) lives in
+  // the hover tooltip.
+  const tooltipText = [
+    title,
+    `${t("messageCount", "{count} msgs").replace("{count}", formatNumber(session.messageCount, language))}${
+      session.worktreeBranch ? ` · ${session.worktreeBranch}` : ""
+    }`,
+    session.cwd ? abbreviateHomePath(session.cwd, homeDir) : null,
+    formatRelativeDateTime(session.modified, language),
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const startRename = useCallback(
     (e: React.MouseEvent) => {
@@ -2309,8 +2346,10 @@ function SessionItem({
     setConfirmDelete(false);
   }, []);
 
-  // Fixed-height outer wrapper — content swaps in place so the list never reflows
-  const ITEM_HEIGHT = 54;
+  // Fixed-height outer wrapper — content swaps in place so the list never reflows.
+  // Single-line compact row: title left, relative time right. Snug pill matched
+  // to the reference (ink/pill ≈ 0.4, 32px pitch).
+  const ITEM_HEIGHT = 28;
 
   return (
     <div
@@ -2338,10 +2377,8 @@ function SessionItem({
               : "transparent",
         border: confirmDelete
           ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
-          : isSelected
-            ? "1px solid var(--accent-soft-border)"
-            : "1px solid transparent",
-        borderRadius: "var(--radius-card)",
+          : "1px solid transparent",
+        borderRadius: "999px",
         transition: "background 0.1s, border-color 0.1s",
         opacity: deleting ? 0.5 : 1,
         gap: 8,
@@ -2375,8 +2412,8 @@ function SessionItem({
                 alignItems: "center",
                 justifyContent: "center",
                 gap: 4,
-                height: 32,
-                padding: "0 12px",
+                height: 24,
+                padding: "0 10px",
                 background: "var(--danger)",
                 border: "none",
                 borderRadius: "var(--radius-control)",
@@ -2410,8 +2447,8 @@ function SessionItem({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                height: 32,
-                padding: "0 12px",
+                height: 24,
+                padding: "0 10px",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-control)",
@@ -2441,13 +2478,13 @@ function SessionItem({
           style={{
             flex: 1,
             fontSize: "var(--text-body)",
-            padding: "4px 8px",
+            padding: "0 8px",
             border: "1px solid var(--accent)",
             borderRadius: "var(--radius-control)",
             outline: "none",
             background: "var(--bg)",
             color: "var(--text)",
-            height: 34,
+            height: 24,
           }}
         />
       ) : (
@@ -2467,6 +2504,7 @@ function SessionItem({
                   ? `${title} · ${t("newSessionActivity", "New activity")}`
                   : title
             }
+            title={tooltipText}
             style={{
               alignSelf: "stretch",
               flex: 1,
@@ -2483,126 +2521,79 @@ function SessionItem({
               textAlign: "left",
             }}
           >
-            {/* Fork indicator for child sessions */}
-            {depth > 0 && (
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="var(--text-dim)"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                style={{ flexShrink: 0 }}
-                aria-hidden="true"
-              >
-                <line x1="6" y1="3" x2="6" y2="15" />
-                <circle cx="18" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M18 9a9 9 0 0 1-9 9" />
-              </svg>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  minWidth: 0,
-                  fontSize: "var(--text-body)",
-                  fontWeight: isSelected ? 600 : 500,
-                  lineHeight: 1.4,
-                  color: "var(--text)",
-                }}
-                title={
-                  isRunning
-                    ? `${title} · ${t("agentRunning", "Agent is running…")}`
-                    : isUnread
-                      ? `${title} · ${t("newSessionActivity", "New activity")}`
-                      : title
-                }
-              >
-                {isRunning ? (
-                  <RunningSessionIndicator />
-                ) : isUnread ? (
-                  <UnreadSessionIndicator />
-                ) : (
-                  <span
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      flexShrink: 0,
-                      background: isSelected ? "var(--success)" : "var(--text-dim)",
-                      opacity: isSelected ? 1 : 0.55,
-                    }}
-                  />
-                )}
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-                  {title}
-                </span>
-              </div>
-              <div
-                style={{
-                  marginTop: 2,
-                  display: "flex",
-                  gap: 8,
-                  alignItems: "center",
-                  color: "var(--text-dim)",
-                  fontSize: "var(--text-label)",
-                  minWidth: 0,
-                  paddingLeft: 12,
-                }}
-              >
-                <span title={session.modified}>{formatRelativeDateTime(session.modified, language)}</span>
+            {/* Status slot — fixed 18px so the title never shifts; idle rows
+                stay empty, selected rows get a dark marker dot, idle child
+                sessions show the fork icon */}
+            <span
+              aria-hidden="true"
+              style={{
+                width: 18,
+                height: 18,
+                flexShrink: 0,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "var(--text-dim)",
+              }}
+            >
+              {isRunning ? (
+                <RunningSessionIndicator />
+              ) : isUnread ? (
+                <UnreadSessionIndicator />
+              ) : depth > 0 ? (
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ display: "block" }}
+                >
+                  <line x1="6" y1="3" x2="6" y2="15" />
+                  <circle cx="18" cy="6" r="3" />
+                  <circle cx="6" cy="18" r="3" />
+                  <path d="M18 9a9 9 0 0 1-9 9" />
+                </svg>
+              ) : isSelected ? (
                 <span
                   style={{
-                    fontFamily: "var(--font-mono)",
-                    fontSize: "var(--text-meta)",
-                    color: "var(--accent-chip-fg)",
-                    background: "var(--accent-chip-bg)",
-                    padding: "1px 8px",
-                    borderRadius: "var(--radius-chip)",
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    flexShrink: 0,
+                    background: "var(--text)",
                   }}
-                >
-                  {t("messageCount", "{count} msgs").replace("{count}", formatNumber(session.messageCount, language))}
-                </span>
-                {session.worktreeBranch && (
-                  <span
-                    title={t("worktreePath", "Worktree: {path}").replace("{path}", session.cwd)}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 4,
-                      color: "var(--accent)",
-                      minWidth: 0,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <svg
-                      width="9"
-                      height="9"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.4"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{ flexShrink: 0 }}
-                    >
-                      <line x1="6" y1="3" x2="6" y2="15" />
-                      <circle cx="18" cy="6" r="3" />
-                      <circle cx="6" cy="18" r="3" />
-                      <path d="M18 9a9 9 0 0 1-9 9" />
-                    </svg>
-                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {session.worktreeBranch}
-                    </span>
-                  </span>
-                )}
-              </div>
-            </div>
+                />
+              ) : null}
+            </span>
+            <span
+              style={{
+                flex: 1,
+                minWidth: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+                fontSize: "var(--text-body)",
+                fontWeight: 400,
+                lineHeight: 1.4,
+                color: "var(--text)",
+              }}
+            >
+              {title}
+            </span>
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: "var(--text-meta)",
+                color: "var(--text-dim)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {formatRelativeDateTime(session.modified, language)}
+            </span>
           </button>
 
           {/* Collapse toggle — always visible when has children */}
@@ -2620,8 +2611,8 @@ function SessionItem({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 32,
-                height: 32,
+                width: 24,
+                height: 24,
                 padding: 0,
                 flexShrink: 0,
                 background: hovered ? "var(--bg-hover)" : "none",
@@ -2681,14 +2672,17 @@ function SessionItem({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 32,
-                height: 32,
+                width: 24,
+                height: 24,
                 padding: 0,
-                background: actionsOpen || hovered ? "var(--bg-hover)" : "transparent",
+                background: "transparent",
                 border: actionsOpen ? "1px solid var(--border)" : "1px solid transparent",
                 borderRadius: "var(--radius-card)",
                 color: actionsOpen ? "var(--text)" : "var(--text-dim)",
                 cursor: "pointer",
+                opacity: actionsOpen || hovered ? 1 : 0,
+                pointerEvents: actionsOpen || hovered ? "auto" : "none",
+                transition: "opacity 0.12s",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
