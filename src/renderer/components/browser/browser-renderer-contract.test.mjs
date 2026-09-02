@@ -5,7 +5,9 @@ import test from "node:test";
 const read = (url) => fs.readFileSync(url, "utf8");
 const appShell = read(new URL("../AppShell.tsx", import.meta.url));
 const settingsConfig = read(new URL("../SettingsConfig.tsx", import.meta.url));
-const messageView = read(new URL("../MessageView.tsx", import.meta.url));
+const messageView = ["../MessageView.tsx", "../messages/ToolCallBlock.tsx"]
+  .map((file) => read(new URL(file, import.meta.url)))
+  .join("\n");
 const browserDock = read(new URL("./BrowserDock.tsx", import.meta.url));
 const browserSettings = read(new URL("./BrowserSettings.tsx", import.meta.url));
 const browserAuthorization = read(new URL("./BrowserAuthorizationDialog.tsx", import.meta.url));

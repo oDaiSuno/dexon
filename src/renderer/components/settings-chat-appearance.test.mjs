@@ -7,7 +7,14 @@ const cssSource = readFileSync(new URL("../globals.css", import.meta.url), "utf8
 const dictionariesSource = readFileSync(new URL("../i18n-dictionaries.ts", import.meta.url), "utf8");
 const chatWindowSource = readFileSync(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
 const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
-const messageViewSource = readFileSync(new URL("./MessageView.tsx", import.meta.url), "utf8");
+const messageViewSource = [
+  "./messages/UserMessage.tsx",
+  "./messages/AssistantMessage.tsx",
+  "./messages/ThinkingBlock.tsx",
+  "./messages/ToolCallBlock.tsx",
+]
+  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
+  .join("\n");
 
 test("General settings exposes complete accessible chat appearance controls", () => {
   for (const id of ["chatFontSizeControlId", "chatLayoutControlId"]) assert.match(settingsSource, new RegExp(id));

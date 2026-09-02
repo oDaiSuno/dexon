@@ -18,7 +18,7 @@ const { MessageView } = await importTestBundle("src/renderer/components/message-
     {
       name: "stub-markdown-body",
       setup(buildApi) {
-        buildApi.onResolve({ filter: /^\.\/MarkdownBody$/ }, () => ({
+        buildApi.onResolve({ filter: /MarkdownBody$/ }, () => ({
           path: "markdown-body",
           namespace: "message-view-test",
         }));
