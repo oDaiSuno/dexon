@@ -88,41 +88,42 @@ export function ToolCallBlock({
             {isError && <span>{t("toolFailed", "failed")}</span>}
           </span>
         </button>
-        <div className="chat-acc-panel">
-          <div className="chat-acc-panel-clip">
-            {detailMounted && (
-              <div className="chat-tool-detail" style={{ fontSize: scaledChatFont(11.5) }}>
-                {!isEditTool && (
-                  <pre className="chat-tool-input" style={{ fontSize: scaledChatFont(11) }}>
-                    {inputStr}
-                  </pre>
-                )}
-                {resultDiff && <PairedDiffResult diff={resultDiff} />}
-                {!resultDiff && result && (
-                  <PairedResult text={resultText ?? ""} isEmpty={resultIsEmpty} isError={isError} />
-                )}
-                {browserTabId && (
-                  <button
-                    type="button"
-                    className="chat-tool-open-browser"
-                    onClick={() =>
-                      window.dispatchEvent(
-                        new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }),
-                      )
-                    }
-                  >
-                    {t("openInBrowser", "Open in Browser")} →
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
         {collapsedNote && !resultDiff && (
           <div className="chat-tool-collapsed-note" style={{ color: isError ? "var(--bui-red)" : "var(--bui-ink-2)" }}>
             {collapsedNote}
           </div>
         )}
+      </div>
+      {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
+          `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
+          the accordion root (this nesting is what broke expansion once). */}
+      <div className="chat-acc-panel">
+        <div className="chat-acc-panel-clip">
+          {detailMounted && (
+            <div className="chat-tool-detail" style={{ fontSize: scaledChatFont(11.5) }}>
+              {!isEditTool && (
+                <pre className="chat-tool-input" style={{ fontSize: scaledChatFont(11) }}>
+                  {inputStr}
+                </pre>
+              )}
+              {resultDiff && <PairedDiffResult diff={resultDiff} />}
+              {!resultDiff && result && (
+                <PairedResult text={resultText ?? ""} isEmpty={resultIsEmpty} isError={isError} />
+              )}
+              {browserTabId && (
+                <button
+                  type="button"
+                  className="chat-tool-open-browser"
+                  onClick={() =>
+                    window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }))
+                  }
+                >
+                  {t("openInBrowser", "Open in Browser")} →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
       {result && <DeferredContentActions content={result.content} onLoad={onLoadDeferredContent} />}
     </div>

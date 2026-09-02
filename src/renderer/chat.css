@@ -246,10 +246,11 @@ html.dark .chat-appearance-scope {
 }
 
 /* Chevron: symmetric path flips vertically (works in every browser,
-   unlike CSS `d:` path morphing which is Chromium-only). */
+   unlike CSS `d:` path morphing which is Chromium-only).
+   Convention (user-confirmed): collapsed = up ˄, expanded = down ˅. */
 .chat-acc-chevron {
   display: inline-flex;
-  transform: scaleY(1);
+  transform: scaleY(-1);
   transform-origin: center;
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
@@ -257,7 +258,7 @@ html.dark .chat-appearance-scope {
   vector-effect: non-scaling-stroke;
 }
 .chat-acc[data-open="true"] .chat-acc-chevron {
-  transform: scaleY(-1);
+  transform: scaleY(1);
 }
 
 /* ── Shimmer label (transitions.dev 15-shimmer-text) — "thinking" hold state ── */
@@ -658,13 +659,26 @@ html.dark .chat-tool-chip {
 }
 
 /* ── Welcome entrance (transitions.dev 18-texts-reveal, CSS-only:
-     staggered blurred rise; lines are .chat-welcome-line with --line-i) ── */
+     staggered blurred rise; lines are .chat-welcome-line with --line-i) ──
+     NOTE: the keyframes own the blur; putting it in the base rule made
+     `fill-mode: both` restore the blurred state after the run. */
+
+@keyframes chat-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-medium));
+    filter: blur(var(--blur-medium));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
 
 .chat-welcome-line {
   opacity: 0;
-  transform: translateY(var(--distance-medium));
-  filter: blur(var(--blur-medium));
-  animation: chat-fade-up var(--duration-very-slow) var(--ease-smooth-out) both;
+  animation: chat-welcome-in var(--duration-very-slow) var(--ease-smooth-out) both;
   animation-delay: calc(var(--line-i, 0) * var(--duration-stagger) * 2);
 }
 

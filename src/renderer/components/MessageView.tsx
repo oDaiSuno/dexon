@@ -24,6 +24,7 @@ interface Props {
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
+  inProcessGroup?: boolean;
 }
 
 export const MessageView = memo(function MessageView({
@@ -44,6 +45,7 @@ export const MessageView = memo(function MessageView({
   prevTimestamp,
   onLoadDeferredContent,
   thinkingExpansionStore,
+  inProcessGroup,
 }: Props) {
   if (message.role === "user") {
     return (
@@ -76,6 +78,7 @@ export const MessageView = memo(function MessageView({
         onLoadDeferredContent={onLoadDeferredContent}
         entryId={entryId}
         thinkingExpansionStore={thinkingExpansionStore}
+        inProcessGroup={inProcessGroup}
       />
     );
   }

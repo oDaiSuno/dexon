@@ -37,7 +37,11 @@ export function ProcessDetailsGroup({ messageCount, toolCallCount, children, sta
         }
         style={{ fontSize: scaledChatFont(12.5) }}
       >
-        <span style={{ color: "var(--bui-ink-3)", display: "flex", flexShrink: 0 }} aria-hidden="true">
+        <span
+          className="chat-acc-chevron"
+          style={{ color: "var(--bui-ink-3)", display: "flex", flexShrink: 0 }}
+          aria-hidden="true"
+        >
           <svg
             width="13"
             height="13"

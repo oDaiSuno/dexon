@@ -36,6 +36,7 @@ export function AssistantMessageView({
   onLoadDeferredContent,
   entryId,
   thinkingExpansionStore,
+  inProcessGroup,
 }: {
   message: AssistantMessage;
   isStreaming?: boolean;
@@ -49,6 +50,7 @@ export function AssistantMessageView({
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
   thinkingExpansionStore?: ThinkingExpansionStore;
+  inProcessGroup?: boolean;
 }) {
   const { t } = useI18n();
   const time = showTimestamp ? formatTime(message.timestamp) : null;
@@ -154,74 +156,78 @@ export function AssistantMessageView({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Meta line: model · streaming stats (Beautiful UI quiet meta) */}
-      <div
-        style={{
-          fontSize: scaledChatFont(12),
-          color: "var(--bui-ink-3)",
-          marginBottom: 6,
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          fontFamily: "var(--font-mono)",
-        }}
-      >
-        {message.provider && (
-          <span>
-            {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
-          </span>
-        )}
-        {isStreaming &&
-          (() => {
-            let chars = 0;
-            for (const b of blocks) {
-              if (b.type === "text") chars += (b as TextContent).text?.length ?? 0;
-              else if (b.type === "thinking") chars += (b as ThinkingContent).thinking?.length ?? 0;
-              else if (b.type === "toolCall") chars += JSON.stringify((b as ToolCallContent).input ?? {}).length;
-            }
-            const est = Math.round(chars / 4);
-            return (
-              <>
-                {est > 0 && (
-                  <span
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 5,
-                      color: "var(--bui-ink-3)",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                    title="Estimated token count while streaming"
-                  >
-                    <span>{est.toLocaleString()} tok</span>
-                    {tps !== null && (
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
-                        {/* speed tier uses status colors only: green fast → orange → red slow */}
+      {/* Meta line: model · streaming stats (Beautiful UI quiet meta).
+          Inside process details the model name would repeat every turn —
+          the final answer's meta line already carries it. */}
+      {(!inProcessGroup || isStreaming) && (
+        <div
+          style={{
+            fontSize: scaledChatFont(12),
+            color: "var(--bui-ink-3)",
+            marginBottom: 6,
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {!inProcessGroup && message.provider && (
+            <span>
+              {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
+            </span>
+          )}
+          {isStreaming &&
+            (() => {
+              let chars = 0;
+              for (const b of blocks) {
+                if (b.type === "text") chars += (b as TextContent).text?.length ?? 0;
+                else if (b.type === "thinking") chars += (b as ThinkingContent).thinking?.length ?? 0;
+                else if (b.type === "toolCall") chars += JSON.stringify((b as ToolCallContent).input ?? {}).length;
+              }
+              const est = Math.round(chars / 4);
+              return (
+                <>
+                  {est > 0 && (
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 5,
+                        color: "var(--bui-ink-3)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                      title="Estimated token count while streaming"
+                    >
+                      <span>{est.toLocaleString()} tok</span>
+                      {tps !== null && (
                         <span
-                          aria-hidden="true"
                           style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: "50%",
-                            background:
-                              tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 4,
                           }}
-                        />
-                        <span>{tps.toFixed(1)} t/s</span>
-                      </span>
-                    )}
-                  </span>
-                )}
-              </>
-            );
-          })()}
-      </div>
+                        >
+                          {/* speed tier uses status colors only: green fast → orange → red slow */}
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: 6,
+                              height: 6,
+                              borderRadius: "50%",
+                              background:
+                                tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
+                            }}
+                          />
+                          <span>{tps.toFixed(1)} t/s</span>
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </>
+              );
+            })()}
+        </div>
+      )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {blockItems.map(({ block, originalIndex }) => (

@@ -719,6 +719,7 @@ export function ChatWindow({
                             onEditContent={insertEditedContent}
                             onLoadDeferredContent={loadDeferredContent}
                             showTimestamp={showTimestamp}
+                            inProcessGroup={renderRole === "process" || renderRole === "process-final"}
                             prevTimestamp={
                               idx > 0
                                 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp
