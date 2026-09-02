@@ -89,6 +89,7 @@ interface Props {
   isCompacting?: boolean;
   compactError?: string | null;
   compactResult?: CompactResultInfo | null;
+  contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
   toolPreset?: "none" | "default" | "full";
   onToolPresetChange?: (preset: "none" | "default" | "full") => void;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -140,6 +141,18 @@ function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
   if (tokens >= 1_000) return `${Math.round(tokens / 1_000)}k`;
   return tokens.toLocaleString();
+}
+
+/* Context fill ramps the Compact button toward the warning color:
+   0 below half the window, full warning at 90%+. Gradual, no steps. */
+function compactUrgencyOf(percent: number | null): number {
+  if (percent === null || Number.isNaN(percent)) return 0;
+  return Math.min(1, Math.max(0, (percent - 50) / 40));
+}
+
+function mixWarning(urgency: number, strength: number, base: string): string {
+  const pct = Math.round(urgency * strength);
+  return pct > 0 ? `color-mix(in srgb, var(--warning) ${pct}%, ${base})` : base;
 }
 
 type SlashCommandPaletteItem =
@@ -282,6 +295,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     isCompacting,
     compactError,
     compactResult,
+    contextUsage,
     toolPreset,
     onToolPresetChange,
     thinkingLevel,
@@ -306,6 +320,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 ) {
   const isMobile = useIsMobile();
   const { t, language } = useI18n();
+  const contextPct = contextUsage?.percent ?? null;
+  const contextWindowTokens = contextUsage?.contextWindow ?? null;
+  const compactUrgency = compactUrgencyOf(contextPct);
   const [value, setValueState] = useState(() => (draftKey ? (getDraft(draftKey)?.value ?? "") : ""));
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -3002,10 +3019,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                       padding: isMobile ? 0 : "0 9px",
                       minWidth: 32,
                       minHeight: 32,
-                      background: isCompacting ? "rgba(239,68,68,0.08)" : "var(--bg-panel)",
-                      border: `1px solid ${isCompacting ? "rgba(239,68,68,0.3)" : "var(--border)"}`,
+                      background: isCompacting
+                        ? "rgba(239,68,68,0.08)"
+                        : mixWarning(compactUrgency, 14, "var(--bg-panel)"),
+                      border: `1px solid ${
+                        isCompacting ? "rgba(239,68,68,0.3)" : mixWarning(compactUrgency, 70, "var(--border)")
+                      }`,
                       borderRadius: 9,
-                      color: isCompacting ? "var(--danger)" : "var(--text-muted)",
+                      color: isCompacting ? "var(--danger)" : mixWarning(compactUrgency, 100, "var(--text-muted)"),
                       cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
                       fontSize: scaledChatFont(12),
                       opacity: isStreaming && !isCompacting ? 0.5 : 1,
@@ -3013,12 +3034,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     }}
                     onMouseEnter={(e) => {
                       if (isStreaming && !isCompacting) return;
-                      e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.16)" : "var(--bg-hover)";
-                      e.currentTarget.style.color = isCompacting ? "var(--danger)" : "var(--text)";
+                      e.currentTarget.style.background = isCompacting
+                        ? "rgba(239,68,68,0.16)"
+                        : mixWarning(compactUrgency, 24, "var(--bg-hover)");
+                      e.currentTarget.style.color = isCompacting
+                        ? "var(--danger)"
+                        : mixWarning(compactUrgency, 100, "var(--text)");
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = isCompacting ? "rgba(239,68,68,0.08)" : "var(--bg-panel)";
-                      e.currentTarget.style.color = isCompacting ? "var(--danger)" : "var(--text-muted)";
+                      e.currentTarget.style.background = isCompacting
+                        ? "rgba(239,68,68,0.08)"
+                        : mixWarning(compactUrgency, 14, "var(--bg-panel)");
+                      e.currentTarget.style.color = isCompacting
+                        ? "var(--danger)"
+                        : mixWarning(compactUrgency, 100, "var(--text-muted)");
                     }}
                     title={isCompacting ? t("stopCompaction", "Stop compaction") : t("compact", "Compact context")}
                     aria-label={isCompacting ? t("stopCompaction", "Stop compaction") : t("compact", "Compact context")}
@@ -3047,7 +3076,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                           <line x1="10" y1="14" x2="3" y2="21" />
                           <line x1="21" y1="3" x2="14" y2="10" />
                         </svg>
-                        {!isMobile && <span style={{ whiteSpace: "nowrap" }}>{t("compactAction", "Compact")}</span>}
+                        {!isMobile && (
+                          <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                            {contextPct !== null && contextWindowTokens !== null
+                              ? `${contextPct.toFixed(1)}%/${formatTokenCount(contextWindowTokens)} · ${t("compactAction", "Compact")}`
+                              : t("compactAction", "Compact")}
+                          </span>
+                        )}
                       </>
                     )}
                   </button>

@@ -417,6 +417,7 @@ export function ChatWindow({
       isCompacting={isCompacting}
       compactError={compactError}
       compactResult={compactResult}
+      contextUsage={contextUsage}
       toolPreset={toolPreset}
       onToolPresetChange={session || isNew ? handleToolPresetChange : undefined}
       thinkingLevel={thinkingLevel}
