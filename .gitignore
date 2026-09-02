@@ -12,3 +12,6 @@ temp/
 build/toolchains/.core-cache/
 build/toolchains/core/
 native/**/target/
+
+# 内部工作文档不入库
+docs/ui-refactor-plan.md
