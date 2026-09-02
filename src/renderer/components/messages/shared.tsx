@@ -18,6 +18,19 @@ export function useDelayedUnmount(open: boolean, delayMs = 350): boolean {
   return mounted;
 }
 
+/* transitions.dev 30-streaming-text tokenizer: CJK resolves per glyph,
+   latin per word, whitespace preserved. Keys are absolute character
+   offsets in the growing text so existing tokens never replay. */
+const STREAM_TOKEN_PATTERN = "[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef]|[a-zA-Z0-9$@._/-]+|\\s+|[^\\s]";
+
+export function tokenizeStreamTail(tail: string, offsetBase: number): Array<{ start: number; text: string }> {
+  const tokens: Array<{ start: number; text: string }> = [];
+  for (const match of tail.matchAll(new RegExp(STREAM_TOKEN_PATTERN, "g"))) {
+    tokens.push({ start: offsetBase + (match.index ?? 0), text: match[0] });
+  }
+  return tokens;
+}
+
 export function formatTime(ts?: number): string | null {
   if (!ts) return null;
   const d = new Date(ts);

@@ -268,19 +268,8 @@ html.dark ::-webkit-scrollbar-thumb {
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei",
     "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
   --font-mono:
-    ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Microsoft YaHei UI", "Microsoft YaHei",
-    "PingFang SC", "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
-}
-
-/* Streaming caret (design.html) */
-.stream-caret {
-  display: inline-block;
-  width: 7px;
-  height: 15px;
-  background: var(--accent);
-  margin-left: 2px;
-  vertical-align: -2px;
-  animation: blink 0.9s step-start infinite;
+    "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Microsoft YaHei UI",
+    "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
 }
 
 pre,

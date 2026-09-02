@@ -13,7 +13,7 @@ import { useI18n } from "@/i18n";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
-import { DeferredContentActions, formatTime } from "./shared";
+import { DeferredContentActions, formatTime, tokenizeStreamTail } from "./shared";
 import type {
   AssistantContentBlock,
   AssistantMessage,
@@ -475,16 +475,6 @@ function TextBlock({
       </span>
     </div>
   );
-}
-
-const STREAM_TOKEN_PATTERN = "[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef]|[a-zA-Z0-9$@._/-]+|\\s+|[^\\s]";
-
-function tokenizeStreamTail(tail: string, offsetBase: number): Array<{ start: number; text: string }> {
-  const tokens: Array<{ start: number; text: string }> = [];
-  for (const match of tail.matchAll(new RegExp(STREAM_TOKEN_PATTERN, "g"))) {
-    tokens.push({ start: offsetBase + (match.index ?? 0), text: match[0] });
-  }
-  return tokens;
 }
 
 function formatUsage(usage: {

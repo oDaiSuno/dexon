@@ -51,7 +51,7 @@ export function CompactionMessageView({ message }: { message: CustomMessage }) {
             style={{
               flexShrink: 0,
               transform: expanded ? "rotate(90deg)" : "none",
-              transition: "transform 0.15s",
+              transition: "transform var(--duration-fast) var(--ease-smooth-out)",
             }}
           >
             <polyline points="4 2.5 7.5 6 4 9.5" />
