@@ -528,7 +528,9 @@ export function ChatWindow({
       {extensionCustomUi && <ExtensionCustomPanel request={extensionCustomUi} onInput={sendExtensionCustomInput} />}
 
       {isEmptyNew ? (
-        <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-center overflow-y-auto px-4 pb-6">
+        /* Bottom-anchored: the welcome block belongs to the composer —
+           centered in the empty canvas it reads as detached. */
+        <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
           <div className="chat-content-column flex flex-col items-center">
             <div className="chat-welcome-line" style={{ "--line-i": 0 } as React.CSSProperties}>
               <div
@@ -573,7 +575,7 @@ export function ChatWindow({
                 {
                   "--line-i": 1,
                   marginTop: 14,
-                  marginBottom: 22,
+                  marginBottom: 12,
                   fontSize: scaledChatFont(13),
                   lineHeight: 1.6,
                   color: "var(--bui-ink-2)",
