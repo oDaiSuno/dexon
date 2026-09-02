@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@contract/*": ["src/contract/*"],
+      "@shared/*": ["src/shared/*"]
+    }
+  },
+  "include": [
+    "src/contract/**/*",
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/agent-host/**/*",
+    "src/smoke/**/*",
+    "src/shared/**/*"
+  ],
+  "exclude": ["node_modules", "out", "dist", "src/shared/clipboard.ts"]
+}

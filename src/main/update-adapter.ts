@@ -1,0 +1,121 @@
+import type { AppUpdater, CancellationToken, ProgressInfo, UpdateDownloadedEvent, UpdateInfo } from "electron-updater";
+
+export type UpdateAdapterEventMap = {
+  error: (error: Error, message?: string) => void;
+  "checking-for-update": () => void;
+  "update-not-available": (info: UpdateInfo) => void;
+  "update-available": (info: UpdateInfo) => void;
+  "update-downloaded": (info: UpdateDownloadedEvent) => void;
+  "download-progress": (info: ProgressInfo) => void;
+};
+
+/**
+ * Small, injectable surface around electron-updater. Tests can implement this
+ * interface without loading Electron or contacting an update server.
+ */
+export interface UpdateAdapter {
+  on<Event extends keyof UpdateAdapterEventMap>(event: Event, listener: UpdateAdapterEventMap[Event]): () => void;
+  checkForUpdates(): Promise<unknown>;
+  downloadUpdate(): Promise<unknown>;
+  cancelDownload?(): void;
+  quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
+}
+
+type ElectronUpdaterModule = typeof import("electron-updater") & {
+  default?: { autoUpdater?: AppUpdater };
+};
+
+export interface ProductionUpdateAdapterOptions {
+  useDevelopmentConfig?: boolean;
+  /** @internal Injectable so Node tests do not load electron-updater. */
+  createCancellationToken?: () => CancellationToken;
+}
+
+export function isProductionUpdatePlatformEnabled(platform: NodeJS.Platform): boolean {
+  // Windows releases intentionally omit publisherName while Authenticode
+  // signing is unavailable. electron-updater therefore skips publisher
+  // verification, but still validates the downloaded NSIS file against the
+  // SHA-512 digest in latest.yml before running the interactive installer.
+  return platform === "darwin" || platform === "win32";
+}
+
+class ProductionUpdateAdapter implements UpdateAdapter {
+  private readonly updater: AppUpdater;
+  private readonly createCancellationToken: (() => CancellationToken) | undefined;
+  private activeDownloadToken: CancellationToken | null = null;
+
+  constructor(updater: AppUpdater, createCancellationToken?: () => CancellationToken) {
+    this.updater = updater;
+    this.createCancellationToken = createCancellationToken;
+  }
+
+  on<Event extends keyof UpdateAdapterEventMap>(event: Event, listener: UpdateAdapterEventMap[Event]): () => void {
+    // AppUpdater has strongly typed overloads, while this adapter exposes the
+    // same callbacks through a generic event map.
+    const updater = this.updater as unknown as {
+      on(name: string, callback: (...args: never[]) => void): void;
+      off(name: string, callback: (...args: never[]) => void): void;
+    };
+    const callback = listener as (...args: never[]) => void;
+    updater.on(event, callback);
+    return () => updater.off(event, callback);
+  }
+
+  checkForUpdates(): Promise<unknown> {
+    return this.updater.checkForUpdates();
+  }
+
+  async downloadUpdate(): Promise<unknown> {
+    const token = this.createCancellationToken?.() ?? null;
+    this.activeDownloadToken = token;
+    try {
+      return await this.updater.downloadUpdate(token ?? undefined);
+    } finally {
+      if (this.activeDownloadToken === token) this.activeDownloadToken = null;
+    }
+  }
+
+  cancelDownload(): void {
+    this.activeDownloadToken?.cancel();
+  }
+
+  quitAndInstall(isSilent = false, isForceRunAfter = true): void {
+    this.updater.quitAndInstall(isSilent, isForceRunAfter);
+  }
+}
+
+/** @internal Exported to verify the production policy without loading Electron. */
+export function wrapElectronUpdater(updater: AppUpdater, options: ProductionUpdateAdapterOptions = {}): UpdateAdapter {
+  updater.autoDownload = false;
+  // Installation must pass through UpdateManager.installUpdate(), which gates
+  // active Agent sessions. App quit must never bypass that explicit check.
+  updater.autoInstallOnAppQuit = false;
+  updater.allowPrerelease = false;
+  updater.allowDowngrade = false;
+  updater.disableWebInstaller = true;
+  updater.forceDevUpdateConfig = options.useDevelopmentConfig === true;
+
+  // Avoid leaking request headers, URLs, or cache paths through the library's
+  // default console logger. UpdateManager emits its own redacted messages.
+  updater.logger = null;
+
+  return new ProductionUpdateAdapter(updater, options.createCancellationToken);
+}
+
+/**
+ * Loads electron-updater only when the packaged main process asks for it.
+ * This keeps ordinary Node tests from initializing Electron's AppUpdater.
+ */
+export async function createProductionUpdateAdapter(
+  options: ProductionUpdateAdapterOptions = {},
+): Promise<UpdateAdapter> {
+  const imported = (await import("electron-updater")) as ElectronUpdaterModule;
+  const updater = imported.autoUpdater ?? imported.default?.autoUpdater;
+  if (!updater) {
+    throw new Error("electron-updater did not expose autoUpdater");
+  }
+  return wrapElectronUpdater(updater, {
+    ...options,
+    createCancellationToken: () => new imported.CancellationToken(),
+  });
+}

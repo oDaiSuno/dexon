@@ -1,0 +1,175 @@
+# Dexon v2 — pure Electron (no Next sidecar, no bundled Node)
+appId: app.dexon.desktop
+productName: Dexon
+copyright: Copyright © Dexon
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  - LICENSE
+  - build/icon.png
+  - build/entitlements.mac.plist
+  - "!**/*.map"
+  - "!**/*.{md,markdown,ts,tsx}"
+  - "!**/*.d.{mts,cts}"
+  - "!scripts/**"
+  - "!src/**"
+  - "!dist/**"
+  - "!tsconfig*.json"
+  - "!tsup.config.ts"
+  - "!vite.config.ts"
+  - "!electron-builder.yml"
+  # Keep authoring assets out of electron-builder's default dependency walk.
+  # The explicit FileSet below restores them exactly once; without these
+  # exclusions Linux asar packaging can hard-link JSON/images twice (EEXIST).
+  - "!node_modules/@earendil-works/pi-coding-agent/docs/**/*"
+  - "!node_modules/@earendil-works/pi-coding-agent/examples/**/*"
+  # Pi injects these package-relative paths into the agent system prompt when
+  # users ask it to author extensions, packages, SDK integrations, or TUI UI.
+  # Restore them after the broad Markdown/TypeScript production exclusions.
+  # Explicit FileSets bypass electron-builder's production-dependency cleanup,
+  # which otherwise drops package READMEs, examples, and declaration files.
+  - from: node_modules/@earendil-works/pi-coding-agent
+    to: node_modules/@earendil-works/pi-coding-agent
+    filter:
+      - README.md
+      - "docs/**/*"
+      - "examples/**/*"
+      # Public declarations let the agent inspect exact APIs when the prose and
+      # examples do not cover a newly added or advanced extension capability.
+      - "dist/**/*.d.ts"
+  - from: node_modules/@earendil-works/pi-ai/dist
+    to: node_modules/@earendil-works/pi-ai/dist
+    filter:
+      - "**/*.d.ts"
+  # Keep telemetry as an exact root dependency so electron-builder has one
+  # runtime source. Restore only authoring files excluded from the default
+  # dependency walk; copying JS here would race the ASAR dependency copier.
+  - from: node_modules/@earendil-works/pi-telemetry
+    to: node_modules/@earendil-works/pi-telemetry
+    filter:
+      - README.md
+      - "dist/**/*.d.ts"
+  # electron-builder deduplicates these transitive packages to the app root.
+  # Re-adding declaration-only nested directories would shadow the healthy
+  # root package under Node's ESM resolver, so package metadata and runtime JS
+  # must travel with the authoring declarations.
+  - from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai
+    to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai
+    filter:
+      - package.json
+      - "dist/**/*.js"
+      - "dist/**/*.json"
+      - "dist/**/*.d.ts"
+  - from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui
+    to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui
+    filter:
+      - package.json
+      - "dist/**/*.js"
+      - "dist/**/*.d.ts"
+      - "native/**/*"
+  - from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client
+    to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client
+    filter:
+      - package.json
+      - README.md
+      - CHANGELOG.md
+      - "dist/**/*.js"
+      - "dist/**/*.d.ts"
+  - from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol
+    to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol
+    filter:
+      - package.json
+      - README.md
+      - "dist/**/*.js"
+      - "dist/**/*.d.ts"
+  - from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry
+    to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry
+    filter:
+      - package.json
+      - README.md
+      - "dist/**/*.js"
+      - "dist/**/*.d.ts"
+
+asar: true
+
+# Signed runtime catalogs plus the current target's small core search tools.
+# Managed Node/Python/Git archives remain download-on-consent and are never shipped.
+extraResources:
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+  - from: build/toolchains/runtime-catalog.json
+    to: toolchains/runtime-catalog.json
+  - from: build/toolchains/core-catalog.json
+    to: toolchains/core-catalog.json
+  - from: build/toolchains/core/${platform}-${arch}
+    to: toolchains/core/${platform}-${arch}
+
+mac:
+  category: public.app-category.developer-tools
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+    - target: zip
+      arch:
+        - arm64
+        - x64
+  artifactName: Dexon-${version}-${arch}.${ext}
+
+win:
+  extraResources:
+    - from: out/native/windows-managed-process-helper
+      to: managed-process/win32-x64
+      filter:
+        - pi-managed-process-helper.exe
+        - manifest.json
+  target:
+    - target: nsis
+      arch:
+        - x64
+  # Authenticode is not provisioned yet. Keep the trust limitation visible in
+  # every downloaded filename until the release workflow is replaced by a
+  # certificate-backed signing and provenance gate.
+  artifactName: Dexon-Unsigned-Beta-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Dexon
+
+linux:
+  executableName: dexon
+  # Override electron-builder's unsafe default AppImage argument. Keep Chromium
+  # sandboxing enabled and use an app-owned inert launch marker instead.
+  executableArgs:
+    - --appimage-desktop-launch
+  target:
+    - target: AppImage
+      arch:
+        - x64
+  category: Development
+  artifactName: Dexon-${version}-${arch}.${ext}
+  synopsis: Local desktop UI for the pi coding agent
+
+protocols:
+  - name: Dexon
+    schemes:
+      - dexon
+
+publish:
+  provider: github
+  owner: dexon-app
+  repo: dexon
+  releaseType: draft

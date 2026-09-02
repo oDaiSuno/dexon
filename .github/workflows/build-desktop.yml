@@ -1,0 +1,1079 @@
+name: Build desktop apps
+
+# Dexon: CI 暂为占位配置，仅手动触发；待 GitHub 仓库与发布配置确定后再启用自动触发。
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test-platforms:
+    name: Tests (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            runner: ubuntu-24.04
+            timeout_minutes: 25
+          - name: macOS arm64
+            runner: macos-15
+            timeout_minutes: 25
+          - name: macOS x64
+            runner: macos-15-intel
+            timeout_minutes: 25
+          - name: Windows x64
+            runner: windows-2025
+            timeout_minutes: 45
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+
+      - name: Install pinned Windows cross toolchain (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          rustup toolchain install 1.96.1 --profile minimal --target x86_64-pc-windows-msvc
+          cargo install cargo-xwin --locked --version 0.23.1
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends clang-18 lld-18 llvm-18
+
+      - name: Compile-check Windows helper with cargo-xwin (Linux)
+        if: runner.os == 'Linux'
+        run: npm run build:windows-helper
+
+      - name: Install pinned Rust supply-chain gates (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo install cargo-deny --locked --version 0.20.2
+
+      - name: Install Electron binary (Windows)
+        if: runner.os == 'Windows'
+        run: npx install-electron --no
+
+      - name: Validate Windows managed process helper
+        if: runner.os == 'Windows'
+        run: |
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --disable-pip-version-check --no-input Flask==3.1.0 fastapi==0.128.0 uvicorn==0.40.0
+          cargo fmt --manifest-path native/windows-managed-process-helper/Cargo.toml --all -- --check
+          cargo clippy --manifest-path native/windows-managed-process-helper/Cargo.toml --locked --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+          cargo test --manifest-path native/windows-managed-process-helper/Cargo.toml --locked --target x86_64-pc-windows-msvc
+          cargo audit --file native/windows-managed-process-helper/Cargo.lock --deny warnings
+          cargo deny --manifest-path native/windows-managed-process-helper/Cargo.toml --config native/windows-managed-process-helper/deny.toml --locked check
+          npm run check:windows-helper-reproducibility
+          $env:PI_WINDOWS_HELPER_HANDLE_LOOPS = "100"
+          npm run test:windows-managed-helper
+          npm run test:managed-process-workflows
+          $env:PI_MANAGED_FLOOD_DURATION_MS = "60000"
+          $env:PI_MANAGED_FLOOD_PROCESSES = "8"
+          $env:PI_MANAGED_FLOOD_STREAMS = "both"
+          npm run test:managed-process-flood
+
+      - name: Run unit and handler tests
+        run: npm test
+
+      - name: Run cross-platform quality checks (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm run check:dependencies
+          npm run check:contract
+          npm run check:pi-compat
+          npm run check:toolchain-contract
+          npm run check:toolchain-catalog
+          npm run check:browser-i18n
+
+  windows-frameworks:
+    name: Windows managed framework acceptance
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      CI: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      STORYBOOK_DISABLE_TELEMETRY: "1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up pinned Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+
+      - name: Build authoritative Windows helper
+        run: npm run check:windows-helper-reproducibility
+
+      - name: Prepare pinned framework fixtures
+        shell: pwsh
+        run: |
+          $nodeRoot = Join-Path $env:RUNNER_TEMP "framework-node-root"
+          New-Item -ItemType Directory -Path $nodeRoot -Force | Out-Null
+          Push-Location $nodeRoot
+          try {
+            npm init -y | Out-Null
+            npm install --save-exact --no-audit --no-fund next@16.3.2 react@19.2.4 react-dom@19.2.4 storybook@10.5.10 @storybook/react-vite@10.5.10 vite@6.4.3 typescript@5.9.3
+          } finally {
+            Pop-Location
+          }
+          $springZip = Join-Path $env:RUNNER_TEMP "spring-boot-4.1.1-fixture.zip"
+          $springUrl = "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=4.1.1&baseDir=spring-boot-4.1.1-fixture&groupId=com.example&artifactId=fixture&name=SpringFixture&packageName=com.example.fixture&packaging=jar&javaVersion=21&dependencies=web"
+          curl.exe --fail --location --retry 3 --output $springZip $springUrl
+          if ($LASTEXITCODE -ne 0) { throw "Spring Initializr download exited $LASTEXITCODE" }
+          Expand-Archive -LiteralPath $springZip -DestinationPath $env:RUNNER_TEMP
+          $springRoot = Join-Path $env:RUNNER_TEMP "spring-boot-4.1.1-fixture"
+          if (-not (Test-Path -LiteralPath (Join-Path $springRoot "mvnw.cmd"))) { throw "Spring wrapper is missing" }
+          "PI_FRAMEWORK_NODE_ROOT=$nodeRoot" >> $env:GITHUB_ENV
+          "PI_SPRING_BOOT_FIXTURE=$springRoot" >> $env:GITHUB_ENV
+          "PI_JAVA_EXECUTABLE=$((Get-Command java).Source)" >> $env:GITHUB_ENV
+          "PI_MAVEN_USER_HOME=$(Join-Path $env:RUNNER_TEMP 'maven-user-home-3.9.16')" >> $env:GITHUB_ENV
+
+      - name: Run real managed framework matrix
+        run: npm run test:managed-process-frameworks
+
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install pinned Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+
+      - name: Install Electron binary
+        run: npx install-electron --no
+
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target linux-x64
+
+      - name: Configure Electron sandbox
+        run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+
+      - name: Run full verification
+        run: xvfb-run --auto-servernum npm run verify
+
+  package:
+    name: ${{ matrix.name }}
+    if: github.ref_type != 'tag'
+    needs: [quality, test-platforms, windows-frameworks]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            runner: macos-15
+            platform: mac
+            targets: dmg zip
+            arch: arm64
+            tool_target: darwin-arm64
+            artifact: dexon-macos-arm64
+          - name: macOS Intel x64
+            runner: macos-15-intel
+            platform: mac
+            targets: dmg zip
+            arch: x64
+            tool_target: darwin-x64
+            artifact: dexon-macos-x64
+          - name: Windows x64
+            runner: windows-2025
+            platform: win
+            targets: nsis
+            arch: x64
+            tool_target: win32-x64
+            artifact: dexon-windows-x64
+          - name: Linux x64
+            runner: ubuntu-24.04
+            platform: linux
+            targets: AppImage
+            arch: x64
+            tool_target: linux-x64
+            artifact: dexon-linux-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Electron runtime for Windows acceptance
+        if: runner.os == 'Windows'
+        run: npx install-electron --no
+
+      - name: Install pinned Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+
+      - name: Build application
+        run: npm run build
+
+      - name: Rebuild authoritative Windows helper for packaging
+        if: runner.os == 'Windows'
+        run: npm run check:windows-helper-reproducibility
+
+      - name: Run Windows managed process integration
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --disable-pip-version-check --no-input Flask==3.1.0 fastapi==0.128.0 uvicorn==0.40.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:windows-managed-helper
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:managed-process-workflows
+
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target ${{ matrix.tool_target }}
+
+      - name: Run Electron smoke on Windows
+        if: runner.os == 'Windows'
+        run: npm run smoke
+
+      - name: Package ${{ matrix.name }}
+        shell: bash
+        run: npx electron-builder --${{ matrix.platform }} ${{ matrix.targets }} --${{ matrix.arch }} --publish never
+
+      - name: Generate and verify Windows SBOM
+        if: runner.os == 'Windows'
+        run: |
+          npm run build:windows-sbom
+          npm run check:windows-sbom
+
+      - name: Configure packaged Electron sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo chown root:root dist/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 dist/linux-unpacked/chrome-sandbox
+
+      - name: Verify packaged toolchains and production startup (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum npm run check:packaged-toolchains -- ${{ matrix.tool_target }}
+
+      - name: Verify packaged toolchains and production startup (macOS)
+        if: runner.os == 'macOS'
+        run: npm run check:packaged-toolchains -- ${{ matrix.tool_target }}
+
+      - name: Verify packaged toolchains and production startup (Windows)
+        if: runner.os == 'Windows'
+        run: npm run check:packaged-toolchains -- ${{ matrix.tool_target }} --release-helper
+
+      - name: Run Windows NSIS upgrade and rollback E2E
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          curl.exe --fail --location --retry 3 --output $previous "https://github.com/dexon-app/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          if ($LASTEXITCODE -ne 0) { throw "previous installer download exited $LASTEXITCODE" }
+          $expected = "5d99744a18f7495c987146a44718dbb5ba7037cf279ada62669aefc9940313c5"
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $previous).Hash.ToLowerInvariant() -ne $expected) { throw "previous installer hash mismatch" }
+          $current = @(Get-ChildItem -LiteralPath dist -Filter "Dexon-Unsigned-Beta-Setup-*.exe" -File)
+          if ($current.Count -ne 1) { throw "expected one current Windows installer, found $($current.Count)" }
+          npm run test:windows-nsis-upgrade -- $previous $current[0].FullName
+
+      - name: Verify update metadata matches the packaged architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          case "${{ matrix.platform }}" in
+            mac)
+              metadata="dist/latest-mac.yml"
+              update_artifacts=(
+                "dist/Dexon-${version}-${{ matrix.arch }}.dmg"
+                "dist/Dexon-${version}-${{ matrix.arch }}.zip"
+              )
+              ;;
+            win)
+              metadata="dist/latest.yml"
+              update_artifacts=("dist/Dexon-Unsigned-Beta-Setup-${version}.exe")
+              ;;
+            linux)
+              metadata="dist/latest-linux.yml"
+              update_artifacts=("dist/Dexon-${version}-x86_64.AppImage")
+              ;;
+            *)
+              echo "Unsupported package platform: ${{ matrix.platform }}" >&2
+              exit 1
+              ;;
+          esac
+          node scripts/verify-update-metadata.mjs "$metadata" "$version" "${update_artifacts[@]}"
+
+      - name: Upload ${{ matrix.name }} artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+            dist/*.AppImage
+            dist/*.blockmap
+            dist/latest*.yml
+            dist/latest*.yaml
+            dist/*-mac.yml
+            dist/latest-linux*.yml
+            dist/*.cdx.json
+            THIRD_PARTY_NOTICES.md
+          if-no-files-found: error
+          retention-days: 14
+
+  release-contract:
+    name: Validate release contract
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [quality, test-platforms, windows-frameworks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Verify tag and package versions
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_commit="$(git rev-parse "${GITHUB_SHA}^{commit}")"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "$release_commit" origin/main; then
+            echo "Release tag must point to a commit contained in main" >&2
+            exit 1
+          fi
+
+          node <<'NODE'
+          const packageJson = require("./package.json");
+          const packageLock = require("./package-lock.json");
+
+          if (!/^\d+\.\d+\.\d+$/.test(packageJson.version)) {
+            throw new Error(
+              `Stable release versions must use x.y.z without a prerelease suffix: ${packageJson.version}`,
+            );
+          }
+
+          const expectedTag = `v${packageJson.version}`;
+          const versions = [
+            ["package-lock.json.version", packageLock.version],
+            [
+              'package-lock.json.packages[""].version',
+              packageLock.packages?.[""]?.version,
+            ],
+          ];
+
+          for (const [source, version] of versions) {
+            if (version !== packageJson.version) {
+              throw new Error(
+                `${source} (${String(version)}) does not match package.json (${packageJson.version})`,
+              );
+            }
+          }
+
+          if (process.env.GITHUB_REF_NAME !== expectedTag) {
+            throw new Error(
+              `Release tag ${process.env.GITHUB_REF_NAME} must exactly match ${expectedTag}`,
+            );
+          }
+
+          console.log(`Validated release ${expectedTag}`);
+          NODE
+
+      - name: Refuse an existing public release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [ "$is_draft" != "true" ]; then
+              echo "Release $GITHUB_REF_NAME is already public; published assets are immutable" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Verify managed runtime catalog against upstream releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run check:toolchain-catalog:upstream
+
+  release-macos:
+    name: Sign and notarize macOS
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [release-contract]
+    runs-on: macos-15
+    timeout-minutes: 90
+    environment:
+      name: release
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build, sign, and notarize macOS
+        env:
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: npm run dist:mac:notarized -- --arm64 --x64
+
+      - name: Verify both signed and notarized apps
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          find_app_for_arch() {
+            local expected_arch="$1"
+            local app binary
+            while IFS= read -r -d '' app; do
+              binary="$app/Contents/MacOS/Dexon"
+              if [ -f "$binary" ] && lipo -archs "$binary" | grep -qw "$expected_arch"; then
+                printf '%s\n' "$app"
+                return 0
+              fi
+            done < <(find dist -maxdepth 3 -type d -name 'Dexon.app' -print0)
+            return 1
+          }
+
+          verify_app() {
+            local app="$1"
+            local expected_arch="$2"
+            local renderer="$app/Contents/Frameworks/Dexon Helper (Renderer).app"
+            local entitlements
+
+            echo "Verifying $expected_arch app: $app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+            xcrun stapler validate "$app"
+            spctl --assess --type execute --verbose=4 "$app"
+            codesign -dv --verbose=4 "$app" 2>&1 | grep -Fq "TeamIdentifier=$APPLE_TEAM_ID"
+            codesign -dv --verbose=4 "$app" 2>&1 | grep -Fq "Authority=Developer ID Application:"
+            entitlements="$(codesign -d --entitlements - "$renderer" 2>&1)"
+            grep -q 'com.apple.security.cs.allow-jit' <<<"$entitlements"
+          }
+
+          arm64_app="$(find_app_for_arch arm64)"
+          x64_app="$(find_app_for_arch x86_64)"
+          verify_app "$arm64_app" arm64
+          verify_app "$x64_app" x86_64
+
+      - name: Verify packaged macOS update configuration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          function findUpdateConfigs(directory, matches = []) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const entryPath = path.join(directory, entry.name);
+              if (entry.isDirectory()) {
+                findUpdateConfigs(entryPath, matches);
+              } else if (
+                entry.isFile() &&
+                entry.name === "app-update.yml" &&
+                entryPath
+                  .split(path.sep)
+                  .join("/")
+                  .endsWith(".app/Contents/Resources/app-update.yml")
+              ) {
+                matches.push(entryPath);
+              }
+            }
+            return matches;
+          }
+
+          function readScalar(document, key) {
+            const match = document.match(
+              new RegExp(`^\\s*${key}\\s*:\\s*([^#\\r\\n]+)`, "mi"),
+            );
+            if (!match) {
+              throw new Error(`Missing ${key}`);
+            }
+
+            const value = match[1].trim();
+            if (
+              (value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'"))
+            ) {
+              return value.slice(1, -1);
+            }
+            return value;
+          }
+
+          function verifyUpdateConfig(file) {
+            const document = fs.readFileSync(file, "utf8");
+            const [expectedOwner, expectedRepo] =
+              process.env.GITHUB_REPOSITORY.split("/");
+            const expected = {
+              provider: "github",
+              owner: expectedOwner,
+              repo: expectedRepo,
+            };
+
+            for (const [key, value] of Object.entries(expected)) {
+              const actual = readScalar(document, key);
+              if (actual !== value) {
+                throw new Error(
+                  `${file}: ${key} does not match the expected release repository`,
+                );
+              }
+            }
+
+            const forbidden = [
+              [
+                "feed override field",
+                /^\s*(?:channel|host|protocol|requestHeaders|url)\s*:/im,
+              ],
+              [
+                "credential field",
+                /^\s*(?:auth(?:orization)?|headers?|password|passphrase|private[-_]?token|secret|token|(?:api|access)[-_]?key|(?:gh|github)[-_]?token)\s*:/im,
+              ],
+              [
+                "credential-bearing URL",
+                /https?:\/\/[^/\s:@]+:[^@\s/]+@/i,
+              ],
+              [
+                "authorization value",
+                /\b(?:Basic|Bearer)\s+[A-Za-z0-9+/_.=-]{8,}/i,
+              ],
+              [
+                "GitHub token",
+                /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/i,
+              ],
+            ];
+
+            for (const [label, pattern] of forbidden) {
+              if (pattern.test(document)) {
+                throw new Error(`${file}: contains a forbidden ${label}`);
+              }
+            }
+
+            console.log(`Validated ${file}`);
+          }
+
+          const configs = findUpdateConfigs("dist").sort();
+          if (configs.length !== 2) {
+            throw new Error(
+              `Expected two packaged macOS app-update.yml files, found ${configs.length}`,
+            );
+          }
+          configs.forEach(verifyUpdateConfig);
+          NODE
+
+      - name: Verify macOS release artifacts and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+
+          for file in \
+            "dist/Dexon-${version}-arm64.dmg" \
+            "dist/Dexon-${version}-arm64.zip" \
+            "dist/Dexon-${version}-x64.dmg" \
+            "dist/Dexon-${version}-x64.zip" \
+            "dist/latest-mac.yml"; do
+            test -s "$file"
+          done
+
+          node scripts/verify-update-metadata.mjs \
+            dist/latest-mac.yml \
+            "$version" \
+            "dist/Dexon-${version}-arm64.dmg" \
+            "dist/Dexon-${version}-arm64.zip" \
+            "dist/Dexon-${version}-x64.dmg" \
+            "dist/Dexon-${version}-x64.zip"
+
+      - name: Run packaged toolchain E2E for macOS arm64
+        run: npm run check:packaged-toolchains -- darwin-arm64
+
+      - name: Upload signed and notarized macOS artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dexon-macos-release
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.blockmap
+            dist/latest-mac.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  verify-macos-x64:
+    name: Verify signed macOS x64 package
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [release-macos]
+    runs-on: macos-15-intel
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install verification dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download signed and notarized macOS artifacts
+        uses: actions/download-artifact@v8
+        with:
+          name: dexon-macos-release
+          path: dist
+
+      - name: Extract signed macOS x64 application
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          archive="dist/Dexon-${version}-x64.zip"
+          test -s "$archive"
+          mkdir -p dist/mac-x64
+          ditto -x -k "$archive" dist/mac-x64
+
+      - name: Verify signed and notarized macOS x64 application
+        shell: bash
+        run: |
+          set -euo pipefail
+          app="dist/mac-x64/Dexon.app"
+          binary="$app/Contents/MacOS/Dexon"
+          test -f "$binary"
+          lipo -archs "$binary" | grep -qw x86_64
+          codesign --verify --deep --strict --verbose=2 "$app"
+          xcrun stapler validate "$app"
+          spctl --assess --type execute --verbose=4 "$app"
+
+      - name: Run packaged toolchain E2E for macOS x64
+        run: npm run check:packaged-toolchains -- darwin-x64
+
+  release-windows:
+    name: Package Windows x64 (Unsigned Beta)
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [release-contract]
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Electron runtime for Windows acceptance
+        run: npx install-electron --no
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+
+      - name: Build application
+        run: npm run build
+
+      - name: Rebuild and test authoritative Windows helper
+        run: |
+          python -m pip install --disable-pip-version-check --no-input Flask==3.1.0 fastapi==0.128.0 uvicorn==0.40.0
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run check:windows-helper-reproducibility
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:windows-managed-helper
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:managed-process-workflows
+
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target win32-x64
+
+      - name: Package Windows x64
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Generate and verify Windows SBOM
+        run: |
+          npm run build:windows-sbom
+          npm run check:windows-sbom
+
+      - name: Verify packaged Windows update configuration
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+
+          function findUpdateConfigs(directory, matches = []) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              const entryPath = path.join(directory, entry.name);
+              if (entry.isDirectory()) {
+                findUpdateConfigs(entryPath, matches);
+              } else if (
+                entry.isFile() &&
+                entry.name === "app-update.yml" &&
+                /\/win(?:-[^/]+)?-unpacked\/resources\/app-update\.yml$/i.test(
+                  `/${entryPath.split(path.sep).join("/")}`,
+                )
+              ) {
+                matches.push(entryPath);
+              }
+            }
+            return matches;
+          }
+
+          function readScalar(document, key) {
+            const match = document.match(
+              new RegExp(`^\\s*${key}\\s*:\\s*([^#\\r\\n]+)`, "mi"),
+            );
+            if (!match) {
+              throw new Error(`Missing ${key}`);
+            }
+
+            const value = match[1].trim();
+            if (
+              (value.startsWith('"') && value.endsWith('"')) ||
+              (value.startsWith("'") && value.endsWith("'"))
+            ) {
+              return value.slice(1, -1);
+            }
+            return value;
+          }
+
+          function verifyUpdateConfig(file) {
+            const document = fs.readFileSync(file, "utf8");
+            const [expectedOwner, expectedRepo] =
+              process.env.GITHUB_REPOSITORY.split("/");
+            const expected = {
+              provider: "github",
+              owner: expectedOwner,
+              repo: expectedRepo,
+            };
+
+            for (const [key, value] of Object.entries(expected)) {
+              const actual = readScalar(document, key);
+              if (actual !== value) {
+                throw new Error(
+                  `${file}: ${key} does not match the expected release repository`,
+                );
+              }
+            }
+
+            const forbidden = [
+              [
+                "feed override field",
+                /^\s*(?:channel|host|protocol|requestHeaders|url)\s*:/im,
+              ],
+              [
+                "credential field",
+                /^\s*(?:auth(?:orization)?|headers?|password|passphrase|private[-_]?token|secret|token|(?:api|access)[-_]?key|(?:gh|github)[-_]?token)\s*:/im,
+              ],
+              [
+                "credential-bearing URL",
+                /https?:\/\/[^/\s:@]+:[^@\s/]+@/i,
+              ],
+              [
+                "authorization value",
+                /\b(?:Basic|Bearer)\s+[A-Za-z0-9+/_.=-]{8,}/i,
+              ],
+              [
+                "GitHub token",
+                /\b(?:gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,})\b/i,
+              ],
+            ];
+
+            for (const [label, pattern] of forbidden) {
+              if (pattern.test(document)) {
+                throw new Error(`${file}: contains a forbidden ${label}`);
+              }
+            }
+
+            console.log(`Validated ${file}`);
+          }
+
+          const configs = findUpdateConfigs("dist").sort();
+          if (configs.length !== 1) {
+            throw new Error(
+              `Expected one packaged Windows app-update.yml file, found ${configs.length}`,
+            );
+          }
+          for (const file of configs) {
+            const document = fs.readFileSync(file, "utf8");
+            if (/^\s*publisherName\s*:/im.test(document)) {
+              throw new Error(
+                `${file}: contains a publisherName field in an unsigned Windows release`,
+              );
+            }
+            verifyUpdateConfig(file);
+          }
+          NODE
+
+      - name: Verify Windows release artifacts and metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          installer="dist/Dexon-Unsigned-Beta-Setup-${version}.exe"
+          sbom="dist/Dexon-Windows-x64-${version}.cdx.json"
+          test -s "$installer"
+          test "$(find dist -maxdepth 1 -type f -name '*.exe' | wc -l | tr -d ' ')" -eq 1
+          test -s "$sbom"
+          test "$(find dist -maxdepth 1 -type f -name '*.cdx.json' | wc -l | tr -d ' ')" -eq 1
+          test -s THIRD_PARTY_NOTICES.md
+          test -s dist/latest.yml
+          node scripts/verify-update-metadata.mjs dist/latest.yml "$version" "$installer"
+          npm run check:windows-sbom
+
+      - name: Enforce unsigned Windows Beta trust status
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installer = "dist/Dexon-Unsigned-Beta-Setup-$version.exe"
+          $signature = Get-AuthenticodeSignature $installer
+          if ($signature.Status -ne "NotSigned") {
+            throw "Unsigned Beta gate expected NotSigned, received $($signature.Status). Replace this gate with certificate and provenance verification before publishing a signed build."
+          }
+          @"
+          ### Windows release trust: Unsigned Beta
+
+          This artifact has no Authenticode publisher identity. Windows will display **Unknown Publisher**.
+          Do not relabel it as a stable trusted Windows build until certificate-backed signing and provenance verification are enabled.
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY
+
+      - name: Run packaged toolchain E2E for Windows x64
+        run: npm run check:packaged-toolchains -- win32-x64 --release-helper
+
+      - name: Run Windows NSIS upgrade and rollback E2E
+        shell: pwsh
+        run: |
+          $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          curl.exe --fail --location --retry 3 --output $previous "https://github.com/dexon-app/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          if ($LASTEXITCODE -ne 0) { throw "previous installer download exited $LASTEXITCODE" }
+          $expected = "5d99744a18f7495c987146a44718dbb5ba7037cf279ada62669aefc9940313c5"
+          if ((Get-FileHash -Algorithm SHA256 -LiteralPath $previous).Hash.ToLowerInvariant() -ne $expected) { throw "previous installer hash mismatch" }
+          $current = @(Get-ChildItem -LiteralPath dist -Filter "Dexon-Unsigned-Beta-Setup-*.exe" -File)
+          if ($current.Count -ne 1) { throw "expected one current Windows installer, found $($current.Count)" }
+          npm run test:windows-nsis-upgrade -- $previous $current[0].FullName
+
+      - name: Upload Windows release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dexon-windows-release
+          path: |
+            dist/*.exe
+            dist/*.blockmap
+            dist/latest.yml
+            dist/*.cdx.json
+            THIRD_PARTY_NOTICES.md
+          if-no-files-found: error
+          retention-days: 14
+
+  release-linux:
+    name: Package Linux x64
+    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
+    needs: [release-contract]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target linux-x64
+
+      - name: Package Linux x64
+        run: npx electron-builder --linux AppImage --x64 --publish never
+
+      - name: Configure packaged Electron sandbox
+        run: |
+          sudo chown root:root dist/linux-unpacked/chrome-sandbox
+          sudo chmod 4755 dist/linux-unpacked/chrome-sandbox
+
+      - name: Run packaged toolchain E2E for Linux x64
+        run: xvfb-run --auto-servernum npm run check:packaged-toolchains -- linux-x64
+
+      - name: Verify Linux release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          appimage="dist/Dexon-${version}-x86_64.AppImage"
+          test -s "$appimage"
+          test "$(find dist -maxdepth 1 -type f -name '*.AppImage' | wc -l | tr -d ' ')" -eq 1
+          test -s dist/latest-linux.yml
+          node scripts/verify-update-metadata.mjs dist/latest-linux.yml "$version" "$appimage"
+
+      - name: Upload Linux release artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: dexon-linux-release
+          path: |
+            dist/*.AppImage
+            dist/*.blockmap
+            dist/latest-linux.yml
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Create desktop draft release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release-macos, verify-macos-x64, release-windows, release-linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged applications
+        uses: actions/download-artifact@v8
+        with:
+          path: release-artifacts
+
+      - name: Create or update draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          files=()
+          mac_artifacts="release-artifacts/dexon-macos-release"
+          windows_artifacts="release-artifacts/dexon-windows-release"
+          linux_artifacts="release-artifacts/dexon-linux-release"
+          test -d "$mac_artifacts"
+          test -d "$windows_artifacts"
+          test -d "$linux_artifacts"
+          while IFS= read -r -d '' file; do
+            files+=("$file")
+          done < <(find "$mac_artifacts" "$windows_artifacts" "$linux_artifacts" -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.AppImage' -o -name '*.blockmap' -o -name '*.yml' -o -name '*.yaml' -o -name '*.cdx.json' -o -name 'THIRD_PARTY_NOTICES.md' \) -print0)
+
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "No release files were downloaded" >&2
+            exit 1
+          fi
+
+          duplicates="$(printf '%s\n' "${files[@]##*/}" | sort | uniq -d)"
+          if [ -n "$duplicates" ]; then
+            echo "Duplicate release asset names:" >&2
+            echo "$duplicates" >&2
+            exit 1
+          fi
+
+          test "$(find "$mac_artifacts" -type f -name 'latest-mac.yml' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$windows_artifacts" -type f -name '*.exe' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$windows_artifacts" -type f -name '*.exe.blockmap' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$windows_artifacts" -type f -name 'latest.yml' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$windows_artifacts" -type f -name '*.cdx.json' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$windows_artifacts" -type f -name 'THIRD_PARTY_NOTICES.md' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$linux_artifacts" -type f -name '*.AppImage' | wc -l | tr -d ' ')" -eq 1
+          test "$(find "$linux_artifacts" -type f -name 'latest-linux.yml' | wc -l | tr -d ' ')" -eq 1
+
+          if is_draft="$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq '.isDraft' 2>/dev/null)"; then
+            if [ "$is_draft" != "true" ]; then
+              echo "Release $GITHUB_REF_NAME is already public; published assets are immutable" >&2
+              exit 1
+            fi
+
+            declare -A expected_assets=()
+            for file in "${files[@]}"; do
+              expected_assets["${file##*/}"]=1
+            done
+            while IFS= read -r existing_asset; do
+              if [ -n "$existing_asset" ] && [ -z "${expected_assets[$existing_asset]+present}" ]; then
+                echo "Removing stale draft asset: $existing_asset"
+                gh release delete-asset "$GITHUB_REF_NAME" "$existing_asset" --yes
+              fi
+            done < <(gh release view "$GITHUB_REF_NAME" --json assets --jq '.assets[].name')
+
+            gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${files[@]}" --draft --generate-notes --verify-tag
+          fi

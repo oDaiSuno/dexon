@@ -1,0 +1,46 @@
+const SENSITIVE_KEYS =
+  /token|secret|authorization|qr(?:code|[_-]?(?:content|data))|context[_-]?token|encrypt[_-]?query|device[_-]?code|user[_-]?code|verification[_-]?(?:uri|url)/i;
+
+export function fingerprintSecret(secret: string): string | undefined {
+  const trimmed = secret.trim();
+  if (!trimmed) return undefined;
+  return `••••${trimmed.slice(-4)}`;
+}
+
+export function redactChannelValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactChannelValue);
+  if (!value || typeof value !== "object") return value;
+  const result: Record<string, unknown> = {};
+  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+    result[key] = SENSITIVE_KEYS.test(key) ? "[REDACTED]" : redactChannelValue(child);
+  }
+  return result;
+}
+
+export function redactChannelText(raw: unknown): string {
+  let text = "";
+  if (typeof raw === "string") text = raw;
+  else if (raw !== null && raw !== undefined) {
+    try {
+      text = String(raw);
+    } catch {
+      text = "[无法显示的渠道内容]";
+    }
+  }
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9._~+/=-]+/gi, "Bearer [REDACTED]")
+    .replace(
+      /([?&](?:token|secret|app_?secret|qrcode|context_token|device_code|user_code|verification_(?:uri|url))=)[^&\s]+/gi,
+      "$1[REDACTED]",
+    )
+    .replace(/(api\.telegram\.org\/bot)[^/\s]+/gi, "$1[REDACTED]")
+    .replace(
+      /("(?:app_?secret|bot_token|context_token|qrcode|qr_?(?:content|data)|secret|token|device_code|user_code|verification_(?:uri|url))"\s*:\s*")[^"]+/gi,
+      "$1[REDACTED]",
+    );
+}
+
+export function safeChannelError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  return redactChannelText(raw).slice(0, 500);
+}
