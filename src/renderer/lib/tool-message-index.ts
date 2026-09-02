@@ -2,6 +2,7 @@ import type { AgentMessage, AssistantMessage, ToolCallContent, ToolResultMessage
 
 export interface ToolMessageData {
   results: ReadonlyMap<string, ToolResultMessage>;
+  /** Tool run time in milliseconds (result completion − call completion). */
   durations: ReadonlyMap<string, number>;
 }
 
@@ -29,8 +30,8 @@ export function buildToolMessageIndex(messages: AgentMessage[]): ReadonlyMap<Age
       if (!result) continue;
       results.set(callId, result);
       if (assistant.timestamp && result.timestamp) {
-        const seconds = Math.round((result.timestamp - assistant.timestamp) / 1_000);
-        if (seconds > 0) durations.set(callId, seconds);
+        const elapsedMs = result.timestamp - assistant.timestamp;
+        if (elapsedMs > 0) durations.set(callId, elapsedMs);
       }
     }
     byMessage.set(message, results.size > 0 ? { results, durations } : EMPTY_TOOL_DATA);

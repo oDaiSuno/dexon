@@ -3,6 +3,7 @@ import type {
   AgentMessage,
   AssistantContentBlock,
   AssistantMessage,
+  CustomMessage,
   ExtensionUiRequest,
   SessionInfo,
   SessionTreeNode,
@@ -10,14 +11,11 @@ import type {
 import { normalizeCustomPanelLines, parseAnsiLine } from "@/lib/ansi";
 import appIconUrl from "../../../build/icon.png";
 import { scaledChatFont } from "@/lib/chat-appearance";
-import {
-  countToolCallBlocks,
-  getDisplayableAssistantBlocks,
-  isAssistantFailure,
-  splitFinalAssistantBlocks,
-} from "@/lib/message-display";
+import { getDisplayableAssistantBlocks, isAssistantFailure, splitFinalAssistantBlocks } from "@/lib/message-display";
+import { buildProcessFlowItems, computeTurnDurationSeconds, type ProcessFlowSource } from "@/lib/process-flow";
 import { MessageView } from "./MessageView";
 import { ProcessDetailsGroup } from "./ProcessDetailsGroup";
+import { ProcessFlow } from "./ProcessFlow";
 import { SessionProfiler } from "./SessionProfiler";
 import { ChatInput, type ChatInputHandle } from "./ChatInput";
 import { ChatMinimap, useMessageRefs, type ChatMinimapMessage } from "./ChatMinimap";
@@ -104,6 +102,13 @@ function hasFinalAssistantAnswer(message: AgentMessage): boolean {
   );
 }
 
+function hasDisplayableProcessMessage(message: AgentMessage): boolean {
+  if (message.role === "assistant") {
+    return getDisplayableAssistantBlocks(message as AssistantMessage).length > 0;
+  }
+  return message.role === "custom";
+}
+
 function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endIdx: number): number {
   for (let candidateIdx = endIdx - 1; candidateIdx > userIdx; candidateIdx--) {
     if (hasFinalAssistantAnswer(messages[candidateIdx])) return candidateIdx;
@@ -112,23 +117,6 @@ function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endI
     if (messages[candidateIdx]?.role === "assistant") return candidateIdx;
   }
   return -1;
-}
-
-function countToolCalls(messages: AgentMessage[], indices: number[]): number {
-  let count = 0;
-  for (const idx of indices) {
-    const msg = messages[idx];
-    if (msg?.role !== "assistant") continue;
-    count += countToolCallBlocks(getDisplayableAssistantBlocks(msg as AssistantMessage));
-  }
-  return count;
-}
-
-function hasDisplayableProcessMessage(message: AgentMessage): boolean {
-  if (message.role === "assistant") {
-    return getDisplayableAssistantBlocks(message as AssistantMessage).length > 0;
-  }
-  return message.role === "custom";
 }
 
 function withAssistantBlocks(
@@ -690,6 +678,10 @@ export function ChatWindow({
                       const renderRole = options.renderRole ?? "message";
                       const renderKey = messageRenderKeys.keyFor(messages[idx], entryIds[idx], renderRole);
                       const toolData = toolMessageIndex.get(messages[idx]);
+                      // The in-flight turn renders as a process stream: 8px rhythm,
+                      // no per-message footer — it settles into groups on completion.
+                      const compact =
+                        (agentRunning || streamState.isStreaming) && lastUserIdx !== -1 && idx > lastUserIdx;
                       let showTimestamp = false;
                       if (msg.role === "assistant") {
                         showTimestamp = timestampAssistantIndices.has(idx);
@@ -718,13 +710,13 @@ export function ChatWindow({
                             onEditContent={insertEditedContent}
                             onLoadDeferredContent={loadDeferredContent}
                             showTimestamp={showTimestamp}
-                            inProcessGroup={renderRole === "process" || renderRole === "process-final"}
                             prevTimestamp={
                               idx > 0
                                 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp
                                 : undefined
                             }
                             thinkingExpansionStore={thinkingExpansionStore}
+                            compact={compact}
                           />
                         </SessionProfiler>
                       );
@@ -782,11 +774,34 @@ export function ChatWindow({
                       );
                       const finalAssistant = messages[finalAssistantIdx] as AssistantMessage;
                       const finalParts = getAssistantRenderParts(assistantRenderParts, finalAssistant);
-                      const finalProcessMessage = finalParts.processMessage;
                       const finalAnswerMessage = finalParts.answerMessage;
 
-                      const processCount = visibleProcessIndices.length + (finalProcessMessage ? 1 : 0);
-                      if (processCount > 0) {
+                      const processSources: ProcessFlowSource[] = visibleProcessIndices.map((processIdx) => ({
+                        message: messages[processIdx] as AssistantMessage | CustomMessage,
+                        entryId: entryIds[processIdx],
+                        prevTimestamp:
+                          processIdx > 0
+                            ? (messages[processIdx - 1] as AgentMessage & { timestamp?: number }).timestamp
+                            : undefined,
+                        toolData: toolMessageIndex.get(messages[processIdx]),
+                      }));
+                      if (finalParts.processMessage) {
+                        processSources.push({
+                          message: finalAssistant,
+                          blocks: finalParts.processBlocks,
+                          entryId: entryIds[finalAssistantIdx],
+                          prevTimestamp:
+                            finalAssistantIdx > 0
+                              ? (messages[finalAssistantIdx - 1] as AgentMessage & { timestamp?: number }).timestamp
+                              : undefined,
+                          toolData: toolMessageIndex.get(finalAssistant),
+                        });
+                      }
+                      const processFlow = buildProcessFlowItems(processSources, (message, entryId) =>
+                        messageRenderKeys.keyFor(message, entryId, "process"),
+                      );
+
+                      if (processFlow.messageCount > 0) {
                         const processGroupKey = `process-group:${messageRenderKeys.keyFor(
                           messages[userIdx],
                           entryIds[userIdx],
@@ -805,22 +820,20 @@ export function ChatWindow({
                           <ProcessDetailsGroup
                             stateKey={processGroupKey}
                             expansionStore={processDetailsExpansionStore}
-                            messageCount={processCount}
-                            toolCallCount={
-                              countToolCalls(messages, visibleProcessIndices) +
-                              countToolCallBlocks(finalParts.processBlocks)
-                            }
-                          >
-                            {visibleProcessIndices.map((processIdx) =>
-                              renderMessage(processIdx, { attachRef: false, renderRole: "process" }),
+                            messageCount={processFlow.messageCount}
+                            toolCallCount={processFlow.toolCallCount}
+                            durationSeconds={computeTurnDurationSeconds(
+                              (messages[userIdx] as AgentMessage & { timestamp?: number }).timestamp,
+                              (finalAssistant as AgentMessage & { timestamp?: number }).timestamp,
                             )}
-                            {finalProcessMessage &&
-                              renderMessage(finalAssistantIdx, {
-                                attachRef: false,
-                                renderRole: "process-final",
-                                messageOverride: finalProcessMessage,
-                                showTimestamp: false,
-                              })}
+                          >
+                            <ProcessFlow
+                              items={processFlow.items}
+                              cwd={messageCwd}
+                              onOpenFile={onOpenFile}
+                              onLoadDeferredContent={loadDeferredContent}
+                              thinkingExpansionStore={thinkingExpansionStore}
+                            />
                           </ProcessDetailsGroup>
                         );
                         rendered.push(
@@ -865,6 +878,7 @@ export function ChatWindow({
                         onOpenFile={onOpenFile}
                         entryId="streaming"
                         thinkingExpansionStore={thinkingExpansionStore}
+                        compact
                       />
                     </SessionProfiler>
                   )}

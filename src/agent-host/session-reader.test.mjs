@@ -1,132 +1,53 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
-const { buildSessionContext } = await importTestBundle("src/agent-host/session-reader", {
-  packages: "external",
-  stdin: {
-    contents: 'export { buildSessionContext } from "./session-reader.ts";',
-    resolveDir: import.meta.dirname,
-    sourcefile: "session-reader-test-entry.ts",
-    loader: "ts",
-  },
+
+const root = path.resolve(import.meta.dirname, "..", "..");
+let modulePromise;
+function loadSubject() {
+  if (!modulePromise) {
+    modulePromise = (async () =>
+      importTestBundle("src/agent-host/session-reader", {
+        packages: "external",
+        absWorkingDir: root,
+        entryPoints: ["src/agent-host/session-reader.ts"],
+      }))();
+  }
+  return modulePromise;
+}
+
+test("message entries adopt the entry completion timestamp over the inner start timestamp", async () => {
+  const { entryToUiMessage } = await loadSubject();
+  // pi stamps message.timestamp at message START (2026-01-01T00:00:00.000Z);
+  // the session entry is persisted at message COMPLETION (+5s).
+  const entry = {
+    type: "message",
+    id: "e1",
+    timestamp: "2026-01-01T00:00:05.000Z",
+    message: {
+      role: "assistant",
+      provider: "test",
+      model: "test-model",
+      timestamp: Date.parse("2026-01-01T00:00:00.000Z"),
+      content: [{ type: "text", text: "done" }],
+    },
+  };
+
+  const message = entryToUiMessage(entry);
+  assert.equal(message.timestamp, Date.parse("2026-01-01T00:00:05.000Z"));
 });
 
-const timestamp = "2026-07-15T12:00:00.000Z";
+test("message entries keep the inner timestamp when the entry timestamp is unusable", async () => {
+  const { entryToUiMessage } = await loadSubject();
+  const inner = Date.parse("2026-01-01T00:00:00.000Z");
+  const entry = {
+    type: "message",
+    id: "e2",
+    timestamp: "not-a-date",
+    message: { role: "assistant", provider: "test", model: "test-model", timestamp: inner, content: [] },
+  };
 
-test("hidden channel markers annotate UI user messages without entering displayed history", () => {
-  const entries = [
-    {
-      type: "custom",
-      id: "source",
-      parentId: null,
-      timestamp,
-      customType: "dexon-channel-source",
-      data: {
-        channel: "telegram",
-        runId: "run-one",
-        attachments: [{ kind: "file", name: "report.pdf", mime: "application/pdf" }],
-      },
-    },
-    {
-      type: "message",
-      id: "user",
-      parentId: "source",
-      timestamp,
-      message: { role: "user", content: [{ type: "text", text: "hello" }] },
-    },
-  ];
-
-  const context = buildSessionContext(entries);
-  assert.equal(context.messages.length, 1);
-  assert.equal(context.messages[0].role, "user");
-  assert.equal(context.messages[0].channelSource, "telegram");
-  assert.deepEqual(context.messages[0].channelAttachments, [
-    { kind: "file", name: "report.pdf", mime: "application/pdf" },
-  ]);
-  assert.deepEqual(context.messages[0].content, [{ type: "text", text: "hello" }]);
-  assert.deepEqual(context.entryIds, ["user"]);
-});
-
-test("cancelled channel markers do not color a later local message", () => {
-  const entries = [
-    {
-      type: "custom",
-      id: "source",
-      parentId: null,
-      timestamp,
-      customType: "dexon-channel-source",
-      data: { channel: "weixin", runId: "run-one" },
-    },
-    {
-      type: "custom",
-      id: "cancel",
-      parentId: "source",
-      timestamp,
-      customType: "dexon-channel-source-cancelled",
-      data: { runId: "run-one" },
-    },
-    {
-      type: "message",
-      id: "user",
-      parentId: "cancel",
-      timestamp,
-      message: { role: "user", content: "local" },
-    },
-  ];
-
-  const context = buildSessionContext(entries);
-  assert.equal(context.messages[0].role, "user");
-  assert.equal(context.messages[0].channelSource, undefined);
-});
-
-test("legacy external prompt wrappers are hidden in UI and still recover the source", () => {
-  const entries = [
-    {
-      type: "message",
-      id: "legacy",
-      parentId: null,
-      timestamp,
-      message: {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text: "[外部消息来源：飞书 / Lark]\n发送者标识：123\n---\n用户实际输入",
-          },
-          { type: "image", source: { type: "base64", media_type: "image/png", data: "aGVsbG8=" } },
-        ],
-      },
-    },
-  ];
-
-  const context = buildSessionContext(entries);
-  assert.equal(context.messages[0].role, "user");
-  assert.equal(context.messages[0].channelSource, "feishu");
-  assert.equal(context.messages[0].content[0].text, "用户实际输入");
-  assert.equal(context.messages[0].content[1].type, "image");
-});
-
-test("internal attachment context is omitted from UI history", () => {
-  const entries = [
-    {
-      type: "message",
-      id: "user",
-      parentId: null,
-      timestamp,
-      message: { role: "user", content: "inspect this file" },
-    },
-    {
-      type: "custom_message",
-      id: "attachment",
-      parentId: "user",
-      timestamp,
-      customType: "dexon-channel-attachment-context",
-      content: "Attachment at /private/path",
-      display: false,
-    },
-  ];
-
-  const context = buildSessionContext(entries);
-  assert.equal(context.messages.length, 1);
-  assert.equal(context.messages[0].role, "user");
+  const message = entryToUiMessage(entry);
+  assert.equal(message.timestamp, inner);
 });

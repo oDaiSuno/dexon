@@ -298,14 +298,23 @@ html.dark .chat-appearance-scope {
 .chat-think-spark {
   display: flex;
   flex-shrink: 0;
+  color: var(--bui-ink-3);
 }
 
-/* Thinking trace: prose on a 1px left rule (Beautiful UI Reasoning) */
-.chat-think-trace {
-  position: relative;
-  margin: 4px 0 2px 5px;
-  padding: 2px 0 4px 16px;
-  border-left: 1px solid var(--bui-line);
+/* Deep-thinking row inside process details — isomorphic with tool rows:
+   spark icon + label + gray summary chip + duration. No disclosure arrow. */
+.chat-think-row {
+  width: calc(100% + 8px);
+  min-height: 28px;
+}
+
+/* Full thinking trace in a quiet gray content box (shared by the live tail,
+   the final message and the process-details group). */
+.chat-think-box {
+  margin: 0 0 2px 24px;
+  padding: 8px 11px;
+  border-radius: var(--bui-r-card);
+  background: var(--bui-field);
   color: var(--bui-ink-2);
   line-height: 1.65;
   white-space: pre-wrap;
@@ -313,8 +322,9 @@ html.dark .chat-appearance-scope {
   animation: chat-fade-in var(--duration-medium) var(--ease-out) both;
 }
 
-/* ── Tool call rows (Beautiful UI ToolChips): icon slot crossfades to a
-     chevron on hover/open; verb label + mono argument chip + meta. ── */
+/* ── Tool call rows (Beautiful UI ToolChips): status/tool glyph + verb label
+     + mono argument chip + meta. No disclosure arrow; the row's hover pill
+     and pointer cursor signal that details expand on click. ── */
 
 .chat-tool-row-wrap {
   min-width: 0;
@@ -338,30 +348,6 @@ html.dark .chat-appearance-scope {
 
 .chat-tool-icon .chat-status-icon {
   transition: opacity var(--duration-quick) var(--ease-out);
-}
-
-.chat-tool-chev {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transform: rotate(-90deg);
-  transition:
-    opacity var(--duration-quick) var(--ease-out),
-    transform var(--duration-quick) var(--ease-smooth-out);
-}
-
-.chat-tool-row:hover .chat-tool-icon .chat-status-icon,
-.chat-acc[data-open="true"] .chat-tool-row .chat-tool-icon .chat-status-icon {
-  opacity: 0;
-}
-
-.chat-tool-row:hover .chat-tool-chev,
-.chat-acc[data-open="true"] .chat-tool-row .chat-tool-chev {
-  opacity: 1;
-  transform: rotate(0deg);
 }
 
 .chat-tool-name {
@@ -426,20 +412,6 @@ html.dark .chat-tool-chip {
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: anywhere;
-}
-
-.chat-tool-collapsed-note {
-  margin: 0 24px 4px 24px;
-  padding: 4px 10px;
-  border-left: 1px solid var(--bui-line);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.6;
-  max-height: 60px;
-  overflow: hidden;
-  white-space: pre-wrap;
-  word-break: break-all;
-  animation: chat-fade-in var(--duration-medium) var(--ease-out) both;
 }
 
 .chat-tool-open-browser {

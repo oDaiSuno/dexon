@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AssistantContentBlock, CustomMessage, ImageContent, TextContent, UserMessage } from "@/lib/types";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 /* Accordion companion: keep content mounted while the collapse animation
    plays, then unmount it so collapsed blocks cost nothing (long sessions
@@ -47,16 +46,14 @@ export function formatTime(ts?: number): string | null {
   return `${date} ${time}`;
 }
 
-export function formatByteSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 102.4) / 10} KB`;
-  return `${Math.round(bytes / 1024 / 102.4) / 10} MB`;
-}
-
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/* Deferred blocks (oversized tool outputs, traces, images) land as small
+   previews plus a reference into the session file. The full body loads
+   automatically in the background — nothing to click; the preview is only
+   visible for the first moments after a history page arrives. */
 export function DeferredContentActions({
   content,
   onLoad,
@@ -64,51 +61,22 @@ export function DeferredContentActions({
   content: unknown;
   onLoad?: (entryId: string, blockIndex?: number) => Promise<void>;
 }) {
-  const [loadingKey, setLoadingKey] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState(false);
-  if (!onLoad || !Array.isArray(content)) return null;
-  const references = content.flatMap((block) => {
-    if (!block || typeof block !== "object") return [];
-    const deferred = (block as AssistantContentBlock | TextContent | ImageContent).deferredContent;
-    return deferred ? [deferred] : [];
-  });
-  if (references.length === 0) return null;
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
-      {references.map((reference) => {
-        const key = `${reference.entryId}:${reference.blockIndex ?? 0}`;
-        const loading = loadingKey === key;
-        return (
-          <button
-            key={key}
-            type="button"
-            disabled={loading}
-            onClick={() => {
-              setLoadingKey(key);
-              setLoadError(false);
-              void onLoad(reference.entryId, reference.blockIndex)
-                .catch(() => setLoadError(true))
-                .finally(() => setLoadingKey(null));
-            }}
-            style={{
-              border: "1px solid var(--border)",
-              borderRadius: 6,
-              background: "var(--bg-panel)",
-              color: "var(--accent)",
-              cursor: loading ? "default" : "pointer",
-              fontSize: scaledChatFont(11),
-              padding: "4px 8px",
-            }}
-          >
-            {loading ? "Loading full content…" : `Load full content (${formatByteSize(reference.originalBytes)})`}
-          </button>
-        );
-      })}
-      {loadError && (
-        <span style={{ color: "var(--danger)", fontSize: scaledChatFont(11) }}>Failed to load full content</span>
-      )}
-    </div>
-  );
+  const attemptedRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!onLoad || !Array.isArray(content)) return;
+    for (const block of content) {
+      if (!block || typeof block !== "object") continue;
+      const deferred = (block as AssistantContentBlock | TextContent | ImageContent).deferredContent;
+      if (!deferred) continue;
+      const key = `${deferred.entryId}:${deferred.blockIndex ?? 0}`;
+      if (attemptedRef.current.has(key)) continue;
+      attemptedRef.current.add(key);
+      // One attempt per mount; on failure the preview stays and the next
+      // session reload mounts a fresh loader.
+      void onLoad(deferred.entryId, deferred.blockIndex).catch(() => undefined);
+    }
+  }, [onLoad, content]);
+  return null;
 }
 
 export function getMessageText(content: CustomMessage["content"] | UserMessage["content"]): string {

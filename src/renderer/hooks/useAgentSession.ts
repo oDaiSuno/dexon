@@ -1114,7 +1114,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
               return appendLocalHistoryMessage(current, delivered);
             });
           } else if (completed) {
-            updateHistory((current) => appendLocalHistoryMessage(current, normalizeToolCalls(completed)));
+            // pi stamps event messages at their START; the event itself fires
+            // at completion. Stamp receive time so duration math (turn header,
+            // thinking rows) stays valid until the post-run session reload.
+            const stamped = { ...normalizeToolCalls(completed), timestamp: Date.now() } as AgentMessage;
+            updateHistory((current) => appendLocalHistoryMessage(current, stamped));
           }
           dispatch({ type: "reset" });
           setAgentPhase({ kind: "waiting_model" });

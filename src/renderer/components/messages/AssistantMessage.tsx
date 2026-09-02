@@ -36,7 +36,7 @@ export function AssistantMessageView({
   onLoadDeferredContent,
   entryId,
   thinkingExpansionStore,
-  inProcessGroup,
+  compact,
 }: {
   message: AssistantMessage;
   isStreaming?: boolean;
@@ -50,7 +50,10 @@ export function AssistantMessageView({
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
   thinkingExpansionStore?: ThinkingExpansionStore;
-  inProcessGroup?: boolean;
+  /* In-flight process stream: 8px rhythm like the process-details flow, no
+     per-message footer (usage row + copy button) — the turn settles into
+     groups once it completes. */
+  compact?: boolean;
 }) {
   const { t } = useI18n();
   const time = showTimestamp ? formatTime(message.timestamp) : null;
@@ -151,7 +154,11 @@ export function AssistantMessageView({
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
 
   return (
-    <div style={{ marginBottom: 14 }} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}>
+    <div
+      style={{ marginBottom: compact ? 8 : 14 }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
       {/* Streaming meta: token estimate + live t/s (quiet mono). The model
           name joins the usage line once the turn completes. */}
       {isStreaming && (
@@ -189,13 +196,7 @@ export function AssistantMessageView({
                   >
                     <span>{est.toLocaleString()} tok</span>
                     {tps !== null && (
-                      <span
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 4,
-                        }}
-                      >
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
                         {/* speed tier uses status colors only: green fast → orange → red slow */}
                         <span
                           aria-hidden="true"
@@ -261,109 +262,110 @@ export function AssistantMessageView({
         )}
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          marginTop: 6,
-        }}
-      >
-        {message.usage && !isStreaming && (
-          <div
-            style={{
-              fontSize: scaledChatFont(11),
-              color: "var(--bui-ink-3)",
-              fontFamily: "var(--font-mono)",
-              fontVariantNumeric: "tabular-nums",
-              marginRight: 2,
-            }}
-          >
-            {/* model identity lives here, joined to the usage figures;
-                suppressed inside process details where it repeats per turn */}
-            {!inProcessGroup && message.provider && (
-              <span style={{ marginRight: 8 }}>
-                {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
-              </span>
-            )}
-            {formatUsage(message.usage)}
-          </div>
-        )}
-        {!isStreaming && (textContent || time) && (
-          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
-            {textContent && (
-              <button
-                type="button"
-                className="message-hover-action"
-                onClick={copyContent}
-                title="Copy message"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: 24,
-                  height: 24,
-                  background: "none",
-                  border: "none",
-                  borderRadius: "var(--bui-r-chip)",
-                  color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
-                  cursor: "pointer",
-                  opacity: hovered ? 1 : 0,
-                  pointerEvents: hovered ? "auto" : "none",
-                  transition:
-                    "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
-                }}
-              >
-                {copied ? (
-                  <svg
-                    width="13"
-                    height="13"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                ) : (
-                  <svg
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <rect x="9" y="9" width="12" height="12" rx="2.5" />
-                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                  </svg>
-                )}
-              </button>
-            )}
-            {time && (
-              <span
-                style={{
-                  fontSize: scaledChatFont(11),
-                  color: "var(--bui-ink-3)",
-                  fontFamily: "var(--font-mono)",
-                }}
-              >
-                {time}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+      {!compact && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+            marginTop: 6,
+          }}
+        >
+          {message.usage && !isStreaming && (
+            <div
+              style={{
+                fontSize: scaledChatFont(11),
+                color: "var(--bui-ink-3)",
+                fontFamily: "var(--font-mono)",
+                fontVariantNumeric: "tabular-nums",
+                marginRight: 2,
+              }}
+            >
+              {/* model identity lives here, joined to the usage figures */}
+              {message.provider && (
+                <span style={{ marginRight: 8 }}>
+                  {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
+                </span>
+              )}
+              {formatUsage(message.usage)}
+            </div>
+          )}
+          {!isStreaming && (textContent || time) && (
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+              {textContent && (
+                <button
+                  type="button"
+                  className="message-hover-action"
+                  onClick={copyContent}
+                  title="Copy message"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
+                    background: "none",
+                    border: "none",
+                    borderRadius: "var(--bui-r-chip)",
+                    color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
+                    cursor: "pointer",
+                    opacity: hovered ? 1 : 0,
+                    pointerEvents: hovered ? "auto" : "none",
+                    transition:
+                      "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
+                  }}
+                >
+                  {copied ? (
+                    <svg
+                      width="13"
+                      height="13"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  ) : (
+                    <svg
+                      width="15"
+                      height="15"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="9" y="9" width="12" height="12" rx="2.5" />
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                    </svg>
+                  )}
+                </button>
+              )}
+              {time && (
+                <span
+                  style={{
+                    fontSize: scaledChatFont(11),
+                    color: "var(--bui-ink-3)",
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  {time}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

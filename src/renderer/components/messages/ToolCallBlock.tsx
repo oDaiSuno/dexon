@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
-import { DeferredContentActions, isRecord, useDelayedUnmount } from "./shared";
+import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
 import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
 import type { ToolCallContent, ToolResultMessage } from "@/lib/types";
@@ -35,14 +35,8 @@ export function ToolCallBlock({
   const isRunning = !result;
   const preview = getToolPreview(block);
   const browserTabId = isBrowserToolName(block.toolName) ? browserTabIdFromResult(resultText) : null;
-  const browserSummary =
-    isBrowserToolName(block.toolName) && resultText && !isError ? browserResultSummary(resultText, t) : null;
   const diffCounts = resultDiff ? countDiffLines(resultDiff.text) : null;
   const label = toolVerbLabel(block.toolName, t);
-
-  // Collapsed second line: only for things that matter without expanding —
-  // errors and the browser inspection summaries.
-  const collapsedNote = !expanded && isError ? (resultText ?? "") : !expanded && browserSummary ? browserSummary : null;
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"}>
@@ -55,20 +49,6 @@ export function ToolCallBlock({
         >
           <span className="chat-tool-icon">
             <ToolStatusIcon done={!isRunning} error={isError} toolName={block.toolName} />
-            <span className="chat-tool-chev" aria-hidden="true">
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M6 9l6 6 6-6" />
-              </svg>
-            </span>
           </span>
           <span className="chat-tool-name" style={isError ? { color: "var(--bui-red)" } : undefined}>
             {label}
@@ -84,15 +64,12 @@ export function ToolCallBlock({
                 {diffCounts.removed > 0 && <span style={{ color: "var(--bui-red)" }}>−{diffCounts.removed}</span>}
               </>
             )}
-            {!isRunning && !diffCounts && !isError && duration !== undefined && <span>{duration}s</span>}
-            {isError && <span>{t("toolFailed", "failed")}</span>}
+            {!isRunning && !diffCounts && !isError && duration !== undefined && (
+              <span>{formatToolDuration(duration)}</span>
+            )}
+            {isError && <span style={{ color: "var(--bui-red)" }}>{t("toolFailed", "failed")}</span>}
           </span>
         </button>
-        {collapsedNote && !resultDiff && (
-          <div className="chat-tool-collapsed-note" style={{ color: isError ? "var(--bui-red)" : "var(--bui-ink-2)" }}>
-            {collapsedNote}
-          </div>
-        )}
       </div>
       {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
           `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
@@ -190,6 +167,12 @@ function isBrowserToolName(value: string): boolean {
   return value.startsWith("browser_");
 }
 
+/* Sub-second tools still earn a mark: anything under half a second shows
+   "<1s" instead of silently disappearing from the row. */
+function formatToolDuration(elapsedMs: number): string {
+  return elapsedMs >= 500 ? `${Math.round(elapsedMs / 1000)}s` : "<1s";
+}
+
 function browserTabIdFromResult(value: string | null): string | null {
   if (!value) return null;
   try {
@@ -199,59 +182,6 @@ function browserTabIdFromResult(value: string | null): string | null {
   } catch {
     return null;
   }
-}
-
-function browserResultSummary(value: string, t: (key: string, fallback: string) => string): string | null {
-  try {
-    const parsed = JSON.parse(value) as Record<string, unknown>;
-    if (typeof parsed.inspectionId === "string" && typeof parsed.changed === "boolean") {
-      const truncated = isRecord(parsed.truncated)
-        ? Object.entries(parsed.truncated)
-            .filter(([, entry]) => entry === true)
-            .map(([key]) => key)
-            .join(", ")
-        : "";
-      return parsed.changed
-        ? formatBrowserSummary(t("browserToolInspectChanged", "Page changed · generation {generation}{truncated}"), {
-            generation: Number(parsed.generation ?? 0),
-            truncated: truncated ? ` · truncated: ${truncated}` : "",
-          })
-        : formatBrowserSummary(t("browserToolInspectUnchanged", "Page unchanged · generation {generation}"), {
-            generation: Number(parsed.generation ?? 0),
-          });
-    }
-    if (typeof parsed.differenceRatio === "number") {
-      return formatBrowserSummary(t("browserToolVisualDifference", "Visual difference: {percent}% · {pixels} pixels"), {
-        percent: (parsed.differenceRatio * 100).toFixed(3),
-        pixels: Number(parsed.differentPixels ?? 0).toLocaleString(),
-      });
-    }
-    if (typeof parsed.total === "number" && typeof parsed.failed === "number" && isRecord(parsed.byResourceType)) {
-      return formatBrowserSummary(
-        t("browserToolNetworkSummary", "Network: {total} requests · {failed} failed · {pending} pending"),
-        {
-          total: parsed.total,
-          failed: parsed.failed,
-          pending: Number(parsed.pending ?? 0),
-        },
-      );
-    }
-    if (Array.isArray(parsed.entries)) {
-      return formatBrowserSummary(t("browserToolConsoleSummary", "Console: {count} entries{truncated}"), {
-        count: parsed.entries.length,
-        truncated: parsed.truncated === true ? " · more available" : "",
-      });
-    }
-  } catch {
-    return null;
-  }
-  return null;
-}
-
-function formatBrowserSummary(template: string, values: Record<string, string | number>): string {
-  return template.replace(/\{([A-Za-z][A-Za-z0-9]*)\}/g, (match, key: string) =>
-    values[key] === undefined ? match : String(values[key]),
-  );
 }
 
 function PairedResult({ text, isEmpty, isError }: { text: string; isEmpty: boolean; isError: boolean }) {

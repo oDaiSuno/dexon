@@ -349,8 +349,14 @@ function parseEntryTimestamp(timestamp: string): number | undefined {
 // Returns null for entries that do not map to chat history (metadata, non-message types).
 export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
   switch (entry.type) {
-    case "message":
-      return normalizeToolCalls(entry.message);
+    case "message": {
+      const message = normalizeToolCalls(entry.message);
+      // pi stamps message.timestamp at message START; the entry is written at
+      // message COMPLETION. Prefer the entry time so duration math (turn
+      // length, thinking/tool durations) reflects actual elapsed work.
+      const completedAt = parseEntryTimestamp(entry.timestamp);
+      return completedAt !== undefined ? { ...message, timestamp: completedAt } : message;
+    }
     case "compaction":
       return {
         role: "custom",

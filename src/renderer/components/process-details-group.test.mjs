@@ -44,15 +44,43 @@ after(() => {
   else globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
 });
 
-function renderGroup(expansionStore, stateKey) {
+function renderGroup(expansionStore, stateKey, extraProps = {}) {
   return create(
     createElement(
       ProcessDetailsGroup,
-      { expansionStore, stateKey, messageCount: 2, toolCallCount: 1 },
+      { expansionStore, stateKey, messageCount: 2, toolCallCount: 1, ...extraProps },
       createElement("span", null, "persisted process content"),
     ),
   );
 }
+
+test("process details header prefers the whole-turn duration when available", async () => {
+  const sessionStore = new ThinkingExpansionStore();
+  let renderer;
+  await act(async () => {
+    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1", { durationSeconds: 131 });
+  });
+  const header = renderer.root
+    .findAllByProps({ className: undefined })
+    .find((node) => typeof node.props.children === "string" && node.props.children.includes("2m11s"));
+  assert.ok(header, "header with duration not found");
+  assert.match(header.props.children, /Processed 2m11s/);
+  await act(async () => renderer.unmount());
+});
+
+test("process details header falls back to counts without a duration", async () => {
+  const sessionStore = new ThinkingExpansionStore();
+  let renderer;
+  await act(async () => {
+    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1");
+  });
+  const header = renderer.root
+    .findAllByProps({ className: undefined })
+    .find((node) => typeof node.props.children === "string" && node.props.children.includes("Process details"));
+  assert.ok(header, "fallback header not found");
+  assert.match(header.props.children, /2 messages · 1 tool call\b/);
+  await act(async () => renderer.unmount());
+});
 
 test("process details expansion survives a component remount and remains isolated by session store", async () => {
   const sessionStore = new ThinkingExpansionStore();
