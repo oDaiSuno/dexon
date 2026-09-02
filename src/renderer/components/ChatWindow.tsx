@@ -8,6 +8,7 @@ import type {
   SessionTreeNode,
 } from "@/lib/types";
 import { normalizeCustomPanelLines, parseAnsiLine } from "@/lib/ansi";
+import appIconUrl from "../../../build/icon.png";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import {
   countToolCallBlocks,
@@ -558,23 +559,19 @@ export function ChatWindow({
                   lineHeight: 1.4,
                 }}
               >
-                <span
+                <img
+                  src={appIconUrl}
+                  alt=""
+                  aria-hidden="true"
                   style={{
                     width: 28,
                     height: 28,
                     borderRadius: 6,
-                    background: "var(--text)",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 14,
-                    fontWeight: 700,
-                    color: "var(--accent)",
+                    objectFit: "contain",
                     flexShrink: 0,
+                    display: "block",
                   }}
-                >
-                  $
-                </span>
+                />
                 <span
                   style={{
                     fontSize: scaledChatFont(22),

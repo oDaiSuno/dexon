@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useState, useCallback, useRef, type CSSProperties, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { APP_VERSION, PI_VERSION } from "@/lib/app-version";
+import appIconUrl from "../../../build/icon.png";
 import { useI18n } from "@/i18n";
 import {
   loadUnreadSessionIds as loadStoredUnreadSessionIds,
@@ -310,25 +311,19 @@ function PiAgentTitle() {
         minWidth: "6ch",
       }}
     >
-      <span
+      <img
+        src={appIconUrl}
+        alt=""
+        aria-hidden="true"
         style={{
           width: 22,
           height: 22,
           borderRadius: 5,
-          background: "var(--text)",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontFamily: "var(--font-mono)",
-          fontSize: 12,
-          color: "var(--accent)",
-          fontWeight: 700,
+          objectFit: "contain",
           flexShrink: 0,
+          display: "block",
         }}
-        aria-hidden="true"
-      >
-        $
-      </span>
+      />
       <span style={{ fontWeight: 700, fontSize: 14, letterSpacing: "-0.2px", fontFamily: "var(--font-mono)" }}>
         {display}
       </span>
