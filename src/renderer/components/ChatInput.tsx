@@ -90,8 +90,6 @@ interface Props {
   compactError?: string | null;
   compactResult?: CompactResultInfo | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
-  toolPreset?: "none" | "default" | "full";
-  onToolPresetChange?: (preset: "none" | "default" | "full") => void;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
   availableThinkingLevels?: string[] | null;
@@ -118,12 +116,6 @@ export interface ChatInputHandle {
   addFiles: (files: File[]) => void;
 }
 
-const TOOL_PRESETS = ["off", "default", "full"] as const;
-const TOOL_PRESET_MAP: Record<"off" | "default" | "full", "none" | "default" | "full"> = {
-  off: "none",
-  default: "default",
-  full: "full",
-};
 const COMPOSITION_END_ENTER_GRACE_MS = 100;
 const MODEL_OPTION_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
@@ -296,8 +288,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     compactError,
     compactResult,
     contextUsage,
-    toolPreset,
-    onToolPresetChange,
     thinkingLevel,
     onThinkingLevelChange,
     availableThinkingLevels,
@@ -326,7 +316,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const [value, setValueState] = useState(() => (draftKey ? (getDraft(draftKey)?.value ?? "") : ""));
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
-  const [toolDropdownOpen, setToolDropdownOpen] = useState(false);
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
   const [attachedImages, setAttachedImagesState] = useState<AttachedImage[]>(() =>
     draftKey ? (getDraft(draftKey)?.images.map(draftImageToAttachedImage) ?? []) : [],
@@ -358,11 +347,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const dropdownRef = useRef<HTMLDivElement>(null);
   const modelButtonRef = useRef<HTMLButtonElement>(null);
   const modelDropdownPanelRef = useRef<HTMLDivElement>(null);
-  const toolDropdownRef = useRef<HTMLDivElement>(null);
   const thinkingDropdownRef = useRef<HTMLDivElement>(null);
   const controlsMenuRef = useRef<HTMLDivElement>(null);
   const thinkingButtonRef = useRef<HTMLButtonElement>(null);
-  const toolButtonRef = useRef<HTMLButtonElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
@@ -1354,18 +1341,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (lvl === "auto" || !thinkingLevelMap) return thinkingLabels[lvl];
     return translateThinkingValue(thinkingLevelMap[lvl] ?? lvl);
   })();
-  const toolPresetKey =
-    (Object.entries(TOOL_PRESET_MAP).find(([, value]) => value === (toolPreset ?? "default"))?.[0] as
-      "off" | "default" | "full" | undefined) ?? "default";
-  const toolPresetLabels: Record<"off" | "default" | "full", string> = {
-    off: t("permissionReadOnly", "Read only"),
-    default: t("permissionStandard", "Standard"),
-    full: t("permissionFull", "Full access"),
-  };
-  const toolPresetLabel = toolPresetLabels[toolPresetKey];
   const closeControlDropdowns = useCallback(() => {
     setThinkingDropdownOpen(false);
-    setToolDropdownOpen(false);
   }, []);
 
   const updateModelDropdownRect = useCallback(() => {
@@ -1390,9 +1367,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         !modelDropdownPanelRef.current.contains(e.target as Node)
       ) {
         setModelDropdownOpen(false);
-      }
-      if (toolDropdownRef.current && !toolDropdownRef.current.contains(e.target as Node)) {
-        setToolDropdownOpen(false);
       }
       if (thinkingDropdownRef.current && !thinkingDropdownRef.current.contains(e.target as Node)) {
         setThinkingDropdownOpen(false);
@@ -1438,21 +1412,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   }, [modelDropdownOpen, updateModelDropdownRect]);
 
   useEffect(() => {
-    if (!thinkingDropdownOpen && !toolDropdownOpen) return;
+    if (!thinkingDropdownOpen) return;
     const handleEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
-      const restoreThinkingFocus = thinkingDropdownOpen;
       closeControlDropdowns();
-      requestAnimationFrame(() => {
-        if (restoreThinkingFocus) thinkingButtonRef.current?.focus();
-        else toolButtonRef.current?.focus();
-      });
+      requestAnimationFrame(() => thinkingButtonRef.current?.focus());
     };
     document.addEventListener("keydown", handleEscape, true);
     return () => document.removeEventListener("keydown", handleEscape, true);
-  }, [closeControlDropdowns, thinkingDropdownOpen, toolDropdownOpen]);
+  }, [closeControlDropdowns, thinkingDropdownOpen]);
 
   return (
     <div
@@ -2681,7 +2651,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                     onClick={() => {
                       if (isStreaming) return;
                       setModelDropdownOpen(false);
-                      setToolDropdownOpen(false);
                       setThinkingDropdownOpen((v) => !v);
                     }}
                     disabled={isStreaming}
@@ -2826,150 +2795,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                                 </span>
                               )}
                             </span>
-                            <span style={{ fontSize: scaledChatFont(11), color: "var(--text-dim)", marginLeft: 8 }}>
-                              {desc}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-              {onToolPresetChange && (
-                <div ref={toolDropdownRef} style={{ position: "relative" }}>
-                  <button
-                    ref={toolButtonRef}
-                    type="button"
-                    aria-haspopup="menu"
-                    aria-expanded={toolDropdownOpen}
-                    onClick={() => {
-                      if (isStreaming) return;
-                      setModelDropdownOpen(false);
-                      setThinkingDropdownOpen(false);
-                      setToolDropdownOpen((v) => !v);
-                    }}
-                    disabled={isStreaming}
-                    title={`${t("changePermission", "Change permission settings")}: ${toolPresetLabel}`}
-                    aria-label={`${t("changePermission", "Change permission settings")}: ${toolPresetLabel}`}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 5,
-                      padding: isMobile ? 0 : "0 9px",
-                      minWidth: 32,
-                      minHeight: 32,
-                      background: toolDropdownOpen ? "var(--bg-selected)" : "var(--bg-panel)",
-                      border: `1px solid ${toolPresetKey === "full" ? "rgba(239,68,68,0.35)" : "var(--border)"}`,
-                      borderRadius: 9,
-                      color: "var(--text-muted)",
-                      cursor: isStreaming ? "not-allowed" : "pointer",
-                      fontSize: scaledChatFont(12),
-                      opacity: isStreaming ? 0.5 : 1,
-                      transition: "background 0.12s, color 0.12s",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isStreaming) return;
-                      e.currentTarget.style.background = "var(--bg-hover)";
-                      e.currentTarget.style.color = "var(--text)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = toolDropdownOpen ? "var(--bg-selected)" : "var(--bg-panel)";
-                      e.currentTarget.style.color = "var(--text-muted)";
-                    }}
-                  >
-                    <svg
-                      width="11"
-                      height="11"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
-                    </svg>
-                    {!isMobile && <span style={{ whiteSpace: "nowrap" }}>{toolPresetLabel}</span>}
-                  </button>
-                  {toolDropdownOpen && (
-                    <div
-                      role="menu"
-                      aria-label={t("changePermission", "Change permission settings")}
-                      style={{
-                        position: "absolute",
-                        bottom: "calc(100% + 6px)",
-                        right: 0,
-                        zIndex: 100,
-                        background: "var(--bg)",
-                        border: "1px solid var(--border)",
-                        borderRadius: 8,
-                        boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
-                        overflow: "hidden",
-                        minWidth: 120,
-                      }}
-                    >
-                      {TOOL_PRESETS.map((lvl) => {
-                        const preset = TOOL_PRESET_MAP[lvl];
-                        const isActive = (toolPreset ?? "default") === preset;
-                        const desc =
-                          lvl === "off"
-                            ? t("permissionReadOnlyDescription", "No tools, read-only")
-                            : lvl === "default"
-                              ? t("permissionStandardDescription", "4 built-in tools")
-                              : t("permissionFullDescription", "All built-in tools");
-                        return (
-                          <button
-                            key={lvl}
-                            type="button"
-                            role="menuitemradio"
-                            aria-checked={isActive}
-                            onClick={() => {
-                              if (!isActive) onToolPresetChange(preset);
-                              setToolDropdownOpen(false);
-                              requestAnimationFrame(() => toolButtonRef.current?.focus());
-                            }}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 8,
-                              width: "100%",
-                              padding: "7px 12px",
-                              background: isActive ? "var(--bg-selected)" : "none",
-                              border: "none",
-                              color: isActive ? "var(--text)" : "var(--text-muted)",
-                              cursor: "pointer",
-                              fontSize: scaledChatFont(12),
-                              textAlign: "left",
-                              fontWeight: isActive ? 600 : 400,
-                              whiteSpace: "nowrap",
-                            }}
-                            onMouseEnter={(e) => {
-                              if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
-                            }}
-                            onMouseLeave={(e) => {
-                              if (!isActive) e.currentTarget.style.background = "none";
-                            }}
-                          >
-                            {isActive ? (
-                              <svg
-                                width="10"
-                                height="10"
-                                viewBox="0 0 10 10"
-                                fill="none"
-                                stroke="var(--accent)"
-                                strokeWidth="2"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                style={{ flexShrink: 0 }}
-                              >
-                                <polyline points="1.5 5 4 7.5 8.5 2.5" />
-                              </svg>
-                            ) : (
-                              <span style={{ width: 10, flexShrink: 0 }} />
-                            )}
-                            <span style={{ flex: 1 }}>{toolPresetLabels[lvl]}</span>
                             <span style={{ fontSize: scaledChatFont(11), color: "var(--text-dim)", marginLeft: 8 }}>
                               {desc}
                             </span>

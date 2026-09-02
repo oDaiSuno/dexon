@@ -26,7 +26,6 @@ import {
   subscribeAgentEvents,
   subscribeSessionsChanged,
 } from "@/lib/api-client";
-import { getToolNamesForPreset, type ToolEntry } from "@/lib/tool-presets";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { subscribeActiveSessionLiveSync } from "./active-session-live-sync";
 import {
@@ -169,7 +168,6 @@ export interface UseAgentSessionOptions {
   ) => void;
   onSystemPromptChange?: (prompt: string | null) => void;
   onSessionStatsPanelOpen?: () => void;
-  setToolPreset?: (preset: "none" | "default" | "full") => void;
 }
 
 export type ThinkingLevelOption = "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -329,7 +327,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   );
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
-  const [toolPreset, setToolPreset] = useState<"none" | "default" | "full">("default");
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
   const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; errorMessage?: string } | null>(
     null,
@@ -405,8 +402,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const deferredContentRequestRef = useRef<Map<string, Promise<AssistantContentBlock | TextContent | ImageContent>>>(
     new Map(),
   );
-
-  const setToolPresetState = opts.setToolPreset ?? setToolPreset;
 
   const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
   const displayModel = isNew ? (newSessionModel ?? newSessionDefaultModel) : currentModel;
@@ -713,21 +708,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     [commitHistory],
   );
 
-  const loadTools = useCallback(
-    async (sid: string) => {
-      try {
-        const tools = await sendAgentCommand<ToolEntry[]>(sid, { type: "get_tools" });
-        if (tools) {
-          const { getPresetFromTools } = await import("@/lib/tool-presets");
-          setToolPresetState(getPresetFromTools(tools));
-        }
-      } catch (e) {
-        console.error("Failed to load tools:", e);
-      }
-    },
-    [setToolPresetState],
-  );
-
   const promoteNewSession = useCallback(
     (messageCount = 0, firstMessage = "(no messages)") => {
       const sid = sessionIdRef.current;
@@ -755,11 +735,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     const promise = (async () => {
       const selectedModel = newSessionModel ?? newSessionDefaultModel;
       if (selectedModel) setPendingModel(selectedModel);
-      const toolNames = getToolNamesForPreset(toolPreset);
       const result = await newAgent({
         cwd: newSessionCwd,
         type: "ensure_session",
-        toolNames,
         ...(selectedModel ? { provider: selectedModel.provider, modelId: selectedModel.modelId } : {}),
         ...(thinkingLevel !== "auto" ? { thinkingLevel } : {}),
       });
@@ -774,7 +752,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     } finally {
       ensuringNewSessionRef.current = null;
     }
-  }, [isNew, newSessionCwd, newSessionModel, newSessionDefaultModel, toolPreset, thinkingLevel]);
+  }, [isNew, newSessionCwd, newSessionModel, newSessionDefaultModel, thinkingLevel]);
 
   const loadSlashCommands = useCallback(async () => {
     const sid = sessionIdRef.current ?? (await ensureNewSession());
@@ -1577,7 +1555,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
               return complete({ handled: true, error: t("noActiveSessionToReload", "No active session to reload") });
             }
             await sendAgentCommand(sid, { type: "reload" });
-            await Promise.all([loadSession(sid, false, true), loadTools(sid), loadSlashCommands(), loadModels()]);
+            await Promise.all([loadSession(sid, false, true), loadSlashCommands(), loadModels()]);
             return complete({
               handled: true,
               message: t("sessionResourcesReloaded", "Reloaded session resources"),
@@ -1640,7 +1618,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       loadModels,
       loadSession,
       loadSlashCommands,
-      loadTools,
       promoteNewSession,
       onSessionStatsPanelOpen,
       t,
@@ -1781,21 +1758,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       console.error("Failed to set thinking level:", e);
     }
   }, []);
-
-  const handleToolPresetChange = useCallback(
-    async (preset: "none" | "default" | "full") => {
-      const toolNames = getToolNamesForPreset(preset);
-      setToolPresetState(preset);
-      const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
-      if (!sid) return;
-      try {
-        await sendAgentCommand(sid, { type: "set_tools", toolNames });
-      } catch (e) {
-        console.error("Failed to set tools:", e);
-      }
-    },
-    [setToolPresetState],
-  );
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     ignoreProgrammaticScrollUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_IGNORE_MS;
@@ -2010,7 +1972,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           requestAnimationFrame(() => requestAnimationFrame(trySnap));
         }
         if (agentState?.running) {
-          void loadTools(session.id);
           if (agentState.state?.isStreaming || agentState.state?.isPromptRunning) {
             agentRunningRef.current = true;
             setAgentRunning(true);
@@ -2225,7 +2186,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     modelThinkingLevels,
     modelThinkingLevelMaps,
     newSessionModel,
-    toolPreset,
     thinkingLevel,
     retryInfo,
     contextUsage,
@@ -2280,9 +2240,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleAbortCompaction,
     handleRecallQueue,
     handleBuiltinSlashCommand,
-    handleToolPresetChange,
     handleThinkingLevelChange,
-    loadTools,
     loadSlashCommands,
     loadOlder,
     loadDeferredContent,
