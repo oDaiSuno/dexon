@@ -283,11 +283,7 @@ export class AgentSessionWrapper {
   }
 
   setToolchainSummary(revision: number, summary: readonly string[]): void {
-    this.toolchainPrompt = [
-      `<dexon-toolchain revision="${revision}">`,
-      ...summary,
-      "</dexon-toolchain>",
-    ].join("\n");
+    this.toolchainPrompt = [`<dexon-toolchain revision="${revision}">`, ...summary, "</dexon-toolchain>"].join("\n");
     this.applyToolchainSummary();
   }
 

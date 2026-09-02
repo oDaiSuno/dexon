@@ -283,53 +283,6 @@ html.dark ::-webkit-scrollbar-thumb {
   animation: blink 0.9s step-start infinite;
 }
 
-/* Chat area grid paper background */
-.chat-grid-bg {
-  background-image:
-    linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
-  background-size: 28px 28px;
-  opacity: 0.18;
-}
-
-.chat-grid-bg.chat-grid-bg-idle {
-  opacity: 0.36;
-}
-
-/* Corner calibration ticks */
-.chat-corner-tick {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  pointer-events: none;
-  opacity: 0.28;
-  z-index: 0;
-}
-.chat-corner-tick-tl {
-  top: 10px;
-  left: 10px;
-  border-left: 2px solid var(--accent);
-  border-top: 2px solid var(--accent);
-}
-.chat-corner-tick-tr {
-  top: 10px;
-  right: 10px;
-  border-right: 2px solid var(--accent);
-  border-top: 2px solid var(--accent);
-}
-.chat-corner-tick-bl {
-  bottom: 10px;
-  left: 10px;
-  border-left: 2px solid var(--accent);
-  border-bottom: 2px solid var(--accent);
-}
-.chat-corner-tick-br {
-  bottom: 10px;
-  right: 10px;
-  border-right: 2px solid var(--accent);
-  border-bottom: 2px solid var(--accent);
-}
-
 pre,
 code {
   font-family: var(--font-mono);
@@ -538,22 +491,23 @@ code {
   font-size: 1.05em;
 }
 .markdown-body.markdown-user-message {
-  color: var(--user-fg);
+  color: inherit;
 }
 .markdown-user-message p {
   white-space: pre-wrap;
   color: inherit;
 }
 .markdown-user-message a {
-  color: color-mix(in srgb, var(--accent) 70%, #fff);
+  color: var(--bui-accent);
 }
 .markdown-user-message strong {
-  color: #fff;
+  color: inherit;
+  font-weight: 700;
 }
 .markdown-user-message .markdown-inline-code {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--user-fg);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 16%, transparent);
 }
 .markdown-user-message h1,
 .markdown-user-message h2,
@@ -561,7 +515,15 @@ code {
 .markdown-user-message h4,
 .markdown-user-message h5,
 .markdown-user-message h6 {
-  color: var(--user-fg);
+  color: inherit;
+}
+
+/* Channel bubbles keep white-on-brand text */
+[data-message-source]:not([data-message-source="local"]) .markdown-user-message a {
+  color: color-mix(in srgb, #fff 82%, currentColor);
+}
+[data-message-source]:not([data-message-source="local"]) .markdown-user-message strong {
+  color: #fff;
 }
 
 .markdown-custom-message {

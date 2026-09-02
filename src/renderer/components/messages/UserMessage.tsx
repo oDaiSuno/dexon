@@ -91,12 +91,13 @@ export function UserMessageView({
             minWidth: 0,
             maxWidth: "100%",
             background: bubbleStyle.background,
-            borderRadius: "10px 10px 2px 10px",
-            padding: "9px 13px",
-            fontSize: scaledChatFont(13.5),
+            borderRadius: "12px 12px 4px 12px",
+            padding: "8px 13px",
+            fontSize: scaledChatFont(13),
             lineHeight: 1.55,
             color: bubbleStyle.foreground,
             wordBreak: "break-word",
+            boxShadow: messageSource === "local" ? "var(--bui-shadow-btn)" : "none",
           }}
         >
           {imageBlocks.length > 0 && (
@@ -123,7 +124,7 @@ export function UserMessageView({
                       borderRadius: 6,
                       objectFit: "contain",
                       display: "block",
-                      border: "1px solid color-mix(in srgb, var(--user-fg) 18%, transparent)",
+                      border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
                     }}
                   />
                 );
@@ -145,18 +146,18 @@ export function UserMessageView({
           display: "flex",
           alignItems: "center",
           justifyContent: "flex-end",
-          gap: 6,
-          marginTop: 3,
+          gap: 4,
+          marginTop: 4,
         }}
       >
         <div
           className="message-hover-actions"
           style={{
             display: "flex",
-            gap: 3,
+            gap: 2,
             opacity: hovered ? 1 : 0,
             pointerEvents: hovered ? "auto" : "none",
-            transition: "opacity 0.12s",
+            transition: "opacity var(--duration-quick) var(--ease-out)",
           }}
         >
           <button
@@ -167,44 +168,41 @@ export function UserMessageView({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 4,
-              padding: "3px 8px",
-              height: 32,
+              justifyContent: "center",
+              width: 24,
+              height: 24,
               background: "none",
               border: "none",
-              borderRadius: 5,
-              color: copied ? "var(--accent)" : "var(--text-dim)",
+              borderRadius: "var(--bui-r-chip)",
+              color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
               cursor: copyableContent ? "pointer" : "not-allowed",
               opacity: copyableContent ? 1 : 0.55,
-              fontSize: scaledChatFont(12),
-              fontWeight: 400,
-              whiteSpace: "nowrap",
-              transition: "color 0.12s",
+              transition: "color var(--duration-quick) var(--ease-out)",
             }}
             onMouseEnter={(e) => {
-              if (!copied) e.currentTarget.style.color = "var(--accent)";
+              if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
             }}
             onMouseLeave={(e) => {
-              if (!copied) e.currentTarget.style.color = "var(--text-dim)";
+              if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
             }}
           >
             {copied ? (
               <svg
-                width="11"
-                height="11"
+                width="13"
+                height="13"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <polyline points="20 6 9 17 4 12" />
+                <path d="M20 6L9 17l-5-5" />
               </svg>
             ) : (
               <svg
-                width="11"
-                height="11"
+                width="15"
+                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -212,11 +210,10 @@ export function UserMessageView({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <rect x="9" y="9" width="12" height="12" rx="2.5" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             )}
-            {copied ? "Copied" : "Copy"}
           </button>
         </div>
         {(canFork || canNavigate) && (
@@ -227,7 +224,7 @@ export function UserMessageView({
               gap: 3,
               opacity: hovered || forking ? 1 : 0,
               pointerEvents: hovered || forking ? "auto" : "none",
-              transition: "opacity 0.12s",
+              transition: "opacity var(--duration-quick) var(--ease-out)",
             }}
           >
             {canNavigate && (
@@ -242,28 +239,28 @@ export function UserMessageView({
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
-                  padding: "3px 8px",
-                  height: 32,
+                  padding: "2px 7px",
+                  height: 24,
                   background: "none",
                   border: "none",
-                  borderRadius: 5,
-                  color: "var(--text-dim)",
+                  borderRadius: "var(--bui-r-chip)",
+                  color: "var(--bui-ink-3)",
                   cursor: "pointer",
-                  fontSize: scaledChatFont(12),
+                  fontSize: scaledChatFont(11),
                   fontWeight: 400,
                   whiteSpace: "nowrap",
-                  transition: "color 0.12s",
+                  transition: "color var(--duration-quick) var(--ease-out)",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = "var(--accent)";
+                  e.currentTarget.style.color = "var(--bui-accent)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text-dim)";
+                  e.currentTarget.style.color = "var(--bui-ink-3)";
                 }}
               >
                 <svg
-                  width="11"
-                  height="11"
+                  width="12"
+                  height="12"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -289,28 +286,28 @@ export function UserMessageView({
                   display: "flex",
                   alignItems: "center",
                   gap: 4,
-                  padding: "3px 8px",
-                  height: 32,
+                  padding: "2px 7px",
+                  height: 24,
                   background: "none",
                   border: "none",
-                  borderRadius: 5,
-                  color: forking ? "var(--accent)" : "var(--text-dim)",
+                  borderRadius: "var(--bui-r-chip)",
+                  color: forking ? "var(--bui-accent)" : "var(--bui-ink-3)",
                   cursor: forking ? "not-allowed" : "pointer",
-                  fontSize: scaledChatFont(12),
+                  fontSize: scaledChatFont(11),
                   fontWeight: 400,
                   whiteSpace: "nowrap",
-                  transition: "color 0.12s",
+                  transition: "color var(--duration-quick) var(--ease-out)",
                 }}
                 onMouseEnter={(e) => {
-                  if (!forking) e.currentTarget.style.color = "var(--accent)";
+                  if (!forking) e.currentTarget.style.color = "var(--bui-accent)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = "var(--text-dim)";
+                  if (!forking) e.currentTarget.style.color = "var(--bui-ink-3)";
                 }}
               >
                 <svg
-                  width="11"
-                  height="11"
+                  width="12"
+                  height="12"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -328,7 +325,17 @@ export function UserMessageView({
             )}
           </div>
         )}
-        {time && <span style={{ fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>{time}</span>}
+        {time && (
+          <span
+            style={{
+              fontSize: scaledChatFont(11),
+              color: "var(--bui-ink-3)",
+              fontFamily: "var(--font-mono)",
+            }}
+          >
+            {time}
+          </span>
+        )}
       </div>
     </div>
   );

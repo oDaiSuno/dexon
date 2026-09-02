@@ -4,7 +4,11 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
-import { isChannelAttachmentContextType, isChannelSourceCancelledType, isChannelSourceType } from "./session-entry-compat";
+import {
+  isChannelAttachmentContextType,
+  isChannelSourceCancelledType,
+  isChannelSourceType,
+} from "./session-entry-compat";
 import type {
   AgentMessage,
   ChannelMessageAttachment,

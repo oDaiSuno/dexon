@@ -56,9 +56,9 @@ test("the full-width dock applies the chat width once after reserving the minima
 });
 
 test("chat text uses the shared scale while glyph-only icons remain fixed", () => {
-  assert.match(chatWindowSource, /fontSize:\s*scaledChatFont\(22\)/);
+  assert.match(chatWindowSource, /fontSize:\s*scaledChatFont\(20\)/);
   assert.match(chatInputSource, /fontSize:\s*scaledChatFont\(14\)/);
   assert.match(messageViewSource, /fontSize:\s*scaledChatFont\(13\.5\)/);
   assert.deepEqual(chatInputSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], []);
-  assert.deepEqual(messageViewSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], ["fontSize: 10"]);
+  assert.deepEqual(messageViewSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], []);
 });

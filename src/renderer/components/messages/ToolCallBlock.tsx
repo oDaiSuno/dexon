@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
-import { DeferredContentActions, isRecord } from "./shared";
+import { DeferredContentActions, isRecord, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
+import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
 import type { ToolCallContent, ToolResultMessage } from "@/lib/types";
 
 export function ToolCallBlock({
@@ -18,11 +19,11 @@ export function ToolCallBlock({
 }) {
   const [expanded, setExpanded] = useState(false);
   const { t } = useI18n();
+  const detailMounted = useDelayedUnmount(expanded);
   const inputStr = JSON.stringify(block.input, null, 2);
   const isEditTool = isEditToolName(block.toolName);
   const resultDiff = result && !result.isError ? getResultDiff(result) : null;
 
-  // Result display
   const resultText = result
     ? result.content
         .filter((b): b is { type: "text"; text: string } => b.type === "text")
@@ -36,148 +37,151 @@ export function ToolCallBlock({
   const browserTabId = isBrowserToolName(block.toolName) ? browserTabIdFromResult(resultText) : null;
   const browserSummary =
     isBrowserToolName(block.toolName) && resultText && !isError ? browserResultSummary(resultText, t) : null;
+  const diffCounts = resultDiff ? countDiffLines(resultDiff.text) : null;
+  const label = toolVerbLabel(block.toolName, t);
+
+  // Collapsed second line: only for things that matter without expanding —
+  // errors and the browser inspection summaries.
+  const collapsedNote = !expanded && isError ? (resultText ?? "") : !expanded && browserSummary ? browserSummary : null;
 
   return (
-    <div
-      style={{
-        borderRadius: 9,
-        overflow: "hidden",
-        fontSize: scaledChatFont(12),
-        fontFamily: "var(--font-mono)",
-        background: "var(--tool-bg)",
-        border: isError
-          ? "1px solid color-mix(in srgb, var(--danger) 55%, transparent)"
-          : "1px solid var(--tool-border)",
-      }}
-    >
-      {/* ── Tool call header ── */}
-      <button
-        onClick={() => setExpanded((v) => !v)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          width: "100%",
-          padding: "7px 12px",
-          background: "none",
-          border: "none",
-          borderBottom: expanded || result ? "1px solid var(--tool-border)" : "none",
-          color: isError ? "var(--danger)" : "var(--accent)",
-          cursor: "pointer",
-          fontSize: scaledChatFont(12),
-          textAlign: "left",
-          minWidth: 0,
-        }}
-      >
-        <span style={{ flexShrink: 0, opacity: 0.85 }}>{expanded ? "▾" : "▸"}</span>
-        <span style={{ fontWeight: 600, flexShrink: 0 }}>{block.toolName}</span>
-        <span
-          style={{
-            color: "var(--tool-fg)",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            flex: 1,
-            minWidth: 0,
-            opacity: 0.85,
-          }}
-        >
-          {preview}
-        </span>
-        {duration !== undefined && (
-          <span
-            style={{
-              fontSize: scaledChatFont(11),
-              color: "var(--text-dim)",
-              flexShrink: 0,
-              fontVariantNumeric: "tabular-nums",
-            }}
-          >
-            {duration}s
-          </span>
-        )}
-      </button>
-
-      {/* ── Expanded: input args ── */}
-      {expanded && !isEditTool && (
-        <pre
-          style={{
-            margin: 0,
-            padding: "8px 12px",
-            color: "var(--tool-fg)",
-            fontSize: scaledChatFont(12),
-            lineHeight: 1.5,
-            overflow: "auto",
-            background: "transparent",
-            borderTop: "none",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-          }}
-        >
-          {inputStr}
-        </pre>
-      )}
-
-      {/* ── Running indicator (design.html terminal style) ── */}
-      {isRunning && !expanded && (
-        <div style={{ padding: "8px 12px", color: "var(--text-dim)" }}>
-          running
-          <span className="stream-caret" aria-hidden="true" />
-        </div>
-      )}
-
-      {/* ── Paired result — always show summary; expand for full detail ── */}
-      {result &&
-        (resultDiff ? (
-          expanded ? (
-            <PairedDiffResult diff={resultDiff} />
-          ) : (
-            <div
-              style={{
-                padding: "8px 12px",
-                color: "var(--tool-fg)",
-                whiteSpace: "pre-wrap",
-                maxHeight: 80,
-                overflow: "hidden",
-                opacity: 0.9,
-              }}
-            >
-              {resultDiff.text.split("\n").slice(0, 4).join("\n")}
-              {resultDiff.text.split("\n").length > 4 ? "\n…" : ""}
-            </div>
-          )
-        ) : (
-          <PairedResult
-            text={!expanded && browserSummary ? browserSummary : (resultText ?? "")}
-            isEmpty={resultIsEmpty}
-            isError={isError}
-            collapsed={!expanded}
-          />
-        ))}
-      {result && <DeferredContentActions content={result.content} onLoad={onLoadDeferredContent} />}
-      {browserTabId && (
+    <div className="chat-acc" data-open={expanded ? "true" : "false"}>
+      <div className="chat-tool-row-wrap">
         <button
           type="button"
-          onClick={() =>
-            window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }))
-          }
-          style={{
-            width: "100%",
-            minHeight: 30,
-            border: "none",
-            borderTop: "1px solid var(--tool-border)",
-            background: "transparent",
-            color: "var(--accent)",
-            cursor: "pointer",
-            fontSize: scaledChatFont(11),
-            textAlign: "left",
-            padding: "0 12px",
-          }}
+          className="chat-tool-row chat-quiet-head"
+          aria-expanded={expanded}
+          onClick={() => setExpanded((v) => !v)}
         >
-          Open in Browser →
+          <span className="chat-tool-icon">
+            <ToolStatusIcon done={!isRunning} error={isError} toolName={block.toolName} />
+            <span className="chat-tool-chev" aria-hidden="true">
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </span>
+          <span className="chat-tool-name" style={isError ? { color: "var(--bui-red)" } : undefined}>
+            {label}
+          </span>
+          <span className="chat-tool-chip" style={isError ? { color: "var(--bui-red)" } : undefined}>
+            {preview}
+          </span>
+          <span className="chat-tool-meta">
+            {isRunning && <span className="chat-shimmer-text">{t("toolRunning", "running")}</span>}
+            {diffCounts && !isRunning && (
+              <>
+                <span style={{ color: "var(--bui-green)" }}>+{diffCounts.added}</span>
+                {diffCounts.removed > 0 && <span style={{ color: "var(--bui-red)" }}>−{diffCounts.removed}</span>}
+              </>
+            )}
+            {!isRunning && !diffCounts && !isError && duration !== undefined && <span>{duration}s</span>}
+            {isError && <span>{t("toolFailed", "failed")}</span>}
+          </span>
         </button>
-      )}
+        <div className="chat-acc-panel">
+          <div className="chat-acc-panel-clip">
+            {detailMounted && (
+              <div className="chat-tool-detail" style={{ fontSize: scaledChatFont(11.5) }}>
+                {!isEditTool && (
+                  <pre className="chat-tool-input" style={{ fontSize: scaledChatFont(11) }}>
+                    {inputStr}
+                  </pre>
+                )}
+                {resultDiff && <PairedDiffResult diff={resultDiff} />}
+                {!resultDiff && result && (
+                  <PairedResult text={resultText ?? ""} isEmpty={resultIsEmpty} isError={isError} />
+                )}
+                {browserTabId && (
+                  <button
+                    type="button"
+                    className="chat-tool-open-browser"
+                    onClick={() =>
+                      window.dispatchEvent(
+                        new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }),
+                      )
+                    }
+                  >
+                    {t("openInBrowser", "Open in Browser")} →
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+        {collapsedNote && !resultDiff && (
+          <div className="chat-tool-collapsed-note" style={{ color: isError ? "var(--bui-red)" : "var(--bui-ink-2)" }}>
+            {collapsedNote}
+          </div>
+        )}
+      </div>
+      {result && <DeferredContentActions content={result.content} onLoad={onLoadDeferredContent} />}
     </div>
+  );
+}
+
+/* transitions.dev 41-spinner-check-morph (adapted): running spinner blurs
+   into a drawn check on completion, then settles into the resting tool
+   glyph. Errors morph into a red ×. No auto-revert. Remounts after
+   completion never replay the morph (phase initialises at rest). */
+function ToolStatusIcon({ done, error, toolName }: { done: boolean; error: boolean; toolName: string }) {
+  const [phase, setPhase] = useState<"spin" | "check" | "rest">(!done ? "spin" : "rest");
+  const prevDoneRef = useRef(done);
+  const checkRef = useRef<SVGPathElement | null>(null);
+
+  useEffect(() => {
+    if (!prevDoneRef.current && done) {
+      prevDoneRef.current = true;
+      setPhase("check");
+      const timer = setTimeout(() => setPhase("rest"), 1100);
+      return () => clearTimeout(timer);
+    }
+    prevDoneRef.current = done;
+    return undefined;
+  }, [done]);
+
+  // Keep the stroke-draw exact for whichever path is mounted.
+  useEffect(() => {
+    const path = checkRef.current;
+    if (path) {
+      const len = Math.ceil(path.getTotalLength()) + 1;
+      path.style.setProperty("--chat-scmorph-check-len", String(len));
+    }
+  }, [phase, error]);
+
+  return (
+    <span
+      className={`chat-status-icon${error ? " is-error" : ""}${phase === "check" ? " is-crossing is-done" : ""}${
+        phase === "rest" ? " is-rest" : ""
+      }`}
+      aria-hidden="true"
+    >
+      {phase !== "rest" && <span className="chat-scmorph-spinring" />}
+      <span className="chat-scmorph-badge">
+        <span className="chat-scmorph-fill" />
+        {error ? (
+          <svg className="chat-scmorph-check" viewBox="0 0 24 24">
+            <path ref={checkRef} d="M7.5 7.5l9 9M16.5 7.5l-9 9" />
+          </svg>
+        ) : (
+          <svg className="chat-scmorph-check" viewBox="0 0 24 24">
+            <path ref={checkRef} d="M7 12.5l3 3 7-7" />
+          </svg>
+        )}
+      </span>
+      <span className="chat-scmorph-rest">
+        <ToolGlyph toolName={toolName} />
+      </span>
+    </span>
   );
 }
 
@@ -249,45 +253,17 @@ function formatBrowserSummary(template: string, values: Record<string, string | 
   );
 }
 
-function PairedResult({
-  text,
-  isEmpty,
-  isError,
-  collapsed,
-}: {
-  text: string;
-  isEmpty: boolean;
-  isError: boolean;
-  collapsed?: boolean;
-}) {
+function PairedResult({ text, isEmpty, isError }: { text: string; isEmpty: boolean; isError: boolean }) {
   return (
-    <div
+    <pre
+      className="chat-tool-result"
       style={{
-        borderTop: isError
-          ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
-          : "1px solid var(--tool-border)",
-        background: isError ? "color-mix(in srgb, var(--danger) 8%, transparent)" : "transparent",
+        color: isError ? "var(--bui-red)" : isEmpty ? "var(--bui-ink-3)" : "var(--bui-ink-2)",
+        fontStyle: isEmpty ? "italic" : "normal",
       }}
     >
-      <pre
-        style={{
-          margin: 0,
-          padding: "8px 12px",
-          color: isError ? "var(--danger)" : isEmpty ? "var(--text-dim)" : "var(--tool-fg)",
-          fontSize: scaledChatFont(12),
-          lineHeight: 1.5,
-          maxHeight: collapsed ? 180 : 400,
-          overflow: "auto",
-          background: "transparent",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-all",
-          fontStyle: isEmpty ? "italic" : "normal",
-          opacity: isEmpty ? 0.6 : 1,
-        }}
-      >
-        {isEmpty ? "(no output)" : text}
-      </pre>
-    </div>
+      {isEmpty ? "(no output)" : text}
+    </pre>
   );
 }
 

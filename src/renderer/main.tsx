@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import "katex/dist/katex.min.css";
 import { App } from "./App";
 import "./globals.css";
+import "./chat.css";
 import { ensureRpc } from "./lib/api-client";
 import { installApiShims } from "./lib/api-fetch";
 

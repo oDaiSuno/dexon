@@ -1,6 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AssistantContentBlock, CustomMessage, ImageContent, TextContent, UserMessage } from "@/lib/types";
 import { scaledChatFont } from "@/lib/chat-appearance";
+
+/* Accordion companion: keep content mounted while the collapse animation
+   plays, then unmount it so collapsed blocks cost nothing (long sessions
+   render hundreds of tool calls). Expanding mounts immediately. */
+export function useDelayedUnmount(open: boolean, delayMs = 350): boolean {
+  const [mounted, setMounted] = useState(open);
+  useEffect(() => {
+    if (open) {
+      setMounted(true);
+      return undefined;
+    }
+    const timer = setTimeout(() => setMounted(false), delayMs);
+    return () => clearTimeout(timer);
+  }, [open, delayMs]);
+  return mounted;
+}
 
 export function formatTime(ts?: number): string | null {
   if (!ts) return null;

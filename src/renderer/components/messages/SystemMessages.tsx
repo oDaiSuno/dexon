@@ -16,10 +16,10 @@ export function CompactionMessageView({ message }: { message: CustomMessage }) {
     <div style={{ marginBottom: 16 }}>
       <div
         style={{
-          border: "1px solid var(--border)",
-          borderRadius: 8,
+          border: "1px solid var(--bui-line)",
+          borderRadius: "var(--bui-r-card)",
           overflow: "hidden",
-          background: "var(--bg)",
+          background: "var(--bui-inset)",
         }}
       >
         <button
@@ -33,9 +33,9 @@ export function CompactionMessageView({ message }: { message: CustomMessage }) {
             alignItems: "center",
             gap: 8,
             padding: "7px 10px",
-            borderBottom: expanded ? "1px solid var(--border)" : "none",
-            background: "var(--bg-panel)",
-            color: "var(--text-muted)",
+            borderBottom: expanded ? "1px solid var(--bui-line)" : "none",
+            background: "var(--bui-surface)",
+            color: "var(--bui-ink-2)",
           }}
         >
           <svg
@@ -59,23 +59,23 @@ export function CompactionMessageView({ message }: { message: CustomMessage }) {
           <span style={{ fontFamily: "var(--font-mono)", fontSize: scaledChatFont(11), fontWeight: 650 }}>
             compaction
           </span>
-          <span style={{ color: "var(--text)", fontSize: scaledChatFont(12), fontWeight: 600 }}>
+          <span style={{ color: "var(--bui-ink)", fontSize: scaledChatFont(12), fontWeight: 600 }}>
             Conversation compacted
           </span>
           {time && (
-            <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: scaledChatFont(10) }}>{time}</span>
+            <span style={{ marginLeft: "auto", color: "var(--bui-ink-3)", fontSize: scaledChatFont(10) }}>{time}</span>
           )}
         </button>
 
         {expanded && (
           <div style={{ padding: "11px 13px 12px" }}>
-            <div style={{ marginBottom: 10, color: "var(--text)", fontSize: scaledChatFont(14), lineHeight: 1.5 }}>
+            <div style={{ marginBottom: 10, color: "var(--bui-ink)", fontSize: scaledChatFont(14), lineHeight: 1.5 }}>
               The conversation history before this point was compacted into the following summary:
             </div>
             {parsedSummary.body ? (
               <MarkdownBody className="markdown-compaction-message">{parsedSummary.body}</MarkdownBody>
             ) : (
-              <span style={{ color: "var(--text-dim)", fontSize: scaledChatFont(12) }}>(no summary)</span>
+              <span style={{ color: "var(--bui-ink-3)", fontSize: scaledChatFont(12) }}>(no summary)</span>
             )}
             <CompactionFileMetadata readFiles={parsedSummary.readFiles} modifiedFiles={parsedSummary.modifiedFiles} />
           </div>
@@ -143,8 +143,8 @@ export function CustomMessageView({
     <div style={{ marginBottom: 16 }}>
       <div
         style={{
-          border: "1px solid var(--border)",
-          borderRadius: 8,
+          border: "1px solid var(--bui-line)",
+          borderRadius: "var(--bui-r-card)",
           overflow: "hidden",
           background: isHiddenDisplay ? "var(--bg-subtle)" : "var(--bg)",
           opacity: isHiddenDisplay && !contentExpanded ? 0.82 : 1,
@@ -156,15 +156,15 @@ export function CustomMessageView({
             alignItems: "center",
             gap: 8,
             padding: "7px 10px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-panel)",
-            color: "var(--text-muted)",
+            borderBottom: "1px solid var(--bui-line)",
+            background: "var(--bui-surface)",
+            color: "var(--bui-ink-2)",
             fontSize: scaledChatFont(12),
           }}
         >
           <span
             style={{
-              color: "var(--text-muted)",
+              color: "var(--bui-ink-2)",
               fontFamily: "var(--font-mono)",
               fontSize: scaledChatFont(11),
               fontWeight: 650,
@@ -173,10 +173,10 @@ export function CustomMessageView({
             {title}
           </span>
           {isHiddenDisplay && (
-            <span style={{ color: "var(--text-dim)", fontSize: scaledChatFont(11) }}>hidden extension message</span>
+            <span style={{ color: "var(--bui-ink-3)", fontSize: scaledChatFont(11) }}>hidden extension message</span>
           )}
           {time && (
-            <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: scaledChatFont(10) }}>{time}</span>
+            <span style={{ marginLeft: "auto", color: "var(--bui-ink-3)", fontSize: scaledChatFont(10) }}>{time}</span>
           )}
         </div>
 
@@ -198,7 +198,7 @@ export function CustomMessageView({
                         borderRadius: 6,
                         objectFit: "contain",
                         display: "block",
-                        border: "1px solid var(--border)",
+                        border: "1px solid var(--bui-line)",
                       }}
                     />
                   );
@@ -210,7 +210,7 @@ export function CustomMessageView({
                 {text}
               </MarkdownBody>
             ) : (
-              <span style={{ color: "var(--text-dim)", fontSize: scaledChatFont(12) }}>(no message)</span>
+              <span style={{ color: "var(--bui-ink-3)", fontSize: scaledChatFont(12) }}>(no message)</span>
             )}
             <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
           </div>
@@ -223,7 +223,7 @@ export function CustomMessageView({
               padding: "8px 10px",
               border: "none",
               background: "transparent",
-              color: "var(--text-dim)",
+              color: "var(--bui-ink-3)",
               cursor: "pointer",
               fontSize: scaledChatFont(12),
               textAlign: "left",
@@ -239,8 +239,8 @@ export function CustomMessageView({
             alignItems: "center",
             gap: 8,
             padding: "4px 9px",
-            borderTop: "1px solid var(--border)",
-            background: "var(--bg-subtle)",
+            borderTop: "1px solid var(--bui-line)",
+            background: "var(--bui-hover)",
           }}
         >
           {text || detailsText ? (
@@ -250,7 +250,7 @@ export function CustomMessageView({
                 padding: "3px 7px",
                 border: "none",
                 background: "none",
-                color: copied ? "var(--accent)" : "var(--text-dim)",
+                color: copied ? "var(--accent)" : "var(--bui-ink-3)",
                 cursor: "pointer",
                 fontSize: scaledChatFont(11),
               }}
@@ -269,7 +269,7 @@ export function CustomMessageView({
                 padding: "3px 7px",
                 border: "none",
                 background: "none",
-                color: "var(--text-dim)",
+                color: "var(--bui-ink-3)",
                 cursor: "pointer",
                 fontSize: scaledChatFont(11),
               }}
@@ -290,9 +290,9 @@ export function CustomMessageView({
             style={{
               margin: 0,
               padding: "9px 10px",
-              borderTop: "1px solid var(--border)",
-              background: "var(--bg)",
-              color: "var(--text-muted)",
+              borderTop: "1px solid var(--bui-line)",
+              background: "var(--bui-inset)",
+              color: "var(--bui-ink-2)",
               fontSize: scaledChatFont(12),
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",

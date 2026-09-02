@@ -56,8 +56,7 @@ function requestHostPort(): Promise<MessagePort> {
       // Only accept messages from our own window (preload → page)
       if (event.source !== window) return;
       const data = event.data as { channel?: string } | string | null;
-      const isPortMsg =
-        data === "dexon-host-port" || (typeof data === "object" && data?.channel === "dexon-host-port");
+      const isPortMsg = data === "dexon-host-port" || (typeof data === "object" && data?.channel === "dexon-host-port");
       if (!isPortMsg) return;
       const port = event.ports[0];
       if (!port) return;

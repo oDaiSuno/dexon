@@ -2,18 +2,12 @@ import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { scaledChatFont } from "@/lib/chat-appearance";
-
-interface Props {
-  messageCount: number;
-  toolCallCount: number;
-  children: ReactNode;
-  stateKey: string;
-  expansionStore: ThinkingExpansionStore;
-}
+import { useDelayedUnmount } from "./messages/shared";
 
 export function ProcessDetailsGroup({ messageCount, toolCallCount, children, stateKey, expansionStore }: Props) {
   const getSnapshot = useMemo(() => () => expansionStore.getSnapshot(stateKey), [expansionStore, stateKey]);
   const expanded = useSyncExternalStore(expansionStore.subscribe, getSnapshot, getSnapshot);
+  const contentMounted = useDelayedUnmount(expanded);
   const { language, t } = useI18n();
   const parts = [
     t("processDetails", "Process details"),
@@ -30,49 +24,59 @@ export function ProcessDetailsGroup({ messageCount, toolCallCount, children, sta
   }
 
   return (
-    <div style={{ marginBottom: 14 }}>
+    <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 14 }}>
       <button
         type="button"
+        className="chat-quiet-head"
         aria-expanded={expanded}
         onClick={() => expansionStore.toggle(stateKey)}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          width: "auto",
-          minHeight: 24,
-          padding: "2px 0",
-          border: "none",
-          background: "transparent",
-          color: "var(--text-muted)",
-          cursor: "pointer",
-          fontSize: scaledChatFont(12),
-          textAlign: "left",
-        }}
         title={
           expanded
             ? t("collapseProcessDetails", "Collapse process details")
             : t("expandProcessDetails", "Expand process details")
         }
+        style={{ fontSize: scaledChatFont(12.5) }}
       >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ flexShrink: 0, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
+        <span style={{ color: "var(--bui-ink-3)", display: "flex", flexShrink: 0 }} aria-hidden="true">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </span>
+        <span
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "var(--bui-ink-2)",
+            fontVariantNumeric: "tabular-nums",
+          }}
         >
-          <polyline points="4 2.5 7.5 6 4 9.5" />
-        </svg>
-        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {parts.join(" · ")}
         </span>
       </button>
-      {expanded && <div style={{ marginTop: 8 }}>{children}</div>}
+      <div className="chat-acc-panel">
+        <div className="chat-acc-panel-clip">
+          {contentMounted && <div style={{ marginTop: 8, paddingLeft: 5 }}>{children}</div>}
+        </div>
+      </div>
     </div>
   );
+}
+
+interface Props {
+  messageCount: number;
+  toolCallCount: number;
+  children: ReactNode;
+  stateKey: string;
+  expansionStore: ThinkingExpansionStore;
 }

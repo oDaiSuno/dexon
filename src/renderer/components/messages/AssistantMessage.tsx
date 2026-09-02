@@ -154,15 +154,15 @@ export function AssistantMessageView({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Model label */}
+      {/* Meta line: model · streaming stats (Beautiful UI quiet meta) */}
       <div
         style={{
           fontSize: scaledChatFont(12),
-          color: "var(--text-dim)",
-          marginBottom: 4,
+          color: "var(--bui-ink-3)",
+          marginBottom: 6,
           display: "flex",
           alignItems: "center",
-          gap: 6,
+          gap: 8,
           fontFamily: "var(--font-mono)",
         }}
       >
@@ -184,52 +184,38 @@ export function AssistantMessageView({
               <>
                 {est > 0 && (
                   <span
-                    style={{ display: "flex", alignItems: "center", gap: 4, color: "var(--text)" }}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                      color: "var(--bui-ink-3)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
                     title="Estimated token count while streaming"
                   >
-                    <span
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 2,
-                        fontSize: scaledChatFont(12),
-                        fontWeight: 400,
-                      }}
-                    >
-                      <svg
-                        width="10"
-                        height="10"
-                        viewBox="0 0 10 10"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+                    <span>{est.toLocaleString()} tok</span>
+                    {tps !== null && (
+                      <span
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                        }}
                       >
-                        <line x1="5" y1="1.5" x2="5" y2="8.5" />
-                        <polyline points="2 6 5 8.5 8 6" />
-                      </svg>
-                      {est}
-                    </span>
-                    {tps !== null &&
-                      (() => {
-                        const bg = tps >= 50 ? "#53b3cb" : tps >= 30 ? "#9bc53d" : tps >= 15 ? "#f9c22e" : "#e01a4f";
-                        return (
-                          <span
-                            style={{
-                              marginLeft: 6,
-                              padding: "1px 6px",
-                              borderRadius: 4,
-                              background: bg,
-                              color: "#fff",
-                              fontSize: scaledChatFont(11),
-                              fontWeight: 400,
-                            }}
-                          >
-                            {tps.toFixed(1)} t/s
-                          </span>
-                        );
-                      })()}
+                        {/* speed tier uses status colors only: green fast → orange → red slow */}
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 6,
+                            height: 6,
+                            borderRadius: "50%",
+                            background:
+                              tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
+                          }}
+                        />
+                        <span>{tps.toFixed(1)} t/s</span>
+                      </span>
+                    )}
                   </span>
                 )}
               </>
@@ -262,10 +248,9 @@ export function AssistantMessageView({
             role="alert"
             data-testid="assistant-error-message"
             style={{
-              border: "1px solid color-mix(in srgb, var(--danger) 45%, var(--border))",
-              borderRadius: 9,
-              background: "color-mix(in srgb, var(--danger) 8%, var(--assistant-bg))",
-              color: "var(--danger)",
+              border: "1px solid color-mix(in srgb, var(--bui-red) 30%, transparent)",
+              borderRadius: "var(--bui-r-card)",
+              background: "var(--bui-red-tint)",
               padding: "10px 12px",
               fontSize: scaledChatFont(13),
               lineHeight: 1.55,
@@ -273,8 +258,10 @@ export function AssistantMessageView({
               whiteSpace: "pre-wrap",
             }}
           >
-            <div style={{ fontWeight: 600, marginBottom: 3 }}>{t("modelRequestFailed", "Model request failed")}</div>
-            <div>{failureDetail}</div>
+            <div style={{ fontWeight: 600, marginBottom: 3, color: "var(--bui-red)" }}>
+              {t("modelRequestFailed", "Model request failed")}
+            </div>
+            <div style={{ color: "var(--bui-ink-2)" }}>{failureDetail}</div>
           </div>
         )}
       </div>
@@ -283,12 +270,22 @@ export function AssistantMessageView({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          marginTop: 4,
+          gap: 4,
+          marginTop: 6,
         }}
       >
         {message.usage && !isStreaming && (
-          <div style={{ fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>{formatUsage(message.usage)}</div>
+          <div
+            style={{
+              fontSize: scaledChatFont(11),
+              color: "var(--bui-ink-3)",
+              fontFamily: "var(--font-mono)",
+              fontVariantNumeric: "tabular-nums",
+              marginRight: 2,
+            }}
+          >
+            {formatUsage(message.usage)}
+          </div>
         )}
         {textContent && !isStreaming && (
           <button
@@ -299,45 +296,42 @@ export function AssistantMessageView({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 4,
-              padding: "3px 8px",
-              height: 32,
+              justifyContent: "center",
+              width: 24,
+              height: 24,
               background: "none",
               border: "none",
-              borderRadius: 5,
-              color: copied ? "var(--accent)" : "var(--text-dim)",
+              borderRadius: "var(--bui-r-chip)",
+              color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
               cursor: "pointer",
-              fontSize: scaledChatFont(12),
-              fontWeight: 400,
-              whiteSpace: "nowrap",
               opacity: hovered ? 1 : 0,
               pointerEvents: hovered ? "auto" : "none",
-              transition: "opacity 0.12s, color 0.12s",
+              transition: "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
             }}
             onMouseEnter={(e) => {
-              if (!copied) e.currentTarget.style.color = "var(--accent)";
+              if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
             }}
             onMouseLeave={(e) => {
-              if (!copied) e.currentTarget.style.color = "var(--text-dim)";
+              if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
             }}
           >
             {copied ? (
               <svg
-                width="11"
-                height="11"
+                width="13"
+                height="13"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.8"
+                strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <polyline points="20 6 9 17 4 12" />
+                <path d="M20 6L9 17l-5-5" />
               </svg>
             ) : (
               <svg
-                width="11"
-                height="11"
+                width="15"
+                height="15"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -345,15 +339,23 @@ export function AssistantMessageView({
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <rect x="9" y="9" width="12" height="12" rx="2.5" />
                 <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
               </svg>
             )}
-            {copied ? "Copied" : "Copy"}
           </button>
         )}
         {time && !isStreaming && (
-          <span style={{ fontSize: scaledChatFont(12), color: "var(--text-dim)", marginLeft: "auto" }}>{time}</span>
+          <span
+            style={{
+              fontSize: scaledChatFont(11),
+              color: "var(--bui-ink-3)",
+              fontFamily: "var(--font-mono)",
+              marginLeft: "auto",
+            }}
+          >
+            {time}
+          </span>
         )}
       </div>
     </div>
@@ -394,6 +396,7 @@ function BlockView({
           duration={streamingDuration}
           stateKey={thinkingStateKey}
           store={thinkingExpansionStore}
+          streaming={isStreaming}
         />
         <DeferredContentActions content={[block]} onLoad={onLoadDeferredContent} />
       </>
@@ -424,23 +427,64 @@ function TextBlock({
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
 }) {
+  const text = block.text ?? "";
+  if (!isStreaming) {
+    return (
+      <div
+        style={{
+          fontSize: scaledChatFont(13.5),
+          lineHeight: 1.7,
+          minWidth: 0,
+        }}
+      >
+        <MarkdownBody cwd={cwd} onOpenFile={onOpenFile}>
+          {text}
+        </MarkdownBody>
+      </div>
+    );
+  }
+  // transitions.dev 30-streaming-text, adapted for growing markdown:
+  // settled lines render as markdown; only the tail after the last newline
+  // resolves token by token (CJK per glyph, latin per word), keyed by the
+  // token's absolute character offset so existing tokens never replay.
+  const lastBreak = text.lastIndexOf("\n");
+  const settled = lastBreak >= 0 ? text.slice(0, lastBreak + 1) : "";
+  const tail = lastBreak >= 0 ? text.slice(lastBreak + 1) : text;
+  const tailOffset = lastBreak >= 0 ? lastBreak + 1 : 0;
+  const tokens = tokenizeStreamTail(tail, tailOffset);
   return (
     <div
       style={{
-        background: "var(--assistant-bg)",
-        border: "1px solid var(--border)",
-        padding: "10px 14px",
-        borderRadius: "2px 10px 10px 10px",
         fontSize: scaledChatFont(13.5),
-        lineHeight: 1.6,
+        lineHeight: 1.7,
+        minWidth: 0,
       }}
     >
-      <MarkdownBody isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile}>
-        {block.text}
-      </MarkdownBody>
-      {isStreaming && <span className="stream-caret" aria-hidden="true" />}
+      {settled && (
+        <MarkdownBody isStreaming cwd={cwd} onOpenFile={onOpenFile}>
+          {settled}
+        </MarkdownBody>
+      )}
+      <span>
+        {tokens.map((token) => (
+          <span key={token.start} className="chat-stream-token">
+            {token.text}
+          </span>
+        ))}
+        <span className="chat-stream-caret" aria-hidden="true" />
+      </span>
     </div>
   );
+}
+
+const STREAM_TOKEN_PATTERN = "[\\u4e00-\\u9fff\\u3000-\\u303f\\uff00-\\uffef]|[a-zA-Z0-9$@._/-]+|\\s+|[^\\s]";
+
+function tokenizeStreamTail(tail: string, offsetBase: number): Array<{ start: number; text: string }> {
+  const tokens: Array<{ start: number; text: string }> = [];
+  for (const match of tail.matchAll(new RegExp(STREAM_TOKEN_PATTERN, "g"))) {
+    tokens.push({ start: offsetBase + (match.index ?? 0), text: match[0] });
+  }
+  return tokens;
 }
 
 function formatUsage(usage: {

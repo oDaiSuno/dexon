@@ -142,17 +142,17 @@ flowchart LR
 
 ## Contributing
 
-| Command                                  | Description                                          |
-| ---------------------------------------- | ---------------------------------------------------- |
-| `npm run dev`                            | Start Vite, main-process watch build, and Electron  |
-| `npm run typecheck`                      | Run TypeScript type checks                           |
-| `npm run test`                           | Run the automated test suite                         |
-| `npm run check:contract`                 | Check API method vs. Host handler coverage           |
-| `npm run smoke`                          | Run the Electron smoke test                          |
-| `npm run verify`                         | Full pre-commit quality gate                         |
-| `npm run build`                          | Build main, preload, and renderer                    |
-| `npm run pack`                           | Produce an unpacked app directory                    |
-| `npm run dist`                           | Produce all configured installers for this platform  |
+| Command                  | Description                                         |
+| ------------------------ | --------------------------------------------------- |
+| `npm run dev`            | Start Vite, main-process watch build, and Electron  |
+| `npm run typecheck`      | Run TypeScript type checks                          |
+| `npm run test`           | Run the automated test suite                        |
+| `npm run check:contract` | Check API method vs. Host handler coverage          |
+| `npm run smoke`          | Run the Electron smoke test                         |
+| `npm run verify`         | Full pre-commit quality gate                        |
+| `npm run build`          | Build main, preload, and renderer                   |
+| `npm run pack`           | Produce an unpacked app directory                   |
+| `npm run dist`           | Produce all configured installers for this platform |
 
 Run at minimum before committing:
 

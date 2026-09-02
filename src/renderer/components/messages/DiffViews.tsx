@@ -10,12 +10,7 @@ export interface ResultDiff {
 
 export function PairedDiffResult({ diff }: { diff: ResultDiff }) {
   return (
-    <div
-      style={{
-        borderTop: "1px solid var(--tool-border)",
-        background: "color-mix(in srgb, var(--tool-bg) 92%, #fff)",
-      }}
-    >
+    <div className="chat-diff-card">
       <SplitPatchView text={diff.text} />
     </div>
   );
@@ -27,16 +22,16 @@ function SplitPatchView({ text }: { text: string }) {
   const showFileHeaders = files.length > 1;
 
   return (
-    <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--bg)" }}>
+    <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--bui-inset)" }}>
       {files.map((file, fileIndex) => (
         <div
           key={fileIndex}
           style={{
             minWidth: 0,
-            borderTop: fileIndex === 0 ? "none" : "1px solid var(--border)",
+            borderTop: fileIndex === 0 ? "none" : "1px solid var(--bui-line)",
             fontFamily: "var(--font-mono)",
-            fontSize: scaledChatFont(12),
-            lineHeight: 1.55,
+            fontSize: scaledChatFont(11.5),
+            lineHeight: 1.65,
           }}
         >
           {showFileHeaders && (
@@ -47,8 +42,8 @@ function SplitPatchView({ text }: { text: string }) {
                 position: "sticky",
                 top: 0,
                 zIndex: 1,
-                background: "var(--bg-panel)",
-                borderBottom: "1px solid var(--border)",
+                background: "var(--bui-surface)",
+                borderBottom: "1px solid var(--bui-line)",
               }}
             >
               <SplitDiffHeader title={file.oldPath || "Before"} side="left" />
@@ -82,8 +77,8 @@ function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right
       title={title}
       style={{
         padding: "5px 10px",
-        color: "var(--text-dim)",
-        borderRight: side === "left" ? "1px solid var(--border)" : "none",
+        color: "var(--bui-ink-3)",
+        borderRight: side === "left" ? "1px solid var(--bui-line)" : "none",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -97,15 +92,15 @@ function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right
 function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" | "right" }) {
   const bg =
     cell.type === "added"
-      ? "rgba(34,197,94,0.12)"
+      ? "var(--bui-green-tint)"
       : cell.type === "removed"
-        ? "rgba(248,113,113,0.13)"
+        ? "var(--bui-red-tint)"
         : cell.type === "empty"
-          ? "var(--bg-subtle)"
+          ? "var(--bui-hover)"
           : "transparent";
-  const marker = cell.type === "added" ? "+" : cell.type === "removed" ? "-" : " ";
+  const marker = cell.type === "added" ? "+" : cell.type === "removed" ? "−" : " ";
   const markerColor =
-    cell.type === "added" ? "var(--success)" : cell.type === "removed" ? "var(--danger)" : "var(--text-dim)";
+    cell.type === "added" ? "var(--bui-green)" : cell.type === "removed" ? "var(--bui-red)" : "var(--bui-ink-3)";
 
   return (
     <div
@@ -113,7 +108,7 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
         display: "flex",
         minWidth: 0,
         background: bg,
-        borderRight: side === "left" ? "1px solid var(--border)" : "none",
+        borderRight: side === "left" ? "1px solid var(--bui-line)" : "none",
       }}
     >
       <span
@@ -121,10 +116,11 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
           width: 42,
           padding: "0 6px",
           textAlign: "right",
-          color: "var(--text-dim)",
+          color: "var(--bui-ink-3)",
+          opacity: 0.65,
           userSelect: "none",
-          background: "var(--bg-panel)",
-          borderRight: "1px solid var(--border)",
+          background: "var(--bui-surface)",
+          borderRight: "1px solid var(--bui-line)",
           flexShrink: 0,
         }}
       >
@@ -147,7 +143,8 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
           flex: 1,
           minWidth: 0,
           padding: "0 10px 0 0",
-          color: cell.type === "empty" ? "var(--text-dim)" : "var(--text)",
+          color:
+            cell.type === "empty" ? "var(--bui-ink-3)" : cell.type === "context" ? "var(--bui-ink-2)" : markerColor,
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
         }}
@@ -168,8 +165,8 @@ function PatchTextView({ text }: { text: string }) {
         overflowY: "auto",
         overflowX: "hidden",
         fontFamily: "var(--font-mono)",
-        fontSize: scaledChatFont(12),
-        lineHeight: 1.55,
+        fontSize: scaledChatFont(11.5),
+        lineHeight: 1.65,
         minWidth: 0,
       }}
     >
@@ -183,20 +180,20 @@ function PatchTextView({ text }: { text: string }) {
               : "context";
         const bg =
           kind === "added"
-            ? "rgba(34,197,94,0.12)"
+            ? "var(--bui-green-tint)"
             : kind === "removed"
-              ? "rgba(248,113,113,0.13)"
+              ? "var(--bui-red-tint)"
               : kind === "hunk"
-                ? "rgba(96,165,250,0.12)"
+                ? "var(--bui-hover)"
                 : "transparent";
         const color =
           kind === "added"
-            ? "var(--success)"
+            ? "var(--bui-green)"
             : kind === "removed"
-              ? "var(--danger)"
+              ? "var(--bui-red)"
               : kind === "hunk"
-                ? "var(--accent)"
-                : "var(--text)";
+                ? "var(--bui-ink-3)"
+                : "var(--bui-ink-2)";
 
         return (
           <div
@@ -206,11 +203,11 @@ function PatchTextView({ text }: { text: string }) {
               background: bg,
               borderLeft:
                 kind === "added"
-                  ? "3px solid var(--success)"
+                  ? "3px solid var(--bui-green)"
                   : kind === "removed"
-                    ? "3px solid var(--danger)"
+                    ? "3px solid var(--bui-red)"
                     : kind === "hunk"
-                      ? "3px solid var(--accent)"
+                      ? "3px solid var(--bui-line-strong)"
                       : "3px solid transparent",
             }}
           >
@@ -218,9 +215,10 @@ function PatchTextView({ text }: { text: string }) {
               style={{
                 width: 48,
                 padding: "0 8px",
-                color: "var(--text-dim)",
-                background: "var(--bg-panel)",
-                borderRight: "1px solid var(--border)",
+                color: "var(--bui-ink-3)",
+                opacity: 0.65,
+                background: "var(--bui-surface)",
+                borderRight: "1px solid var(--bui-line)",
                 textAlign: "right",
                 userSelect: "none",
                 flexShrink: 0,

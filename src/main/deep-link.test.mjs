@@ -15,9 +15,6 @@ test("finds only a valid desktop deep link in second-instance argv", () => {
     findDesktopDeepLink(["dexon", "--flag", "DEXON://SESSION/windows-session"]),
     "DEXON://SESSION/windows-session",
   );
-  assert.equal(
-    findDesktopDeepLink(["dexon", "https://example.test/session/secret", "dexon://bad"]),
-    undefined,
-  );
+  assert.equal(findDesktopDeepLink(["dexon", "https://example.test/session/secret", "dexon://bad"]), undefined);
   assert.equal(parseDesktopDeepLink("dexon://session"), null);
 });

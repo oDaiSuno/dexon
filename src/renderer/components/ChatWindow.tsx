@@ -452,22 +452,11 @@ export function ChatWindow({
   return (
     <div
       className="chat-appearance-scope relative flex h-full flex-col overflow-hidden"
-      style={{ background: "var(--bg)" }}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Grid paper + corner ticks (design.html grid style) */}
-      <div
-        className={`chat-grid-bg${isEmptyNew ? " chat-grid-bg-idle" : ""} pointer-events-none absolute inset-0 z-0`}
-        aria-hidden="true"
-      />
-      <div className="chat-corner-tick chat-corner-tick-tl" aria-hidden="true" />
-      <div className="chat-corner-tick chat-corner-tick-tr" aria-hidden="true" />
-      <div className="chat-corner-tick chat-corner-tick-bl" aria-hidden="true" />
-      <div className="chat-corner-tick chat-corner-tick-br" aria-hidden="true" />
-
       {isDragOver && (
         <div
           className="pointer-events-none absolute inset-0 z-50 flex animate-[drop-zone-in_0.15s_ease_both] items-center justify-center backdrop-blur-[1px]"
@@ -538,23 +527,14 @@ export function ChatWindow({
       {extensionCustomUi && <ExtensionCustomPanel request={extensionCustomUi} onInput={sendExtensionCustomInput} />}
 
       {isEmptyNew ? (
-        <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pt-8">
-          <div className="chat-content-column">
-            <div
-              className="mb-3"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                marginLeft: 16,
-                marginRight: 52,
-                fontFamily: "var(--font-mono)",
-              }}
-            >
+        <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-center overflow-y-auto px-4 pb-6">
+          <div className="chat-content-column flex flex-col items-center">
+            <div className="chat-welcome-line" style={{ "--line-i": 0 } as React.CSSProperties}>
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
+                  justifyContent: "center",
                   gap: 10,
                   lineHeight: 1.4,
                 }}
@@ -564,9 +544,9 @@ export function ChatWindow({
                   alt=""
                   aria-hidden="true"
                   style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: 6,
+                    width: 36,
+                    height: 36,
+                    borderRadius: "var(--bui-r-card)",
                     objectFit: "contain",
                     flexShrink: 0,
                     display: "block",
@@ -574,9 +554,9 @@ export function ChatWindow({
                 />
                 <span
                   style={{
-                    fontSize: scaledChatFont(22),
-                    color: "var(--text)",
-                    fontWeight: 700,
+                    fontSize: scaledChatFont(20),
+                    color: "var(--bui-ink)",
+                    fontWeight: 600,
                     letterSpacing: "-0.2px",
                     flexShrink: 0,
                     whiteSpace: "nowrap",
@@ -586,7 +566,23 @@ export function ChatWindow({
                 </span>
               </div>
             </div>
-            <NoticeShelf notices={notices} align="right" />
+            <div
+              className="chat-welcome-line"
+              style={
+                {
+                  "--line-i": 1,
+                  marginTop: 14,
+                  marginBottom: 22,
+                  fontSize: scaledChatFont(13),
+                  lineHeight: 1.6,
+                  color: "var(--bui-ink-2)",
+                  textAlign: "center",
+                } as React.CSSProperties
+              }
+            >
+              {t("welcomeGreeting", "What are we working on? Describe a task, paste an error, or drop in files.")}
+            </div>
+            <NoticeShelf notices={notices} align="center" />
           </div>
         </div>
       ) : (
@@ -874,8 +870,10 @@ export function ChatWindow({
                   )}
 
                   {agentRunning && !streamState.streamingMessage && (
-                    <div className="py-2 text-[13px] text-text-muted">
-                      <span className="animate-[pulse_1.5s_infinite]">{phaseLabel(agentPhase, t)}</span>
+                    <div className="py-2" style={{ fontSize: scaledChatFont(13) }}>
+                      <span className="chat-shimmer-text" style={{ fontWeight: 500 }}>
+                        {phaseLabel(agentPhase, t)}
+                      </span>
                     </div>
                   )}
 
@@ -1057,27 +1055,28 @@ function NoticeShelf({
 }: {
   notices: NoticeItem[];
   floating?: boolean;
-  align?: "left" | "right";
+  align?: "left" | "right" | "center";
 }) {
   if (notices.length === 0) return null;
+  const alignItems = align === "right" ? "flex-end" : align === "center" ? "center" : "stretch";
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: align === "right" ? "flex-end" : "stretch",
+        alignItems,
         marginBottom: floating ? 0 : 10,
       }}
     >
       {notices.map((notice, index) => {
         const color =
           notice.type === "error"
-            ? "#ef4444"
+            ? "var(--bui-red)"
             : notice.type === "warning"
-              ? "#d97706"
+              ? "var(--bui-orange)"
               : notice.type === "success"
-                ? "#10b981"
-                : "var(--accent)";
+                ? "var(--bui-green)"
+                : "var(--bui-accent)";
         return (
           <div
             key={notice.id}
@@ -1092,14 +1091,12 @@ function NoticeShelf({
               marginBottom: index === notices.length - 1 ? 0 : 6,
               overflow: "hidden",
               borderRadius: 14,
-              border: "1px solid color-mix(in srgb, var(--border) 70%, transparent)",
-              background: "var(--bg)",
-              color: "var(--text-muted)",
+              border: "1px solid var(--bui-line)",
+              background: "var(--bui-surface)",
+              color: "var(--bui-ink-2)",
               width: "fit-content",
               maxWidth: "min(100%, 620px)",
-              boxShadow: floating
-                ? "0 1px 2px rgba(15,23,42,0.05), 0 10px 28px -14px rgba(15,23,42,0.24)"
-                : "0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -12px rgba(15,23,42,0.10)",
+              boxShadow: floating ? "var(--bui-shadow-card)" : "var(--bui-shadow-btn)",
               fontSize: 18,
               lineHeight: 1.45,
               transformOrigin: "top center",
