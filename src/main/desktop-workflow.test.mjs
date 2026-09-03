@@ -17,12 +17,12 @@ function stepByName(jobName, stepName) {
 }
 
 test("main pushes package every supported desktop target", () => {
-  // Dexon placeholder era: the workflow is manually triggered only until the
-  // GitHub repository and release pipeline are configured. When release setup
-  // lands, restore the push/tag/PR triggers together with this assertion
-  // (upstream contract was: push.branches === ["main"]).
-  assert.equal(workflow.on.push, undefined);
-  assert.ok("workflow_dispatch" in workflow.on, "CI stays manually triggered during the placeholder era");
+  // Release era: pushes to main run the test + packaging-validation matrix,
+  // v* tags additionally drive the signed/unsigned release pipeline, and
+  // workflow_dispatch stays available for ad-hoc verification runs.
+  assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.deepEqual(workflow.on.push.tags, ["v*"]);
+  assert.ok("workflow_dispatch" in workflow.on, "manual runs stay available for ad-hoc verification");
   assert.equal(workflow.jobs.package.if, "github.ref_type != 'tag'");
   assert.deepEqual(
     workflow.jobs.package.strategy.matrix.include.map(({ tool_target }) => tool_target),
