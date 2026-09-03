@@ -151,6 +151,7 @@
   --radius-chip: 4px;
   --radius-control: 6px;
   --radius-card: 8px;
+  --radius-composer: 14px; /* chat composer shell only — the page's hero surface */
   --radius-pill: 999px;
   --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
 
@@ -324,6 +325,36 @@ body {
 
 .chat-composer-shell textarea:focus-visible {
   outline: none !important;
+}
+
+/* tactile press feedback for the composer's square buttons */
+.tap-scale:active {
+  transform: scale(0.94);
+}
+
+/* attachment chips pop in when added inside the composer shell */
+@keyframes composer-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.composer-pop-in {
+  animation: composer-pop-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .composer-pop-in {
+    animation: none;
+  }
+  .tap-scale:active {
+    transform: none;
+  }
 }
 
 .chat-input-bottom-spacer {

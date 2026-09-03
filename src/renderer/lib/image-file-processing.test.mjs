@@ -47,11 +47,12 @@ test("malformed reader output revokes every unusable preview", async () => {
 
 test("ChatInput preserves successes, reports failures, and owns pending previews", () => {
   const source = fs.readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
+  const bannerSource = fs.readFileSync(new URL("../components/chat-input/StatusBanners.tsx", import.meta.url), "utf8");
 
   assert.match(source, /const \{ images, failures \} = await processImageFileBatch\(imageFiles\)/);
   assert.match(source, /selectDraftImageAdditions\(attachedImagesRef\.current, images\)/);
   assert.match(source, /selection\.rejected\.forEach\(\(\{ image \}\) => revokeImagePreview\(image\)\)/);
-  assert.match(source, /role="alert"/);
+  assert.match(bannerSource, /role="alert"/);
   assert.match(
     source,
     /selection\.accepted\.forEach\(\(image\) => pendingImagePreviewsRef\.current\.add\(image\.previewUrl\)\)/,

@@ -371,6 +371,53 @@ test("@ project references and absolute local file references keep their distinc
   await act(async () => renderer.unmount());
 });
 
+test("＋ button expands the attachment menu and each row opens its own picker", async () => {
+  let renderer;
+  await act(async () => {
+    renderer = create(
+      createElement(ChatInput, {
+        cwd: "/workspace/project",
+        isStreaming: false,
+        onAbort() {},
+        onSend() {},
+      }),
+    );
+  });
+
+  const plusButton = renderer.root
+    .findAllByType("button")
+    .find((button) => button.props["aria-label"] === "Add images or local file references");
+  assert.ok(plusButton, "＋ attach button is rendered");
+  assert.notEqual(plusButton.props["aria-expanded"], true);
+
+  await act(async () => plusButton.props.onClick());
+  const rowText = (button) =>
+    button
+      .findAll((node) => node.type === "span")
+      .map((span) => renderedText(span))
+      .filter((text) => ["Add photos", "Add files"].includes(text));
+  const menuRows = renderer.root.findAllByType("button").filter((button) => rowText(button).length > 0);
+  assert.deepEqual(
+    menuRows.flatMap(rowText),
+    ["Add photos", "Add files"],
+    "menu lists one row per attachment entry point",
+  );
+  const plusAfterOpen = renderer.root
+    .findAllByType("button")
+    .find((button) => button.props["aria-label"] === "Add images or local file references");
+  assert.equal(plusAfterOpen.props["aria-expanded"], true);
+
+  await act(async () => menuRows[0].props.onMouseDown({ preventDefault() {} }));
+  const menuAfterPick = renderer.root.findAllByType("button").filter((button) => rowText(button).length > 0);
+  assert.equal(menuAfterPick.length, 0, "picking an entry point closes the menu");
+  const plusAfterPick = renderer.root
+    .findAllByType("button")
+    .find((button) => button.props["aria-label"] === "Add images or local file references");
+  assert.notEqual(plusAfterPick.props["aria-expanded"], true);
+
+  await act(async () => renderer.unmount());
+});
+
 test("streaming image queue attempts keep the complete draft in the composer", async () => {
   const draftKey = `image-queue-${Date.now()}`;
   storedValues.set(
@@ -409,11 +456,9 @@ test("streaming image queue attempts keep the complete draft in the composer", a
     );
   });
 
-  const followUpButton = renderer.root
-    .findAllByType("button")
-    .find((button) => button.children.some((child) => child === "Follow-up"));
-  assert.ok(followUpButton);
-  await act(async () => followUpButton.props.onClick());
+  const sendButton = renderer.root.findAllByType("button").find((button) => button.props["aria-label"] === "Send");
+  assert.ok(sendButton, "armed send square replaces the stop button while streaming");
+  await act(async () => sendButton.props.onClick());
 
   assert.deepEqual(queued, []);
   assert.equal(renderer.root.findByType("textarea").props.value, "send after the current response");
