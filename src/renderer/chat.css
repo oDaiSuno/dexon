@@ -307,9 +307,11 @@ html.dark .chat-appearance-scope {
   min-height: 28px;
 }
 
-/* Full thinking trace in a quiet gray content box (shared by the live tail,
-   the final message and the process-details group). */
-.chat-think-box {
+/* Expanded traces share one quiet gray content box — the full thinking trace
+   and tool call input/result details use an identical container form (live
+   tail, final message and process-details group alike). */
+.chat-think-box,
+.chat-tool-detail {
   margin: 0 0 2px 24px;
   padding: 8px 11px;
   border-radius: var(--bui-r-card);
@@ -392,10 +394,9 @@ html.dark .chat-tool-chip {
   font-variant-numeric: tabular-nums;
 }
 
+/* Box visuals come from the shared .chat-think-box rule above; only the
+   stacked input/result layout is tool-specific. */
 .chat-tool-detail {
-  margin: 2px 0 6px 8px;
-  padding: 2px 0 2px 14px;
-  border-left: 1px solid var(--bui-line);
   display: flex;
   flex-direction: column;
   gap: 4px;
