@@ -653,7 +653,12 @@ export async function projectModelsList(
   const enabledModels = settings.getEnabledModels();
   const visible = filterByExactEnabledModels(available, enabledModels);
   const models = visible
-    .map((model) => ({ id: model.id, name: model.name, provider: model.provider }))
+    .map((model) => ({
+      id: model.id,
+      name: model.name,
+      provider: model.provider,
+      ...(Array.isArray(model.input) ? { input: model.input } : {}),
+    }))
     .sort((a, b) => a.name.localeCompare(b.name) || a.provider.localeCompare(b.provider));
 
   const nameMap: Record<string, string> = {};

@@ -3,19 +3,15 @@ import test from "node:test";
 
 import {
   CHAT_DRAFT_SCHEMA_VERSION,
+  CHAT_DRAFT_V2_SCHEMA_VERSION,
   DraftPersistenceController,
-  MAX_PERSISTED_DRAFT_FILES,
   clearDraft,
-  decodedBase64ByteLength,
   flushDraft,
   getDraft,
-  persistableDraftFiles,
-  persistableDraftImages,
-  selectDraftImageAdditions,
   setDraft,
 } from "./draft-store.ts";
 
-test("draft storage clones values, writes only on flush, and removes empty drafts", (t) => {
+function withMemoryStorage(t) {
   const previousStorage = globalThis.localStorage;
   const values = new Map();
   globalThis.localStorage = {
@@ -27,83 +23,46 @@ test("draft storage clones values, writes only on flush, and removes empty draft
     if (previousStorage === undefined) delete globalThis.localStorage;
     else globalThis.localStorage = previousStorage;
   });
+  return values;
+}
+
+test("draft storage clones values, writes only on flush, and removes empty drafts", (t) => {
+  const values = withMemoryStorage(t);
 
   const key = `owner-${Date.now()}`;
-  const draft = { value: "hello", images: [{ data: "YQ==", mimeType: "image/png" }] };
-  setDraft(key, draft);
-  draft.value = "mutated";
-  assert.equal(getDraft(key).value, "hello");
+  setDraft(key, { value: "hello" });
+  assert.equal(getDraft(key)?.value, "hello");
   assert.equal(values.size, 0);
   flushDraft(key);
-  assert.equal(JSON.parse(values.values().next().value).value, "hello");
+  const stored = JSON.parse(values.values().next().value);
+  assert.equal(stored.schemaVersion, CHAT_DRAFT_SCHEMA_VERSION);
+  assert.equal(stored.value, "hello");
   clearDraft(key);
   assert.equal(values.size, 0);
 });
 
-test("base64 size accounting excludes oversized image sets before serialization", () => {
-  assert.equal(decodedBase64ByteLength("YQ=="), 1);
-  assert.equal(decodedBase64ByteLength("YWI="), 2);
-  assert.deepEqual(persistableDraftImages([{ data: "YQ==", mimeType: "image/png" }]).length, 1);
-  assert.deepEqual(persistableDraftImages([{ data: "A".repeat(3_000_000), mimeType: "image/png" }]), []);
+test("v3 drafts never persist legacy attachment fields", (t) => {
+  const values = withMemoryStorage(t);
+  const key = `legacy-fields-${Date.now()}`;
+  setDraft(key, { value: "text", images: [{ data: "YQ==", mimeType: "image/png" }], files: [] });
+  flushDraft(key);
+  const stored = JSON.parse(values.values().next().value);
+  assert.equal("images" in stored, false);
+  assert.equal("files" in stored, false);
 });
 
-test("image additions are rejected with distinct count and byte-limit reasons", () => {
-  const tiny = (name) => ({ name, data: "YQ==", mimeType: "image/png" });
-  const countSelection = selectDraftImageAdditions(
-    [tiny("one"), tiny("two"), tiny("three"), tiny("four")],
-    [tiny("five")],
-  );
-  assert.deepEqual(countSelection.accepted, []);
-  assert.equal(countSelection.rejected[0].reason, "count");
+test("loading a v2 draft surfaces legacy images and files for token migration", (t) => {
+  const values = withMemoryStorage(t);
 
-  const byteSelection = selectDraftImageAdditions(
-    [],
-    [{ data: "A".repeat(2_100_000), mimeType: "image/png" }, tiny("small")],
-  );
-  assert.deepEqual(byteSelection.accepted, [tiny("small")]);
-  assert.equal(byteSelection.rejected[0].reason, "bytes");
-});
-
-test("draft files require absolute paths, are deduplicated, and share the persisted limit", () => {
-  const files = [
-    { name: "one", path: "/tmp/one.txt" },
-    { name: "duplicate", path: "/tmp/one.txt" },
-    { name: "relative", path: "tmp/two.txt" },
-    ...Array.from({ length: MAX_PERSISTED_DRAFT_FILES + 2 }, (_, index) => ({
-      name: `file-${index}`,
-      path: `C:\\work\\file-${index}.txt`,
-    })),
-  ];
-  const persisted = persistableDraftFiles(files);
-  assert.equal(persisted.length, MAX_PERSISTED_DRAFT_FILES);
-  assert.equal(persisted[0].path, "/tmp/one.txt");
-  assert.equal(
-    persisted.some((file) => file.path === "tmp/two.txt"),
-    false,
-  );
-});
-
-test("loads legacy drafts, rejects future schemas, and validates restored fields", (t) => {
-  const previousStorage = globalThis.localStorage;
-  const values = new Map();
-  globalThis.localStorage = {
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => values.set(key, value),
-    removeItem: (key) => values.delete(key),
-  };
-  t.after(() => {
-    if (previousStorage === undefined) delete globalThis.localStorage;
-    else globalThis.localStorage = previousStorage;
-  });
-
-  const legacyKey = `dexon-draft:legacy-${Date.now()}`;
+  const legacyKey = `legacy-${Date.now()}`;
   values.set(
-    legacyKey,
+    `dexon-draft:${legacyKey}`,
     JSON.stringify({
+      schemaVersion: CHAT_DRAFT_V2_SCHEMA_VERSION,
       value: "legacy",
       images: [
         { data: "YQ==", mimeType: "image/png" },
-        { data: "bad", mimeType: "text/plain" },
+        { data: 42, mimeType: "image/png" },
       ],
       files: [
         { name: "ok", path: "/tmp/ok.txt" },
@@ -111,15 +70,17 @@ test("loads legacy drafts, rejects future schemas, and validates restored fields
       ],
     }),
   );
-  assert.deepEqual(getDraft(legacyKey.slice("dexon-draft:".length)), {
-    value: "legacy",
-    images: [{ data: "YQ==", mimeType: "image/png" }],
-    files: [{ name: "ok", path: "/tmp/ok.txt" }],
-  });
+  const draft = getDraft(legacyKey);
+  assert.equal(draft?.value, "legacy");
+  assert.deepEqual(draft?.images, [{ data: "YQ==", mimeType: "image/png" }]);
+  assert.deepEqual(draft?.files, [{ name: "ok", path: "/tmp/ok.txt" }]);
 
-  const futureKey = `dexon-draft:future-${Date.now()}`;
-  values.set(futureKey, JSON.stringify({ schemaVersion: CHAT_DRAFT_SCHEMA_VERSION + 1, value: "future", images: [] }));
-  assert.equal(getDraft(futureKey.slice("dexon-draft:".length)), null);
+  const futureKey = `future-${Date.now()}`;
+  values.set(
+    `dexon-draft:${futureKey}`,
+    JSON.stringify({ schemaVersion: CHAT_DRAFT_SCHEMA_VERSION + 1, value: "future" }),
+  );
+  assert.equal(getDraft(futureKey), null);
 });
 
 test("draft controller flushes ownership on key changes and disposal", () => {
@@ -135,8 +96,8 @@ test("draft controller flushes ownership on key changes and disposal", () => {
     },
     clearTimer: () => events.push("cancel"),
   });
-  controller.schedule("one", { value: "1", images: [] });
-  controller.schedule("two", { value: "2", images: [] });
+  controller.schedule("one", { value: "1" });
+  controller.schedule("two", { value: "2" });
   scheduled();
   controller.dispose();
   assert.deepEqual(events, ["stage:one", "cancel", "flush:one", "stage:two", "flush:two"]);
@@ -155,7 +116,7 @@ test("draft controller reports persistence failures", () => {
     },
     (key) => errors.push(key),
   );
-  assert.equal(controller.commit("one", { value: "draft", images: [], files: [] }), false);
+  assert.equal(controller.commit("one", { value: "draft" }), false);
   assert.equal(controller.clear("two"), false);
   assert.deepEqual(errors, ["one", "two"]);
 });

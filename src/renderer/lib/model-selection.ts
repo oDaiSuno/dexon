@@ -64,3 +64,18 @@ export function setProviderModelsEnabled(
     }
   });
 }
+
+/**
+ * Whether the model accepts image input, based on its declared input modalities.
+ * Returns null when the modality is unknown (model absent from the list or the
+ * catalog carries no `input` field) so callers can avoid false gating.
+ */
+export function modelSupportsImages(
+  model: Pick<ModelInfo, "provider" | "id"> | null | undefined,
+  models: readonly ModelInfo[],
+): boolean | null {
+  if (!model) return null;
+  const entry = models.find((candidate) => candidate.provider === model.provider && candidate.id === model.id);
+  if (!entry || !Array.isArray(entry.input)) return null;
+  return entry.input.includes("image");
+}

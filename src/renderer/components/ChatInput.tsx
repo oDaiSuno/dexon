@@ -8,24 +8,15 @@ import React, {
   forwardRef,
   KeyboardEvent,
 } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import type {
   BuiltinSlashCommandResult,
   CompactResultInfo,
   QueuedMessages,
   SlashCommandInfo,
 } from "@/hooks/useAgentSession";
-import {
-  DraftPersistenceController,
-  MAX_PERSISTED_DRAFT_FILES,
-  MAX_PERSISTED_DRAFT_IMAGES,
-  MAX_PERSISTED_DRAFT_IMAGE_BYTES,
-  getDraft,
-  selectDraftImageAdditions,
-  type ChatDraftImage,
-} from "@/lib/draft-store";
+import { DraftPersistenceController, getDraft } from "@/lib/draft-store";
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
-import { buildAtInsertText, extractAtQuery, type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
+import { extractAtQuery, type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
 import {
   FileSuggestionLruCache,
   fileSuggestionCacheKey,
@@ -36,15 +27,17 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import type { ModelCatalogStatus } from "@contract/types";
 import { processImageFileBatch } from "@/lib/image-file-processing";
-import { localFilePathKey, localFileReferenceToMarkdown, type LocalFileReference } from "@/lib/file-url";
+import { ImageNormalizationError } from "@/lib/image-normalization";
+import { modelSupportsImages } from "@/lib/model-selection";
 import {
   captureComposerSubmission,
   failedComposerSubmissionAction,
-  mergeFailedSubmissionFiles,
-  mergeFailedSubmissionImages,
+  failedComposerSubmissionValue,
   type ComposerSubmissionSnapshot,
 } from "@/lib/composer-submission";
-import { AttachmentTray } from "./chat-input/AttachmentTray";
+import { findAttachmentTokens, insertAttachmentToken, isImagePath } from "@shared/attachment-tokens";
+import { loadAttachmentPreview, registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
+import { ComposerEditable, type ComposerEditableHandle } from "./chat-input/ComposerEditable";
 import { AtMenu } from "./chat-input/AtMenu";
 import { ModelPicker, compareModelOptions, type ModelOption } from "./chat-input/ModelPicker";
 import { PlusMenu } from "./chat-input/PlusMenu";
@@ -59,29 +52,19 @@ import {
   type SlashCommandPaletteItem,
   type SlashCommandSource,
 } from "./chat-input/slash-commands";
-import { PlusIcon } from "./chat-input/icons";
-
-export interface AttachedImage {
-  data: string; // base64, no prefix
-  mimeType: string;
-  previewUrl: string; // object URL for display
-}
+import { PaperclipIcon, PlusIcon } from "./chat-input/icons";
 
 interface Props {
-  onSend: (message: string, images?: AttachedImage[]) => void;
+  onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
   onAbort: () => void;
-  onSteer?: (message: string, images?: AttachedImage[]) => Promise<void> | void;
-  onFollowUp?: (message: string, images?: AttachedImage[]) => Promise<void> | void;
-  onPromptWithStreamingBehavior?: (
-    message: string,
-    behavior: "steer" | "followUp",
-    images?: AttachedImage[],
-  ) => Promise<void> | void;
+  onSteer?: (message: string) => Promise<void> | void;
+  onFollowUp?: (message: string) => Promise<void> | void;
+  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp") => Promise<void> | void;
   isStreaming: boolean;
   model?: { provider: string; modelId: string } | null;
   isAutoModelSelection?: boolean;
   modelNames?: Record<string, string>;
-  modelList?: { id: string; name: string; provider: string }[];
+  modelList?: { id: string; name: string; provider: string; input?: ("text" | "image")[] }[];
   modelCatalog?: ModelCatalogStatus;
   modelRefreshing?: boolean;
   onModelChange?: (provider: string, modelId: string) => void;
@@ -121,20 +104,19 @@ export interface ChatInputHandle {
 
 const COMPOSITION_END_ENTER_GRACE_MS = 100;
 
-function imageToDraftImage(image: AttachedImage): ChatDraftImage {
-  return { data: image.data, mimeType: image.mimeType };
-}
-
-function draftImageToAttachedImage(image: ChatDraftImage): AttachedImage {
-  return {
-    ...image,
-    previewUrl: `data:${image.mimeType};base64,${image.data}`,
-  };
-}
-
-function revokeImagePreview(image: AttachedImage): void {
-  if (image.previewUrl.startsWith("blob:")) {
-    URL.revokeObjectURL(image.previewUrl);
+function extensionForImageMime(mimeType: string): string | null {
+  const base = mimeType.split(";")[0]?.trim().toLowerCase() ?? "";
+  switch (base) {
+    case "image/png":
+      return "png";
+    case "image/jpeg":
+      return "jpg";
+    case "image/gif":
+      return "gif";
+    case "image/webp":
+      return "webp";
+    default:
+      return null;
   }
 }
 
@@ -181,20 +163,15 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   ref,
 ) {
   const isMobile = useIsMobile();
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const [value, setValueState] = useState(() => (draftKey ? (getDraft(draftKey)?.value ?? "") : ""));
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
   const [modelDropdownRect, setModelDropdownRect] = useState<{ top: number; left: number; width: number } | null>(null);
   const [thinkingDropdownOpen, setThinkingDropdownOpen] = useState(false);
-  const [attachedImages, setAttachedImagesState] = useState<AttachedImage[]>(() =>
-    draftKey ? (getDraft(draftKey)?.images.map(draftImageToAttachedImage) ?? []) : [],
-  );
-  const [attachedFiles, setAttachedFilesState] = useState<LocalFileReference[]>(() =>
-    draftKey ? (getDraft(draftKey)?.files?.map((file) => ({ ...file })) ?? []) : [],
-  );
   const [fileInspectionByPath, setFileInspectionByPath] = useState<
     Map<string, { exists: boolean; isFile: boolean; insideCwd: boolean }>
   >(new Map());
+  const [tokenPreviewsByPath, setTokenPreviewsByPath] = useState<Map<string, string | null>>(new Map());
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [atQuery, setAtQuery] = useState<AtQueryMatch | null>(null);
@@ -213,7 +190,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editableRef = useRef<ComposerEditableHandle | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const modelButtonRef = useRef<HTMLButtonElement>(null);
   const modelDropdownPanelRef = useRef<HTMLDivElement>(null);
@@ -231,12 +208,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [plusMenuOpen]);
-  const openPicker = (kind: "images" | "files") => {
+  const openPicker = () => {
     setPlusMenuOpen(false);
     const input = fileInputRef.current;
     if (!input) return;
-    if (kind === "images") input.accept = "image/*";
-    else input.removeAttribute("accept");
+    input.removeAttribute("accept");
     input.click();
   };
   const isComposingRef = useRef(false);
@@ -248,11 +224,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const fileSuggestionRequestRef = useRef(new LatestAbortableRequest());
   const draftKeyRef = useRef(draftKey);
   const valueRef = useRef(value);
-  const attachedImagesRef = useRef(attachedImages);
-  const attachedFilesRef = useRef(attachedFiles);
-  const imageBatchGenerationRef = useRef(0);
-  const imageProcessingActiveRef = useRef(true);
-  const pendingImagePreviewsRef = useRef(new Set<string>());
   const inputRevisionRef = useRef(0);
   const draftPersistenceErrorHandlerRef = useRef<() => void>(() => {});
   const draftPersistenceRef = useRef<DraftPersistenceController | null>(null);
@@ -274,139 +245,117 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     valueRef.current = resolved;
     setValueState(resolved);
   }, []);
-  const setAttachedImages = useCallback((next: React.SetStateAction<AttachedImage[]>) => {
-    const resolved = typeof next === "function" ? next(attachedImagesRef.current) : next;
-    inputRevisionRef.current += 1;
-    attachedImagesRef.current = resolved;
-    setAttachedImagesState(resolved);
-  }, []);
-  const setAttachedFiles = useCallback((next: React.SetStateAction<LocalFileReference[]>) => {
-    const resolved = typeof next === "function" ? next(attachedFilesRef.current) : next;
-    inputRevisionRef.current += 1;
-    attachedFilesRef.current = resolved;
-    setAttachedFilesState(resolved);
-  }, []);
   valueRef.current = value;
-  attachedImagesRef.current = attachedImages;
-  attachedFilesRef.current = attachedFiles;
+
+  // In-sentence attachment tokens are the single source of truth: they are
+  // literal `@path` text in the message value, inserted by every entry point
+  // (paste, plus-menu, drag-drop, @ autocomplete) and read by the model via
+  // the `read` tool.
+  const attachmentTokens = React.useMemo(() => findAttachmentTokens(value), [value]);
+  const missingTokenInspections = React.useMemo(() => {
+    const next = new Map<string, boolean>();
+    for (const token of attachmentTokens) {
+      const inspection = fileInspectionByPath.get(token.path);
+      if (inspection && !inspection.exists) next.set(token.path, true);
+    }
+    return next;
+  }, [attachmentTokens, fileInspectionByPath]);
+  // Declared input modalities of the selected model; null when unknown.
+  const selectedModelSupportsImages = modelSupportsImages(
+    model ? { provider: model.provider, id: model.modelId } : null,
+    modelList ?? [],
+  );
 
   useImperativeHandle(ref, () => ({
     insertIfEmpty(text: string) {
-      const ta = textareaRef.current;
-      const current = ta ? ta.value : value;
-      if (current.trim()) return;
-      setValue(text);
+      if (value.trim()) return;
+      editableRef.current?.focus();
+      editableRef.current?.setValue(text);
       setAtQuery(null);
-      requestAnimationFrame(() => {
-        if (!ta) return;
-        ta.focus();
-        ta.style.height = "auto";
-        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-      });
     },
     prependText(text: string) {
       if (!text.trim()) return;
-      const ta = textareaRef.current;
-      const current = ta ? ta.value : value;
       // Mirrors the TUI's queue restore: queued text first, then whatever
       // the user already typed, separated by a blank line.
-      const combined = [text, current].filter((t) => t.trim()).join("\n\n");
-      setValue(combined);
+      const combined = [text, valueRef.current].filter((t) => t.trim()).join("\n\n");
+      editableRef.current?.focus();
+      editableRef.current?.setValue(combined);
       setAtQuery(null);
-      requestAnimationFrame(() => {
-        if (!ta) return;
-        ta.focus();
-        ta.setSelectionRange(combined.length, combined.length);
-        ta.style.height = "auto";
-        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-      });
     },
     insertText(text: string) {
-      const ta = textareaRef.current;
-      if (!ta) {
-        setValue((v) => v + (v ? " " : "") + text);
-        return;
-      }
-      const start = ta.selectionStart ?? ta.value.length;
-      const end = ta.selectionEnd ?? ta.value.length;
-      const before = ta.value.slice(0, start);
-      const after = ta.value.slice(end);
-      const sep = before.length > 0 && !before.endsWith(" ") ? " " : "";
-      const newVal = before + sep + text + after;
-      setValue(newVal);
+      editableRef.current?.insertTextAtCaret(text);
       setAtQuery(null);
-      requestAnimationFrame(() => {
-        if (!ta) return;
-        const pos = start + sep.length + text.length;
-        ta.setSelectionRange(pos, pos);
-        ta.focus();
-        ta.style.height = "auto";
-        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-      });
     },
     addFiles(files: File[]) {
       void processFiles(files);
     },
+    insertToken(path: string) {
+      insertAttachmentPath(path);
+    },
   }));
 
-  const processImageAttachments = useCallback(
-    async (imageFiles: File[]): Promise<string[]> => {
-      if (imageFiles.length === 0) return [];
-      const generation = ++imageBatchGenerationRef.current;
-      const { images, failures } = await processImageFileBatch(imageFiles);
-      if (!imageProcessingActiveRef.current) {
-        images.forEach(revokeImagePreview);
-        return [];
+  /** Append a closed chip at the caret (or text end) and keep the value in sync. */
+  const insertAttachmentPath = useCallback((path: string) => {
+    editableRef.current?.insertTokenAtCaret(path);
+    setAtQuery(null);
+  }, []);
+
+  /** Stage one clipboard image (normalize → bridge write → token). */
+  const stageClipboardImageFile = useCallback(
+    async (file: File): Promise<{ ok: boolean; code?: string }> => {
+      const { images, failures } = await processImageFileBatch([file]);
+      const image = images[0];
+      if (!image) {
+        const failure = failures[0]?.error;
+        return { ok: false, code: failure instanceof ImageNormalizationError ? failure.code : "attach-failed" };
       }
-      const notices: string[] = [];
-      if (images.length > 0) {
-        const selection = selectDraftImageAdditions(attachedImagesRef.current, images);
-        selection.accepted.forEach((image) => pendingImagePreviewsRef.current.add(image.previewUrl));
-        selection.rejected.forEach(({ image }) => revokeImagePreview(image));
-        if (selection.accepted.length > 0) {
-          setAttachedImages((prev) => [...prev, ...selection.accepted]);
-        }
-        if (selection.rejected.some(({ reason }) => reason === "count")) {
-          notices.push(
-            t(
-              "draftImageCountLimit",
-              "A draft can save up to {count} images. Remove an image before adding another.",
-            ).replace("{count}", String(MAX_PERSISTED_DRAFT_IMAGES)),
-          );
-        }
-        if (selection.rejected.some(({ reason }) => reason === "bytes")) {
-          notices.push(
-            t(
-              "draftImageSizeLimit",
-              "The total image size exceeds the {size} MB draft limit. Remove or compress some images.",
-            ).replace("{size}", String(MAX_PERSISTED_DRAFT_IMAGE_BYTES / 1024 / 1024)),
-          );
-        }
-      }
-      if (generation === imageBatchGenerationRef.current && failures.length > 0) {
-        notices.push(
-          images.length > 0
-            ? t("someImagesAttachFailed", "{failed} of {total} images could not be attached")
-                .replace("{failed}", String(failures.length))
-                .replace("{total}", String(imageFiles.length))
-            : t("imagesAttachFailed", "The selected images could not be attached"),
-        );
-      }
-      return notices;
+      const result = await window.piBridge?.stageClipboardImage?.({
+        base64: image.data,
+        ext: extensionForImageMime(image.mimeType) ?? "png",
+      });
+      if (!result?.ok) return { ok: false, code: result?.code ?? "stage-unavailable" };
+      registerStagedPreviewUrl(result.staged.path, image.previewUrl);
+      insertAttachmentPath(result.staged.path);
+      return { ok: true };
     },
-    [setAttachedImages, t],
+    [insertAttachmentPath],
   );
 
-  const processLocalFileReferences = useCallback(
-    (files: File[]): string[] => {
-      if (files.length === 0) return [];
+  const processFiles = useCallback(
+    async (files: File[]) => {
+      // Attaching is allowed while streaming; sending is gated separately, so
+      // the user can prepare references for the next prompt while the agent runs.
       const notices: string[] = [];
-      const newFiles: LocalFileReference[] = [];
+      let staged = 0;
+      let failed = 0;
+      let unsupportedOnly = true;
       let pathlessCount = 0;
       for (const file of files) {
+        // Files that already live on disk (drag-drop, file picker) become
+        // references directly — no copy, no staging.
         const absolutePath = window.piBridge?.getPathForFile?.(file) ?? "";
-        if (absolutePath) newFiles.push({ name: file.name, path: absolutePath });
-        else pathlessCount += 1;
+        if (absolutePath) {
+          insertAttachmentPath(absolutePath);
+          continue;
+        }
+        if (!file.type.startsWith("image/")) {
+          pathlessCount += 1;
+          continue;
+        }
+        // Clipboard bitmaps have no path: normalize (resize/format gate) then
+        // write them to the pi-clipboard temp staging area.
+        try {
+          const result = await stageClipboardImageFile(file);
+          if (result.ok) {
+            staged += 1;
+            continue;
+          }
+          failed += 1;
+          if (result.code !== "unsupported-format") unsupportedOnly = false;
+        } catch {
+          failed += 1;
+          unsupportedOnly = false;
+        }
       }
       if (pathlessCount > 0) {
         notices.push(
@@ -416,73 +365,31 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
           ),
         );
       }
-      if (newFiles.length === 0) return notices;
-
-      const next = [...attachedFilesRef.current];
-      const seen = new Set(next.map((file) => localFilePathKey(file.path)));
-      let limitReached = false;
-      for (const file of newFiles) {
-        const key = localFilePathKey(file.path);
-        if (!key || seen.has(key)) continue;
-        if (next.length >= MAX_PERSISTED_DRAFT_FILES) {
-          limitReached = true;
-          break;
-        }
-        seen.add(key);
-        next.push(file);
-      }
-      setAttachedFiles(next);
-      if (limitReached) {
+      if (failed > 0) {
         notices.push(
-          t("localFileReferenceLimit", "A maximum of {count} local file references can be added").replace(
-            "{count}",
-            String(MAX_PERSISTED_DRAFT_FILES),
+          staged > 0
+            ? t("someImagesAttachFailed", "{failed} of {total} images could not be attached")
+                .replace("{failed}", String(failed))
+                .replace("{total}", String(failed + staged))
+            : unsupportedOnly
+              ? t(
+                  "imageFormatUnsupported",
+                  "This image format is not supported. Convert it to PNG or JPEG and try again.",
+                )
+              : t("imagesAttachFailed", "The selected images could not be attached"),
+        );
+      }
+      if (staged > 0 && selectedModelSupportsImages === false) {
+        notices.push(
+          t(
+            "modelImageUnsupported",
+            "The selected model does not accept image input. Attached images will not be shown to the model.",
           ),
         );
       }
-      return notices;
-    },
-    [setAttachedFiles, t],
-  );
-
-  const processFiles = useCallback(
-    async (files: File[]) => {
-      // Attaching is allowed while streaming; sending is gated separately,
-      // so the user can prepare files for the next prompt while the agent runs.
-      const imageFiles = files.filter((file) => file.type.startsWith("image/"));
-      const localFiles = files.filter((file) => !file.type.startsWith("image/"));
-      const notices = await processImageAttachments(imageFiles);
-      if (!imageProcessingActiveRef.current) return;
-      notices.push(...processLocalFileReferences(localFiles));
       setImageAttachNotice(notices.length > 0 ? notices.join(". ") : null);
     },
-    [processImageAttachments, processLocalFileReferences],
-  );
-
-  const removeImage = useCallback(
-    (index: number) => {
-      setAttachedImages((prev) => {
-        const next = [...prev];
-        const [removed] = next.splice(index, 1);
-        if (removed) revokeImagePreview(removed);
-        return next;
-      });
-    },
-    [setAttachedImages],
-  );
-
-  const clearImages = useCallback(() => {
-    setAttachedImages((prev) => {
-      prev.forEach(revokeImagePreview);
-      return [];
-    });
-  }, [setAttachedImages]);
-
-  const removeFile = useCallback(
-    (index: number) => {
-      setAttachedFiles((prev) => prev.filter((_, i) => i !== index));
-    },
-    [setAttachedFiles],
+    [insertAttachmentPath, selectedModelSupportsImages, stageClipboardImageFile, t],
   );
 
   const clearInput = useCallback(() => {
@@ -492,27 +399,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (draftKeyRef.current && draftKeyRef.current !== draftKey) {
       draftPersistenceRef.current?.clear(draftKeyRef.current);
     }
-    clearImages();
-    setAttachedFiles([]);
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
-  }, [clearImages, draftKey, setAttachedFiles, setValue]);
+  }, [draftKey, setValue]);
 
   const restoreFailedSubmission = useCallback(
     (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue") => {
       const action = failedComposerSubmissionAction(clearedAtRevision, inputRevisionRef.current);
       if (action === "restore") {
-        setValue(snapshot.value);
-        setAttachedImages(snapshot.images);
-        setAttachedFiles(snapshot.files ?? []);
-      } else {
-        if (snapshot.images.length > 0) {
-          setAttachedImages((current) => mergeFailedSubmissionImages(current, snapshot.images));
-        }
-        if (snapshot.files.length > 0) {
-          setAttachedFiles((current) => mergeFailedSubmissionFiles(current, snapshot.files));
-        }
+        setValue(failedComposerSubmissionValue(snapshot));
       }
       setSubmissionNotice(
         action === "restore"
@@ -524,7 +417,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
             : t("messageNotQueuedNewDraftKept", "The previous message could not be queued. Your newer draft was kept."),
       );
     },
-    [setAttachedFiles, setAttachedImages, setValue, t],
+    [setValue, t],
   );
 
   const commitCurrentDraft = useCallback(() => {
@@ -532,8 +425,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (!currentDraftKey) return;
     draftPersistenceRef.current?.commit(currentDraftKey, {
       value: valueRef.current,
-      images: attachedImagesRef.current.map(imageToDraftImage),
-      files: attachedFilesRef.current,
     });
   }, []);
 
@@ -541,10 +432,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (!draftKey || draftKeyRef.current !== draftKey) return;
     draftPersistenceRef.current?.schedule(draftKey, {
       value,
-      images: attachedImages.map(imageToDraftImage),
-      files: attachedFiles,
     });
-  }, [attachedFiles, attachedImages, draftKey, value]);
+  }, [draftKey, value]);
 
   useEffect(() => {
     const previousDraftKey = draftKeyRef.current;
@@ -553,8 +442,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     if (previousDraftKey) {
       draftPersistenceRef.current?.commit(previousDraftKey, {
         value: valueRef.current,
-        images: attachedImagesRef.current.map(imageToDraftImage),
-        files: attachedFilesRef.current,
       });
     }
 
@@ -562,36 +449,65 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     draftKeyRef.current = draftKey;
     setValue(draft?.value ?? "");
     setAtQuery(null);
-    setAttachedImages((prev) => {
-      prev.forEach(revokeImagePreview);
-      return draft?.images.map(draftImageToAttachedImage) ?? [];
-    });
-    setAttachedFiles(draft?.files?.map((file) => ({ ...file })) ?? []);
-  }, [draftKey, setAttachedFiles, setAttachedImages, setValue]);
+    // Legacy v2 drafts stored base64 images plus file references separately.
+    // Migrate them into in-sentence tokens: images are staged to the temp
+    // area, files become plain path references. Anything that cannot be
+    // migrated (bridge unavailable, staging rejected) is dropped with a note.
+    if (draft?.images?.length || draft?.files?.length) {
+      void (async () => {
+        const notices: string[] = [];
+        let value = draft?.value ?? "";
+        for (const image of draft?.images ?? []) {
+          try {
+            const result = await window.piBridge?.stageClipboardImage?.({
+              base64: image.data,
+              ext: extensionForImageMime(image.mimeType) ?? "",
+            });
+            if (result?.ok) {
+              registerStagedPreviewUrl(result.staged.path, `data:${image.mimeType};base64,${image.data}`);
+              const appended = insertAttachmentToken(value, null, result.staged.path);
+              value = appended.value;
+            }
+          } catch {
+            // fall through to the migration-failed notice below
+          }
+        }
+        for (const file of draft?.files ?? []) {
+          const appended = insertAttachmentToken(value, null, file.path);
+          value = appended.value;
+        }
+        if (value !== (draft?.value ?? "")) setValue(value);
+        if (draft?.images?.length) {
+          notices.push(
+            t("draftImageMigrationFailed", "Some images from your draft could not be restored and were removed."),
+          );
+        }
+        if (notices.length > 0) setImageAttachNotice(notices.join(". "));
+      })();
+    }
+  }, [draftKey, setValue, t]);
 
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    if (value) ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-  }, [value]);
+  const tokenPaths = React.useMemo(
+    () => Array.from(new Set(attachmentTokens.map((token) => token.path))),
+    [attachmentTokens],
+  );
 
   useEffect(() => {
     let cancelled = false;
-    if (attachedFiles.length === 0 || !window.piBridge?.inspectLocalFiles) {
+    if (attachmentTokens.length === 0 || !window.piBridge?.inspectLocalFiles) {
       setFileInspectionByPath(new Map());
       return () => {
         cancelled = true;
       };
     }
     void window.piBridge
-      .inspectLocalFiles({ paths: attachedFiles.map((file) => file.path), cwd: cwd ?? undefined })
+      .inspectLocalFiles({ paths: tokenPaths.slice(0, 8), cwd: cwd ?? undefined })
       .then((inspections) => {
         if (cancelled) return;
         const next = new Map<string, { exists: boolean; isFile: boolean; insideCwd: boolean }>();
         inspections.forEach((inspection, index) => {
-          const file = attachedFiles[index];
-          if (file) next.set(localFilePathKey(file.path), inspection);
+          const tokenPath = tokenPaths[index];
+          if (tokenPath) next.set(tokenPath, inspection);
         });
         setFileInspectionByPath(next);
       })
@@ -601,80 +517,62 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     return () => {
       cancelled = true;
     };
-  }, [attachedFiles, cwd]);
+  }, [attachmentTokens.length, cwd, tokenPaths]);
 
   useEffect(() => {
-    for (const image of attachedImages) pendingImagePreviewsRef.current.delete(image.previewUrl);
-  }, [attachedImages]);
-
-  useEffect(() => {
-    const pendingPreviews = pendingImagePreviewsRef.current;
-    imageProcessingActiveRef.current = true;
     return () => {
-      imageProcessingActiveRef.current = false;
       commitCurrentDraft();
       draftPersistenceRef.current?.dispose();
-      for (const previewUrl of pendingPreviews) URL.revokeObjectURL(previewUrl);
-      pendingPreviews.clear();
-      attachedImagesRef.current.forEach(revokeImagePreview);
     };
   }, [commitCurrentDraft]);
 
-  const validateLocalFileReferences = useCallback(
-    async (files: readonly LocalFileReference[]): Promise<boolean> => {
-      if (files.length === 0) return true;
-      const inspections = await window.piBridge?.inspectLocalFiles?.({
-        paths: files.map((file) => file.path),
-        cwd: cwd ?? undefined,
+  // Resolve thumbnails for image tokens (fresh pastes hit the staged-preview
+  // cache; everything else goes through the files.read bridge and may be
+  // unavailable for unsent drafts).
+  useEffect(() => {
+    let cancelled = false;
+    const imagePaths = tokenPaths.filter(isImagePath);
+    if (imagePaths.length === 0) {
+      setTokenPreviewsByPath((prev) => (prev.size === 0 ? prev : new Map()));
+      return () => {
+        cancelled = true;
+      };
+    }
+    imagePaths.forEach((path) => {
+      if (tokenPreviewsByPath.has(path)) return;
+      void loadAttachmentPreview(path).then((url) => {
+        if (cancelled) return;
+        setTokenPreviewsByPath((prev) => {
+          const next = new Map(prev);
+          next.set(path, url);
+          return next;
+        });
       });
-      if (!inspections || inspections.length !== files.length) {
-        setSubmissionNotice(t("localFileValidationFailed", "Local file references could not be validated."));
-        return false;
-      }
-      const invalidNames = files
-        .filter((_file, index) => !inspections[index]?.exists || !inspections[index]?.isFile)
-        .map((file) => file.name);
-      if (invalidNames.length > 0) {
-        setSubmissionNotice(
-          t("localFilesUnavailable", "These local files are missing or unavailable: {files}").replace(
-            "{files}",
-            invalidNames.join(", "),
-          ),
-        );
-        return false;
-      }
-      return true;
-    },
-    [cwd, t],
-  );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tokenPaths, tokenPreviewsByPath]);
 
   const handleSend = useCallback(async () => {
-    const text = value.trim();
-    const msg = [text, ...attachedFiles.map(localFileReferenceToMarkdown)].filter(Boolean).join(" ");
-    if (!msg && !attachedImages.length) return;
+    const msg = value.trim();
+    if (!msg) return;
     if (isStreaming) return;
-    const validationRevision = inputRevisionRef.current;
-    if (!(await validateLocalFileReferences(attachedFiles))) return;
-    if (validationRevision !== inputRevisionRef.current) {
-      setSubmissionNotice(t("draftChangedDuringValidation", "The draft changed while files were checked. Send again."));
-      return;
-    }
     onAudioUnlock?.();
-    const snapshot = captureComposerSubmission(value, attachedImages, attachedFiles);
+    const snapshot = captureComposerSubmission(value);
     setSubmissionNotice(null);
     commitCurrentDraft();
     clearInput();
     const clearedAtRevision = inputRevisionRef.current;
     try {
-      if (!attachedImages.length && !attachedFiles.length && msg.startsWith("/") && onBuiltinCommand) {
+      if (!attachmentTokens.length && msg.startsWith("/") && onBuiltinCommand) {
         const result = await onBuiltinCommand(msg);
         if (result.handled) {
           if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send");
           return;
         }
       }
-      const result = onSend(msg, attachedImages.length ? attachedImages : undefined) as
-        void | Promise<unknown> | { ok?: boolean };
+      const result = onSend(msg) as void | Promise<unknown> | { ok?: boolean };
       const settled = await Promise.resolve(result);
       if (settled && typeof settled === "object" && "ok" in settled && settled.ok === false) {
         restoreFailedSubmission(snapshot, clearedAtRevision, "send");
@@ -684,17 +582,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
       restoreFailedSubmission(snapshot, clearedAtRevision, "send");
     }
   }, [
-    attachedFiles,
-    attachedImages,
     clearInput,
     commitCurrentDraft,
+    attachmentTokens.length,
     isStreaming,
     onAudioUnlock,
     onBuiltinCommand,
     onSend,
     restoreFailedSubmission,
-    t,
-    validateLocalFileReferences,
     value,
   ]);
 
@@ -735,20 +630,19 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
         ? t("matchCount", "{count} matches").replace("{count}", String(filteredSlashCommands.length))
         : t("commandCount", "{count} commands").replace("{count}", String(filteredSlashCommands.length));
   const hasInputText = Boolean(value.trim());
-  const hasAttachments = attachedImages.length > 0 || attachedFiles.length > 0;
-  const canSend = hasInputText || hasAttachments;
+  const canSend = hasInputText;
 
   // ── @ file autocomplete ──────────────────────────────────────────────────
   // Recomputed from the text before the caret on every change/caret move.
   // Disabled entirely when there is no cwd (new session without a directory).
+  // `text` is the serialized text before the caret (derived from the DOM).
   const updateAtQuery = useCallback(
-    (text: string, cursor: number | null) => {
+    (text: string) => {
       if (!cwd) {
         setAtQuery(null);
         return;
       }
-      const pos = cursor ?? text.length;
-      setAtQuery(extractAtQuery(text.slice(0, pos)));
+      setAtQuery(extractAtQuery(text));
     },
     [cwd],
   );
@@ -844,34 +738,11 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const applyAtCompletion = useCallback(
     (entry: FileIndexEntry) => {
       if (!atQuery) return;
-      const ta = textareaRef.current;
-      const cursor = ta?.selectionStart ?? value.length;
-      const before = value.slice(0, atQuery.start);
-      let after = value.slice(cursor);
-      // Completing inside a quoted token (@"my dir/… with the caret before the
-      // closing quote): the replacement carries its own closing quote, so drop
-      // the old one right after the caret (mirrors the TUI's applyCompletion).
-      if (atQuery.quoted && after.startsWith('"')) {
-        after = after.slice(1);
-      }
-      const insert = buildAtInsertText(entry.path, entry.isDir, atQuery.quoted);
-      const newValue = before + insert.text + after;
-      const newPos = before.length + insert.cursorOffset;
-      setValue(newValue);
-      // setValue alone does not fire onChange — re-derive the token here. Files
-      // end with a space (token closes, menu hides); directories end with "/"
-      // before the caret (token stays open for drill-down into the directory).
-      setAtQuery(extractAtQuery(newValue.slice(0, newPos)));
-      requestAnimationFrame(() => {
-        const el = textareaRef.current;
-        if (!el) return;
-        el.focus();
-        el.setSelectionRange(newPos, newPos);
-        el.style.height = "auto";
-        el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-      });
+      // DOM surgery in the editable surface: files become chips (menu closes
+      // via the trailing space), directories stay plain text for drill-down.
+      editableRef.current?.completeAtQuery(atQuery, entry.path, entry.isDir);
     },
-    [atQuery, setValue, value],
+    [atQuery],
   );
 
   useEffect(() => {
@@ -889,47 +760,21 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     atItemRefs.current[atActiveIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [atActiveIndex, atMenuOpen]);
 
-  const applySlashCommand = useCallback(
-    (command: SlashCommandPaletteItem) => {
-      const nextValue = `/${command.name} `;
-      setValue(nextValue);
-      setSlashMenuOpen(false);
-      setSlashActiveIndex(0);
-      requestAnimationFrame(() => {
-        const ta = textareaRef.current;
-        if (!ta) return;
-        ta.focus();
-        ta.setSelectionRange(nextValue.length, nextValue.length);
-        ta.style.height = "auto";
-        ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-      });
-    },
-    [setValue],
-  );
+  const applySlashCommand = useCallback((command: SlashCommandPaletteItem) => {
+    // setValue rebuilds the editable surface and leaves the caret at the end.
+    editableRef.current?.setValue(`/${command.name} `);
+    setSlashMenuOpen(false);
+    setSlashActiveIndex(0);
+  }, []);
 
   const sendQueued = useCallback(
     async (mode: "steer" | "followup") => {
-      // Pi 0.84 queues image content but exposes only message strings through
-      // queue_update/clearQueue. Keep images in the composer until the Agent is
-      // idle so recall can never silently discard them.
-      if (attachedImages.length > 0) {
-        setSubmissionNotice(
-          t("queuedImagesUnsupported", "Image messages can be sent after the current response finishes."),
-        );
-        return;
-      }
-      const msg = [value.trim(), ...attachedFiles.map(localFileReferenceToMarkdown)].filter(Boolean).join(" ");
-      if (!msg && !attachedImages.length) return;
-      const validationRevision = inputRevisionRef.current;
-      if (!(await validateLocalFileReferences(attachedFiles))) return;
-      if (validationRevision !== inputRevisionRef.current) {
-        setSubmissionNotice(
-          t("draftChangedDuringValidation", "The draft changed while files were checked. Send again."),
-        );
-        return;
-      }
+      // Queued prompts are plain strings on the pi queue. Attachment tokens
+      // are literal text in the message, so token references queue safely.
+      const msg = value.trim();
+      if (!msg) return;
       onAudioUnlock?.();
-      const snapshot = captureComposerSubmission(value, attachedImages, attachedFiles);
+      const snapshot = captureComposerSubmission(value);
       const streamingBehavior = mode === "steer" ? "steer" : "followUp";
       setSubmissionNotice(null);
       commitCurrentDraft();
@@ -950,8 +795,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
       }
     },
     [
-      attachedFiles,
-      attachedImages,
       clearInput,
       commitCurrentDraft,
       onAudioUnlock,
@@ -959,8 +802,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
       onPromptWithStreamingBehavior,
       onSteer,
       restoreFailedSubmission,
-      t,
-      validateLocalFileReferences,
       value,
     ],
   );
@@ -1008,7 +849,7 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   );
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    (e: KeyboardEvent<HTMLDivElement>) => {
       const nativeEvent = e.nativeEvent;
       const recentlyComposed = Date.now() - lastCompositionEndAtRef.current < COMPOSITION_END_ENTER_GRACE_MS;
       const isComposing = isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229;
@@ -1106,21 +947,20 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     ],
   );
 
-  const handleInput = useCallback(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = `${Math.min(ta.scrollHeight, 200)}px`;
-  }, []);
-
   const handlePaste = useCallback(
     (e: React.ClipboardEvent) => {
+      // The editable surface always takes pasted text as plain text; file
+      // payloads go through the attachment pipeline.
+      e.preventDefault();
       const items = Array.from(e.clipboardData?.items ?? []);
       const fileItems = items.filter((item) => item.kind === "file");
-      if (!fileItems.length) return;
-      e.preventDefault();
-      const files = fileItems.map((item) => item.getAsFile()).filter((f): f is File => f !== null);
-      void processFiles(files);
+      if (fileItems.length) {
+        const files = fileItems.map((item) => item.getAsFile()).filter((f): f is File => f !== null);
+        void processFiles(files);
+        return;
+      }
+      const text = e.clipboardData?.getData("text/plain") ?? "";
+      if (text) editableRef.current?.insertTextAtCaret(text);
     },
     [processFiles],
   );
@@ -1310,7 +1150,17 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
 
         <div data-composer-anchor style={{ position: "relative" }}>
           {plusMenuOpen && (
-            <PlusMenu onPickImages={() => openPicker("images")} onPickFiles={() => openPicker("files")} />
+            <PlusMenu
+              rows={[
+                {
+                  key: "files",
+                  name: t("plusAttachFiles", "Add files"),
+                  desc: t("plusAttachFilesDesc", "Upload files from your computer"),
+                  icon: <PaperclipIcon size={15} />,
+                  onSelect: () => openPicker(),
+                },
+              ]}
+            />
           )}
           {slashMenuOpen && slashQuery !== null && (
             <SlashMenu
@@ -1353,19 +1203,6 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
               } as React.CSSProperties
             }
           >
-            <AttachmentTray
-              images={attachedImages}
-              files={attachedFiles}
-              fileInspectionByPath={fileInspectionByPath}
-              onRemoveImage={removeImage}
-              onRemoveFile={removeFile}
-              onContextMenuUnavailable={() =>
-                setSubmissionNotice(t("fileContextMenuUnavailable", "The file menu could not be opened."))
-              }
-              cwd={cwd}
-              language={language}
-            />
-
             <div style={{ display: "flex", alignItems: "flex-end", gap: 8, minWidth: 0 }}>
               {/* attach: expands the ＋ menu; tinted while anything is attached */}
               <button
@@ -1387,75 +1224,60 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                   width: 28,
                   height: 28,
                   padding: 0,
-                  background: hasAttachments ? "var(--accent-soft)" : "transparent",
+                  background: attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: hasAttachments ? "var(--accent)" : "var(--text-muted)",
+                  color: attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)",
                   cursor: "pointer",
                   transition: "background 0.12s, color 0.12s, transform 0.12s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = hasAttachments
-                    ? "color-mix(in srgb, var(--accent) 14%, transparent)"
-                    : "var(--bg-hover)";
-                  e.currentTarget.style.color = hasAttachments ? "var(--accent)" : "var(--text)";
+                  e.currentTarget.style.background =
+                    attachmentTokens.length > 0
+                      ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                      : "var(--bg-hover)";
+                  e.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.background = hasAttachments ? "var(--accent-soft)" : "transparent";
-                  e.currentTarget.style.color = hasAttachments ? "var(--accent)" : "var(--text-muted)";
+                  e.currentTarget.style.background = attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent";
+                  e.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)";
                 }}
                 className="tap-scale"
               >
                 <PlusIcon size={16} />
               </button>
 
-              <textarea
-                ref={textareaRef}
-                value={value}
-                onChange={(e) => {
-                  setValue(e.target.value);
-                  setPlusMenuOpen(false);
-                  updateAtQuery(e.target.value, e.target.selectionStart);
-                }}
-                onSelect={(e) => {
-                  const el = e.currentTarget;
-                  updateAtQuery(el.value, el.selectionStart);
-                }}
-                onKeyDown={handleKeyDown}
-                onCompositionStart={() => {
-                  isComposingRef.current = true;
-                }}
-                onCompositionEnd={(e) => {
-                  isComposingRef.current = false;
-                  lastCompositionEndAtRef.current = Date.now();
-                  const el = e.currentTarget;
-                  updateAtQuery(el.value, el.selectionStart);
-                }}
-                onInput={handleInput}
-                onPaste={handlePaste}
-                placeholder={
-                  isStreaming
-                    ? t("queuePlaceholder", "Agent is running… sending queues a follow-up")
-                    : t("messagePlaceholder", "Message… Type / for commands, @ for files")
-                }
-                rows={1}
-                style={{
-                  flex: 1,
-                  minWidth: 0,
-                  background: "none",
-                  border: "none",
-                  outline: "none",
-                  resize: "none",
-                  color: "var(--text)",
-                  fontSize: scaledChatFont(14),
-                  lineHeight: 1.6,
-                  fontFamily: "inherit",
-                  minHeight: 28,
-                  maxHeight: 200,
-                  padding: "3px 2px",
-                  overflow: "auto",
-                }}
-              />
+              <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
+                <ComposerEditable
+                  value={value}
+                  handleRef={editableRef}
+                  placeholder={
+                    isStreaming
+                      ? t("queuePlaceholder", "Agent is running… sending queues a follow-up")
+                      : t("messagePlaceholder", "Message… Type / for commands, @ for files")
+                  }
+                  onValueChange={(text) => {
+                    setValue(text);
+                    setPlusMenuOpen(false);
+                  }}
+                  onSelectionChange={updateAtQuery}
+                  onKeyDown={handleKeyDown}
+                  onPaste={handlePaste}
+                  onCompositionStart={() => {
+                    isComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    isComposingRef.current = false;
+                    lastCompositionEndAtRef.current = Date.now();
+                  }}
+                  previewsByPath={tokenPreviewsByPath}
+                  missingByPath={missingTokenInspections}
+                  onRevealToken={(path) => {
+                    void window.piBridge?.showItemInFolder?.(path);
+                  }}
+                  removeLabel={t("remove", "Remove")}
+                />
+              </div>
 
               {isStreaming ? (
                 canSend && onFollowUp ? (

@@ -12,6 +12,7 @@ import type { HostManager } from "./host-manager";
 import { appendMainLog, getMainLogPath } from "./logger";
 import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
+import { stageClipboardImage } from "./attachment-staging";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
@@ -206,6 +207,8 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   });
 
   trustedHandle("desktop:inspect-local-files", async (_event, request: unknown) => inspectLocalFiles(request));
+
+  trustedHandle("desktop:stage-clipboard-image", async (_event, request: unknown) => stageClipboardImage(request));
 
   trustedHandle("desktop:select-directory", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);

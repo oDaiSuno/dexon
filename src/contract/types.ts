@@ -120,6 +120,8 @@ export interface ModelInfo {
   id: string;
   name: string;
   provider: string;
+  /** Input modalities the model accepts; absent means unknown (no UI gating). */
+  input?: ("text" | "image")[];
 }
 
 export interface ModelCatalogWarning {

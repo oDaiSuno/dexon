@@ -7,6 +7,8 @@ import { DeferredContentActions } from "./messages/shared";
 import type { AgentMessage, AssistantMessage, CustomMessage, ToolResultMessage, UserMessage } from "@/lib/types";
 
 interface Props {
+  /** Active session id — authorizes files.read for referenced attachment paths. */
+  sessionId?: string | null;
   message: AgentMessage;
   /* Previous message is an assistant reply — user bubble gets turn-boundary top spacing. */
   afterAssistant?: boolean;
@@ -30,6 +32,7 @@ interface Props {
 }
 
 export const MessageView = memo(function MessageView({
+  sessionId,
   message,
   afterAssistant,
   isStreaming,
@@ -54,6 +57,7 @@ export const MessageView = memo(function MessageView({
     return (
       <UserMessageView
         message={message as UserMessage}
+        sessionId={sessionId}
         afterAssistant={afterAssistant}
         cwd={cwd}
         onOpenFile={onOpenFile}

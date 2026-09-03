@@ -1,7 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MarkdownBody } from "../MarkdownBody";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { isImagePath, segmentByAttachmentTokens } from "@shared/attachment-tokens";
+import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
+import { AttachmentTokenPill } from "../chat-input/AttachmentTokenPill";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
 import { CHANNEL_ATTACHMENT_PROMPT_PLACEHOLDER, channelAttachmentCopyText } from "@shared/channel-message";
 import { useI18n } from "@/i18n";
@@ -12,6 +15,7 @@ import type { ImageContent, TextContent, UserMessage } from "@/lib/types";
 export function UserMessageView({
   message,
   cwd,
+  sessionId,
   onOpenFile,
   entryId,
   onFork,
@@ -23,6 +27,8 @@ export function UserMessageView({
   afterAssistant,
 }: {
   message: UserMessage;
+  /** Active session id — authorizes files.read for referenced attachment paths. */
+  sessionId?: string | null;
   /* Turn-boundary spacing: when the previous message is an assistant reply,
      lift the bubble so it sits centered between the two replies (the hover
      action row below already reserves the same visual gap). */
@@ -65,6 +71,38 @@ export function UserMessageView({
       : attachmentCopyContent || t("channelAttachment", "Attachment")
     : content;
   const copyableContent = isChannelAttachmentPlaceholder ? attachmentCopyContent : visibleContent;
+
+  // In-sentence attachment tokens: render as pills; image tokens additionally
+  // show a thumbnail loaded through the files.read bridge.
+  const segments = segmentByAttachmentTokens(visibleContent);
+  const tokenImagePaths = segments
+    .filter((segment): segment is Extract<typeof segment, { type: "token" }> => segment.type === "token")
+    .map((segment) => segment.token.path)
+    .filter(isImagePath);
+  const [tokenPreviews, setTokenPreviews] = useState<Map<string, string | null>>(new Map());
+  const hasTokens = segments.some((segment) => segment.type === "token");
+  const imageTokenPreviews = tokenImagePaths
+    .map((path) => ({ path, url: tokenPreviews.get(path) }))
+    .filter((entry): entry is { path: string; url: string } => typeof entry.url === "string" && entry.url.length > 0);
+
+  useEffect(() => {
+    if (tokenImagePaths.length === 0) return;
+    let cancelled = false;
+    tokenImagePaths.forEach((path) => {
+      if (tokenPreviews.has(path)) return;
+      void loadAttachmentPreview(path, sessionId ?? undefined).then((url) => {
+        if (cancelled) return;
+        setTokenPreviews((prev) => {
+          const next = new Map(prev);
+          next.set(path, url);
+          return next;
+        });
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId, tokenImagePaths, tokenPreviews]);
 
   const time = formatTime(message.timestamp);
   const messageSource = message.channelSource ?? "local";
@@ -142,10 +180,55 @@ export function UserMessageView({
               })}
             </div>
           )}
-          {visibleContent && (
+          {visibleContent && hasTokens && (
+            <div>
+              {segments.map((segment, index) => {
+                if (segment.type === "text") {
+                  if (!segment.text.trim()) return <span key={index}>{segment.text}</span>;
+                  return (
+                    <MarkdownBody key={index} className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
+                      {segment.text}
+                    </MarkdownBody>
+                  );
+                }
+                const token = segment.token;
+                return (
+                  <AttachmentTokenPill
+                    key={index}
+                    path={token.path}
+                    name={token.quoted ? `"${token.path}"` : token.path}
+                    isImage={isImagePath(token.path)}
+                    previewUrl={tokenPreviews.get(token.path) ?? null}
+                    missing={false}
+                    size="transcript"
+                  />
+                );
+              })}
+            </div>
+          )}
+          {visibleContent && !hasTokens && (
             <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
               {visibleContent}
             </MarkdownBody>
+          )}
+          {imageTokenPreviews.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              {imageTokenPreviews.map(({ path, url }) => (
+                <img
+                  key={path}
+                  src={url}
+                  alt=""
+                  style={{
+                    maxWidth: 240,
+                    maxHeight: 240,
+                    borderRadius: "var(--radius-control)",
+                    objectFit: "contain",
+                    display: "block",
+                    border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
+                  }}
+                />
+              ))}
+            </div>
           )}
           <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
         </div>

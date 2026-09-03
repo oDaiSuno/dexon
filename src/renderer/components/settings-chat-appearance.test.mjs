@@ -7,6 +7,7 @@ const cssSource = readFileSync(new URL("../globals.css", import.meta.url), "utf8
 const dictionariesSource = readFileSync(new URL("../i18n-dictionaries.ts", import.meta.url), "utf8");
 const chatWindowSource = readFileSync(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
 const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+const composerEditableSource = readFileSync(new URL("./chat-input/ComposerEditable.tsx", import.meta.url), "utf8");
 const messageViewSource = [
   "./messages/UserMessage.tsx",
   "./messages/AssistantMessage.tsx",
@@ -57,8 +58,10 @@ test("the full-width dock applies the chat width once after reserving the minima
 
 test("chat text uses the shared scale while glyph-only icons remain fixed", () => {
   assert.match(chatWindowSource, /fontSize:\s*scaledChatFont\(20\)/);
-  assert.match(chatInputSource, /fontSize:\s*scaledChatFont\(14\)/);
+  // The composer input surface is ComposerEditable; the scale applies there.
+  assert.match(composerEditableSource, /fontSize: scaledChatFont\(14\)/);
+  assert.doesNotMatch(chatInputSource, /fontSize:/);
   assert.match(messageViewSource, /fontSize:\s*scaledChatFont\(13\.5\)/);
-  assert.deepEqual(chatInputSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], []);
+  assert.deepEqual(composerEditableSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], []);
   assert.deepEqual(messageViewSource.match(/fontSize:\s*[0-9]+(?:\.[0-9]+)?/g) ?? [], []);
 });

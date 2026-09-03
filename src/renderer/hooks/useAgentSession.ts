@@ -10,7 +10,13 @@ import type {
   SessionTreeNode,
   TextContent,
 } from "@/lib/types";
-import type { ModelCatalogStatus, ModelsListResult, SessionDetail, SessionRuntimeState } from "@contract/types";
+import type {
+  ModelCatalogStatus,
+  ModelInfo,
+  ModelsListResult,
+  SessionDetail,
+  SessionRuntimeState,
+} from "@contract/types";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { sendAgentCommand } from "@/lib/agent-client";
 import {
@@ -276,14 +282,8 @@ export interface ChatInputHandle {
   addFiles: (files: File[]) => void;
 }
 
-export interface AttachedImage {
-  data: string;
-  mimeType: string;
-  previewUrl: string;
-}
-
 type SelectedModel = { provider: string; modelId: string };
-type ModelEntry = { id: string; name: string; provider: string };
+type ModelEntry = ModelInfo;
 type SlashCommandsResponse = {
   commands?: SlashCommandInfo[];
 };
@@ -1187,22 +1187,16 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   handleAgentEventRef.current = handleAgentEvent;
 
   const handleSend = useCallback(
-    async (message: string, images?: AttachedImage[]) => {
+    async (message: string) => {
       const trimmedMessage = message.trim();
-      if (!trimmedMessage && !images?.length) return;
+      if (!trimmedMessage) return;
       if (agentRunning) return;
-      const isSlashCommandPrompt = !images?.length && trimmedMessage.startsWith("/");
+      const isSlashCommandPrompt = trimmedMessage.startsWith("/");
       const promptRunId = promptRunIdRef.current + 1;
 
-      const imageBlocks = images?.map((img) => ({
-        type: "image" as const,
-        source: { type: "base64" as const, media_type: img.mimeType, data: img.data },
-      }));
       const userMsg: AgentMessage = {
         role: "user",
-        content: imageBlocks?.length
-          ? [...(message.trim() ? [{ type: "text" as const, text: message }] : []), ...imageBlocks]
-          : message,
+        content: message,
         timestamp: Date.now(),
       };
       updateHistory((current) => appendLocalHistoryMessage(current, userMsg));
@@ -1214,8 +1208,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       dispatch({ type: "start" });
       pendingScrollToUserRef.current = true;
       completionScrollAllowedRef.current = true;
-
-      const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
 
       try {
         let sentSessionId: string | null = null;
@@ -1240,7 +1232,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             await sendAgentCommand(sid, {
               type: "prompt",
               message,
-              ...(piImages?.length ? { images: piImages } : {}),
             });
             promoteNewSession(1, message);
             // Auto-title the brand-new session from its first message. Fire and
@@ -1261,7 +1252,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           await sendAgentCommand(session.id, {
             type: "prompt",
             message,
-            ...(piImages?.length ? { images: piImages } : {}),
           });
         }
         if (isSlashCommandPrompt && sentSessionId) {
@@ -1633,7 +1623,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   // optimistic chat bubble here would duplicate the queue panel and turn into
   // a ghost message if the queue is recalled.
   const handleSteer = useCallback(
-    async (message: string, images?: AttachedImage[]) => {
+    async (message: string) => {
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -1643,12 +1633,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         });
         throw error;
       }
-      const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
       try {
         await sendAgentCommand(sid, {
           type: "steer",
           message,
-          ...(piImages?.length ? { images: piImages } : {}),
         });
       } catch (error) {
         console.error("Failed to steer:", error);
@@ -1663,7 +1651,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   );
 
   const handlePromptWithStreamingBehavior = useCallback(
-    async (message: string, behavior: "steer" | "followUp", images?: AttachedImage[]) => {
+    async (message: string, behavior: "steer" | "followUp") => {
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -1673,13 +1661,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         });
         throw error;
       }
-      const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
       try {
         await sendAgentCommand(sid, {
           type: "prompt",
           message,
           streamingBehavior: behavior,
-          ...(piImages?.length ? { images: piImages } : {}),
         });
       } catch (error) {
         console.error("Failed to queue prompt:", error);
@@ -1694,7 +1680,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   );
 
   const handleFollowUp = useCallback(
-    async (message: string, images?: AttachedImage[]) => {
+    async (message: string) => {
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -1704,12 +1690,10 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         });
         throw error;
       }
-      const piImages = images?.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mimeType }));
       try {
         await sendAgentCommand(sid, {
           type: "follow_up",
           message,
-          ...(piImages?.length ? { images: piImages } : {}),
         });
       } catch (error) {
         console.error("Failed to follow up:", error);

@@ -119,6 +119,21 @@ export interface LocalFileInspection {
   insideCwd: boolean;
 }
 
+export interface StageClipboardImageRequest {
+  /** Raw image bytes, base64 encoded without the data-URL prefix. */
+  base64: string;
+  /** File extension without the dot, e.g. "png". */
+  ext: string;
+}
+
+export type StageClipboardImageResult =
+  | { ok: true; staged: { path: string } }
+  | {
+      ok: false;
+      code: "unsupported-extension" | "empty-payload" | "too-large" | "write-failed";
+      message: string;
+    };
+
 export interface DesktopUiState {
   backgroundMode?: boolean;
   managedProcessesEnabled?: boolean;
@@ -147,6 +162,8 @@ export interface PiBridge {
   /** Show the app's rich file context menu after main-process path validation. */
   showFileContextMenu: (request: ShowFileContextMenuRequest) => Promise<ShowFileContextMenuResult>;
   inspectLocalFiles: (request: InspectLocalFilesRequest) => Promise<LocalFileInspection[]>;
+  /** Write pasted clipboard image bytes to a pi-clipboard temp file and return its absolute path. */
+  stageClipboardImage: (request: StageClipboardImageRequest) => Promise<StageClipboardImageResult>;
   /** Resolve the absolute filesystem path for a dropped/injected File object. */
   getPathForFile?: (file: File) => string | null;
   selectDirectory: () => Promise<string | null>;

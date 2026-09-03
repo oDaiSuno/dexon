@@ -5,11 +5,8 @@ import test from "node:test";
 import {
   CHAT_DRAFT_SCHEMA_VERSION,
   DraftPersistenceController,
-  MAX_PERSISTED_DRAFT_IMAGE_BYTES,
   flushDraft,
-  decodedBase64ByteLength,
   getDraft,
-  persistableDraftImages,
   setDraft,
 } from "../../shared/draft-store.ts";
 
@@ -38,8 +35,8 @@ function fixture() {
 test("draft writes debounce while memory receives every edit", () => {
   const { calls, controller, timers } = fixture();
 
-  controller.schedule("session", { value: "a", images: [] });
-  controller.schedule("session", { value: "ab", images: [] });
+  controller.schedule("session", { value: "a" });
+  controller.schedule("session", { value: "ab" });
 
   assert.deepEqual(calls.slice(0, 4), [
     ["stage", "session", "a"],
@@ -58,10 +55,10 @@ test("draft writes debounce while memory receives every edit", () => {
 test("key switches, explicit commits, clears, and disposal flush pending ownership", () => {
   const { calls, controller } = fixture();
 
-  controller.schedule("old", { value: "old draft", images: [] });
-  controller.schedule("new", { value: "new draft", images: [] });
-  controller.commit("new", { value: "latest", images: [] });
-  controller.schedule("last", { value: "pending", images: [] });
+  controller.schedule("old", { value: "old draft" });
+  controller.schedule("new", { value: "new draft" });
+  controller.commit("new", { value: "latest" });
+  controller.schedule("last", { value: "pending" });
   controller.dispose();
   controller.clear("last");
 
@@ -74,16 +71,6 @@ test("key switches, explicit commits, clears, and disposal flush pending ownersh
       ["clear", "last"],
     ],
   );
-});
-
-test("base64 image limits are checked by decoded bytes before persistence serialization", () => {
-  assert.equal(decodedBase64ByteLength("YQ=="), 1);
-  assert.equal(decodedBase64ByteLength("YWI="), 2);
-  assert.equal(decodedBase64ByteLength("YWJj"), 3);
-  assert.equal(persistableDraftImages([{ data: "YQ==", mimeType: "image/png" }]).length, 1);
-
-  const oversized = "A".repeat(Math.ceil(((MAX_PERSISTED_DRAFT_IMAGE_BYTES + 1) * 4) / 3));
-  assert.deepEqual(persistableDraftImages([{ data: oversized, mimeType: "image/png" }]), []);
 });
 
 test("staging a draft performs no synchronous localStorage write until flush", () => {
@@ -99,7 +86,7 @@ test("staging a draft performs no synchronous localStorage write until flush", (
   });
 
   try {
-    setDraft("debounce-proof", { value: "draft", images: [] });
+    setDraft("debounce-proof", { value: "draft" });
     assert.deepEqual(writes, []);
     flushDraft("debounce-proof");
     assert.equal(writes.length, 1);
@@ -107,8 +94,8 @@ test("staging a draft performs no synchronous localStorage write until flush", (
     const stored = JSON.parse(writes[0][2]);
     assert.equal(stored.schemaVersion, CHAT_DRAFT_SCHEMA_VERSION);
     assert.equal(stored.value, "draft");
-    assert.deepEqual(stored.images, []);
-    assert.deepEqual(stored.files, []);
+    assert.equal("images" in stored, false);
+    assert.equal("files" in stored, false);
     assert.equal(typeof stored.updatedAt, "number");
   } finally {
     if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
@@ -121,14 +108,14 @@ test("an in-memory empty draft hides stale persisted content before debounce flu
   Object.defineProperty(globalThis, "localStorage", {
     configurable: true,
     value: {
-      getItem: () => JSON.stringify({ value: "stale", images: [] }),
+      getItem: () => JSON.stringify({ value: "stale" }),
       removeItem: () => {},
       setItem: () => {},
     },
   });
 
   try {
-    setDraft("empty-tombstone", { value: "", images: [] });
+    setDraft("empty-tombstone", { value: "" });
     assert.equal(getDraft("empty-tombstone"), null);
   } finally {
     if (descriptor) Object.defineProperty(globalThis, "localStorage", descriptor);
@@ -142,9 +129,7 @@ test("ChatInput schedules edits and commits exact refs on key switch and unmount
   assert.match(source, /draftPersistenceRef\.current\?\.schedule\(draftKey/);
   assert.match(source, /draftPersistenceRef\.current\?\.commit\(previousDraftKey/);
   assert.match(source, /draftPersistenceRef\.current\?\.commit\(currentDraftKey/);
-  assert.match(source, /files: attachedFilesRef\.current/);
-  assert.match(source, /mergeFailedSubmissionFiles\(current, snapshot\.files\)/);
-  assert.match(source, /const setAttachedFiles = useCallback[\s\S]*?inputRevisionRef\.current \+= 1/);
+  assert.match(source, /value: valueRef\.current,$/m);
   assert.match(source, /draftPersistenceRef\.current\?\.clear\(draftKey\)/);
   assert.match(source, /commitCurrentDraft\(\);\s*clearInput\(\)/);
 });

@@ -3,89 +3,16 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test, { after } from "node:test";
 import { createElement, createRef } from "react";
-import { act, create } from "react-test-renderer";
+import { act } from "react";
+import { createRoot } from "react-dom/client";
+import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.harness.mjs";
 
-const originals = {
-  cancelAnimationFrame: globalThis.cancelAnimationFrame,
-  document: globalThis.document,
-  fetch: globalThis.fetch,
-  localStorage: globalThis.localStorage,
-  navigator: globalThis.navigator,
-  requestAnimationFrame: globalThis.requestAnimationFrame,
-  window: globalThis.window,
-};
-
-const storedValues = new Map();
-const localStorageMock = {
-  getItem(key) {
-    return storedValues.get(key) ?? null;
-  },
-  setItem(key, value) {
-    storedValues.set(key, String(value));
-  },
-  removeItem(key) {
-    storedValues.delete(key);
-  },
-};
-
-const documentMock = {
-  addEventListener() {},
-  removeEventListener() {},
-  body: {},
-  documentElement: { lang: "" },
-};
-const windowMock = {
-  addEventListener() {},
-  removeEventListener() {},
-  innerHeight: 900,
-  localStorage: localStorageMock,
-  matchMedia() {
-    return {
-      matches: false,
-      addEventListener() {},
-      removeEventListener() {},
-    };
-  },
-  navigator: { language: "en-US" },
-  piBridge: {
-    getPathForFile(file) {
-      return file.testPath ?? null;
-    },
-    async inspectLocalFiles({ paths }) {
-      return paths.map((filePath) => ({ path: filePath, exists: true, isFile: true, insideCwd: false }));
-    },
-  },
-  visualViewport: null,
-};
-
-Object.defineProperties(globalThis, {
-  cancelAnimationFrame: { configurable: true, value() {} },
-  document: { configurable: true, value: documentMock },
-  localStorage: { configurable: true, value: localStorageMock },
-  navigator: { configurable: true, value: windowMock.navigator },
-  requestAnimationFrame: {
-    configurable: true,
-    value(callback) {
-      callback(0);
-      return 1;
-    },
-  },
-  window: { configurable: true, value: windowMock },
-});
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-const fetchRequests = [];
-const defaultFetchImplementation = async () => ({
-  ok: true,
-  async json() {
-    return { files: ["src/main.ts", "src/renderer/App.tsx", "README.md"], truncated: false };
-  },
-});
-let fetchImplementation = defaultFetchImplementation;
-globalThis.fetch = async (url, options) => {
-  fetchRequests.push(String(url));
-  return fetchImplementation(url, options);
-};
+// The composer is a contenteditable surface; the jsdom harness (imported
+// first) provides the real DOM environment before the bundle loads.
+const dom = harness.dom;
+const storedValues = harness.storedValues;
+const fetchRequests = harness.fetchRequests;
+const showItemInFolderCalls = harness.showItemInFolderCalls;
 
 const { ChatInput } = await importTestBundle("src/renderer/components/chat-input-file-reference", {
   stdin: {
@@ -99,24 +26,108 @@ const { ChatInput } = await importTestBundle("src/renderer/components/chat-input
 });
 
 after(() => {
-  for (const [key, value] of Object.entries(originals)) {
-    if (value === undefined) delete globalThis[key];
-    else Object.defineProperty(globalThis, key, { configurable: true, value });
-  }
-  delete globalThis.IS_REACT_ACT_ENVIRONMENT;
+  restoreGlobals();
 });
 
-function keyboardEvent(key) {
-  return {
-    key,
-    shiftKey: false,
-    nativeEvent: { isComposing: false, keyCode: key === "Enter" ? 13 : 0 },
-    preventDefault() {},
-  };
+const editorEl = () => rootEl.querySelector(".composer-editor");
+const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+const settle = async (ms) => {
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, ms));
+  });
+};
+
+let mounted = null;
+async function mount(props = {}) {
+  const handle = createRef();
+  const element = createElement(ChatInput, {
+    cwd: props.cwd === undefined ? "/workspace/project" : props.cwd,
+    isStreaming: props.isStreaming ?? false,
+    draftKey: props.draftKey,
+    onAbort() {},
+    onSend(message) {
+      (props.sent ?? []).push(message);
+    },
+    onFollowUp: props.onFollowUp,
+    ref: handle,
+  });
+  await act(async () => {
+    mounted = createRoot(rootEl);
+    mounted.render(element);
+  });
+  return handle;
 }
 
-function renderedText(node) {
-  return node.children.map((child) => (typeof child === "string" ? child : renderedText(child))).join("");
+async function unmount() {
+  if (!mounted) return;
+  const root = mounted;
+  mounted = null;
+  await act(async () => {
+    root.unmount();
+  });
+  rootEl.textContent = "";
+}
+
+/** Put plain text into the editor with the caret at `caret` (default: end). */
+async function setEditorText(text, caret = text.length) {
+  const el = editorEl();
+  el.textContent = text;
+  const sel = dom.window.getSelection();
+  const range = dom.window.document.createRange();
+  if (el.firstChild) range.setStart(el.firstChild, caret);
+  else range.setStart(el, 0);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  await act(async () => {
+    el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+}
+
+/** Type text at the current caret (keeps existing nodes, incl. chips). */
+async function typeText(text) {
+  const el = editorEl();
+  const sel = dom.window.getSelection();
+  const range = sel.rangeCount && el.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
+  assert.ok(range && range.collapsed, "typeText needs a collapsed caret inside the editor");
+  const node = dom.window.document.createTextNode(text);
+  range.insertNode(node);
+  range.setStart(node, text.length);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+  await act(async () => {
+    el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+}
+
+async function pressKey(key, options = {}) {
+  await act(async () => {
+    editorEl().dispatchEvent(
+      new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }),
+    );
+  });
+}
+
+/** Serialized value of the editable surface (what the send pipeline sees). */
+function serializedValue() {
+  const el = editorEl();
+  const parts = [];
+  for (const child of Array.from(el.childNodes)) {
+    if (child.nodeType === dom.window.Node.TEXT_NODE) parts.push(child.textContent);
+    else if (child.hasAttribute?.("data-attachment-token")) {
+      parts.push(child.dataset.path.includes(" ") ? `@"${child.dataset.path}"` : `@${child.dataset.path}`);
+    } else if (child.tagName === "BR") parts.push("\n");
+  }
+  return parts.join("");
+}
+
+function menuRowLabels() {
+  return Array.from(rootEl.querySelectorAll("button"))
+    .map((button) => button.textContent ?? "")
+    .filter(
+      (text) => text.includes(".ts") || text.includes(".tsx") || text.includes("README") || text.includes(".txt"),
+    );
 }
 
 function deferred() {
@@ -136,410 +147,352 @@ function response(data) {
   };
 }
 
-test("@ project file autocomplete survives component state and sends the completed reference", async () => {
+// ── tests ──────────────────────────────────────────────────────────────────
+
+test("@ project file autocomplete completes into a chip and sends the literal token", async () => {
   const sent = [];
-  const textareaNode = {
-    focus() {},
-    scrollHeight: 24,
-    selectionEnd: 0,
-    selectionStart: 0,
-    setSelectionRange(start, end) {
-      this.selectionStart = start;
-      this.selectionEnd = end;
-    },
-    style: {},
-    value: "",
-  };
+  await mount({ sent });
 
-  let renderer;
-  await act(async () => {
-    renderer = create(
-      createElement(ChatInput, {
-        cwd: "/workspace/project",
-        isStreaming: false,
-        onAbort() {},
-        onSend(message) {
-          sent.push(message);
-        },
-      }),
-      {
-        createNodeMock(element) {
-          return element.type === "textarea" ? textareaNode : null;
-        },
-      },
-    );
-  });
-
-  const inputText = "@src/";
-  textareaNode.value = inputText;
-  textareaNode.selectionStart = inputText.length;
-  textareaNode.selectionEnd = inputText.length;
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onChange({ target: textareaNode });
-  });
-  await act(async () => new Promise((resolve) => setTimeout(resolve, 10)));
-
+  await setEditorText("@src/");
+  await settle(180);
   assert.equal(fetchRequests.length, 1);
   assert.match(fetchRequests[0], /^\/api\/file-index\?cwd=/);
   assert.ok(
-    renderer.root
-      .findAllByType("button")
-      .some((button) => button.findAll((node) => node.type === "span" && node.children.includes("main.ts")).length > 0),
+    menuRowLabels().some((label) => label.includes("main.ts")),
+    "menu lists the matching project file",
   );
 
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onKeyDown(keyboardEvent("ArrowDown"));
-  });
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onKeyDown(keyboardEvent("Enter"));
-  });
-  assert.equal(renderer.root.findByType("textarea").props.value, "@src/main.ts ");
+  await pressKey("ArrowDown");
+  await pressKey("Enter"); // complete
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 1);
+  assert.equal(serializedValue(), "@src/main.ts ");
   assert.deepEqual(sent, [], "completion Enter must not submit the prompt");
 
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onKeyDown(keyboardEvent("Enter"));
-    await Promise.resolve();
-  });
+  await pressKey("Enter"); // submit
   assert.deepEqual(sent, ["@src/main.ts"]);
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
 
-  await act(async () => renderer.unmount());
+  await unmount();
 });
 
 test("@ autocomplete requests each query and ignores a late response for an older token", async () => {
   const pending = [];
-  fetchImplementation = () => {
+  harness.setFetch(() => {
     const request = deferred();
     pending.push(request);
     return request.promise;
-  };
-  const textareaNode = {
-    focus() {},
-    scrollHeight: 24,
-    selectionEnd: 0,
-    selectionStart: 0,
-    setSelectionRange(start, end) {
-      this.selectionStart = start;
-      this.selectionEnd = end;
-    },
-    style: {},
-    value: "",
-  };
-  let renderer;
+  });
   try {
-    await act(async () => {
-      renderer = create(
-        createElement(ChatInput, { cwd: "/workspace/project", isStreaming: false, onAbort() {}, onSend() {} }),
-        { createNodeMock: (element) => (element.type === "textarea" ? textareaNode : null) },
-      );
-    });
+    await mount();
     const requestStart = fetchRequests.length;
 
-    textareaNode.value = "@mai";
-    textareaNode.selectionStart = textareaNode.value.length;
-    textareaNode.selectionEnd = textareaNode.value.length;
-    await act(async () => renderer.root.findByType("textarea").props.onChange({ target: textareaNode }));
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 175)));
+    await setEditorText("@mai");
+    await settle(180);
     assert.match(fetchRequests[requestStart], /[?&]q=mai(?:&|$)/);
 
-    textareaNode.value = "@read";
-    textareaNode.selectionStart = textareaNode.value.length;
-    textareaNode.selectionEnd = textareaNode.value.length;
-    await act(async () => renderer.root.findByType("textarea").props.onChange({ target: textareaNode }));
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 175)));
+    await setEditorText("@read");
+    await settle(180);
     assert.match(fetchRequests[requestStart + 1], /[?&]q=read(?:&|$)/);
 
     await act(async () => {
       pending[1].resolve(response({ matches: [{ path: "README.md", isDir: false }], truncated: false }));
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await flush();
     });
-    assert.match(renderedText(renderer.root), /README\.md/);
+    assert.match(rootEl.textContent ?? "", /README\.md/);
 
     await act(async () => {
       pending[0].resolve(response({ matches: [{ path: "src/main.ts", isDir: false }], truncated: false }));
-      await new Promise((resolve) => setTimeout(resolve, 10));
+      await flush();
     });
-    assert.doesNotMatch(renderedText(renderer.root), /main\.ts/);
+    assert.doesNotMatch(rootEl.textContent ?? "", /main\.ts/);
   } finally {
-    fetchImplementation = defaultFetchImplementation;
-    if (renderer) await act(async () => renderer.unmount());
+    harness.resetFetch();
+    await unmount();
   }
 });
 
 test("@ autocomplete shows degraded scope and reuses a recent query from the bounded cache", async () => {
-  fetchImplementation = async () =>
+  harness.setFetch(async () =>
     response({
       matches: [{ path: "Desktop/nested.txt", isDir: false }],
       truncated: false,
       degradedReason: "search-unavailable",
-    });
-  const textareaNode = {
-    focus() {},
-    scrollHeight: 24,
-    selectionEnd: 0,
-    selectionStart: 0,
-    setSelectionRange(start, end) {
-      this.selectionStart = start;
-      this.selectionEnd = end;
-    },
-    style: {},
-    value: "",
-  };
-  let renderer;
+    }),
+  );
   try {
-    await act(async () => {
-      renderer = create(
-        createElement(ChatInput, { cwd: "/workspace/project", isStreaming: false, onAbort() {}, onSend() {} }),
-        { createNodeMock: (element) => (element.type === "textarea" ? textareaNode : null) },
-      );
-    });
+    await mount();
     const requestStart = fetchRequests.length;
-    textareaNode.value = "@nest";
-    textareaNode.selectionStart = textareaNode.value.length;
-    textareaNode.selectionEnd = textareaNode.value.length;
-    await act(async () => renderer.root.findByType("textarea").props.onChange({ target: textareaNode }));
-    await act(async () => new Promise((resolve) => setTimeout(resolve, 175)));
-    assert.match(renderedText(renderer.root), /limited to this folder/);
+    await setEditorText("@nest");
+    await settle(180);
+    assert.match(rootEl.textContent ?? "", /limited to this folder/);
     assert.equal(fetchRequests.length, requestStart + 1);
 
-    textareaNode.value = "";
-    textareaNode.selectionStart = 0;
-    textareaNode.selectionEnd = 0;
-    await act(async () => renderer.root.findByType("textarea").props.onChange({ target: textareaNode }));
-    textareaNode.value = "@nest";
-    textareaNode.selectionStart = textareaNode.value.length;
-    textareaNode.selectionEnd = textareaNode.value.length;
-    await act(async () => {
-      renderer.root.findByType("textarea").props.onChange({ target: textareaNode });
-      await Promise.resolve();
-    });
-    assert.equal(fetchRequests.length, requestStart + 1);
-    assert.match(renderedText(renderer.root), /Desktop\/nested\.txt/);
+    await setEditorText("");
+    await setEditorText("@nest");
+    assert.equal(fetchRequests.length, requestStart + 1, "second lookup hits the bounded cache");
+    assert.match(rootEl.textContent ?? "", /Desktop\/nested\.txt/);
   } finally {
-    fetchImplementation = defaultFetchImplementation;
-    if (renderer) await act(async () => renderer.unmount());
+    harness.resetFetch();
+    await unmount();
   }
 });
 
-test("@ project references and absolute local file references keep their distinct wire formats", async () => {
+test("local file references are sent as literal @path tokens", async () => {
   const sent = [];
-  const handle = createRef();
-  const textareaNode = {
-    focus() {},
-    scrollHeight: 24,
-    selectionEnd: 0,
-    selectionStart: 0,
-    setSelectionRange(start, end) {
-      this.selectionStart = start;
-      this.selectionEnd = end;
-    },
-    style: {},
-    value: "",
-  };
-  let renderer;
-  await act(async () => {
-    renderer = create(
-      createElement(ChatInput, {
-        cwd: "/workspace/project",
-        isStreaming: false,
-        onAbort() {},
-        onSend(message) {
-          sent.push(message);
-        },
-        ref: handle,
-      }),
-      { createNodeMock: (element) => (element.type === "textarea" ? textareaNode : null) },
-    );
-  });
+  const handle = await mount({ sent });
 
   await act(async () => {
     handle.current.addFiles([{ name: "notes local.txt", testPath: "/tmp/notes local.txt", type: "text/plain" }]);
     await Promise.resolve();
   });
-  const inputText = "@src/main.ts ";
-  textareaNode.value = inputText;
-  textareaNode.selectionStart = inputText.length;
-  textareaNode.selectionEnd = inputText.length;
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onChange({ target: textareaNode });
-  });
-  await act(async () => {
-    renderer.root.findByType("textarea").props.onKeyDown(keyboardEvent("Enter"));
-    await Promise.resolve();
-  });
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 1);
+  await typeText("@src/main.ts explain both ");
+  assert.equal(serializedValue(), `@"/tmp/notes local.txt" @src/main.ts explain both `);
 
-  assert.deepEqual(sent, ["@src/main.ts [notes local.txt](file:///tmp/notes%20local.txt)"]);
-  await act(async () => renderer.unmount());
+  await pressKey("Enter");
+  assert.deepEqual(sent, [`@"/tmp/notes local.txt" @src/main.ts explain both`]);
+
+  await unmount();
 });
 
 test("＋ button expands the attachment menu and each row opens its own picker", async () => {
-  let renderer;
-  await act(async () => {
-    renderer = create(
-      createElement(ChatInput, {
-        cwd: "/workspace/project",
-        isStreaming: false,
-        onAbort() {},
-        onSend() {},
-      }),
-    );
-  });
-
-  const plusButton = renderer.root
-    .findAllByType("button")
-    .find((button) => button.props["aria-label"] === "Add images or local file references");
+  await mount();
+  const plusButton = rootEl.querySelector('button[aria-label="Add images or local file references"]');
   assert.ok(plusButton, "＋ attach button is rendered");
-  assert.notEqual(plusButton.props["aria-expanded"], true);
+  assert.notEqual(plusButton.getAttribute("aria-expanded"), "true");
 
-  await act(async () => plusButton.props.onClick());
-  const rowText = (button) =>
-    button
-      .findAll((node) => node.type === "span")
-      .map((span) => renderedText(span))
-      .filter((text) => ["Add photos", "Add files"].includes(text));
-  const menuRows = renderer.root.findAllByType("button").filter((button) => rowText(button).length > 0);
-  assert.deepEqual(
-    menuRows.flatMap(rowText),
-    ["Add photos", "Add files"],
-    "menu lists one row per attachment entry point",
+  await act(async () => {
+    plusButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+  });
+  const rowNames = () =>
+    Array.from(rootEl.querySelectorAll("button"))
+      .map((button) => button.textContent ?? "")
+      .filter((text) => /Add photos|Add files/.test(text))
+      .map((text) => /Add photos|Add files/.exec(text)[0]);
+  assert.deepEqual(rowNames(), ["Add files"], "menu lists the single file entry point");
+  assert.equal(plusButton.getAttribute("aria-expanded"), "true");
+
+  const firstRow = Array.from(rootEl.querySelectorAll("button")).find((button) =>
+    (button.textContent ?? "").includes("Add files"),
   );
-  const plusAfterOpen = renderer.root
-    .findAllByType("button")
-    .find((button) => button.props["aria-label"] === "Add images or local file references");
-  assert.equal(plusAfterOpen.props["aria-expanded"], true);
+  await act(async () => {
+    firstRow.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true }));
+  });
+  assert.deepEqual(rowNames(), [], "picking an entry point closes the menu");
 
-  await act(async () => menuRows[0].props.onMouseDown({ preventDefault() {} }));
-  const menuAfterPick = renderer.root.findAllByType("button").filter((button) => rowText(button).length > 0);
-  assert.equal(menuAfterPick.length, 0, "picking an entry point closes the menu");
-  const plusAfterPick = renderer.root
-    .findAllByType("button")
-    .find((button) => button.props["aria-label"] === "Add images or local file references");
-  assert.notEqual(plusAfterPick.props["aria-expanded"], true);
-
-  await act(async () => renderer.unmount());
+  await unmount();
 });
 
-test("streaming image queue attempts keep the complete draft in the composer", async () => {
+test("streaming queue delivers token references as plain queued text", async () => {
   const draftKey = `image-queue-${Date.now()}`;
   storedValues.set(
     `dexon-draft:${draftKey}`,
     JSON.stringify({
-      schemaVersion: 2,
-      value: "send after the current response",
-      images: [{ data: "YQ==", mimeType: "image/png" }],
-      files: [],
+      schemaVersion: 3,
+      value: "compare @/tmp/pi-clipboard-a.png with the last one",
       updatedAt: Date.now(),
     }),
   );
   const queued = [];
-  const textareaNode = {
-    focus() {},
-    scrollHeight: 24,
-    selectionEnd: 0,
-    selectionStart: 0,
-    setSelectionRange() {},
-    style: {},
-    value: "send after the current response",
-  };
-  let renderer;
+  await mount({ isStreaming: true, draftKey, onFollowUp: (message) => queued.push(message) });
+
+  const sendButton = rootEl.querySelector('button[aria-label="Send"]');
+  assert.ok(sendButton, "armed send square replaces the stop button while streaming");
   await act(async () => {
-    renderer = create(
-      createElement(ChatInput, {
-        draftKey,
-        isStreaming: true,
-        onAbort() {},
-        onFollowUp(message) {
-          queued.push(message);
-        },
-        onSend() {},
-      }),
-      { createNodeMock: (element) => (element.type === "textarea" ? textareaNode : null) },
-    );
+    sendButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
   });
 
-  const sendButton = renderer.root.findAllByType("button").find((button) => button.props["aria-label"] === "Send");
-  assert.ok(sendButton, "armed send square replaces the stop button while streaming");
-  await act(async () => sendButton.props.onClick());
-
-  assert.deepEqual(queued, []);
-  assert.equal(renderer.root.findByType("textarea").props.value, "send after the current response");
-  assert.equal(renderer.root.findAllByType("img").length, 1);
-  assert.ok(
-    renderer.root
-      .findAll((node) => node.props?.role === "alert")
-      .some((node) => renderedText(node).includes("Image messages can be sent after")),
-  );
-  await act(async () => renderer.unmount());
+  assert.deepEqual(queued, ["compare @/tmp/pi-clipboard-a.png with the last one"]);
+  assert.equal(serializedValue(), "");
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
+  await unmount();
 });
 
-test("a fifth image is rejected with the image limit message instead of a storage failure", async () => {
-  const draftKey = `image-limit-${Date.now()}`;
-  storedValues.set(
-    `dexon-draft:${draftKey}`,
-    JSON.stringify({
-      schemaVersion: 2,
-      value: "",
-      images: Array.from({ length: 4 }, () => ({ data: "YQ==", mimeType: "image/png" })),
-      files: [],
-      updatedAt: Date.now(),
-    }),
-  );
-  const fileReaderDescriptor = Object.getOwnPropertyDescriptor(globalThis, "FileReader");
+test("pasted clipboard images are staged and referenced as chips", async () => {
   const createObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
-  const revokeObjectUrlDescriptor = Object.getOwnPropertyDescriptor(URL, "revokeObjectURL");
-  const revoked = [];
-  Object.defineProperty(globalThis, "FileReader", {
-    configurable: true,
-    value: class FileReaderMock {
-      readAsDataURL(file) {
-        this.result = `data:${file.type};base64,YQ==`;
-        globalThis.queueMicrotask(() => this.onload?.());
-      }
-    },
+  const createImageBitmapDescriptor = Object.getOwnPropertyDescriptor(globalThis, "createImageBitmap");
+  const stageRequests = [];
+  const previousStageImplementation = harness.getStageClipboardImage();
+  harness.setStageClipboardImage(async (request) => {
+    stageRequests.push(request);
+    return { ok: true, staged: { path: "/tmp/pi-clipboard-staged.png" } };
   });
-  Object.defineProperty(URL, "createObjectURL", {
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:staged-preview" });
+  Object.defineProperty(globalThis, "createImageBitmap", {
     configurable: true,
-    value: (file) => `blob:${file.name}`,
-  });
-  Object.defineProperty(URL, "revokeObjectURL", {
-    configurable: true,
-    value: (url) => revoked.push(url),
+    value: async () => ({ width: 800, height: 600, close() {} }),
   });
 
-  const handle = createRef();
-  let renderer;
+  const handle = await mount();
   try {
     await act(async () => {
-      renderer = create(
-        createElement(ChatInput, {
-          draftKey,
-          isStreaming: false,
-          onAbort() {},
-          onSend() {},
-          ref: handle,
-        }),
-      );
-    });
-    await act(async () => {
-      handle.current.addFiles([{ name: "fifth.png", type: "image/png" }]);
+      handle.current.addFiles([
+        {
+          name: "shot.png",
+          type: "image/png",
+          arrayBuffer: async () => Uint8Array.from(Buffer.from("a")).buffer,
+        },
+      ]);
       await Promise.resolve();
       await Promise.resolve();
     });
 
-    assert.equal(renderer.root.findAllByType("img").length, 4);
-    const alerts = renderer.root.findAll((node) => node.props?.role === "alert").map(renderedText);
-    assert.ok(alerts.some((text) => text.includes("A draft can save up to 4 images")));
+    assert.equal(stageRequests.length, 1);
+    assert.deepEqual(stageRequests[0], { base64: "YQ==", ext: "png" });
     assert.equal(
-      alerts.some((text) => text.includes("could not be saved on this device")),
-      false,
+      editorEl().querySelectorAll('[data-attachment-token][data-path="/tmp/pi-clipboard-staged.png"]').length,
+      1,
     );
-    assert.deepEqual(revoked, ["blob:fifth.png"]);
-    await act(async () => renderer.unmount());
   } finally {
-    if (fileReaderDescriptor) Object.defineProperty(globalThis, "FileReader", fileReaderDescriptor);
-    else delete globalThis.FileReader;
+    harness.setStageClipboardImage(previousStageImplementation);
     if (createObjectUrlDescriptor) Object.defineProperty(URL, "createObjectURL", createObjectUrlDescriptor);
     else delete URL.createObjectURL;
-    if (revokeObjectUrlDescriptor) Object.defineProperty(URL, "revokeObjectURL", revokeObjectUrlDescriptor);
-    else delete URL.revokeObjectURL;
+    if (createImageBitmapDescriptor)
+      Object.defineProperty(globalThis, "createImageBitmap", createImageBitmapDescriptor);
+    else delete globalThis.createImageBitmap;
+    await unmount();
   }
+});
+
+test("backspace at a chip boundary removes the whole reference atomically", async () => {
+  const handle = await mount();
+  await act(async () => {
+    handle.current.insertToken("/tmp/a.png");
+    await Promise.resolve();
+  });
+  assert.equal(serializedValue(), "@/tmp/a.png ");
+  await typeText("more");
+
+  // Place the caret right after the chip (before the separator space).
+  const el = editorEl();
+  const chip = el.querySelector("[data-attachment-token]");
+  const sel = dom.window.getSelection();
+  const range = dom.window.document.createRange();
+  range.setStart(el, Array.from(el.childNodes).indexOf(chip) + 1);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  const prevented = await act(async () =>
+    el.dispatchEvent(
+      new dom.window.InputEvent("beforeinput", {
+        bubbles: true,
+        cancelable: true,
+        inputType: "deleteContentBackward",
+      }),
+    ),
+  );
+  assert.equal(prevented, false, "the atomic delete must be prevented at the DOM level");
+  assert.equal(el.querySelectorAll("[data-attachment-token]").length, 0);
+  assert.equal(serializedValue(), "more");
+
+  await unmount();
+});
+
+test("chips reveal in the file manager and the ✕ removes them", async () => {
+  const handle = await mount();
+  await act(async () => {
+    handle.current.insertToken("/tmp/reveal-me.md");
+    await Promise.resolve();
+  });
+  const chip = editorEl().querySelector("[data-attachment-token]");
+  assert.ok(chip);
+
+  await act(async () => {
+    chip.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+  });
+  assert.deepEqual(showItemInFolderCalls, ["/tmp/reveal-me.md"]);
+
+  await act(async () => {
+    chip.querySelector("[data-chip-remove]").dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
+  });
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
+  assert.equal(serializedValue(), "");
+
+  await unmount();
+});
+
+test("serialized values rebuild into chips and round-trip idempotently", async () => {
+  const handle = await mount();
+  const text = `@"my dir/notes.md" and @/tmp/a.png check`;
+  await act(async () => {
+    handle.current.prependText(text);
+    await Promise.resolve();
+  });
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 2);
+  assert.equal(serializedValue(), text);
+
+  await typeText(" now");
+  assert.equal(serializedValue(), `${text} now`);
+
+  await unmount();
+});
+
+test("typing a path then a space materializes it into a chip", async () => {
+  await mount();
+  await setEditorText("look at @src/main.ts");
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0, "open query stays plain text");
+
+  await act(async () => {
+    editorEl().dispatchEvent(
+      new dom.window.InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: " " }),
+    );
+  });
+  assert.equal(editorEl().querySelectorAll('[data-attachment-token][data-path="src/main.ts"]').length, 1);
+  assert.equal(serializedValue(), "look at @src/main.ts ");
+
+  await unmount();
+});
+
+test("Esc then a space closes a drill-down directory as a chip", async () => {
+  await mount();
+  await setEditorText("@src/");
+  await settle(180);
+  await pressKey("Escape"); // close the menu, the query stays plain text
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
+
+  await act(async () => {
+    editorEl().dispatchEvent(
+      new dom.window.InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: " " }),
+    );
+  });
+  assert.equal(editorEl().querySelectorAll('[data-attachment-token][data-path="src/"]').length, 1);
+  assert.equal(serializedValue(), "@src/ ");
+
+  await unmount();
+});
+
+test("a space inside an unfinished quoted query closes it as a chip", async () => {
+  await mount();
+  // State after a quoted drill-down completion: caret before the closing quote.
+  await setEditorText('@"my dir/"', 9);
+  assert.equal(serializedValue(), '@"my dir/"');
+
+  await act(async () => {
+    editorEl().dispatchEvent(
+      new dom.window.InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: " " }),
+    );
+  });
+  assert.equal(editorEl().querySelectorAll('[data-attachment-token][data-path="my dir/"]').length, 1);
+  assert.equal(serializedValue(), '@"my dir/" ');
+
+  await unmount();
+});
+
+test("a non-path @word keeps its space as plain text", async () => {
+  await mount();
+  await setEditorText("hey @hello");
+  // jsdom performs no default editing: when the composer does not prevent
+  // the event, the browser default (inserting the space) is simulated here.
+  const prevented = await act(async () =>
+    editorEl().dispatchEvent(
+      new dom.window.InputEvent("beforeinput", { bubbles: true, cancelable: true, inputType: "insertText", data: " " }),
+    ),
+  );
+  assert.equal(prevented, true, "a non-path space must not be intercepted");
+  await typeText(" ");
+  assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
+  assert.equal(serializedValue(), "hey @hello ");
+
+  await unmount();
 });

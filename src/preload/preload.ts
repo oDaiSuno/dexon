@@ -72,6 +72,7 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     showItemInFolder: (fsPath) => ipcRenderer.invoke("desktop:show-item-in-folder", fsPath),
     showFileContextMenu: (request) => ipcRenderer.invoke("desktop:file-context-menu", request),
     inspectLocalFiles: (request) => ipcRenderer.invoke("desktop:inspect-local-files", request),
+    stageClipboardImage: (request) => ipcRenderer.invoke("desktop:stage-clipboard-image", request),
     getPathForFile: (file: File) => (webUtils ? webUtils.getPathForFile(file) : null),
     selectDirectory: () => ipcRenderer.invoke("desktop:select-directory"),
     setChannelCredential: (payload) => ipcRenderer.invoke("desktop:set-channel-credential", payload),

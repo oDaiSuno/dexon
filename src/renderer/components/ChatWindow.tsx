@@ -692,6 +692,7 @@ export function ChatWindow({
                       const view = (
                         <SessionProfiler key={renderKey} id="MessageView">
                           <MessageView
+                            sessionId={session?.id}
                             message={msg}
                             toolResults={toolData?.results}
                             toolCallDurations={toolData?.durations}
@@ -870,6 +871,7 @@ export function ChatWindow({
                   {streamState.isStreaming && streamState.streamingMessage && (
                     <SessionProfiler id="MessageView">
                       <MessageView
+                        sessionId={session?.id}
                         message={streamState.streamingMessage as AgentMessage}
                         isStreaming
                         modelNames={modelNames}

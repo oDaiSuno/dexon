@@ -204,8 +204,8 @@ test("credential mutation failures distinguish committed state from an unverifie
 
 test("model list projection isolates provider availability failures and keeps the last known state", async () => {
   const { projectModelsList } = await loadHandlersModule();
-  const goodModel = { id: "fresh", name: "Fresh model", provider: "good", reasoning: false };
-  const cachedModel = { id: "cached", name: "Cached model", provider: "broken", reasoning: false };
+  const goodModel = { id: "fresh", name: "Fresh model", provider: "good", reasoning: false, input: ["text", "image"] };
+  const cachedModel = { id: "cached", name: "Cached model", provider: "broken", reasoning: false, input: ["text"] };
   const result = await projectModelsList(
     {
       getProviders() {
@@ -237,6 +237,8 @@ test("model list projection isolates provider availability failures and keeps th
     "broken/cached",
     "good/fresh",
   ]);
+  const projectedVision = result.models.find((model) => model.id === "fresh");
+  assert.deepEqual(projectedVision?.input, ["text", "image"]);
   assert.deepEqual(result.catalog.warnings, [
     {
       provider: "broken",

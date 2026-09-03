@@ -323,8 +323,119 @@ body {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent) !important;
 }
 
-.chat-composer-shell textarea:focus-visible {
-  outline: none !important;
+.chat-composer-shell .composer-editor:focus-visible {
+  outline: none;
+}
+
+/* The composer is a contenteditable surface; the placeholder shows via
+   :empty::before and disappears on the first character. */
+.composer-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-dim);
+  opacity: 1;
+  pointer-events: none;
+}
+
+.composer-editor {
+  min-height: 28px;
+  max-height: 200px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  caret-color: var(--text);
+  color: var(--text);
+  font-family: inherit;
+  padding: 3px 2px;
+}
+
+/* Attachment chips: shared visual for composer + transcript. Atomic inside
+   the composer (contenteditable=false), hover reveals the remove button. */
+.token-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 19px;
+  max-width: 236px;
+  padding: 0 3px 0 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-dim);
+  font-size: 0.82em;
+  line-height: 16px;
+  white-space: nowrap;
+  user-select: none;
+  /* Middle-align on the box's geometric midpoint: length-based values
+     synthesize the inline baseline from the first flex item, which differs
+     between img thumbnails and svg glyphs and staggered chips on one line. */
+  vertical-align: middle;
+  position: relative;
+  top: -0.05em;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+
+.token-chip:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.token-chip-missing {
+  border-color: var(--danger);
+}
+
+.token-chip-thumb {
+  width: 14px;
+  height: 14px;
+  object-fit: cover;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  flex: 0 0 auto;
+  display: block;
+  background: var(--bg-panel);
+}
+
+.token-chip-glyph {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.token-chip-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.token-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 0;
+  height: 13px;
+  margin-left: 0;
+  border-radius: 50%;
+  color: var(--text-muted);
+  opacity: 0;
+  overflow: hidden;
+  pointer-events: none;
+  flex: 0 0 auto;
+  transition:
+    width 0.12s ease,
+    margin-left 0.12s ease,
+    opacity 0.1s ease,
+    background 0.12s ease;
+}
+
+.token-chip:hover .token-chip-remove {
+  width: 13px;
+  margin-left: 2px;
+  opacity: 0.8;
+  pointer-events: auto;
+}
+
+.token-chip-remove:hover {
+  background: var(--bg-hover);
+  opacity: 1;
 }
 
 /* tactile press feedback for the composer's square buttons */

@@ -45,3 +45,18 @@ test("enabling every known model collapses preferences back to all models", asyn
   const current = ["anthropic/claude-sonnet"];
   assert.equal(setProviderModelsEnabled(models, current, "openai", true), null);
 });
+
+test("modelSupportsImages reads declared modalities and stays null when unknown", async () => {
+  const { modelSupportsImages } = await loadModule();
+  const modalModels = [
+    { id: "vision", name: "Vision", provider: "p", input: ["text", "image"] },
+    { id: "text-only", name: "Text only", provider: "p", input: ["text"] },
+    { id: "undeclared", name: "No modalities", provider: "p" },
+  ];
+
+  assert.equal(modelSupportsImages({ provider: "p", id: "vision" }, modalModels), true);
+  assert.equal(modelSupportsImages({ provider: "p", id: "text-only" }, modalModels), false);
+  assert.equal(modelSupportsImages({ provider: "p", id: "undeclared" }, modalModels), null);
+  assert.equal(modelSupportsImages({ provider: "p", id: "unknown" }, modalModels), null);
+  assert.equal(modelSupportsImages(null, modalModels), null);
+});
