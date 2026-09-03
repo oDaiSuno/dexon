@@ -504,6 +504,7 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
         run: |
           npm run prepare:bundled-tools -- --target darwin-arm64 --target darwin-x64
+          npm run build
           npx electron-builder --mac dmg zip --arm64 --x64 --publish never
 
       - name: Verify both signed and notarized apps
