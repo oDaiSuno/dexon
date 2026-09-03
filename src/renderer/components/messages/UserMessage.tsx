@@ -20,8 +20,13 @@ export function UserMessageView({
   prevAssistantEntryId,
   onEditContent,
   onLoadDeferredContent,
+  afterAssistant,
 }: {
   message: UserMessage;
+  /* Turn-boundary spacing: when the previous message is an assistant reply,
+     lift the bubble so it sits centered between the two replies (the hover
+     action row below already reserves the same visual gap). */
+  afterAssistant?: boolean;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
@@ -71,7 +76,13 @@ export function UserMessageView({
 
   return (
     <div
-      style={{ marginBottom: 14, display: "flex", flexDirection: "column", alignItems: "flex-end" }}
+      style={{
+        marginTop: afterAssistant ? 42 : 0,
+        marginBottom: 14,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-end",
+      }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
@@ -331,6 +342,8 @@ export function UserMessageView({
               fontSize: scaledChatFont(11),
               color: "var(--bui-ink-3)",
               fontFamily: "var(--font-mono)",
+              opacity: hovered ? 1 : 0,
+              transition: "opacity var(--duration-quick) var(--ease-out)",
             }}
           >
             {time}

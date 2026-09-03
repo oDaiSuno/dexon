@@ -8,6 +8,8 @@ import type { AgentMessage, AssistantMessage, CustomMessage, ToolResultMessage, 
 
 interface Props {
   message: AgentMessage;
+  /* Previous message is an assistant reply — user bubble gets turn-boundary top spacing. */
+  afterAssistant?: boolean;
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   toolCallDurations?: ReadonlyMap<string, number>;
@@ -29,6 +31,7 @@ interface Props {
 
 export const MessageView = memo(function MessageView({
   message,
+  afterAssistant,
   isStreaming,
   toolResults,
   toolCallDurations,
@@ -51,6 +54,7 @@ export const MessageView = memo(function MessageView({
     return (
       <UserMessageView
         message={message as UserMessage}
+        afterAssistant={afterAssistant}
         cwd={cwd}
         onOpenFile={onOpenFile}
         entryId={entryId}

@@ -669,10 +669,8 @@ export function ChatWindow({
                       } = {},
                     ): ReactNode => {
                       const msg = options.messageOverride ?? messages[idx];
-                      const prevAssistantEntryId =
-                        msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant"
-                          ? entryIds[idx - 1]
-                          : undefined;
+                      const prevIsAssistant = msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant";
+                      const prevAssistantEntryId = prevIsAssistant ? entryIds[idx - 1] : undefined;
                       const isVisible = msg.role === "user" || msg.role === "assistant";
                       const currentRefIdx = visibleRefIndexByMessage.get(idx);
                       const renderRole = options.renderRole ?? "message";
@@ -709,6 +707,7 @@ export function ChatWindow({
                             prevAssistantEntryId={agentRunning ? undefined : prevAssistantEntryId}
                             onEditContent={insertEditedContent}
                             onLoadDeferredContent={loadDeferredContent}
+                            afterAssistant={prevIsAssistant}
                             showTimestamp={showTimestamp}
                             prevTimestamp={
                               idx > 0
