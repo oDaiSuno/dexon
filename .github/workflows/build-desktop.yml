@@ -1,8 +1,11 @@
 name: Build desktop apps
 
-# Dexon: CI 暂为占位配置，仅手动触发；待 GitHub 仓库与发布配置确定后再启用自动触发。
+# 手动触发只跑测试与开发期打包校验；真正的发行产物只在 v* tag 推送时构建。
 on:
   workflow_dispatch:
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
