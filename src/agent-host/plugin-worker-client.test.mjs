@@ -33,6 +33,11 @@ function fakeWorker(directory, responseExpression) {
 }
 
 test("runs Plugins in an isolated process with the selected npm command and revision", async () => {
+  // Host processes (e.g. Dexon's own Agent Bash) may export a toolchain
+  // revision; the worker must receive only the context's revision, so pin
+  // the host value away for the duration of the test.
+  const hostRevision = process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
+  delete process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
   const directory = mkdtempSync(path.join(os.tmpdir(), "pi-plugin-worker-"));
   try {
     const entryPath = fakeWorker(
@@ -48,6 +53,8 @@ test("runs Plugins in an isolated process with the selected npm command and revi
     assert.equal(process.env.PI_DESKTOP_TOOLCHAIN_REVISION, undefined);
   } finally {
     rmSync(directory, { recursive: true, force: true });
+    if (hostRevision === undefined) delete process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
+    else process.env.PI_DESKTOP_TOOLCHAIN_REVISION = hostRevision;
   }
 });
 

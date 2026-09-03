@@ -16,26 +16,40 @@ function context(commands) {
 }
 
 test("pins Agent Bash to the resolved executable and context-local environment", () => {
-  const descriptor = {
-    capability: "shell.bash",
-    provider: "system",
-    executable: "/resolved/bin/bash",
-    argvPrefix: [],
-    binDir: "/resolved/bin",
-    version: "5.2.0",
-    cwdSemantics: "posix",
-    envPatch: {},
-  };
-  const options = createToolchainBashOptions(context({ "shell.bash": descriptor }), undefined, "source profile");
-  assert.equal(options.shellPath, "/resolved/bin/bash");
-  assert.equal(options.commandPrefix, "source profile");
-  const spawned = options.spawnHook({ command: "/resolved/bin/bash", args: [], env: { KEEP: "yes" } });
-  assert.deepEqual(spawned.env, {
-    KEEP: "yes",
-    PATH: "/resolved/bin:/usr/bin",
-    PI_DESKTOP_TOOLCHAIN_REVISION: "21",
-  });
-  assert.equal(process.env.PI_DESKTOP_TOOLCHAIN_REVISION, undefined);
+  // The host may legitimately export this revision (e.g. running the suite
+  // inside Dexon's own Agent Bash) — the assertions below require the
+  // function under test to be its only source, so pin the host value here.
+  const hostRevision = process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
+  delete process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
+  try {
+    return runAssertions();
+  } finally {
+    if (hostRevision === undefined) delete process.env.PI_DESKTOP_TOOLCHAIN_REVISION;
+    else process.env.PI_DESKTOP_TOOLCHAIN_REVISION = hostRevision;
+  }
+
+  function runAssertions() {
+    const descriptor = {
+      capability: "shell.bash",
+      provider: "system",
+      executable: "/resolved/bin/bash",
+      argvPrefix: [],
+      binDir: "/resolved/bin",
+      version: "5.2.0",
+      cwdSemantics: "posix",
+      envPatch: {},
+    };
+    const options = createToolchainBashOptions(context({ "shell.bash": descriptor }), undefined, "source profile");
+    assert.equal(options.shellPath, "/resolved/bin/bash");
+    assert.equal(options.commandPrefix, "source profile");
+    const spawned = options.spawnHook({ command: "/resolved/bin/bash", args: [], env: { KEEP: "yes" } });
+    assert.deepEqual(spawned.env, {
+      KEEP: "yes",
+      PATH: "/resolved/bin:/usr/bin",
+      PI_DESKTOP_TOOLCHAIN_REVISION: "21",
+    });
+    assert.equal(process.env.PI_DESKTOP_TOOLCHAIN_REVISION, undefined);
+  }
 });
 
 test("removes host credentials from Agent Bash environment", () => {

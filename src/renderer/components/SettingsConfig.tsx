@@ -431,7 +431,7 @@ function AboutSettings({ onClose }: { onClose: () => void }) {
                     textAlign: "right",
                   }}
                 >
-                  github.com/dexon-app/dexon ↗
+                  github.com/oDaiSuno/dexon ↗
                 </button>
               }
               last

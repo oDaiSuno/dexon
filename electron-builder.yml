@@ -170,6 +170,6 @@ protocols:
 
 publish:
   provider: github
-  owner: dexon-app
+  owner: oDaiSuno
   repo: dexon
   releaseType: draft

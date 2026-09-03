@@ -14,4 +14,4 @@ export const PI_VERSION =
 
 export const APP_DISPLAY_NAME = "Dexon";
 export const APP_AUTHOR = "Dexon";
-export const APP_GITHUB_URL = "https://github.com/dexon-app/dexon";
+export const APP_GITHUB_URL = "https://github.com/oDaiSuno/dexon";

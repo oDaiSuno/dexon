@@ -146,7 +146,7 @@ export function installAppMenu(
         {
           label: "Learn More",
           click: () => {
-            void shell.openExternal("https://github.com/dexon-app/dexon");
+            void shell.openExternal("https://github.com/oDaiSuno/dexon");
           },
         },
       ],

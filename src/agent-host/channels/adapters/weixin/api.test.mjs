@@ -35,6 +35,14 @@ test("getUpdates sends cursor and preserves it on an aborted long poll", async (
   t.after(() => {
     globalThis.fetch = original;
   });
+  // The app version normally arrives from the host; pin the default path
+  // under test regardless of the suite's host process.
+  const originalVersion = process.env.PI_DESKTOP_VERSION;
+  t.after(() => {
+    if (originalVersion === undefined) delete process.env.PI_DESKTOP_VERSION;
+    else process.env.PI_DESKTOP_VERSION = originalVersion;
+  });
+  delete process.env.PI_DESKTOP_VERSION;
   let body;
   globalThis.fetch = async (_url, init) => {
     body = JSON.parse(init.body);

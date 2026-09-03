@@ -314,12 +314,14 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run check:packaged-toolchains -- ${{ matrix.tool_target }} --release-helper
 
+      # 首发 v0.1.0 没有前一版本安装包可做升级/回滚 E2E；从 v0.1.1 起，
+      # 把 URL 和 hash 更新为上一版本真实发布的安装包后此测试自动恢复。
       - name: Run Windows NSIS upgrade and rollback E2E
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && github.ref_name != 'v0.1.0'
         shell: pwsh
         run: |
           $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
-          curl.exe --fail --location --retry 3 --output $previous "https://github.com/dexon-app/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          curl.exe --fail --location --retry 3 --output $previous "https://github.com/oDaiSuno/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
           if ($LASTEXITCODE -ne 0) { throw "previous installer download exited $LASTEXITCODE" }
           $expected = "5d99744a18f7495c987146a44718dbb5ba7037cf279ada62669aefc9940313c5"
           if ((Get-FileHash -Algorithm SHA256 -LiteralPath $previous).Hash.ToLowerInvariant() -ne $expected) { throw "previous installer hash mismatch" }
@@ -458,13 +460,16 @@ jobs:
         run: npm run check:toolchain-catalog:upstream
 
   release-macos:
-    name: Sign and notarize macOS
+    name: Package macOS
     if: github.ref_type == 'tag' && startsWith(github.ref_name, 'v')
     needs: [release-contract]
     runs-on: macos-15
     timeout-minutes: 90
     environment:
       name: release
+    env:
+      # 配置 MAC_CSC_LINK secret 后自动升级为签名+公证；否则发未签名包。
+      HAS_MAC_CSC: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -479,6 +484,7 @@ jobs:
         run: npm ci
 
       - name: Build, sign, and notarize macOS
+        if: env.HAS_MAC_CSC == 'true'
         env:
           CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
@@ -487,7 +493,16 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run dist:mac:notarized -- --arm64 --x64
 
+      - name: Build unsigned macOS packages
+        if: env.HAS_MAC_CSC != 'true'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run prepare:bundled-tools -- --target darwin-arm64 --target darwin-x64
+          npx electron-builder --mac dmg zip --arm64 --x64 --publish never
+
       - name: Verify both signed and notarized apps
+        if: env.HAS_MAC_CSC == 'true'
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
@@ -527,6 +542,29 @@ jobs:
           x64_app="$(find_app_for_arch x86_64)"
           verify_app "$arm64_app" arm64
           verify_app "$x64_app" x86_64
+
+      - name: Verify unsigned macOS packages
+        if: env.HAS_MAC_CSC != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          for pair in "arm64 arm64" "x64 x86_64"; do
+            set -- $pair
+            zip_arch="$1"
+            bin_arch="$2"
+            archive="dist/Dexon-${version}-${zip_arch}.zip"
+            test -s "$archive"
+            work="dist/unsigned-${zip_arch}"
+            rm -rf "$work"
+            mkdir -p "$work"
+            ditto -x -k "$archive" "$work"
+            app="$work/Dexon.app"
+            test -f "$app/Contents/MacOS/Dexon"
+            lipo -archs "$app/Contents/MacOS/Dexon" | grep -qw "$bin_arch"
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$app/Contents/Info.plist" | grep -qx "$version"
+          done
+          echo "Unsigned macOS packages verified (structure + architecture + version)"
 
       - name: Verify packaged macOS update configuration
         shell: bash
@@ -676,6 +714,8 @@ jobs:
     needs: [release-macos]
     runs-on: macos-15-intel
     timeout-minutes: 15
+    env:
+      HAS_MAC_CSC: ${{ secrets.MAC_CSC_LINK != '' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
@@ -706,6 +746,7 @@ jobs:
           ditto -x -k "$archive" dist/mac-x64
 
       - name: Verify signed and notarized macOS x64 application
+        if: env.HAS_MAC_CSC == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -716,6 +757,15 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
           xcrun stapler validate "$app"
           spctl --assess --type execute --verbose=4 "$app"
+
+      - name: Verify unsigned macOS x64 application
+        if: env.HAS_MAC_CSC != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          binary="dist/mac-x64/Dexon.app/Contents/MacOS/Dexon"
+          test -f "$binary"
+          lipo -archs "$binary" | grep -qw x86_64
 
       - name: Run packaged toolchain E2E for macOS x64
         run: npm run check:packaged-toolchains -- darwin-x64
@@ -917,11 +967,13 @@ jobs:
       - name: Run packaged toolchain E2E for Windows x64
         run: npm run check:packaged-toolchains -- win32-x64 --release-helper
 
+      # 首发 v0.1.0 跳过（无前一版本可测）；v0.1.1 起更新 URL/hash 后恢复。
       - name: Run Windows NSIS upgrade and rollback E2E
+        if: github.ref_name != 'v0.1.0'
         shell: pwsh
         run: |
           $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
-          curl.exe --fail --location --retry 3 --output $previous "https://github.com/dexon-app/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
+          curl.exe --fail --location --retry 3 --output $previous "https://github.com/oDaiSuno/dexon/releases/download/v0.1.10/Dexon-Unsigned-Beta-Setup-0.1.10.exe"
           if ($LASTEXITCODE -ne 0) { throw "previous installer download exited $LASTEXITCODE" }
           $expected = "5d99744a18f7495c987146a44718dbb5ba7037cf279ada62669aefc9940313c5"
           if ((Get-FileHash -Algorithm SHA256 -LiteralPath $previous).Hash.ToLowerInvariant() -ne $expected) { throw "previous installer hash mismatch" }
@@ -1004,7 +1056,9 @@ jobs:
 
   release:
     name: Create desktop draft release
-    if: startsWith(github.ref, 'refs/tags/v')
+    # !failure() + !cancelled() 让被跳过的可选校验 job（如未签名时的
+    # verify-macos-x64）不阻断草稿发布，真实失败仍会阻断。
+    if: ${{ !cancelled() && !failure() && startsWith(github.ref, 'refs/tags/v') }}
     needs: [release-macos, verify-macos-x64, release-windows, release-linux]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
