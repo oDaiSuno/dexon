@@ -3,6 +3,8 @@ import { MarkdownBody } from "../MarkdownBody";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { isImagePath, segmentByAttachmentTokens } from "@shared/attachment-tokens";
+import { parseExpandedSkillMessage, splitLeadingSkillCommand } from "@shared/skill-commands";
+import { PackageIcon } from "../chat-input/icons";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
 import { AttachmentTokenPill } from "../chat-input/AttachmentTokenPill";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
@@ -11,6 +13,37 @@ import { useI18n } from "@/i18n";
 import { useTheme } from "@/hooks/useTheme";
 import { DeferredContentActions, formatTime } from "./shared";
 import type { ImageContent, TextContent, UserMessage } from "@/lib/types";
+
+/** Blue `/skill:name` badge for messages that start with a skill command. */
+function SkillBadge({ name }: { name: string }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        height: 20,
+        padding: "0 7px 0 5px",
+        marginRight: 2,
+        borderRadius: 6,
+        border: "1px solid color-mix(in srgb, var(--accent) 30%, transparent)",
+        background: "var(--accent-soft)",
+        color: "var(--accent)",
+        fontSize: scaledChatFont(11.5),
+        fontWeight: 500,
+        lineHeight: "17px",
+        whiteSpace: "nowrap",
+        userSelect: "none",
+        verticalAlign: "middle",
+        position: "relative",
+        top: -0.05,
+      }}
+    >
+      <PackageIcon size={12} />
+      {name}
+    </span>
+  );
+}
 
 export function UserMessageView({
   message,
@@ -72,9 +105,13 @@ export function UserMessageView({
     : content;
   const copyableContent = isChannelAttachmentPlaceholder ? attachmentCopyContent : visibleContent;
 
+  // Leading `/skill:name` command: render as a blue badge, prose stays below.
+  // Pi rewrites the command into an expanded <skill> block before storing or
+  // echoing the message, so accept both shapes (also covers history reloads).
+  const leadingSkill = splitLeadingSkillCommand(visibleContent) ?? parseExpandedSkillMessage(visibleContent);
   // In-sentence attachment tokens: render as pills; image tokens additionally
   // show a thumbnail loaded through the files.read bridge.
-  const segments = segmentByAttachmentTokens(visibleContent);
+  const segments = segmentByAttachmentTokens(leadingSkill ? leadingSkill.rest : visibleContent);
   const tokenImagePaths = segments
     .filter((segment): segment is Extract<typeof segment, { type: "token" }> => segment.type === "token")
     .map((segment) => segment.token.path)
@@ -180,37 +217,52 @@ export function UserMessageView({
               })}
             </div>
           )}
-          {visibleContent && hasTokens && (
-            <div>
-              {segments.map((segment, index) => {
-                if (segment.type === "text") {
-                  if (!segment.text.trim()) return <span key={index}>{segment.text}</span>;
+          {(() => {
+            // Body renderer shared by the plain path, the token path, and the
+            // leading-skill-badge path (badge + prose below it).
+            const body = (() => {
+              if (hasTokens) {
+                return segments.map((segment, index) => {
+                  if (segment.type === "text") {
+                    if (!segment.text.trim()) return <span key={index}>{segment.text}</span>;
+                    return (
+                      <MarkdownBody key={index} className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
+                        {segment.text}
+                      </MarkdownBody>
+                    );
+                  }
+                  const token = segment.token;
                   return (
-                    <MarkdownBody key={index} className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
-                      {segment.text}
-                    </MarkdownBody>
+                    <AttachmentTokenPill
+                      key={index}
+                      path={token.path}
+                      name={token.quoted ? `"${token.path}"` : token.path}
+                      isImage={isImagePath(token.path)}
+                      previewUrl={tokenPreviews.get(token.path) ?? null}
+                      missing={false}
+                      size="transcript"
+                    />
                   );
-                }
-                const token = segment.token;
-                return (
-                  <AttachmentTokenPill
-                    key={index}
-                    path={token.path}
-                    name={token.quoted ? `"${token.path}"` : token.path}
-                    isImage={isImagePath(token.path)}
-                    previewUrl={tokenPreviews.get(token.path) ?? null}
-                    missing={false}
-                    size="transcript"
-                  />
-                );
-              })}
-            </div>
-          )}
-          {visibleContent && !hasTokens && (
-            <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
-              {visibleContent}
-            </MarkdownBody>
-          )}
+                });
+              }
+              const prose = leadingSkill ? leadingSkill.rest : visibleContent;
+              if (!prose.trim()) return null;
+              return (
+                <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile}>
+                  {prose}
+                </MarkdownBody>
+              );
+            })();
+            if (leadingSkill) {
+              return (
+                <div>
+                  <SkillBadge name={leadingSkill.name} />
+                  {body}
+                </div>
+              );
+            }
+            return body;
+          })()}
           {imageTokenPreviews.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               {imageTokenPreviews.map(({ path, url }) => (

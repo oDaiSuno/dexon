@@ -11,7 +11,8 @@ function squareBase(): CSSProperties {
     justifyContent: "center",
     height: 28,
     padding: 0,
-    transition: "background 0.15s, color 0.15s, border-color 0.15s, transform 0.12s",
+    transition:
+      "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), transform var(--duration-micro, 80ms)",
   };
 }
 

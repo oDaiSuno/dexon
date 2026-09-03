@@ -1,27 +1,37 @@
 import * as React from "react";
-import {
-  attachmentTokenText,
-  findAttachmentTokens,
-  isImagePath,
-  looksLikePath,
-  segmentByAttachmentTokens,
-  type AttachmentToken,
-} from "@shared/attachment-tokens";
+import { isImagePath, looksLikePath } from "@shared/attachment-tokens";
 import { buildAtInsertText, extractAtQuery, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { scaledChatFont } from "@/lib/chat-appearance";
-import { TOKEN_ATTR, createTokenChip, fillChipContent, isFlat, serializeEditor, type PillVisual } from "./composer-dom";
+import {
+  CHIP_SELECTOR,
+  SKILL_ATTR,
+  buildMaterializePlan,
+  caretToEditorEnd as domCaretToEditorEnd,
+  createSkillChip,
+  createTokenChip,
+  isChipEl,
+  deleteRangeBeforeCaret,
+  insertChipWithSpace,
+  insertNodesAtCaret,
+  insertSkillChipAtStart,
+  isFlat,
+  placeCaretByOffset,
+  removeChipNode,
+  segmentComposerText,
+  serializeEditor,
+  syncChipVisuals,
+  syncEditorHeight,
+  textBeforeCaret as domTextBeforeCaret,
+  type MaterializePlanEntry,
+  type PillVisual,
+} from "./composer-dom";
 
 /**
- * Native rich-text composer surface. The DOM is the source of truth: plain
- * text nodes plus atomic attachment chips (`contenteditable="false"`).
- * Serialization maps chips back to literal `@path` tokens, so the rest of the
- * app (send pipeline, drafts, menus, transcript parsing) keeps working on the
- * serialized string.
- *
- * Reference behavior (Cursor-style): chips are atomic — the caret can never
- * enter them, Backspace/Delete at a boundary removes the whole chip, clicking
- * a chip reveals the file in the OS file manager, and the ✕ button (revealed
- * on hover) removes it.
+ * Native rich-text composer surface. The DOM is the source of truth: text
+ * nodes plus atomic chips (attachment `@path`, skill `/skill:name`), all
+ * serialized back to literal text so the rest of the app keeps working on
+ * the string. Chips are atomic — the caret never enters them; Backspace at a
+ * boundary removes the whole chip; the ✕ (hover) removes it; click reveals.
  */
 
 export interface ComposerEditableHandle {
@@ -32,6 +42,12 @@ export interface ComposerEditableHandle {
   insertTextAtCaret(text: string): void;
   /** Insert a closed attachment chip at the caret (＋ menu, staged images). */
   insertTokenAtCaret(path: string): void;
+  /**
+   * Place (or replace) a skill chip at message start. Skill commands are
+   * expanded by pi only at position 0, so picking a skill always targets
+   * the start of the message, not the caret.
+   */
+  insertSkillAtStart(name: string): void;
   /** Replace the `@query` before the caret with a completed entry (AtMenu). */
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
   textBeforeCaret(): string;
@@ -51,7 +67,10 @@ export function ComposerEditable({
   previewsByPath,
   missingByPath,
   onRevealToken,
+  onSkillReveal,
   removeLabel,
+  skillDescriptions,
+  skillRemoveLabel,
 }: {
   value: string;
   handleRef: React.MutableRefObject<ComposerEditableHandle | null>;
@@ -65,7 +84,10 @@ export function ComposerEditable({
   previewsByPath: ReadonlyMap<string, string | null>;
   missingByPath: ReadonlyMap<string, boolean>;
   onRevealToken: (path: string) => void;
+  onSkillReveal: (name: string) => void;
   removeLabel: string;
+  skillDescriptions: ReadonlyMap<string, string>;
+  skillRemoveLabel: string;
 }): React.ReactElement {
   const editorRef = React.useRef<HTMLDivElement>(null);
   const lastSerializedRef = React.useRef(value);
@@ -74,11 +96,24 @@ export function ComposerEditable({
     onValueChange,
     onSelectionChange,
     onRevealToken,
+    onSkillReveal,
     previewsByPath,
     missingByPath,
     removeLabel,
+    skillDescriptions,
+    skillRemoveLabel,
   });
-  propsRef.current = { onValueChange, onSelectionChange, onRevealToken, previewsByPath, missingByPath, removeLabel };
+  propsRef.current = {
+    onValueChange,
+    onSelectionChange,
+    onRevealToken,
+    onSkillReveal,
+    previewsByPath,
+    missingByPath,
+    removeLabel,
+    skillDescriptions,
+    skillRemoveLabel,
+  };
 
   const getEditor = React.useCallback(() => editorRef.current, []);
 
@@ -98,35 +133,16 @@ export function ComposerEditable({
     [visualFor],
   );
 
-  const textBeforeCaret = React.useCallback((): string => {
-    const el = getEditor();
-    const sel = window.getSelection();
-    if (!el || !sel || !sel.rangeCount || !el.contains(sel.anchorNode)) return "";
-    const anchor = sel.anchorNode;
-    if (!anchor) return "";
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.setEnd(anchor, sel.anchorOffset);
-    return range.toString();
-  }, [getEditor]);
+  const createSkillChipFor = React.useCallback(
+    (name: string): HTMLElement =>
+      createSkillChip(name, {
+        description: propsRef.current.skillDescriptions.get(name) ?? null,
+        removeLabel: propsRef.current.skillRemoveLabel,
+      }),
+    [],
+  );
 
-  const caretToEditorEnd = React.useCallback(() => {
-    const el = getEditor();
-    const sel = window.getSelection();
-    if (!el || !sel) return;
-    const range = document.createRange();
-    range.selectNodeContents(el);
-    range.collapse(false);
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }, [getEditor]);
-
-  const syncHeight = React.useCallback(() => {
-    const el = getEditor();
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
-  }, [getEditor]);
+  const textBeforeCaret = React.useCallback((): string => domTextBeforeCaret(getEditor()), [getEditor]);
 
   const emit = React.useCallback(() => {
     const el = getEditor();
@@ -146,185 +162,107 @@ export function ComposerEditable({
       const el = getEditor();
       if (!el) return;
       el.textContent = "";
-      for (const segment of segmentByAttachmentTokens(text)) {
+      for (const segment of segmentComposerText(text)) {
         if (segment.type === "text") {
           if (segment.text) el.appendChild(document.createTextNode(segment.text));
+        } else if (segment.type === "skill") {
+          el.appendChild(createSkillChipFor(segment.name));
         } else {
-          el.appendChild(createChip(segment.token.path));
+          el.appendChild(createChip(segment.path));
         }
       }
       lastSerializedRef.current = text;
-      caretToEditorEnd();
-      syncHeight();
+      domCaretToEditorEnd(el);
+      syncEditorHeight(el);
     },
-    [createChip, caretToEditorEnd, getEditor, syncHeight],
+    [createChip, createSkillChipFor, getEditor],
   );
 
+  /** One rewrite target: replace the [start,end) text range with this chip. */
+  interface ChipPlanEntry {
+    start: number;
+    end: number;
+    chip: HTMLElement;
+  }
+
   /** Rebuild the flat DOM from `text`, restoring the caret by serialized offset.
-   *  `chipTokens` selects which token ranges become chips; open queries stay
-   *  literal text so AtMenu completion keeps working. */
+   *  `plan` selects which text ranges become chips; open queries stay literal
+   *  text so AtMenu/slash completion keep working. */
   const rewritePreservingCaret = React.useCallback(
-    (text: string, caretOffset: number, chipTokens: readonly AttachmentToken[]) => {
+    (text: string, caretOffset: number, plan: readonly ChipPlanEntry[]) => {
       const el = getEditor();
       if (!el) return;
       el.textContent = "";
       let cursor = 0;
-      for (const token of chipTokens) {
-        if (token.start > cursor) el.appendChild(document.createTextNode(text.slice(cursor, token.start)));
-        el.appendChild(createChip(token.path));
-        cursor = token.end;
+      for (const entry of plan) {
+        if (entry.start > cursor) el.appendChild(document.createTextNode(text.slice(cursor, entry.start)));
+        el.appendChild(entry.chip);
+        cursor = entry.end;
       }
       if (cursor < text.length) el.appendChild(document.createTextNode(text.slice(cursor)));
       lastSerializedRef.current = text;
-      const sel = window.getSelection();
-      if (sel) {
-        const range = document.createRange();
-        let remaining = caretOffset;
-        let placed = false;
-        const children = Array.from(el.childNodes);
-        for (let index = 0; index < children.length; index++) {
-          const child = children[index];
-          const size =
-            child.nodeType === Node.TEXT_NODE
-              ? (child.textContent ?? "").length
-              : attachmentTokenText((child as HTMLElement).dataset.path ?? "").length;
-          if (remaining <= size) {
-            range.setStart(
-              child.nodeType === Node.TEXT_NODE ? child : el,
-              child.nodeType === Node.TEXT_NODE ? remaining : index,
-            );
-            range.collapse(true);
-            placed = true;
-            break;
-          }
-          remaining -= size;
-        }
-        if (!placed) {
-          range.selectNodeContents(el);
-          range.collapse(false);
-        }
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
+      placeCaretByOffset(el, caretOffset);
     },
-    [createChip, getEditor],
+    [getEditor],
+  );
+
+  /** Materialization plan for the current flat DOM (chips created fresh). */
+  const planFor = React.useCallback(
+    (text: string, el: HTMLElement): MaterializePlanEntry[] =>
+      buildMaterializePlan(
+        text,
+        el,
+        (path) => createChip(path),
+        (name) => createSkillChipFor(name),
+      ),
+    [createChip, createSkillChipFor],
   );
 
   /**
-   * Turn closed @tokens that are still plain text into chips. A token is
-   * closed when a separator space follows it; an open trailing query (AtMenu
-   * drill-down, mid-typing) stays plain text so completion can keep
-   * replacing it.
+   * Turn closed @tokens and the leading closed /skill command that are still
+   * plain text into chips. Open trailing queries stay text for completion.
    */
   const materializeTokens = React.useCallback(() => {
     const el = getEditor();
     if (!el) return;
     const text = serializeEditor(el);
-    const tokens = findAttachmentTokens(text);
-    const closed = tokens.filter((token) => /\s/.test(text[token.end] ?? ""));
-    if (closed.length === 0) return;
-    let offset = 0;
-    let hasPlainTextToken = false;
-    for (const child of Array.from(el.childNodes)) {
-      const size =
-        child.nodeType === Node.TEXT_NODE
-          ? (child.textContent ?? "").length
-          : attachmentTokenText((child as HTMLElement).dataset.path ?? "").length;
-      if (child.nodeType === Node.TEXT_NODE) {
-        const nodeStart = offset;
-        const nodeEnd = offset + size;
-        if (closed.some((token) => token.start < nodeEnd && token.end > nodeStart)) {
-          hasPlainTextToken = true;
-          break;
-        }
-      }
-      offset += size;
-    }
-    if (!hasPlainTextToken) return;
-    rewritePreservingCaret(text, textBeforeCaret().length, closed);
-  }, [getEditor, rewritePreservingCaret, textBeforeCaret]);
+    const plan = planFor(text, el);
+    if (plan.length === 0) return;
+    rewritePreservingCaret(text, textBeforeCaret().length, plan);
+  }, [getEditor, planFor, rewritePreservingCaret, textBeforeCaret]);
 
   /** Flatten stray blocks/BRs left by default browser edits; keep the caret. */
   const normalize = React.useCallback(() => {
     const el = getEditor();
     if (!el || isFlat(el)) return;
     const text = serializeEditor(el);
-    const closed = findAttachmentTokens(text).filter((token) => /\s/.test(text[token.end] ?? ""));
-    rewritePreservingCaret(text, textBeforeCaret().length, closed);
-  }, [getEditor, rewritePreservingCaret, textBeforeCaret]);
+    rewritePreservingCaret(text, textBeforeCaret().length, planFor(text, el));
+  }, [getEditor, planFor, rewritePreservingCaret, textBeforeCaret]);
 
   const removeChip = React.useCallback(
     (chip: HTMLElement) => {
       const el = getEditor();
       if (!el) return;
-      const next = chip.nextSibling;
-      const prev = chip.previousSibling;
-      // Collapse one adjacent separator space to avoid double gaps.
-      if (next?.nodeType === Node.TEXT_NODE && next.textContent?.startsWith(" ")) {
-        next.textContent = next.textContent.slice(1);
-      } else if (prev?.nodeType === Node.TEXT_NODE && prev.textContent?.endsWith(" ")) {
-        prev.textContent = prev.textContent.slice(0, -1);
-      }
-      const index = Array.from(el.childNodes).indexOf(chip);
-      chip.remove();
-      const sel = window.getSelection();
-      if (sel) {
-        const range = document.createRange();
-        range.setStart(el, Math.max(0, Math.min(index, el.childNodes.length)));
-        range.collapse(true);
-        sel.removeAllRanges();
-        sel.addRange(range);
-      }
+      removeChipNode(el, chip);
       emit();
-      syncHeight();
+      syncEditorHeight(el);
       notifySelection();
     },
-    [emit, getEditor, notifySelection, syncHeight],
+    [emit, getEditor, notifySelection],
   );
 
   /** Insert nodes at the caret (or editor end); caret collapses after `caretNode`. */
   const insertAtCaret = React.useCallback(
     (nodes: Node[], caretNode: Node | null, caretOffset: number) => {
       const el = getEditor();
-      const sel = window.getSelection();
-      if (!el || !sel) return;
-      el.focus();
-      let range = sel.rangeCount && el.contains(sel.anchorNode) ? sel.getRangeAt(0) : null;
-      if (!range) {
-        caretToEditorEnd();
-        range = sel.getRangeAt(0);
-      }
-      if (!range.collapsed) range.collapse(false);
-      // Glue a space when the character before the caret is not whitespace.
-      const glueNeeded = (() => {
-        const { startContainer, startOffset } = range;
-        if (startContainer.nodeType === Node.TEXT_NODE) {
-          return startOffset > 0 && !/\s/.test(startContainer.textContent?.[startOffset - 1] ?? " ");
-        }
-        const prev = startContainer.childNodes[startOffset - 1] ?? null;
-        return prev !== null && !(prev.nodeType === Node.TEXT_NODE && /\s$/.test(prev.textContent ?? ""));
-      })();
-      const frag = document.createDocumentFragment();
-      if (glueNeeded) frag.append(document.createTextNode(" "));
-      frag.append(...nodes);
-      range.insertNode(frag);
-      if (caretNode) {
-        const after = document.createRange();
-        try {
-          after.setStart(caretNode, caretOffset);
-          after.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(after);
-        } catch {
-          caretToEditorEnd();
-        }
-      }
+      if (!el) return;
+      insertNodesAtCaret(el, nodes, caretNode, caretOffset);
       emit();
       materializeTokens();
-      syncHeight();
+      syncEditorHeight(el);
       notifySelection();
     },
-    [caretToEditorEnd, emit, getEditor, materializeTokens, notifySelection, syncHeight],
+    [emit, getEditor, materializeTokens, notifySelection],
   );
 
   const handle = React.useMemo<ComposerEditableHandle>(
@@ -346,20 +284,23 @@ export function ComposerEditable({
         const space = document.createTextNode(" ");
         insertAtCaret([chip, space], space, 1);
       },
+      insertSkillAtStart: (name: string) => {
+        const el = getEditor();
+        if (!el) return;
+        el.focus();
+        insertSkillChipAtStart(el, createSkillChipFor(name));
+        emit();
+        syncEditorHeight(el);
+        notifySelection();
+      },
       completeAtQuery: (atQuery: AtQueryMatch, entryPath: string, isDir: boolean) => {
         const el = getEditor();
         const sel = window.getSelection();
-        if (!el || !sel || !sel.rangeCount) return;
-        const range = sel.getRangeAt(0);
-        if (!range.collapsed) return;
+        if (!el || !sel) return;
         const prefixLength = atQuery.quoted ? atQuery.query.length + 2 : atQuery.query.length + 1;
-        if (range.startContainer.nodeType !== Node.TEXT_NODE || range.startOffset < prefixLength) return;
-        const deleteRange = range.cloneRange();
-        deleteRange.setStart(range.startContainer, range.startOffset - prefixLength);
         // Quoted completion carries its own closing quote — swallow the old one.
-        if (atQuery.quoted && range.startContainer.textContent?.[range.startOffset] === '"') {
-          deleteRange.setEnd(range.startContainer, range.startOffset + 1);
-        }
+        const deleteRange = deleteRangeBeforeCaret(prefixLength, atQuery.quoted);
+        if (!deleteRange) return;
         deleteRange.deleteContents();
         if (isDir) {
           const insertion = buildAtInsertText(entryPath, true, atQuery.quoted);
@@ -371,25 +312,16 @@ export function ComposerEditable({
           sel.removeAllRanges();
           sel.addRange(after);
         } else {
-          const chip = createChip(entryPath);
-          const space = document.createTextNode(" ");
-          const frag = document.createDocumentFragment();
-          frag.append(chip, space);
-          deleteRange.insertNode(frag);
-          const after = document.createRange();
-          after.setStart(space, 1);
-          after.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(after);
+          insertChipWithSpace(deleteRange, createChip(entryPath));
         }
         emit();
-        syncHeight();
+        syncEditorHeight(el);
         notifySelection();
       },
       textBeforeCaret: () => textBeforeCaret(),
       focus: () => getEditor()?.focus(),
     }),
-    [createChip, emit, getEditor, insertAtCaret, notifySelection, rebuild, syncHeight, textBeforeCaret],
+    [createChip, createSkillChipFor, emit, getEditor, insertAtCaret, notifySelection, rebuild, textBeforeCaret],
   );
 
   React.useEffect(() => {
@@ -406,18 +338,7 @@ export function ComposerEditable({
   React.useEffect(() => {
     // Sync chip visuals when previews/missing state resolve asynchronously.
     const el = getEditor();
-    if (!el) return;
-    for (const chip of Array.from(el.querySelectorAll<HTMLElement>(`[${TOKEN_ATTR}]`))) {
-      const path = chip.dataset.path ?? "";
-      const preview = propsRef.current.previewsByPath.get(path) ?? null;
-      const missing = propsRef.current.missingByPath.get(path) ?? false;
-      if ((chip.dataset.previewKey ?? "") === (preview ?? "") && chip.dataset.missingKey === (missing ? "1" : "0")) {
-        continue;
-      }
-      chip.dataset.previewKey = preview ?? "";
-      chip.dataset.missingKey = missing ? "1" : "0";
-      fillChipContent(chip, path, visualFor(path));
-    }
+    if (el) syncChipVisuals(el, visualFor, previewsByPath, missingByPath);
   }, [getEditor, missingByPath, previewsByPath, visualFor]);
 
   React.useEffect(() => {
@@ -435,34 +356,18 @@ export function ComposerEditable({
     (query: AtQueryMatch) => {
       const el = getEditor();
       const sel = window.getSelection();
-      if (!el || !sel || !sel.rangeCount) return;
-      const range = sel.getRangeAt(0);
+      if (!el || !sel) return;
       const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-      if (!range.collapsed || range.startContainer.nodeType !== Node.TEXT_NODE || range.startOffset < prefixLength) {
-        return;
-      }
-      const deleteRange = range.cloneRange();
-      deleteRange.setStart(range.startContainer, range.startOffset - prefixLength);
-      if (query.quoted && range.startContainer.textContent?.[range.startOffset] === '"') {
-        // The drill-down completion leaves the closing quote after the caret.
-        deleteRange.setEnd(range.startContainer, range.startOffset + 1);
-      }
+      // The drill-down completion may leave the closing quote after the caret.
+      const deleteRange = deleteRangeBeforeCaret(prefixLength, query.quoted);
+      if (!deleteRange) return;
       deleteRange.deleteContents();
-      const chip = createChip(query.query);
-      const space = document.createTextNode(" ");
-      const frag = document.createDocumentFragment();
-      frag.append(chip, space);
-      deleteRange.insertNode(frag);
-      const after = document.createRange();
-      after.setStart(space, 1);
-      after.collapse(true);
-      sel.removeAllRanges();
-      sel.addRange(after);
+      insertChipWithSpace(deleteRange, createChip(query.query));
       emit();
-      syncHeight();
+      syncEditorHeight(el);
       notifySelection();
     },
-    [createChip, emit, getEditor, notifySelection, syncHeight],
+    [createChip, emit, getEditor, notifySelection],
   );
 
   const handleBeforeInputNative = React.useCallback(
@@ -475,13 +380,8 @@ export function ComposerEditable({
         // mirroring the TUI where whitespace ends the token reference.
         const query = extractAtQuery(textBeforeCaret());
         if (query && query.query.length > 0 && looksLikePath(query.query)) {
-          const caretRange = sel.getRangeAt(0);
           const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-          if (
-            caretRange.collapsed &&
-            caretRange.startContainer.nodeType === Node.TEXT_NODE &&
-            caretRange.startOffset >= prefixLength
-          ) {
+          if (deleteRangeBeforeCaret(prefixLength, false)) {
             native.preventDefault();
             closeQueryAsChip(query);
             return;
@@ -509,7 +409,7 @@ export function ComposerEditable({
             ? (el.childNodes[anchorOffset] ?? null)
             : (anchorNode.nextSibling ??
               (anchorNode.parentNode !== el ? (anchorNode.parentNode?.nextSibling ?? null) : null));
-      if (!(neighbor instanceof HTMLElement) || !neighbor.hasAttribute(TOKEN_ATTR)) return;
+      if (!(neighbor instanceof HTMLElement) || !isChipEl(neighbor)) return;
       native.preventDefault();
       removeChip(neighbor);
     },
@@ -528,17 +428,22 @@ export function ComposerEditable({
 
   const handleEditorMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     // Keep the caret out of chips: they stay atomic (only remove / reveal).
-    if ((e.target as HTMLElement).closest?.(`[${TOKEN_ATTR}]`)) e.preventDefault();
+    if ((e.target as HTMLElement).closest?.(CHIP_SELECTOR)) e.preventDefault();
   };
 
   const handleEditorClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    const chip = target.closest?.<HTMLElement>(`[${TOKEN_ATTR}]`);
+    const chip = target.closest?.<HTMLElement>(CHIP_SELECTOR);
     if (!chip) return;
     if (target.closest?.("[data-chip-remove]")) {
       e.preventDefault();
       e.stopPropagation();
       removeChip(chip);
+      return;
+    }
+    if (chip.hasAttribute(SKILL_ATTR)) {
+      const name = chip.dataset.skillName ?? "";
+      if (name) onSkillReveal(name);
       return;
     }
     const path = chip.dataset.path ?? "";
@@ -556,11 +461,11 @@ export function ComposerEditable({
       aria-multiline="true"
       data-placeholder={placeholder}
       style={{ flex: 1, minWidth: 0, fontSize: scaledChatFont(14), lineHeight: 1.6 }}
-      onInput={() => {
+      onInput={(e) => {
         if (!isComposingRef.current) normalize();
         emit();
         if (!isComposingRef.current) materializeTokens();
-        syncHeight();
+        syncEditorHeight(e.currentTarget);
         notifySelection();
       }}
       onKeyDown={handleEditorKeyDown}

@@ -43,18 +43,20 @@ export function AtMenu({
       : "";
   return (
     <div
+      className="composer-pop-in"
       style={{
         position: "absolute",
         left: 0,
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
+        transformOrigin: "bottom center",
         background: "var(--bg)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-card)",
         boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
         overflow: "hidden",
-        maxHeight: "min(48vh, 400px)",
+        maxHeight: 300,
       }}
     >
       <div
@@ -77,7 +79,7 @@ export function AtMenu({
         </span>
         <span style={{ fontFamily: "var(--font-mono)" }}>Tab / Enter</span>
       </div>
-      <div style={{ maxHeight: "calc(min(48vh, 400px) - 34px)", overflowY: "auto", padding: 4 }}>
+      <div style={{ maxHeight: "calc(300px - 34px)", overflowY: "auto", padding: 4 }}>
         {matches.length === 0 ? (
           <div style={{ padding: "8px 8px", fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>
             {loading
@@ -112,6 +114,7 @@ export function AtMenu({
                   border: "none",
                   borderRadius: "var(--radius-control)",
                   background: active ? "var(--bg-selected)" : "none",
+                  transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                   color: "var(--text)",
                   cursor: "pointer",
                   textAlign: "left",

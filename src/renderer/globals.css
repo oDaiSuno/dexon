@@ -438,6 +438,61 @@ body {
   opacity: 1;
 }
 
+/* Skill chips: `/skill:name` command references. Accent-blue per the
+   reference design; shares the attachment chip's hover-remove mechanism. */
+.skill-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 19px;
+  max-width: 236px;
+  padding: 0 3px 0 4px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.82em;
+  line-height: 16px;
+  white-space: nowrap;
+  user-select: none;
+  vertical-align: middle;
+  position: relative;
+  top: -0.05em;
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+
+.skill-chip:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.skill-chip-glyph {
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
+  flex: 0 0 auto;
+}
+
+.skill-chip-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.skill-chip:hover .token-chip-remove {
+  width: 13px;
+  margin-left: 2px;
+  opacity: 0.8;
+  pointer-events: auto;
+}
+
+.skill-chip .token-chip-remove:hover {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  opacity: 1;
+}
+
 /* tactile press feedback for the composer's square buttons */
 .tap-scale:active {
   transform: scale(0.94);
@@ -456,7 +511,7 @@ body {
 }
 
 .composer-pop-in {
-  animation: composer-pop-in 180ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: composer-pop-in var(--duration-pop, 180ms) var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -490,7 +545,8 @@ body {
 }
 
 .chat-conversation-enter {
-  animation: chat-conversation-enter 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: chat-conversation-enter var(--duration-medium, 350ms)
+    var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
 @keyframes chat-conversation-enter {
@@ -1097,7 +1153,8 @@ span.linenumber {
     border-color 0.12s ease,
     transform 0.12s ease,
     box-shadow 0.12s ease;
-  animation: chat-scroll-to-bottom-in 0.18s ease-out both;
+  animation: chat-scroll-to-bottom-in var(--duration-pop, 180ms) var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1))
+    both;
 }
 
 .chat-scroll-to-bottom:hover {

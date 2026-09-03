@@ -59,7 +59,8 @@ function ghostChip(open: boolean): CSSProperties {
     border: "none",
     borderRadius: "var(--radius-control)",
     color: "var(--text-muted)",
-    transition: "background 0.12s, color 0.12s, opacity 0.12s",
+    transition:
+      "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
   };
 }
 
@@ -171,11 +172,13 @@ export function SessionControls(props: SessionControlsProps) {
             <div
               role="menu"
               aria-label={t("changeThinkingLevel", "Change reasoning level")}
+              className="composer-pop-in"
               style={{
                 position: "absolute",
                 bottom: "calc(100% + 6px)",
                 right: 0,
                 zIndex: 100,
+                transformOrigin: "bottom right",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
                 borderRadius: "var(--radius-card)",
@@ -219,6 +222,7 @@ export function SessionControls(props: SessionControlsProps) {
                       textAlign: "left",
                       fontWeight: isActive ? 600 : 400,
                       whiteSpace: "nowrap",
+                      transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                     }}
                     onMouseEnter={(e) => {
                       if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
@@ -301,7 +305,8 @@ export function SessionControls(props: SessionControlsProps) {
               cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
               fontSize: scaledChatFont(12),
               opacity: isStreaming && !isCompacting ? 0.5 : 1,
-              transition: "background 0.12s, color 0.12s",
+              transition:
+                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
             }}
             onMouseEnter={(e) => {
               if (isStreaming && !isCompacting) return;
@@ -381,7 +386,8 @@ export function SessionControls(props: SessionControlsProps) {
             color: soundEnabled ? "var(--text-muted)" : "var(--text-dim)",
             cursor: "pointer",
             opacity: soundEnabled ? 1 : 0.55,
-            transition: "background 0.12s, color 0.12s, opacity 0.12s",
+            transition:
+              "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--bg-hover)";

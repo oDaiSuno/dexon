@@ -94,7 +94,8 @@ export function ModelPicker({
           cursor: isStreaming ? "not-allowed" : "pointer",
           fontSize: scaledChatFont(12),
           opacity: isStreaming ? 0.5 : 1,
-          transition: "background 0.12s, color 0.12s",
+          transition:
+            "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
         }}
         onMouseEnter={(e) => {
           if (isStreaming) return;
@@ -119,10 +120,11 @@ export function ModelPicker({
         createPortal(
           <div
             ref={panelRef}
-            className="chat-appearance-scope"
+            className="chat-appearance-scope composer-pop-in"
             style={{
               position: "fixed",
               bottom,
+              transformOrigin: "bottom center",
               ...panelPos,
               zIndex: 500,
               background: "var(--bg)",
@@ -220,6 +222,7 @@ export function ModelPicker({
                         textAlign: "left",
                         fontWeight: isActive ? 600 : 400,
                         whiteSpace: "nowrap",
+                        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                       }}
                       onMouseEnter={(e) => {
                         if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";

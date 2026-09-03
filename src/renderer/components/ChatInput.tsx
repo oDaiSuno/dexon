@@ -41,6 +41,8 @@ import { ComposerEditable, type ComposerEditableHandle } from "./chat-input/Comp
 import { AtMenu } from "./chat-input/AtMenu";
 import { ModelPicker, compareModelOptions, type ModelOption } from "./chat-input/ModelPicker";
 import { PlusMenu } from "./chat-input/PlusMenu";
+import { SkillPickerPanel, SkillRevealCard } from "./chat-input/SkillPickerPanel";
+import type { SkillRecord } from "@/lib/api-types";
 import { SendSquare, StopSquare } from "./chat-input/SendControls";
 import { SessionControls } from "./chat-input/SessionControls";
 import { SlashMenu } from "./chat-input/SlashMenu";
@@ -52,7 +54,7 @@ import {
   type SlashCommandPaletteItem,
   type SlashCommandSource,
 } from "./chat-input/slash-commands";
-import { PaperclipIcon, PlusIcon } from "./chat-input/icons";
+import { PackageIcon, PaperclipIcon, PlusIcon } from "./chat-input/icons";
 
 interface Props {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -189,6 +191,14 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
   const [imageAttachNotice, setImageAttachNotice] = useState<string | null>(null);
   const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [skillsState, setSkillsState] = useState<{ skills: SkillRecord[]; loading: boolean; error: boolean }>({
+    skills: [],
+    loading: false,
+    error: false,
+  });
+  const skillRecordsRef = useRef<Map<string, SkillRecord>>(new Map());
+  const [skillRevealName, setSkillRevealName] = useState<string | null>(null);
 
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -208,6 +218,18 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
   }, [plusMenuOpen]);
+  useEffect(() => {
+    if (!skillPickerOpen && !skillRevealName) return;
+    const close = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("[data-composer-anchor]")) {
+        setSkillPickerOpen(false);
+        setSkillRevealName(null);
+      }
+    };
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [skillPickerOpen, skillRevealName]);
   const openPicker = () => {
     setPlusMenuOpen(false);
     const input = fileInputRef.current;
@@ -215,6 +237,33 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     input.removeAttribute("accept");
     input.click();
   };
+
+  /** Fetch installed skills for the picker panel (skills.list, fresh on open). */
+  const loadSkills = useCallback(() => {
+    setSkillsState((prev) => ({ ...prev, loading: true, error: false }));
+    void import("@/lib/api-client")
+      .then(({ call }) => call("skills.list", { cwd: cwd ?? undefined }))
+      .then(({ skills }) => {
+        skillRecordsRef.current = new Map(skills.map((skill) => [skill.name, skill]));
+        setSkillsState({ skills, loading: false, error: false });
+      })
+      .catch(() => {
+        setSkillsState({ skills: [], loading: false, error: true });
+      });
+  }, [cwd]);
+
+  const openSkillPicker = useCallback(() => {
+    setPlusMenuOpen(false);
+    setSkillRevealName(null);
+    setSkillPickerOpen(true);
+    loadSkills();
+  }, [loadSkills]);
+
+  const pickSkill = useCallback((skill: SkillRecord) => {
+    setSkillPickerOpen(false);
+    editableRef.current?.focus();
+    editableRef.current?.insertSkillAtStart(skill.name);
+  }, []);
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
   const slashCommandsRequestedRef = useRef(false);
@@ -260,6 +309,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     }
     return next;
   }, [attachmentTokens, fileInspectionByPath]);
+  const skillDescriptions = React.useMemo(
+    () => new Map(skillsState.skills.map((skill) => [skill.name, skill.description ?? ""])),
+    [skillsState.skills],
+  );
   // Declared input modalities of the selected model; null when unknown.
   const selectedModelSupportsImages = modelSupportsImages(
     model ? { provider: model.provider, id: model.modelId } : null,
@@ -291,6 +344,10 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
     },
     insertToken(path: string) {
       insertAttachmentPath(path);
+    },
+    insertSkill(name: string) {
+      editableRef.current?.focus();
+      editableRef.current?.insertSkillAtStart(name);
     },
   }));
 
@@ -616,7 +673,9 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
       groups.set(source, { source, items: [] });
     }
     filteredSlashCommands.forEach((command, index) => {
-      groups.get(command.source)?.items.push({ command, index });
+      // Skill-sourced items never join a group: the ＋ menu's skill picker
+      // is the single path for invoking skills.
+      groups.get(command.source as SlashCommandSource)?.items.push({ command, index });
     });
     return SLASH_SOURCES.map((source) => groups.get(source)!).filter((group) => group.items.length > 0);
   })();
@@ -909,6 +968,8 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
           e.preventDefault();
           setPlusMenuOpen(false);
           setAtMenuOpen(false);
+          setSkillPickerOpen(false);
+          setSkillRevealName(null);
           return;
         }
         if ((e.key === "Tab" || (e.key === "Enter" && !e.shiftKey)) && atMatches[atActiveIndex]) {
@@ -1159,7 +1220,31 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                   icon: <PaperclipIcon size={15} />,
                   onSelect: () => openPicker(),
                 },
+                {
+                  key: "skill",
+                  name: t("plusUseSkill", "Use a skill"),
+                  desc: t("plusUseSkillDesc", "Browse and invoke installed skills"),
+                  icon: <PackageIcon size={15} />,
+                  onSelect: () => openSkillPicker(),
+                },
               ]}
+            />
+          )}
+          {skillPickerOpen && (
+            <SkillPickerPanel
+              skills={skillsState.skills}
+              loading={skillsState.loading}
+              error={skillsState.error ? "load-failed" : null}
+              onPick={pickSkill}
+              onClose={() => setSkillPickerOpen(false)}
+            />
+          )}
+          {skillRevealName && (
+            <SkillRevealCard
+              name={skillRevealName}
+              description={skillRecordsRef.current.get(skillRevealName)?.description ?? null}
+              filePath={skillRecordsRef.current.get(skillRevealName)?.filePath ?? null}
+              onClose={() => setSkillRevealName(null)}
             />
           )}
           {slashMenuOpen && slashQuery !== null && (
@@ -1275,7 +1360,13 @@ export const ChatInput = forwardRef<ChatInputHandle, Props>(function ChatInput(
                   onRevealToken={(path) => {
                     void window.piBridge?.showItemInFolder?.(path);
                   }}
+                  onSkillReveal={(name) => {
+                    setSkillPickerOpen(false);
+                    setSkillRevealName(name);
+                  }}
                   removeLabel={t("remove", "Remove")}
+                  skillDescriptions={skillDescriptions}
+                  skillRemoveLabel={t("removeSkill", "Remove skill")}
                 />
               </div>
 

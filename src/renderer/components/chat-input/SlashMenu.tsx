@@ -31,18 +31,20 @@ export function SlashMenu({
   const isEmpty = !isLoading && groups.every((group) => group.items.length === 0);
   return (
     <div
+      className="composer-pop-in"
       style={{
         position: "absolute",
         left: 0,
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
+        transformOrigin: "bottom center",
         background: "var(--bg)",
         border: "1px solid var(--border)",
         borderRadius: "var(--radius-card)",
         boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
         overflow: "hidden",
-        maxHeight: "min(56vh, 460px)",
+        maxHeight: 300,
       }}
     >
       <div
@@ -64,7 +66,7 @@ export function SlashMenu({
         </span>
         <span style={{ fontFamily: "var(--font-mono)" }}>Tab / Enter</span>
       </div>
-      <div style={{ maxHeight: "calc(min(56vh, 460px) - 34px)", overflowY: "auto", padding: 12 }}>
+      <div style={{ maxHeight: "calc(300px - 34px)", overflowY: "auto", padding: 12 }}>
         {isEmpty ? (
           <div style={{ padding: "2px 2px 4px", fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>
             {t("noSlashCommandsFound", "No extension, prompt, or skill commands found")}
@@ -128,7 +130,7 @@ export function SlashMenu({
                         color: "var(--text)",
                         cursor: "pointer",
                         textAlign: "left",
-                        transition: "background 0.12s",
+                        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                       }}
                     >
                       <span

@@ -444,7 +444,7 @@ export function ChatWindow({
     >
       {isDragOver && (
         <div
-          className="pointer-events-none absolute inset-0 z-50 flex animate-[drop-zone-in_0.15s_ease_both] items-center justify-center backdrop-blur-[1px]"
+          className="pointer-events-none absolute inset-0 z-50 flex animate-[drop-zone-in_0.15s_var(--ease-smooth-out)_both] items-center justify-center backdrop-blur-[1px]"
           style={{ background: "color-mix(in srgb, var(--accent) 6%, transparent)" }}
         >
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -1116,8 +1116,8 @@ function NoticeShelf({
               lineHeight: 1.45,
               transformOrigin: "top center",
               animation: notice.exiting
-                ? "notice-shelf-out 0.18s ease-in forwards"
-                : "notice-shelf-in 0.18s ease-out both",
+                ? "notice-shelf-out var(--duration-pop, 180ms) var(--ease-in-out) forwards"
+                : "notice-shelf-in var(--duration-pop, 180ms) var(--ease-smooth-out) both",
               padding: "0 12px",
             }}
           >

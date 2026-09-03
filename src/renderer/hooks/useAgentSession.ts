@@ -763,7 +763,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     setSlashCommandsLoading(true);
     try {
       const data = await sendAgentCommand<SlashCommandsResponse>(sid, { type: "get_commands" });
-      const commands = data?.commands ?? [];
+      // Skill commands are invoked through the ＋ menu's skill picker now;
+      // they stay out of the slash palette to keep one path per intent.
+      const commands = (data?.commands ?? []).filter((command) => command.source !== "skill");
       setSlashCommands(commands);
       return commands;
     } catch (e) {

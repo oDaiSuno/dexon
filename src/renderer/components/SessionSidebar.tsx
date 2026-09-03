@@ -1,4 +1,13 @@
-import { useEffect, useLayoutEffect, useState, useCallback, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useState,
+  useCallback,
+  useRef,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type ReactNode,
+} from "react";
 import type { SessionInfo } from "@/lib/types";
 import { APP_VERSION, PI_VERSION } from "@/lib/app-version";
 import appIconUrl from "../../../build/icon.png";
@@ -1023,7 +1032,7 @@ export function SessionSidebar({
             fontWeight: 600,
             fontFamily: "var(--font-mono)",
             flexShrink: 0,
-            transition: "opacity 0.12s",
+            transition: "opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
             opacity: selectedCwd ? 1 : 0.7,
           }}
           title={
@@ -1060,7 +1069,8 @@ export function SessionSidebar({
               fontSize: "var(--text-label)",
               color: "var(--text)",
               textAlign: "left",
-              transition: "border-color 0.15s, background 0.15s",
+              transition:
+                "border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
             }}
           >
             {selectedCwd ? (
@@ -1640,7 +1650,8 @@ export function SessionSidebar({
                                 cursor: "pointer",
                                 borderRadius: "var(--radius-control)",
                                 flexShrink: 0,
-                                transition: "color 0.12s, background 0.12s",
+                                transition:
+                                  "color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                               }}
                               onMouseEnter={(e) => {
                                 e.currentTarget.style.color = "var(--danger)";
@@ -2182,6 +2193,29 @@ const sessionMenuItemStyle: CSSProperties = {
   cursor: "pointer",
   fontSize: "var(--text-body)",
   textAlign: "left",
+  transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+};
+
+/** Shared hover handlers so the two session-menu items fade instead of snapping. */
+const sessionMenuItemHandlers = {
+  onMouseEnter: (e: ReactMouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "var(--bg-hover)";
+    e.currentTarget.style.color = "var(--text)";
+  },
+  onMouseLeave: (e: ReactMouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "transparent";
+    e.currentTarget.style.color = "var(--text-muted)";
+  },
+};
+
+/** Delete item: same fade, but the danger color is never overridden. */
+const dangerMenuItemHandlers = {
+  onMouseEnter: (e: ReactMouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "var(--bg-hover)";
+  },
+  onMouseLeave: (e: ReactMouseEvent<HTMLElement>) => {
+    e.currentTarget.style.background = "transparent";
+  },
 };
 
 function SessionItem({
@@ -2379,7 +2413,8 @@ function SessionItem({
           ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
           : "1px solid transparent",
         borderRadius: "999px",
-        transition: "background 0.1s, border-color 0.1s",
+        transition:
+          "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
         opacity: deleting ? 0.5 : 1,
         gap: 8,
         overflow: "visible",
@@ -2620,7 +2655,8 @@ function SessionItem({
                 borderRadius: "var(--radius-card)",
                 color: "var(--text-dim)",
                 cursor: "pointer",
-                transition: "background 0.12s, color 0.12s",
+                transition:
+                  "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               }}
             >
               <svg
@@ -2682,7 +2718,7 @@ function SessionItem({
                 cursor: "pointer",
                 opacity: actionsOpen || hovered ? 1 : 0,
                 pointerEvents: actionsOpen || hovered ? "auto" : "none",
-                transition: "opacity 0.12s",
+                transition: "opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -2695,11 +2731,13 @@ function SessionItem({
               <div
                 role="menu"
                 aria-label={t("sessionActions", "Session actions")}
+                className="composer-pop-in"
                 style={{
                   position: "absolute",
                   top: 36,
                   right: 0,
                   zIndex: 50,
+                  transformOrigin: "top right",
                   minWidth: 132,
                   padding: 4,
                   border: "1px solid var(--border)",
@@ -2714,6 +2752,7 @@ function SessionItem({
                   className="session-menu-item"
                   onClick={startRename}
                   style={sessionMenuItemStyle}
+                  {...sessionMenuItemHandlers}
                 >
                   <svg
                     width="14"
@@ -2735,6 +2774,7 @@ function SessionItem({
                   role="menuitem"
                   className="session-menu-item"
                   onClick={handleDeleteClick}
+                  {...dangerMenuItemHandlers}
                   style={{ ...sessionMenuItemStyle, color: "var(--danger)" }}
                 >
                   <svg

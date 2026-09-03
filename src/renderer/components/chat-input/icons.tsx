@@ -35,6 +35,18 @@ export function PlusIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+/** 3D package/box outline — the skill glyph (matches the reference chip). */
+export function PackageIcon({ size = 15 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z" />
+      <path d="M12 22V12" />
+      <polyline points="3.29 7 12 12 20.71 7" />
+      <line x1="7.5" x2="16.5" y1="4.5" y2="9.5" />
+    </Icon>
+  );
+}
+
 export function ImageIcon({ size = 15 }: { size?: number }) {
   return (
     <Icon size={size}>

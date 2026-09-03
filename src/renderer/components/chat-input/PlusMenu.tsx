@@ -1,5 +1,6 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
+import { GlideHighlight } from "./GlideHighlight";
 
 /**
  * "＋" expand menu above the composer, styled after the PromptBar reference:
@@ -17,21 +18,14 @@ export interface PlusMenuRow {
   onSelect: () => void;
 }
 
-const GLIDE_EASING = "cubic-bezier(0.23, 1, 0.32, 1)";
-
 export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
-  const rowRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
   const [engaged, setEngaged] = useState(false);
-  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const target = rowRefs.current[active];
-    if (target) setBox({ top: target.offsetTop, height: target.offsetHeight });
-  }, [active, rows.length]);
 
   return (
     <div
+      ref={panelRef}
       className="composer-pop-in"
       role="menu"
       onMouseLeave={() => setEngaged(false)}
@@ -51,29 +45,17 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
       }}
     >
       {/* single gliding highlight — floats to the hovered row */}
-      <span
-        aria-hidden
-        style={{
-          position: "absolute",
-          left: 4,
-          right: 4,
-          borderRadius: 6,
-          background: "var(--bg-hover)",
-          top: box?.top ?? 0,
-          height: box?.height ?? 0,
-          opacity: box && engaged && rows.length > 0 ? 1 : 0,
-          transition: `top 220ms ${GLIDE_EASING}, height 220ms ${GLIDE_EASING}, opacity 150ms ease`,
-          pointerEvents: "none",
-        }}
+      <GlideHighlight
+        containerRef={panelRef}
+        rowSelector='[role="menuitem"]'
+        activeIndex={active}
+        visible={engaged && rows.length > 0}
       />
       {rows.map((row, index) => (
         <button
           key={row.key}
           type="button"
           role="menuitem"
-          ref={(el) => {
-            rowRefs.current[index] = el;
-          }}
           onMouseDown={(e) => {
             e.preventDefault();
             row.onSelect();

@@ -122,7 +122,8 @@ export function QueuedMessagesPanel({
               border: "1px solid var(--border)",
               borderRadius: "var(--radius-card)",
               cursor: "pointer",
-              transition: "background 0.12s, border-color 0.12s",
+              transition:
+                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               whiteSpace: "nowrap",
             }}
             onMouseEnter={(e) => {
