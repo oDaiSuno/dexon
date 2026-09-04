@@ -319,10 +319,11 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run check:packaged-toolchains -- ${{ matrix.tool_target }} --release-helper
 
-      # 首发 v0.1.0 没有前一版本安装包可做升级/回滚 E2E；从 v0.1.1 起，
-      # 把 URL 和 hash 更新为上一版本真实发布的安装包后此测试自动恢复。
+      # 升级/回滚 E2E 只在 tag 发行 run 有意义（需要"上一版本"安装包）。
+      # 首发 v0.1.0 没有前一版本；从 v0.1.1 起，把 URL 和 hash 更新为上一
+      # 版本真实发布的安装包后此测试自动恢复。
       - name: Run Windows NSIS upgrade and rollback E2E
-        if: runner.os == 'Windows' && github.ref_name != 'v0.1.0'
+        if: runner.os == 'Windows' && github.ref_type == 'tag' && github.ref_name != 'v0.1.0'
         shell: pwsh
         run: |
           $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
@@ -975,9 +976,10 @@ jobs:
       - name: Run packaged toolchain E2E for Windows x64
         run: npm run check:packaged-toolchains -- win32-x64 --release-helper
 
-      # 首发 v0.1.0 跳过（无前一版本可测）；v0.1.1 起更新 URL/hash 后恢复。
+      # 仅 tag 发行 run 执行；首发 v0.1.0 跳过（无前一版本可测），
+      # v0.1.1 起更新 URL/hash 后恢复。
       - name: Run Windows NSIS upgrade and rollback E2E
-        if: github.ref_name != 'v0.1.0'
+        if: github.ref_type == 'tag' && github.ref_name != 'v0.1.0'
         shell: pwsh
         run: |
           $previous = Join-Path $env:RUNNER_TEMP "Dexon-Unsigned-Beta-Setup-0.1.10.exe"
