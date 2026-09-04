@@ -97,7 +97,24 @@ jobs:
           npm run test:managed-process-flood
 
       - name: Run unit and handler tests
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee "${RUNNER_TEMP}/unit-tests.log"
+
+      # 失败时把断言摘要与日志尾部写进 step summary（公开可读），便于远程诊断。
+      - name: Publish unit test failure summary
+        if: failure()
+        shell: bash
+        run: |
+          {
+            echo "### Unit test failure digest"
+            echo '```'
+            (rg "not ok|AssertionError|ERR_ASSERTION|Error:" "${RUNNER_TEMP}/unit-tests.log" || true) | tail -30
+            echo "--- tail ---"
+            tail -60 "${RUNNER_TEMP}/unit-tests.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Run cross-platform quality checks (Windows)
         if: runner.os == 'Windows'
