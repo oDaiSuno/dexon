@@ -561,7 +561,9 @@ jobs:
             bin_arch="$2"
             archive="dist/Dexon-${version}-${zip_arch}.zip"
             test -s "$archive"
-            work="dist/unsigned-${zip_arch}"
+            # Extract outside dist/ — the later update-config verification walks
+            # dist/ and must only see the unpacked per-arch apps.
+            work="${RUNNER_TEMP}/unsigned-${zip_arch}"
             rm -rf "$work"
             mkdir -p "$work"
             ditto -x -k "$archive" "$work"
