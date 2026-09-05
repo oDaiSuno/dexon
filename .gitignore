@@ -15,3 +15,4 @@ native/**/target/
 
 # 内部工作文档不入库
 docs/ui-refactor-plan.md
+gudaspec/
