@@ -109,6 +109,7 @@ import {
   StaleHistoryCursorError,
 } from "./session-history";
 import { getSessionContentSnapshot, invalidateSessionContent } from "./session-content-cache";
+import { reconstructSessionContextUsage } from "./session-context-usage";
 import { sessionIndex } from "./session-index";
 import { credentialStateMatches, recoverCommittedCredential, type CredentialTarget } from "./credential-sync";
 import { FileSuggestionRequestError, fileSuggestionService } from "./file-suggestions";
@@ -407,6 +408,22 @@ function resolveModelsCwd(params: { cwd?: string } | void): string {
     throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
   }
   return cwd;
+}
+
+async function resolveSessionContextWindow(
+  model: { provider: string; modelId: string } | null,
+): Promise<number | null | undefined> {
+  if (!model) return null;
+  try {
+    // Cached catalog lookup only: creating the shared runtime never touches
+    // the network, and per-session runtimes may register models that the
+    // shared one does not know — an unresolvable model simply reports unknown
+    // usage instead of guessing another model's window.
+    const runtime = await getSharedModelRuntime();
+    return runtime.getModel(model.provider, model.modelId)?.contextWindow ?? null;
+  } catch {
+    return null;
+  }
 }
 
 // ============================================================================
@@ -885,9 +902,31 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
         const contextMs = performance.now() - contextStartedAt;
 
         const infoStartedAt = performance.now();
-        const [info, agentState] = await Promise.all([
+        const contextUsagePromise: Promise<SessionDetail["contextUsage"]> = (async () => {
+          if (!includeState) return undefined;
+          // Live state is authoritative — including its "unknown after
+          // compaction" answer. Reconstruct from the session file only when no
+          // live runtime remains (idle eviction, app restart).
+          const state = await agentStatePromise;
+          if (state?.running) return undefined;
+          try {
+            return await reconstructSessionContextUsage({
+              manager: sm,
+              resolveContextWindow: resolveSessionContextWindow,
+            });
+          } catch (error) {
+            console.warn(
+              "[agent-host] failed to reconstruct context usage:",
+              error instanceof Error ? error.message : error,
+            );
+            return undefined;
+          }
+        })();
+
+        const [info, agentState, contextUsage] = await Promise.all([
           buildSessionInfoFromManager(filePath, sm, entries),
           agentStatePromise,
+          contextUsagePromise,
         ]);
         const infoMs = performance.now() - infoStartedAt;
 
@@ -899,6 +938,7 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
           tree,
           context,
           ...(agentState !== undefined ? { agentState } : {}),
+          ...(contextUsage !== undefined ? { contextUsage } : {}),
         };
         const responseBytes = sessionPerformanceBytesEnabled()
           ? Buffer.byteLength(JSON.stringify(detail), "utf8")

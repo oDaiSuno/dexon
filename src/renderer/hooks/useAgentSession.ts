@@ -543,7 +543,13 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined)
             setQueuedMessages(normalizeQueuedMessages(liveState.queuedMessages));
-        } else if (d.agentState && !d.agentState.running) setQueuedMessages({ steering: [], followUp: [] });
+        } else if (d.agentState && !d.agentState.running) {
+          setQueuedMessages({ steering: [], followUp: [] });
+          // Sessions without a live runtime carry a file-reconstructed usage
+          // on the detail itself (see sessions.get). Undefined means "not
+          // computable" — keep the current state instead of fabricating one.
+          if (d.contextUsage !== undefined) setContextUsage(d.contextUsage ?? null);
+        }
         if (!liveState?.thinkingLevel && d.context.thinkingLevel && d.context.thinkingLevel !== "off") {
           setThinkingLevel(d.context.thinkingLevel as ThinkingLevelOption);
         }
@@ -558,6 +564,22 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     },
     [commitHistory, t, updatePagingState],
   );
+
+  /**
+   * Pull the authoritative context usage for a live session (model switch,
+   * branch navigation, compaction) without touching other state. Failures
+   * keep the last known value; the next refresh path retries.
+   */
+  const refreshContextUsage = useCallback(async (sid: string | null = sessionIdRef.current) => {
+    if (!sid) return;
+    try {
+      const d = await agentState(sid);
+      const state = d.state as AgentStateResponse | undefined;
+      if (state?.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
+    } catch {
+      // Keep the last known usage.
+    }
+  }, []);
 
   useEffect(() => {
     const trace = pendingSessionLoadTraceRef.current;
@@ -1176,7 +1198,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             setCompactResult(null);
           } else if (!event.aborted) {
             setCompactResult(readCompactResult(event.result, (event.reason as string | undefined) ?? "auto"));
-            if (sessionIdRef.current) void loadSession(sessionIdRef.current);
+            // includeState refreshes the live usage too — right after a
+            // compaction pi reports it as unknown until the next response.
+            if (sessionIdRef.current) void loadSession(sessionIdRef.current, false, true);
           }
           break;
         case "extension_ui_request":
@@ -1346,8 +1370,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       }
       setActiveLeafId(entryId);
       await loadContext(sid, entryId);
+      await refreshContextUsage(sid);
     },
-    [loadContext],
+    [loadContext, refreshContextUsage],
   );
 
   const handleLeafChange = useCallback(
@@ -1368,8 +1393,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       // loadContext bumps gen again — pass through by reusing after navigate
       contextGenRef.current = gen;
       await loadContext(sid, leafId);
+      await refreshContextUsage(sid);
     },
-    [loadContext],
+    [loadContext, refreshContextUsage],
   );
 
   const handleLeafChangeFromUi = useCallback(
@@ -1398,11 +1424,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
       try {
         await sendAgentCommand(sid, { type: "set_model", provider, modelId });
         setCurrentModelOverride({ provider, modelId });
+        // The context window may differ between models — refresh immediately
+        // instead of waiting for the next agent_end.
+        await refreshContextUsage(sid);
       } catch (e) {
         console.error("Failed to set model:", e);
       }
     },
-    [isNew, setNewSessionModel],
+    [isNew, refreshContextUsage, setNewSessionModel],
   );
 
   const handleCompact = useCallback(async () => {
@@ -1414,7 +1443,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     try {
       const result = await sendAgentCommand<CompactCommandResult>(sid, { type: "compact" });
       setCompactResult(readCompactResult(result, "manual"));
-      await loadSession(sid, true);
+      await loadSession(sid, true, true);
     } catch (e) {
       setCompactError(e instanceof Error ? e.message : String(e));
       setCompactResult(null);
@@ -1542,7 +1571,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
               ...(args ? { customInstructions: args } : {}),
             });
             setCompactResult(readCompactResult(result, "manual"));
-            if (await loadSession(sid, true)) promoteNewSession();
+            if (await loadSession(sid, true, true)) promoteNewSession();
             return complete({ handled: true, message: t("contextCompacted", "Compacted context") });
           }
 
@@ -1576,6 +1605,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
             const stats = await sendAgentCommand<SessionStatsInfo>(sid, { type: "get_session_stats" });
             if (stats) {
               setSessionStatsOverride(stats);
+              // Keep the chip and top bar on the same source of truth.
+              if (stats.contextUsage !== undefined) setContextUsage(stats.contextUsage ?? null);
             }
             onSessionStatsPanelOpen?.();
             return complete({ handled: true, action: "openSessionStats" });
@@ -1934,7 +1965,9 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
         },
         subscribeSessionChanges: subscribeSessionsChanged,
         onSessionChanged: () => {
-          if (!disposed) void loadSession(session.id);
+          // includeState so externally-driven turns (messaging channels)
+          // also refresh the context usage, not just the message list.
+          if (!disposed) void loadSession(session.id, false, true);
         },
       })
         .then((unsubscribe) => {

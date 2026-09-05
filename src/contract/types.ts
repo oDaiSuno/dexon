@@ -26,6 +26,12 @@ export interface SessionInfo {
   worktreeBranch?: string;
 }
 
+export interface ContextUsageInfo {
+  percent: number | null;
+  contextWindow: number;
+  tokens: number | null;
+}
+
 export interface SessionDetail {
   sessionId: string;
   filePath: string;
@@ -37,6 +43,13 @@ export interface SessionDetail {
     running: boolean;
     state?: SessionRuntimeState;
   };
+  /**
+   * Context-window usage reconstructed from the persisted session file,
+   * present only when the session has no live runtime (idle eviction,
+   * restart) and includeState was requested. Live agent state, when
+   * available, stays authoritative on agentState.state.contextUsage.
+   */
+  contextUsage?: ContextUsageInfo | null;
 }
 
 export interface ContextInfo {
@@ -65,7 +78,7 @@ export interface EntryContentResult {
 }
 
 export interface SessionRuntimeState {
-  contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
+  contextUsage?: ContextUsageInfo | null;
   systemPrompt?: string;
   thinkingLevel?: string;
   isStreaming?: boolean;

@@ -131,6 +131,16 @@ export function SessionControls(props: SessionControlsProps) {
   const contextPct = contextUsage?.percent ?? null;
   const contextWindowTokens = contextUsage?.contextWindow ?? null;
   const compactUrgency = compactUrgencyOf(contextPct);
+  // Option A: keep the capacity visible and mark the usage explicitly unknown
+  // (e.g. right after compaction) instead of hiding the numbers entirely.
+  const compactTitle = isCompacting
+    ? t("stopCompaction", "Stop compaction")
+    : contextPct === null && contextWindowTokens !== null
+      ? t(
+          "contextUsagePendingHint",
+          "Context usage updates after the next model response (e.g. right after compaction)",
+        )
+      : t("compact", "Compact context");
 
   return (
     <div
@@ -288,8 +298,8 @@ export function SessionControls(props: SessionControlsProps) {
               else onCompact();
             }}
             disabled={isStreaming && !isCompacting}
-            title={isCompacting ? t("stopCompaction", "Stop compaction") : t("compact", "Compact context")}
-            aria-label={isCompacting ? t("stopCompaction", "Stop compaction") : t("compact", "Compact context")}
+            title={compactTitle}
+            aria-label={compactTitle}
             style={{
               display: "flex",
               alignItems: "center",
@@ -344,8 +354,8 @@ export function SessionControls(props: SessionControlsProps) {
                 <CompactIcon size={11} />
                 {!isMobile && (
                   <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    {contextPct !== null && contextWindowTokens !== null
-                      ? `${contextPct.toFixed(1)}%/${formatTokenCount(contextWindowTokens)} · ${t("compactAction", "Compact")}`
+                    {contextWindowTokens !== null
+                      ? `${contextPct !== null ? `${contextPct.toFixed(1)}%` : "?"}/${formatTokenCount(contextWindowTokens)} · ${t("compactAction", "Compact")}`
                       : t("compactAction", "Compact")}
                   </span>
                 )}

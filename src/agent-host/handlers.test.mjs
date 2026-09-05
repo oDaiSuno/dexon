@@ -359,6 +359,109 @@ test("file, git, worktree, skill, plugin, and system handlers return contract-sh
   assert.deepEqual(await handlers["files.watchStop"]({ path: project }), { ok: true });
 });
 
+test("sessions.get reconstructs context usage when no live agent session exists", async (t) => {
+  const fixtureDirectory = path.join(process.env.PI_CODING_AGENT_SESSION_DIR, "context-usage-fixture");
+  mkdirSync(fixtureDirectory, { recursive: true });
+  t.after(() => rmSync(fixtureDirectory, { recursive: true, force: true }));
+
+  const timestamp = "2026-08-17T00:00:00.000Z";
+  const contextUsage = {
+    input: 300,
+    output: 50,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 350,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  };
+  const writeFixture = (sessionId, extraEntries, model = "context-model") => {
+    const sessionPath = path.join(fixtureDirectory, `2026-08-17T00-00-00-000Z_${sessionId}.jsonl`);
+    writeFileSync(
+      sessionPath,
+      [
+        JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp, cwd: root }),
+        JSON.stringify({
+          type: "message",
+          id: "caaaaaaa",
+          parentId: null,
+          timestamp,
+          message: { role: "user", content: "hello", timestamp: 1 },
+        }),
+        JSON.stringify({
+          type: "message",
+          id: "cbbbbbbb",
+          parentId: "caaaaaaa",
+          timestamp,
+          message: {
+            role: "assistant",
+            content: [{ type: "text", text: "hi" }],
+            provider: "context-provider",
+            model,
+            usage: contextUsage,
+            stopReason: "stop",
+            timestamp: 2,
+          },
+        }),
+        ...extraEntries,
+      ].join("\n") + "\n",
+      "utf8",
+    );
+  };
+
+  writeFixture("context-usage-reconstructed", []);
+  writeFixture("context-usage-compacted", [
+    JSON.stringify({
+      type: "compaction",
+      id: "cccccccc",
+      parentId: "cbbbbbbb",
+      timestamp,
+      summary: "summary",
+      firstKeptEntryId: "caaaaaaa",
+      tokensBefore: 350,
+    }),
+  ]);
+  writeFixture("context-usage-unknown-model", [], "ghost-model");
+
+  const { handlers } = await captureHandlers();
+  await handlers["sessions.list"]();
+
+  // The shared model runtime caches its configuration at first use, so the
+  // fixture model is registered before sessions.get runs and the file is
+  // removed afterwards to keep later modelsConfig expectations intact.
+  const modelsPath = path.join(process.env.PI_CODING_AGENT_DIR, "models.json");
+  t.after(() => rmSync(modelsPath, { force: true }));
+  const editor = await handlers["modelsConfig.get"]();
+  await handlers["modelsConfig.set"]({
+    config: {
+      providers: {
+        ...editor.config.providers,
+        "context-provider": {
+          baseUrl: "https://context.invalid/v1",
+          api: "openai-completions",
+          apiKey: "test-key",
+          models: [{ id: "context-model", contextWindow: 1000 }],
+        },
+      },
+    },
+    expectedVersion: editor.version,
+  });
+
+  const restored = await handlers["sessions.get"]({ id: "context-usage-reconstructed", includeState: true });
+  assert.deepEqual(restored.agentState, { running: false });
+  assert.ok(restored.contextUsage, "usage must be reconstructed without a live session");
+  assert.equal(restored.contextUsage.tokens, 350);
+  assert.equal(restored.contextUsage.contextWindow, 1000);
+  assert.ok(Math.abs(restored.contextUsage.percent - 35) < 1e-9);
+
+  const compacted = await handlers["sessions.get"]({ id: "context-usage-compacted", includeState: true });
+  assert.deepEqual(compacted.contextUsage, { tokens: null, percent: null, contextWindow: 1000 });
+
+  const unknownModel = await handlers["sessions.get"]({ id: "context-usage-unknown-model", includeState: true });
+  assert.equal(unknownModel.contextUsage, null);
+
+  const withoutState = await handlers["sessions.get"]({ id: "context-usage-reconstructed" });
+  assert.equal("contextUsage" in withoutState, false);
+});
+
 test("session, model configuration, and auth handlers isolate state and preserve error codes", async () => {
   const { handlers } = await captureHandlers();
 

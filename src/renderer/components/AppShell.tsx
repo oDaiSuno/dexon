@@ -1020,6 +1020,13 @@ export function AppShell({
                   tooltipParts.push(
                     `${t("usageContext", "Context")}: ${pct !== null ? pct.toFixed(1) + "%" : t("unknown", "unknown")} / ${contextUsage.contextWindow.toLocaleString(language)} ${t("tokens", "tokens")}`,
                   );
+                  if (pct === null)
+                    tooltipParts.push(
+                      t(
+                        "contextUsagePendingHint",
+                        "Context usage updates after the next model response (e.g. right after compaction)",
+                      ),
+                    );
                 }
                 const tooltip = tooltipParts.join("  |  ");
 
