@@ -1,3 +1,4 @@
+import { enUS as interactiveEN, zhCN as interactiveZH } from "./i18n/interactive-tools.ts";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
@@ -46,7 +47,8 @@ test("partial key sets are disjoint and together cover the composed dictionaries
 
 // Value fingerprints pin the composed dictionaries to the content verified
 // key-for-key against the pre-split original (1015 keys × 2 languages).
-// Any value drift — not just key drift — fails this test.
+// Any legacy value drift still fails. The explicitly appended interactive-tool
+// module is verified separately by composition/parity and check:i18n.
 function fingerprint(record) {
   return createHash("sha256")
     .update(
@@ -60,12 +62,12 @@ function fingerprint(record) {
 
 test("composed dictionary values match the verified pre-split baseline", () => {
   assert.equal(
-    fingerprint(enUS),
+    fingerprint(Object.fromEntries(Object.entries(enUS).filter(([key]) => !(key in interactiveEN)))),
     "a0f49b4ce5c9f7c436cfd6c67f9e8d575475ff9aabe7d55840bc2e681cfa22c1",
     "en-US values drifted from the verified pre-split dictionary",
   );
   assert.equal(
-    fingerprint(zhCN),
+    fingerprint(Object.fromEntries(Object.entries(zhCN).filter(([key]) => !(key in interactiveZH)))),
     "b63505953caceb84039315255d010fefcbfcf8deccb692dc8908a9c11092f52b",
     "zh-CN values drifted from the verified pre-split dictionary",
   );

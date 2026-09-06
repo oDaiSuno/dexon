@@ -1,3 +1,5 @@
+import type { QuestionDraft, QuestionnaireRequest } from "./interactive-tools";
+
 // Types mirrored from pi-mono coding-agent session-manager
 
 export interface SessionHeader {
@@ -121,6 +123,7 @@ export interface CustomMessage {
 export type AgentMessage = UserMessage | AssistantMessage | ToolResultMessage | CustomMessage;
 
 export type ExtensionUiRequest =
+  | QuestionnaireRequest
   | {
       type: "extension_ui_request";
       id: string;
@@ -200,6 +203,7 @@ export type ExtensionUiRequest =
     };
 
 export type ExtensionUiResponse =
+  | { type: "extension_ui_response"; id: string; answers: QuestionDraft[] }
   | { type: "extension_ui_response"; id: string; value: string }
   | { type: "extension_ui_response"; id: string; confirmed: boolean }
   | { type: "extension_ui_response"; id: string; cancelled: true };

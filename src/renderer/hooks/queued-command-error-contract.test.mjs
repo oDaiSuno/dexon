@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const hookSource = readFileSync(new URL("./useAgentSession.ts", import.meta.url), "utf8");
+const hookSource = readFileSync(new URL("./agent-session/use-session-queue.ts", import.meta.url), "utf8");
 const inputSource = readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
 
 test("queued command handlers notify and reject on command failures", () => {

@@ -1,3 +1,4 @@
+import { enUS as enUSInteractiveTools, zhCN as zhCNInteractiveTools } from "./i18n/interactive-tools.ts";
 import { enUS as enUSApp, zhCN as zhCNApp } from "./i18n/app.ts";
 import { enUS as enUSBrowser, zhCN as zhCNBrowser } from "./i18n/browser.ts";
 import { enUS as enUSChannels, zhCN as zhCNChannels } from "./i18n/channels.ts";
@@ -11,6 +12,7 @@ import { enUS as enUSToolchains, zhCN as zhCNToolchains } from "./i18n/toolchain
 
 export const enUS: Record<string, string> = {
   ...enUSApp,
+  ...enUSInteractiveTools,
   ...enUSBrowser,
   ...enUSChannels,
   ...enUSChat,
@@ -24,6 +26,7 @@ export const enUS: Record<string, string> = {
 
 export const zhCN: Record<string, string> = {
   ...zhCNApp,
+  ...zhCNInteractiveTools,
   ...zhCNBrowser,
   ...zhCNChannels,
   ...zhCNChat,

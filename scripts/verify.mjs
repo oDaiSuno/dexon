@@ -38,6 +38,7 @@ run("desktop security invariants", "node", ["scripts/check-desktop-security.mjs"
 run("build", "npm", ["run", "build"]);
 run("production artifact isolation", "node", ["scripts/check-production-artifacts.mjs"]);
 run("smoke electron", "npm", ["run", "smoke"]);
+run("Interactive tool cards Electron integration", "npm", ["run", "test:interactive-tools-electron"]);
 run("Browser Electron integration", "npm", ["run", "test:browser-electron"]);
 run("Browser real Agent E2E", "npm", ["run", "test:browser-agent-e2e"]);
 

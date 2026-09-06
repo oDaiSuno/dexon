@@ -8,7 +8,9 @@ const settingsSource = readFileSync(new URL("./SettingsConfig.tsx", import.meta.
 // Token definitions live in tokens.css; the usage guards must span every style file.
 const cssSource = readStylePartial("tokens.css");
 const allCssSource = readRendererCssSources();
-const chatWindowSource = readFileSync(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
+const chatWindowSource = ["./ChatWindow.tsx", "./chat-window/welcome.tsx"]
+  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
+  .join("\n");
 const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
 const composerEditableSource = readFileSync(new URL("./chat-input/ComposerEditable.tsx", import.meta.url), "utf8");
 const messageViewSource = [
@@ -46,7 +48,7 @@ test("chat appearance CSS defines scoped font scales and both width modes", () =
 });
 
 test("the full-width dock applies the chat width once after reserving the minimap gutter", () => {
-  assert.equal((chatWindowSource.match(/className="chat-content-column/g) ?? []).length, 4);
+  assert.equal((chatWindowSource.match(/className="chat-content-column/g) ?? []).length, 5);
   assert.equal((chatInputSource.match(/className="chat-content-column"/g) ?? []).length, 1);
   assert.match(chatWindowSource, /className="chat-input-transition-dock[^\n]*w-full/);
   assert.doesNotMatch(chatWindowSource, /className="chat-content-column chat-input-transition-dock/);

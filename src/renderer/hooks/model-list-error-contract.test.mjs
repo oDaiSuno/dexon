@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("./useAgentSession.ts", import.meta.url), "utf8");
+const source = readFileSync(new URL("./agent-session/use-session-effects.ts", import.meta.url), "utf8");
 
 test("initial model load reports non-abort failures without clearing cached models", () => {
   assert.match(source, /controller\.signal\.aborted \|\| \(e instanceof DOMException && e\.name === "AbortError"\)/);

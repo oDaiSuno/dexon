@@ -12,6 +12,7 @@ import "./styles/markdown.css";
 import "./styles/motion.css";
 import "./styles/panels.css";
 import "./chat.css";
+import "./styles/tool-cards.css";
 import { ensureRpc } from "./lib/api-client";
 import { installApiShims } from "./lib/api-fetch";
 

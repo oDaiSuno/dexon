@@ -1,3 +1,4 @@
+import type { InteractiveSnapshot } from "../shared/interactive-tools";
 /** Shared domain types used by the IPC contract. */
 
 import type {
@@ -78,6 +79,7 @@ export interface EntryContentResult {
 }
 
 export interface SessionRuntimeState {
+  extensionUi?: InteractiveSnapshot;
   contextUsage?: ContextUsageInfo | null;
   systemPrompt?: string;
   thinkingLevel?: string;

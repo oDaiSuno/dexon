@@ -70,7 +70,7 @@ test("finish and fail paths both remove pending ownership and clear marks", () =
 });
 
 test("session hook terminates stale, replaced, and unmounted commit traces", () => {
-  const source = fs.readFileSync(new URL("../hooks/useAgentSession.ts", import.meta.url), "utf8");
+  const source = fs.readFileSync(new URL("../hooks/agent-session/use-session-history.ts", import.meta.url), "utf8");
 
   assert.match(source, /sessionIdRef\.current !== sid[\s\S]*failSessionLoadTrace\(trace\)/);
   assert.match(source, /replacedCommitTrace[\s\S]*failSessionLoadTrace\(replacedCommitTrace\)/);

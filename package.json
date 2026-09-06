@@ -46,6 +46,7 @@
     "check:packaged-toolchains": "node scripts/verify-packaged-toolchains.mjs",
     "smoke": "node scripts/smoke-electron.mjs",
     "test:browser-electron": "node scripts/test-browser-electron.mjs",
+    "test:interactive-tools-electron": "node scripts/test-interactive-tools-electron.mjs",
     "test:browser-agent-e2e": "node scripts/test-browser-agent-e2e.mjs",
     "test:build-watch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-tsup-watch.mjs",
     "test:managed-process-flood": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-managed-process-flood.mjs",

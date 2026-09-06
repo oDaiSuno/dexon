@@ -1,0 +1,343 @@
+/* Resumable tools reuse the approved monochrome chat system. */
+.tool-card-dock {
+  --resize-dur: var(--duration-fast);
+  --resize-ease: var(--ease-smooth-out);
+  /* Reserve room for the composer, card actions and readable conversation at
+     the desktop's 600px minimum height; long answers scroll, never shrink text. */
+  --tool-layout-reserve: 520px;
+  --tool-body-max: min(42vh, 420px, max(calc(var(--space-10) * 2), calc(100dvh - var(--tool-layout-reserve))));
+  min-width: 0;
+  margin-bottom: var(--space-3);
+  font-size: calc(var(--text-body) * var(--chat-font-scale, 1));
+  line-height: 1.5;
+  color: var(--text);
+}
+.tool-card {
+  min-width: 0;
+  background: var(--bg-panel);
+  border-radius: var(--radius-composer);
+  box-shadow: var(--bui-shadow-card);
+  overflow: hidden;
+}
+.tool-card :is(button, input, textarea, summary, pre):focus-visible,
+.tool-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tool-card-header,
+.tool-question-nav,
+.tool-question-footer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+.tool-card-header {
+  font-size: calc(var(--text-label) * var(--chat-font-scale, 1));
+  border-bottom: 1px solid var(--border);
+}
+.tool-card-status {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tool-card[data-state="failed"] .tool-card-status,
+.tool-card[data-state="expired"] .tool-card-status {
+  color: var(--danger);
+}
+.tool-card[data-state="submitted"] .tool-card-status {
+  color: var(--success);
+}
+.tool-subtle {
+  color: var(--text-muted);
+  margin: 0;
+}
+.tool-nav-actions {
+  display: flex;
+  gap: var(--space-1);
+  margin-left: auto;
+}
+.tool-pill {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--space-8);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  transition:
+    background-color var(--duration-quick) var(--ease-out),
+    color var(--duration-quick) var(--ease-out);
+}
+.tool-pill:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tool-pill:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tool-primary {
+  background: var(--btn-bg);
+  border-color: var(--btn-bg);
+  color: var(--btn-fg);
+}
+.tool-primary:hover:not(:disabled) {
+  background: var(--btn-bg-hover);
+  color: var(--btn-fg);
+}
+.tool-icon {
+  padding: var(--space-1);
+  width: var(--space-8);
+  flex-shrink: 0;
+}
+.tool-question-title {
+  margin: 0 0 var(--space-3);
+  font-size: calc(var(--text-title) * var(--chat-font-scale, 1));
+  font-weight: var(--weight-semibold);
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.tool-body-scroll {
+  max-height: var(--tool-body-max);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.tool-height {
+  overflow: hidden;
+  min-width: 0;
+}
+/* transitions.dev card-resize, wired to the existing motion scale. */
+.t-resize {
+  transition:
+    width var(--resize-dur) var(--resize-ease),
+    height var(--resize-dur) var(--resize-ease);
+  will-change: width, height;
+}
+.tool-form-body,
+.tool-question-page {
+  padding: var(--space-3) var(--space-4);
+  min-width: 0;
+}
+.tool-question-page {
+  animation: tool-question-enter var(--duration-fast) var(--ease-smooth-out) both;
+}
+@keyframes tool-question-enter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--distance-base) * var(--tool-direction, 1)));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.tool-question-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+.tool-number-window {
+  height: 1em;
+  line-height: 1;
+  overflow: hidden;
+  display: inline-flex;
+}
+.tool-number-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform var(--duration-fast) var(--ease-smooth-out);
+}
+.tool-number-strip > span {
+  height: 1em;
+  flex-shrink: 0;
+}
+.tool-options {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-2);
+  border: 0;
+  padding: 0;
+  margin: var(--space-3) 0;
+  min-width: 0;
+}
+.tool-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-card);
+  background: var(--bg);
+  cursor: pointer;
+}
+.tool-option:hover {
+  background: var(--bg-hover);
+}
+.tool-option[data-selected="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+}
+.tool-option > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.tool-option strong {
+  font-weight: var(--weight-medium);
+}
+.tool-option input {
+  accent-color: var(--accent);
+  margin-top: var(--space-1);
+  flex-shrink: 0;
+}
+.tool-option-description {
+  display: block;
+  color: var(--text-muted);
+  margin-top: var(--space-1);
+  white-space: pre-wrap;
+}
+.tool-custom-answer {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.tool-card textarea,
+.tool-card input:not([type="radio"]):not([type="checkbox"]) {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+  max-height: var(--tool-body-max);
+}
+.tool-question-footer {
+  justify-content: space-between;
+  border-top: 1px solid var(--border);
+}
+.tool-footer-end {
+  justify-content: flex-end;
+}
+.tool-footer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+.tool-preview {
+  padding: var(--space-2) var(--space-3);
+  color: var(--text-muted);
+}
+.tool-preview summary {
+  cursor: pointer;
+  width: fit-content;
+}
+.tool-preview pre,
+.tool-terminal {
+  max-width: 100%;
+  max-height: var(--tool-body-max);
+  overflow: auto;
+  overscroll-behavior: contain;
+  font: inherit;
+  font-family: var(--font-mono);
+  white-space: pre;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-3);
+  background: var(--bg);
+  border-radius: var(--radius-control);
+  color: var(--text);
+}
+.tool-description {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  margin: 0 0 var(--space-3);
+}
+.tool-resume {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-4);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.tool-resume > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.tool-resume strong {
+  color: var(--text);
+  font-weight: var(--weight-medium);
+}
+.tool-resume:hover {
+  background: var(--bg-hover);
+}
+.tool-abandon-row {
+  padding: 0 var(--space-4) var(--space-3);
+}
+.tool-text-button {
+  border: 0;
+  background: transparent;
+  padding: var(--space-1) 0;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.tool-text-button:hover {
+  text-decoration: underline;
+}
+.tool-text-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.tool-abandon-confirm {
+  padding: var(--space-4);
+}
+.tool-abandon-confirm p {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+}
+.tool-receipt {
+  padding: var(--space-3) var(--space-4);
+  margin: 0;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-resize {
+    transition: none !important;
+  }
+  .tool-card *,
+  .tool-card *::before,
+  .tool-card *::after {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+.tool-option-group {
+  min-width: 0;
+}

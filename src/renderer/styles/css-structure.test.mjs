@@ -15,6 +15,7 @@ const expectedImportOrder = [
   "styles/motion.css",
   "styles/panels.css",
   "chat.css",
+  "styles/tool-cards.css",
 ];
 
 test("main.tsx imports the renderer styles in cascade order", () => {
