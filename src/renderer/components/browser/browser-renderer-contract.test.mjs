@@ -5,6 +5,9 @@ import { zhCN } from "../../i18n-dictionaries.ts";
 
 const read = (url) => fs.readFileSync(url, "utf8");
 const appShell = read(new URL("../AppShell.tsx", import.meta.url));
+const browserAuthorizationOwner = read(new URL("../app-shell/use-browser-authorization.ts", import.meta.url));
+const rightPanelDock = read(new URL("../app-shell/use-right-panel-dock.ts", import.meta.url));
+const rightPanelDockView = read(new URL("../app-shell/right-panel-dock.tsx", import.meta.url));
 const settingsConfig = read(new URL("../SettingsConfig.tsx", import.meta.url));
 const messageView = ["../MessageView.tsx", "../messages/ToolCallBlock.tsx"]
   .map((file) => read(new URL(file, import.meta.url)))
@@ -18,10 +21,10 @@ const mainProcess = read(new URL("../../../main/main.ts", import.meta.url));
 const mainWindow = read(new URL("../../../main/window.ts", import.meta.url));
 
 test("Browser remains a fixed right-panel resource and hides its native surface behind Settings", () => {
-  assert.match(appShell, /const BROWSER_TAB_ID = "browser"/);
-  assert.match(appShell, /t\("browser", "Browser"\)/);
-  assert.match(appShell, /rightPanelOpen && !settingsOpen && !browserAuthorization/);
-  assert.match(appShell, /persistRightPanelPreferredWidth\(finalWidth, activeFileTabId === BROWSER_TAB_ID\)/);
+  assert.match(rightPanelDock, /const BROWSER_TAB_ID = "browser"/);
+  assert.match(rightPanelDockView, /t\("browser", "Browser"\)/);
+  assert.match(rightPanelDockView, /rightPanelOpen && !settingsOpen && !browserAuthorizationOpen/);
+  assert.match(rightPanelDock, /persistRightPanelPreferredWidth\(finalWidth, activeFileTabId === BROWSER_TAB_ID\)/);
 });
 
 test("BrowserDock synchronizes native bounds, visibility, session ownership, and tool-result navigation", () => {
@@ -50,8 +53,9 @@ test("Main fails closed across Renderer reloads and hidden screenshots never pre
 
 test("Browser access is demand-prompted and AppShell never eagerly grants a selected session", () => {
   assert.doesNotMatch(appShell, /browserGrantSession/);
-  assert.match(appShell, /agent-authorization-request/);
-  assert.match(appShell, /browserRespondAgentAuthorization/);
+  assert.doesNotMatch(browserAuthorizationOwner, /browserGrantSession/);
+  assert.match(browserAuthorizationOwner, /agent-authorization-request/);
+  assert.match(browserAuthorizationOwner, /browserRespondAgentAuthorization/);
   assert.match(browserAuthorization, /role="dialog"/);
   assert.match(browserAuthorization, /denyRef/);
   assert.match(browserAuthorization, /event\.key === "Escape"/);

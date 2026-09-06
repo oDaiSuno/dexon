@@ -39,6 +39,24 @@ export function sessionDateGroup(modified: string, now = new Date()): SessionDat
   return "older";
 }
 
+/**
+ * Return all projects (deduped by projectRoot so worktrees collapse into their
+ * main repo) sorted by most recent session activity. Moved verbatim from
+ * SessionSidebar.tsx in Phase 2.
+ */
+export function getRecentProjects(sessions: SessionInfo[]): string[] {
+  const latestByRoot = new Map<string, string>(); // projectRoot -> most recent modified
+  for (const s of sessions) {
+    const root = s.projectRoot ?? s.cwd;
+    if (!root) continue;
+    const prev = latestByRoot.get(root);
+    if (!prev || s.modified > prev) {
+      latestByRoot.set(root, s.modified);
+    }
+  }
+  return [...latestByRoot.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([root]) => root);
+}
+
 export function filterSessionsForQuery(sessions: SessionInfo[], rawQuery: string): SessionInfo[] {
   const query = rawQuery.trim().toLocaleLowerCase();
   if (!query) return sessions;

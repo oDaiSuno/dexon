@@ -4,7 +4,9 @@ import test from "node:test";
 import { enUS, zhCN } from "./i18n-dictionaries.ts";
 
 const owners = {
-  session: readFileSync(new URL("./components/SessionSidebar.tsx", import.meta.url), "utf8"),
+  session:
+    readFileSync(new URL("./components/session-sidebar/session-item-actions.tsx", import.meta.url), "utf8") +
+    readFileSync(new URL("./components/session-sidebar/worktree-remove-confirm.tsx", import.meta.url), "utf8"),
   models: readFileSync(new URL("./components/ModelsConfig.tsx", import.meta.url), "utf8"),
   channels: readFileSync(new URL("./components/channels/ChannelsConfig.tsx", import.meta.url), "utf8"),
   updates: readFileSync(new URL("./components/SettingsConfig.tsx", import.meta.url), "utf8"),

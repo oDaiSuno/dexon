@@ -46,8 +46,13 @@ test("initial session id parsing handles present and absent values", () => {
 });
 
 test("AppShell no longer creates a reactive search subscription or router object", () => {
-  const source = fs.readFileSync(new URL("../components/AppShell.tsx", import.meta.url), "utf8");
+  const shell = fs.readFileSync(new URL("../components/AppShell.tsx", import.meta.url), "utf8");
+  const navigation = fs.readFileSync(
+    new URL("../components/app-shell/use-workspace-navigation.ts", import.meta.url),
+    "utf8",
+  );
 
-  assert.doesNotMatch(source, /useSearchParamsCompat|useRouterCompat|useSyncExternalStore/);
-  assert.match(source, /const router = routerCompat;/);
+  assert.doesNotMatch(shell, /useSearchParamsCompat|useRouterCompat|useSyncExternalStore/);
+  assert.doesNotMatch(navigation, /useSearchParamsCompat|useRouterCompat|useSyncExternalStore/);
+  assert.match(navigation, /const router = routerCompat;/);
 });

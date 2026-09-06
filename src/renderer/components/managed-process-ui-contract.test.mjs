@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const panel = await readFile(new URL("./ProcessPanel.tsx", import.meta.url), "utf8");
-const shell = await readFile(new URL("./AppShell.tsx", import.meta.url), "utf8");
+const dock = await readFile(new URL("./app-shell/use-right-panel-dock.ts", import.meta.url), "utf8");
 const settings = await readFile(new URL("./SettingsConfig.tsx", import.meta.url), "utf8");
 const contract = await readFile(new URL("../../contract/processes.ts", import.meta.url), "utf8");
 
@@ -23,8 +23,8 @@ test("managed process UI exposes lifecycle controls and independent Browser open
   }
   assert.match(panel, /browserCreateUserTab/);
   assert.match(panel, /ownerSessionId: process\.ownerSessionId/);
-  assert.match(shell, /PROCESSES_TAB_ID/);
-  assert.match(shell, /activateUi/);
+  assert.match(dock, /PROCESSES_TAB_ID/);
+  assert.match(dock, /activateUi/);
 });
 
 test("managed process setting defaults off and follows the Main capability projection", () => {

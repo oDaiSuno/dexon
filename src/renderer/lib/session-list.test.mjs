@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   filterSessionsForQuery,
   getSessionDisplayTitle,
+  getRecentProjects,
   resolveInitialSessionRestore,
   sessionDateGroup,
 } from "./session-list.ts";
@@ -81,4 +82,27 @@ test("initial session restore returns the matching session", () => {
     status: "restore",
     session: target,
   });
+});
+
+test("derives recent projects deduped by project root in activity order", () => {
+  const sessions = [
+    session("wt-b", { cwd: "/repo/wt-b", projectRoot: "/repo", modified: "2026-07-10T10:00:00.000Z" }),
+    session("other", { cwd: "/other", modified: "2026-07-12T10:00:00.000Z" }),
+    session("wt-a", { cwd: "/repo/wt-a", projectRoot: "/repo", modified: "2026-07-14T10:00:00.000Z" }),
+  ];
+  assert.deepEqual(getRecentProjects(sessions), ["/repo", "/other"]);
+});
+
+test("derives recent projects from the raw cwd when no project root is known", () => {
+  const sessions = [
+    session("plain", { cwd: "/plain", modified: "2026-07-12T10:00:00.000Z" }),
+    session("rootless", { cwd: "/rootless", modified: "2026-07-14T10:00:00.000Z" }),
+  ];
+  delete sessions[1].projectRoot;
+  assert.deepEqual(getRecentProjects(sessions), ["/rootless", "/plain"]);
+});
+
+test("derives no projects from an empty or cwd-less session list", () => {
+  assert.deepEqual(getRecentProjects([]), []);
+  assert.deepEqual(getRecentProjects([session("no-cwd", { cwd: "" })]), []);
 });
