@@ -14,11 +14,11 @@ const LOCALIZED_OWNER_SUFFIXES = [
 ];
 const VISIBLE_ATTRIBUTE_NAMES = new Set(["title", "aria-label", "aria-valuetext", "placeholder", "alt"]);
 
-export function checkRendererI18n({ root, rendererRoot, dictionariesPath }) {
+export function checkRendererI18n({ root, rendererRoot, dictionaryPaths }) {
   const failures = [];
   const translations = new Map();
 
-  for (const file of rendererSourceFiles(rendererRoot, dictionariesPath)) {
+  for (const file of rendererSourceFiles(rendererRoot, dictionaryPaths)) {
     const sourceText = fs.readFileSync(file, "utf8");
     const source = ts.createSourceFile(
       file,
@@ -66,8 +66,8 @@ export function checkRendererI18n({ root, rendererRoot, dictionariesPath }) {
     }
   }
 
-  const enUS = readDictionary({ failures, dictionariesPath, name: "enUS" });
-  const zhCN = readDictionary({ failures, dictionariesPath, name: "zhCN" });
+  const { enUS, zhCN, dictionaryFailures } = readDictionaries({ root, dictionaryPaths });
+  failures.push(...dictionaryFailures);
   checkDictionaryParity(failures, enUS, zhCN);
 
   for (const [key, usage] of translations) {
@@ -84,15 +84,15 @@ export function checkRendererI18n({ root, rendererRoot, dictionariesPath }) {
   return { failures, keyCount: translations.size };
 }
 
-function rendererSourceFiles(directory, dictionariesPath, result = []) {
+function rendererSourceFiles(directory, dictionaryPaths, result = []) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const file = path.join(directory, entry.name);
-    if (entry.isDirectory()) rendererSourceFiles(file, dictionariesPath, result);
+    if (entry.isDirectory()) rendererSourceFiles(file, dictionaryPaths, result);
     else if (
       /\.(?:ts|tsx)$/.test(entry.name) &&
       !entry.name.endsWith(".test.ts") &&
       !entry.name.endsWith(".test.tsx") &&
-      file !== dictionariesPath
+      !dictionaryPaths.includes(file)
     ) {
       result.push(file);
     }
@@ -100,39 +100,92 @@ function rendererSourceFiles(directory, dictionariesPath, result = []) {
   return result.sort();
 }
 
-function readDictionary({ failures, dictionariesPath, name }) {
-  const sourceText = fs.readFileSync(dictionariesPath, "utf8");
-  const source = ts.createSourceFile(dictionariesPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const values = new Map();
-  let found = false;
-  walk(source, (node) => {
-    if (
-      !ts.isVariableDeclaration(node) ||
-      !ts.isIdentifier(node.name) ||
-      node.name.text !== name ||
-      !node.initializer ||
-      !ts.isObjectLiteralExpression(node.initializer)
-    ) {
-      return;
+const DICTIONARY_NAMES = new Set(["enUS", "zhCN"]);
+
+function importAliases(source, sourcePath) {
+  // Map<alias identifier> → { propertyName, resolvedPath } for top-level named imports.
+  const aliases = new Map();
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
+    const named = statement.importClause.namedBindings;
+    if (!named || !ts.isNamedImports(named)) continue;
+    const resolvedPath = path.resolve(path.dirname(sourcePath), statement.moduleSpecifier.text);
+    for (const element of named.elements) {
+      const propertyName = (element.propertyName ?? element.name).text;
+      const alias = element.name.text; // ImportSpecifier.name is always the local binding
+      aliases.set(alias, { propertyName, resolvedPath });
     }
-    found = true;
-    for (const property of node.initializer.properties) {
-      if (!ts.isPropertyAssignment(property) || !ts.isStringLiteralLike(property.initializer)) {
-        failures.push(`${name} contains a non-static dictionary entry at line ${lineOf(source, property)}`);
-        continue;
+  }
+  return aliases;
+}
+
+function readDictionaries({ root, dictionaryPaths }) {
+  const enUS = new Map();
+  const zhCN = new Map();
+  const origins = new Map();
+  const failures = [];
+  const found = new Set();
+  const checkedPaths = new Set(dictionaryPaths.map((file) => path.resolve(file)));
+  for (const dictionariesPath of dictionaryPaths) {
+    const sourceText = fs.readFileSync(dictionariesPath, "utf8");
+    const source = ts.createSourceFile(dictionariesPath, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+    const fileLabel = relative(root, dictionariesPath);
+    const isCompositionRoot = path.basename(dictionariesPath) === "i18n-dictionaries.ts";
+    const aliases = isCompositionRoot ? importAliases(source, dictionariesPath) : undefined;
+    walk(source, (node) => {
+      if (!ts.isVariableDeclaration(node) || !ts.isIdentifier(node.name) || !DICTIONARY_NAMES.has(node.name.text))
+        return;
+      if (!node.initializer || !ts.isObjectLiteralExpression(node.initializer)) return;
+      found.add(node.name.text);
+      const values = node.name.text === "enUS" ? enUS : zhCN;
+      for (const property of node.initializer.properties) {
+        if (ts.isSpreadAssignment(property)) {
+          // Spreads are the composition-root mechanism; every spread must name a
+          // top-level static import of the same language from a checked dictionary
+          // file. Anything else would hide non-static entries from every check.
+          const alias = ts.isIdentifier(property.expression) ? aliases?.get(property.expression.text) : undefined;
+          const sourceChecked =
+            !!alias && checkedPaths.has(alias.resolvedPath) && alias.propertyName === node.name.text;
+          if (!(isCompositionRoot && sourceChecked)) {
+            failures.push(
+              `${node.name.text} contains a non-static dictionary entry at ${fileLabel}:${lineOf(source, property)}`,
+            );
+          }
+          continue;
+        }
+        if (!ts.isPropertyAssignment(property) || !ts.isStringLiteralLike(property.initializer)) {
+          failures.push(
+            `${node.name.text} contains a non-static dictionary entry at ${fileLabel}:${lineOf(source, property)}`,
+          );
+          continue;
+        }
+        const key =
+          ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name) ? property.name.text : undefined;
+        if (!key) {
+          failures.push(
+            `${node.name.text} contains a dynamic dictionary key at ${fileLabel}:${lineOf(source, property)}`,
+          );
+          continue;
+        }
+        if (values.has(key)) {
+          const origin = origins.get(`${node.name.text}:${key}`);
+          if (origin === fileLabel) {
+            failures.push(
+              `${node.name.text} contains duplicate key ${key} at ${fileLabel}:${lineOf(source, property)}`,
+            );
+          } else {
+            failures.push(`dictionary key ${key} is defined in both ${origin} and ${fileLabel}`);
+          }
+        }
+        values.set(key, property.initializer.text);
+        origins.set(`${node.name.text}:${key}`, fileLabel);
       }
-      const key =
-        ts.isIdentifier(property.name) || ts.isStringLiteralLike(property.name) ? property.name.text : undefined;
-      if (!key) {
-        failures.push(`${name} contains a dynamic dictionary key at line ${lineOf(source, property)}`);
-        continue;
-      }
-      if (values.has(key)) failures.push(`${name} contains duplicate key ${key}`);
-      values.set(key, property.initializer.text);
-    }
-  });
-  if (!found) failures.push(`dictionary ${name} was not found`);
-  return values;
+    });
+  }
+  for (const name of DICTIONARY_NAMES) {
+    if (!found.has(name)) failures.push(`dictionary ${name} was not found`);
+  }
+  return { enUS, zhCN, dictionaryFailures: failures };
 }
 
 function checkDictionaryParity(failures, enUS, zhCN) {

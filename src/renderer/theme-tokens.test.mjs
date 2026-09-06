@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
+import { readRendererCssSources } from "./styles/css-sources.mjs";
 
-const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+const css = readRendererCssSources();
 
 test("removed unused theme tokens stay out of the global contract", () => {
   for (const token of [

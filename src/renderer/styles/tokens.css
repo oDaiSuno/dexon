@@ -1,0 +1,225 @@
+/* tokens — design tokens (light/dark), chat reading prefs, font stacks — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
+
+/* ─────────────────────────────────────────────────────────
+ * Dexon design system — personality: "Vercel A" (user-approved
+ * 2026-09-03, preview .artifacts/ui-vercel/preview-vercel.html).
+ * Geist Sans/Mono (vendored), monochrome gray ramp + blue accent
+ * reserved for focus/selection/links, black/white inverted primary
+ * buttons, semantic colors only for runtime states.
+ * All app surfaces consume the semantic vars below; raw values live
+ * only in the gray ramp / state colors.
+ * ───────────────────────────────────────────────────────── */
+:root {
+  /* gray ramp — light */
+  --gray-0: #ffffff;
+  --gray-50: #fafafa;
+  --gray-100: #f2f2f2;
+  --gray-200: #eaeaea;
+  --gray-300: #d4d4d4;
+  --gray-400: #a1a1a1;
+  --gray-500: #8f8f8f;
+  --gray-600: #666666;
+  --gray-800: #333333;
+  --gray-900: #171717;
+  --gray-1000: #0a0a0a;
+
+  /* semantic surfaces & ink */
+  --bg: var(--gray-50);
+  --bg-panel: var(--gray-0);
+  --bg-hover: var(--gray-100);
+  --bg-selected: var(--gray-200);
+  --border: var(--gray-200);
+  --border-strong: var(--gray-300);
+  --text: var(--gray-1000);
+  --text-muted: var(--gray-600);
+  --text-dim: var(--gray-400);
+
+  /* accent: blue, reserved for focus / selection / links */
+  --accent: #0060dd;
+  --accent-hover: #0052c4;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgba(0, 96, 221, 0.08);
+  --accent-soft-border: rgba(0, 96, 221, 0.28);
+  --accent-chip-bg: rgba(0, 96, 221, 0.08);
+  --accent-chip-fg: #0060dd;
+
+  /* primary button: black/white inversion (signature move) */
+  --btn-bg: var(--gray-1000);
+  --btn-bg-hover: var(--gray-900);
+  --btn-fg: #ffffff;
+
+  --user-bg: var(--gray-200);
+  --user-fg: var(--gray-1000);
+  --assistant-bg: var(--gray-0);
+  --tool-bg: var(--gray-1000);
+  --tool-fg: #ededed;
+  --tool-border: var(--gray-800);
+  --bg-subtle: rgba(10, 10, 10, 0.04);
+
+  /* state colors — only ever encode runtime state */
+  --success: #29a383;
+  --success-soft: rgba(41, 163, 131, 0.1);
+  --success-border: rgba(41, 163, 131, 0.32);
+  --danger: #e00000;
+  --danger-soft: rgba(224, 0, 0, 0.08);
+  --danger-border: rgba(224, 0, 0, 0.3);
+  --warning: #f5a623;
+  --warning-soft: rgba(245, 166, 35, 0.12);
+  --warning-border: rgba(245, 166, 35, 0.38);
+  --info: #0060dd;
+  --info-soft: rgba(0, 96, 221, 0.08);
+  --info-border: rgba(0, 96, 221, 0.28);
+  --on-accent: var(--accent-contrast);
+  --on-danger: #ffffff;
+  --grid-line: var(--gray-200);
+  --selection: rgba(0, 96, 221, 0.15);
+  --thinking-bg: var(--gray-50);
+  --thinking-border: var(--gray-200);
+
+  /* data heat scale (reasoning effort etc.) — derived from state anchors,
+     theme-aware by construction; minimal → max */
+  --heat-1: var(--gray-400);
+  --heat-2: color-mix(in srgb, var(--warning) 78%, var(--danger));
+  --heat-3: color-mix(in srgb, var(--warning) 55%, var(--danger));
+  --heat-4: color-mix(in srgb, var(--warning) 32%, var(--danger));
+  --heat-5: color-mix(in srgb, var(--warning) 12%, var(--danger));
+  --heat-6: color-mix(in srgb, var(--danger) 82%, var(--text));
+
+  /* type scale — the only allowed UI font sizes */
+  --text-display: 20px; /* page-defining statements only */
+  --text-heading-lg: 18px; /* panel section headers */
+  --text-title: 16px; /* screen titles */
+  --text-heading: 14px; /* section headings */
+  --text-body-lg: 14px; /* emphasized body / list rows */
+  --text-body: 13px; /* reading & controls */
+  --text-label: 12px; /* compact labels */
+  --text-meta: 11px; /* metadata, timestamps */
+  --text-micro: 10px; /* dense logs only */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* spacing scale (4px base) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* radii — named stops + pill */
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --radius-composer: 14px; /* chat composer shell only — the page's hero surface */
+  --radius-pill: 999px;
+  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
+
+  --chat-font-scale: 1;
+  --chat-content-max-width: 760px;
+}
+
+html.dark {
+  /* gray ramp — dark (Vercel true-black family) */
+  --gray-0: #0f0f0f;
+  --gray-50: #0a0a0a;
+  --gray-100: #1c1c1c;
+  --gray-200: #262626;
+  --gray-300: #333333;
+  --gray-400: #444444;
+  --gray-500: #707070;
+  --gray-600: #a1a1a1;
+  --gray-800: #3d3d3d;
+  --gray-900: #e5e5e5;
+  --gray-1000: #ededed;
+
+  --bg: var(--gray-50);
+  --bg-panel: var(--gray-0);
+  --bg-hover: var(--gray-100);
+  --bg-selected: var(--gray-200);
+  --border: var(--gray-300);
+  --border-strong: var(--gray-400);
+  --text: var(--gray-1000);
+  --text-muted: var(--gray-600);
+  --text-dim: var(--gray-500);
+
+  --accent: #3291ff;
+  --accent-hover: #5ba2ff;
+  --accent-contrast: #0a0a0a;
+  --accent-soft: rgba(50, 145, 255, 0.14);
+  --accent-soft-border: rgba(50, 145, 255, 0.36);
+  --accent-chip-bg: rgba(50, 145, 255, 0.14);
+  --accent-chip-fg: #8ec5ff;
+
+  --btn-bg: #ededed;
+  --btn-bg-hover: #ffffff;
+  --btn-fg: #0a0a0a;
+
+  --user-bg: var(--gray-200);
+  --user-fg: var(--gray-1000);
+  --assistant-bg: var(--gray-50);
+  --tool-bg: #050505;
+  --tool-fg: #ededed;
+  --tool-border: var(--gray-300);
+  --bg-subtle: rgba(255, 255, 255, 0.06);
+
+  --success: #45c4a0;
+  --success-soft: rgba(69, 196, 160, 0.12);
+  --success-border: rgba(69, 196, 160, 0.36);
+  --danger: #ff5c5c;
+  --danger-soft: rgba(255, 92, 92, 0.12);
+  --danger-border: rgba(255, 92, 92, 0.36);
+  --warning: #f5b94a;
+  --warning-soft: rgba(245, 185, 74, 0.12);
+  --warning-border: rgba(245, 185, 74, 0.38);
+  --info: #3291ff;
+  --info-soft: rgba(50, 145, 255, 0.12);
+  --info-border: rgba(50, 145, 255, 0.34);
+  --on-accent: var(--accent-contrast);
+  --on-danger: #0a0a0a;
+  --grid-line: var(--gray-200);
+  --selection: rgba(50, 145, 255, 0.35);
+  --thinking-bg: #111111;
+  --thinking-border: var(--gray-300);
+
+  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.chat-appearance-scope {
+  --chat-font-scale: 1;
+  --chat-content-max-width: 760px;
+}
+
+html[data-chat-font-size="small"] .chat-appearance-scope {
+  --chat-font-scale: 0.9;
+}
+
+html[data-chat-font-size="large"] .chat-appearance-scope {
+  --chat-font-scale: 1.15;
+}
+
+html[data-chat-font-size="extra-large"] .chat-appearance-scope {
+  --chat-font-scale: 1.3;
+}
+
+html[data-chat-layout="wide"] .chat-appearance-scope {
+  --chat-content-max-width: clamp(760px, 74%, 960px);
+}
+
+.chat-content-column {
+  width: 100%;
+  max-width: var(--chat-content-max-width);
+  margin-inline: auto;
+}
+
+:root {
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
+  --font-mono:
+    "Geist Mono", ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Microsoft YaHei", "PingFang SC", "Noto Sans Mono CJK SC", "Noto Sans Mono", monospace;
+}

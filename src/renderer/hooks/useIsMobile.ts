@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-// Mobile breakpoint shared with app/globals.css (max-width: 640px).
+// Mobile breakpoint shared with app/styles/panels.css (max-width: 640px).
 const MOBILE_QUERY = "(max-width: 640px)";
 
 function subscribe(cb: () => void): () => void {

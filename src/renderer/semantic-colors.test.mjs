@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { readStylePartial } from "./styles/css-sources.mjs";
 
 const componentFiles = [
   "components/FileViewer.tsx",
@@ -43,7 +44,7 @@ test("ModelsConfig connection-test badge and button use theme semantic colors", 
 });
 
 test("light and dark themes define the complete semantic color contract", () => {
-  const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+  const css = readStylePartial("tokens.css");
   const roots = [css.slice(css.indexOf(":root {"), css.indexOf("html.dark")), css.slice(css.indexOf("html.dark"))];
   for (const root of roots) {
     for (const token of [
@@ -88,7 +89,7 @@ function contrastRatio(first, second) {
 }
 
 test("accent contrast meets WCAG AA in both themes and has no component fallback", () => {
-  const css = readFileSync(new URL("./globals.css", import.meta.url), "utf8");
+  const css = readStylePartial("tokens.css");
   const roots = [
     ["light", css.slice(css.indexOf(":root {"), css.indexOf("html.dark"))],
     ["dark", css.slice(css.indexOf("html.dark"))],

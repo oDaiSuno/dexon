@@ -2,7 +2,15 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import "katex/dist/katex.min.css";
 import { App } from "./App";
+// Style cascade order lives in these imports: tailwind/theme/fonts first, then
+// app partials by responsibility, then the chat surface overrides.
 import "./globals.css";
+import "./styles/tokens.css";
+import "./styles/base.css";
+import "./styles/interactive.css";
+import "./styles/markdown.css";
+import "./styles/motion.css";
+import "./styles/panels.css";
 import "./chat.css";
 import { ensureRpc } from "./lib/api-client";
 import { installApiShims } from "./lib/api-fetch";

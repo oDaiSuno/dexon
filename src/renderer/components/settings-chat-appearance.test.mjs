@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { zhCN } from "../i18n-dictionaries.ts";
+import { readRendererCssSources, readStylePartial } from "../styles/css-sources.mjs";
 
 const settingsSource = readFileSync(new URL("./SettingsConfig.tsx", import.meta.url), "utf8");
-const cssSource = readFileSync(new URL("../globals.css", import.meta.url), "utf8");
-const dictionariesSource = readFileSync(new URL("../i18n-dictionaries.ts", import.meta.url), "utf8");
+// Token definitions live in tokens.css; the usage guards must span every style file.
+const cssSource = readStylePartial("tokens.css");
+const allCssSource = readRendererCssSources();
 const chatWindowSource = readFileSync(new URL("./ChatWindow.tsx", import.meta.url), "utf8");
 const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
 const composerEditableSource = readFileSync(new URL("./chat-input/ComposerEditable.tsx", import.meta.url), "utf8");
@@ -24,8 +27,8 @@ test("General settings exposes complete accessible chat appearance controls", ()
   }
   assert.match(settingsSource, /chatLayoutFixed", "Comfortable width"/);
   assert.match(settingsSource, /chatLayoutWide", "Expanded width"/);
-  assert.match(dictionariesSource, /chatLayoutFixed:\s*"舒适宽度"/);
-  assert.match(dictionariesSource, /chatLayoutWide:\s*"扩展宽度"/);
+  assert.equal(zhCN.chatLayoutFixed, "舒适宽度");
+  assert.equal(zhCN.chatLayoutWide, "扩展宽度");
   assert.match(settingsSource, /disabled=\{chatAppearanceSaving\}/);
   assert.match(settingsSource, /role="alert"[\s\S]*?chatAppearanceSaveFailed/);
   assert.match(settingsSource, /onChatAppearanceChange\(next\)/);
@@ -37,9 +40,9 @@ test("chat appearance CSS defines scoped font scales and both width modes", () =
   assert.match(cssSource, /data-chat-font-size="large"[\s\S]*?--chat-font-scale:\s*1\.15/);
   assert.match(cssSource, /data-chat-font-size="extra-large"[\s\S]*?--chat-font-scale:\s*1\.3/);
   assert.match(cssSource, /data-chat-layout="wide"[\s\S]*?--chat-content-max-width:\s*clamp\(760px,\s*74%,\s*960px\)/);
-  assert.doesNotMatch(cssSource, /data-chat-layout="full"|--chat-content-max-width:\s*100%/);
+  assert.doesNotMatch(allCssSource, /data-chat-layout="full"|--chat-content-max-width:\s*100%/);
   assert.match(cssSource, /\.chat-content-column\s*\{[\s\S]*?max-width:\s*var\(--chat-content-max-width\)/);
-  assert.doesNotMatch(cssSource, /var\(--chat-font-scale\)(?!\s*:)/);
+  assert.doesNotMatch(allCssSource, /var\(--chat-font-scale\)(?!\s*:)/);
 });
 
 test("the full-width dock applies the chat width once after reserving the minimap gutter", () => {

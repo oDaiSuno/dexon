@@ -1,0 +1,70 @@
+/* base — view transitions, document defaults, selection, focus, scrollbar — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
+
+/* Theme toggle: circular wipe via View Transitions API.
+   Disable the UA cross-fade; the actual clip-path animation is driven by
+   Element.animate() in hooks/useTheme.ts after transition.ready resolves. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  overscroll-behavior: none;
+}
+
+body {
+  height: 100dvh;
+}
+
+#root {
+  height: 100%;
+}
+
+::selection {
+  background: var(--selection);
+}
+
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 82%, white) !important;
+  outline-offset: 2px;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 4px;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: var(--gray-400);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-dim);
+}
+pre,
+code {
+  font-family: var(--font-mono);
+}

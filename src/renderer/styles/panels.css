@@ -1,0 +1,134 @@
+/* panels — sidebar/right-panel width animation and mobile drawer — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
+
+/* Desktop sidebar: animate width */
+@media (min-width: 641px) {
+  .sidebar-overlay-backdrop {
+    display: none !important;
+  }
+  .sidebar-container {
+    position: relative;
+    overflow: hidden;
+    transition:
+      width 0.2s ease,
+      min-width 0.2s ease;
+  }
+  .sidebar-container.sidebar-open {
+    width: 280px;
+    min-width: 280px;
+  }
+  .sidebar-container.sidebar-closed {
+    width: 0;
+    min-width: 0;
+    border-right: none !important;
+  }
+  /* keep inner content at fixed width so it doesn't reflow during animation */
+  .sidebar-container > * {
+    width: 280px;
+    min-width: 280px;
+  }
+}
+
+/* Right panel: animate width */
+@media (min-width: 641px) {
+  .right-panel-container {
+    position: relative;
+    overflow: hidden;
+    transition:
+      width 0.2s ease,
+      min-width 0.2s ease;
+    flex-shrink: 0;
+  }
+  .right-panel-container.right-panel-resizing {
+    transition: none;
+  }
+  .right-panel-container.right-panel-open {
+    width: var(--right-panel-width, 360px);
+    min-width: var(--right-panel-min-width, 280px);
+  }
+  .right-panel-container.right-panel-closed {
+    width: 0;
+    min-width: 0;
+    border-left: none !important;
+  }
+  /* keep inner content at fixed width so it doesn't reflow during animation */
+  .right-panel-container > :not(.right-panel-resizer) {
+    width: var(--right-panel-width, 360px);
+    min-width: var(--right-panel-min-width, 280px);
+  }
+  .right-panel-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 10;
+    width: 10px;
+    min-width: 10px;
+    cursor: col-resize;
+    touch-action: none;
+    background: linear-gradient(
+      90deg,
+      transparent 4px,
+      color-mix(in srgb, var(--border) 78%, transparent) 4px,
+      color-mix(in srgb, var(--border) 78%, transparent) 6px,
+      transparent 6px
+    );
+    transition: background 0.12s ease;
+  }
+  .right-panel-resizer:hover,
+  .right-panel-container.right-panel-resizing .right-panel-resizer {
+    background: linear-gradient(
+      90deg,
+      transparent 3px,
+      color-mix(in srgb, var(--accent) 72%, transparent) 3px,
+      color-mix(in srgb, var(--accent) 72%, transparent) 7px,
+      transparent 7px
+    );
+  }
+}
+
+/* Mobile sidebar: slide in/out as overlay */
+@media (max-width: 640px) {
+  .chat-stats-center {
+    display: none !important;
+  }
+  .sidebar-container {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 280px;
+    max-width: 85vw;
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .sidebar-container.sidebar-open {
+    transform: translateX(0);
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+  }
+  .sidebar-container.sidebar-closed {
+    transform: translateX(-100%);
+    box-shadow: none;
+  }
+
+  .right-panel-container {
+    overflow: hidden;
+    transition:
+      width 0.2s ease,
+      min-width 0.2s ease;
+    flex-shrink: 0;
+  }
+  .right-panel-resizer {
+    display: none;
+  }
+  .right-panel-container.right-panel-open {
+    width: 100%;
+    min-width: 0;
+  }
+  .right-panel-container.right-panel-closed {
+    width: 0 !important;
+    min-width: 0 !important;
+    border-left: none !important;
+    display: none !important;
+  }
+}
