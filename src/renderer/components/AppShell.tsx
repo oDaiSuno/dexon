@@ -12,6 +12,7 @@ import { SessionProfiler } from "./SessionProfiler";
 import type { ChatInputHandle } from "./ChatInput";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 import { useWorkspaceNavigation } from "./app-shell/use-workspace-navigation";
+import { useSpaceCoordination } from "./app-shell/use-space-coordination";
 import { EXPLORER_TAB_ID, useRightPanelDock } from "./app-shell/use-right-panel-dock";
 import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
@@ -110,7 +111,33 @@ export function AppShell({
     handleInitialRestoreDone,
     bumpSessionKey,
     bumpRefresh,
+    noteCoordinatorCwd,
   } = navigation;
+
+  // Phase 6: the shell's space coordinator owns the current space — the
+  // startup decision (explicit session → last space → personal space),
+  // directory validation/retry, and last-space persistence. The sidebar's
+  // picker and worktree operations flow up through the combined cwd callback;
+  // the coordinator's committed space flows back down as the sidebar's cwd.
+  // Echoes of pushed values are tagged "coordinator" by the sidebar and must
+  // adopt the cwd without user-space or session-close semantics.
+  const coordination = useSpaceCoordination({
+    sessionIntent: initialSessionId,
+    sessionResolved: initialSessionRestored,
+    sessionFound: selectedSession !== null,
+    sessionCwd: selectedSession?.cwd ?? newSessionCwd ?? null,
+  });
+  const handleSidebarCwdChange = useCallback(
+    (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => {
+      if (origin === "coordinator") {
+        noteCoordinatorCwd(cwd);
+        return;
+      }
+      handleCwdChange(cwd, projectRoot);
+      coordination.noteExternalCwd(cwd);
+    },
+    [handleCwdChange, noteCoordinatorCwd, coordination],
+  );
 
   const dock = useRightPanelDock({
     isMobile,
@@ -203,8 +230,8 @@ export function AppShell({
       onInitialRestoreDone={handleInitialRestoreDone}
       refreshKey={refreshKey}
       onSessionDeleted={handleSessionDeleted}
-      selectedCwd={selectedSession?.cwd ?? newSessionCwd ?? null}
-      onCwdChange={handleCwdChange}
+      selectedCwd={coordination.spaceCwd}
+      onCwdChange={handleSidebarCwdChange}
       onOpenSettings={() => setSettingsOpen(true)}
     />
   );

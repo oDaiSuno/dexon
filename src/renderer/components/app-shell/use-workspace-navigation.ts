@@ -203,6 +203,14 @@ export function useWorkspaceNavigation({
     setInitialSessionRestored(true);
   }, []);
 
+  // Adopt a coordinator-pushed space (startup restore, session alignment):
+  // update the effective cwd only — pushed values are not user choices, so
+  // they must never close an open session or rewrite the URL.
+  const noteCoordinatorCwd = useCallback((cwd: string | null) => {
+    if (!cwd) return;
+    setActiveCwd(cwd);
+  }, []);
+
   const bumpSessionKey = useCallback(() => {
     setSessionKey((k) => k + 1);
   }, []);
@@ -228,5 +236,6 @@ export function useWorkspaceNavigation({
     handleInitialRestoreDone,
     bumpSessionKey,
     bumpRefresh,
+    noteCoordinatorCwd,
   };
 }

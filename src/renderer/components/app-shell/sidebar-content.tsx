@@ -25,7 +25,7 @@ export function SidebarContent({
   refreshKey: number;
   onSessionDeleted: (sessionId: string) => void;
   selectedCwd: string | null;
-  onCwdChange: (cwd: string | null, projectRoot?: string | null) => void;
+  onCwdChange: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   onOpenSettings: () => void;
 }) {
   const { t } = useI18n();

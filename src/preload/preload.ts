@@ -75,6 +75,7 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     stageClipboardImage: (request) => ipcRenderer.invoke("desktop:stage-clipboard-image", request),
     getPathForFile: (file: File) => (webUtils ? webUtils.getPathForFile(file) : null),
     selectDirectory: () => ipcRenderer.invoke("desktop:select-directory"),
+    openDirectory: (fsPath) => ipcRenderer.invoke("desktop:open-directory", fsPath),
     setChannelCredential: (payload) => ipcRenderer.invoke("desktop:set-channel-credential", payload),
     saveFile: (opts) => ipcRenderer.invoke("desktop:save-file", opts),
     saveBinaryFile: (opts) => ipcRenderer.invoke("desktop:save-binary-file", opts),

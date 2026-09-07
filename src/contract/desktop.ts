@@ -138,6 +138,8 @@ export interface DesktopUiState {
   backgroundMode?: boolean;
   managedProcessesEnabled?: boolean;
   chatAppearance?: ChatAppearancePreferences;
+  /** Remembered last workspace directory (space); null clears the record. */
+  lastSpaceCwd?: string | null;
 }
 
 export type DesktopUiStatePatch = Partial<DesktopUiState>;
@@ -167,6 +169,8 @@ export interface PiBridge {
   /** Resolve the absolute filesystem path for a dropped/injected File object. */
   getPathForFile?: (file: File) => string | null;
   selectDirectory: () => Promise<string | null>;
+  /** Truly open a directory in the system file manager (validated in main). */
+  openDirectory: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;
   saveBinaryFile: (opts: SaveBinaryFileOptions) => Promise<string | null>;

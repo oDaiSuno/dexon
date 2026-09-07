@@ -16,6 +16,7 @@ export type UiState = DesktopUiState & {
   sidebarWidth?: number;
   theme?: "light" | "dark" | "system";
   recentCwds?: string[];
+  lastSpaceCwd?: string | null;
   backgroundMode?: boolean;
   automaticUpdateChecks?: boolean;
 };

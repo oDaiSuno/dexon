@@ -38,7 +38,7 @@ export function useProjectWorkspace({
 }: {
   sessions: SessionInfo[];
   selectedCwdProp: string | null | undefined;
-  onCwdChange?: (cwd: string | null, projectRoot?: string | null) => void;
+  onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   refreshKey?: number;
 }) {
   const { t } = useI18n();
@@ -72,12 +72,18 @@ export function useProjectWorkspace({
   );
 
   // Notify parent only when the effective cwd actually changes (not when
-  // projectRootFor identity changes due to session/worktree refreshes).
+  // projectRootFor identity changes due to session/worktree refreshes). The
+  // origin tells the shell whether this value was set by the coordinator's
+  // own push (prop sync) or by a genuine user action in the sidebar — late
+  // echoes of pushed values must never be mistaken for new user choices.
   const lastNotifiedCwdRef = useRef<string | null>(null);
+  const pendingSyncEchoRef = useRef<string | null>(null);
   useEffect(() => {
     if (lastNotifiedCwdRef.current === selectedCwd) return;
     lastNotifiedCwdRef.current = selectedCwd;
-    onCwdChange?.(selectedCwd, projectRootFor(selectedCwd));
+    const fromCoordinator = pendingSyncEchoRef.current !== null && pendingSyncEchoRef.current === selectedCwd;
+    pendingSyncEchoRef.current = null;
+    onCwdChange?.(selectedCwd, projectRootFor(selectedCwd), fromCoordinator ? "coordinator" : "user");
   }, [selectedCwd, onCwdChange, projectRootFor]);
 
   // Sync the worktree switcher to the selected session's cwd. Sessions of all
@@ -88,6 +94,7 @@ export function useProjectWorkspace({
   useEffect(() => {
     if (selectedCwdProp && selectedCwdProp !== lastSyncedCwdPropRef.current) {
       lastSyncedCwdPropRef.current = selectedCwdProp;
+      pendingSyncEchoRef.current = selectedCwdProp;
       setSelectedCwd(selectedCwdProp);
     }
   }, [selectedCwdProp]);

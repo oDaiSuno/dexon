@@ -23,7 +23,7 @@ interface Props {
   refreshKey?: number;
   onSessionDeleted?: (sessionId: string) => void;
   selectedCwd?: string | null;
-  onCwdChange?: (cwd: string | null, projectRoot?: string | null) => void;
+  onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
 }
 
 export function SessionSidebar({
@@ -100,12 +100,7 @@ export function SessionSidebar({
       restoredRef.current = true;
       onInitialRestoreDone?.();
     }
-
-    if (selectedCwd === null) {
-      const projects = getRecentProjects(sessions);
-      if (projects.length > 0) setSelectedCwd(projects[0]);
-    }
-  }, [sessions, error, initialSessionId, loading, onInitialRestoreDone, onSelectSession, selectedCwd, setSelectedCwd]);
+  }, [sessions, error, initialSessionId, loading, onInitialRestoreDone, onSelectSession, setSelectedCwd]);
 
   // Clicking a session moves the effective cwd to that session's worktree.
   // Done on the click path (not via the selectedCwd prop sync) so it also

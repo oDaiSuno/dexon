@@ -13,6 +13,7 @@ import { appendMainLog, getMainLogPath } from "./logger";
 import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
 import { stageClipboardImage } from "./attachment-staging";
+import { openValidatedDirectory } from "./open-directory";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
@@ -195,6 +196,12 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     } catch {
       // Missing paths are not revealed.
     }
+  });
+
+  // "Open current folder" truly opens the directory (HC-18), unlike the
+  // reveal-only channel above. Same trust wrapper and path validation style.
+  trustedHandle("desktop:open-directory", async (_event, fsPath: string) => {
+    await openValidatedDirectory(fsPath, { openPath: (target) => shell.openPath(target) });
   });
 
   // Rich file context menu, built in main from a real path (Chromium does not
