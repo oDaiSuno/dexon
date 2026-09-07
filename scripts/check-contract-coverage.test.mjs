@@ -80,3 +80,23 @@ test("the repository contract has non-empty exact AST coverage", () => {
   assert.ok(counts.bridgeMethods > 0);
   assert.ok(counts.browserHostMethods > 0);
 });
+
+test("server handler extraction aggregates across split modules and still flags duplicates", async () => {
+  const { extractServerHandlersFromSources } = await import("./check-contract-coverage.mjs");
+  const sources = [
+    { name: "handlers/sessions.ts", source: `server.handle({ "sessions.list": async () => 0 });` },
+    { name: "handlers/system.ts", source: `server.handle({ "system.home": () => 0 });` },
+  ];
+  assert.deepEqual(extractServerHandlersFromSources(sources), ["sessions.list", "system.home"]);
+
+  const duplicated = [
+    ...sources,
+    { name: "handlers/other.ts", source: `server.handle({ "sessions.list": async () => 0 });` },
+  ];
+  const failures = exactCoverageFailures(
+    "Api handlers",
+    ["sessions.list", "system.home"],
+    extractServerHandlersFromSources(duplicated),
+  );
+  assert.match(failures.join("\n"), /Duplicate/);
+});

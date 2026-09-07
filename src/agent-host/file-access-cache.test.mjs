@@ -25,6 +25,12 @@ export function releaseFirstSessionScan(sessions) {
 }
 `;
 
+const sessionFileReferencesMock = `
+export async function isFilePathReferencedBySession() {
+  return false;
+}
+`;
+
 const {
   getAllowedFileRoots,
   getAllowedRootsCache,
@@ -55,14 +61,19 @@ const {
           if (!args.importer.endsWith("file-access.ts")) return null;
           return { path: "session-reader", namespace: "roots-test" };
         });
+        builder.onResolve({ filter: /^\.\/session-file-references$/ }, (args) => {
+          if (!args.importer.endsWith("file-access.ts")) return null;
+          return { path: "session-file-references", namespace: "roots-test" };
+        });
         builder.onResolve({ filter: /^roots-test-control$/ }, () => ({
           path: "session-reader",
           namespace: "roots-test",
         }));
-        builder.onLoad({ filter: /.*/, namespace: "roots-test" }, () => ({
-          contents: sessionReaderMock,
-          loader: "js",
-        }));
+        builder.onLoad({ filter: /.*/, namespace: "roots-test" }, (args) =>
+          args.path === "session-file-references"
+            ? { contents: sessionFileReferencesMock, loader: "js" }
+            : { contents: sessionReaderMock, loader: "js" },
+        );
       },
     },
   ],

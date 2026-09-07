@@ -1,6 +1,7 @@
 import { readdirSync } from "fs";
 import { homedir } from "os";
 import path from "path";
+import { RpcError } from "../contract/types";
 import {
   allowedRootsCacheTtlMs,
   getAdditionalAllowedRoots,
@@ -10,13 +11,24 @@ import {
   setAllowedRootsCacheIfCurrent,
 } from "../shared/allowed-roots";
 import { listAllSessions } from "./session-reader";
+import { isFilePathReferencedBySession } from "./session-file-references";
+import { isFilePathAllowed } from "./file-access-core";
 export {
   allowFileRoot,
   normalizeSlashes,
   invalidateAllowedRootsCache,
   setAllowedRootsWatcherHealthy,
 } from "../shared/allowed-roots";
-export { canonicalPath, isFilePathAllowed, isWindowsAbsolutePath } from "./file-access-core";
+export { canonicalPath, isFilePathAllowed, isWindowsAbsolutePath, validateExistingDirectory } from "./file-access-core";
+
+/** Reject any target outside the allowed roots unless the source session
+ * references it directly (worktree file references). */
+export async function assertPathAllowed(target: string, sourceSessionId?: string): Promise<void> {
+  const allowed = await getAllowedFileRoots();
+  if (isFilePathAllowed(target, allowed)) return;
+  if (sourceSessionId && (await isFilePathReferencedBySession(target, sourceSessionId))) return;
+  throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
+}
 
 // Cache avoids re-scanning every session for each file request. The TTL is
 // watcher-aware (see allowed-roots.ts): long when the session watcher delivers

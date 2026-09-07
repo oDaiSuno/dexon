@@ -194,3 +194,19 @@ export async function reloadSharedModelRuntimeConfig(): Promise<void> {
   const runtime = await sharedRuntimePromise;
   await runtime.refresh({ allowNetwork: false });
 }
+
+/** Cached catalog lookup only: creating the shared runtime never touches
+ * the network, and per-session runtimes may register models that the
+ * shared one does not know — an unresolvable model simply reports unknown
+ * usage instead of guessing another model's window. */
+export async function resolveSessionContextWindow(
+  model: { provider: string; modelId: string } | null,
+): Promise<number | null | undefined> {
+  if (!model) return null;
+  try {
+    const runtime = await getSharedModelRuntime();
+    return runtime.getModel(model.provider, model.modelId)?.contextWindow ?? null;
+  } catch {
+    return null;
+  }
+}

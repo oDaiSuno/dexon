@@ -4,6 +4,7 @@ import {
   getAgentDir,
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
+import type { RpcServer } from "../contract/rpc";
 import {
   isChannelAttachmentContextType,
   isChannelSourceCancelledType,
@@ -389,4 +390,23 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
     default:
       return null;
   }
+}
+
+/** Broadcast a sessions.changed event that reflects the refreshed index state. */
+export async function emitIndexedSessionChange(
+  server: RpcServer,
+  sessionId: string,
+  cwd: string | null,
+): Promise<void> {
+  try {
+    const filePath = await resolveSessionPath(sessionId);
+    const session = filePath ? await sessionIndex.refreshPath(filePath) : null;
+    if (session) {
+      server.emit("sessions.changed", session.id, { cwd: session.cwd, sessionId: session.id, session });
+      return;
+    }
+  } catch (error) {
+    console.error("[agent-host] failed to refresh changed session:", error);
+  }
+  server.emit("sessions.changed", "*", { cwd, fullRefresh: true });
 }

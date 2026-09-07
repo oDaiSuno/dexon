@@ -79,6 +79,15 @@ export function extractServerHandlers(name, source) {
   return handlers;
 }
 
+/**
+ * Collect server.handle registrations across every source module. Duplicate
+ * method names are preserved in the result so exactCoverageFailures still
+ * reports cross-module double registrations as errors.
+ */
+export function extractServerHandlersFromSources(sources) {
+  return sources.flatMap((source) => extractServerHandlers(source.name, source.source));
+}
+
 function isServerEmitter(expression) {
   if (ts.isIdentifier(expression)) return expression.text === "server";
   return (
@@ -228,7 +237,7 @@ export function exactCoverageFailures(label, expected, actual, options = {}) {
 
 export function analyzeContractCoverage(sources) {
   const apiMethods = extractInterfaceProperties("api.ts", sources.api, "Api");
-  const handlers = extractServerHandlers("handlers.ts", sources.handlers);
+  const handlers = extractServerHandlersFromSources(sources.handlers);
   const streamContract = extractInterfaceProperties("api.ts", sources.api, "Streams");
   const emittedTopics = extractStreamTopics(sources.streamSources);
   const bridgeContract = extractInterfaceProperties("desktop.ts", sources.desktop, "PiBridge");
@@ -303,7 +312,9 @@ export function loadContractSources(root) {
     .map((file) => ({ name: file, source: read(file) }));
   return {
     api: read("src/contract/api.ts"),
-    handlers: read("src/agent-host/handlers.ts"),
+    // Handler registration may live in any agent-host module (handlers.ts is
+    // just the composition root), so scan the same glob used for streams.
+    handlers: streamSources,
     streamSources,
     desktop: read("src/contract/desktop.ts"),
     preload: read("src/preload/preload.ts"),

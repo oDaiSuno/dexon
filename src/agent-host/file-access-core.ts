@@ -1,4 +1,4 @@
-import { realpathSync } from "fs";
+import { realpathSync, statSync } from "fs";
 import path from "path";
 
 const WINDOWS_ABSOLUTE_RE = /^[a-zA-Z]:[\\/]/;
@@ -32,6 +32,24 @@ export function canonicalPath(filePath: string, useWindowsRules: boolean): strin
       missingSegments.unshift(resolver.basename(current));
       current = parent;
     }
+  }
+}
+
+export type DirectoryValidation = { ok: true; path: string; canonicalPath: string } | { ok: false; error: string };
+
+/**
+ * Validate that a candidate refers to an existing directory and resolve its
+ * canonical (realpath) path for authorization.
+ */
+export function validateExistingDirectory(candidate: unknown): DirectoryValidation {
+  if (typeof candidate !== "string" || !candidate) return { ok: false, error: "Directory does not exist" };
+  try {
+    const realpath = realpathSync.native ?? realpathSync;
+    const canonicalPath = realpath(candidate);
+    if (!statSync(canonicalPath).isDirectory()) return { ok: false, error: "Not a directory" };
+    return { ok: true, path: candidate, canonicalPath };
+  } catch {
+    return { ok: false, error: "Directory does not exist" };
   }
 }
 
