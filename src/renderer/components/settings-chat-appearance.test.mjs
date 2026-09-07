@@ -4,7 +4,7 @@ import test from "node:test";
 import { zhCN } from "../i18n-dictionaries.ts";
 import { readRendererCssSources, readStylePartial } from "../styles/css-sources.mjs";
 
-const settingsSource = readFileSync(new URL("./SettingsConfig.tsx", import.meta.url), "utf8");
+const settingsSource = readFileSync(new URL("./settings/general-settings.tsx", import.meta.url), "utf8");
 // Token definitions live in tokens.css; the usage guards must span every style file.
 const cssSource = readStylePartial("tokens.css");
 const allCssSource = readRendererCssSources();

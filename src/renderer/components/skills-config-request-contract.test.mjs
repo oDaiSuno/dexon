@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("./SkillsConfig.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("./skills/use-skill-directory.ts", import.meta.url), "utf8");
 
 test("SkillsConfig aborts superseded list requests and gates every settlement", () => {
   assert.match(source, /const skillsRequestRef = useRef\(new LatestAbortableRequest\(\)\)/);

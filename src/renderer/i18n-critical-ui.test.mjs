@@ -9,8 +9,12 @@ const owners = {
     readFileSync(new URL("./components/session-sidebar/worktree-remove-confirm.tsx", import.meta.url), "utf8"),
   models: readFileSync(new URL("./components/ModelsConfig.tsx", import.meta.url), "utf8"),
   channels: readFileSync(new URL("./components/channels/ChannelsConfig.tsx", import.meta.url), "utf8"),
-  updates: readFileSync(new URL("./components/SettingsConfig.tsx", import.meta.url), "utf8"),
-  skills: readFileSync(new URL("./components/SkillsConfig.tsx", import.meta.url), "utf8"),
+  updates:
+    readFileSync(new URL("./components/settings/software-update.tsx", import.meta.url), "utf8") +
+    readFileSync(new URL("./components/settings/update-presentations.tsx", import.meta.url), "utf8"),
+  skills:
+    readFileSync(new URL("./components/skills/skill-list.tsx", import.meta.url), "utf8") +
+    readFileSync(new URL("./components/skills/add-skill-panel.tsx", import.meta.url), "utf8"),
 };
 
 const scenarios = [

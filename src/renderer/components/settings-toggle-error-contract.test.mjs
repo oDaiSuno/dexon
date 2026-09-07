@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-const source = readFileSync(new URL("./SettingsConfig.tsx", import.meta.url), "utf8");
+const source = readFileSync(new URL("./settings/general-settings.tsx", import.meta.url), "utf8");
+const softwareUpdateSource = readFileSync(new URL("./settings/software-update.tsx", import.meta.url), "utf8");
 
 test("background mode load failures are consumed and leave a visible error", () => {
   assert.match(source, /getUiState\(\)[\s\S]*?\.catch\(\(\) => \{[\s\S]*?setBackgroundModeError\("load"\)/);
@@ -21,10 +22,10 @@ test("background mode save failures roll back and report the failure", () => {
 });
 
 test("automatic update checks commit only the state returned by the existing action path", () => {
-  assert.match(source, /checked=\{state\?\.automaticChecksEnabled \?\? false\}/);
+  assert.match(softwareUpdateSource, /checked=\{state\?\.automaticChecksEnabled \?\? false\}/);
   assert.match(
-    source,
+    softwareUpdateSource,
     /void performAction\("automatic", async \(\) => \{\s*const nextState = await window\.piBridge\.setAutomaticUpdateChecks\(enabled\);\s*setState\(nextState\)/,
   );
-  assert.doesNotMatch(source, /setState\(\{[\s\S]*?automaticChecksEnabled: enabled/);
+  assert.doesNotMatch(softwareUpdateSource, /setState\(\{[\s\S]*?automaticChecksEnabled: enabled/);
 });

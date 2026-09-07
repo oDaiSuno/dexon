@@ -27,7 +27,17 @@ const LOCALIZED_OWNER_SUFFIXES = [
   "components/app-shell/sidebar-content.tsx",
   "components/app-shell/chat-placeholder.tsx",
   "components/SkillsConfig.tsx",
+  "components/skills/skill-toggle.tsx",
+  "components/skills/skill-detail.tsx",
+  "components/skills/add-skill-panel.tsx",
+  "components/skills/skill-list.tsx",
+  "components/skills/unsaved-skill-prompt.tsx",
   "components/PluginsConfig.tsx",
+  "components/plugins/plugin-controls.tsx",
+  "components/plugins/resource-list.tsx",
+  "components/plugins/add-plugin-panel.tsx",
+  "components/plugins/package-detail.tsx",
+  "components/plugins/plugin-list.tsx",
   "hooks/useAgentSession.ts",
 ];
 const VISIBLE_ATTRIBUTE_NAMES = new Set(["title", "aria-label", "aria-valuetext", "placeholder", "alt"]);

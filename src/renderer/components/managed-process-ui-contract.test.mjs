@@ -4,7 +4,7 @@ import test from "node:test";
 
 const panel = await readFile(new URL("./ProcessPanel.tsx", import.meta.url), "utf8");
 const dock = await readFile(new URL("./app-shell/use-right-panel-dock.ts", import.meta.url), "utf8");
-const settings = await readFile(new URL("./SettingsConfig.tsx", import.meta.url), "utf8");
+const settings = await readFile(new URL("./settings/general-settings.tsx", import.meta.url), "utf8");
 const contract = await readFile(new URL("../../contract/processes.ts", import.meta.url), "utf8");
 
 test("managed process UI pulls bounded plain-text logs from availability events", () => {
