@@ -7,6 +7,7 @@ import { useSessionEvents } from "./agent-session/use-session-events";
 import { useSessionExtensions } from "./agent-session/use-session-extensions";
 import { useSessionHistory } from "./agent-session/use-session-history";
 import { useSessionLifecycle } from "./agent-session/use-session-lifecycle";
+import { useSessionReading } from "./agent-session/use-session-reading";
 import { useSessionModels } from "./agent-session/use-session-models";
 import { useSessionQueue } from "./agent-session/use-session-queue";
 import { useSessionScroll } from "./agent-session/use-session-scroll";
@@ -67,6 +68,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...queue,
     ...scroll,
   });
+  const reading = useSessionReading({ ...state, ...scroll }, opts.readingVisible ?? true);
   const effects = useSessionEffects({
     ...state,
     ...history,
@@ -166,6 +168,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...queue,
     ...scroll,
     ...lifecycle,
+    ...reading,
     ...effects,
   };
   return {

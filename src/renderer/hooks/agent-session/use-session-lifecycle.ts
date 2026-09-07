@@ -6,8 +6,14 @@ import type { SessionActions } from "./use-session-actions";
 import type { SessionConnection } from "./use-session-connection";
 import type { SessionEvents } from "./use-session-events";
 import type { SessionHistory } from "./use-session-history";
-import type { SessionScroll } from "./use-session-scroll";
 import type { SessionState } from "./use-session-state";
+
+/**
+ * Runtime lifecycle of one mounted session: the mount-only subscription and
+ * load, live-state restoration, and the outward state reports. Visual and
+ * input wiring lives in use-session-reading so page visibility can pause the
+ * reading branch without ever pausing this runtime.
+ */
 type Dependencies = Pick<
   SessionState,
   | "historyGenerationRef"
@@ -42,35 +48,12 @@ type Dependencies = Pick<
   | "onBranchDataChange"
   | "data"
   | "activeLeafId"
-  | "scrollContainerRef"
-  | "messages"
-  | "loading"
-  | "pendingScrollToUserRef"
-  | "initialScrollDoneRef"
-  | "completionScrollAllowedRef"
-  | "agentRunning"
-  | "externalTurnAutoFollowRef"
-  | "userScrollIntentUntilRef"
-  | "agentPhase"
-  | "isAwayFromBottom"
-  | "streamState"
 > &
   Pick<SessionHistory, "commitHistory" | "loadSession"> &
   Pick<SessionConnection, "connectEvents"> &
   Pick<SessionEvents, "waitForPromptSettlement"> &
-  Pick<SessionActions, "handleLeafChangeFromUi"> &
-  Pick<
-    SessionScroll,
-    | "markUserScrollIntent"
-    | "handleTouchStart"
-    | "handleTouchMove"
-    | "handleTouchEnd"
-    | "handleScrollPositionChange"
-    | "scrollUserMsgToTop"
-    | "scrollToBottom"
-    | "scrollLiveContentToBottom"
-    | "updateScrollPresence"
-  >;
+  Pick<SessionActions, "handleLeafChangeFromUi">;
+
 export function useSessionLifecycle(context: Dependencies) {
   const {
     historyGenerationRef,
@@ -110,27 +93,6 @@ export function useSessionLifecycle(context: Dependencies) {
     data,
     activeLeafId,
     handleLeafChangeFromUi,
-    markUserScrollIntent,
-    scrollContainerRef,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    handleScrollPositionChange,
-    messages,
-    loading,
-    pendingScrollToUserRef,
-    initialScrollDoneRef,
-    scrollUserMsgToTop,
-    scrollToBottom,
-    completionScrollAllowedRef,
-    agentRunning,
-    externalTurnAutoFollowRef,
-    userScrollIntentUntilRef,
-    scrollLiveContentToBottom,
-    agentPhase,
-    isAwayFromBottom,
-    streamState,
-    updateScrollPresence,
   } = context;
 
   // Load session on mount
@@ -236,111 +198,6 @@ export function useSessionLifecycle(context: Dependencies) {
     onBranchDataChange(data?.tree ?? [], activeLeafId, handleLeafChangeFromUi);
   }, [data?.tree, activeLeafId, handleLeafChangeFromUi, onBranchDataChange]);
 
-  useEffect(() => {
-    window.addEventListener("keydown", markUserScrollIntent);
-    window.addEventListener("pointerdown", markUserScrollIntent, { passive: true });
-    return () => {
-      window.removeEventListener("keydown", markUserScrollIntent);
-      window.removeEventListener("pointerdown", markUserScrollIntent);
-    };
-  }, [markUserScrollIntent]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    container.addEventListener("wheel", markUserScrollIntent, { passive: true });
-    container.addEventListener("touchstart", handleTouchStart, { passive: true });
-    container.addEventListener("touchmove", handleTouchMove, { passive: true });
-    container.addEventListener("touchend", handleTouchEnd, { passive: true });
-    container.addEventListener("touchcancel", handleTouchEnd, { passive: true });
-    container.addEventListener("scroll", handleScrollPositionChange, { passive: true });
-    return () => {
-      container.removeEventListener("wheel", markUserScrollIntent);
-      container.removeEventListener("touchstart", handleTouchStart);
-      container.removeEventListener("touchmove", handleTouchMove);
-      container.removeEventListener("touchend", handleTouchEnd);
-      container.removeEventListener("touchcancel", handleTouchEnd);
-      container.removeEventListener("scroll", handleScrollPositionChange);
-    };
-  }, [
-    messages.length,
-    loading,
-    handleScrollPositionChange,
-    markUserScrollIntent,
-    handleTouchStart,
-    handleTouchMove,
-    handleTouchEnd,
-    scrollContainerRef,
-  ]);
-
-  useEffect(() => {
-    if (messages.length > 0) {
-      if (pendingScrollToUserRef.current) {
-        pendingScrollToUserRef.current = false;
-        initialScrollDoneRef.current = true;
-        scrollUserMsgToTop();
-      } else if (!initialScrollDoneRef.current) {
-        initialScrollDoneRef.current = true;
-        scrollToBottom("instant");
-      } else if (!agentRunningRef.current && completionScrollAllowedRef.current) {
-        scrollToBottom("smooth");
-      }
-    }
-  }, [
-    messages.length,
-    agentRunning,
-    scrollToBottom,
-    scrollUserMsgToTop,
-    pendingScrollToUserRef,
-    initialScrollDoneRef,
-    agentRunningRef,
-    completionScrollAllowedRef,
-  ]);
-
-  useEffect(() => {
-    if (!agentRunning || !completionScrollAllowedRef.current) return;
-    if (!externalTurnAutoFollowRef.current && !autoFollowMagnetRef.current) return;
-    const frame = requestAnimationFrame(() => {
-      if (!completionScrollAllowedRef.current) return;
-      if (!externalTurnAutoFollowRef.current && !autoFollowMagnetRef.current) return;
-      if (Date.now() <= userScrollIntentUntilRef.current) return;
-      scrollLiveContentToBottom();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    agentRunning,
-    agentPhase,
-    messages.length,
-    isAwayFromBottom,
-    scrollLiveContentToBottom,
-    streamState.streamingMessage,
-    completionScrollAllowedRef,
-    externalTurnAutoFollowRef,
-    autoFollowMagnetRef,
-    userScrollIntentUntilRef,
-  ]);
-
-  // Keep "away from bottom" fresh when the viewport or message layout changes.
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const ro = new ResizeObserver(() => updateScrollPresence());
-    ro.observe(container);
-    // scrollHeight can change without resizing the viewport (for example when
-    // an image loads or process details expand), so observe the content too.
-    const content = liveContentEndRef.current?.parentElement;
-    if (content) ro.observe(content);
-    updateScrollPresence();
-    return () => ro.disconnect();
-  }, [liveContentEndRef, loading, messages.length, scrollContainerRef, updateScrollPresence]);
-
-  // Content can grow without firing a scroll event (the streaming tail makes
-  // the container taller while scrollTop stays put) — re-evaluate presence
-  // after messages/streaming change.
-  useEffect(() => {
-    const t = setTimeout(updateScrollPresence, 30);
-    return () => clearTimeout(t);
-  }, [messages.length, streamState.isStreaming, streamState.streamingMessage, updateScrollPresence]);
   return {};
 }
 export type SessionLifecycle = ReturnType<typeof useSessionLifecycle>;

@@ -88,6 +88,12 @@ export interface UseAgentSessionOptions {
   ) => void;
   onSystemPromptChange?: (prompt: string | null) => void;
   onSessionStatsPanelOpen?: () => void;
+  /**
+   * Whether the chat page is actually visible to the user. Reading-side
+   * wiring (input listeners, geometry observation, scroll pacing) pauses
+   * while false; the runtime keeps streaming. Defaults to true.
+   */
+  readingVisible?: boolean;
 }
 export type ThinkingLevelOption = "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
