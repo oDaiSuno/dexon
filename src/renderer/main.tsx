@@ -10,6 +10,7 @@ import "./styles/base.css";
 import "./styles/interactive.css";
 import "./styles/markdown.css";
 import "./styles/motion.css";
+import "./styles/nav.css";
 import "./styles/panels.css";
 import "./chat.css";
 import "./styles/tool-cards.css";

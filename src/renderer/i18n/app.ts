@@ -55,6 +55,16 @@ export const enUS: Record<string, string> = {
   usageInput: "Input",
   usageOutput: "Output",
   user: "User",
+  navChat: "Chat",
+  navPluginsSkills: "Plugins & Skills",
+  navHistory: "History",
+  personalSpace: "Personal space",
+  openCurrentFolder: "Open current folder",
+  chooseOtherFolder: "Choose another folder…",
+  switchSpace: "Switch space…",
+  backToPersonalSpace: "Back to personal space",
+  pluginsTab: "Plugins",
+  skillsTab: "Skills",
 };
 
 export const zhCN: Record<string, string> = {
@@ -113,4 +123,14 @@ export const zhCN: Record<string, string> = {
   usageInput: "输入",
   usageOutput: "输出",
   user: "用户",
+  navChat: "聊天",
+  navPluginsSkills: "插件与技能",
+  navHistory: "历史",
+  personalSpace: "个人空间",
+  openCurrentFolder: "打开当前文件夹",
+  chooseOtherFolder: "选择其他文件夹…",
+  switchSpace: "切换已有空间…",
+  backToPersonalSpace: "返回个人空间",
+  pluginsTab: "插件",
+  skillsTab: "技能",
 };

@@ -47,8 +47,22 @@ test("partial key sets are disjoint and together cover the composed dictionaries
 
 // Value fingerprints pin the composed dictionaries to the content verified
 // key-for-key against the pre-split original (1015 keys × 2 languages).
-// Any legacy value drift still fails. The explicitly appended interactive-tool
-// module is verified separately by composition/parity and check:i18n.
+// Any legacy value drift still fails. Explicitly appended modules are
+// verified separately by composition/parity and check:i18n: the
+// interactive-tool module, and the ten Phase 4 navigation keys (verified by
+// nav-language.test.mjs and the i18n checker).
+const PHASE_4_NAV_KEYS = new Set([
+  "navChat",
+  "navPluginsSkills",
+  "navHistory",
+  "personalSpace",
+  "openCurrentFolder",
+  "chooseOtherFolder",
+  "switchSpace",
+  "backToPersonalSpace",
+  "pluginsTab",
+  "skillsTab",
+]);
 function fingerprint(record) {
   return createHash("sha256")
     .update(
@@ -62,12 +76,16 @@ function fingerprint(record) {
 
 test("composed dictionary values match the verified pre-split baseline", () => {
   assert.equal(
-    fingerprint(Object.fromEntries(Object.entries(enUS).filter(([key]) => !(key in interactiveEN)))),
+    fingerprint(
+      Object.fromEntries(Object.entries(enUS).filter(([key]) => !(key in interactiveEN) && !PHASE_4_NAV_KEYS.has(key))),
+    ),
     "a0f49b4ce5c9f7c436cfd6c67f9e8d575475ff9aabe7d55840bc2e681cfa22c1",
     "en-US values drifted from the verified pre-split dictionary",
   );
   assert.equal(
-    fingerprint(Object.fromEntries(Object.entries(zhCN).filter(([key]) => !(key in interactiveZH)))),
+    fingerprint(
+      Object.fromEntries(Object.entries(zhCN).filter(([key]) => !(key in interactiveZH) && !PHASE_4_NAV_KEYS.has(key))),
+    ),
     "b63505953caceb84039315255d010fefcbfcf8deccb692dc8908a9c11092f52b",
     "zh-CN values drifted from the verified pre-split dictionary",
   );

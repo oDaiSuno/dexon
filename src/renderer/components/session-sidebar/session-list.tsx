@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
-import { filterSessionsForQuery, sessionDateGroup, type SessionDateGroup } from "@/lib/session-list";
-import { buildSessionTree } from "@/lib/session-tree";
-import { SessionTreeItem } from "./session-tree-item";
+import { filterSessionsForQuery } from "@/lib/session-list";
+import { SessionGroupsSection } from "./session-groups";
 
-// Moved verbatim from SessionSidebar.tsx in Phase 2 (session list split). The
-// search input and its filter state are owned here; the project-scoped session
-// list arrives from the composition root.
+// Phase 4 refactor: the search input and its filter state stay here (old
+// sidebar presentation), while the three date groups, the derived tree and
+// the loading/error/empty states moved into the shared SessionGroupsSection
+// consumed verbatim by the new navigation history as well.
 
 export function SessionList({
   projectSessions,
@@ -36,17 +36,6 @@ export function SessionList({
   const [sessionFilter, setSessionFilter] = useState("");
 
   const filteredSessions = filterSessionsForQuery(projectSessions, sessionFilter);
-
-  // Build parent-child tree within the filtered set
-  const sessionTree = buildSessionTree(filteredSessions);
-  const sessionGroups: { id: SessionDateGroup; label: string; nodes: typeof sessionTree }[] = [
-    { id: "today", label: t("sessionsToday", "Today"), nodes: [] },
-    { id: "recent", label: t("sessionsRecent", "Last 7 days"), nodes: [] },
-    { id: "older", label: t("sessionsOlder", "Older"), nodes: [] },
-  ];
-  for (const node of sessionTree) {
-    sessionGroups.find((group) => group.id === sessionDateGroup(node.session.modified))?.nodes.push(node);
-  }
 
   return (
     <nav
@@ -139,57 +128,19 @@ export function SessionList({
           )}
         </div>
       </div>
-      {loading && (
-        <div style={{ padding: "16px 16px", color: "var(--text-muted)", fontSize: "var(--text-label)" }}>
-          {t("loading", "Loading…")}
-        </div>
-      )}
-      {error && (
-        <div style={{ padding: "12px 16px", color: "var(--danger)", fontSize: "var(--text-label)" }}>{error}</div>
-      )}
-      {!loading && !error && filteredSessions.length === 0 && (
-        <div style={{ padding: "16px 16px", color: "var(--text-muted)", fontSize: "var(--text-body)" }}>
-          {sessionFilter.trim()
-            ? t("noMatchingSessions", "No matching sessions")
-            : t("noSessionsFound", "No sessions found")}
-        </div>
-      )}
-      <div style={{ padding: "0 8px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
-        {sessionGroups.map(
-          (group) =>
-            group.nodes.length > 0 && (
-              <section key={group.id} aria-labelledby={`session-group-${group.id}`}>
-                <div
-                  id={`session-group-${group.id}`}
-                  style={{
-                    padding: "8px 8px 4px",
-                    color: "var(--text-dim)",
-                    fontSize: "var(--text-label)",
-                    fontWeight: 650,
-                  }}
-                >
-                  {group.label}
-                </div>
-                <div role="list" style={{ display: "flex", flexDirection: "column" }}>
-                  {group.nodes.map((node) => (
-                    <SessionTreeItem
-                      key={node.session.id}
-                      node={node}
-                      selectedSessionId={selectedSessionId}
-                      runningSessionIds={runningSessionIds}
-                      unreadSessionIds={unreadSessionIds}
-                      onSelectSession={onSelectSession}
-                      onRenamed={onRenamed}
-                      onSessionDeleted={onSessionDeleted}
-                      depth={0}
-                      homeDir={homeDir}
-                    />
-                  ))}
-                </div>
-              </section>
-            ),
-        )}
-      </div>
+      <SessionGroupsSection
+        sessions={filteredSessions}
+        loading={loading}
+        error={error}
+        hasActiveFilter={sessionFilter.trim().length > 0}
+        selectedSessionId={selectedSessionId}
+        runningSessionIds={runningSessionIds}
+        unreadSessionIds={unreadSessionIds}
+        homeDir={homeDir}
+        onSelectSession={onSelectSession}
+        onRenamed={onRenamed}
+        onSessionDeleted={onSessionDeleted}
+      />
     </nav>
   );
 }

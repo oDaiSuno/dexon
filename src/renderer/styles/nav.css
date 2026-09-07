@@ -1,0 +1,19 @@
+/* App navigation motion overrides (Phase 4).
+ *
+ * This partial carries no palette, typography or layout values — colors and
+ * sizing come from the token system (DESIGN.md §2/§4). Its only job is the
+ * reduced-motion fallback for the new navigation surfaces: every hover
+ * transition, glide highlight and menu entrance inside .app-nav / the hosted
+ * resource page degrades to an instant state change (DESIGN.md §6).
+ */
+@media (prefers-reduced-motion: reduce) {
+  .app-nav,
+  .app-nav *,
+  .app-nav-resource,
+  .app-nav-resource * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+    animation-delay: 0ms !important;
+  }
+}

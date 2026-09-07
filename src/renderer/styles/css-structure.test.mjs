@@ -13,6 +13,7 @@ const expectedImportOrder = [
   "styles/interactive.css",
   "styles/markdown.css",
   "styles/motion.css",
+  "styles/nav.css",
   "styles/panels.css",
   "chat.css",
   "styles/tool-cards.css",
