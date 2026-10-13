@@ -2,12 +2,21 @@ import { useI18n } from "@/i18n";
 import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool-store";
 import { AutoHeight } from "./tool-motion";
 
-export function OrdinaryForm({ entry, store }: { entry: ToolCardEntry; store: InteractiveToolStore }) {
+export function OrdinaryForm({
+  entry,
+  store,
+  visible = true,
+}: {
+  entry: ToolCardEntry;
+  store: InteractiveToolStore;
+  visible?: boolean;
+}) {
   const { t } = useI18n();
   const { request, draft } = entry;
   if (request.method === "questionnaire" || request.method === "custom") return null;
   const busy = entry.status === "sending";
   const submit = () => {
+    if (!visible) return;
     if (request.method === "confirm") void store.respond(request.id, { confirmed: true });
     else if (request.method === "select") {
       if (draft.selected !== null) void store.respond(request.id, { value: request.options[draft.selected] });
@@ -17,11 +26,12 @@ export function OrdinaryForm({ entry, store }: { entry: ToolCardEntry; store: In
     value: draft.value,
     disabled: busy,
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (!visible) return;
       const value = event.target.value;
       store.updateDraft(request.id, (d) => ({ ...d, value }));
     },
     onKeyDown: (event: React.KeyboardEvent) => {
-      if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+      if (!visible || event.nativeEvent.isComposing || event.keyCode === 229) return;
       if (event.key === "Enter" && (request.method === "input" || event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         event.stopPropagation();
@@ -31,7 +41,7 @@ export function OrdinaryForm({ entry, store }: { entry: ToolCardEntry; store: In
   };
   return (
     <>
-      <AutoHeight>
+      <AutoHeight visible={visible}>
         <div className="tool-form-body">
           <h3 className="tool-question-title">{request.title}</h3>
           {request.method === "confirm" && <p className="tool-description">{request.message}</p>}
@@ -43,7 +53,9 @@ export function OrdinaryForm({ entry, store }: { entry: ToolCardEntry; store: In
                     type="radio"
                     name={request.id}
                     checked={draft.selected === index}
-                    onChange={() => store.updateDraft(request.id, (d) => ({ ...d, selected: index }))}
+                    onChange={() => {
+                      if (visible) store.updateDraft(request.id, (d) => ({ ...d, selected: index }));
+                    }}
                   />
                   <span>{option}</span>
                 </label>
@@ -62,7 +74,9 @@ export function OrdinaryForm({ entry, store }: { entry: ToolCardEntry; store: In
             type="button"
             className="tool-pill"
             disabled={busy}
-            onClick={() => void store.respond(request.id, { confirmed: false })}
+            onClick={() => {
+              if (visible) void store.respond(request.id, { confirmed: false });
+            }}
           >
             {t("toolDecline", "Decline")}
           </button>

@@ -123,13 +123,15 @@ test("an in-memory empty draft hides stale persisted content before debounce flu
   }
 });
 
-test("ChatInput schedules edits and commits exact refs on key switch and unmount", () => {
-  const source = fs.readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
+test("the extracted draft owner schedules and commits exact refs on key switch and unmount", () => {
+  const source = fs.readFileSync(new URL("../components/chat-input/use-composer-draft.ts", import.meta.url), "utf8");
+  const chatInputSource = fs.readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
 
-  assert.match(source, /draftPersistenceRef\.current\?\.schedule\(draftKey/);
-  assert.match(source, /draftPersistenceRef\.current\?\.commit\(previousDraftKey/);
-  assert.match(source, /draftPersistenceRef\.current\?\.commit\(currentDraftKey/);
-  assert.match(source, /value: valueRef\.current,$/m);
-  assert.match(source, /draftPersistenceRef\.current\?\.clear\(draftKey\)/);
-  assert.match(source, /commitCurrentDraft\(\);\s*clearInput\(\)/);
+  assert.match(source, /persistenceRef\.current\?\.schedule\(draftKey/);
+  assert.match(source, /persistenceRef\.current\?\.commit\(previousKey/);
+  assert.match(source, /persistenceRef\.current\?\.commit\(key/);
+  assert.match(source, /value: valueRef\.current/);
+  assert.match(source, /persistenceRef\.current\?\.clear\(draftKey\)/);
+  assert.match(source, /commitCurrentDraft\(\);/);
+  assert.match(chatInputSource, /commitCurrentDraft\(\);\s*clearCurrentInput\(\);/);
 });

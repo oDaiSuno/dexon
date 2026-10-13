@@ -2,7 +2,7 @@ import { agentState } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { appendLocalHistoryMessage, replaceLastHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage, ExtensionUiRequest } from "@/lib/types";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, type MutableRefObject } from "react";
 import {
   AGENT_STATE_RECONCILE_MS,
   AgentEvent,
@@ -45,8 +45,9 @@ type Dependencies = Pick<
   | "setCompactError"
   | "setCompactResult"
   | "handleAgentEventRef"
-> &
-  Pick<SessionHistory, "loadSession" | "updateHistory"> &
+> & {
+  readingVisibleRef: MutableRefObject<boolean>;
+} & Pick<SessionHistory, "loadSession" | "updateHistory"> &
   Pick<SessionExtensions, "addNotice" | "handleExtensionUiRequest">;
 export function useSessionEvents(context: Dependencies) {
   const {
@@ -78,6 +79,7 @@ export function useSessionEvents(context: Dependencies) {
     setCompactResult,
     handleExtensionUiRequest,
     handleAgentEventRef,
+    readingVisibleRef,
   } = context;
 
   const finishPromptWithoutStream = useCallback(
@@ -219,6 +221,7 @@ export function useSessionEvents(context: Dependencies) {
     (event: AgentEvent) => {
       switch (event.type) {
         case "channel_turn_start": {
+          if (!readingVisibleRef.current) break;
           const container = scrollContainerRef.current;
           const shouldFollow = container ? isNearBottomExcludingSpacer(container) : true;
           externalTurnAutoFollowRef.current = shouldFollow;
@@ -412,6 +415,7 @@ export function useSessionEvents(context: Dependencies) {
       setSystemPrompt,
       t,
       updateHistory,
+      readingVisibleRef,
     ],
   );
   handleAgentEventRef.current = handleAgentEvent;

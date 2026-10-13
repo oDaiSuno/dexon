@@ -37,7 +37,10 @@ test("exact cancellation aborts the signal and prevents stale finally ownership"
 });
 
 test("ChatInput passes signals and gates file suggestion result, error, and settlement", () => {
-  const source = fs.readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
+  const source = fs.readFileSync(
+    new URL("../components/chat-input/use-composer-suggestions.ts", import.meta.url),
+    "utf8",
+  );
 
   assert.match(source, /fileSuggestionRequestRef\.current/);
   assert.match(source, /const request = requests\.begin\(\)/);

@@ -1,5 +1,5 @@
 import { subscribeSessionsChanged } from "@/lib/api-client";
-import { useEffect } from "react";
+import { useEffect, type MutableRefObject } from "react";
 import { subscribeActiveSessionLiveSync } from "../active-session-live-sync";
 import { EventStreamConnectionError, ThinkingLevelOption, normalizeQueuedMessages } from "./shared";
 import type { SessionActions } from "./use-session-actions";
@@ -52,7 +52,11 @@ type Dependencies = Pick<
   Pick<SessionHistory, "commitHistory" | "loadSession"> &
   Pick<SessionConnection, "connectEvents"> &
   Pick<SessionEvents, "waitForPromptSettlement"> &
-  Pick<SessionActions, "handleLeafChangeFromUi">;
+  Pick<SessionActions, "handleLeafChangeFromUi"> & {
+    readingVisible: boolean;
+    readingVisibleRef: MutableRefObject<boolean>;
+    visualFrameIdsRef: MutableRefObject<Set<number>>;
+  };
 
 export function useSessionLifecycle(context: Dependencies) {
   const {
@@ -93,12 +97,16 @@ export function useSessionLifecycle(context: Dependencies) {
     data,
     activeLeafId,
     handleLeafChangeFromUi,
+    readingVisible,
+    readingVisibleRef,
+    visualFrameIdsRef,
   } = context;
 
   // Load session on mount
   useEffect(() => {
     let disposed = false;
     let unsubscribeLiveSync: (() => void) | undefined;
+    const frameIds = visualFrameIdsRef.current;
     historyGenerationRef.current += 1;
     historyRevisionRef.current = null;
     previousCursorRef.current = null;
@@ -146,13 +154,25 @@ export function useSessionLifecycle(context: Dependencies) {
         // Defer via rAF and re-check: the message list can render in multiple
         // frames, so scroll target should be the live-content end (not the
         // spacer after it).
-        if (autoFollowMagnetRef.current) {
+        if (autoFollowMagnetRef.current && readingVisibleRef.current) {
           const trySnap = () => {
+            if (!readingVisibleRef.current) return;
             const el = agentRunningRef.current ? liveContentEndRef.current : messagesEndRef.current;
             if (el) el.scrollIntoView({ behavior: "auto", block: "end" });
           };
-          requestAnimationFrame(trySnap);
-          requestAnimationFrame(() => requestAnimationFrame(trySnap));
+          const scheduleVisualFrame = (callback: () => void) => {
+            if (!readingVisibleRef.current || typeof globalThis.requestAnimationFrame !== "function") return;
+            let frameId = 0;
+            let callbackRan = false;
+            frameId = globalThis.requestAnimationFrame(() => {
+              callbackRan = true;
+              visualFrameIdsRef.current.delete(frameId);
+              if (readingVisibleRef.current && !disposed) callback();
+            });
+            if (!callbackRan) visualFrameIdsRef.current.add(frameId);
+          };
+          scheduleVisualFrame(trySnap);
+          scheduleVisualFrame(() => scheduleVisualFrame(trySnap));
         }
         if (agentState?.running) {
           if (agentState.state?.isStreaming || agentState.state?.isPromptRunning) {
@@ -183,11 +203,21 @@ export function useSessionLifecycle(context: Dependencies) {
     return () => {
       disposed = true;
       historyGenerationRef.current += 1;
+      for (const frameId of frameIds) cancelAnimationFrame(frameId);
+      frameIds.clear();
       unsubscribeLiveSync?.();
       eventConnectionManager.invalidate();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity owns this lifecycle effect.
   }, []);
+
+  useEffect(() => {
+    readingVisibleRef.current = readingVisible;
+    if (readingVisible) return;
+    const frameIds = visualFrameIdsRef.current;
+    for (const frameId of frameIds) cancelAnimationFrame(frameId);
+    frameIds.clear();
+  }, [readingVisible, readingVisibleRef, visualFrameIdsRef]);
 
   useEffect(() => {
     onSystemPromptChange?.(systemPrompt);

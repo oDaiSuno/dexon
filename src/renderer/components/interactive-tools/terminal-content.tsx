@@ -46,7 +46,15 @@ function renderAnsiLine(line: string, keyPrefix: string): ReactNode[] {
   );
 }
 
-export function TerminalContent({ entry, store }: { entry: ToolCardEntry; store: InteractiveToolStore }) {
+export function TerminalContent({
+  entry,
+  store,
+  visible = true,
+}: {
+  entry: ToolCardEntry;
+  store: InteractiveToolStore;
+  visible?: boolean;
+}) {
   const { t } = useI18n();
   const { request } = entry;
   if (request.method !== "custom") return null;
@@ -64,7 +72,7 @@ export function TerminalContent({ entry, store }: { entry: ToolCardEntry; store:
         aria-describedby={`terminal-hint-${request.id}`}
         className="tool-terminal"
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing || event.keyCode === 229 || entry.status === "sending") return;
+          if (!visible || event.nativeEvent.isComposing || event.keyCode === 229 || entry.status === "sending") return;
           const data = toTerminalKeyData(event);
           if (!data) return;
           event.preventDefault();
@@ -72,11 +80,11 @@ export function TerminalContent({ entry, store }: { entry: ToolCardEntry; store:
           store.input(request.id, data);
         }}
         onCompositionEnd={(event) => {
-          if (event.data) store.input(request.id, event.data);
+          if (visible && event.data) store.input(request.id, event.data);
         }}
         onPaste={(event) => {
           const text = event.clipboardData.getData("text/plain");
-          if (text) {
+          if (visible && text) {
             event.preventDefault();
             store.input(request.id, text);
           }
@@ -94,7 +102,9 @@ export function TerminalContent({ entry, store }: { entry: ToolCardEntry; store:
           type="button"
           className="tool-pill"
           disabled={entry.status === "sending"}
-          onClick={() => store.input(request.id, "\t")}
+          onClick={() => {
+            if (visible) store.input(request.id, "\t");
+          }}
         >
           {t("toolPanelTab", "Send Tab to panel")}
         </button>

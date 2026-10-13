@@ -3,7 +3,10 @@ import fs from "node:fs";
 import test from "node:test";
 
 test("ChatInput stages clipboard images through the normalization pipeline", () => {
-  const source = fs.readFileSync(new URL("../components/ChatInput.tsx", import.meta.url), "utf8");
+  const source = fs.readFileSync(
+    new URL("../components/chat-input/use-composer-attachments.ts", import.meta.url),
+    "utf8",
+  );
 
   // Clipboard bitmaps are normalized (resize/format gate) before staging.
   assert.match(source, /const \{ images, failures \} = await processImageFileBatch\(\[file\]\)/);

@@ -51,7 +51,7 @@ function request(method = "questionnaire", questions = [question()]) {
     message: "Please explicitly decide",
   };
 }
-async function harness(t, req = request(), send) {
+async function harness(t, req = request(), send, visible = true) {
   const globals = ["IS_REACT_ACT_ENVIRONMENT", "requestAnimationFrame"];
   const previous = globals.map((n) => Object.getOwnPropertyDescriptor(globalThis, n));
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -64,7 +64,7 @@ async function harness(t, req = request(), send) {
   store.reconcile({ runtimeId: "runtime", revision: 1, requests: [req], completed: [] });
   let renderer;
   await act(async () => {
-    renderer = TestRenderer.create(createElement(ToolCardDock, { store }));
+    renderer = TestRenderer.create(createElement(ToolCardDock, { store, visible }));
   });
   t.after(async () => {
     await act(async () => renderer.unmount());
@@ -97,6 +97,57 @@ async function harness(t, req = request(), send) {
     },
   };
 }
+
+test("hidden ordinary cards ignore text, Enter, and response buttons", async (t) => {
+  const h = await harness(t, request("input"), undefined, false);
+  const input = h.root.findByType("input");
+  await act(async () => input.props.onChange({ target: { value: "hidden" } }));
+  assert.equal(h.entry.draft.value, "", "hidden text input does not update the retained draft");
+  let prevented = false;
+  await act(async () =>
+    input.props.onKeyDown({
+      key: "Enter",
+      nativeEvent: {},
+      keyCode: 13,
+      preventDefault() {
+        prevented = true;
+      },
+      stopPropagation() {},
+    }),
+  );
+  assert.equal(prevented, false, "hidden input does not consume Enter");
+  await h.click("Send answer");
+  assert.deepEqual(h.commands, [], "hidden response controls do not send");
+});
+
+test("hidden questionnaire controls do not change answers", async (t) => {
+  const h = await harness(t, request("questionnaire"), undefined, false);
+  await h.choose();
+  await h.type("hidden note");
+  assert.deepEqual(h.entry.draft.answers, [{ selected: [], text: "" }]);
+});
+
+test("hidden terminal controls do not consume keys or send panel input", async (t) => {
+  const h = await harness(t, request("custom"), undefined, false);
+  const terminal = h.root.findByType("pre");
+  let prevented = false;
+  await act(async () =>
+    terminal.props.onKeyDown({
+      key: "a",
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      nativeEvent: {},
+      preventDefault() {
+        prevented = true;
+      },
+      stopPropagation() {},
+    }),
+  );
+  assert.equal(prevented, false, "hidden terminal does not consume keyboard input");
+  await h.click("Send Tab to panel");
+  assert.deepEqual(h.commands, [], "hidden terminal controls do not send input");
+});
 
 test("question card Close and Escape collapse three times without responding", async (t) => {
   const h = await harness(t);

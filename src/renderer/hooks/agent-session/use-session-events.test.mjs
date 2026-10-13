@@ -18,6 +18,35 @@ function surfaceAttach(surface) {
   };
 }
 
+function trackHiddenGeometry(container) {
+  const values = {
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+  };
+  const counts = { reads: 0, writes: 0 };
+  let hidden = false;
+  for (const key of Object.keys(values)) {
+    Object.defineProperty(container, key, {
+      configurable: true,
+      get() {
+        if (hidden) counts.reads += 1;
+        return values[key];
+      },
+      set(value) {
+        if (hidden) counts.writes += 1;
+        values[key] = value;
+      },
+    });
+  }
+  return {
+    hide: () => (hidden = true),
+    show: () => (hidden = false),
+    set: (key, value) => (values[key] = value),
+    counts,
+  };
+}
+
 /** Mounts one fixture session with a plain scroll surface and settles it. */
 async function mountedSession(t, { hostOverrides = {}, hookOptions = {}, bundleName = "session-events" } = {}) {
   const detail = createSessionDetail("s-1");
@@ -277,6 +306,72 @@ test("an external channel turn does not drag a reader away from the bottom", asy
   await h.env.flushRafUntilSettled();
   assert.equal(h.env.rafSize(), 0, "a reader away from the bottom is not dragged along");
   assert.equal(h.state.streamState.isStreaming, true, "the external turn still streams");
+});
+
+test("a hidden external turn preserves visible away intent through mid-run and completion", async (t) => {
+  const surface = createReadingSurface({ scrollTop: 0, scrollHeight: 300, clientHeight: 120 });
+  const geometry = trackHiddenGeometry(surface.container);
+  const detail = createSessionDetail("s-1");
+  const host = createSessionTestHost({ getSession: async () => detail });
+  const h = await createSessionHookHarness(t, {
+    bundleName: "session-events-hidden-turn",
+    host,
+    attach: surfaceAttach(surface),
+  });
+  const options = { session: detail.info, newSessionCwd: null };
+  await h.mount({ ...options, readingVisible: true });
+  await h.flush();
+  await h.env.flushRafUntilSettled();
+  assert.equal(h.state.isAwayFromBottom, true, "the visible reader starts away from the bottom");
+
+  h.emit({ type: "channel_turn_start" });
+  await h.flush();
+  const liveScrollsBeforeHide = surface.liveEnd.scrollIntoViewCalls.length;
+  await h.update({ ...options, readingVisible: false });
+  await h.flush();
+  geometry.hide();
+  geometry.set("scrollTop", 0);
+  geometry.set("scrollHeight", 0);
+  geometry.set("clientHeight", 0);
+
+  h.emit({ type: "channel_turn_start" });
+  h.emit({ type: "agent_start" });
+  h.emit({
+    type: "message_update",
+    message: { role: "assistant", content: [{ type: "text", text: "hidden external turn" }] },
+  });
+  await h.flush();
+  assert.equal(h.state.streamState.isStreaming, true, "hidden state must still receive runtime events");
+
+  geometry.show();
+  geometry.set("scrollHeight", 300);
+  geometry.set("clientHeight", 120);
+  await h.update({ ...options, readingVisible: true });
+  await h.flush();
+  await h.env.flushRafUntilSettled();
+  assert.equal(h.env.rafSize(), 0, "showing mid-run does not follow hidden zero-size geometry");
+  assert.equal(surface.liveEnd.scrollIntoViewCalls.length, liveScrollsBeforeHide, "mid-run show keeps the away anchor");
+
+  await h.update({ ...options, readingVisible: false });
+  geometry.hide();
+  await h.flush();
+  h.emit({ type: "channel_turn_end" });
+  h.emit({ type: "agent_end" });
+  await h.flush();
+  geometry.show();
+  await h.update({ ...options, readingVisible: true });
+  await h.flush();
+  await h.env.flushRafUntilSettled();
+  assert.equal(
+    surface.liveEnd.scrollIntoViewCalls.length,
+    liveScrollsBeforeHide,
+    "completion show keeps the away anchor too",
+  );
+  assert.deepEqual(
+    geometry.counts,
+    { reads: 0, writes: 0 },
+    "hidden external events do not inspect or mutate geometry",
+  );
 });
 
 test("the state reconcile net finishes a stalled run when the host reports idle", async (t) => {

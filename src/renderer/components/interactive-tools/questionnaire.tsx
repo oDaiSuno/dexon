@@ -7,9 +7,11 @@ import { AutoHeight } from "./tool-motion";
 export function Questionnaire({
   entry,
   store,
+  visible = true,
 }: {
   entry: ToolCardEntry & { request: QuestionnaireRequest };
   store: InteractiveToolStore;
+  visible?: boolean;
 }) {
   const { t } = useI18n();
   const { request, draft } = entry;
@@ -21,9 +23,9 @@ export function Questionnaire({
   const root = useRef<HTMLDivElement>(null);
   const focusOnNavigation = useRef(false);
   useLayoutEffect(() => {
-    if (focusOnNavigation.current) root.current?.querySelector<HTMLElement>(".tool-question-title")?.focus();
+    if (visible && focusOnNavigation.current) root.current?.querySelector<HTMLElement>(".tool-question-title")?.focus();
     focusOnNavigation.current = false;
-  }, [index]);
+  }, [index, visible]);
   const cancelAdvance = () => {
     if (timer.current !== null) clearTimeout(timer.current);
     timer.current = null;
@@ -34,7 +36,13 @@ export function Questionnaire({
     },
     [],
   );
+  useEffect(() => {
+    if (visible) return;
+    cancelAdvance();
+    focusOnNavigation.current = false;
+  }, [visible]);
   const navigate = (next: number) => {
+    if (!visible) return;
     cancelAdvance();
     focusOnNavigation.current = true;
     direction.current = next >= index ? 1 : -1;
@@ -44,6 +52,7 @@ export function Questionnaire({
     }));
   };
   const choose = (optionIndex: number) => {
+    if (!visible) return;
     cancelAdvance();
     store.updateDraft(request.id, (d) => ({
       ...d,
@@ -115,7 +124,7 @@ export function Questionnaire({
           </button>
         </div>
       </nav>
-      <AutoHeight>
+      <AutoHeight visible={visible}>
         <div
           className="tool-question-page"
           key={index}
@@ -145,7 +154,7 @@ export function Questionnaire({
                   </span>
                 </label>
                 {option.preview && (
-                  <details className="tool-preview" onToggle={cancelAdvance}>
+                  <details className="tool-preview" onToggle={() => visible && cancelAdvance()}>
                     <summary>{t("toolViewPreview", "View full preview")}</summary>
                     <pre>{option.preview}</pre>
                   </details>
@@ -164,6 +173,7 @@ export function Questionnaire({
               disabled={busy}
               rows={2}
               onChange={(event) => {
+                if (!visible) return;
                 cancelAdvance();
                 const text = event.target.value;
                 store.updateDraft(request.id, (d) => ({
@@ -199,6 +209,7 @@ export function Questionnaire({
             className="tool-pill tool-primary"
             disabled={busy || answered === 0}
             onClick={() => {
+              if (!visible) return;
               cancelAdvance();
               void store.respond(request.id, { answers: draft.answers });
             }}

@@ -25,6 +25,8 @@ export interface Props {
     usage: { percent: number | null; contextWindow: number; tokens: number | null } | null,
   ) => void;
   onOpenFile?: (filePath: string) => void;
+  /** True while this chat surface is the page currently shown to the user. */
+  visible?: boolean;
   thinkingExpansionStore: ThinkingExpansionStore;
   processDetailsExpansionStore: ThinkingExpansionStore;
 }

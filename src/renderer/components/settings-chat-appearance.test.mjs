@@ -12,6 +12,7 @@ const chatWindowSource = ["./ChatWindow.tsx", "./chat-window/welcome.tsx"]
   .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
   .join("\n");
 const chatInputSource = readFileSync(new URL("./ChatInput.tsx", import.meta.url), "utf8");
+const composerViewSource = readFileSync(new URL("./chat-input/composer-view.tsx", import.meta.url), "utf8");
 const composerEditableSource = readFileSync(new URL("./chat-input/ComposerEditable.tsx", import.meta.url), "utf8");
 const messageViewSource = [
   "./messages/UserMessage.tsx",
@@ -49,7 +50,7 @@ test("chat appearance CSS defines scoped font scales and both width modes", () =
 
 test("the full-width dock applies the chat width once after reserving the minimap gutter", () => {
   assert.equal((chatWindowSource.match(/className="chat-content-column/g) ?? []).length, 5);
-  assert.equal((chatInputSource.match(/className="chat-content-column"/g) ?? []).length, 1);
+  assert.equal((composerViewSource.match(/className="chat-content-column"/g) ?? []).length, 1);
   assert.match(chatWindowSource, /className="chat-input-transition-dock[^\n]*w-full/);
   assert.doesNotMatch(chatWindowSource, /className="chat-content-column chat-input-transition-dock/);
   assert.match(
@@ -58,7 +59,7 @@ test("the full-width dock applies the chat width once after reserving the minima
   );
   assert.match(chatWindowSource, /paddingRight:\s*isMobile \? CHAT_COLUMN_PADDING : CHAT_INPUT_RIGHT_PADDING/);
   assert.doesNotMatch(chatWindowSource, /maxWidth:\s*"var\(--chat-content-max-width\)"/);
-  assert.doesNotMatch(chatInputSource, /maxWidth:\s*"var\(--chat-content-max-width\)"/);
+  assert.doesNotMatch(composerViewSource, /maxWidth:\s*"var\(--chat-content-max-width\)"/);
 });
 
 test("chat text uses the shared scale while glyph-only icons remain fixed", () => {

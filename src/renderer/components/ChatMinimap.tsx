@@ -13,6 +13,7 @@ interface Props {
   scrollContainer: RefObject<HTMLDivElement | null>;
   messageRefs: RefObject<(HTMLDivElement | null)[]>;
   historyTruncated?: boolean;
+  visible?: boolean;
 }
 
 const MINIMAP_WIDTH = 36;
@@ -45,7 +46,14 @@ interface NodeInfo {
   index: number;
 }
 
-export function ChatMinimap({ messages, streamingMessage, scrollContainer, messageRefs, historyTruncated }: Props) {
+export function ChatMinimap({
+  messages,
+  streamingMessage,
+  scrollContainer,
+  messageRefs,
+  historyTruncated,
+  visible: pageVisible = true,
+}: Props) {
   const [scrollRatio, setScrollRatio] = useState(0);
   const [viewportRatio, setViewportRatio] = useState(1);
   const [visible, setVisible] = useState(false);
@@ -53,7 +61,13 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
   const [minimapHovered, setMinimapHovered] = useState(false);
   const [mouseYRatio, setMouseYRatio] = useState<number | null>(null);
   const draggingRef = useRef(false);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const stopDragging = useCallback(() => {
+    draggingRef.current = false;
+    dragCleanupRef.current?.();
+    dragCleanupRef.current = null;
+  }, []);
 
   const allMessages = useMemo(
     () => (streamingMessage ? [...messages, streamingMessage] : messages),
@@ -64,6 +78,7 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
 
   const updatePositionsRef = useRef<() => void>(null!);
   updatePositionsRef.current = () => {
+    if (!pageVisible) return;
     const scrollEl = scrollContainer.current;
     if (!scrollEl) return;
 
@@ -114,28 +129,38 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
   const updatePositions = useCallback(() => updatePositionsRef.current(), []);
 
   useEffect(() => {
+    if (!pageVisible) {
+      setVisible(false);
+      setNodes([]);
+      return;
+    }
     const el = scrollContainer.current;
     if (!el) return;
     el.addEventListener("scroll", updatePositions, { passive: true });
     const ro = new ResizeObserver(updatePositions);
     ro.observe(el);
-    // Also observe the scroll content for height changes
     if (el.firstElementChild) ro.observe(el.firstElementChild);
     updatePositions();
     return () => {
       el.removeEventListener("scroll", updatePositions);
       ro.disconnect();
     };
-  }, [scrollContainer, updatePositions]);
+  }, [pageVisible, scrollContainer, updatePositions]);
 
-  // Re-measure when message count changes (new messages arrive)
   useEffect(() => {
+    if (!pageVisible) {
+      stopDragging();
+      return;
+    }
     const t = setTimeout(updatePositions, 50);
     return () => clearTimeout(t);
-  }, [messages.length, updatePositions]);
+  }, [messages.length, pageVisible, stopDragging, updatePositions]);
+
+  useEffect(() => stopDragging, [stopDragging]);
 
   const scrollToMinimapRatio = useCallback(
     (viewportTopRatio: number) => {
+      if (!pageVisible) return;
       const el = scrollContainer.current;
       if (!el) return;
       const scrollable = el.scrollHeight - el.clientHeight;
@@ -143,7 +168,7 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
       const clamped = Math.max(0, Math.min(1 - viewportRatio, viewportTopRatio));
       el.scrollTop = (clamped / (1 - viewportRatio)) * scrollable;
     },
-    [scrollContainer, viewportRatio],
+    [pageVisible, scrollContainer, viewportRatio],
   );
 
   const handleMouseDown = useCallback(
@@ -164,21 +189,21 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
         const r = (ev.clientY - rect.top) / rect.height;
         scrollToMinimapRatio(r - offset);
       };
-      const onUp = () => {
-        draggingRef.current = false;
+      const onUp = () => stopDragging();
+      dragCleanupRef.current = () => {
         window.removeEventListener("mousemove", onMove);
         window.removeEventListener("mouseup", onUp);
       };
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [visible, viewportRatio, scrollRatio, scrollToMinimapRatio],
+    [scrollRatio, scrollToMinimapRatio, stopDragging, viewportRatio, visible],
   );
 
   // Compute collision-free tooltip positions for all nodes
   const TOOLTIP_HEIGHT = 22;
   const TOOLTIP_GAP = 2;
-  const minimapHeightPx = containerRef.current?.clientHeight ?? 600;
+  const minimapHeightPx = pageVisible ? (containerRef.current?.clientHeight ?? 600) : 600;
 
   const tooltipPositions = useMemo(() => {
     if (!minimapHovered || nodes.length === 0) return [];
@@ -202,7 +227,7 @@ export function ChatMinimap({ messages, streamingMessage, scrollContainer, messa
     return positions;
   }, [minimapHovered, nodes, minimapHeightPx]);
 
-  if (!visible) return null;
+  if (!pageVisible || !visible) return null;
 
   const viewportBoxTop = scrollRatio * (1 - viewportRatio) * 100;
   const viewportBoxHeight = viewportRatio * 100;

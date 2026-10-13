@@ -140,13 +140,19 @@ export function useSessionReading(context: Dependencies, visible: boolean) {
     if (!visible) return;
     if (!agentRunning || !completionScrollAllowedRef.current) return;
     if (!externalTurnAutoFollowRef.current && !autoFollowMagnetRef.current) return;
-    const frame = requestAnimationFrame(() => {
+    if (typeof globalThis.requestAnimationFrame !== "function") return;
+    let cancelled = false;
+    const frame = globalThis.requestAnimationFrame(() => {
+      if (cancelled || !visible) return;
       if (!completionScrollAllowedRef.current) return;
       if (!externalTurnAutoFollowRef.current && !autoFollowMagnetRef.current) return;
       if (Date.now() <= userScrollIntentUntilRef.current) return;
       scrollLiveContentToBottom();
     });
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelled = true;
+      globalThis.cancelAnimationFrame?.(frame);
+    };
   }, [
     visible,
     agentRunning,

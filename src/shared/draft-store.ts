@@ -150,6 +150,11 @@ export function clearDraft(key: string): boolean {
   return saveToStorage(key, null);
 }
 
+/** Test support: drop the in-memory draft cache without touching storage. */
+export function resetDraftCache(): void {
+  drafts.clear();
+}
+
 interface DraftPersistenceDependencies {
   stage: (key: string, draft: ChatDraft) => void;
   flush: (key: string) => boolean | void;

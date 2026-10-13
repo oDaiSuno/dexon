@@ -2,10 +2,11 @@ import {
   attachmentTokenName,
   attachmentTokenText,
   findAttachmentTokens,
+  insertAttachmentToken,
   isImagePath,
   segmentByAttachmentTokens,
 } from "@shared/attachment-tokens";
-import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
+import { findLeadingSkillCommand, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
 
 /**
  * Pure DOM helpers for the composer editable surface: chip construction,
@@ -22,6 +23,20 @@ export const SKILL_ATTR = "data-skill-token";
 
 /** Selector matching any atomic chip on the editable surface. */
 export const CHIP_SELECTOR = `[${TOKEN_ATTR}],[${SKILL_ATTR}]`;
+
+export function insertSerializedText(value: string, text: string): string {
+  const glue = value.length > 0 && !/\s/.test(value[value.length - 1] ?? " ") ? " " : "";
+  return `${value}${glue}${text}`;
+}
+
+export function insertSerializedAttachment(value: string, path: string): string {
+  return insertAttachmentToken(value, null, path).value;
+}
+
+export function insertSerializedSkill(value: string, name: string): string {
+  const rest = splitLeadingSkillCommand(value)?.rest ?? value;
+  return `${skillCommandText(name)}${rest ? (/^\s/.test(rest) ? rest : ` ${rest}`) : " "}`;
+}
 
 export function tokenChipSvg(path: string): string {
   return isImagePath(path)

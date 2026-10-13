@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import type { UseAgentSessionOptions } from "./agent-session/shared";
 import { useSessionActions } from "./agent-session/use-session-actions";
 import { useSessionCommands } from "./agent-session/use-session-commands";
@@ -25,11 +26,15 @@ export type {
   UseAgentSessionOptions,
 } from "./agent-session/shared";
 export function useAgentSession(opts: UseAgentSessionOptions) {
+  const readingVisible = opts.readingVisible ?? true;
+  const readingVisibleRef = useRef(readingVisible);
+  readingVisibleRef.current = readingVisible;
+  const visualFrameIdsRef = useRef<Set<number>>(new Set());
   const state = useSessionState(opts);
-  const history = useSessionHistory({ ...state });
+  const history = useSessionHistory({ ...state, messageRefs: opts.messageRefs }, readingVisible);
   const connection = useSessionConnection({ ...state, ...history });
   const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
-  const events = useSessionEvents({ ...state, ...history, ...connection, ...extensions });
+  const events = useSessionEvents({ ...state, ...history, ...connection, ...extensions, readingVisibleRef });
   const actions = useSessionActions({ ...state, ...history, ...connection, ...extensions, ...events });
   const models = useSessionModels({ ...state, ...history, ...connection, ...extensions, ...events, ...actions });
   const commands = useSessionCommands({
@@ -67,8 +72,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...commands,
     ...queue,
     ...scroll,
+    readingVisible,
+    readingVisibleRef,
+    visualFrameIdsRef,
   });
-  const reading = useSessionReading({ ...state, ...scroll }, opts.readingVisible ?? true);
+  const reading = useSessionReading({ ...state, ...scroll }, readingVisible);
   const effects = useSessionEffects({
     ...state,
     ...history,

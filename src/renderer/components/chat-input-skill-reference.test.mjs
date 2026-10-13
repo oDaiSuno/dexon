@@ -1,7 +1,7 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
-import test, { after } from "node:test";
+import test, { after, afterEach, beforeEach } from "node:test";
 import { createElement, createRef } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -11,9 +11,9 @@ import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.har
 // first) provides the real DOM environment before the bundle loads.
 const dom = harness.dom;
 
-const { ChatInput } = await importTestBundle("src/renderer/components/chat-input-skill-reference", {
+const { ChatInput, resetDraftCache } = await importTestBundle("src/renderer/components/chat-input-skill-reference", {
   stdin: {
-    contents: 'export { ChatInput } from "./ChatInput.tsx";',
+    contents: 'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts";',
     resolveDir: import.meta.dirname,
     sourcefile: "chat-input-skill-reference-test-entry.tsx",
     loader: "tsx",
@@ -23,7 +23,19 @@ const { ChatInput } = await importTestBundle("src/renderer/components/chat-input
 });
 
 const editorEl = () => rootEl.querySelector(".composer-editor");
-const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
+/**
+ * Waits for an observable DOM result instead of elapsed time: re-reads after
+ * each React-flushed event-loop turn. Exhausting the bounded turns returns the
+ * last read, so the caller's own assertion reports a missing result.
+ */
+async function waitForObservable(read, maxTurns = 20) {
+  for (let turn = 0; turn < maxTurns; turn += 1) {
+    const observed = read();
+    if (observed) return observed;
+    await act(async () => new Promise((resolve) => setImmediate(resolve)));
+  }
+  return read();
+}
 
 let mounted = null;
 
@@ -111,9 +123,18 @@ function serializedValue() {
 
 const skillChip = () => rootEl.querySelector("[data-skill-token]");
 
+// An interrupted case must not leave its mounted root alive past the shared
+// environment restore (ASTRA-R10-F001).
+afterEach(() => unmount());
 after(async () => {
   await harness.restoreGlobals?.();
   restoreGlobals();
+});
+// Each case owns its request history, storage and draft cache (ASTRA-R5-F001).
+beforeEach(() => {
+  harness.resetRequests();
+  harness.storedValues.clear();
+  resetDraftCache();
 });
 
 test("a picked skill becomes a chip at message start, serialized as /skill:name", async () => {
@@ -227,8 +248,7 @@ test("clicking the skill chip opens the details card and ✕ removes the chip", 
   await act(async () => {
     chip.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
   });
-  await flush();
-  const dialog = rootEl.querySelector('[role="dialog"]');
+  const dialog = await waitForObservable(() => rootEl.querySelector('[role="dialog"]'));
   assert.ok(dialog, "the skill details card must open");
   assert.ok(dialog.textContent.includes("fast-context"), "the card names the skill");
   await act(async () => {

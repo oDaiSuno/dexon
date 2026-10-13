@@ -1,18 +1,19 @@
 import * as React from "react";
-import { isImagePath, looksLikePath } from "@shared/attachment-tokens";
-import { buildAtInsertText, extractAtQuery, type AtQueryMatch } from "@/lib/file-fuzzy";
+import { isImagePath } from "@shared/attachment-tokens";
+import { buildAtInsertText, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { scaledChatFont } from "@/lib/chat-appearance";
+import type { ComposerEditableHandle } from "./types";
 import {
-  CHIP_SELECTOR,
-  SKILL_ATTR,
   buildMaterializePlan,
   caretToEditorEnd as domCaretToEditorEnd,
   createSkillChip,
   createTokenChip,
-  isChipEl,
   deleteRangeBeforeCaret,
   insertChipWithSpace,
   insertNodesAtCaret,
+  insertSerializedAttachment,
+  insertSerializedSkill,
+  insertSerializedText,
   insertSkillChipAtStart,
   isFlat,
   placeCaretByOffset,
@@ -25,7 +26,7 @@ import {
   type MaterializePlanEntry,
   type PillVisual,
 } from "./composer-dom";
-
+import { useComposerEditorEvents } from "./use-composer-editor-events";
 /**
  * Native rich-text composer surface. The DOM is the source of truth: text
  * nodes plus atomic chips (attachment `@path`, skill `/skill:name`), all
@@ -33,29 +34,9 @@ import {
  * the string. Chips are atomic — the caret never enters them; Backspace at a
  * boundary removes the whole chip; the ✕ (hover) removes it; click reveals.
  */
-
-export interface ComposerEditableHandle {
-  getValue(): string;
-  /** Replace the whole content (draft restore, programmatic text). */
-  setValue(text: string): void;
-  /** Insert plain text at the caret (glue-space before, like the TUI). */
-  insertTextAtCaret(text: string): void;
-  /** Insert a closed attachment chip at the caret (＋ menu, staged images). */
-  insertTokenAtCaret(path: string): void;
-  /**
-   * Place (or replace) a skill chip at message start. Skill commands are
-   * expanded by pi only at position 0, so picking a skill always targets
-   * the start of the message, not the caret.
-   */
-  insertSkillAtStart(name: string): void;
-  /** Replace the `@query` before the caret with a completed entry (AtMenu). */
-  completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
-  textBeforeCaret(): string;
-  focus(): void;
-}
-
 export function ComposerEditable({
   value,
+  visible = true,
   handleRef,
   placeholder,
   onValueChange,
@@ -73,6 +54,7 @@ export function ComposerEditable({
   skillRemoveLabel,
 }: {
   value: string;
+  visible?: boolean;
   handleRef: React.MutableRefObject<ComposerEditableHandle | null>;
   placeholder: string;
   onValueChange: (text: string) => void;
@@ -80,7 +62,7 @@ export function ComposerEditable({
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   onCompositionStart: () => void;
-  onCompositionEnd: (e: React.CompositionEvent<HTMLDivElement>) => void;
+  onCompositionEnd: (e?: React.CompositionEvent<HTMLDivElement>) => void;
   previewsByPath: ReadonlyMap<string, string | null>;
   missingByPath: ReadonlyMap<string, boolean>;
   onRevealToken: (path: string) => void;
@@ -90,7 +72,10 @@ export function ComposerEditable({
   skillRemoveLabel: string;
 }): React.ReactElement {
   const editorRef = React.useRef<HTMLDivElement>(null);
+  const visibleRef = React.useRef(visible);
+  visibleRef.current = visible;
   const lastSerializedRef = React.useRef(value);
+  const domMaterializedRef = React.useRef(false);
   const isComposingRef = React.useRef(false);
   const propsRef = React.useRef({
     onValueChange,
@@ -116,7 +101,6 @@ export function ComposerEditable({
   };
 
   const getEditor = React.useCallback(() => editorRef.current, []);
-
   const visualFor = React.useCallback(
     (path: string): PillVisual => ({
       isImage: isImagePath(path),
@@ -144,18 +128,21 @@ export function ComposerEditable({
 
   const textBeforeCaret = React.useCallback((): string => domTextBeforeCaret(getEditor()), [getEditor]);
 
-  const emit = React.useCallback(() => {
-    const el = getEditor();
-    if (!el) return;
-    const text = serializeEditor(el);
+  const publishSerializedValue = React.useCallback((text: string) => {
     lastSerializedRef.current = text;
     propsRef.current.onValueChange(text);
+  }, []);
+  const serializedValue = React.useCallback(() => {
+    const el = getEditor();
+    return visibleRef.current && el ? serializeEditor(el) : lastSerializedRef.current;
   }, [getEditor]);
-
+  const emit = React.useCallback(() => {
+    const text = serializedValue();
+    publishSerializedValue(text);
+  }, [publishSerializedValue, serializedValue]);
   const notifySelection = React.useCallback(() => {
     propsRef.current.onSelectionChange(textBeforeCaret());
   }, [textBeforeCaret]);
-
   /** Rebuild the DOM from a serialized value; caret ends up at the end. */
   const rebuild = React.useCallback(
     (text: string) => {
@@ -172,10 +159,19 @@ export function ComposerEditable({
         }
       }
       lastSerializedRef.current = text;
-      domCaretToEditorEnd(el);
-      syncEditorHeight(el);
+      if (visibleRef.current) {
+        domCaretToEditorEnd(el);
+        syncEditorHeight(el);
+      }
     },
     [createChip, createSkillChipFor, getEditor],
+  );
+  const applySerializedValue = React.useCallback(
+    (text: string) => {
+      rebuild(text);
+      publishSerializedValue(text);
+    },
+    [publishSerializedValue, rebuild],
   );
 
   /** One rewrite target: replace the [start,end) text range with this chip. */
@@ -241,6 +237,7 @@ export function ComposerEditable({
 
   const removeChip = React.useCallback(
     (chip: HTMLElement) => {
+      if (!visibleRef.current) return;
       const el = getEditor();
       if (!el) return;
       removeChipNode(el, chip);
@@ -254,6 +251,7 @@ export function ComposerEditable({
   /** Insert nodes at the caret (or editor end); caret collapses after `caretNode`. */
   const insertAtCaret = React.useCallback(
     (nodes: Node[], caretNode: Node | null, caretOffset: number) => {
+      if (!visibleRef.current) return;
       const el = getEditor();
       if (!el) return;
       insertNodesAtCaret(el, nodes, caretNode, caretOffset);
@@ -267,24 +265,32 @@ export function ComposerEditable({
 
   const handle = React.useMemo<ComposerEditableHandle>(
     () => ({
-      getValue: () => {
-        const el = getEditor();
-        return el ? serializeEditor(el) : "";
-      },
+      getValue: () => serializedValue(),
       setValue: (text: string) => {
-        rebuild(text);
-        propsRef.current.onValueChange(text);
+        applySerializedValue(text);
       },
       insertTextAtCaret: (text: string) => {
+        if (!visibleRef.current) {
+          applySerializedValue(insertSerializedText(lastSerializedRef.current, text));
+          return;
+        }
         const node = document.createTextNode(text);
         insertAtCaret([node], node, text.length);
       },
       insertTokenAtCaret: (path: string) => {
+        if (!visibleRef.current) {
+          applySerializedValue(insertSerializedAttachment(lastSerializedRef.current, path));
+          return;
+        }
         const chip = createChip(path);
         const space = document.createTextNode(" ");
         insertAtCaret([chip, space], space, 1);
       },
       insertSkillAtStart: (name: string) => {
+        if (!visibleRef.current) {
+          applySerializedValue(insertSerializedSkill(lastSerializedRef.current, name));
+          return;
+        }
         const el = getEditor();
         if (!el) return;
         el.focus();
@@ -294,6 +300,7 @@ export function ComposerEditable({
         notifySelection();
       },
       completeAtQuery: (atQuery: AtQueryMatch, entryPath: string, isDir: boolean) => {
+        if (!visibleRef.current) return;
         const el = getEditor();
         const sel = window.getSelection();
         if (!el || !sel) return;
@@ -319,9 +326,21 @@ export function ComposerEditable({
         notifySelection();
       },
       textBeforeCaret: () => textBeforeCaret(),
-      focus: () => getEditor()?.focus(),
+      focus: () => {
+        if (visibleRef.current) getEditor()?.focus();
+      },
     }),
-    [createChip, createSkillChipFor, emit, getEditor, insertAtCaret, notifySelection, rebuild, textBeforeCaret],
+    [
+      createChip,
+      applySerializedValue,
+      createSkillChipFor,
+      emit,
+      getEditor,
+      insertAtCaret,
+      notifySelection,
+      serializedValue,
+      textBeforeCaret,
+    ],
   );
 
   React.useEffect(() => {
@@ -331,9 +350,21 @@ export function ComposerEditable({
     };
   }, [handleRef, handle]);
 
+  React.useLayoutEffect(() => {
+    const el = getEditor();
+    if (!el) return;
+    if (!domMaterializedRef.current || value !== lastSerializedRef.current) {
+      domMaterializedRef.current = true;
+      rebuild(value);
+    }
+    if (visible) syncEditorHeight(el);
+  }, [getEditor, rebuild, value, visible]);
+
   React.useEffect(() => {
-    if (value !== lastSerializedRef.current) rebuild(value);
-  }, [rebuild, value]);
+    if (visible || !isComposingRef.current) return;
+    isComposingRef.current = false;
+    onCompositionEnd();
+  }, [onCompositionEnd, visible]);
 
   React.useEffect(() => {
     // Sync chip visuals when previews/missing state resolve asynchronously.
@@ -342,6 +373,7 @@ export function ComposerEditable({
   }, [getEditor, missingByPath, previewsByPath, visualFor]);
 
   React.useEffect(() => {
+    if (!visible) return;
     const el = getEditor();
     if (!el) return;
     const listener = () => {
@@ -349,112 +381,28 @@ export function ComposerEditable({
     };
     document.addEventListener("selectionchange", listener);
     return () => document.removeEventListener("selectionchange", listener);
-  }, [getEditor, notifySelection]);
+  }, [getEditor, notifySelection, visible]);
 
-  /** Close an in-progress `@query` as a chip (a space was typed after it). */
-  const closeQueryAsChip = React.useCallback(
-    (query: AtQueryMatch) => {
-      const el = getEditor();
-      const sel = window.getSelection();
-      if (!el || !sel) return;
-      const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-      // The drill-down completion may leave the closing quote after the caret.
-      const deleteRange = deleteRangeBeforeCaret(prefixLength, query.quoted);
-      if (!deleteRange) return;
-      deleteRange.deleteContents();
-      insertChipWithSpace(deleteRange, createChip(query.query));
-      emit();
-      syncEditorHeight(el);
-      notifySelection();
-    },
-    [createChip, emit, getEditor, notifySelection],
-  );
-
-  const handleBeforeInputNative = React.useCallback(
-    (native: InputEvent) => {
-      const el = getEditor();
-      const sel = window.getSelection();
-      if (!el || !sel || !sel.rangeCount) return;
-      if (native.inputType === "insertText" && native.data === " ") {
-        // A space typed right after an @path query closes it into a chip,
-        // mirroring the TUI where whitespace ends the token reference.
-        const query = extractAtQuery(textBeforeCaret());
-        if (query && query.query.length > 0 && looksLikePath(query.query)) {
-          const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-          if (deleteRangeBeforeCaret(prefixLength, false)) {
-            native.preventDefault();
-            closeQueryAsChip(query);
-            return;
-          }
-        }
-      }
-      if (native.inputType === "insertParagraph" || native.inputType === "insertLineBreak") {
-        // Keep the DOM flat: a literal "\n" text node renders via pre-wrap.
-        native.preventDefault();
-        const node = document.createTextNode("\n");
-        insertAtCaret([node], node, 1);
-        return;
-      }
-      if (native.inputType !== "deleteContentBackward" && native.inputType !== "deleteContentForward") return;
-      if (!sel.isCollapsed) return; // selection deletes are handled by the browser
-      const { anchorNode, anchorOffset } = sel;
-      if (!anchorNode) return;
-      const neighbor =
-        native.inputType === "deleteContentBackward"
-          ? anchorNode === el
-            ? (el.childNodes[anchorOffset - 1] ?? null)
-            : (anchorNode.previousSibling ??
-              (anchorNode.parentNode !== el ? (anchorNode.parentNode?.previousSibling ?? null) : null))
-          : anchorNode === el
-            ? (el.childNodes[anchorOffset] ?? null)
-            : (anchorNode.nextSibling ??
-              (anchorNode.parentNode !== el ? (anchorNode.parentNode?.nextSibling ?? null) : null));
-      if (!(neighbor instanceof HTMLElement) || !isChipEl(neighbor)) return;
-      native.preventDefault();
-      removeChip(neighbor);
-    },
-    [closeQueryAsChip, getEditor, insertAtCaret, removeChip, textBeforeCaret],
-  );
-
-  React.useEffect(() => {
-    const el = getEditor();
-    if (!el) return;
-    const listener = (event: Event) => handleBeforeInputNative(event as InputEvent);
-    el.addEventListener("beforeinput", listener);
-    return () => el.removeEventListener("beforeinput", listener);
-  }, [getEditor, handleBeforeInputNative]);
-
-  const handleEditorKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => onKeyDown(e);
-
-  const handleEditorMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    // Keep the caret out of chips: they stay atomic (only remove / reveal).
-    if ((e.target as HTMLElement).closest?.(CHIP_SELECTOR)) e.preventDefault();
-  };
-
-  const handleEditorClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const chip = target.closest?.<HTMLElement>(CHIP_SELECTOR);
-    if (!chip) return;
-    if (target.closest?.("[data-chip-remove]")) {
-      e.preventDefault();
-      e.stopPropagation();
-      removeChip(chip);
-      return;
-    }
-    if (chip.hasAttribute(SKILL_ATTR)) {
-      const name = chip.dataset.skillName ?? "";
-      if (name) onSkillReveal(name);
-      return;
-    }
-    const path = chip.dataset.path ?? "";
-    if (path) onRevealToken(path);
-  };
+  const editorEvents = useComposerEditorEvents({
+    visible,
+    getEditor,
+    textBeforeCaret,
+    createChip,
+    emit,
+    syncEditorHeight,
+    notifySelection,
+    insertAtCaret,
+    removeChip,
+    onKeyDown,
+    onRevealToken,
+    onSkillReveal,
+  });
 
   return (
     <div
       ref={editorRef}
       className="composer-editor"
-      contentEditable
+      contentEditable={visible}
       suppressContentEditableWarning
       spellCheck={false}
       role="textbox"
@@ -462,26 +410,35 @@ export function ComposerEditable({
       data-placeholder={placeholder}
       style={{ flex: 1, minWidth: 0, fontSize: scaledChatFont(14), lineHeight: 1.6 }}
       onInput={(e) => {
+        if (!visible) return;
         if (!isComposingRef.current) normalize();
         emit();
         if (!isComposingRef.current) materializeTokens();
         syncEditorHeight(e.currentTarget);
         notifySelection();
       }}
-      onKeyDown={handleEditorKeyDown}
-      onPaste={onPaste}
-      onMouseDown={handleEditorMouseDown}
-      onClick={handleEditorClick}
+      onKeyDown={editorEvents.handleEditorKeyDown}
+      onPaste={(e) => {
+        if (visible) onPaste(e);
+      }}
+      onMouseDown={editorEvents.handleEditorMouseDown}
+      onClick={editorEvents.handleEditorClick}
       onCompositionStart={() => {
+        if (!visible) return;
         isComposingRef.current = true;
         onCompositionStart();
       }}
-      onCompositionEnd={(e) => {
+      onCompositionEnd={() => {
+        if (!visible) {
+          isComposingRef.current = false;
+          onCompositionEnd();
+          return;
+        }
         isComposingRef.current = false;
         normalize();
         emit();
         materializeTokens();
-        onCompositionEnd(e);
+        onCompositionEnd();
         notifySelection();
       }}
     />

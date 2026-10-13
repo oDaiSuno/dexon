@@ -1,11 +1,11 @@
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useI18n } from "@/i18n";
 import { isPendingCard, type InteractiveToolStore, type ToolCardEntry } from "@/lib/interactive-tool-store";
 import { OrdinaryForm } from "./ordinary-form";
 import { Questionnaire } from "./questionnaire";
 import { TerminalContent } from "./terminal-content";
 
-export function ToolCardDock({ store }: { store: InteractiveToolStore }) {
+export function ToolCardDock({ store, visible = true }: { store: InteractiveToolStore; visible?: boolean }) {
   const { t } = useI18n();
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const pending = state.entries.filter(isPendingCard);
@@ -21,7 +21,9 @@ export function ToolCardDock({ store }: { store: InteractiveToolStore }) {
             type="button"
             className="tool-pill tool-icon"
             aria-label={t("toolDismiss", "Dismiss status")}
-            onClick={() => store.dismissExpiredDraft()}
+            onClick={() => {
+              if (visible) store.dismissExpiredDraft();
+            }}
           >
             ×
           </button>
@@ -30,7 +32,7 @@ export function ToolCardDock({ store }: { store: InteractiveToolStore }) {
     ) : null;
   return (
     <div className="tool-card-dock">
-      <ToolCard key={entry.request.id} entry={entry} store={store} count={pending.length} />
+      <ToolCard key={entry.request.id} entry={entry} store={store} count={pending.length} visible={visible} />
       {state.storageFailed && (
         <p role="status" className="tool-subtle">
           {t(
@@ -43,18 +45,50 @@ export function ToolCardDock({ store }: { store: InteractiveToolStore }) {
   );
 }
 
-function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: InteractiveToolStore; count: number }) {
+function ToolCard({
+  entry,
+  store,
+  count,
+  visible,
+}: {
+  entry: ToolCardEntry;
+  store: InteractiveToolStore;
+  count: number;
+  visible: boolean;
+}) {
   const { t } = useI18n();
   const [abandoning, setAbandoning] = useState(false);
   const card = useRef<HTMLElement>(null);
   const resume = useRef<HTMLButtonElement>(null);
+  const focusFrameRef = useRef<number | null>(null);
+  const cancelFocusFrame = useCallback(() => {
+    if (focusFrameRef.current !== null) globalThis.cancelAnimationFrame?.(focusFrameRef.current);
+    focusFrameRef.current = null;
+  }, []);
+  const focusAfterPaint = useCallback(
+    (target: { current: HTMLElement | null }) => {
+      if (!visible) return;
+      cancelFocusFrame();
+      if (typeof globalThis.requestAnimationFrame !== "function") return;
+      focusFrameRef.current = globalThis.requestAnimationFrame(() => {
+        focusFrameRef.current = null;
+        if (visible) target.current?.focus();
+      });
+    },
+    [cancelFocusFrame, visible],
+  );
+  useEffect(() => {
+    if (!visible) cancelFocusFrame();
+    return cancelFocusFrame;
+  }, [cancelFocusFrame, visible]);
   const { request, status } = entry;
   const pending = isPendingCard(entry);
   const collapsed = entry.draft.collapsed;
   const collapse = () => {
+    if (!visible) return;
     store.setCollapsed(request.id, true);
     setAbandoning(false);
-    requestAnimationFrame(() => resume.current?.focus());
+    focusAfterPaint(resume);
   };
   const title =
     request.method === "questionnaire"
@@ -86,11 +120,10 @@ function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: Intera
       aria-label={t("toolInteraction", "Tool interaction")}
       data-state={status}
       onKeyDownCapture={(event) => {
-        if (event.key === "Escape") {
-          event.preventDefault();
-          event.stopPropagation();
-          if (!event.nativeEvent.isComposing && event.keyCode !== 229 && pending) collapse();
-        }
+        if (!visible || event.key !== "Escape") return;
+        event.preventDefault();
+        event.stopPropagation();
+        if (!event.nativeEvent.isComposing && event.keyCode !== 229 && pending) collapse();
       }}
     >
       <header className="tool-card-header">
@@ -114,7 +147,9 @@ function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: Intera
           <button
             type="button"
             className="tool-pill tool-icon"
-            onClick={() => store.dismiss(request.id)}
+            onClick={() => {
+              if (visible) store.dismiss(request.id);
+            }}
             aria-label={t("toolDismiss", "Dismiss status")}
           >
             ×
@@ -129,8 +164,9 @@ function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: Intera
           type="button"
           className="tool-resume"
           onClick={() => {
+            if (!visible) return;
             store.setCollapsed(request.id, false);
-            requestAnimationFrame(() => card.current?.focus());
+            focusAfterPaint(card);
           }}
         >
           <span>{title}</span>
@@ -148,14 +184,22 @@ function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: Intera
                 )}
               </p>
               <div className="tool-footer-actions">
-                <button type="button" className="tool-pill tool-primary" onClick={() => setAbandoning(false)}>
+                <button
+                  type="button"
+                  className="tool-pill tool-primary"
+                  onClick={() => {
+                    if (visible) setAbandoning(false);
+                  }}
+                >
                   {t("toolKeepAnswering", "Keep answering")}
                 </button>
                 <button
                   type="button"
                   className="tool-pill"
                   disabled={status === "sending"}
-                  onClick={() => void store.respond(request.id, { cancelled: true })}
+                  onClick={() => {
+                    if (visible) void store.respond(request.id, { cancelled: true });
+                  }}
                 >
                   {t("toolConfirmAbandon", "Abandon without sending")}
                 </button>
@@ -164,18 +208,20 @@ function ToolCard({ entry, store, count }: { entry: ToolCardEntry; store: Intera
           ) : (
             <>
               {request.method === "questionnaire" ? (
-                <Questionnaire entry={{ ...entry, request }} store={store} />
+                <Questionnaire entry={{ ...entry, request }} store={store} visible={visible} />
               ) : request.method === "custom" ? (
-                <TerminalContent entry={entry} store={store} />
+                <TerminalContent entry={entry} store={store} visible={visible} />
               ) : (
-                <OrdinaryForm entry={entry} store={store} />
+                <OrdinaryForm entry={entry} store={store} visible={visible} />
               )}
               <div className="tool-abandon-row">
                 <button
                   type="button"
                   className="tool-text-button"
                   disabled={status === "sending"}
-                  onClick={() => setAbandoning(true)}
+                  onClick={() => {
+                    if (visible) setAbandoning(true);
+                  }}
                 >
                   {t("toolAbandon", "Abandon this answer")}
                 </button>

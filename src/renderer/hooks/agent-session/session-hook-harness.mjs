@@ -35,6 +35,7 @@ let activeEnvironment = null;
 
 export const API_CLIENT_NAMES = [
   "agentState",
+  "call",
   "cancelModelsRefresh",
   "getSession",
   "getSessionContext",
@@ -117,8 +118,13 @@ export function createSessionTestHost(overrides = {}) {
     getSessionContextPage: (sid, ...rest) => recordRpc("getSessionContextPage", sid, ...rest),
     getSessionEntryContent: (sid, ...rest) => recordRpc("getSessionEntryContent", sid, ...rest),
     agentState: (sid, ...rest) => recordRpc("agentState", sid, ...rest),
-    shouldAutoTitleMessage: overrides.shouldAutoTitleMessage ?? (() => false),
-    async requestAutoTitle() {},
+    // External RPC boundary of the real auto-session-title module. The title
+    // request is recorded here; the local eligibility policy is not doubled.
+    call(method, params) {
+      if (method !== "agent.generateTitle") throw new Error("api-client.call is not configured in the harness host");
+      autoTitleRequests.push(params);
+      return Promise.resolve({ title: null });
+    },
     t: overrides.t ?? ((_key, fallback) => fallback),
   };
 }
@@ -267,7 +273,8 @@ function createEnvironment() {
 
 /**
  * Builds a bundle exposing the real useAgentSession composition with the
- * host RPC layer, i18n and auto-title replaced by harness delegates.
+ * host RPC layer and i18n replaced by harness delegates. Auto-title runs the
+ * real module: only its `call` RPC reaches the harness host.
  */
 export async function createSessionHookBundle(t, { bundleName, host, extraEntryExports = "" }) {
   const globalName = `__sessionHookHost_${bundleName.replace(/[^a-zA-Z0-9]/g, "_")}`;
@@ -302,22 +309,14 @@ export async function createSessionHookBundle(t, { bundleName, host, extraEntryE
           build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "session-hook" }));
           build.onResolve({ filter: /(^|\/)agent-client$/ }, () => ({ path: "agent", namespace: "session-hook" }));
           build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "session-hook" }));
-          build.onResolve({ filter: /^@\/lib\/auto-session-title$/ }, () => ({
-            path: "title",
-            namespace: "session-hook",
-          }));
           build.onLoad({ filter: /.*/, namespace: "session-hook" }, ({ path: modulePath }) => ({
             contents:
               modulePath === "i18n"
                 ? `const t = (key, fallback) => { globalThis.${globalName}?.i18nKeys?.push(key); return fallback; };` +
                   'export const useI18n = () => ({ t, language: "en" });'
-                : modulePath === "title"
-                  ? `export const shouldAutoTitleMessage = (...args) => globalThis.${globalName}.shouldAutoTitleMessage(...args);\n` +
-                    `export const requestAutoSessionTitle = (...args) => { const host = globalThis.${globalName}; ` +
-                    "host.autoTitleRequests.push(args[0]); return host.requestAutoTitle(...args); };"
-                  : modulePath === "agent"
-                    ? delegate("agent-client", AGENT_CLIENT_NAMES, globalName)
-                    : delegate("api-client", API_CLIENT_NAMES, globalName),
+                : modulePath === "agent"
+                  ? delegate("agent-client", AGENT_CLIENT_NAMES, globalName)
+                  : delegate("api-client", API_CLIENT_NAMES, globalName),
             loader: "js",
           }));
         },

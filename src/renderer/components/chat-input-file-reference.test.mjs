@@ -1,7 +1,7 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
-import test, { after } from "node:test";
+import test, { after, afterEach, beforeEach } from "node:test";
 import { createElement, createRef } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
@@ -14,9 +14,9 @@ const storedValues = harness.storedValues;
 const fetchRequests = harness.fetchRequests;
 const showItemInFolderCalls = harness.showItemInFolderCalls;
 
-const { ChatInput } = await importTestBundle("src/renderer/components/chat-input-file-reference", {
+const { ChatInput, resetDraftCache } = await importTestBundle("src/renderer/components/chat-input-file-reference", {
   stdin: {
-    contents: 'export { ChatInput } from "./ChatInput.tsx";',
+    contents: 'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts";',
     resolveDir: import.meta.dirname,
     sourcefile: "chat-input-file-reference-test-entry.tsx",
     loader: "tsx",
@@ -25,16 +25,23 @@ const { ChatInput } = await importTestBundle("src/renderer/components/chat-input
   external: ["react", "react-dom", "react-dom/*"],
 });
 
-after(() => {
-  restoreGlobals();
+// An interrupted case must not leave its mounted root, and the root's pending
+// work, alive past the shared environment restore (ASTRA-R10-F001).
+afterEach(() => unmount());
+after(() => restoreGlobals());
+
+// Every test owns its request history, storage and draft cache: the shared
+// harness accumulators and the bundled draft store must not leak state across
+// cases regardless of registration order (ASTRA-R5-F001).
+beforeEach(() => {
+  harness.resetRequests();
+  harness.storedValues.clear();
+  resetDraftCache();
 });
 
 const editorEl = () => rootEl.querySelector(".composer-editor");
-const flush = () => new Promise((resolve) => setTimeout(resolve, 10));
-const settle = async (ms) => {
-  await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, ms));
-  });
+const flushMicrotasks = async () => {
+  await act(async () => Promise.all([Promise.resolve(), Promise.resolve()]));
 };
 
 let mounted = null;
@@ -51,10 +58,7 @@ async function mount(props = {}) {
     onFollowUp: props.onFollowUp,
     ref: handle,
   });
-  await act(async () => {
-    mounted = createRoot(rootEl);
-    mounted.render(element);
-  });
+  await act(async () => ((mounted = createRoot(rootEl)), mounted.render(element)));
   return handle;
 }
 
@@ -62,9 +66,7 @@ async function unmount() {
   if (!mounted) return;
   const root = mounted;
   mounted = null;
-  await act(async () => {
-    root.unmount();
-  });
+  await act(async () => root.unmount());
   rootEl.textContent = "";
 }
 
@@ -79,9 +81,7 @@ async function setEditorText(text, caret = text.length) {
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
-  await act(async () => {
-    el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
-  });
+  await act(async () => el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true })));
 }
 
 /** Type text at the current caret (keeps existing nodes, incl. chips). */
@@ -96,17 +96,15 @@ async function typeText(text) {
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
-  await act(async () => {
-    el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
-  });
+  await act(async () => el.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true })));
 }
 
 async function pressKey(key, options = {}) {
-  await act(async () => {
+  await act(async () =>
     editorEl().dispatchEvent(
       new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }),
-    );
-  });
+    ),
+  );
 }
 
 /** Serialized value of the editable surface (what the send pipeline sees). */
@@ -132,9 +130,7 @@ function menuRowLabels() {
 
 function deferred() {
   let resolve;
-  const promise = new Promise((nextResolve) => {
-    resolve = nextResolve;
-  });
+  const promise = new Promise((nextResolve) => (resolve = nextResolve));
   return { promise, resolve };
 }
 
@@ -149,12 +145,14 @@ function response(data) {
 
 // ── tests ──────────────────────────────────────────────────────────────────
 
-test("@ project file autocomplete completes into a chip and sends the literal token", async () => {
+test("@ project file autocomplete completes into a chip and sends the literal token", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const sent = [];
   await mount({ sent });
 
   await setEditorText("@src/");
-  await settle(180);
+  t.mock.timers.tick(0);
+  await flushMicrotasks();
   assert.equal(fetchRequests.length, 1);
   assert.match(fetchRequests[0], /^\/api\/file-index\?cwd=/);
   assert.ok(
@@ -175,7 +173,8 @@ test("@ project file autocomplete completes into a chip and sends the literal to
   await unmount();
 });
 
-test("@ autocomplete requests each query and ignores a late response for an older token", async () => {
+test("@ autocomplete requests each query and ignores a late response for an older token", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   const pending = [];
   harness.setFetch(() => {
     const request = deferred();
@@ -187,22 +186,24 @@ test("@ autocomplete requests each query and ignores a late response for an olde
     const requestStart = fetchRequests.length;
 
     await setEditorText("@mai");
-    await settle(180);
+    t.mock.timers.tick(150);
+    await flushMicrotasks();
     assert.match(fetchRequests[requestStart], /[?&]q=mai(?:&|$)/);
 
     await setEditorText("@read");
-    await settle(180);
+    t.mock.timers.tick(150);
+    await flushMicrotasks();
     assert.match(fetchRequests[requestStart + 1], /[?&]q=read(?:&|$)/);
 
     await act(async () => {
       pending[1].resolve(response({ matches: [{ path: "README.md", isDir: false }], truncated: false }));
-      await flush();
+      await new Promise((resolve) => setImmediate(resolve));
     });
     assert.match(rootEl.textContent ?? "", /README\.md/);
 
     await act(async () => {
       pending[0].resolve(response({ matches: [{ path: "src/main.ts", isDir: false }], truncated: false }));
-      await flush();
+      await new Promise((resolve) => setImmediate(resolve));
     });
     assert.doesNotMatch(rootEl.textContent ?? "", /main\.ts/);
   } finally {
@@ -211,7 +212,8 @@ test("@ autocomplete requests each query and ignores a late response for an olde
   }
 });
 
-test("@ autocomplete shows degraded scope and reuses a recent query from the bounded cache", async () => {
+test("@ autocomplete shows degraded scope and reuses a recent query from the bounded cache", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   harness.setFetch(async () =>
     response({
       matches: [{ path: "Desktop/nested.txt", isDir: false }],
@@ -223,7 +225,8 @@ test("@ autocomplete shows degraded scope and reuses a recent query from the bou
     await mount();
     const requestStart = fetchRequests.length;
     await setEditorText("@nest");
-    await settle(180);
+    t.mock.timers.tick(150);
+    await flushMicrotasks();
     assert.match(rootEl.textContent ?? "", /limited to this folder/);
     assert.equal(fetchRequests.length, requestStart + 1);
 
@@ -261,9 +264,7 @@ test("＋ button expands the attachment menu and each row opens its own picker",
   assert.ok(plusButton, "＋ attach button is rendered");
   assert.notEqual(plusButton.getAttribute("aria-expanded"), "true");
 
-  await act(async () => {
-    plusButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-  });
+  await act(async () => plusButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
   const rowNames = () =>
     Array.from(rootEl.querySelectorAll("button"))
       .map((button) => button.textContent ?? "")
@@ -275,9 +276,7 @@ test("＋ button expands the attachment menu and each row opens its own picker",
   const firstRow = Array.from(rootEl.querySelectorAll("button")).find((button) =>
     (button.textContent ?? "").includes("Add files"),
   );
-  await act(async () => {
-    firstRow.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true }));
-  });
+  await act(async () => firstRow.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true })));
   assert.deepEqual(rowNames(), [], "picking an entry point closes the menu");
 
   await unmount();
@@ -298,9 +297,7 @@ test("streaming queue delivers token references as plain queued text", async () 
 
   const sendButton = rootEl.querySelector('button[aria-label="Send"]');
   assert.ok(sendButton, "armed send square replaces the stop button while streaming");
-  await act(async () => {
-    sendButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true }));
-  });
+  await act(async () => sendButton.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
 
   assert.deepEqual(queued, ["compare @/tmp/pi-clipboard-a.png with the last one"]);
   assert.equal(serializedValue(), "");
@@ -432,6 +429,7 @@ test("typing a path then a space materializes it into a chip", async () => {
   await mount();
   await setEditorText("look at @src/main.ts");
   assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0, "open query stays plain text");
+  Object.defineProperty(editorEl(), "scrollHeight", { configurable: true, value: 123 });
 
   await act(async () => {
     editorEl().dispatchEvent(
@@ -439,15 +437,18 @@ test("typing a path then a space materializes it into a chip", async () => {
     );
   });
   assert.equal(editorEl().querySelectorAll('[data-attachment-token][data-path="src/main.ts"]').length, 1);
+  assert.equal(editorEl().style.height, "123px", "visible chip replacement synchronizes editor height");
   assert.equal(serializedValue(), "look at @src/main.ts ");
 
   await unmount();
 });
 
-test("Esc then a space closes a drill-down directory as a chip", async () => {
+test("Esc then a space closes a drill-down directory as a chip", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout"] });
   await mount();
   await setEditorText("@src/");
-  await settle(180);
+  t.mock.timers.tick(0);
+  await flushMicrotasks();
   await pressKey("Escape"); // close the menu, the query stays plain text
   assert.equal(editorEl().querySelectorAll("[data-attachment-token]").length, 0);
 

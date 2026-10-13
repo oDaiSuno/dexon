@@ -8,6 +8,45 @@ import {
   createSessionTestHost,
 } from "./session-hook-harness.mjs";
 
+function trackHiddenGeometry(container) {
+  const values = {
+    scrollTop: container.scrollTop,
+    scrollHeight: container.scrollHeight,
+    clientHeight: container.clientHeight,
+  };
+  const counts = { reads: 0, writes: 0 };
+  let hidden = false;
+  for (const key of Object.keys(values)) {
+    Object.defineProperty(container, key, {
+      configurable: true,
+      get() {
+        if (hidden) counts.reads += 1;
+        return values[key];
+      },
+      set(value) {
+        if (hidden) counts.writes += 1;
+        values[key] = value;
+      },
+    });
+  }
+  return {
+    hide() {
+      hidden = true;
+    },
+    show() {
+      hidden = false;
+    },
+    reset() {
+      counts.reads = 0;
+      counts.writes = 0;
+    },
+    value(key) {
+      return values[key];
+    },
+    counts,
+  };
+}
+
 test("a late initial-history response cannot overwrite a newer navigation", async (t) => {
   const detailA = createSessionDetail("s-1", {
     historyRevision: "rev-a",
@@ -119,6 +158,138 @@ test("loading older history prepends and preserves the reading offset", async (t
   container.scrollHeight = 700;
   commitRaf();
   assert.equal(container.scrollTop, 400, "viewport offset kept stable by the height delta");
+});
+
+test("history pagination keeps data while hide cancels visual anchor compensation", async (t) => {
+  const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
+  const geometry = trackHiddenGeometry(surface.container);
+  const detail = createSessionDetail("s-1", { previousCursor: "cursor-1", historyRevision: "rev-1" });
+  const visibleDetail = createSessionDetail("s-2", { previousCursor: "cursor-2", historyRevision: "rev-2" });
+  let activeDetail = detail;
+  let resolvePage;
+  const host = createSessionTestHost({
+    getSession: async () => activeDetail,
+    getSessionContextPage: () => new Promise((resolve) => (resolvePage = resolve)),
+  });
+  const h = await createSessionHookHarness(t, {
+    bundleName: "history-older-hidden",
+    host,
+    attach(state) {
+      state.scrollContainerRef.current = surface.container;
+      state.liveContentEndRef.current = surface.liveEnd;
+      state.messagesEndRef.current = surface.messagesEnd;
+    },
+  });
+  const options = { session: detail.info, newSessionCwd: null };
+  await h.mount({ ...options, readingVisible: true });
+  await h.flush();
+
+  const loadPromise = h.state.loadOlder();
+  await h.flush();
+  await h.update({ ...options, readingVisible: false });
+  geometry.hide();
+  resolvePage({
+    context: {
+      messages: [{ role: "user", content: "old-hidden", timestamp: 0 }],
+      entryIds: ["old-hidden"],
+      historyRevision: "rev-1",
+      previousCursor: null,
+    },
+  });
+  await loadPromise;
+  await h.flush();
+  assert.ok(
+    h.state.messages.some((message) => message.content === "old-hidden"),
+    "history data remains accepted hidden",
+  );
+  assert.equal(h.env.rafSize(), 0, "a page completing after hide schedules no hidden compensation");
+  assert.deepEqual(geometry.counts, { reads: 0, writes: 0 }, "hidden page completion performs no geometry work");
+  geometry.show();
+  surface.container.scrollHeight = 700;
+  geometry.reset();
+  await h.update({ ...options, readingVisible: true });
+  await h.flush();
+  assert.equal(h.env.rafSize(), 1, "show schedules the hidden page's deferred anchor reconciliation");
+  await h.env.flushRafUntilSettled();
+  assert.equal(surface.container.scrollTop, 400, "show restores the anchor after a hidden page response");
+
+  let resolveVisiblePage;
+  host.getSessionContextPage = () => new Promise((resolve) => (resolveVisiblePage = resolve));
+  activeDetail = visibleDetail;
+  const visibleOptions = { session: visibleDetail.info, newSessionCwd: null };
+  await h.remount({ ...visibleOptions, readingVisible: true });
+  await h.flush();
+  await h.env.flushRafUntilSettled();
+  const visibleLoad = h.state.loadOlder();
+  await h.flush();
+  resolveVisiblePage({
+    context: {
+      messages: [{ role: "user", content: "old-visible", timestamp: -1 }],
+      entryIds: ["old-visible"],
+      historyRevision: "rev-2",
+      previousCursor: null,
+    },
+  });
+  await visibleLoad;
+  await h.flush();
+  assert.equal(h.env.rafSize(), 1, "visible pagination schedules one anchor compensation frame");
+  surface.container.scrollHeight = 700;
+  const scrollTopBeforeHide = surface.container.scrollTop;
+  await h.update({ ...visibleOptions, readingVisible: false });
+  geometry.hide();
+  await h.flush();
+  assert.equal(h.env.rafSize(), 0, "hide cancels an already scheduled compensation frame");
+  await h.env.flushRafUntilSettled();
+  assert.equal(
+    geometry.value("scrollTop"),
+    scrollTopBeforeHide,
+    "cancelled hidden compensation does not write scrollTop",
+  );
+  assert.deepEqual(geometry.counts, { reads: 0, writes: 0 }, "cancelled frame performs no hidden geometry work");
+
+  geometry.show();
+  geometry.reset();
+  await h.update({ ...visibleOptions, readingVisible: true });
+  await h.flush();
+  assert.equal(h.env.rafSize(), 1, "show schedules the deferred visible anchor reconciliation");
+  await h.env.flushRafUntilSettled();
+  assert.equal(surface.container.scrollTop, 400, "show restores the reading offset from visible geometry");
+  assert.deepEqual(geometry.counts, { reads: 0, writes: 0 }, "show reconciliation performs no hidden geometry work");
+});
+
+test("a queued history frame cannot mutate a surface after unmount", async (t) => {
+  const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
+  const detail = createSessionDetail("s-1", { previousCursor: "cursor-1", historyRevision: "rev-1" });
+  const host = createSessionTestHost({
+    getSession: async () => detail,
+    getSessionContextPage: async () => ({
+      context: {
+        messages: [{ role: "user", content: "old", timestamp: 0 }],
+        entryIds: ["old"],
+        historyRevision: "rev-1",
+        previousCursor: null,
+      },
+    }),
+  });
+  const h = await createSessionHookHarness(t, {
+    bundleName: "history-frame-unmount",
+    host,
+    attach(state) {
+      state.scrollContainerRef.current = surface.container;
+    },
+  });
+  await h.mount({ session: detail.info, newSessionCwd: null, readingVisible: true });
+  await h.flush();
+  await h.env.flushRafUntilSettled();
+  const load = h.state.loadOlder();
+  await h.flush();
+  assert.equal(h.env.rafSize(), 1, "the accepted page queues one visual frame");
+  const scrollTopBeforeUnmount = surface.container.scrollTop;
+  globalThis.cancelAnimationFrame = () => {};
+  await load;
+  await h.unmount();
+  await h.env.flushRafUntilSettled();
+  assert.equal(surface.container.scrollTop, scrollTopBeforeUnmount, "a late frame cannot write after unmount");
 });
 
 test("a stale generation drops an in-flight older page", async (t) => {

@@ -1,4 +1,4 @@
-import type { CSSProperties, MouseEvent } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
 import { useI18n } from "@/i18n";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { CompactIcon, LightbulbIcon, SpeakerOffIcon, SpeakerOnIcon } from "./icons";
@@ -25,6 +25,7 @@ function mixWarning(urgency: number, strength: number, base: string): string {
 }
 
 export interface SessionControlsProps {
+  visible: boolean;
   isMobile: boolean;
   isStreaming: boolean;
   closeDropdowns: () => void;
@@ -79,6 +80,7 @@ function ghostLeave(e: MouseEvent<HTMLButtonElement>, { open, color }: { open: b
  *  compaction, completion sound. Ghost chips — chrome only on hover. */
 export function SessionControls(props: SessionControlsProps) {
   const {
+    visible,
     isMobile,
     isStreaming,
     closeDropdowns,
@@ -99,6 +101,24 @@ export function SessionControls(props: SessionControlsProps) {
     onSoundToggle,
   } = props;
   const { t } = useI18n();
+  const focusFrameIdsRef = useRef<Set<number>>(new Set());
+  const cancelFocusFrames = useCallback(() => {
+    for (const frameId of focusFrameIdsRef.current) globalThis.cancelAnimationFrame?.(frameId);
+    focusFrameIdsRef.current.clear();
+  }, []);
+  const focusThinkingButtonAfterPaint = useCallback(() => {
+    if (!visible || typeof globalThis.requestAnimationFrame !== "function") return;
+    let frameId = 0;
+    frameId = globalThis.requestAnimationFrame(() => {
+      focusFrameIdsRef.current.delete(frameId);
+      if (visible) thinkingButtonRef.current?.focus();
+    });
+    focusFrameIdsRef.current.add(frameId);
+  }, [thinkingButtonRef, visible]);
+  useEffect(() => {
+    if (!visible) cancelFocusFrames();
+    return cancelFocusFrames;
+  }, [cancelFocusFrames, visible]);
 
   const thinkingLabels: Record<ThinkingLevel, string> = {
     auto: t("thinkingAuto", "Auto"),
@@ -214,9 +234,10 @@ export function SessionControls(props: SessionControlsProps) {
                     role="menuitemradio"
                     aria-checked={isActive}
                     onClick={() => {
+                      if (!visible) return;
                       if (!isActive) onThinkingLevelChange(lvl);
                       onThinkingToggle();
-                      requestAnimationFrame(() => thinkingButtonRef.current?.focus());
+                      focusThinkingButtonAfterPaint();
                     }}
                     style={{
                       display: "flex",
@@ -293,6 +314,7 @@ export function SessionControls(props: SessionControlsProps) {
           <button
             type="button"
             onClick={() => {
+              if (!visible) return;
               closeDropdowns();
               if (isCompacting) onAbortCompaction?.();
               else onCompact();
@@ -370,6 +392,7 @@ export function SessionControls(props: SessionControlsProps) {
           type="button"
           aria-pressed={soundEnabled === true}
           onClick={() => {
+            if (!visible) return;
             closeDropdowns();
             onSoundToggle();
           }}

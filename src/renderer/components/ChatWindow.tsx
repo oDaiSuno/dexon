@@ -16,7 +16,14 @@ import { ChatMinimap } from "./ChatMinimap";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { MessageView } from "./MessageView";
 import { SessionProfiler } from "./SessionProfiler";
+import { useLayoutEffect } from "react";
 export function ChatWindow(props: Props) {
+  const visible = props.visible ?? true;
+  useLayoutEffect(() => {
+    if (visible) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.closest("[data-chat-surface]")) active.blur();
+  }, [visible]);
   const {
     loading,
     error,
@@ -71,15 +78,27 @@ export function ChatWindow(props: Props) {
   } = useChatWindow(props);
 
   if (loading) {
-    return <div className="flex h-full items-center justify-center text-text-muted">Loading session...</div>;
+    return (
+      <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
+        <div className="flex h-full items-center justify-center text-text-muted">Loading session...</div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="flex h-full items-center justify-center text-red-400">{error}</div>;
+    return (
+      <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
+        <div className="flex h-full items-center justify-center text-red-400">{error}</div>
+      </div>
+    );
   }
 
   return (
     <div
+      data-chat-surface
+      hidden={!visible}
+      aria-hidden={!visible}
+      inert={!visible ? true : undefined}
       className="chat-appearance-scope relative flex h-full flex-col overflow-hidden"
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
@@ -206,6 +225,7 @@ export function ChatWindow(props: Props) {
                   scrollContainer={scrollContainerRef}
                   messageRefs={messageRefs}
                   historyTruncated={hasOlder}
+                  visible={visible}
                 />
               </SessionProfiler>
             )}
@@ -218,7 +238,9 @@ export function ChatWindow(props: Props) {
               <button
                 type="button"
                 className="chat-scroll-to-bottom"
-                onClick={reattachAutoFollow}
+                onClick={() => {
+                  if (visible) reattachAutoFollow();
+                }}
                 aria-label={t("scrollToBottom", "Scroll to bottom")}
                 title={agentRunning ? t("jumpToLatest", "Jump to latest") : t("scrollToBottom", "Scroll to bottom")}
                 style={{
@@ -283,7 +305,7 @@ export function ChatWindow(props: Props) {
           }}
         >
           <div className="chat-content-column">
-            <ToolCardDock store={interactiveTools} />
+            <ToolCardDock store={interactiveTools} visible={visible} />
           </div>
         </div>
         {chatInputElement}

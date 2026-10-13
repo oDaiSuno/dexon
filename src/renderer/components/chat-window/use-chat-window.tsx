@@ -9,7 +9,6 @@ import { buildToolMessageIndex } from "@/lib/tool-message-index";
 import type { AssistantMessage } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatInput } from "../ChatInput";
-import { useMessageRefs } from "../ChatMinimap";
 import { AssistantRenderParts, Props, toMinimapMessage } from "./shared";
 
 export function useChatWindow({
@@ -28,16 +27,18 @@ export function useChatWindow({
   onOpenFile,
   thinkingExpansionStore,
   processDetailsExpansionStore,
+  visible = true,
 }: Props) {
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
 
-  const isMobile = useIsMobile();
+  const isMobile = useIsMobile(visible);
 
   const { t } = useI18n();
 
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
 
   const assistantRenderParts = useRef(new WeakMap<AssistantMessage, AssistantRenderParts>()).current;
+  const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
@@ -127,6 +128,8 @@ export function useChatWindow({
     onBranchDataChange,
     onSystemPromptChange,
     onSessionStatsPanelOpen,
+    messageRefs,
+    readingVisible: visible,
   });
 
   // Push session stats up to AppShell for the top bar.
@@ -193,11 +196,13 @@ export function useChatWindow({
     [chatInputRef],
   );
 
-  const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop);
+  const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop, visible);
 
   const visibleMessages = messages.filter((m) => m.role === "user" || m.role === "assistant");
 
-  const messageRefs = useMessageRefs(visibleMessages.length);
+  messageRefs.current = Array(visibleMessages.length)
+    .fill(null)
+    .map((_, index) => messageRefs.current[index] ?? null);
 
   const minimapMessages = useMemo(() => messages.flatMap((message) => toMinimapMessage(message) ?? []), [messages]);
 
@@ -222,6 +227,7 @@ export function useChatWindow({
   }, [session?.id]);
 
   useEffect(() => {
+    if (!visible) return;
     const sentinel = olderHistorySentinelRef.current;
     const root = scrollContainerRef.current;
     if (!sentinel || !root || !hasOlder || loadingOlder) return;
@@ -235,13 +241,12 @@ export function useChatWindow({
     );
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [hasOlder, loadOlder, loadingOlder, messages.length, scrollContainerRef]);
-
+  }, [hasOlder, loadOlder, loadingOlder, messages.length, scrollContainerRef, visible]);
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;
 
   const messageCwd = session?.cwd ?? newSessionCwd ?? undefined;
 
-  const chatViewportHeight = useObservedElementHeight(scrollContainerRef);
+  const chatViewportHeight = useObservedElementHeight(scrollContainerRef, 0, visible);
 
   const availableThinkingLevels = displayModelValue
     ? (modelThinkingLevels[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
@@ -291,6 +296,7 @@ export function useChatWindow({
       onAudioUnlock={unlockAudio}
       draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
+      visible={visible}
     />
   );
 

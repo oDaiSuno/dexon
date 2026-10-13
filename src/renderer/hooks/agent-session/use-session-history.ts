@@ -27,6 +27,8 @@ import {
   normalizeQueuedMessages,
 } from "./shared";
 import type { SessionState } from "./use-session-state";
+import { captureHistoryContentAnchor, type HistoryMessageRefs } from "./use-session-history-anchors";
+import { useSessionHistoryVisuals } from "./use-session-history-visuals";
 type Dependencies = Pick<
   SessionState,
   | "interactiveTools"
@@ -59,8 +61,22 @@ type Dependencies = Pick<
   | "t"
   | "messages"
   | "scrollContainerRef"
->;
-export function useSessionHistory(context: Dependencies) {
+> & {
+  messageRefs?: HistoryMessageRefs;
+};
+export function useSessionHistory(context: Dependencies, readingVisible = true) {
+  const {
+    readingVisibleRef,
+    scheduleVisualFrame: scheduleTrackedVisualFrame,
+    queueHistoryAnchor,
+  } = useSessionHistoryVisuals({
+    readingVisible,
+    historyGenerationRef: context.historyGenerationRef,
+    sessionIdRef: context.sessionIdRef,
+    historyRevisionRef: context.historyRevisionRef,
+    scrollContainerRef: context.scrollContainerRef,
+  });
+
   const {
     interactiveTools,
     loadedMessagesRef,
@@ -92,6 +108,7 @@ export function useSessionHistory(context: Dependencies) {
     t,
     messages,
     scrollContainerRef,
+    messageRefs,
   } = context;
 
   const commitHistory = useCallback(
@@ -275,10 +292,22 @@ export function useSessionHistory(context: Dependencies) {
     if (!trace) return;
     pendingSessionLoadTraceRef.current = null;
     markSessionLoadPhase(trace, "react-commit");
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => finishSessionLoadTrace(trace));
-    });
-  }, [messages, pendingSessionLoadTraceRef]);
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      finishSessionLoadTrace(trace);
+    };
+    if (!readingVisibleRef.current) {
+      finish();
+      return;
+    }
+    const scheduleSecondFrame = () => {
+      if (!readingVisibleRef.current || scheduleTrackedVisualFrame(finish) === null) finish();
+    };
+    if (scheduleTrackedVisualFrame(scheduleSecondFrame) === null) finish();
+    return finish;
+  }, [messages, pendingSessionLoadTraceRef, readingVisible, readingVisibleRef, scheduleTrackedVisualFrame]);
 
   useEffect(
     () => () => {
@@ -315,6 +344,7 @@ export function useSessionHistory(context: Dependencies) {
   );
 
   const loadOlder = useCallback(async () => {
+    if (!readingVisibleRef.current) return;
     const sid = sessionIdRef.current;
     const cursor = previousCursorRef.current;
     const revision = historyRevisionRef.current;
@@ -325,6 +355,7 @@ export function useSessionHistory(context: Dependencies) {
     const scrollElement = scrollContainerRef.current;
     const previousScrollHeight = scrollElement?.scrollHeight ?? 0;
     const previousScrollTop = scrollElement?.scrollTop ?? 0;
+    const contentAnchor = captureHistoryContentAnchor(scrollElement, messageRefs);
     olderRequestRef.current = cursor;
     setLoadingOlder(true);
     try {
@@ -358,11 +389,17 @@ export function useSessionHistory(context: Dependencies) {
       }
       commitHistory(prepended.messages, prepended.entryIds);
       updatePagingState(revision, prepended.previousCursor ?? undefined);
-      requestAnimationFrame(() => {
-        const current = scrollContainerRef.current;
-        if (!current || current !== scrollElement) return;
-        current.scrollTop = previousScrollTop + (current.scrollHeight - previousScrollHeight);
-      });
+      if (scrollElement) {
+        queueHistoryAnchor({
+          element: scrollElement,
+          previousScrollHeight,
+          previousScrollTop,
+          contentAnchor,
+          generation,
+          sessionId: sid,
+          revision,
+        });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("STALE_CURSOR")) {
@@ -387,10 +424,13 @@ export function useSessionHistory(context: Dependencies) {
     loadSession,
     loadedEntryIdsRef,
     loadedMessagesRef,
+    messageRefs,
     olderRequestRef,
     previousCursorRef,
     scrollContainerRef,
     sessionIdRef,
+    queueHistoryAnchor,
+    readingVisibleRef,
     setLoadingOlder,
     updatePagingState,
   ]);

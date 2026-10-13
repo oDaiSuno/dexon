@@ -12,21 +12,33 @@ const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></
   pretendToBeVisual: true,
 });
 
-const originals = {
-  cancelAnimationFrame: globalThis.cancelAnimationFrame,
-  document: globalThis.document,
-  fetch: globalThis.fetch,
-  HTMLElement: globalThis.HTMLElement,
-  navigator: globalThis.navigator,
-  Node: globalThis.Node,
-  requestAnimationFrame: globalThis.requestAnimationFrame,
-  window: globalThis.window,
-};
+// React's legacy input-event fallback probes these IE-era methods when an
+// auto-focused nested input is mounted. Keep the DOM harness quiet without
+// changing production behavior.
+dom.window.HTMLElement.prototype.attachEvent = () => {};
+dom.window.HTMLElement.prototype.detachEvent = () => {};
+
+// Complete entry descriptors of every global this harness borrows, captured
+// before the first mutation so accessors, property flags and absence are
+// restored exactly (ASTRA-R10-F001).
+const BORROWED_GLOBALS = [
+  "cancelAnimationFrame",
+  "document",
+  "fetch",
+  "HTMLElement",
+  "navigator",
+  "Node",
+  "requestAnimationFrame",
+  "window",
+  "localStorage",
+  "IS_REACT_ACT_ENVIRONMENT",
+];
+const originals = new Map(BORROWED_GLOBALS.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 
 const storedValues = new Map();
 
 Object.defineProperties(globalThis, {
-  cancelAnimationFrame: { configurable: true, value: () => {} },
+  cancelAnimationFrame: { configurable: true, value: (id) => pendingFrames.delete(id) },
   document: { configurable: true, value: dom.window.document },
   HTMLElement: { configurable: true, value: dom.window.HTMLElement },
   navigator: { configurable: true, value: dom.window.navigator },
@@ -34,6 +46,11 @@ Object.defineProperties(globalThis, {
   requestAnimationFrame: {
     configurable: true,
     value(callback) {
+      if (rafQueueMode) {
+        const id = (rafSeq += 1);
+        pendingFrames.set(id, callback);
+        return id;
+      }
       callback(0);
       return 1;
     },
@@ -74,6 +91,14 @@ let stageClipboardImageImplementation = async () => ({
   message: "not mocked",
 });
 
+// rAF is synchronous by default (existing tests rely on immediate frames).
+// Tests that need to prove queued-frame cancellation opt into queue mode,
+// where requestAnimationFrame stores callbacks until flushRaf() runs them and
+// cancelAnimationFrame removes them.
+let rafQueueMode = false;
+const pendingFrames = new Map();
+let rafSeq = 0;
+
 globalThis.fetch = async (url, options) => {
   fetchRequests.push(String(url));
   return fetchImplementation(url, options);
@@ -98,11 +123,10 @@ dom.window.piBridge = {
 export const rootEl = dom.window.document.getElementById("root");
 
 export function restoreGlobals() {
-  for (const [key, value] of Object.entries(originals)) {
-    if (value === undefined) delete globalThis[key];
-    else Object.defineProperty(globalThis, key, { configurable: true, value });
+  for (const [name, descriptor] of originals) {
+    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+    else delete globalThis[name];
   }
-  delete globalThis.IS_REACT_ACT_ENVIRONMENT;
   dom.window.close();
 }
 
@@ -123,5 +147,23 @@ export const harness = {
   },
   getStageClipboardImage() {
     return stageClipboardImageImplementation;
+  },
+  /** Give every test an isolated request history regardless of execution order. */
+  resetRequests() {
+    fetchRequests.length = 0;
+    showItemInFolderCalls.length = 0;
+  },
+  /** Opt into queued rAF so tests can prove cancellation; off by default. */
+  setRafQueue(enabled) {
+    rafQueueMode = enabled;
+    if (!enabled) pendingFrames.clear();
+  },
+  flushRaf() {
+    const callbacks = [...pendingFrames.values()];
+    pendingFrames.clear();
+    for (const callback of callbacks) callback(0);
+  },
+  rafSize() {
+    return pendingFrames.size;
   },
 };

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 // Mobile breakpoint shared with app/styles/panels.css (max-width: 640px).
 const MOBILE_QUERY = "(max-width: 640px)";
@@ -24,6 +24,10 @@ function getServerSnapshot(): boolean {
  * SSR-safe: renders as desktop (false) on the server and first client paint,
  * then syncs to the real viewport after hydration.
  */
-export function useIsMobile(): boolean {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+export function useIsMobile(enabled = true): boolean {
+  const subscribeWhenEnabled = useCallback(
+    (callback: () => void) => (enabled ? subscribe(callback) : () => {}),
+    [enabled],
+  );
+  return useSyncExternalStore(subscribeWhenEnabled, getSnapshot, getServerSnapshot);
 }
