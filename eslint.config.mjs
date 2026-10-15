@@ -35,7 +35,7 @@ export default tseslint.config(
     files: ["**/*.{ts,tsx}"],
   })),
   {
-    files: ["src/**/*.{ts,tsx,mjs}", "scripts/**/*.mjs", "*.{ts,mjs}"],
+    files: ["src/**/*.{ts,tsx,mjs}", "scripts/**/*.mjs", "tests/**/*.mjs", "*.{ts,mjs}"],
     plugins: {
       "@eslint-community/eslint-comments": eslintComments,
     },

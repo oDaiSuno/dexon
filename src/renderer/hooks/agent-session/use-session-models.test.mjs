@@ -126,3 +126,65 @@ test("a failed refresh keeps the cached list and reports the failure", async (t)
   );
   assert.equal(h.state.modelRefreshing, false);
 });
+
+test("an initial model-directory failure is visible when no cached models exist", async (t) => {
+  const detail = createSessionDetail("initial-model-failure");
+  const host = createSessionTestHost({
+    getSession: async () => detail,
+    listModels: async () => {
+      throw new Error("directory unavailable");
+    },
+  });
+  const h = await createSessionHookHarness(t, { bundleName: "initial-model-failure", host });
+  await h.mount({ session: detail.info, newSessionCwd: null });
+  await h.flush();
+  assert.equal(h.state.modelList.length, 0);
+  assert.ok(
+    h.state.notices.some((n) => n.type === "warning" && n.message.includes("Unable to load the model directory.")),
+  );
+});
+
+test("a failed model-directory reload preserves the usable cached choices and reports it", async (t) => {
+  const detail = createSessionDetail("cached-model-failure");
+  let unavailable = false;
+  const host = createSessionTestHost({
+    getSession: async () => detail,
+    listModels: async () => {
+      if (unavailable) throw new Error("directory unavailable");
+      return MODEL_LIST;
+    },
+  });
+  const h = await createSessionHookHarness(t, { bundleName: "cached-model-failure", host });
+  const options = { session: detail.info, newSessionCwd: null, modelsRefreshKey: 0 };
+  await h.mount(options);
+  await h.flush();
+  unavailable = true;
+  await h.update({ ...options, modelsRefreshKey: 1 });
+  await h.flush();
+  assert.equal(h.state.modelList.length, 2);
+  assert.ok(h.state.notices.some((n) => n.type === "warning" && n.message.includes("Cached models remain available")));
+});
+
+test("an abandoned initial model load cannot show an error in the following session", async (t) => {
+  let rejectOld;
+  let loads = 0;
+  const detail = createSessionDetail("model-cancel");
+  const host = createSessionTestHost({
+    getSession: async () => detail,
+    listModels: () =>
+      ++loads === 1
+        ? new Promise((_, reject) => {
+            rejectOld = reject;
+          })
+        : Promise.resolve(MODEL_LIST),
+  });
+  const h = await createSessionHookHarness(t, { bundleName: "cancel-initial-models", host });
+  await h.mount({ session: detail.info, newSessionCwd: null });
+  await h.flush();
+  await h.remount({ session: detail.info, newSessionCwd: null });
+  await h.flush();
+  await h.act(async () => rejectOld(new Error("abandoned directory request")));
+  await h.flush();
+  assert.equal(h.state.modelList.length, 2);
+  assert.deepEqual(h.state.notices, []);
+});

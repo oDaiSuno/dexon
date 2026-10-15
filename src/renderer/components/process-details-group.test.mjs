@@ -1,114 +1,52 @@
-import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import path from "node:path";
 import test, { after } from "node:test";
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
+import { createElement, click, loadRenderer, mount, restoreGlobals } from "../../../tests/support/renderer.mjs";
 
-const previousActEnvironment = globalThis.IS_REACT_ACT_ENVIRONMENT;
-globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-
-const { ProcessDetailsGroup, ThinkingExpansionStore } = await importTestBundle(
-  "src/renderer/components/process-details-group",
-  {
-    stdin: {
-      contents:
-        'export { ProcessDetailsGroup } from "./ProcessDetailsGroup.tsx"; export { ThinkingExpansionStore } from "../lib/thinking-expansion-store.ts";',
-      resolveDir: import.meta.dirname,
-      sourcefile: "process-details-group-test-entry.tsx",
-      loader: "tsx",
-    },
-    tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-    external: ["react", "react-dom", "react-dom/*"],
-    plugins: [
-      {
-        name: "stub-i18n",
-        setup(buildApi) {
-          buildApi.onResolve({ filter: /^@\/i18n$/ }, () => ({
-            path: "i18n",
-            namespace: "process-details-group-test",
-          }));
-          buildApi.onLoad({ filter: /.*/, namespace: "process-details-group-test" }, () => ({
-            contents:
-              'export function useI18n() { return { language: "en", t(_key, fallback) { return fallback; } }; }',
-            loader: "js",
-          }));
-        },
-      },
-    ],
-  },
+const { ProcessDetailsGroup, ThinkingExpansionStore, setAppLanguage } = await loadRenderer(
+  "process-details-dom",
+  'export {ProcessDetailsGroup} from "./src/renderer/components/ProcessDetailsGroup.tsx"; export {ThinkingExpansionStore} from "./src/renderer/lib/thinking-expansion-store.ts";',
 );
+setAppLanguage("en-US");
+after(restoreGlobals);
 
-after(() => {
-  if (previousActEnvironment === undefined) delete globalThis.IS_REACT_ACT_ENVIRONMENT;
-  else globalThis.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
-});
-
-function renderGroup(expansionStore, stateKey, extraProps = {}) {
-  return create(
-    createElement(
-      ProcessDetailsGroup,
-      { expansionStore, stateKey, messageCount: 2, toolCallCount: 1, ...extraProps },
-      createElement("span", null, "persisted process content"),
-    ),
-  );
+function renderGroup(t, expansionStore, extraProps = {}) {
+  return mount(t, ProcessDetailsGroup, {
+    expansionStore,
+    stateKey: "process-group:user-1:assistant-1",
+    messageCount: 2,
+    toolCallCount: 1,
+    children: createElement("span", null, "persisted process content"),
+    ...extraProps,
+  });
 }
 
-test("process details header prefers the whole-turn duration when available", async () => {
-  const sessionStore = new ThinkingExpansionStore();
-  let renderer;
-  await act(async () => {
-    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1", { durationSeconds: 131 });
-  });
-  const header = renderer.root
-    .findAllByProps({ className: undefined })
-    .find((node) => typeof node.props.children === "string" && node.props.children.includes("2m11s"));
-  assert.ok(header, "header with duration not found");
-  assert.match(header.props.children, /Processed 2m11s/);
-  await act(async () => renderer.unmount());
+test("process details show the whole-turn duration when it is available", async (t) => {
+  const view = await renderGroup(t, new ThinkingExpansionStore(), { durationSeconds: 131 });
+  assert.match(view.container.querySelector("button").textContent, /Processed 2m11s/);
 });
 
-test("process details header falls back to counts without a duration", async () => {
-  const sessionStore = new ThinkingExpansionStore();
-  let renderer;
-  await act(async () => {
-    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1");
-  });
-  const header = renderer.root
-    .findAllByProps({ className: undefined })
-    .find((node) => typeof node.props.children === "string" && node.props.children.includes("Process details"));
-  assert.ok(header, "fallback header not found");
-  assert.match(header.props.children, /2 messages · 1 tool call\b/);
-  await act(async () => renderer.unmount());
+test("process details show message and tool counts when no duration is available", async (t) => {
+  const view = await renderGroup(t, new ThinkingExpansionStore());
+  assert.match(view.container.querySelector("button").textContent, /Process details · 2 messages · 1 tool call\b/);
 });
 
-test("process details expansion survives a component remount and remains isolated by session store", async () => {
+test("expanding process details survives remounting the same session without expanding another session", async (t) => {
   const sessionStore = new ThinkingExpansionStore();
-  let renderer;
-  await act(async () => {
-    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1");
-  });
-  assert.equal(renderer.root.findByType("button").props["aria-expanded"], false);
-  assert.equal(renderer.root.findAllByProps({ children: "persisted process content" }).length, 0);
+  const first = await renderGroup(t, sessionStore);
+  const toggle = first.container.querySelector("button");
+  assert.equal(toggle.getAttribute("aria-expanded"), "false");
+  assert.doesNotMatch(first.container.textContent, /persisted process content/);
 
-  await act(async () => {
-    renderer.root.findByType("button").props.onClick();
-  });
-  assert.equal(renderer.root.findByType("button").props["aria-expanded"], true);
-  assert.equal(renderer.root.findAllByProps({ children: "persisted process content" }).length, 1);
+  await click(toggle);
+  assert.equal(toggle.getAttribute("aria-expanded"), "true");
+  assert.match(first.container.textContent, /persisted process content/);
+  await first.unmount();
 
-  await act(async () => renderer.unmount());
-  await act(async () => {
-    renderer = renderGroup(sessionStore, "process-group:user-1:assistant-1");
-  });
-  assert.equal(renderer.root.findByType("button").props["aria-expanded"], true);
-  assert.equal(renderer.root.findAllByProps({ children: "persisted process content" }).length, 1);
-  await act(async () => renderer.unmount());
+  const remounted = await renderGroup(t, sessionStore);
+  assert.equal(remounted.container.querySelector("button").getAttribute("aria-expanded"), "true");
+  assert.match(remounted.container.textContent, /persisted process content/);
 
-  const otherSessionStore = new ThinkingExpansionStore();
-  await act(async () => {
-    renderer = renderGroup(otherSessionStore, "process-group:user-1:assistant-1");
-  });
-  assert.equal(renderer.root.findByType("button").props["aria-expanded"], false);
-  await act(async () => renderer.unmount());
+  const otherSession = await renderGroup(t, new ThinkingExpansionStore());
+  assert.equal(otherSession.container.querySelector("button").getAttribute("aria-expanded"), "false");
+  assert.doesNotMatch(otherSession.container.textContent, /persisted process content/);
 });

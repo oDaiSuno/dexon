@@ -1,3 +1,5 @@
+import { configureSmokeEnvironment } from "./environment";
+import { writeNativeCompletion } from "./native-completion";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
@@ -41,6 +43,8 @@ type BrowserAgentFixtureStatus = {
     budgetExhausted: boolean;
   };
 };
+
+configureSmokeEnvironment();
 
 const rootValue = process.env.PI_BROWSER_AGENT_E2E_ROOT;
 assert.ok(rootValue && path.isAbsolute(rootValue), "PI_BROWSER_AGENT_E2E_ROOT must be absolute");
@@ -131,15 +135,24 @@ async function finish(exitCode: number, error?: unknown): Promise<void> {
   if (finishing) return;
   finishing = true;
   if (error) console.error(error instanceof Error ? (error.stack ?? error.message) : error);
-  await hostManager?.stop().catch(() => undefined);
+  const release = async (operation: () => unknown): Promise<void> => {
+    try {
+      await operation();
+    } catch (failure) {
+      exitCode = 1;
+      console.error(failure);
+    }
+  };
+  await release(() => hostManager?.stop());
   hostManager = null;
-  await managedProcessReaper?.reapAll().catch(() => undefined);
+  await release(() => managedProcessReaper?.reapAll());
   managedProcessReaper = null;
-  await browserService?.dispose().catch(() => undefined);
+  await release(() => browserService?.dispose());
   browserService = null;
-  await closeFixtureServer().catch(() => undefined);
+  await release(closeFixtureServer);
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy();
   mainWindow = null;
+  if (exitCode === 0) await release(() => writeNativeCompletion("browser-agent-e2e"));
   app.exit(exitCode);
 }
 

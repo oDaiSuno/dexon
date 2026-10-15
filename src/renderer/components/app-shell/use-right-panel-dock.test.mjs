@@ -1,3 +1,5 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -11,30 +13,18 @@ import { act, create } from "react-test-renderer";
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { useRightPanelDock } = await importTestBundle("app-shell-right-panel-dock", {
+const { resetRpc, useRightPanelDock } = await importTestBundle("app-shell-right-panel-dock", {
   stdin: {
-    contents: 'export { useRightPanelDock } from "./src/renderer/components/app-shell/use-right-panel-dock.ts";',
+    contents:
+      'export { useRightPanelDock } from "./src/renderer/components/app-shell/use-right-panel-dock.ts";' +
+      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts";',
     resolveDir: projectRoot,
     sourcefile: "right-panel-dock-test-entry.ts",
     loader: "ts",
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "right-panel-dock-stubs",
-      setup(build) {
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "right-panel-dock" }));
-        build.onLoad({ filter: /.*/, namespace: "right-panel-dock" }, () => ({
-          contents:
-            "export const call = (method, params) => globalThis.__dockHarness.call(method, params);\n" +
-            "export const subscribe = (topic, key, listener) =>\n" +
-            "  globalThis.__dockHarness.subscribe(topic, key, listener);",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 const EXPLORER_TAB_ID = "explorer";
@@ -59,6 +49,7 @@ function installEnvironment({ innerWidth = 1400, storage } = {}) {
   const originals = new Map(GLOBAL_NAMES.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const store = storage ?? createStorage();
   const windowListeners = new Map();
+  const cleanups = [];
   const activateTabCalls = [];
   let browserSettings = { settings: { panel: { openOnAgentUse: true } } };
   const harness = {
@@ -104,20 +95,46 @@ function installEnvironment({ innerWidth = 1400, storage } = {}) {
     },
   };
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const hostBoundary = installApiHostBridge(globalThis.window, () => globalThis.__dockHarness, resetRpc);
   return {
     store,
-    windowListeners,
+    windowEvent(type, event) {
+      for (const handler of [...(windowListeners.get(type) ?? [])]) handler(event);
+    },
+    browserEvent(event) {
+      for (const handler of [...harness.browserEventHandlers]) handler(event);
+    },
+    processChanged(event) {
+      for (const handler of [...harness.processChangedHandlers]) handler(event);
+    },
+    ownCleanup(cleanup) {
+      cleanups.push(cleanup);
+    },
     harness,
     activateTabCalls,
     setBrowserSettings(next) {
       browserSettings = next;
     },
     async restore() {
+      const errors = [];
+      for (const cleanup of cleanups.reverse()) {
+        try {
+          await cleanup();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
+      try {
+        hostBoundary.close();
+      } catch (error) {
+        errors.push(error);
+      }
       delete globalThis.__dockHarness;
       for (const [name, descriptor] of originals) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
         else delete globalThis[name];
       }
+      if (errors.length) throw new AggregateError(errors, "Dock cleanup failed");
     },
   };
 }
@@ -127,11 +144,11 @@ async function withEnvironment(options, run) {
   try {
     await run(env);
   } finally {
-    env.restore();
+    await env.restore();
   }
 }
 
-async function mountDock({ isMobile = false, sidebarOpen = true } = {}) {
+async function mountDock(env, { isMobile = false, sidebarOpen = true } = {}) {
   const calls = { collapseSidebar: 0 };
   // Stable identity mirrors the real wiring (a useCallback in AppShell); an
   // unstable callback would re-subscribe the process stream on every render.
@@ -144,29 +161,32 @@ async function mountDock({ isMobile = false, sidebarOpen = true } = {}) {
     return null;
   }
   let renderer;
+  let mounted = true;
+  const unmount = async () => {
+    if (!mounted) return;
+    mounted = false;
+    await act(async () => renderer?.unmount());
+  };
+  env.ownCleanup(unmount);
   await act(async () => {
     renderer = create(createElement(Probe));
   });
   return {
     state,
     calls,
-    unmount: async () => {
-      await act(async () => {
-        renderer.unmount();
-      });
-    },
+    unmount,
   };
 }
 
 test("tracks the managed process badge from availability snapshots", async () => {
   await withEnvironment({}, async (env) => {
     env.harness.processList = [{ state: "running" }, { state: "failed" }, { state: "exited", exit: { code: 0 } }];
-    const mounted = await mountDock();
+    const mounted = await mountDock(env);
     assert.equal(mounted.state.value.managedProcessCount, 1);
     assert.equal(mounted.state.value.managedProcessAttention, true);
     env.harness.processList = [{ state: "ready" }];
     await act(async () => {
-      env.harness.processChangedHandlers[0]({ reason: "updated" });
+      env.processChanged({ reason: "updated" });
     });
     assert.equal(mounted.state.value.managedProcessCount, 1);
     assert.equal(mounted.state.value.managedProcessAttention, false);
@@ -176,10 +196,10 @@ test("tracks the managed process badge from availability snapshots", async () =>
 
 test("auto-opens the processes tab when a process requests UI activation", async () => {
   await withEnvironment({}, async (env) => {
-    const mounted = await mountDock({ isMobile: true });
+    const mounted = await mountDock(env, { isMobile: true });
     assert.equal(mounted.state.value.rightPanelOpen, false);
     await act(async () => {
-      env.harness.processChangedHandlers[0]({ reason: "created", activateUi: true });
+      env.processChanged({ reason: "created", activateUi: true });
     });
     assert.equal(mounted.state.value.activeFileTabId, PROCESSES_TAB_ID);
     assert.equal(mounted.state.value.rightPanelOpen, true);
@@ -190,9 +210,9 @@ test("auto-opens the processes tab when a process requests UI activation", async
 
 test("does not collapse the sidebar for desktop process activation", async () => {
   await withEnvironment({}, async (env) => {
-    const mounted = await mountDock();
+    const mounted = await mountDock(env);
     await act(async () => {
-      env.harness.processChangedHandlers[0]({ reason: "created", activateUi: true });
+      env.processChanged({ reason: "created", activateUi: true });
     });
     assert.equal(mounted.state.value.activeFileTabId, PROCESSES_TAB_ID);
     assert.equal(mounted.state.value.rightPanelOpen, true);
@@ -202,8 +222,8 @@ test("does not collapse the sidebar for desktop process activation", async () =>
 });
 
 test("closes the panel when the last file tab closes on the files tab", async () => {
-  await withEnvironment({}, async () => {
-    const mounted = await mountDock();
+  await withEnvironment({}, async (env) => {
+    const mounted = await mountDock(env);
     await act(async () => {
       mounted.state.value.openRightPanel();
     });
@@ -226,8 +246,8 @@ test("closes the panel when the last file tab closes on the files tab", async ()
 });
 
 test("keeps the panel open when a file tab closes while a tool tab is active", async () => {
-  await withEnvironment({}, async () => {
-    const mounted = await mountDock();
+  await withEnvironment({}, async (env) => {
+    const mounted = await mountDock(env);
     await act(async () => {
       mounted.state.value.openRightPanel();
       mounted.state.value.dispatchFileTab({
@@ -248,7 +268,7 @@ test("keeps the panel open when a file tab closes while a tool tab is active", a
 
 test("restores per-kind preferred widths when the panel kind changes", async () => {
   await withEnvironment({ storage: createStorage({ [BROWSER_WIDTH_KEY]: "420" }) }, async (env) => {
-    const mounted = await mountDock();
+    const mounted = await mountDock(env);
     assert.equal(mounted.state.value.rightPanelWidth, 360);
     await act(async () => {
       mounted.state.value.dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
@@ -266,7 +286,7 @@ test("restores per-kind preferred widths when the panel kind changes", async () 
 
 test("adjusts and persists the width from the keyboard", async () => {
   await withEnvironment({}, async (env) => {
-    const mounted = await mountDock();
+    const mounted = await mountDock(env);
     await act(async () => {
       mounted.state.value.handleRightPanelResizeKeyDown({ key: "ArrowRight", shiftKey: false, preventDefault() {} });
     });
@@ -286,11 +306,9 @@ test("adjusts and persists the width from the keyboard", async () => {
 
 test("opens the browser tab on a desktop open-browser-tab request", async () => {
   await withEnvironment({}, async (env) => {
-    const mounted = await mountDock();
-    const handlers = env.windowListeners.get("dexon:open-browser-tab") ?? [];
-    assert.equal(handlers.length, 1);
+    const mounted = await mountDock(env);
     await act(async () => {
-      handlers[0]({ detail: { tabId: "t1" } });
+      env.windowEvent("dexon:open-browser-tab", { detail: { tabId: "t1" } });
     });
     assert.equal(mounted.state.value.activeFileTabId, BROWSER_TAB_ID);
     assert.equal(mounted.state.value.rightPanelOpen, true);
@@ -301,10 +319,9 @@ test("opens the browser tab on a desktop open-browser-tab request", async () => 
 
 test("follows the open-on-agent-use setting for agent tab creation", async () => {
   await withEnvironment({}, async (env) => {
-    const mounted = await mountDock();
-    assert.equal(env.harness.browserEventHandlers.length, 1);
+    const mounted = await mountDock(env);
     await act(async () => {
-      env.harness.browserEventHandlers[0]({ type: "tab-created", tab: { ownerSessionId: "s1" } });
+      env.browserEvent({ type: "tab-created", tab: { ownerSessionId: "s1" } });
     });
     await act(async () => {});
     assert.equal(mounted.state.value.rightPanelOpen, true);
@@ -316,9 +333,9 @@ test("follows the open-on-agent-use setting for agent tab creation", async () =>
 test("ignores agent tab creation when the panel open setting is disabled", async () => {
   await withEnvironment({}, async (env) => {
     env.setBrowserSettings({ settings: { panel: { openOnAgentUse: false } } });
-    const mounted = await mountDock();
+    const mounted = await mountDock(env);
     await act(async () => {
-      env.harness.browserEventHandlers[0]({ type: "tab-created", tab: { ownerSessionId: "s1" } });
+      env.browserEvent({ type: "tab-created", tab: { ownerSessionId: "s1" } });
     });
     await act(async () => {});
     assert.equal(mounted.state.value.rightPanelOpen, false);
@@ -327,8 +344,8 @@ test("ignores agent tab creation when the panel open setting is disabled", async
 });
 
 test("collapses the sidebar when the viewport is too narrow for both panels", async () => {
-  await withEnvironment({ innerWidth: 900 }, async () => {
-    const mounted = await mountDock();
+  await withEnvironment({ innerWidth: 900 }, async (env) => {
+    const mounted = await mountDock(env);
     await act(async () => {
       mounted.state.value.openRightPanel();
     });

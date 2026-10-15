@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react";
+import { byRole, mouseDown } from "../../../tests/support/dom-events.mjs";
 import { createSessionDetail } from "../hooks/agent-session/session-hook-harness.mjs";
 import {
   createChatWindowBundle,
@@ -14,31 +15,14 @@ import {
  * Retained ChatWindow composition evidence (ASTRA-R5-G001.2): the actual
  * ChatWindow assembly — real useChatWindow/useAgentSession, ChatInput,
  * ChatMinimap, history sentinel and viewport-height owners — driven through a
- * visible→hidden→visible cycle with explicit observer/listener/frame/timer
- * registries. This is the composite accounting the helper/source tests cannot
- * provide on their own.
+ * visible→hidden→visible cycle through browser target notifications and actual
+ * DOM events. Visible results and released targets remain stable when reading
+ * ownership is reorganized; no positive observer or listener count is fixed.
  */
 
-const scrollContainerOf = (env) => env.root.querySelector(".overflow-y-auto");
+const scrollContainerOf = (env) => byRole(env.root, "region", "Conversation");
 const elementListenersOf = (env, element) => env.elementListeners.get(element) ?? new Map();
-// jsdom's selector engine (@asamuzakjp/dom-selector) attaches window
-// listeners named _handleFocusEvent/_handleKeyboardEvent/_handleMouseEvent
-// once the DOM is used; filter them out so the reading delta is exact.
-const readingWindowListeners = (env, type) =>
-  (env.windowListeners.get(type) ?? []).filter((fn) => !fn.name.startsWith("_handle"));
-
 const CONTAINER_READING_TYPES = ["wheel", "touchstart", "touchmove", "touchend", "touchcancel", "scroll"];
-// scroll carries two listeners while visible: the reading position handler
-// and the minimap's own scroll measurement; the touch/wheel types are reading
-// only.
-const CONTAINER_READING_EXPECTED = new Map([
-  ["wheel", 1],
-  ["touchstart", 1],
-  ["touchmove", 1],
-  ["touchend", 1],
-  ["touchcancel", 1],
-  ["scroll", 2],
-]);
 
 const emit = (host, event) => {
   for (const sink of host.eventSinks.filter((s) => s.active)) sink.onEvent(event);
@@ -79,16 +63,37 @@ function trackGeometry(container, { clientHeight, scrollHeight, scrollTop }) {
     },
   });
   return {
+    set(values) {
+      if (values.clientHeight !== undefined) clientHeight = values.clientHeight;
+      if (values.scrollHeight !== undefined) scrollHeight = values.scrollHeight;
+      if (values.scrollTop !== undefined) scrollTopValue = values.scrollTop;
+    },
     reads: () => reads,
     writes: () => writes,
     scrollTop: () => scrollTopValue,
   };
 }
 
-const minimapElementOf = (env) =>
-  [...env.root.querySelectorAll("div")].find(
-    (element) => element.style?.width === "36px" && (element.style?.borderLeft ?? "").includes("var(--border)"),
-  );
+const minimapElementOf = (env) => byRole(env.root, "region", "Conversation minimap");
+const bottomButtonOf = (env) => env.root.querySelector('[aria-label="Scroll to bottom"]');
+const sentinelOf = (env) => byRole(env.root, "group", "Earlier messages");
+
+function notifyReadingSurface(env, container) {
+  env.resize(container);
+  container.dispatchEvent(new env.dom.window.Event("scroll"));
+  container.dispatchEvent(new env.dom.window.WheelEvent("wheel", { deltaY: -10 }));
+  env.dom.window.dispatchEvent(new env.dom.window.KeyboardEvent("keydown", { key: "PageUp" }));
+}
+
+function assertReleased(env, container) {
+  assert.equal(env.resizeTargets().size, 0, "no released page target remains observed for size changes");
+  assert.equal(env.intersectionTargets().size, 0, "no released page target remains observed for intersection changes");
+  assert.equal(env.rafQueue.size, 0, "unmount leaves no owned browser frame");
+  assert.equal(env.clock.pendingCount(), 0, "unmount leaves no owned browser task");
+  for (const type of CONTAINER_READING_TYPES) {
+    assert.equal(elementListenersOf(env, container).get(type)?.length ?? 0, 0, `unmount releases container ${type}`);
+  }
+}
 
 /**
  * Registers guaranteed teardown BEFORE any fallible bundle acquisition: a
@@ -108,7 +113,7 @@ function createTeardown(t, env) {
       if (holder.h) await holder.h.unmount();
     } finally {
       try {
-        holder.releaseHost();
+        await holder.releaseHost();
       } finally {
         env.restore();
       }
@@ -122,195 +127,192 @@ function createTeardown(t, env) {
 }
 
 test("retained ChatWindow hides reading work while the runtime continues", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const env = installCompositionEnvironment();
   const detail = createSessionDetail("composition", { previousCursor: "older" });
-  const host = createCompositionHost({ getSession: async () => detail });
+  const pages = [];
+  const host = createCompositionHost({
+    getSession: async () => detail,
+    getSessionContextPage: async (...params) => {
+      pages.push(params);
+      return { context: { messages: [], entryIds: [], historyRevision: "r", previousCursor: null }, truncated: false };
+    },
+  });
   const teardown = createTeardown(t, env);
   const { ChatWindow, releaseHost } = await createChatWindowBundle(host);
   teardown.releaseHost = releaseHost;
   const h = createCompositionHarness(env, ChatWindow);
   teardown.h = h;
-
   await h.mount({ session: detail.info });
   await flushAsync();
-  await env.flushRafUntilSettled();
+  await act(async () => env.flushRafUntilSettled());
 
-  // Visible: every reading owner is attached exactly once.
-  const scrollContainer = scrollContainerOf(env);
-  assert.ok(scrollContainer, "the loaded chat renders a scroll container");
-  assert.equal(env.activeResizeObservers().length, 3, "presence, viewport and minimap observers are active");
-  assert.equal(env.activeIntersectionObservers().length, 1, "the history sentinel observer is active");
-  assert.equal(readingWindowListeners(env, "keydown").length, 1, "window keydown is attached");
-  assert.equal(readingWindowListeners(env, "pointerdown").length, 1, "window pointerdown is attached");
-  for (const type of CONTAINER_READING_TYPES) {
-    assert.equal(
-      elementListenersOf(env, scrollContainer).get(type)?.length ?? 0,
-      CONTAINER_READING_EXPECTED.get(type),
-      `container ${type} attached`,
-    );
-  }
+  const container = scrollContainerOf(env);
+  assert.ok(container, "the loaded chat renders a scroll container");
+  const geometry = trackGeometry(container, { clientHeight: 400, scrollHeight: 800, scrollTop: 400 });
+  await act(async () => env.resize(container));
+  assert.equal(bottomButtonOf(env), null, "being at the latest message does not offer another jump");
+  geometry.set({ scrollTop: 0 });
+  await act(async () => env.resize(container));
+  assert.ok(bottomButtonOf(env), "viewport changes expose the public return-to-latest action");
+  assert.ok(minimapElementOf(env), "the visible overflowing conversation exposes its minimap");
+  const sentinel = sentinelOf(env);
+  assert.ok(sentinel, "older history is available before hiding");
 
-  // Hide: every reading artifact is torn down; old targets are released.
   await h.rerender({ visible: false });
-  assert.equal(env.activeResizeObservers().length, 0, "no reading observer stays active while hidden");
-  assert.equal(env.activeIntersectionObservers().length, 0, "the sentinel observer is disconnected while hidden");
-  assert.equal(readingWindowListeners(env, "keydown").length, 0, "window keydown is removed");
-  assert.equal(readingWindowListeners(env, "pointerdown").length, 0, "window pointerdown is removed");
-  for (const type of CONTAINER_READING_TYPES) {
-    assert.equal(elementListenersOf(env, scrollContainer).get(type)?.length ?? 0, 0, `container ${type} removed`);
-  }
-  assert.equal(env.rafQueue.size, 0, "no queued UI frames while hidden");
-
-  // Zero hidden geometry reads/writes: the 30ms presence and 50ms minimap
-  // timers must not re-read or re-write geometry after hiding. The counters
-  // are installed after the visible-state reads so legitimate setup is not
-  // counted against the hidden claim.
-  const geometry = trackGeometry(scrollContainer, { clientHeight: 400, scrollHeight: 800, scrollTop: 0 });
-  const scrollIntoViewBefore = env.scrollIntoViewCalls.length;
-  const scrollToBefore = env.scrollToCalls.length;
-  const readsBefore = geometry.reads();
-  const writesBefore = geometry.writes();
-  t.mock.timers.tick(100);
+  assert.equal(byRole(env.root, "region", "Chat").hidden, true);
+  const reads = geometry.reads();
+  const writes = geometry.writes();
+  const scrolls = env.scrollIntoViewCalls.length;
+  const scrollTo = env.scrollToCalls.length;
+  await act(async () => {
+    notifyReadingSurface(env, container);
+    env.intersect(sentinel, true);
+    await env.clock.advanceBy(100);
+    env.flushRafUntilSettled();
+  });
   await flushAsync();
-  assert.equal(env.scrollIntoViewCalls.length, scrollIntoViewBefore, "no scrollIntoView while hidden");
-  assert.equal(env.scrollToCalls.length, scrollToBefore, "no scrollTo while hidden");
-  assert.equal(geometry.reads(), readsBefore, "no hidden geometry reads after the timer windows");
-  assert.equal(geometry.writes(), writesBefore, "no hidden geometry writes after the timer windows");
-  assert.equal(geometry.scrollTop(), 0, "hidden scrollTop is never written");
+  assert.equal(env.scrollIntoViewCalls.length, scrolls, "no scrollIntoView while hidden");
+  assert.equal(env.scrollToCalls.length, scrollTo, "no scrollTo while hidden");
+  assert.equal(geometry.reads(), reads, "hidden browser events and elapsed time cause no layout reads");
+  assert.equal(geometry.writes(), writes, "hidden browser events and elapsed time cause no scrolling");
+  assert.deepEqual(pages, [], "a hidden history sentinel does not request another page");
 
-  // Runtime keeps working while hidden: an agent event still updates the run.
-  await act(async () => emit(host, { type: "agent_start" }));
+  await act(async () => {
+    emit(host, { type: "agent_start" });
+    emit(host, {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "A reply received while the page was hidden" }],
+        timestamp: 3,
+      },
+    });
+  });
   await flushAsync();
-  assert.ok(env.root.querySelector(".chat-shimmer-text"), "the runtime continues while hidden");
+  assert.ok(
+    env.root.textContent.includes("A reply received while the page was hidden"),
+    "the real runtime retains a background reply",
+  );
+  assert.equal(geometry.reads(), reads, "background replies do not read hidden geometry");
+  assert.equal(geometry.writes(), writes, "background replies do not scroll the hidden conversation");
 
-  // Show: every owner re-attaches exactly once and observes the current target.
   await h.rerender({ visible: true });
   await flushAsync();
-  assert.equal(env.activeResizeObservers().length, 3, "observers re-attach on show");
-  assert.equal(env.activeIntersectionObservers().length, 1, "the sentinel re-attaches on show");
-  assert.equal(readingWindowListeners(env, "keydown").length, 1, "window keydown re-attached");
-  assert.equal(readingWindowListeners(env, "pointerdown").length, 1, "window pointerdown re-attached");
-  for (const type of CONTAINER_READING_TYPES) {
-    assert.equal(
-      elementListenersOf(env, scrollContainer).get(type)?.length ?? 0,
-      CONTAINER_READING_EXPECTED.get(type),
-      `container ${type} re-attached`,
-    );
-  }
-  const viewportObserver = env.activeResizeObservers().find((observer) => observer.observed.includes(scrollContainer));
-  assert.ok(viewportObserver, "the viewport-height observer observes the current container");
+  assert.equal(byRole(env.root, "region", "Chat").hidden, false);
+  assert.ok(
+    env.root.textContent.includes("A reply received while the page was hidden"),
+    "the retained reply is available on return",
+  );
+  geometry.set({ scrollTop: 400 });
+  await act(async () => env.resize(container));
+  assert.equal(bottomButtonOf(env), null, "size changes update the returned view at the latest message");
+  geometry.set({ scrollTop: 0 });
+  await act(async () => env.resize(container));
+  assert.ok(bottomButtonOf(env), "the returned view responds to geometry changes again");
+  await act(async () => env.intersect(sentinelOf(env), true));
+  await flushAsync();
+  assert.equal(pages.length, 1, "visible history entry submits one page request");
 
-  // Unmount: complete teardown of every reading owner.
   await h.unmount();
-  assert.equal(env.activeResizeObservers().length, 0, "unmount disconnects every observer");
-  assert.equal(env.activeIntersectionObservers().length, 0, "unmount disconnects the sentinel");
-  assert.equal(env.rafQueue.size, 0, "unmount cancels every frame");
+  assertReleased(env, container);
 });
 
 test("an active minimap drag and a pending follow frame are cancelled by hiding", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const env = installCompositionEnvironment();
-  const detail = createSessionDetail("composition-drag");
+  const detail = createSessionDetail("composition-drag", { previousCursor: "older" });
   const host = createCompositionHost({ getSession: async () => detail });
   const teardown = createTeardown(t, env);
   const { ChatWindow, releaseHost } = await createChatWindowBundle(host);
   teardown.releaseHost = releaseHost;
   const h = createCompositionHarness(env, ChatWindow);
   teardown.h = h;
-
   await h.mount({ session: detail.info });
   await flushAsync();
-  await env.flushRafUntilSettled();
-  const scrollContainer = scrollContainerOf(env);
-  assert.ok(scrollContainer, "the loaded chat renders a scroll container");
-
-  // Controlled near-bottom geometry: the minimap becomes scrollable and an
-  // external turn counts as near-bottom, so a follow frame can be scheduled.
-  const geometry = trackGeometry(scrollContainer, { clientHeight: 400, scrollHeight: 800, scrollTop: 400 });
-  for (const observer of env.activeResizeObservers()) observer.emit();
-  await flushAsync();
-  const minimap = minimapElementOf(env);
-  assert.ok(minimap, "the minimap renders with scrollable geometry");
-
-  // Schedule a follow frame non-vacuously BEFORE the drag: with the initial
-  // scrollTop (400) the external turn counts as near-bottom and queues one
-  // pending frame. The drag below rewrites scrollTop to 0, which is a visible
-  // state write, not a hidden one.
+  await act(async () => env.flushRafUntilSettled());
+  const container = scrollContainerOf(env);
+  const geometry = trackGeometry(container, { clientHeight: 400, scrollHeight: 800, scrollTop: 400 });
+  await act(async () => env.resize(container));
   await act(async () => {
     emit(host, { type: "channel_turn_start" });
     emit(host, { type: "agent_start" });
   });
   await flushAsync();
-  assert.equal(env.rafQueue.size, 1, "the follow loop queues exactly one frame before hiding");
+  const beforeFollow = env.scrollIntoViewCalls.length;
+  await act(async () => env.flushRafUntilSettled());
+  assert.ok(env.scrollIntoViewCalls.length > beforeFollow, "a visible external turn follows its latest content");
 
-  // Start a drag: mousedown installs window move/up listeners and writes
-  // scrollTop once in the visible state; the follow frame stays pending.
+  await act(async () =>
+    emit(host, {
+      type: "message_update",
+      message: { role: "assistant", content: [{ type: "text", text: "A pending visible turn" }] },
+    }),
+  );
+  await flushAsync();
+  const minimap = minimapElementOf(env);
+  assert.ok(minimap, "the visible conversation has a draggable minimap");
   Object.defineProperty(minimap, "getBoundingClientRect", {
     configurable: true,
     value: () => ({ top: 0, bottom: 400, height: 400 }),
   });
-  const writesAfterDragStart = geometry.writes();
-  await act(async () =>
-    minimap.dispatchEvent(new env.dom.window.MouseEvent("mousedown", { bubbles: true, clientY: 100 })),
-  );
-  assert.equal(readingWindowListeners(env, "mousemove").length, 1, "the drag installs a window mousemove listener");
-  assert.equal(readingWindowListeners(env, "mouseup").length, 1, "the drag installs a window mouseup listener");
-  assert.ok(geometry.writes() > writesAfterDragStart, "the drag start writes scrollTop in the visible state");
-  assert.equal(env.rafQueue.size, 1, "the drag does not cancel the pending follow frame");
-  const scrollTopAfterDragStart = geometry.scrollTop();
-
-  // Hide with the drag still active and the frame still pending.
+  await mouseDown(minimap, { clientY: 100 });
+  await act(async () => env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 200 })));
+  assert.equal(geometry.scrollTop(), 200, "dragging the viewport halfway across its travel scrolls halfway down");
   await h.rerender({ visible: false });
-  assert.equal(env.rafQueue.size, 0, "hiding cancels the pending follow frame");
-  assert.equal(readingWindowListeners(env, "mousemove").length, 0, "hiding removes the drag mousemove listener");
-  assert.equal(readingWindowListeners(env, "mouseup").length, 0, "hiding removes the drag mouseup listener");
-  assert.equal(geometry.scrollTop(), scrollTopAfterDragStart, "no hidden scrollTop write from the stopped drag");
-  const readsAfterHide = geometry.reads();
-  const writesAfterHide = geometry.writes();
-  const scrollIntoViewBeforeHide = env.scrollIntoViewCalls.length;
-  t.mock.timers.tick(100);
-  await flushAsync();
-  assert.equal(geometry.reads(), readsAfterHide, "no hidden geometry reads after the timer windows");
-  assert.equal(geometry.writes(), writesAfterHide, "no hidden geometry writes after the timer windows");
-  assert.equal(
-    env.scrollIntoViewCalls.length,
-    scrollIntoViewBeforeHide,
-    "no scrollIntoView while hidden (follow frame never flushed)",
-  );
+  const reads = geometry.reads();
+  const writes = geometry.writes();
+  const scrolls = env.scrollIntoViewCalls.length;
+  await act(async () => {
+    env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 300 }));
+    env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mouseup"));
+    notifyReadingSurface(env, container);
+    await env.clock.advanceBy(100);
+    env.flushRafUntilSettled();
+  });
+  assert.equal(geometry.scrollTop(), 200, "continuing the old drag cannot move hidden content");
+  assert.equal(geometry.reads(), reads, "the stopped drag and follow work perform no hidden measurement");
+  assert.equal(geometry.writes(), writes, "the stopped drag and follow work perform no hidden write");
+  assert.equal(env.scrollIntoViewCalls.length, scrolls, "a pending visible follow never scrolls after hiding");
 
+  await h.rerender({ visible: true });
+  const returnedMinimap = minimapElementOf(env);
+  assert.ok(returnedMinimap, "the minimap returns with the visible page");
+  Object.defineProperty(returnedMinimap, "getBoundingClientRect", {
+    configurable: true,
+    value: () => ({ top: 0, bottom: 400, height: 400 }),
+  });
+  await mouseDown(returnedMinimap, { clientY: 100 });
+  await act(async () => env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 200 })));
+  assert.equal(geometry.scrollTop(), 400, "a new drag works after returning to the page");
   await h.unmount();
+  assertReleased(env, container);
+  assert.equal(env.windowListeners.get("mousemove")?.length ?? 0, 0, "unmount releases an active drag");
+  assert.equal(env.windowListeners.get("mouseup")?.length ?? 0, 0, "unmount releases drag completion");
 });
 
 test("delayed element readiness attaches the viewport observer", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const env = installCompositionEnvironment();
-  const detail = createSessionDetail("composition-delayed");
+  const detail = createSessionDetail("composition-delayed", { previousCursor: "older" });
   let resolveSession;
-  const host = createCompositionHost({
-    getSession: () => new Promise((resolve) => (resolveSession = resolve)),
-  });
+  const host = createCompositionHost({ getSession: () => new Promise((resolve) => (resolveSession = resolve)) });
   const teardown = createTeardown(t, env);
   const { ChatWindow, releaseHost } = await createChatWindowBundle(host);
   teardown.releaseHost = releaseHost;
   const h = createCompositionHarness(env, ChatWindow);
   teardown.h = h;
-
   await h.mount({ session: detail.info });
   await flushAsync();
   assert.equal(scrollContainerOf(env), null, "the loading state has no scroll container");
-  assert.equal(env.activeResizeObservers().length, 0, "no geometry observer before the element exists");
-
   await act(async () => resolveSession(detail));
   await flushAsync();
-  await env.flushRafUntilSettled();
-  const scrollContainer = scrollContainerOf(env);
-  assert.ok(scrollContainer, "the loaded chat renders a scroll container");
-  assert.equal(env.activeResizeObservers().length, 3, "observers attach after the element appears");
-  const viewportObserver = env.activeResizeObservers().find((observer) => observer.observed.includes(scrollContainer));
-  assert.ok(viewportObserver, "the viewport-height observer observes the late scroll container");
-
+  await act(async () => env.flushRafUntilSettled());
+  const container = scrollContainerOf(env);
+  assert.ok(container, "the loaded chat renders a scroll container");
+  trackGeometry(container, { clientHeight: 400, scrollHeight: 800, scrollTop: 0 });
+  await act(async () => env.resize(container));
+  assert.ok(bottomButtonOf(env), "a late viewport responds to the same browser size notification");
+  assert.ok(minimapElementOf(env), "late content becomes available in the minimap");
   await h.unmount();
+  assertReleased(env, container);
 });
 
 /**
@@ -388,10 +390,13 @@ test("a rejecting bundle acquisition restores the environment and host", async (
   // A following fixture acquires and releases cleanly from the restored state
   // (the outer fetch is still the sentinel here; only the ordered teardown
   // restores the genuine outer original at test end).
+  const followingEnv = installCompositionEnvironment();
+  const followingTeardown = createTeardown(t, followingEnv);
+  ordered.releases.push(followingTeardown.cleanup);
   const following = await createChatWindowBundle(createCompositionHost());
-  ordered.releases.push(following.releaseHost);
+  followingTeardown.releaseHost = following.releaseHost;
   assert.ok(following.ChatWindow, "a following fixture acquires successfully after the rejection");
-  await following.releaseHost();
+  await followingTeardown.cleanup();
   assert.equal(
     Object.getOwnPropertyDescriptor(globalThis, "__compositionHost"),
     undefined,

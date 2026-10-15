@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act, useEffect } from "react";
+import { hostError } from "../../../../tests/support/deferred-host.mjs";
 
 // A dedicated characterization of the successful update path: the original
 // request identity, the returned package/version data, the success feedback,
@@ -53,17 +54,14 @@ test("a successful update posts the original identity, applies the returned pack
     assert.equal(state.value.actionMessage, null);
 
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () =>
-          pluginsResponse([pkg("npm:one", "project", { version: "1.2.0", configuredVersion: "1.2.0" })]),
-      });
+      env.pending[1].deferred.resolve(
+        pluginsResponse([pkg("npm:one", "project", { version: "1.2.0", configuredVersion: "1.2.0" })]),
+      );
       await action;
     });
 
-    const request = JSON.parse(env.pending[1].options.body);
-    assert.equal(env.pending[1].url, "/api/plugins");
-    assert.equal(env.pending[1].options.method, "POST");
+    const request = env.pending[1].params;
+    assert.equal(env.pending[1].method, "plugins.set");
     assert.equal(request.action, "update");
     assert.equal(request.source, "npm:one");
     assert.equal(request.scope, "project");
@@ -89,10 +87,7 @@ test("a failed update keeps the previous package and reports the error", async (
       action = state.value.runAction("update", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () => ({ error: "registry unreachable" }),
-      });
+      env.pending[1].deferred.reject(hostError("registry unreachable"));
       await action;
     });
     assert.equal(state.value.actionError, "registry unreachable");
@@ -113,10 +108,9 @@ test("the update response shape the hook commits matches the documented PluginsR
       action = state.value.runAction("update", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () => pluginsResponse([pkg("npm:one", "project", { version: "2.0.0" })], { diagnostics: [] }),
-      });
+      env.pending[1].deferred.resolve(
+        pluginsResponse([pkg("npm:one", "project", { version: "2.0.0" })], { diagnostics: [] }),
+      );
       await action;
     });
     assert.deepEqual(

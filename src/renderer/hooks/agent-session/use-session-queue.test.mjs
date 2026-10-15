@@ -43,13 +43,20 @@ test("queueing without an active session is a loud failure, not a silent drop", 
   await h.mount({ session: null, newSessionCwd: null });
   await h.flush();
 
-  await assert.rejects(async () => {
-    await h.act(async () => {
-      await h.state.handleSteer("x");
-    });
-  }, /no longer available/);
+  for (const queuedCall of [
+    () => h.state.handleSteer("x"),
+    () => h.state.handleFollowUp("x"),
+    () => h.state.handlePromptWithStreamingBehavior("x", "steer"),
+  ]) {
+    await assert.rejects(async () => {
+      await h.act(async () => {
+        await queuedCall();
+      });
+    }, /no longer available/);
+  }
   await h.flush();
-  assert.ok(h.state.notices.some((n) => n.type === "error" && n.message.includes("not queued")));
+  const queueErrors = h.state.notices.filter((n) => n.type === "error" && n.message.includes("not queued"));
+  assert.equal(queueErrors.length, 3, "every queued command path reports the failure");
 });
 
 test("follow-up and streaming-behavior prompts reach the host verbatim", async (t) => {

@@ -58,8 +58,3 @@ function base64ToBytes(data: string): Uint8Array<ArrayBuffer> {
   for (let i = 0; i < bytes.length; i += 1) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
-
-/** Test hook: drop the whole cache. */
-export function clearAttachmentPreviewCacheForTests(): void {
-  cache.clear();
-}

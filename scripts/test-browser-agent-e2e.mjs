@@ -1,15 +1,10 @@
 #!/usr/bin/env node
-import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
-import {
-  createProjectBuildTemp,
-  projectNodePath,
-  resolveElectronBinary,
-  terminateProcessTree,
-} from "./process-utils.mjs";
+import { createProjectBuildTemp, projectNodePath } from "./process-utils.mjs";
+import { runElectronCheck } from "./electron-test-run.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const temp = createProjectBuildTemp(root, "pi-browser-agent-e2e-build-");
@@ -45,37 +40,17 @@ try {
   build("src/agent-host/managed-process/worker.ts", managedWorkerOutfile, "esm", []);
   build("src/smoke/browser-agent-e2e-harness.ts", mainOutfile, "cjs", ["electron"]);
 
-  const electronBinary = resolveElectronBinary(root);
-  const child = spawn(electronBinary, [mainOutfile], {
-    cwd: root,
-    stdio: "inherit",
+  await runElectronCheck({
+    name: "browser-agent-e2e",
+    root,
+    main: mainOutfile,
+    evidence: path.join(root, ".artifacts/browser-agent-e2e/evidence.json"),
     env: {
-      ...process.env,
       NODE_PATH: projectNodePath(root, process.env.NODE_PATH),
-      ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
       PI_BROWSER_AGENT_E2E_HOST_ENTRY: hostOutfile,
       PI_BROWSER_AGENT_E2E_ROOT: runtimeRoot,
     },
-    detached: process.platform !== "win32",
   });
-  const status = await new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      console.error("Browser Agent E2E harness timed out");
-      terminateProcessTree(child);
-      resolve(1);
-    }, 90_000);
-    child.once("error", (error) => {
-      clearTimeout(timer);
-      console.error(error);
-      resolve(1);
-    });
-    child.once("exit", (code, signal) => {
-      clearTimeout(timer);
-      if (signal) console.error(`Browser Agent E2E harness terminated by signal ${signal}`);
-      resolve(code ?? 1);
-    });
-  });
-  process.exitCode = status;
 } catch (error) {
   console.error(error);
   process.exitCode = 1;

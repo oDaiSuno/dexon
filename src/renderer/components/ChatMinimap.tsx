@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback, useMemo, RefObject } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
+import { useI18n } from "@/i18n";
 
 export interface ChatMinimapMessage {
   role: "user" | "assistant";
@@ -54,6 +55,7 @@ export function ChatMinimap({
   historyTruncated,
   visible: pageVisible = true,
 }: Props) {
+  const { t } = useI18n();
   const [scrollRatio, setScrollRatio] = useState(0);
   const [viewportRatio, setViewportRatio] = useState(1);
   const [visible, setVisible] = useState(false);
@@ -245,6 +247,8 @@ export function ChatMinimap({
   return (
     <div
       ref={containerRef}
+      role="region"
+      aria-label={t("conversationMinimap", "Conversation minimap")}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setMinimapHovered(true)}
       onMouseLeave={() => {

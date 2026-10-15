@@ -1,12 +1,13 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
 import test, { after } from "node:test";
 // The DOM environment must be evaluated before react and react-dom so their
 // module-level feature detection sees a realistic browser (fixture contract).
-import { dom, createManagedDomRoot, reactPropsOf, restoreGlobals } from "../resource-dom-environment.mjs";
+import { dom, createManagedDomRoot, restoreGlobals } from "../resource-dom-environment.mjs";
+import { click, input as enterText, keyDown } from "../../../../tests/support/dom-events.mjs";
 import { createElement } from "react";
-import { act } from "react";
 
 // Phase 4 contract tests for the on-demand session search inside the new
 // navigation history region: closed until the header icon is used, focused on
@@ -28,20 +29,7 @@ const { NavHistory } = await importTestBundle("app-nav-history", {
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "app-nav-history-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "app-nav-history" }));
-        build.onLoad({ filter: /.*/, namespace: "app-nav-history" }, () => ({
-          contents:
-            "function stubT(_key, fallback) { return fallback; }\n" +
-            'export function useI18n() { return { language: "en", t: stubT }; }',
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 const NOW = new Date();
@@ -114,16 +102,12 @@ function visibleTitles(root) {
 async function openSearch(root) {
   const toggle = root.container.querySelector('[aria-label="Search sessions"]');
   assert.ok(toggle, "the history header must expose the on-demand search trigger");
-  await act(async () => {
-    reactPropsOf(toggle).onClick();
-  });
+  await click(toggle);
   return root.container.querySelector('input[type="search"]');
 }
 
-async function type(root, input, value) {
-  await act(async () => {
-    reactPropsOf(input).onChange({ target: { value } });
-  });
+async function type(_root, input, value) {
+  await enterText(input, value);
 }
 
 test("search stays closed until the header icon opens it, then it is focused", async () => {
@@ -181,9 +165,7 @@ test("filtering matches the five approved fields: id, cwd and branch", async () 
       );
       // Close via the explicit clear button before the next field.
       const clear = root.container.querySelector('[aria-label="Clear session search"]');
-      await act(async () => {
-        reactPropsOf(clear).onClick();
-      });
+      await click(clear);
     }
   } finally {
     await root.unmount();
@@ -219,9 +201,7 @@ test("the clear button empties the filter and closes the search", async () => {
     assert.ok(visibleTitles(root).length < CAST.length, "the filter must narrow the list first");
 
     const clear = root.container.querySelector('[aria-label="Clear session search"]');
-    await act(async () => {
-      reactPropsOf(clear).onClick();
-    });
+    await click(clear);
 
     assert.equal(root.container.querySelector('input[type="search"]'), null, "the search must close");
     assert.equal(visibleTitles(root).length, CAST.length, "the full list must be restored");
@@ -237,9 +217,7 @@ test("Escape inside the input closes the search and clears the filter", async ()
     const input = await openSearch(root);
     await type(root, input, "render");
 
-    await act(async () => {
-      reactPropsOf(input).onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} });
-    });
+    await keyDown(input, "Escape");
 
     assert.equal(root.container.querySelector('input[type="search"]'), null, "Escape must close the search");
     assert.equal(visibleTitles(root).length, CAST.length, "Escape must clear the filter");

@@ -1,58 +1,27 @@
-import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import path from "node:path";
 import test, { after } from "node:test";
-// The DOM environment must be evaluated before react and react-dom so their
-// module-level feature detection sees a realistic browser (see dom-setup file).
-import { dom, restoreGlobals } from "./session-sidebar-pickers-dom-setup.mjs";
-import { createElement } from "react";
-import { act } from "react";
-import { createRoot } from "react-dom/client";
+import {
+  act,
+  button,
+  click,
+  createElement,
+  dom,
+  input,
+  keyDown,
+  loadRenderer,
+  mount,
+  restoreGlobals,
+  waitFor,
+} from "../../../../tests/support/renderer.mjs";
+import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 
-// Real-DOM characterization tests for the two workspace dropdowns. The DOM
-// environment module is evaluated before react-dom so React's module-level
-// feature detection sees a realistic browser (see dom-setup file).
-
-after(() => {
-  restoreGlobals();
-});
-
-const projectRoot = path.resolve(import.meta.dirname, "../../../..");
-
-const { ProjectPicker, WorktreeSwitcher, useProjectWorkspace } = await importTestBundle("session-sidebar-pickers", {
-  stdin: {
-    contents:
-      'export { ProjectPicker } from "./src/renderer/components/session-sidebar/project-picker.tsx";\n' +
-      'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
-      'export { useProjectWorkspace } from "./src/renderer/components/session-sidebar/project-workspace.ts";',
-    resolveDir: projectRoot,
-    sourcefile: "session-sidebar-pickers-test-entry.tsx",
-    loader: "tsx",
-  },
-  tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "session-sidebar-pickers-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "session-sidebar-pickers" }));
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({
-          path: "api",
-          namespace: "session-sidebar-pickers",
-        }));
-        build.onLoad({ filter: /.*/, namespace: "session-sidebar-pickers" }, ({ path: modulePath }) => ({
-          contents:
-            modulePath === "i18n"
-              ? "function stubT(_key, fallback) { return fallback; }\n" +
-                'export function useI18n() { return { language: "en", t: stubT }; }'
-              : "export const call = async (method, params) =>\n" +
-                "  globalThis.__pickersHarness.call(method, params);",
-          loader: "js",
-        }));
-      },
-    },
-  ],
-});
+after(restoreGlobals);
+const { resetRpc, ProjectPicker, WorktreeSwitcher, useProjectWorkspace } = await loadRenderer(
+  "session-sidebar-pickers",
+  'export { ProjectPicker } from "./src/renderer/components/session-sidebar/project-picker.tsx";\n' +
+    'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
+    'export { useProjectWorkspace } from "./src/renderer/components/session-sidebar/project-workspace.ts";',
+);
 
 function createPickerProps(overrides = {}) {
   const calls = { selectedProjects: [], customPaths: [], defaultCwd: 0 };
@@ -64,7 +33,10 @@ function createPickerProps(overrides = {}) {
       recentProjects: ["/repo", "/other-1", "/other-2"],
       suppressPlaceholder: false,
       onSelectProject: (project) => calls.selectedProjects.push(project),
-      selectCustomCwd: async (value) => calls.customPaths.push(value) && { status: "selected" },
+      selectCustomCwd: async (value) => {
+        calls.customPaths.push(value);
+        return { status: "selected" };
+      },
       selectDefaultCwd: async () => {
         calls.defaultCwd += 1;
         return true;
@@ -77,159 +49,84 @@ function createPickerProps(overrides = {}) {
   };
 }
 
-let mountedRoot = null;
-let currentRootEl = null;
-
-async function renderPicker(element) {
-  currentRootEl = dom.window.document.createElement("div");
-  dom.window.document.body.appendChild(currentRootEl);
-  mountedRoot = createRoot(currentRootEl);
-  await act(async () => {
-    mountedRoot.render(element);
-  });
-}
-
-async function unmountPicker() {
-  if (!mountedRoot) return;
-  const root = mountedRoot;
-  const el = currentRootEl;
-  mountedRoot = null;
-  currentRootEl = null;
-  await act(async () => {
-    root.unmount();
-  });
-  el.remove();
-}
-
-function dropdownOf(rootEl) {
-  const candidates = [...rootEl.querySelectorAll("div")].filter((el) => el.style.position === "absolute");
-  assert.ok(candidates.length >= 1, "expected the absolute-positioned dropdown container");
-  return candidates[0];
-}
-
-async function openDropdown(rootEl, trigger) {
-  await act(async () => {
-    trigger.click();
-  });
-  return dropdownOf(rootEl);
+function projectRows(container, projects) {
+  const trigger = container.querySelector("button");
+  return [...container.querySelectorAll("button")].filter(
+    (control) => control !== trigger && projects.includes(control.title),
+  );
 }
 
 async function outsideMousedown() {
-  const outside = dom.window.document.createElement("div");
-  dom.window.document.body.appendChild(outside);
-  await act(async () => {
-    outside.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true }));
-  });
-  outside.remove();
+  await act(async () =>
+    dom.window.document.body.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true })),
+  );
 }
 
-// React 19 + jsdom cannot dispatch real input/keydown events to <input>
-// elements: jsdom lacks TextEvent, so React falls back to its IE-era change
-// polyfill, which crashes on attachEvent before any handler runs. The repo's
-// component tests therefore drive input behavior through the React props that
-// React attaches to each DOM node, which exercises the component's own
-// handlers without the broken plugin path.
-function reactPropsOf(element) {
-  const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
-  assert.ok(propsKey, "expected React props on the element");
-  return element[propsKey];
-}
-
-async function typeIntoInput(input, value) {
-  await act(async () => {
-    input.value = value;
-    reactPropsOf(input).onChange({ target: input });
-  });
-}
-
-function pressInputKey(input, key) {
-  reactPropsOf(input).onKeyDown({ key, preventDefault() {} });
-}
-
-test("lists projects, selects one, and closes the dropdown", async () => {
+test("lists projects, selects one, and closes the dropdown", async (t) => {
   const { props, calls } = createPickerProps();
-  await renderPicker(createElement(ProjectPicker, props));
-  const trigger = currentRootEl.querySelector("button");
-  const dropdown = await openDropdown(currentRootEl, trigger);
-  assert.equal(dropdown.style.opacity, "1");
-  const rows = [...dropdown.querySelectorAll("button")].filter((button) =>
-    ["/repo", "/other-1", "/other-2"].some((project) => button.title === project),
+  const view = await mount(t, ProjectPicker, props);
+  await click(view.container.querySelector("button"));
+  const rows = projectRows(view.container, props.recentProjects);
+  assert.deepEqual(
+    rows.map((row) => row.title),
+    ["/repo", "/other-1", "/other-2"],
   );
-  assert.equal(rows.length, 3);
-  await act(async () => {
-    rows[1].click();
-  });
+  await click(rows[1]);
   assert.deepEqual(calls.selectedProjects, ["/other-1"]);
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  await unmountPicker();
+  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
 });
 
-test("an outside click closes the dropdown and resets the custom path entry", async () => {
+test("an outside click closes the dropdown and resets the custom path entry", async (t) => {
   const { props } = createPickerProps();
-  await renderPicker(createElement(ProjectPicker, props));
-  const trigger = currentRootEl.querySelector("button");
-  await openDropdown(currentRootEl, trigger);
-  const customPathButton = [...currentRootEl.querySelectorAll("button")].find((button) =>
-    button.textContent.includes("Custom path"),
+  const view = await mount(t, ProjectPicker, props);
+  await click(view.container.querySelector("button"));
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
   );
-  await act(async () => {
-    customPathButton.click();
-  });
-  assert.ok(currentRootEl.querySelector("input"), "the custom path input is mounted");
+  assert.ok(view.container.querySelector("input"), "the custom path entry is open");
   await outsideMousedown();
-  assert.equal(currentRootEl.querySelector("input"), null, "the custom path entry is reset");
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  await unmountPicker();
+  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
+  assert.equal(view.container.querySelector("input"), null, "the custom path entry is reset");
 });
 
-test("escape in the project filter clears it and closes the dropdown", async () => {
-  const manyProjects = Array.from({ length: 10 }, (_, index) => `/project-${index}`);
-  const { props } = createPickerProps({ recentProjects: manyProjects });
-  await renderPicker(createElement(ProjectPicker, props));
-  const trigger = currentRootEl.querySelector("button");
-  await openDropdown(currentRootEl, trigger);
-  const filterInput = currentRootEl.querySelector("input");
-  assert.ok(filterInput, "the project filter appears for long lists");
-  await typeIntoInput(filterInput, "project-3");
-  assert.equal(filterInput.value, "project-3");
-  await act(async () => {
-    pressInputKey(filterInput, "Escape");
-  });
-  assert.equal(filterInput.value, "");
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  await unmountPicker();
+test("escape in the project filter clears it and closes the dropdown", async (t) => {
+  const projects = Array.from({ length: 10 }, (_, index) => `/project-${index}`);
+  const { props } = createPickerProps({ recentProjects: projects });
+  const view = await mount(t, ProjectPicker, props);
+  await click(view.container.querySelector("button"));
+  const filter = view.container.querySelector("input");
+  await input(filter, "project-3");
+  assert.deepEqual(
+    projectRows(view.container, projects).map((row) => row.title),
+    ["/project-3"],
+  );
+  await keyDown(filter, "Escape");
+  await waitFor(() => assert.equal(view.container.querySelector("input") === null, true, "the filter closes"));
+  await click(view.container.querySelector("button"));
+  assert.equal(view.container.querySelector("input").value, "");
+  assert.equal(projectRows(view.container, projects).length, 10);
 });
 
-test("custom path validation failures stay visible until the path is fixed", async () => {
+test("custom path validation failures stay visible until the path is fixed", async (t) => {
   const { props, calls } = createPickerProps({
     selectCustomCwd: async (value) => {
       calls.customPaths.push(value);
       return value === "/good" ? { status: "selected" } : { status: "invalid", error: "Nope" };
     },
   });
-  await renderPicker(createElement(ProjectPicker, props));
-  const trigger = currentRootEl.querySelector("button");
-  await openDropdown(currentRootEl, trigger);
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent.includes("Custom path")).click();
-  });
-  const input = currentRootEl.querySelector("input");
-  await typeIntoInput(input, "/bad");
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent === "Open").click();
-  });
-  assert.deepEqual(calls.customPaths, ["/bad"]);
-  assert.ok(
-    [...currentRootEl.querySelectorAll("div")].some((el) => el.textContent === "Nope"),
-    "the validation error is displayed",
+  const view = await mount(t, ProjectPicker, props);
+  await click(view.container.querySelector("button"));
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
   );
-  await typeIntoInput(input, "/good");
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent === "Open").click();
-  });
+  await input(view.container.querySelector("input"), "/bad");
+  await click(button(view.container, "Open"));
+  assert.deepEqual(calls.customPaths, ["/bad"]);
+  assert.match(view.container.textContent, /Nope/);
+  await input(view.container.querySelector("input"), "/good");
+  await click(button(view.container, "Open"));
   assert.deepEqual(calls.customPaths, ["/bad", "/good"]);
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  await unmountPicker();
+  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
 });
 
 const GIT_REPO_LIST = {
@@ -242,66 +139,15 @@ const GIT_REPO_LIST = {
   ],
 };
 
-// Integration probe: the real workspace hook wired to the real switcher view,
-// exactly as the SessionSidebar composition does it.
-async function renderSwitcher({ removeWorktreeImpl, createWorktreeImpl } = {}) {
-  const calls = { removed: [], created: [] };
-  globalThis.__pickersHarness = {
-    async call(method, params) {
-      if (method === "worktrees.list") return GIT_REPO_LIST;
-      if (method === "worktrees.create") {
-        calls.created.push(params.branch);
-        if (createWorktreeImpl) return createWorktreeImpl(params.branch);
-        return { worktree: { path: "/repo/wt2", branch: params.branch } };
-      }
-      if (method === "worktrees.remove") {
-        calls.removed.push([params.path, params.force]);
-        if (removeWorktreeImpl) return removeWorktreeImpl(params.path, params.force);
-        return {};
-      }
-      throw new Error(`unexpected rpc ${method}`);
-    },
-  };
-  currentRootEl = dom.window.document.createElement("div");
-  dom.window.document.body.appendChild(currentRootEl);
-  mountedRoot = createRoot(currentRootEl);
-  const probeState = { value: undefined };
-  globalThis.__switcherProbeState = probeState;
-  let renderer = mountedRoot;
-  await act(async () => {
-    renderer.render(
-      createElement(SwitcherProbe, {
-        onProbeState: (value) => {
-          probeState.value = value;
-        },
-      }),
-    );
-  });
-  return {
-    state: probeState,
-    calls,
-    unmount: async () => {
-      await act(async () => {
-        renderer.unmount();
-      });
-      currentRootEl.remove();
-      currentRootEl = null;
-      mountedRoot = null;
-    },
-  };
-}
-
-function SwitcherProbe({ onProbeState }) {
+function SwitcherScene() {
   const workspace = useProjectWorkspace({
     sessions: [],
     selectedCwdProp: "/repo",
     onCwdChange: () => {},
     refreshKey: 0,
   });
-  onProbeState(workspace);
-  if (!workspace.showWorktreeSwitcher || !workspace.worktreeState) {
-    return createElement("div", null, "switcher-hidden");
-  }
+  if (!workspace.showWorktreeSwitcher || !workspace.worktreeState)
+    return createElement("div", null, "Loading worktrees");
   return createElement(WorktreeSwitcher, {
     worktreeState: workspace.worktreeState,
     selectedCwd: workspace.selectedCwd,
@@ -325,94 +171,99 @@ function SwitcherProbe({ onProbeState }) {
   });
 }
 
-async function openWorktreeDropdown() {
-  const trigger = [...currentRootEl.querySelectorAll("button")].find((button) =>
-    (button.title ?? "").startsWith("Switch worktree"),
-  );
-  assert.ok(trigger, "expected the worktree switcher trigger");
-  return openDropdown(currentRootEl, trigger);
+async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl } = {}) {
+  const calls = { removed: [], created: [] };
+  const replies = {
+    async call(method, params) {
+      if (method === "worktrees.list") return GIT_REPO_LIST;
+      if (method === "worktrees.create") {
+        calls.created.push(params.branch);
+        return createWorktreeImpl?.(params.branch) ?? { worktree: { path: "/repo/wt2", branch: params.branch } };
+      }
+      if (method === "worktrees.remove") {
+        calls.removed.push([params.path, params.force]);
+        return removeWorktreeImpl?.(params.path, params.force) ?? {};
+      }
+      throw new Error(`unexpected rpc ${method}`);
+    },
+  };
+  const host = installApiHostBridge(dom.window, () => replies, resetRpc);
+  const view = await mount(t, SwitcherScene, {}, { release: () => host.close() });
+  return { ...view, calls };
 }
 
-test("a dirty removal surfaces the inline confirmation until it is resolved", async () => {
-  const { calls } = await renderSwitcher({
-    removeWorktreeImpl: (path, force) =>
+async function openWorktreeDropdown(view) {
+  const trigger = [...view.container.querySelectorAll("button")].find((control) =>
+    control.title.startsWith("Switch worktree"),
+  );
+  await click(trigger);
+  assert.ok([...view.container.querySelectorAll("button")].some((control) => control.title === "/repo"));
+}
+
+async function expectWorktreeDropdownClosed(view) {
+  await waitFor(() =>
+    assert.equal(
+      [...view.container.querySelectorAll("button")].some((control) => control.title === "/repo"),
+      false,
+    ),
+  );
+}
+
+async function openNewWorktree(view) {
+  await openWorktreeDropdown(view);
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("New worktree")),
+  );
+  return view.container.querySelector("input");
+}
+
+test("a dirty removal surfaces the inline confirmation until it is resolved", async (t) => {
+  const view = await renderSwitcher(t, {
+    removeWorktreeImpl: (_path, force) =>
       force
         ? Promise.resolve({})
         : Promise.reject(Object.assign(new Error("dirty worktree"), { detail: { dirty: true } })),
   });
-  const dropdown = await openWorktreeDropdown();
-  assert.equal(dropdown.style.opacity, "1");
-  const removeButton = [...currentRootEl.querySelectorAll("button")].find((button) =>
-    (button.title ?? "").includes("Remove worktree checkout"),
+  await openWorktreeDropdown(view);
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) =>
+      control.title.includes("Remove worktree checkout"),
+    ),
   );
-  await act(async () => {
-    removeButton.click();
-  });
-  assert.deepEqual(calls.removed, [["/repo/wt", false]]);
-  assert.ok(
-    [...currentRootEl.querySelectorAll("div")].some((el) => el.textContent.includes("Uncommitted changes.")),
-    "the force-remove confirmation replaces the row",
-  );
+  assert.deepEqual(view.calls.removed, [["/repo/wt", false]]);
+  assert.match(view.container.textContent, /Uncommitted changes\./);
   await outsideMousedown();
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  const reopened = await openWorktreeDropdown();
-  assert.equal(reopened.style.opacity, "1");
-  assert.equal(
-    [...currentRootEl.querySelectorAll("div")].some((el) => el.textContent.includes("Uncommitted changes.")),
-    false,
-    "the confirm state is reset after the dropdown closes",
-  );
-  await unmountPicker();
+  await expectWorktreeDropdownClosed(view);
+  await openWorktreeDropdown(view);
+  assert.doesNotMatch(view.container.textContent, /Uncommitted changes\./);
 });
 
-test("creating a worktree submits the branch and closes the entry on success", async () => {
-  const { calls } = await renderSwitcher();
-  await openWorktreeDropdown();
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent.includes("New worktree")).click();
-  });
-  const branchInput = currentRootEl.querySelector("input");
-  assert.ok(branchInput, "the branch input is mounted");
-  await typeIntoInput(branchInput, "feat-2");
-  await act(async () => {
-    pressInputKey(branchInput, "Enter");
-  });
-  assert.deepEqual(calls.created, ["feat-2"]);
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "0");
-  await unmountPicker();
+test("creating a worktree submits the branch and closes the entry on success", async (t) => {
+  const view = await renderSwitcher(t);
+  const branch = await openNewWorktree(view);
+  await input(branch, "feat-2");
+  await keyDown(branch, "Enter");
+  assert.deepEqual(view.calls.created, ["feat-2"]);
+  await expectWorktreeDropdownClosed(view);
 });
 
-test("a failed creation keeps the entry open and shows the error", async () => {
-  const { calls } = await renderSwitcher({
+test("a failed creation keeps the entry open and shows the error", async (t) => {
+  const view = await renderSwitcher(t, {
     createWorktreeImpl: () => Promise.reject(new Error("branch already exists")),
   });
-  await openWorktreeDropdown();
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent.includes("New worktree")).click();
-  });
-  const branchInput = currentRootEl.querySelector("input");
-  await typeIntoInput(branchInput, "feat-2");
-  await act(async () => {
-    pressInputKey(branchInput, "Enter");
-  });
-  assert.ok([...currentRootEl.querySelectorAll("div")].some((el) => el.textContent.includes("branch already exists")));
-  assert.equal(dropdownOf(currentRootEl).style.opacity, "1");
-  assert.deepEqual(calls.created, ["feat-2"], "exactly one create RPC despite the failure");
-  await unmountPicker();
+  const branch = await openNewWorktree(view);
+  await input(branch, "feat-2");
+  await keyDown(branch, "Enter");
+  assert.match(view.container.textContent, /branch already exists/);
+  assert.ok(view.container.querySelector("input"));
+  assert.deepEqual(view.calls.created, ["feat-2"], "one submission produces only one create request");
 });
 
-test("escape closes the new-worktree entry without submitting", async () => {
-  const { calls } = await renderSwitcher();
-  await openWorktreeDropdown();
-  await act(async () => {
-    [...currentRootEl.querySelectorAll("button")].find((button) => button.textContent.includes("New worktree")).click();
-  });
-  const branchInput = currentRootEl.querySelector("input");
-  await typeIntoInput(branchInput, "feat-2");
-  await act(async () => {
-    pressInputKey(branchInput, "Escape");
-  });
-  assert.deepEqual(calls.created, []);
-  assert.equal(currentRootEl.querySelector("input"), null);
-  await unmountPicker();
+test("escape closes the new-worktree entry without submitting", async (t) => {
+  const view = await renderSwitcher(t);
+  const branch = await openNewWorktree(view);
+  await input(branch, "feat-2");
+  await keyDown(branch, "Escape");
+  assert.deepEqual(view.calls.created, []);
+  assert.equal(view.container.querySelector("input"), null);
 });

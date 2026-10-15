@@ -1,3 +1,5 @@
+import { configureSmokeEnvironment } from "./environment";
+import { writeNativeCompletion } from "./native-completion";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -12,7 +14,12 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { AgentSessionWrapper } from "../agent-host/rpc-manager";
 
-const output = path.dirname(fileURLToPath(import.meta.url));
+configureSmokeEnvironment();
+
+const directory = path.dirname(fileURLToPath(import.meta.url));
+const outputValue = process.env.DEXON_RENDERER_OUT;
+assert.ok(outputValue, "Interactive tools require an evidence directory");
+const output = outputValue;
 const temp = fs.mkdtempSync(path.join(os.tmpdir(), "dexon-tool-window-"));
 app.setPath("userData", path.join(temp, "profile"));
 let window: BrowserWindow | undefined;
@@ -30,7 +37,7 @@ async function run(): Promise<void> {
     height: 950,
     show: false,
     webPreferences: {
-      preload: path.join(output, "preload.cjs"),
+      preload: path.join(directory, "preload.cjs"),
       nodeIntegration: false,
       contextIsolation: true,
       sandbox: true,
@@ -98,7 +105,7 @@ async function run(): Promise<void> {
     await ready;
   });
   ipcMain.handle("tool-harness-settled", () => done);
-  await window.loadFile(path.join(output, "index.html"));
+  await window.loadFile(path.join(directory, "index.html"));
   const js = <T = Record<string, unknown>>(code: string): Promise<T> =>
     window!.webContents.executeJavaScript(code, true) as Promise<T>;
   await js("window.fixture.frame()");
@@ -204,6 +211,7 @@ void run()
     window?.destroy();
     clearTimeout(watchdog);
     fs.rmSync(temp, { recursive: true, force: true });
+    writeNativeCompletion("interactive-tools");
     app.exit(0);
   })
   .catch(async (error: unknown) => {

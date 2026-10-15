@@ -1,15 +1,16 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
 import test, { after, afterEach } from "node:test";
-import { createManagedDomRoot, dom, reactPropsOf, restoreGlobals } from "../resource-dom-environment.mjs";
+import { createManagedDomRoot, dom, restoreGlobals } from "../resource-dom-environment.mjs";
+import { click, selectOption, labelledControl } from "../../../../tests/support/dom-events.mjs";
 import { act, createElement } from "react";
 
 // Behavioral characterization for the extracted General settings content:
 // background-mode and managed-process toggles (load failures surface a
 // visible error; save failures roll back), and the chat appearance error
-// path. Complements the source-level contract tests that move with the
-// extraction.
+// path. The component and its application dependencies are loaded unchanged.
 
 after(() => {
   restoreGlobals();
@@ -26,23 +27,7 @@ const { GeneralSettings } = await importTestBundle("settings-general", {
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "settings-general-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "settings-general" }));
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "settings-general" }));
-        build.onLoad({ filter: /.*/, namespace: "settings-general" }, ({ path: modulePath }) => ({
-          contents:
-            modulePath === "i18n"
-              ? "function stubT(_key, fallback) { return fallback; }\n" +
-                'export function useI18n() { return { language: "en", t: stubT }; }'
-              : "export const call = async () => { throw new Error('unexpected api call in test'); };",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 function createDeferred() {
@@ -91,7 +76,7 @@ async function renderGeneral(overrides = {}) {
       isDark: false,
       onThemeChange: () => {},
       chatAppearance: { fontSize: "standard", layout: "fixed" },
-      chatAppearanceSaving: false,
+      chatAppearanceSaving: overrides.chatAppearanceSaving ?? false,
       onChatAppearanceChange: async (next) => {
         appearanceSaves.push(next);
         if (overrides.failAppearance) throw new Error("appearance persist failed");
@@ -111,15 +96,17 @@ let activeManaged = null;
 // a still-mounted root even when an assertion fails mid-test, and restores
 // the exact pre-test bridge descriptor.
 afterEach(async () => {
-  await activeManaged?.unmount();
-  activeManaged = null;
-  caseRestore?.();
-  caseRestore = null;
+  try {
+    await activeManaged?.unmount();
+  } finally {
+    activeManaged = null;
+    caseRestore?.();
+    caseRestore = null;
+  }
 });
 
-function checkboxes(rootEl) {
-  return [...rootEl.querySelectorAll('input[type="checkbox"]')];
-}
+const managedControl = (root) => labelledControl(root, "Enable managed background processes");
+const backgroundControl = (root) => labelledControl(root, "Close window to tray");
 
 function alerts(rootEl) {
   return [...rootEl.querySelectorAll('[role="alert"]')].map((el) => el.textContent);
@@ -139,10 +126,8 @@ test("loaded ui state populates both toggles", async () => {
   const bridge = installBridge();
   const mounted = await renderGeneral();
   await settleMount(mounted, bridge);
-  const boxes = checkboxes(mounted.rootEl());
-  assert.equal(boxes.length, 3, "managed processes, background mode, and auto-title checkboxes render");
-  assert.equal(boxes[0].checked, true, "managed processes reflects the loaded state");
-  assert.equal(boxes[1].checked, true, "background mode reflects the loaded state");
+  assert.equal(managedControl(mounted.rootEl()).checked, true);
+  assert.equal(backgroundControl(mounted.rootEl()).checked, true);
   await mounted.unmount();
 });
 
@@ -155,9 +140,16 @@ test("a ui-state load failure leaves a visible error and defaults stay selected"
     await bridge.getUiState.promise.catch(() => {});
     await bridge.getCapability.promise;
   });
-  const boxes = checkboxes(mounted.rootEl());
-  assert.equal(boxes[0].checked, false, "managed processes remains disabled after a load failure");
-  assert.equal(boxes[1].checked, true, "background mode keeps its default after a load failure");
+  assert.equal(
+    managedControl(mounted.rootEl()).checked,
+    false,
+    "managed processes remains disabled after a load failure",
+  );
+  assert.equal(
+    backgroundControl(mounted.rootEl()).checked,
+    true,
+    "background mode keeps its default after a load failure",
+  );
   const messages = alerts(mounted.rootEl());
   assert.ok(
     messages.some((text) => text.includes("Managed process settings could not be loaded")),
@@ -174,14 +166,10 @@ test("a background-mode save failure rolls back the checkbox and reports the fai
   const bridge = installBridge({ failUiState: true });
   const mounted = await renderGeneral();
   await settleMount(mounted, bridge);
-  const backgroundBox = checkboxes(mounted.rootEl())[1];
-  await act(async () => {
-    backgroundBox.checked = false;
-    reactPropsOf(backgroundBox).onChange({ target: { checked: false } });
-  });
+  const backgroundBox = backgroundControl(mounted.rootEl());
+  await click(backgroundBox);
   assert.deepEqual(bridge.calls.setUiState, [{ backgroundMode: false }]);
-  const boxes = checkboxes(mounted.rootEl());
-  assert.equal(boxes[1].checked, true, "the previous setting was restored");
+  assert.equal(backgroundControl(mounted.rootEl()).checked, true, "the previous setting was restored");
   assert.ok(
     alerts(mounted.rootEl()).some((text) => text.includes("Background mode could not be saved")),
     "the save failure alert is visible",
@@ -193,13 +181,10 @@ test("a managed-process save failure rolls back and reports the failure", async 
   const bridge = installBridge({ failUiState: true });
   const mounted = await renderGeneral();
   await settleMount(mounted, bridge);
-  const managedBox = checkboxes(mounted.rootEl())[0];
-  await act(async () => {
-    managedBox.checked = false;
-    reactPropsOf(managedBox).onChange({ target: { checked: false } });
-  });
+  const managedBox = managedControl(mounted.rootEl());
+  await click(managedBox);
   assert.deepEqual(bridge.calls.setUiState, [{ managedProcessesEnabled: false }]);
-  assert.equal(checkboxes(mounted.rootEl())[0].checked, true, "the previous setting was restored");
+  assert.equal(managedControl(mounted.rootEl()).checked, true, "the previous setting was restored");
   assert.ok(
     alerts(mounted.rootEl()).some((text) => text.includes("Managed process settings could not be saved")),
     "the save failure alert is visible",
@@ -207,17 +192,32 @@ test("a managed-process save failure rolls back and reports the failure", async 
   await mounted.unmount();
 });
 
+test("chat appearance controls stay disabled while a save is in flight", async () => {
+  const bridge = installBridge();
+  const saving = await renderGeneral({ chatAppearanceSaving: true });
+  await settleMount(saving, bridge);
+  for (const name of ["Chat text size", "Conversation width"]) {
+    assert.equal(labelledControl(saving.rootEl(), name).disabled, true, `${name} waits for saving`);
+  }
+  for (const name of ["Language", "Theme"]) {
+    assert.equal(labelledControl(saving.rootEl(), name).disabled, false, `${name} stays interactive`);
+  }
+  await saving.unmount();
+  activeManaged = null;
+
+  const idle = await renderGeneral({});
+  const idleSelects = [...idle.rootEl().querySelectorAll("select")];
+  assert.ok(!idleSelects.some((select) => select.disabled), "all controls return once the save settles");
+  await idle.unmount();
+  activeManaged = null;
+});
+
 test("a chat appearance save failure surfaces the alert", async () => {
   const bridge = installBridge();
   const mounted = await renderGeneral({ failAppearance: true });
   await settleMount(mounted, bridge);
-  const selects = [...mounted.rootEl().querySelectorAll("select")];
-  assert.equal(selects.length, 4, "language, chat text size, conversation width, and theme selects render");
-  const fontSizeSelect = selects[1];
-  await act(async () => {
-    fontSizeSelect.value = "large";
-    reactPropsOf(fontSizeSelect).onChange({ target: { value: "large" } });
-  });
+  const fontSizeSelect = labelledControl(mounted.rootEl(), "Chat text size");
+  await selectOption(fontSizeSelect, "large");
   assert.equal(mounted.appearanceSaves.length, 1);
   assert.deepEqual(mounted.appearanceSaves[0], { fontSize: "large", layout: "fixed" });
   assert.ok(
@@ -225,4 +225,41 @@ test("a chat appearance save failure surfaces the alert", async () => {
     "the appearance failure alert is visible",
   );
   await mounted.unmount();
+});
+
+for (const ready of [false, true]) {
+  test(`managed processes on Windows ${ready ? "are available when Main is ready" : "stay unavailable when Main is not ready"}`, async () => {
+    const bridge = installBridge();
+    dom.window.piBridge.platform = "win32";
+    const mounted = await renderGeneral();
+    await act(async () => {
+      bridge.getUiState.resolve({ managedProcessesEnabled: false });
+      bridge.getCapability.resolve({ ready, backend: "windows-job" });
+    });
+    const control = managedControl(mounted.rootEl());
+    assert.equal(control.checked, false, "the feature remains opt-in");
+    assert.equal(control.disabled, !ready);
+    assert.match(mounted.rootEl().textContent, /not a sandbox/);
+  });
+}
+
+test("chat appearance offers the supported choices through named controls", async () => {
+  const bridge = installBridge();
+  const mounted = await renderGeneral();
+  await settleMount(mounted, bridge);
+  const font = labelledControl(mounted.rootEl(), "Chat text size");
+  const width = labelledControl(mounted.rootEl(), "Conversation width");
+  const options = (control) => [...control.options].map((option) => [option.value, option.textContent]);
+  assert.deepEqual(options(font), [
+    ["small", "Small"],
+    ["standard", "Standard"],
+    ["large", "Large"],
+    ["extra-large", "Extra large"],
+  ]);
+  assert.deepEqual(options(width), [
+    ["fixed", "Comfortable width"],
+    ["wide", "Expanded width"],
+  ]);
+  await selectOption(width, "wide");
+  assert.deepEqual(mounted.appearanceSaves.at(-1), { fontSize: "standard", layout: "wide" });
 });

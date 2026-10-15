@@ -7,6 +7,7 @@ const globalNames = [
   "window",
   "document",
   "HTMLElement",
+  "Event",
   "Node",
   "navigator",
   "fetch",

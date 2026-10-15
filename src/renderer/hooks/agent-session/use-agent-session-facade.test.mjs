@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createSessionDetail, createSessionHookHarness, createSessionTestHost } from "./session-hook-harness.mjs";
+import {
+  createReadingSurface,
+  createSessionDetail,
+  createSessionHookHarness,
+  createSessionTestHost,
+} from "./session-hook-harness.mjs";
 
 test("the public return shape of useAgentSession is stable for consumers", async (t) => {
   const detail = createSessionDetail("s-1");
@@ -100,12 +105,23 @@ test("the public return shape of useAgentSession is stable for consumers", async
 test("readingVisible flows through the facade to the reading branch", async (t) => {
   const detail = createSessionDetail("s-1");
   const host = createSessionTestHost({ getSession: async () => detail });
-  const h = await createSessionHookHarness(t, { bundleName: "facade-reading", host });
+  const surface = createReadingSurface({ scrollTop: 0, scrollHeight: 400, clientHeight: 120 });
+  const h = await createSessionHookHarness(t, {
+    bundleName: "facade-reading",
+    host,
+    attach: (state) => {
+      state.scrollContainerRef.current = surface.container;
+    },
+  });
   await h.mount({ session: detail.info, newSessionCwd: null, readingVisible: false });
   await h.flush();
-  assert.equal(h.env.windowListeners.get("keydown")?.length ?? 0, 0, "hidden facade keeps reading listeners off");
+  await h.act(() => surface.container.dispatch("scroll", {}));
+  assert.equal(h.state.isAwayFromBottom, false, "hidden geometry is not treated as reading state");
 
   await h.update({ session: detail.info, newSessionCwd: null, readingVisible: true });
   await h.flush();
-  assert.ok(h.env.windowListeners.get("keydown")?.length > 0, "visible facade re-enables reading listeners");
+  assert.equal(h.state.isAwayFromBottom, true, "showing the page restores the real reading position");
+  surface.container.scrollTop = 280;
+  await h.act(() => surface.container.dispatch("scroll", {}));
+  assert.equal(h.state.isAwayFromBottom, false, "visible scrolling updates the public reading state");
 });

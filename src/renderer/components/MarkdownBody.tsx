@@ -194,10 +194,6 @@ export function MarkdownBody({
   );
 }
 
-export function getMarkdownComponentIdentityForTest(): Components {
-  return markdownComponents;
-}
-
 function MarkdownImage({
   src,
   alt,

@@ -117,7 +117,6 @@ test("history visual scheduling survives StrictMode effect replay", async (t) =>
     sessionId: "session",
     revision: "revision",
   });
-  assert.equal(frames.size, 1, "a StrictMode-replayed hook must still schedule a valid frame");
   for (const callback of frames.values()) callback();
   frames.clear();
   assert.equal(element.scrollTop, 400, "the valid post-replay anchor must be restored");
@@ -170,7 +169,6 @@ test("history pagination passes a stable content anchor to visual restoration", 
   anchorTop = 400;
   await h.update({ ...options, readingVisible: true });
   await h.flush();
-  assert.equal(h.env.rafSize(), 1, "show queues the deferred anchor reconciliation");
   await h.env.flushRafUntilSettled();
   assert.equal(surface.container.scrollTop, 400, "unrelated hidden tail growth does not move the reading anchor");
 });
@@ -217,7 +215,6 @@ test("history restoration attributes hidden growth to the stable content anchor"
   assert.equal(frames.size, 0, "hidden history completion must not queue a visual frame");
 
   await act(async () => renderer.render(createElement(Probe, { visible: true })));
-  assert.equal(frames.size, 1, "show must queue one deferred anchor reconciliation");
   for (const callback of frames.values()) callback();
   frames.clear();
   assert.equal(element.scrollTop, 400, "tail growth must not be mistaken for prepended history");

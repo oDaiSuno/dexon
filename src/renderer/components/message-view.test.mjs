@@ -4,6 +4,9 @@ import path from "node:path";
 import test from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { realRendererGraphOptions } from "./renderer-real-graph.mjs";
+
+const projectRoot = path.resolve(import.meta.dirname, "../../..");
 
 const { MessageView } = await importTestBundle("src/renderer/components/message-view", {
   stdin: {
@@ -12,28 +15,8 @@ const { MessageView } = await importTestBundle("src/renderer/components/message-
     sourcefile: "message-view-test-entry.tsx",
     loader: "tsx",
   },
-  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "stub-markdown-body",
-      setup(buildApi) {
-        buildApi.onResolve({ filter: /MarkdownBody$/ }, () => ({
-          path: "markdown-body",
-          namespace: "message-view-test",
-        }));
-        buildApi.onLoad({ filter: /.*/, namespace: "message-view-test" }, () => ({
-          contents:
-            'import { createElement } from "react"; export function MarkdownBody({ children }) { return createElement("div", null, children); }',
-          loader: "js",
-        }));
-      },
-    },
-  ],
-});
-
-test("MessageView is memoized to preserve unchanged historical messages", () => {
-  assert.equal(MessageView.$$typeof, Symbol.for("react.memo"));
+  jsx: "automatic",
+  ...realRendererGraphOptions(projectRoot),
 });
 
 test("keeps the user copy action without timestamp or branch actions", () => {

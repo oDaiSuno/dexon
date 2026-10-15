@@ -277,7 +277,12 @@ test("an external channel turn follows a reader near the bottom", async (t) => {
     message: { role: "assistant", content: [{ type: "text", text: "ext near" }] },
   });
   await h.flush();
-  assert.ok(h.env.rafSize() > 0, "a reader near the bottom keeps following the external turn");
+  const before = near.liveEnd.scrollIntoViewCalls.length;
+  await h.env.flushRaf();
+  assert.ok(
+    near.liveEnd.scrollIntoViewCalls.length > before,
+    "the external reply stays in view for a reader near the bottom",
+  );
   h.emit({ type: "channel_turn_end" });
   await h.flush();
 });

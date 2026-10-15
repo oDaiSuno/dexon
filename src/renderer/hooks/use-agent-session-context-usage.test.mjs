@@ -1,3 +1,5 @@
+import { realRendererGraphOptions } from "../components/renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../tests/support/api-host.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -6,9 +8,7 @@ import { createElement } from "react";
 import TestRenderer, { act } from "react-test-renderer";
 
 // Regression harness for the context-usage restore paths in useAgentSession.
-// The api-client module is replaced with a stub backed by
-// globalThis.__contextUsageHarness so each scenario controls the host's
-// answers; SessionControls renders the actual compact chip the user sees.
+// The real renderer client receives replies from another process's fixture; SessionControls renders the actual compact chip the user sees.
 test("context usage survives session switches without a live runtime", async (parent) => {
   const root = path.resolve(import.meta.dirname, "../../..");
   const globalNames = [
@@ -21,11 +21,17 @@ test("context usage survives session switches without a live runtime", async (pa
   const originals = new Map(globalNames.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const listen = () => {};
   globalThis.window = {
+    navigator: { language: "en-US" },
     localStorage: { getItem: () => null },
     addEventListener: listen,
     removeEventListener: listen,
   };
-  globalThis.document = { visibilityState: "visible", addEventListener: listen, removeEventListener: listen };
+  globalThis.document = {
+    documentElement: { lang: "en" },
+    visibilityState: "visible",
+    addEventListener: listen,
+    removeEventListener: listen,
+  };
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = () => {};
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -37,53 +43,19 @@ test("context usage survives session switches without a live runtime", async (pa
     }
   });
 
-  const apiNames = [
-    "agentState",
-    "agentCommand",
-    "call",
-    "cancelModelsRefresh",
-    "getSession",
-    "getSessionContext",
-    "getSessionContextPage",
-    "getSessionEntryContent",
-    "listModels",
-    "newAgent",
-    "refreshModels",
-    "subscribeAgentEvents",
-    "subscribeSessionsChanged",
-  ];
-  const { useAgentSession, SessionControls } = await importTestBundle("use-agent-session-context-usage", {
+  const { useAgentSession, SessionControls, resetRpc } = await importTestBundle("use-agent-session-context-usage", {
     packages: "external",
     tsconfig: path.join(root, "tsconfig.renderer.json"),
     stdin: {
       contents:
         'export { useAgentSession } from "./src/renderer/hooks/useAgentSession.ts";\n' +
-        'export { SessionControls } from "./src/renderer/components/chat-input/SessionControls.tsx";',
+        'export { SessionControls } from "./src/renderer/components/chat-input/SessionControls.tsx";\n' +
+        'export {resetRpc} from "./src/renderer/lib/api-client.ts";',
       resolveDir: root,
       sourcefile: "context-usage-test-entry.ts",
       loader: "ts",
     },
-    plugins: [
-      {
-        name: "context-usage-api-stub",
-        setup(build) {
-          build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "context-usage" }));
-          build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "context-usage" }));
-          build.onLoad({ filter: /.*/, namespace: "context-usage" }, ({ path: modulePath }) => ({
-            contents:
-              modulePath === "i18n"
-                ? 'const t = (_key, fallback) => fallback; export const useI18n = () => ({ t, language: "en" });'
-                : apiNames
-                    .map(
-                      (name) =>
-                        `export const ${name} = (...args) => globalThis.__contextUsageHarness?.${name}?.(...args);`,
-                    )
-                    .join("\n"),
-            loader: "js",
-          }));
-        },
-      },
-    ],
+    ...realRendererGraphOptions(root),
   });
 
   const USAGE = { percent: 30.2, contextWindow: 100_000_000, tokens: 30_200_000 };
@@ -156,6 +128,7 @@ test("context usage survives session switches without a live runtime", async (pa
 
   function createHarness(t, host) {
     globalThis.__contextUsageHarness = hostWithDefaults(host);
+    const boundary = installApiHostBridge(globalThis.window, () => globalThis.__contextUsageHarness, resetRpc);
     let latest;
     let renderer;
     let key = 0;
@@ -175,8 +148,12 @@ test("context usage survives session switches without a live runtime", async (pa
       });
     }
     t.after(async () => {
-      if (renderer) await act(async () => renderer.unmount());
-      delete globalThis.__contextUsageHarness;
+      try {
+        if (renderer) await act(async () => renderer.unmount());
+      } finally {
+        boundary.close();
+        delete globalThis.__contextUsageHarness;
+      }
     });
     return {
       Probe,

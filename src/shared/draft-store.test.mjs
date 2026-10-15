@@ -83,40 +83,23 @@ test("loading a v2 draft surfaces legacy images and files for token migration", 
   assert.equal(getDraft(futureKey), null);
 });
 
-test("draft controller flushes ownership on key changes and disposal", () => {
-  const events = [];
-  let scheduled;
-  const controller = new DraftPersistenceController(500, {
-    stage: (key) => events.push(`stage:${key}`),
-    flush: (key) => events.push(`flush:${key}`),
-    clear: (key) => events.push(`clear:${key}`),
-    setTimer: (callback) => {
-      scheduled = callback;
-      return 1;
-    },
-    clearTimer: () => events.push("cancel"),
+// Owner switches and disposal are covered by draft-persistence.test.mjs through
+// the real store and durable browser records, rather than a duplicate call trail.
+test("unavailable browser storage reports the failed draft owner while keeping its text readable", (t) => {
+  withMemoryStorage(t);
+  t.mock.method(globalThis.localStorage, "setItem", () => {
+    throw new Error("Storage quota exceeded");
   });
-  controller.schedule("one", { value: "1" });
-  controller.schedule("two", { value: "2" });
-  scheduled();
-  controller.dispose();
-  assert.deepEqual(events, ["stage:one", "cancel", "flush:one", "stage:two", "flush:two"]);
-});
+  t.mock.method(globalThis.localStorage, "removeItem", () => {
+    throw new Error("Storage access denied");
+  });
+  const reported = new Set();
+  const controller = new DraftPersistenceController(500, undefined, (key) => reported.add(key));
+  t.after(() => controller.dispose());
 
-test("draft controller reports persistence failures", () => {
-  const errors = [];
-  const controller = new DraftPersistenceController(
-    500,
-    {
-      stage: () => {},
-      flush: () => false,
-      clear: () => false,
-      setTimer: () => 1,
-      clearTimer: () => {},
-    },
-    (key) => errors.push(key),
-  );
-  assert.equal(controller.commit("one", { value: "draft" }), false);
-  assert.equal(controller.clear("two"), false);
-  assert.deepEqual(errors, ["one", "two"]);
+  assert.equal(controller.commit("failed-write", { value: "draft" }), false);
+  assert.equal(reported.has("failed-write"), true);
+  assert.deepEqual(getDraft("failed-write"), { value: "draft" });
+  assert.equal(controller.clear("failed-remove"), false);
+  assert.equal(reported.has("failed-remove"), true);
 });

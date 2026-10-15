@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createManualScheduler } from "#test-timing";
 
 import { createUpdateManager, redactUpdateError } from "./update-manager.ts";
 
@@ -239,38 +240,32 @@ test("download progress, installation guards, and preparation are enforced", asy
   assert.equal(manager.getState().phase, "installing");
 });
 
-test("a stalled download is cancelled and releases the active operation for retry", async () => {
+test("download progress extends the deadline and a later stall permits retry", async (t) => {
   const adapter = new FakeUpdateAdapter();
-  const timers = [];
+  const clock = createManualScheduler();
   const logs = [];
   const manager = packagedManager(adapter, {
     downloadWatchdogMs: 100,
-    setTimer: (callback, delay) => {
-      const timer = { callback, delay, cleared: false, unref() {} };
-      timers.push(timer);
-      return timer;
-    },
-    clearTimer: (timer) => {
-      timer.cleared = true;
-    },
+    setTimer: clock.setTimeout,
+    clearTimer: clock.clearTimeout,
     log: (level, message) => logs.push(`${level}:${message}`),
   });
+  t.after(() => manager.dispose());
   adapter.checkImplementation = async () => adapter.emit("update-available", updateInfo());
   adapter.downloadImplementation = () => new Promise(() => undefined);
 
   await manager.checkForUpdates();
   const stalled = manager.downloadUpdate();
-  await Promise.resolve();
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].delay, 100);
-
+  await clock.advanceBy(40);
   adapter.emit("download-progress", { percent: 1, transferred: 1, total: 100 });
-  assert.equal(timers[0].cleared, true);
-  assert.equal(timers.length, 2);
-  timers[0].callback();
-  assert.equal(manager.getState().phase, "downloading");
+  await clock.advanceBy(99);
+  assert.equal(
+    manager.getState().phase,
+    "downloading",
+    "recent progress keeps the download alive past its original deadline",
+  );
   assert.equal(adapter.cancelDownloadCalls, 0);
-  timers[1].callback();
+  await clock.advanceBy(1);
 
   const timedOut = await stalled;
   assert.equal(timedOut.phase, "error");
@@ -278,7 +273,6 @@ test("a stalled download is cancelled and releases the active operation for retr
   assert.equal(timedOut.canRetry, true);
   assert.equal(adapter.cancelDownloadCalls, 1);
   assert.ok(logs.some((line) => line.includes("no progress")));
-
   await manager.checkForUpdates();
   assert.equal(adapter.checkCalls, 2);
 });
@@ -417,68 +411,71 @@ test("redaction handles token, email, Windows home, and cache paths", () => {
   assert.equal(redacted.includes("/private/var/folders"), false);
 });
 
-test("automatic checks honor delay, interval, preference, jitter, and disposal", async () => {
+for (const [random, interval] of [
+  [0, 540],
+  [0.5, 600],
+  [1, 660],
+]) {
+  test(`automatic checks respect elapsed time and stop after disposal (jitter ${random})`, async (t) => {
+    const adapter = new FakeUpdateAdapter();
+    const clock = createManualScheduler();
+    adapter.checkImplementation = async () => adapter.emit("update-not-available", updateInfo());
+    const manager = packagedManager(adapter, {
+      initialCheckDelayMs: 60,
+      checkIntervalMs: 600,
+      jitterRatio: 0.1,
+      random: () => random,
+      setTimer: clock.setTimeout,
+      clearTimer: clock.clearTimeout,
+    });
+    t.after(() => manager.dispose());
+    manager.startAutomaticChecks();
+    await clock.advanceBy(59);
+    assert.equal(adapter.checkCalls, 0);
+    await clock.advanceBy(1);
+    assert.equal(adapter.checkCalls, 1);
+    await clock.advanceBy(interval - 1);
+    assert.equal(adapter.checkCalls, 1);
+    await clock.advanceBy(1);
+    assert.equal(adapter.checkCalls, 2);
+    manager.dispose();
+    await clock.advanceBy(interval * 2);
+    assert.equal(adapter.checkCalls, 2, "disposed managers never poll again");
+    assert.equal(adapter.listenerCount(), 0);
+  });
+}
+
+test("available or downloaded updates and a disabled preference pause background checks", async (t) => {
   const adapter = new FakeUpdateAdapter();
-  const timers = [];
-  adapter.checkImplementation = async () => adapter.emit("update-not-available", updateInfo());
+  const clock = createManualScheduler();
+  adapter.checkImplementation = async () => adapter.emit("update-available", updateInfo());
+  adapter.downloadImplementation = async () => adapter.emit("update-downloaded", downloadedInfo());
   const manager = packagedManager(adapter, {
     initialCheckDelayMs: 60,
     checkIntervalMs: 600,
-    jitterRatio: 0.1,
-    random: () => 0.5,
-    setTimer: (callback, delay) => {
-      const timer = {
-        callback,
-        delay,
-        cleared: false,
-        unrefCalled: false,
-        unref() {
-          this.unrefCalled = true;
-        },
-      };
-      timers.push(timer);
-      return timer;
-    },
-    clearTimer: (timer) => {
-      timer.cleared = true;
-    },
+    jitterRatio: 0,
+    setTimer: clock.setTimeout,
+    clearTimer: clock.clearTimeout,
   });
-
+  t.after(() => manager.dispose());
   manager.startAutomaticChecks();
-  assert.equal(timers.length, 1);
-  assert.equal(timers[0].delay, 60);
-  assert.equal(timers[0].unrefCalled, true);
-
-  timers[0].callback();
-  await new Promise((resolve) => setImmediate(resolve));
+  await clock.advanceBy(60);
   assert.equal(adapter.checkCalls, 1);
-  assert.equal(timers.length, 2);
-  assert.equal(timers[1].delay, 600);
-
-  adapter.checkImplementation = async () => adapter.emit("update-available", updateInfo());
-  await manager.checkForUpdates();
-  const checksBeforeAvailableTimer = adapter.checkCalls;
-  timers[1].callback();
-  assert.equal(adapter.checkCalls, checksBeforeAvailableTimer);
   assert.equal(manager.getState().phase, "available");
-  assert.equal(timers.length, 3);
-
-  adapter.downloadImplementation = async () => adapter.emit("update-downloaded", downloadedInfo());
+  await clock.advanceBy(1200);
+  assert.equal(adapter.checkCalls, 1, "an offered update is not overwritten by polling");
   await manager.downloadUpdate();
-  const checksBeforeDownloadedTimer = adapter.checkCalls;
-  timers[2].callback();
-  assert.equal(adapter.checkCalls, checksBeforeDownloadedTimer);
+  await clock.advanceBy(1200);
   assert.equal(manager.getState().phase, "downloaded");
-  assert.equal(timers.length, 5);
-  assert.equal(timers[3].cleared, true);
-
+  assert.equal(adapter.checkCalls, 1);
   manager.setAutomaticChecksEnabled(false);
-  assert.equal(timers[4].cleared, true);
+  adapter.emit("update-not-available", updateInfo());
+  await clock.advanceBy(1200);
+  assert.equal(adapter.checkCalls, 1, "the disabled preference pauses checks even in idle state");
+  adapter.checkImplementation = async () => adapter.emit("update-not-available", updateInfo());
   manager.setAutomaticChecksEnabled(true);
-  assert.equal(timers.length, 6);
-  assert.equal(timers[5].delay, 60);
-
-  manager.dispose();
-  assert.equal(timers[5].cleared, true);
-  assert.equal(adapter.listenerCount(), 0);
+  await clock.advanceBy(59);
+  assert.equal(adapter.checkCalls, 1);
+  await clock.advanceBy(1);
+  assert.equal(adapter.checkCalls, 2, "enabling checks starts a new initial delay");
 });

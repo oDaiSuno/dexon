@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import appIconUrl from "../../../../build/icon.png";
 import { useI18n } from "@/i18n";
 import { AnimatedDropdown } from "../session-sidebar/animated-dropdown";
@@ -32,6 +32,7 @@ export function NavSpaceMenu({
   onToggleExpanded: () => void;
 } & SpaceActions) {
   const { t } = useI18n();
+  const spaceNameId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -140,7 +141,11 @@ export function NavSpaceMenu({
 
   return (
     <div ref={rootRef} style={{ position: "relative", padding: "10px 10px 8px", flexShrink: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <div
+        role="group"
+        aria-label={t("workspaceControls", "Workspace controls")}
+        style={{ display: "flex", alignItems: "center", gap: 6 }}
+      >
         <button
           type="button"
           onClick={onToggleExpanded}
@@ -186,6 +191,7 @@ export function NavSpaceMenu({
           onClick={() => setMenuOpen((open) => !open)}
           aria-haspopup="menu"
           aria-expanded={menuOpen}
+          aria-labelledby={spaceNameId}
           title={spacePath}
           style={{
             flex: 1,
@@ -210,6 +216,7 @@ export function NavSpaceMenu({
           }}
         >
           <span
+            id={spaceNameId}
             style={{
               flex: 1,
               minWidth: 0,

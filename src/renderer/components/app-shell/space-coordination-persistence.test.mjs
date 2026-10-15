@@ -1,3 +1,5 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 import { importTestBundle } from "#test-bundle";
 import { createDeferred } from "#test-timing";
 import assert from "node:assert/strict";
@@ -15,40 +17,21 @@ import { mountCoordination, createIo, settle } from "./space-coordination-harnes
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { useSpaceCoordination } = await importTestBundle("app-shell-space-coordination-persistence", {
+const { resetRpc, useSpaceCoordination } = await importTestBundle("app-shell-space-coordination-persistence", {
   stdin: {
-    contents: 'export { useSpaceCoordination } from "./src/renderer/components/app-shell/use-space-coordination.ts";',
+    contents:
+      'export { useSpaceCoordination } from "./src/renderer/components/app-shell/use-space-coordination.ts";' +
+      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts";',
     resolveDir: projectRoot,
     sourcefile: "space-coordination-persistence-test-entry.ts",
     loader: "ts",
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "space-coordination-persistence-stubs",
-      setup(build) {
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "space-coordination" }));
-        build.onLoad({ filter: /.*/, namespace: "space-coordination" }, () => ({
-          contents:
-            "export const validateCwd = async (path) => {\n" +
-            "  const harness = globalThis.__spaceIoHarness;\n" +
-            "  if (harness) return harness.validateCwd(path);\n" +
-            "  throw new Error('stub validateCwd must not be called');\n" +
-            "};\n" +
-            "export const defaultCwd = async () => {\n" +
-            "  const harness = globalThis.__spaceIoHarness;\n" +
-            "  if (harness) return harness.defaultCwd();\n" +
-            "  throw new Error('stub defaultCwd must not be called');\n" +
-            "};",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
-test("a new space commit starts unconfirmed and is remembered only after its own write", async () => {
+test("a new space commit starts unconfirmed and is remembered only after its own write", async (t) => {
   const pendingWrites = new Map();
   const record = createIo({
     persistSpaceCwd: (path) => {
@@ -57,7 +40,7 @@ test("a new space commit starts unconfirmed and is remembered only after its own
       return deferred.promise;
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   // The personal space commit is not yet confirmed (write still pending).
@@ -79,7 +62,7 @@ test("a new space commit starts unconfirmed and is remembered only after its own
   await mounted.unmount();
 });
 
-test("late completion of an older write cannot flip the current space's persistence state", async () => {
+test("late completion of an older write cannot flip the current space's persistence state", async (t) => {
   const pendingWrites = new Map();
   const record = createIo({
     persistSpaceCwd: (path) => {
@@ -88,7 +71,7 @@ test("late completion of an older write cannot flip the current space's persiste
       return deferred.promise;
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   // Commit /A (write pending), then switch to /B (write pending).
@@ -131,7 +114,7 @@ test("late completion of an older write cannot flip the current space's persiste
   await mounted.unmount();
 });
 
-test("unmounting invalidates in-flight restores so a stale owner never writes", async () => {
+test("unmounting invalidates in-flight restores so a stale owner never writes", async (t) => {
   let storedReads = 0;
   let releaseFirst = () => {};
   const firstGate = new Promise((resolve) => {
@@ -151,12 +134,12 @@ test("unmounting invalidates in-flight restores so a stale owner never writes", 
       return value;
     },
   });
-  const first = await mountCoordination(useSpaceCoordination, record);
+  const first = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.equal(first.get().spacePhase.phase, "preparing");
   await first.unmount();
 
-  const second = await mountCoordination(useSpaceCoordination, record, {});
+  const second = await mountCoordination(t, useSpaceCoordination, record, {});
   await settle();
   assert.deepEqual(second.get().spacePhase, { phase: "ready", cwd: "/second/space" });
   assert.deepEqual(record.calls.persisted, ["/second/space"]);
@@ -169,7 +152,7 @@ test("unmounting invalidates in-flight restores so a stale owner never writes", 
   await second.unmount();
 });
 
-test("production default I/O reads the preference once per mount, not per render", async () => {
+test("production default I/O reads the preference once per mount, not per render", async (t) => {
   const originalWindowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
   const bridgeCalls = { getUiState: 0, persisted: [], validateCwd: [] };
   globalThis.window = {
@@ -192,9 +175,10 @@ test("production default I/O reads the preference once per mount, not per render
       throw new Error("defaultCwd must not run for a stored space");
     },
   };
+  const hostBoundary = installApiHostBridge(globalThis.window, () => globalThis.__spaceIoHarness, resetRpc);
   try {
     // No injected io: the hook must fall back to its production default I/O.
-    const mounted = await mountCoordination(useSpaceCoordination, { io: undefined });
+    const mounted = await mountCoordination(t, useSpaceCoordination, { io: undefined });
     await settle();
     assert.deepEqual(mounted.get().spacePhase, { phase: "ready", cwd: "/stored/space" });
     assert.equal(bridgeCalls.getUiState, 1);
@@ -209,6 +193,7 @@ test("production default I/O reads the preference once per mount, not per render
     assert.deepEqual(bridgeCalls.persisted, [{ lastSpaceCwd: "/stored/space" }]);
     await mounted.unmount();
   } finally {
+    hostBoundary.close();
     delete globalThis.__spaceIoHarness;
     if (originalWindowDescriptor) Object.defineProperty(globalThis, "window", originalWindowDescriptor);
     else delete globalThis.window;

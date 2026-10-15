@@ -1,3 +1,4 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -23,33 +24,15 @@ const { useSpaceCoordination } = await importTestBundle("app-shell-space-coordin
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "space-coordination-stubs",
-      setup(build) {
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "space-coordination" }));
-        build.onLoad({ filter: /.*/, namespace: "space-coordination" }, () => ({
-          contents:
-            "export const validateCwd = async (path) => {\n" +
-            "  const harness = globalThis.__spaceIoHarness;\n" +
-            "  if (harness) return harness.validateCwd(path);\n" +
-            "  throw new Error('stub validateCwd must not be called');\n" +
-            "};\n" +
-            "export const defaultCwd = async () => {\n" +
-            "  const harness = globalThis.__spaceIoHarness;\n" +
-            "  if (harness) return harness.defaultCwd();\n" +
-            "  throw new Error('stub defaultCwd must not be called');\n" +
-            "};",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
-test("first run prepares the personal space, readies it, and remembers it", async () => {
+test("first run prepares the personal space, readies it, and remembers it", async (t) => {
   const record = createIo();
-  const mounted = await mountCoordination(useSpaceCoordination, record, { sessionResolved: true, sessionFound: false });
+  const mounted = await mountCoordination(t, useSpaceCoordination, record, {
+    sessionResolved: true,
+    sessionFound: false,
+  });
   await settle();
 
   assert.deepEqual(mounted.get().spacePhase, { phase: "ready", cwd: "/Users/tester/.dexon" });
@@ -62,9 +45,9 @@ test("first run prepares the personal space, readies it, and remembers it", asyn
   await mounted.unmount();
 });
 
-test("stored space is restored through real validation without preparing", async () => {
+test("stored space is restored through real validation without preparing", async (t) => {
   const record = createIo({ readStoredSpaceCwd: async () => "/last/space" });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   assert.deepEqual(mounted.get().spacePhase, { phase: "ready", cwd: "/last/space" });
@@ -74,9 +57,9 @@ test("stored space is restored through real validation without preparing", async
   await mounted.unmount();
 });
 
-test("the decision waits for the explicit-session branch and defers to a found session", async () => {
+test("the decision waits for the explicit-session branch and defers to a found session", async (t) => {
   const record = createIo({ readStoredSpaceCwd: async () => "/last/space" });
-  const mounted = await mountCoordination(useSpaceCoordination, record, {
+  const mounted = await mountCoordination(t, useSpaceCoordination, record, {
     sessionIntent: "s1",
     sessionResolved: false,
     sessionFound: false,
@@ -95,9 +78,9 @@ test("the decision waits for the explicit-session branch and defers to a found s
   await mounted.unmount();
 });
 
-test("a confirmed-absent explicit session falls through to the stored space", async () => {
+test("a confirmed-absent explicit session falls through to the stored space", async (t) => {
   const record = createIo({ readStoredSpaceCwd: async () => "/last/space" });
-  const mounted = await mountCoordination(useSpaceCoordination, record, {
+  const mounted = await mountCoordination(t, useSpaceCoordination, record, {
     sessionIntent: "s1",
     sessionResolved: false,
     sessionFound: false,
@@ -111,14 +94,14 @@ test("a confirmed-absent explicit session falls through to the stored space", as
   await mounted.unmount();
 });
 
-test("an invalid stored space becomes unavailable without silently replacing it", async () => {
+test("an invalid stored space becomes unavailable without silently replacing it", async (t) => {
   const record = createIo({
     readStoredSpaceCwd: async () => "/gone/space",
     validateSpace: async () => {
       throw new Error("Directory does not exist");
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   assert.deepEqual(mounted.get().spacePhase, {
@@ -131,7 +114,7 @@ test("an invalid stored space becomes unavailable without silently replacing it"
   await mounted.unmount();
 });
 
-test("retry recovers the stored space once validation succeeds again", async () => {
+test("retry recovers the stored space once validation succeeds again", async (t) => {
   let shouldFail = true;
   const record = createIo({
     readStoredSpaceCwd: async () => "/gone/space",
@@ -140,7 +123,7 @@ test("retry recovers the stored space once validation succeeds again", async () 
       return value;
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.equal(mounted.get().spacePhase.phase, "unavailable");
 
@@ -154,7 +137,7 @@ test("retry recovers the stored space once validation succeeds again", async () 
   await mounted.unmount();
 });
 
-test("personal prepare failure surfaces the reason and return-to-personal recovers", async () => {
+test("personal prepare failure surfaces the reason and return-to-personal recovers", async (t) => {
   let shouldFail = true;
   const record = createIo({
     preparePersonalSpace: async () => {
@@ -162,7 +145,7 @@ test("personal prepare failure surfaces the reason and return-to-personal recove
       return "/Users/tester/.dexon";
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.deepEqual(mounted.get().spacePhase, {
     phase: "unavailable",
@@ -180,7 +163,7 @@ test("personal prepare failure surfaces the reason and return-to-personal recove
   await mounted.unmount();
 });
 
-test("a user space change discards late validation results and is not overwritten", async () => {
+test("a user space change discards late validation results and is not overwritten", async (t) => {
   let releaseValidation = () => {};
   const gate = new Promise((resolve) => {
     releaseValidation = resolve;
@@ -192,7 +175,7 @@ test("a user space change discards late validation results and is not overwritte
       return value;
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.equal(mounted.get().spacePhase.phase, "preparing");
 
@@ -211,9 +194,9 @@ test("a user space change discards late validation results and is not overwritte
   await mounted.unmount();
 });
 
-test("echoes of the committed space are ignored and do not re-persist", async () => {
+test("echoes of the committed space are ignored and do not re-persist", async (t) => {
   const record = createIo();
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.deepEqual(record.calls.persisted, ["/Users/tester/.dexon"]);
 
@@ -227,9 +210,9 @@ test("echoes of the committed space are ignored and do not re-persist", async ()
   await mounted.unmount();
 });
 
-test("session cwd changes align the space (deep link / session creation path)", async () => {
+test("session cwd changes align the space (deep link / session creation path)", async (t) => {
   const record = createIo();
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   await mounted.rerender({ sessionCwd: "/sessions/cwd" });
@@ -239,14 +222,14 @@ test("session cwd changes align the space (deep link / session creation path)", 
   await mounted.unmount();
 });
 
-test("preference write failure never fakes being remembered", async () => {
+test("preference write failure never fakes being remembered", async (t) => {
   let shouldFail = true;
   const record = createIo({
     persistSpaceCwd: async () => {
       if (shouldFail) throw new Error("disk full");
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   assert.equal(mounted.get().spacePhase.phase, "ready");
@@ -264,9 +247,9 @@ test("preference write failure never fakes being remembered", async () => {
   await mounted.unmount();
 });
 
-test("retry from a ready space is a no-op and no decision reruns after one commit", async () => {
+test("retry from a ready space is a no-op and no decision reruns after one commit", async (t) => {
   const record = createIo();
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   await act(async () => {
@@ -278,7 +261,7 @@ test("retry from a ready space is a no-op and no decision reruns after one commi
   await mounted.unmount();
 });
 
-test("a committed external space short-circuits the pending startup decision", async () => {
+test("a committed external space short-circuits the pending startup decision", async (t) => {
   let releaseStored = () => {};
   const storedGate = new Promise((resolve) => {
     releaseStored = resolve;
@@ -289,7 +272,7 @@ test("a committed external space short-circuits the pending startup decision", a
       return "/last/space";
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.deepEqual(mounted.get().spacePhase, { phase: "idle" });
 
@@ -305,9 +288,9 @@ test("a committed external space short-circuits the pending startup decision", a
   await mounted.unmount();
 });
 
-test("openCurrentFolder forwards the ready space to the desktop bridge", async () => {
+test("openCurrentFolder forwards the ready space to the desktop bridge", async (t) => {
   const record = createIo();
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   await mounted.get().openCurrentFolder();
@@ -315,14 +298,14 @@ test("openCurrentFolder forwards the ready space to the desktop bridge", async (
   await mounted.unmount();
 });
 
-test("openCurrentFolder does nothing without a ready space", async () => {
+test("openCurrentFolder does nothing without a ready space", async (t) => {
   const record = createIo({
     readStoredSpaceCwd: async () => "/gone/space",
     validateSpace: async () => {
       throw new Error("Directory does not exist");
     },
   });
-  const mounted = await mountCoordination(useSpaceCoordination, record);
+  const mounted = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
 
   await mounted.get().openCurrentFolder();
@@ -330,16 +313,16 @@ test("openCurrentFolder does nothing without a ready space", async () => {
   await mounted.unmount();
 });
 
-test("remounting the shell re-runs the startup decision and re-authorizes the space", async () => {
+test("remounting the shell re-runs the startup decision and re-authorizes the space", async (t) => {
   const record = createIo({ readStoredSpaceCwd: async () => "/last/space" });
-  const first = await mountCoordination(useSpaceCoordination, record);
+  const first = await mountCoordination(t, useSpaceCoordination, record);
   await settle();
   assert.deepEqual(first.get().spacePhase, { phase: "ready", cwd: "/last/space" });
   await first.unmount();
 
   // Host restart remounts the whole shell: a fresh coordinator must re-validate
   // (the in-process allowed roots died with the old host).
-  const second = await mountCoordination(useSpaceCoordination, record, {});
+  const second = await mountCoordination(t, useSpaceCoordination, record, {});
   await settle();
   assert.deepEqual(second.get().spacePhase, { phase: "ready", cwd: "/last/space" });
   assert.deepEqual(record.calls.validated, ["/last/space", "/last/space"]);

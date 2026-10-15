@@ -3,6 +3,7 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: {
     main: "src/smoke/main.ts",
+    "production-startup": "src/smoke/production-startup.ts",
   },
   format: ["cjs"],
   platform: "node",

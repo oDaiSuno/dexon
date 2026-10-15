@@ -55,8 +55,9 @@ export function baseProps(overrides = {}) {
   };
 }
 
-export async function mountCoordination(useSpaceCoordination, record, props = {}) {
+export async function mountCoordination(t, useSpaceCoordination, record, props = {}) {
   const { io } = record;
+  const original = Object.getOwnPropertyDescriptor(globalThis, "IS_REACT_ACT_ENVIRONMENT");
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   let snapshot = null;
   const Probe = (probeProps) => {
@@ -64,6 +65,18 @@ export async function mountCoordination(useSpaceCoordination, record, props = {}
     return null;
   };
   let renderer = null;
+  let mounted = true;
+  const unmount = async () => {
+    if (!mounted) return;
+    mounted = false;
+    try {
+      await act(async () => renderer?.unmount());
+    } finally {
+      if (original) Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", original);
+      else delete globalThis.IS_REACT_ACT_ENVIRONMENT;
+    }
+  };
+  t.after(unmount);
   await act(async () => {
     renderer = create(createElement(Probe, baseProps(props)));
   });
@@ -74,11 +87,6 @@ export async function mountCoordination(useSpaceCoordination, record, props = {}
         renderer.update(createElement(Probe, baseProps({ ...props, ...next })));
       });
     },
-    async unmount() {
-      await act(async () => {
-        renderer.unmount();
-      });
-      delete globalThis.IS_REACT_ACT_ENVIRONMENT;
-    },
+    unmount,
   };
 }

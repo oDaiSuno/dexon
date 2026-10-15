@@ -1,30 +1,25 @@
 import assert from "node:assert/strict";
-import test from "node:test";
-import { createElement } from "react";
-import TestRenderer, { act } from "react-test-renderer";
-import { importTestBundle } from "#test-bundle";
-const { ToolCardDock, InteractiveToolStore } = await importTestBundle("tool-cards", {
-  packages: "external",
-  tsconfig: "tsconfig.renderer.json",
-  loader: { ".css": "empty" },
-  stdin: {
-    contents:
-      'export {ToolCardDock} from "./src/renderer/components/interactive-tools/tool-card-dock"; export {InteractiveToolStore} from "./src/renderer/lib/interactive-tool-store";',
-    resolveDir: process.cwd(),
-    loader: "ts",
-  },
-  plugins: [
-    {
-      name: "card-i18n",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "card-test" }));
-        build.onLoad({ filter: /.*/, namespace: "card-test" }, () => ({
-          contents: "export const useI18n = () => ({t: (key, fallback) => fallback});",
-        }));
-      },
-    },
-  ],
-});
+import test, { after } from "node:test";
+import {
+  dom,
+  act,
+  click,
+  input,
+  keyDown,
+  button,
+  loadRenderer,
+  mount,
+  restoreGlobals,
+} from "../../../../tests/support/renderer.mjs";
+import { installHostBridge } from "../../../../tests/support/host-bridge.mjs";
+
+const { ToolCardDock, InteractiveToolStore, sendAgentCommand, resetRpc, setAppLanguage } = await loadRenderer(
+  "tool-cards-dom",
+  'export {ToolCardDock} from "./src/renderer/components/interactive-tools/tool-card-dock.tsx"; export {InteractiveToolStore} from "./src/renderer/lib/interactive-tool-store.ts"; export {sendAgentCommand} from "./src/renderer/lib/agent-client.ts";',
+);
+setAppLanguage("en-US");
+after(restoreGlobals);
+
 const question = (multiSelect = false) => ({
   question: "Which option?",
   header: "Options",
@@ -51,155 +46,166 @@ function request(method = "questionnaire", questions = [question()]) {
     message: "Please explicitly decide",
   };
 }
-async function harness(t, req = request(), send, visible = true) {
-  const globals = ["IS_REACT_ACT_ENVIRONMENT", "requestAnimationFrame"];
-  const previous = globals.map((n) => Object.getOwnPropertyDescriptor(globalThis, n));
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  globalThis.requestAnimationFrame = () => 0;
+
+async function harness(t, req = request(), reply, visible = true) {
   const commands = [];
-  const store = new InteractiveToolStore("session", async (_, command) => {
-    commands.push(command);
-    return send ? send(command) : { id: command.id, status: "cancelled" in command ? "cancelled" : "submitted" };
+  const views = [];
+  dom.window.sessionStorage.clear();
+  resetRpc();
+  const host = installHostBridge(dom.window, {
+    call: async (method, params) => {
+      // Even a rejected request counts as outbound delivery. Hidden controls
+      // cannot look silent merely because their malformed command was rejected.
+      commands.push(params?.command);
+      assert.equal(method, "agent.command");
+      assert.equal(params.sessionId, "session");
+      assert.equal(params.command.id, req.id);
+      assert.ok(["extension_ui_response", "extension_ui_input"].includes(params.command.type));
+      if (reply) return reply(params.command);
+      return { id: req.id, status: params.command.cancelled ? "cancelled" : "submitted" };
+    },
   });
-  store.reconcile({ runtimeId: "runtime", revision: 1, requests: [req], completed: [] });
-  let renderer;
-  await act(async () => {
-    renderer = TestRenderer.create(createElement(ToolCardDock, { store, visible }));
-  });
+  let view;
   t.after(async () => {
-    await act(async () => renderer.unmount());
-    globals.forEach((n, i) => (previous[i] ? Object.defineProperty(globalThis, n, previous[i]) : delete globalThis[n]));
+    try {
+      for (const mounted of views) await mounted.unmount();
+    } finally {
+      resetRpc();
+      host.close();
+      dom.window.sessionStorage.clear();
+    }
   });
-  const text = (node) => node.children.map((c) => (typeof c === "string" ? c : text(c))).join("");
+  const store = new InteractiveToolStore("session", sendAgentCommand, dom.window.sessionStorage);
+  store.reconcile({ runtimeId: "runtime", revision: 1, requests: [req], completed: [] });
+  const render = async () => {
+    view = await mount(t, ToolCardDock, { store, visible });
+    views.push(view);
+  };
+  await render();
   return {
-    store,
     commands,
-    renderer,
-    get root() {
-      return renderer.root;
+    get container() {
+      return view.container;
     },
-    get entry() {
-      return store.getSnapshot().entries[0];
+    get page() {
+      return view.container
+        .querySelector('nav[aria-label="Question navigation"] [aria-label]')
+        ?.getAttribute("aria-label");
     },
-    button: (label) =>
-      renderer.root.findAllByType("button").find((b) => b.props["aria-label"] === label || text(b) === label),
+    button: (label) => button(view.container, label),
     async click(label) {
-      const b = this.button(label);
-      assert.ok(b, `button ${label}`);
-      assert.ok(!b.props.disabled, `${label} is enabled`);
-      await act(async () => b.props.onClick());
+      const control = button(view.container, label);
+      assert.ok(control, `button ${label}`);
+      assert.equal(control.disabled, false, `${label} is enabled`);
+      await click(control);
     },
-    async choose(index = 0) {
-      await act(async () => renderer.root.findAllByType("input")[index].props.onChange());
+    choose: (index = 0) => click(view.container.querySelectorAll('input[type="radio"], input[type="checkbox"]')[index]),
+    type: (value) => input(view.container.querySelector("textarea"), value),
+    async resume() {
+      await click(
+        [...view.container.querySelectorAll("button")].find((control) =>
+          control.textContent.includes("Continue answering"),
+        ),
+      );
     },
-    async type(textValue) {
-      await act(async () => renderer.root.findByType("textarea").props.onChange({ target: { value: textValue } }));
+    async show() {
+      visible = true;
+      await view.update({ store, visible });
     },
+    unmount: () => view.unmount(),
+    remount: render,
   };
 }
 
-test("hidden ordinary cards ignore text, Enter, and response buttons", async (t) => {
+test("hidden ordinary cards leave retained text and response delivery unchanged", async (t) => {
   const h = await harness(t, request("input"), undefined, false);
-  const input = h.root.findByType("input");
-  await act(async () => input.props.onChange({ target: { value: "hidden" } }));
-  assert.equal(h.entry.draft.value, "", "hidden text input does not update the retained draft");
-  let prevented = false;
-  await act(async () =>
-    input.props.onKeyDown({
-      key: "Enter",
-      nativeEvent: {},
-      keyCode: 13,
-      preventDefault() {
-        prevented = true;
-      },
-      stopPropagation() {},
-    }),
-  );
-  assert.equal(prevented, false, "hidden input does not consume Enter");
+  const field = h.container.querySelector("input");
+  await input(field, "hidden");
+  const enter = await keyDown(field, "Enter");
+  assert.equal(enter.defaultPrevented, false, "a hidden card does not consume Enter");
   await h.click("Send answer");
-  assert.deepEqual(h.commands, [], "hidden response controls do not send");
+  assert.deepEqual(h.commands, []);
+  await h.show();
+  assert.equal(h.container.querySelector("input").value, "");
 });
 
-test("hidden questionnaire controls do not change answers", async (t) => {
-  const h = await harness(t, request("questionnaire"), undefined, false);
+test("hidden questionnaire controls leave the visible answers empty when shown again", async (t) => {
+  const h = await harness(t, request(), undefined, false);
   await h.choose();
   await h.type("hidden note");
-  assert.deepEqual(h.entry.draft.answers, [{ selected: [], text: "" }]);
+  await h.show();
+  assert.ok([...h.container.querySelectorAll("input")].every((field) => !field.checked));
+  assert.equal(h.container.querySelector("textarea").value, "");
+  assert.deepEqual(h.commands, []);
 });
 
 test("hidden terminal controls do not consume keys or send panel input", async (t) => {
   const h = await harness(t, request("custom"), undefined, false);
-  const terminal = h.root.findByType("pre");
-  let prevented = false;
-  await act(async () =>
-    terminal.props.onKeyDown({
-      key: "a",
-      ctrlKey: false,
-      metaKey: false,
-      altKey: false,
-      nativeEvent: {},
-      preventDefault() {
-        prevented = true;
-      },
-      stopPropagation() {},
-    }),
-  );
-  assert.equal(prevented, false, "hidden terminal does not consume keyboard input");
+  const key = await keyDown(h.container.querySelector('[role="textbox"]'), "a");
+  assert.equal(key.defaultPrevented, false);
   await h.click("Send Tab to panel");
-  assert.deepEqual(h.commands, [], "hidden terminal controls do not send input");
+  assert.deepEqual(h.commands, []);
 });
 
-test("question card Close and Escape collapse three times without responding", async (t) => {
+test("Close and Escape repeatedly collapse the card while retaining its answer without responding", async (t) => {
   const h = await harness(t);
   await h.type("kept answer");
+  const outsideKeys = [];
+  const onOutsideKey = (event) => outsideKeys.push(event.key);
+  dom.window.document.body.addEventListener("keydown", onOutsideKey);
+  t.after(() => dom.window.document.body.removeEventListener("keydown", onOutsideKey));
   for (let i = 0; i < 3; i++) {
     await h.click("Collapse and keep answers");
-    assert.equal(h.root.findAllByType("textarea").length, 0);
-    const resume = h.root.findByProps({ className: "tool-resume" });
-    await act(async () => resume.props.onClick());
-    assert.equal(h.root.findByType("textarea").props.value, "kept answer");
-    let stopped = 0;
-    await act(async () =>
-      h.root.findByType("section").props.onKeyDownCapture({
-        key: "Escape",
-        nativeEvent: {},
-        preventDefault() {},
-        stopPropagation() {
-          stopped++;
-        },
-      }),
-    );
-    assert.equal(stopped, 1);
-    assert.equal(h.entry.draft.collapsed, true);
-    await act(async () => h.root.findByProps({ className: "tool-resume" }).props.onClick());
+    assert.equal(h.container.querySelector("textarea"), null);
+    await h.resume();
+    const field = h.container.querySelector("textarea");
+    assert.equal(field.value, "kept answer");
+    const escape = await keyDown(field, "Escape");
+    assert.equal(escape.defaultPrevented, true);
+    assert.deepEqual(outsideKeys, [], "Escape does not reach the surrounding page");
+    assert.equal(h.container.querySelector("textarea"), null);
+    await h.resume();
   }
   assert.deepEqual(h.commands, []);
 });
 
-test("single selection advances once, last question waits for manual submit", async (t) => {
+test("single selection advances one question and the last question waits for explicit submission", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout"] });
   const h = await harness(t, request("questionnaire", [question(), question(), question(), question()]));
   await h.choose();
   await h.choose(1);
-  await act(async () => t.mock.timers.tick(150));
-  assert.equal(h.entry.draft.questionIndex, 1);
   await act(async () => t.mock.timers.tick(1000));
-  assert.equal(h.entry.draft.questionIndex, 1);
+  assert.equal(h.page, "2 / 4");
+  await act(async () => t.mock.timers.tick(1000));
+  assert.equal(h.page, "2 / 4");
   await h.click("Next question");
   await h.click("Next question");
   await h.choose();
   await act(async () => t.mock.timers.tick(1000));
-  assert.equal(h.entry.draft.questionIndex, 3);
+  assert.equal(h.page, "4 / 4");
   assert.deepEqual(h.commands, []);
   await h.click("Previous question");
   await h.type("later changed");
-  assert.deepEqual(h.entry.draft.answers[0].selected, [1]);
+  await h.click("Previous question");
+  await h.click("Previous question");
+  assert.equal(h.container.querySelectorAll("input")[1].checked, true, "the first answer is retained");
   await h.click("Send answered questions");
-  assert.equal(h.commands.length, 1);
+  assert.deepEqual(h.commands, [
+    {
+      type: "extension_ui_response",
+      id: "q",
+      answers: [
+        { selected: [1], text: "" },
+        { selected: [], text: "" },
+        { selected: [], text: "later changed" },
+        { selected: [0], text: "" },
+      ],
+    },
+  ]);
 });
 
 for (const action of ["collapse", "navigate", "text", "unmount"])
-  test(`pending automatic advance is cancelled by ${action}`, async (t) => {
+  test(`a pending advance is cancelled when the user performs ${action}`, async (t) => {
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const h = await harness(t, request("questionnaire", [question(), question()]));
     await h.choose();
@@ -209,13 +215,15 @@ for (const action of ["collapse", "navigate", "text", "unmount"])
       await h.click("Previous question");
     }
     if (action === "text") await h.type("custom replaces option");
-    if (action === "unmount") await act(async () => h.renderer.unmount());
+    if (action === "unmount") await h.unmount();
     await act(async () => t.mock.timers.tick(1000));
-    assert.equal(h.entry.draft.questionIndex, 0);
-    assert.equal(h.commands.length, 0);
+    if (action === "collapse") await h.resume();
+    if (action === "unmount") await h.remount();
+    assert.equal(h.page, "1 / 2");
+    assert.deepEqual(h.commands, []);
   });
 
-test("multi choice includes two selected labels and the unmodified supplemental text", async (t) => {
+test("multiple selections deliver both labels and the unmodified supplemental text", async (t) => {
   const h = await harness(t, request("questionnaire", [question(true)]));
   await h.choose();
   await h.choose(1);
@@ -224,61 +232,67 @@ test("multi choice includes two selected labels and the unmodified supplemental 
   assert.deepEqual(h.commands[0].answers, [{ selected: [0, 1], text: "  multiline\nnotes  " }]);
 });
 
-test("multi choice permits only custom text", async (t) => {
+test("a multi-choice question can be answered with custom text alone", async (t) => {
   const h = await harness(t, request("questionnaire", [question(true)]));
   await h.type("text only");
   await h.click("Send answers");
   assert.deepEqual(h.commands[0].answers, [{ selected: [], text: "text only" }]);
 });
 
-test("single custom text and options are mutually exclusive", async (t) => {
+test("single-choice text and options replace each other rather than accumulating", async (t) => {
   const h = await harness(t);
   await h.choose();
   await h.type("custom");
-  assert.deepEqual(h.entry.draft.answers[0], { selected: [], text: "custom" });
+  assert.ok([...h.container.querySelectorAll("input")].every((field) => !field.checked));
+  assert.equal(h.container.querySelector("textarea").value, "custom");
   await h.choose(1);
-  assert.deepEqual(h.entry.draft.answers[0], { selected: [1], text: "" });
+  assert.equal(h.container.querySelectorAll("input")[1].checked, true);
+  assert.equal(h.container.querySelector("textarea").value, "");
 });
 
-test("skip is local, partial submit includes explicit empty slots, all empty cannot submit", async (t) => {
+test("skipping stays local and partial submission includes explicit unanswered slots", async (t) => {
   const h = await harness(t, request("questionnaire", [question(), question()]));
-  assert.equal(h.button("Send answered questions").props.disabled, true);
+  assert.equal(h.button("Send answered questions").disabled, true);
   await h.click("Skip for now");
-  assert.equal(h.entry.draft.questionIndex, 1);
-  assert.equal(h.commands.length, 0);
+  assert.equal(h.page, "2 / 2");
+  assert.deepEqual(h.commands, []);
   await h.type("one answered");
   await h.click("Send answered questions");
-  assert.deepEqual(h.commands[0].answers[0], { selected: [], text: "" });
+  assert.deepEqual(h.commands[0].answers, [
+    { selected: [], text: "" },
+    { selected: [], text: "one answered" },
+  ]);
 });
 
-test("preview renders the full source inertly without selecting or submitting", async (t) => {
+test("opening the full preview exposes inert source without selecting or submitting", async (t) => {
   const h = await harness(t);
-  const preview = h.root.findByType("pre");
-  assert.ok(preview.children.join("").length > 600);
-  assert.ok(preview.children.join("").includes("<script>no execution</script>"));
-  await act(async () => h.root.findByType("details").props.onToggle());
-  assert.deepEqual(h.entry.draft.answers, [{ selected: [], text: "" }]);
-  assert.equal(h.commands.length, 0);
+  await click(h.container.querySelector("summary"));
+  const preview = h.container.querySelector("pre");
+  assert.ok(preview.textContent.length > 600);
+  assert.ok(preview.textContent.includes("<script>no execution</script>"));
+  assert.equal(h.container.querySelector("script"), null);
+  assert.ok([...h.container.querySelectorAll("input")].every((field) => !field.checked));
+  assert.deepEqual(h.commands, []);
 });
 
-test("abandonment is confirmed inside the card and never sends drafts", async (t) => {
+test("abandonment requires in-card confirmation and never sends the retained draft", async (t) => {
   const h = await harness(t);
   await h.type("not to be sent");
   await h.click("Abandon this answer");
-  assert.equal(h.commands.length, 0);
-  assert.equal(h.root.findAll((n) => n.props["aria-modal"]).length, 0);
+  assert.deepEqual(h.commands, []);
+  assert.equal(h.container.querySelector('[aria-modal="true"]'), null);
   await h.click("Keep answering");
-  assert.equal(h.entry.draft.answers[0].text, "not to be sent");
+  assert.equal(h.container.querySelector("textarea").value, "not to be sent");
   await h.click("Abandon this answer");
   await h.click("Abandon without sending");
-  assert.deepEqual(h.commands[0], { type: "extension_ui_response", id: "q", cancelled: true });
-  assert.equal(h.entry.status, "cancelled");
+  assert.deepEqual(h.commands, [{ type: "extension_ui_response", id: "q", cancelled: true }]);
+  assert.match(h.container.textContent, /Answering abandoned/);
 });
 
 for (const method of ["select", "input", "editor", "confirm", "custom"])
-  test(`${method} uses the real non-modal card and preserves its return meaning`, async (t) => {
+  test(`${method} is answered through a non-modal card with its documented response meaning`, async (t) => {
     const h = await harness(t, request(method));
-    assert.equal(h.root.findAll((n) => n.props["aria-modal"]).length, 0);
+    assert.equal(h.container.querySelector('[aria-modal="true"]'), null);
     if (method === "select") {
       await h.choose(1);
       await h.click("Send answer");
@@ -289,7 +303,7 @@ for (const method of ["select", "input", "editor", "confirm", "custom"])
       assert.equal(h.commands[0].value, "");
     }
     if (method === "editor") {
-      assert.equal(h.root.findByType("textarea").props.value, "existing text");
+      assert.equal(h.container.querySelector("textarea").value, "existing text");
       await h.click("Send answer");
       assert.equal(h.commands[0].value, "existing text");
     }
@@ -299,56 +313,41 @@ for (const method of ["select", "input", "editor", "confirm", "custom"])
     }
     if (method === "custom") {
       await h.click("Collapse and keep answers");
-      assert.equal(h.commands.length, 0);
-      await act(async () => h.root.findByProps({ className: "tool-resume" }).props.onClick());
-      await act(async () =>
-        h.root
-          .findByType("pre")
-          .props.onKeyDown({ key: "ArrowDown", nativeEvent: {}, preventDefault() {}, stopPropagation() {} }),
-      );
+      assert.deepEqual(h.commands, []);
+      await h.resume();
+      await keyDown(h.container.querySelector('[role="textbox"]'), "ArrowDown");
       assert.equal(h.commands[0].data, "\x1b[B");
     }
   });
 
-test("input-method Enter does not submit an ordinary text input", async (t) => {
+test("Enter during composition does not submit an ordinary text input", async (t) => {
   const h = await harness(t, request("input"));
-  await act(async () =>
-    h.root.findByType("input").props.onKeyDown({ key: "Enter", nativeEvent: { isComposing: true }, keyCode: 229 }),
-  );
-  assert.equal(h.commands.length, 0);
+  await keyDown(h.container.querySelector("input"), "Enter", { isComposing: true, keyCode: 229 });
+  assert.deepEqual(h.commands, []);
 });
 
-test("failed submission shows a retryable error and no restart execution button", async (t) => {
-  let attempts = 0;
-  const h = await harness(t, request(), (c) => {
-    if (++attempts === 1) throw new Error("offline");
-    return { id: c.id, status: "submitted" };
+test("failed delivery retains the visible answer and permits a successful retry", async (t) => {
+  let offline = true;
+  const h = await harness(t, request(), (command) => {
+    if (offline) throw new Error("offline");
+    return { id: command.id, status: "submitted" };
   });
   await h.type("saved");
   await h.click("Send answers");
-  assert.equal(h.entry.status, "failed");
-  assert.match(JSON.stringify(h.renderer.toJSON()), /Delivery failed/);
-  assert.equal(h.root.findByType("textarea").props.value, "saved");
+  assert.match(h.container.textContent, /Delivery failed/);
+  assert.equal(h.container.querySelector("textarea").value, "saved");
+  assert.equal(h.button("Restart"), undefined);
+  offline = false;
   await h.click("Send answers");
-  assert.equal(h.entry.status, "submitted");
+  assert.match(h.container.textContent, /Answers sent/);
   assert.equal(h.button("Send answers"), undefined);
 });
 
-test("custom panel Tab remains available without trapping keyboard focus", async (t) => {
+test("a terminal leaves Tab available for focus navigation but can send it explicitly", async (t) => {
   const h = await harness(t, request("custom"));
-  let prevented = false;
-  await act(async () =>
-    h.root.findByType("pre").props.onKeyDown({
-      key: "Tab",
-      nativeEvent: {},
-      preventDefault() {
-        prevented = true;
-      },
-      stopPropagation() {},
-    }),
-  );
-  assert.equal(prevented, false);
-  assert.equal(h.commands.length, 0);
+  const tab = await keyDown(h.container.querySelector('[role="textbox"]'), "Tab");
+  assert.equal(tab.defaultPrevented, false);
+  assert.deepEqual(h.commands, []);
   await h.click("Send Tab to panel");
   assert.equal(h.commands[0].data, "\t");
 });

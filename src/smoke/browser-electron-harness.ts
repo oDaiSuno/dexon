@@ -1,3 +1,5 @@
+import { configureSmokeEnvironment } from "./environment";
+import { writeNativeCompletion } from "./native-completion";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
@@ -61,6 +63,8 @@ vNtjr9D3pfageti1t1g1K1KqQ7qckqzoBy5JlbgSNuP1orrY/zXuxaI=
 function hasBrowserCode(code: string): (error: unknown) => boolean {
   return (error) => typeof error === "object" && error !== null && "code" in error && error.code === code;
 }
+
+configureSmokeEnvironment();
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-browser-electron-"));
 const downloads = path.join(root, "downloads");
@@ -1711,6 +1715,7 @@ void app.whenReady().then(async () => {
     await new Promise<void>((resolve) => secureServer?.close(() => resolve()) ?? resolve());
     await new Promise<void>((resolve) => proxyServer?.close(() => resolve()) ?? resolve());
     fs.rmSync(root, { recursive: true, force: true });
+    writeNativeCompletion("browser-electron");
     app.exit(0);
   } catch (error) {
     console.error(error instanceof Error ? (error.stack ?? error.message) : error);

@@ -1,3 +1,4 @@
+import { configureSmokeEnvironment } from "./environment";
 import { app, BrowserWindow, crashReporter, safeStorage } from "electron";
 import fs from "node:fs";
 import path from "path";
@@ -14,12 +15,12 @@ import { ToolchainManager } from "../main/toolchains/manager";
 import { resolveRuntimeCatalogPath } from "../main/toolchains/catalog";
 import { resolveBundledCorePaths } from "../main/toolchains/bundled-core";
 import { isExecutionIntent } from "../shared/toolchains/types";
+import { SMOKE_RESULT_FILE } from "./result";
 
-const smokeUserData = process.env.PI_DESKTOP_SMOKE_USER_DATA;
-if (!smokeUserData || !path.isAbsolute(smokeUserData)) {
-  throw new Error("PI_DESKTOP_SMOKE_USER_DATA must be an absolute temporary directory");
-}
-app.setPath("userData", smokeUserData);
+const smokeUserData = configureSmokeEnvironment();
+appendMainLog(
+  `smoke: process identity pid=${process.pid} ppid=${process.ppid} argv=${JSON.stringify(process.argv.slice(1))} userDataEnv=${smokeUserData} runAsNode=${process.env.ELECTRON_RUN_AS_NODE ?? "unset"}`,
+);
 
 registerAppProtocol();
 crashReporter.start({
@@ -34,7 +35,25 @@ let smokeWindow: BrowserWindow | null = null;
 let updateManager: UpdateManager | null = null;
 let checksStarted = false;
 
+// Production startup and single-instance behavior are verified by the separate
+// production-startup probe, which loads out/main/main.js rather than copying boot.
+
+// A hidden test window is intentionally destroyed before the runner exits.
+// Its closure is not a success signal; finish owns this process's lifetime.
+app.on("window-all-closed", () => {});
+
 function finish(exitCode: number, error?: unknown): void {
+  if (exitCode === 0) {
+    try {
+      fs.writeFileSync(
+        path.join(smokeUserData!, SMOKE_RESULT_FILE),
+        JSON.stringify({ completed: true, pid: process.pid }),
+      );
+    } catch (cause) {
+      exitCode = 1;
+      error = cause;
+    }
+  }
   if (error) {
     appendMainLog(`smoke: checks failed — ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
   }

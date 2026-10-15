@@ -1,8 +1,11 @@
+import { realRendererGraphOptions } from "./renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../tests/support/api-host.mjs";
 import { JSDOM } from "jsdom";
 import { importTestBundle } from "#test-bundle";
 import path from "node:path";
 import { act, createElement } from "react";
-import { createRoot } from "react-dom/client";
+import { createManualScheduler } from "#test-timing";
+import { createBrowserObservers } from "../../../tests/support/browser-observers.mjs";
 import { createSessionDetail, createSessionTestHost } from "../hooks/agent-session/session-hook-harness.mjs";
 
 /**
@@ -10,69 +13,12 @@ import { createSessionDetail, createSessionTestHost } from "../hooks/agent-sessi
  *
  * Mounts the ACTUAL ChatWindow component (real useChatWindow, useAgentSession,
  * ChatInput, ChatMinimap, sentinel and viewport owners) in jsdom with mocked
- * external IO and explicit observer/listener/frame/timer registries. The
- * reading-side owners are the same ones ChatWindow wires together: presence
- * ResizeObserver, viewport-height ResizeObserver, minimap ResizeObserver,
- * history sentinel IntersectionObserver, window/container listeners, rAF
- * frames and the 30ms/50ms presence/minimap timers.
+ * external IO. Browser signals are delivered by DOM target; the tests observe
+ * public reading, history and drag behavior, not the number of internal owners.
+ * Resource registries only account for released targets and leftover work.
  */
 
 const ROOT = path.resolve(import.meta.dirname, "../../..");
-
-const API_NAMES = [
-  "agentCommand",
-  "agentState",
-  "call",
-  "cancelModelsRefresh",
-  "getSession",
-  "getSessionContext",
-  "getSessionContextPage",
-  "getSessionEntryContent",
-  "listModels",
-  "newAgent",
-  "readFile",
-  "refreshModels",
-  "subscribeAgentEvents",
-  "subscribeSessionsChanged",
-];
-
-class FakeResizeObserver {
-  constructor(callback) {
-    this.callback = callback;
-    this.observed = [];
-    this.disconnectCount = 0;
-    FakeResizeObserver.instances.push(this);
-  }
-  observe(target) {
-    this.observed.push(target);
-  }
-  unobserve() {}
-  disconnect() {
-    this.disconnectCount += 1;
-  }
-  emit() {
-    this.callback();
-  }
-}
-
-class FakeIntersectionObserver {
-  constructor(callback) {
-    this.callback = callback;
-    this.observed = [];
-    this.disconnectCount = 0;
-    FakeIntersectionObserver.instances.push(this);
-  }
-  observe(target) {
-    this.observed.push(target);
-  }
-  unobserve() {}
-  disconnect() {
-    this.disconnectCount += 1;
-  }
-  emit(entry) {
-    this.callback([entry]);
-  }
-}
 
 /**
  * Installs jsdom globals with registries and returns the environment handle.
@@ -83,10 +29,18 @@ export function installCompositionEnvironment() {
     url: "http://localhost/",
     pretendToBeVisual: true,
   });
+  // Initialize the browser's selector/focus machinery before accounting for
+  // the page's listeners. JSDOM's own mouse/key listeners are not scene work.
+  const root = dom.window.document.querySelector("#root");
   const names = [
     "window",
     "document",
     "HTMLElement",
+    "Element",
+    "Event",
+    "KeyboardEvent",
+    "WheelEvent",
+    "TouchEvent",
     "Node",
     "navigator",
     "fetch",
@@ -99,8 +53,8 @@ export function installCompositionEnvironment() {
   ];
   const originals = new Map(names.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 
-  const resizeObservers = [];
-  const intersectionObservers = [];
+  const observers = createBrowserObservers();
+  const clock = createManualScheduler();
   const rafQueue = new Map();
   const windowListeners = new Map();
   const documentListeners = new Map();
@@ -109,9 +63,6 @@ export function installCompositionEnvironment() {
   const scrollToCalls = [];
   const storedValues = new Map();
   let rafSeq = 0;
-
-  FakeResizeObserver.instances = resizeObservers;
-  FakeIntersectionObserver.instances = intersectionObservers;
 
   const recordListener = (map) => (type, fn) => {
     const list = map.get(type) ?? [];
@@ -128,10 +79,16 @@ export function installCompositionEnvironment() {
     window: { configurable: true, value: dom.window },
     document: { configurable: true, value: dom.window.document },
     HTMLElement: { configurable: true, value: dom.window.HTMLElement },
+    ...Object.fromEntries(
+      ["Element", "Event", "KeyboardEvent", "WheelEvent", "TouchEvent"].map((name) => [
+        name,
+        { configurable: true, value: dom.window[name] },
+      ]),
+    ),
     Node: { configurable: true, value: dom.window.Node },
     navigator: { configurable: true, value: dom.window.navigator },
-    ResizeObserver: { configurable: true, value: FakeResizeObserver },
-    IntersectionObserver: { configurable: true, value: FakeIntersectionObserver },
+    ResizeObserver: { configurable: true, value: observers.ResizeObserver },
+    IntersectionObserver: { configurable: true, value: observers.IntersectionObserver },
     IS_REACT_ACT_ENVIRONMENT: { configurable: true, value: true },
     requestAnimationFrame: {
       configurable: true,
@@ -158,8 +115,13 @@ export function installCompositionEnvironment() {
   dom.window.HTMLElement.prototype.scrollTo = function () {
     scrollToCalls.push(this);
   };
-  dom.window.HTMLElement.prototype.attachEvent = () => {};
-  dom.window.HTMLElement.prototype.detachEvent = () => {};
+  dom.window.TextEvent = dom.window.Event;
+  dom.window.setTimeout = clock.setTimeout;
+  dom.window.clearTimeout = clock.clearTimeout;
+  dom.window.setInterval = clock.setInterval;
+  dom.window.clearInterval = clock.clearInterval;
+  dom.window.requestAnimationFrame = globalThis.requestAnimationFrame;
+  dom.window.cancelAnimationFrame = globalThis.cancelAnimationFrame;
   // Track native element listeners (reading-side wheel/touch/scroll) by element.
   const originalAdd = dom.window.HTMLElement.prototype.addEventListener;
   const originalRemove = dom.window.HTMLElement.prototype.removeEventListener;
@@ -222,11 +184,12 @@ export function installCompositionEnvironment() {
     },
   });
 
+  let restored = false;
   return {
     dom,
-    root: dom.window.document.getElementById("root"),
-    resizeObservers,
-    intersectionObservers,
+    root,
+    clock,
+    ...observers,
     rafQueue,
     windowListeners,
     documentListeners,
@@ -234,12 +197,6 @@ export function installCompositionEnvironment() {
     scrollIntoViewCalls,
     scrollToCalls,
     storedValues,
-    activeResizeObservers() {
-      return resizeObservers.filter((observer) => observer.disconnectCount === 0);
-    },
-    activeIntersectionObservers() {
-      return intersectionObservers.filter((observer) => observer.disconnectCount === 0);
-    },
     flushRaf() {
       const callbacks = [...rafQueue.values()];
       rafQueue.clear();
@@ -253,11 +210,13 @@ export function installCompositionEnvironment() {
       if (rafQueue.size !== 0) throw new Error("rAF queue did not settle");
     },
     restore() {
+      if (restored) return;
+      restored = true;
+      dom.window.close();
       for (const [name, descriptor] of originals) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
         else delete globalThis[name];
       }
-      dom.window.close();
     },
   };
 }
@@ -297,11 +256,8 @@ export function createCompositionHost(overrides = {}) {
 }
 
 /**
- * Bundles the real ChatWindow with the session RPC layer, i18n and syntax
- * highlighting replaced by harness delegates. Auto-title runs the real module
- * over the RPC delegate. The i18n `t` is a module-level constant: an unstable
- * `t` identity would re-run the model-load effect on every render and loop
- * forever.
+ * Bundles ChatWindow and its real renderer dependencies. Session replies cross
+ * a real message protocol; syntax highlighting and translation stay unchanged.
  */
 export async function createChatWindowBundle(host, options = {}) {
   const globalName = "__compositionHost";
@@ -317,51 +273,43 @@ export async function createChatWindowBundle(host, options = {}) {
     // Test seam: simulate a fallible acquisition so the failure path (which
     // must release the host binding) is deterministically exercised.
     if (options.failAcquisition) throw new Error("simulated bundle acquisition failure");
-    const delegate = (module, names) =>
-      names
-        .map(
-          (name) =>
-            `export function ${name}(...args) { const host = globalThis.${globalName}; const fn = host?.${name}; ` +
-            `if (typeof fn !== "function") throw new Error("${module}.${name} is not configured in the harness host"); ` +
-            `return fn(...args); }`,
-        )
-        .join("\n");
-
-    const { ChatWindow } = await importTestBundle("chat-window-composition", {
+    const { ChatWindow, resetRpc } = await importTestBundle("chat-window-composition", {
       packages: "external",
       tsconfig: path.resolve(ROOT, "tsconfig.renderer.json"),
       stdin: {
-        contents: 'export { ChatWindow } from "./src/renderer/components/ChatWindow.tsx";',
+        contents:
+          'export { ChatWindow } from "./src/renderer/components/ChatWindow.tsx"; export {resetRpc} from "./src/renderer/lib/api-client.ts";',
         resolveDir: ROOT,
         sourcefile: "chat-window-composition-entry.tsx",
         loader: "tsx",
       },
       loader: { ".png": "dataurl" },
-      define: { "import.meta.env.DEV": "false" },
-      plugins: [
-        {
-          name: "composition-stubs",
-          setup(build) {
-            build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "stub" }));
-            build.onResolve({ filter: /(^|\/)agent-client$/ }, () => ({ path: "agent", namespace: "stub" }));
-            build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "stub" }));
-            build.onResolve({ filter: /^@\/lib\/syntax-highlight$/ }, () => ({ path: "syntax", namespace: "stub" }));
-            build.onLoad({ filter: /.*/, namespace: "stub" }, ({ path: p }) => ({
-              contents:
-                p === "i18n"
-                  ? 'const t = (k, fb) => fb; export const useI18n = () => ({ t, language: "en" });'
-                  : p === "syntax"
-                    ? 'export const SyntaxHighlighter = (props) => String(props.children ?? ""); export const vs = {}; export const vscDarkPlus = {}; export const preloadSyntaxHighlighter = async () => {};'
-                    : p === "agent"
-                      ? delegate("agent-client", ["sendAgentCommand"])
-                      : delegate("api-client", API_NAMES),
-              loader: "js",
-            }));
-          },
+      ...realRendererGraphOptions(ROOT, {
+        define: {
+          setTimeout: "window.setTimeout",
+          clearTimeout: "window.clearTimeout",
+          setInterval: "window.setInterval",
+          clearInterval: "window.clearInterval",
         },
-      ],
+      }),
     });
-    return { ChatWindow, releaseHost };
+    const boundary = installApiHostBridge(globalThis.window, () => host, resetRpc);
+    let released = false;
+    return {
+      ChatWindow,
+      async releaseHost() {
+        if (released) return;
+        released = true;
+        // Closing a real client rejects pending requests. Drain their consumer
+        // cleanup while the browser environment still exists, then release it.
+        try {
+          boundary.close();
+          await flushAsync();
+        } finally {
+          releaseHost();
+        }
+      },
+    };
   } catch (error) {
     releaseHost();
     throw error;
@@ -393,6 +341,8 @@ export function createCompositionHarness(env, ChatWindow) {
       return currentProps;
     },
     async mount(props) {
+      // Load React DOM only after the first real browser has been installed.
+      const { createRoot } = await import("react-dom/client");
       renderer = createRoot(env.root);
       await act(async () => renderer.render(elementFor(props)));
     },
@@ -403,8 +353,11 @@ export function createCompositionHarness(env, ChatWindow) {
       if (!renderer) return;
       const root = renderer;
       renderer = null;
-      await act(async () => root.unmount());
-      env.root.textContent = "";
+      try {
+        await act(async () => root.unmount());
+      } finally {
+        env.root.remove();
+      }
     },
   };
 }

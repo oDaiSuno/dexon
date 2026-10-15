@@ -40,14 +40,6 @@ export class ThinkingExpansionStore {
     this.emit();
   }
 
-  sizeForTest(): number {
-    return this.values.size;
-  }
-
-  keysForTest(): string[] {
-    return [...this.values.keys()];
-  }
-
   private emit(): void {
     for (const listener of this.listeners) listener();
   }
@@ -92,9 +84,5 @@ export class ThinkingExpansionRegistry {
   delete(sessionId: string): void {
     this.stores.get(sessionId)?.clear();
     this.stores.delete(sessionId);
-  }
-
-  sizeForTest(): number {
-    return this.stores.size;
   }
 }

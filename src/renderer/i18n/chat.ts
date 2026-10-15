@@ -1,4 +1,9 @@
 export const enUS: Record<string, string> = {
+  chatWindow: "Chat",
+  chatConversation: "Conversation",
+  messageComposer: "Message input",
+  earlierMessages: "Earlier messages",
+  conversationMinimap: "Conversation minimap",
   agentEventStreamConnectFailed: "Failed to connect to the agent event stream. Please try again.",
   agentEventStreamTimeout: "Timed out connecting to the agent event stream. Please try again.",
   attachLocalFiles: "Add images or local file references",
@@ -116,6 +121,11 @@ export const enUS: Record<string, string> = {
 };
 
 export const zhCN: Record<string, string> = {
+  chatWindow: "聊天",
+  chatConversation: "对话内容",
+  messageComposer: "消息输入",
+  earlierMessages: "更早的消息",
+  conversationMinimap: "对话缩略图",
   agentEventStreamConnectFailed: "连接 Agent 事件流失败，请重试。",
   agentEventStreamTimeout: "连接 Agent 事件流超时，请重试。",
   attachLocalFiles: "添加图片或本地文件引用",

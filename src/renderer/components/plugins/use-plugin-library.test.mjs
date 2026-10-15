@@ -1,3 +1,4 @@
+import { hostError } from "../../../../tests/support/deferred-host.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react";
@@ -6,7 +7,7 @@ import { act } from "react";
 // and selection fallbacks, the five package actions and their messages,
 // source installs with installed-package alignment, the capability repair
 // pending operation, and the explicit session reload chain. The esbuild
-// bundle, deferred fetch harness, and probe helpers live in
+// bundle, deferred Host replies, and probe helpers live in
 // plugin-library-test-support.mjs.
 
 import {
@@ -36,7 +37,8 @@ test("loads plugins on mount, groups by scope, and selects the first entry", asy
     );
     assert.equal(value.selected, "project\0npm:one");
     assert.equal(value.addMode, false);
-    assert.equal(env.pending[0].url, "/api/plugins?cwd=%2Frepo");
+    assert.equal(env.pending[0].method, "plugins.list");
+    assert.deepEqual(env.pending[0].params, { cwd: "/repo" });
     await mounted.unmount();
   });
 });
@@ -87,17 +89,16 @@ test("the disable action updates the data and reports the outcome", async () => 
     });
     assert.equal(state.value.busyKey, "disable:project\0npm:one");
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () => pluginsResponse([pkg("npm:one", "project", { disabled: true, status: "disabled" })]),
-      });
+      env.pending[1].deferred.resolve(
+        pluginsResponse([pkg("npm:one", "project", { disabled: true, status: "disabled" })]),
+      );
       await action;
     });
     assert.equal(state.value.busyKey, null);
     assert.equal(state.value.packages[0].disabled, true);
     assert.equal(state.value.actionMessage, "Package disabled.");
     assert.equal(state.value.actionError, null);
-    assert.equal(JSON.parse(env.pending[1].options.body).action, "disable");
+    assert.equal(env.pending[1].params.action, "disable");
     await mounted.unmount();
   });
 });
@@ -112,7 +113,7 @@ test("removing the last package clears the selection and opens the add panel", a
       action = state.value.runAction("remove", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({ ok: true, json: async () => pluginsResponse([]) });
+      env.pending[1].deferred.resolve(pluginsResponse([]));
       await action;
     });
     assert.equal(state.value.actionMessage, "Package removed.");
@@ -135,10 +136,7 @@ test("removing one of several packages selects the first remaining package", asy
       action = state.value.runAction("remove", state.value.packages[1]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () => pluginsResponse([pkg("npm:one", "project")]),
-      });
+      env.pending[1].deferred.resolve(pluginsResponse([pkg("npm:one", "project")]));
       await action;
     });
     assert.equal(state.value.selected, "project\0npm:one");
@@ -157,10 +155,7 @@ test("a failed action maps missing developer tools to the repair guidance", asyn
       action = state.value.runAction("update", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: false,
-        json: async () => ({ error: "spawn npm ENOENT" }),
-      });
+      env.pending[1].deferred.reject(hostError("spawn npm ENOENT"));
       await action;
     });
     assert.equal(
@@ -182,10 +177,12 @@ test("a capability requirement holds the operation; retry re-runs it and cancel 
       action = state.value.runAction("enable", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: false,
-        json: async () => ({ code: "TOOLCHAIN_NODE_REQUIRED", capability: "js.node" }),
-      });
+      env.pending[1].deferred.reject(
+        hostError("A required developer tool is unavailable", {
+          code: "TOOLCHAIN_NODE_REQUIRED",
+          capability: "js.node",
+        }),
+      );
       await action;
     });
     assert.notEqual(state.value.capabilityIssue, null);
@@ -203,11 +200,13 @@ test("a capability requirement holds the operation; retry re-runs it and cancel 
       state.value.runAction("enable", state.value.packages[0]);
     });
     await act(async () => {
-      env.pending[2].deferred.resolve({
-        ok: false,
-        json: async () => ({ code: "TOOLCHAIN_NODE_REQUIRED", capability: "js.node" }),
-      });
-      await env.pending[2].deferred.promise;
+      env.pending[2].deferred.reject(
+        hostError("A required developer tool is unavailable", {
+          code: "TOOLCHAIN_NODE_REQUIRED",
+          capability: "js.node",
+        }),
+      );
+      await env.pending[2].deferred.promise.catch(() => {});
     });
     assert.notEqual(state.value.capabilityIssue, null);
     let retry;
@@ -215,10 +214,7 @@ test("a capability requirement holds the operation; retry re-runs it and cancel 
       retry = state.value.retryCapabilityOperation();
     });
     await act(async () => {
-      env.pending[3].deferred.resolve({
-        ok: true,
-        json: async () => pluginsResponse([pkg("npm:one", "project")]),
-      });
+      env.pending[3].deferred.resolve(pluginsResponse([pkg("npm:one", "project")]));
       await retry;
     });
     assert.equal(state.value.capabilityIssue, null);
@@ -242,17 +238,16 @@ test("installing a source aligns the selection with the installed package and cl
       install = state.value.installPluginSource("new-package", "project");
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({
-        ok: true,
-        json: async () => pluginsResponse([pkg("npm:existing", "global"), pkg("npm:new-package", "project")]),
-      });
+      env.pending[1].deferred.resolve(
+        pluginsResponse([pkg("npm:existing", "global"), pkg("npm:new-package", "project")]),
+      );
       await install;
     });
     assert.equal(state.value.addMode, false);
     assert.equal(state.value.installSource, "");
     assert.equal(state.value.selected, "project\0npm:new-package");
     assert.equal(state.value.actionMessage, "Package installed.");
-    assert.equal(JSON.parse(env.pending[1].options.body).action, "install");
+    assert.equal(env.pending[1].params.action, "install");
     await mounted.unmount();
   });
 });
@@ -271,7 +266,7 @@ test("a failed install keeps the form populated and reports the error", async ()
       install = state.value.installPlugin();
     });
     await act(async () => {
-      env.pending[1].deferred.resolve({ ok: false, json: async () => ({ error: "quota exceeded" }) });
+      env.pending[1].deferred.reject(hostError("quota exceeded"));
       await install;
     });
     assert.equal(state.value.actionError, "quota exceeded");
@@ -292,7 +287,7 @@ test("reload session chains the agent command, the reloaded callback, and a refr
     });
     assert.equal(state.value.busyKey, "reload");
     await act(async () => {
-      env.pending[1].deferred.resolve({ ok: true, json: async () => pluginsResponse([pkg("npm:one", "project")]) });
+      env.pending[1].deferred.resolve(pluginsResponse([pkg("npm:one", "project")]));
       await reload;
     });
     assert.deepEqual(env.sentCommands, [["session-1", { type: "reload" }]]);

@@ -32,17 +32,13 @@ test("reading wiring defaults to fully visible behavior", async (t) => {
   await h.mount({ session: null, newSessionCwd: "/fixture" });
   await h.flush();
 
-  assert.ok(h.env.windowListeners.get("keydown")?.length > 0, "window keydown listener is attached");
-  assert.ok(h.env.windowListeners.get("pointerdown")?.length > 0, "window pointerdown listener is attached");
-  for (const type of ["wheel", "touchstart", "touchmove", "touchend", "touchcancel", "scroll"]) {
-    assert.ok(surface.container.listeners.get(type)?.length > 0, `container ${type} listener is attached`);
-  }
-  assert.equal(h.env.resizeObservers.length, 1, "presence ResizeObserver is created");
-  assert.ok(
-    h.env.resizeObservers[0].observed.includes(surface.container),
-    "ResizeObserver observes the scroll container",
-  );
   assert.equal(h.state.isAwayFromBottom, true, "presence reflects the real scrolled-away geometry");
+  surface.container.scrollTop = 180;
+  await h.act(() => h.env.resize(surface.container));
+  assert.equal(h.state.isAwayFromBottom, false, "viewport notifications update the visible reading position");
+  surface.container.scrollTop = 0;
+  await h.act(() => surface.container.dispatch("scroll", {}));
+  assert.equal(h.state.isAwayFromBottom, true, "scrolling away updates the reader's return-to-bottom state");
 });
 
 test("readingVisible=false detaches reading activity while the runtime keeps working", async (t) => {
@@ -72,12 +68,6 @@ test("readingVisible=false detaches reading activity while the runtime keeps wor
   await h.flush();
   await h.env.flushRafUntilSettled();
 
-  assert.equal(h.env.windowListeners.get("keydown")?.length ?? 0, 0, "no window key listener when hidden");
-  assert.equal(h.env.windowListeners.get("pointerdown")?.length ?? 0, 0, "no window pointer listener when hidden");
-  for (const type of ["wheel", "touchstart", "touchmove", "touchend", "touchcancel", "scroll"]) {
-    assert.equal(surface.container.listeners.get(type)?.length ?? 0, 0, `no container ${type} listener when hidden`);
-  }
-  assert.equal(h.env.resizeObservers.length, 0, "no presence ResizeObserver when hidden");
   assert.equal(h.state.isAwayFromBottom, false, "hidden geometry is not treated as reading state");
   assert.equal(
     surface.messagesEnd.scrollIntoViewCalls.length,
@@ -119,15 +109,11 @@ test("flipping readingVisible back on re-attaches reading and restores presence"
   const options = { session: createSessionDetail("restore").info, newSessionCwd: null };
   await h.mount({ ...options, readingVisible: false });
   await h.flush();
-  assert.equal(h.env.resizeObservers.length, 0, "hidden surface is not observed");
   assert.equal(h.state.isAwayFromBottom, false, "hidden geometry is not treated as reading state");
 
   await h.update({ ...options, readingVisible: true });
   await h.flush();
 
-  assert.ok(h.env.windowListeners.get("keydown")?.length > 0, "window listeners re-attach");
-  assert.ok(surface.container.listeners.get("scroll")?.length > 0, "container listeners re-attach");
-  assert.equal(h.env.resizeObservers.length, 1, "presence observer re-created");
   assert.equal(h.state.isAwayFromBottom, true, "presence re-evaluated from real geometry");
 });
 
@@ -169,23 +155,12 @@ test("hiding an active reading surface tears down listeners, observers and timer
   await h.flush();
   await h.env.flushRafUntilSettled();
 
-  // Visible: everything installed. The presence observer may have been re-created
-  // once when the initial history committed; the active one is the last.
-  assert.ok(h.env.windowListeners.get("keydown")?.length > 0, "window keydown attached while visible");
-  assert.ok(surface.container.listeners.get("scroll")?.length > 0, "container scroll attached while visible");
-  assert.ok(h.env.resizeObservers.length >= 1, "a presence observer exists while visible");
-  assert.equal(h.env.resizeObservers.at(-1).disconnectCount, 0, "the active observer is connected");
+  // Visible geometry is reflected through the public reading state.
   assert.equal(h.state.isAwayFromBottom, true, "presence evaluated while visible");
 
-  // Hide: every reading artifact must be torn down.
+  // Hidden events and geometry must not change reading state.
   await h.update({ ...options, readingVisible: false });
   await h.flush();
-  assert.equal(h.env.windowListeners.get("keydown")?.length ?? 0, 0, "window keydown removed on hide");
-  assert.equal(h.env.windowListeners.get("pointerdown")?.length ?? 0, 0, "window pointerdown removed on hide");
-  for (const type of ["wheel", "touchstart", "touchmove", "touchend", "touchcancel", "scroll"]) {
-    assert.equal(surface.container.listeners.get(type)?.length ?? 0, 0, `container ${type} removed on hide`);
-  }
-  assert.equal(h.env.resizeObservers.at(-1).disconnectCount, 1, "the active observer is disconnected on hide");
   assert.equal(h.env.rafSize(), 0, "no follow rAF while hidden");
 
   // The 30ms presence re-evaluation must not fire while hidden: move the
@@ -194,6 +169,10 @@ test("hiding an active reading surface tears down listeners, observers and timer
   surface.container.scrollTop = 60;
   surface.container.scrollHeight = 200;
   surface.container.clientHeight = 120;
+  await h.act(() => {
+    h.env.resize(surface.container);
+    surface.container.dispatch("scroll", {});
+  });
   await act(async () => {
     t.mock.timers.tick(30);
   });
@@ -211,10 +190,10 @@ test("hiding an active reading surface tears down listeners, observers and timer
   // current (now near-bottom) geometry.
   await h.update({ ...options, readingVisible: true });
   await h.flush();
-  assert.ok(h.env.windowListeners.get("keydown")?.length > 0, "window keydown re-attached on show");
-  assert.ok(surface.container.listeners.get("scroll")?.length > 0, "container scroll re-attached on show");
-  assert.equal(h.env.resizeObservers.at(-1).disconnectCount, 0, "a fresh observer is connected on show");
   assert.equal(h.state.isAwayFromBottom, false, "presence re-evaluated from the current geometry");
+  surface.container.scrollHeight = 600;
+  await h.act(() => h.env.resize(surface.container));
+  assert.equal(h.state.isAwayFromBottom, true, "visible size changes are handled again after returning");
 });
 
 test("the follow loop pauses while hidden and resumes after re-visibility", async (t) => {
@@ -237,13 +216,26 @@ test("the follow loop pauses while hidden and resumes after re-visibility", asyn
     h.emit({ type: "message_update", message: { role: "assistant", content: [{ type: "text", text: "tick" }] } });
   });
   await h.flush();
-  assert.ok(h.env.rafSize() > 0, "visible page schedules the follow loop");
+  const beforeVisible = surface.liveEnd.scrollIntoViewCalls.length;
+  await h.env.flushRaf();
+  assert.ok(surface.liveEnd.scrollIntoViewCalls.length > beforeVisible, "visible replies keep the newest text in view");
 
   await h.update({ session: createSessionDetail("follow").info, newSessionCwd: null, readingVisible: false });
   await h.flush();
-  assert.equal(h.env.rafSize(), 0, "hidden page cancels the follow loop");
+  const beforeHidden = surface.liveEnd.scrollIntoViewCalls.length;
+  await h.env.flushRaf();
+  assert.equal(
+    surface.liveEnd.scrollIntoViewCalls.length,
+    beforeHidden,
+    "hidden replies do not move the reading surface",
+  );
 
   await h.update({ session: createSessionDetail("follow").info, newSessionCwd: null, readingVisible: true });
   await h.flush();
-  assert.ok(h.env.rafSize() > 0, "re-visible page resumes the follow loop");
+  const beforeRestored = surface.liveEnd.scrollIntoViewCalls.length;
+  await h.env.flushRaf();
+  assert.ok(
+    surface.liveEnd.scrollIntoViewCalls.length > beforeRestored,
+    "returning to the page resumes following replies",
+  );
 });

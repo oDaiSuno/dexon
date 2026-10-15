@@ -28,6 +28,7 @@ const TIMED_GLOBALS = ["window", "IS_REACT_ACT_ENVIRONMENT"];
 function installEnvironment() {
   const originals = new Map(TIMED_GLOBALS.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const beforeUnloadListeners = new Set();
+  const cleanups = [];
   globalThis.window = {
     addEventListener(type, handler) {
       if (type === "beforeunload") beforeUnloadListeners.add(handler);
@@ -38,12 +39,28 @@ function installEnvironment() {
   };
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   return {
-    beforeUnloadListeners,
+    reloadIsBlocked() {
+      const event = new globalThis.Event("beforeunload", { cancelable: true });
+      for (const handler of [...beforeUnloadListeners]) handler(event);
+      return event.defaultPrevented;
+    },
+    ownCleanup(cleanup) {
+      cleanups.push(cleanup);
+    },
     async restore() {
+      const errors = [];
+      for (const cleanup of cleanups.reverse()) {
+        try {
+          await cleanup();
+        } catch (error) {
+          errors.push(error);
+        }
+      }
       for (const [name, descriptor] of originals) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
         else delete globalThis[name];
       }
+      if (errors.length) throw new AggregateError(errors, "Leave guard cleanup failed");
     },
   };
 }
@@ -57,8 +74,15 @@ function createProbe() {
   return { state, Probe };
 }
 
-async function mountProbe(Probe, detailRef) {
+async function mountProbe(env, Probe, detailRef) {
   let renderer;
+  let mounted = true;
+  const unmount = async () => {
+    if (!mounted) return;
+    mounted = false;
+    await act(async () => renderer?.unmount());
+  };
+  env.ownCleanup(unmount);
   await act(async () => {
     renderer = create(createElement(Probe, { detailRef }));
   });
@@ -68,11 +92,7 @@ async function mountProbe(Probe, detailRef) {
         renderer.update(createElement(Probe, { detailRef: nextRef }));
       });
     },
-    unmount: async () => {
-      await act(async () => {
-        renderer.unmount();
-      });
-    },
+    unmount,
   };
 }
 
@@ -94,11 +114,11 @@ function detailHandle(overrides = {}) {
 }
 
 test("a clean editor lets the requested transition run immediately", async () => {
-  await withEnvironment(async () => {
+  await withEnvironment(async (env) => {
     const detailRef = createRef();
     detailRef.current = detailHandle();
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     await act(async () => {
       state.value.requestTransition(() => executed.push("action"));
@@ -110,11 +130,11 @@ test("a clean editor lets the requested transition run immediately", async () =>
 });
 
 test("a dirty editor holds the transition and the prompt appears instead", async () => {
-  await withEnvironment(async () => {
+  await withEnvironment(async (env) => {
     const detailRef = createRef();
     detailRef.current = detailHandle({ hasUnsavedChanges: () => true });
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     await act(async () => {
       state.value.requestTransition(() => executed.push("action"));
@@ -130,14 +150,14 @@ test("discarding continues the held action and clears the dirty flag", async () 
     const detailRef = createRef();
     detailRef.current = detailHandle({ hasUnsavedChanges: () => true });
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     // The mounted editor reports its dirty state through the shared flag,
     // exactly as SkillDetail's onDirtyChange does in the real composition.
     await act(async () => {
       state.value.setDetailDirty(true);
     });
-    assert.equal(env.beforeUnloadListeners.size, 1, "beforeunload guard is active while dirty");
+    assert.equal(env.reloadIsBlocked(), true, "reloading asks to keep unsaved edits");
     await act(async () => {
       state.value.requestTransition(() => executed.push("action"));
     });
@@ -147,17 +167,17 @@ test("discarding continues the held action and clears the dirty flag", async () 
     assert.deepEqual(executed, ["action"]);
     assert.equal(state.value.pendingTransition, null);
     assert.equal(state.value.detailDirty, false);
-    assert.equal(env.beforeUnloadListeners.size, 0, "beforeunload guard is removed after the dirty flag clears");
+    assert.equal(env.reloadIsBlocked(), false, "discarded edits no longer block reloading");
     await mounted.unmount();
   });
 });
 
 test("cancelling dismisses the prompt and keeps the current editor state", async () => {
-  await withEnvironment(async () => {
+  await withEnvironment(async (env) => {
     const detailRef = createRef();
     detailRef.current = detailHandle({ hasUnsavedChanges: () => true });
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     await act(async () => {
       state.value.requestTransition(() => executed.push("action"));
@@ -172,7 +192,7 @@ test("cancelling dismisses the prompt and keeps the current editor state", async
 });
 
 test("saving continues the held action only when the save succeeds", async () => {
-  await withEnvironment(async () => {
+  await withEnvironment(async (env) => {
     let resolveSave;
     const detailRef = createRef();
     detailRef.current = detailHandle({
@@ -183,7 +203,7 @@ test("saving continues the held action only when the save succeeds", async () =>
         }),
     });
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     await act(async () => {
       state.value.requestTransition(() => executed.push("action"));
@@ -219,10 +239,10 @@ test("saving continues the held action only when the save succeeds", async () =>
 });
 
 test("while the detail ref is detached the tracked dirty flag gates transitions", async () => {
-  await withEnvironment(async () => {
+  await withEnvironment(async (env) => {
     const detailRef = createRef();
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
+    const mounted = await mountProbe(env, Probe, detailRef);
     const executed = [];
     await act(async () => {
       state.value.setDetailDirty(true);
@@ -252,16 +272,16 @@ test("the beforeunload guard follows the tracked dirty flag over time", async ()
   await withEnvironment(async (env) => {
     const detailRef = createRef();
     const { state, Probe } = createProbe();
-    const mounted = await mountProbe(Probe, detailRef);
-    assert.equal(env.beforeUnloadListeners.size, 0);
+    const mounted = await mountProbe(env, Probe, detailRef);
+    assert.equal(env.reloadIsBlocked(), false);
     await act(async () => {
       state.value.setDetailDirty(true);
     });
-    assert.equal(env.beforeUnloadListeners.size, 1);
+    assert.equal(env.reloadIsBlocked(), true);
     await act(async () => {
       state.value.setDetailDirty(false);
     });
-    assert.equal(env.beforeUnloadListeners.size, 0);
+    assert.equal(env.reloadIsBlocked(), false);
     await mounted.unmount();
   });
 });

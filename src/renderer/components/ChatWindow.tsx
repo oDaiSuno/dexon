@@ -96,6 +96,8 @@ export function ChatWindow(props: Props) {
   return (
     <div
       data-chat-surface
+      role="region"
+      aria-label={t("chatWindow", "Chat")}
       hidden={!visible}
       aria-hidden={!visible}
       inert={!visible ? true : undefined}
@@ -127,17 +129,24 @@ export function ChatWindow(props: Props) {
                 <NoticeShelf notices={notices} floating align="right" />
               </div>
             </div>
-            <div ref={scrollContainerRef} className="relative z-[1] flex-1 overflow-y-auto pt-4 [scrollbar-width:none]">
+            <div
+              ref={scrollContainerRef}
+              role="region"
+              aria-label={t("chatConversation", "Conversation")}
+              className="relative z-[1] flex-1 overflow-y-auto pt-4 [scrollbar-width:none]"
+            >
               <div
                 style={{
                   paddingLeft: CHAT_COLUMN_PADDING,
                   paddingRight: CHAT_COLUMN_PADDING,
                 }}
               >
-                <div className="chat-content-column">
+                <div role="group" aria-label={t("messages", "Messages")} className="chat-content-column">
                   {(hasOlder || loadingOlder) && (
                     <div
                       ref={olderHistorySentinelRef}
+                      role="group"
+                      aria-label={t("earlierMessages", "Earlier messages")}
                       style={{ display: "flex", justifyContent: "center", padding: 8 }}
                     >
                       <button

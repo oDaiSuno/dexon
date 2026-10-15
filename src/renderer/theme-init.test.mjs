@@ -1,6 +1,5 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -9,12 +8,15 @@ const originalDocument = globalThis.document;
 const originalLocalStorage = globalThis.localStorage;
 const originalWindow = globalThis.window;
 
-globalThis.document = {
+// 模块级导入时刻的平台面（theme-init 在 import 时同步应用主题，必须在加载前就位）。
+// documentElement.style 保留可断言：colorScheme 同步是行为，不是源码形状。
+const initialDocument = {
   documentElement: {
     classList: { toggle: (name, enabled) => appliedAtImport.push(["class", name, enabled]) },
     style: {},
   },
 };
+globalThis.document = initialDocument;
 globalThis.localStorage = { getItem: () => null };
 globalThis.window = { matchMedia: () => ({ matches: true }) };
 
@@ -53,14 +55,6 @@ test("initializer tolerates storage and media-query failures and always applies 
   assert.deepEqual(applied, ["light"]);
 });
 
-test("theme initialization precedes React and all theme transitions synchronize color-scheme", () => {
-  const html = readFileSync(new URL("./index.html", import.meta.url), "utf8");
-  assert.ok(html.indexOf("./theme-init.ts") < html.indexOf("./main.tsx"));
-
-  const initSource = readFileSync(new URL("./theme-init.ts", import.meta.url), "utf8");
-  const hookSource = readFileSync(new URL("./hooks/useTheme.ts", import.meta.url), "utf8");
-  assert.match(initSource, /document\.documentElement\.style\.colorScheme = theme/);
-  assert.match(hookSource, /document\.documentElement\.style\.colorScheme = theme/);
-  assert.match(hookSource, /applyDocumentTheme\(dark \? "dark" : "light"\)/);
-  assert.match(hookSource, /applyDocumentTheme\(next\)/);
+test("the import-time application synchronizes the color scheme together with the dark class", () => {
+  assert.equal(initialDocument.documentElement.style.colorScheme, "dark");
 });

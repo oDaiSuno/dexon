@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import test from "node:test";
 
 import {
@@ -60,14 +59,4 @@ test("Escape and pointer presses outside dismiss inline navigation", () => {
   assert.equal(shouldDismissBranchNavigator({ type: "keydown", key: "Enter", target: null }, root), false);
   assert.equal(shouldDismissBranchNavigator({ type: "pointerdown", target: inside }, root), false);
   assert.equal(shouldDismissBranchNavigator({ type: "pointerdown", target: outside }, root), true);
-});
-
-test("BranchNavigator installs and removes both inline dismiss listeners", () => {
-  const source = fs.readFileSync(new URL("../components/BranchNavigator.tsx", import.meta.url), "utf8");
-
-  assert.doesNotMatch(source, /<TreeNodeView/);
-  assert.match(source, /document\.addEventListener\("keydown", handleDismiss\)/);
-  assert.match(source, /document\.addEventListener\("pointerdown", handleDismiss, true\)/);
-  assert.match(source, /document\.removeEventListener\("keydown", handleDismiss\)/);
-  assert.match(source, /document\.removeEventListener\("pointerdown", handleDismiss, true\)/);
 });

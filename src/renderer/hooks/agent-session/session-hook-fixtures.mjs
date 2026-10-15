@@ -1,6 +1,6 @@
 /**
  * Fixture stand-ins for the session-hook harness: fake DOM events and
- * elements, a fake ResizeObserver, and session-detail/reading-surface
+ * elements and session-detail/reading-surface
  * builders. Kept separate from the harness orchestration so every file
  * stays inside the 500-line budget.
  */
@@ -54,25 +54,6 @@ export class FakeElement {
   }
   scrollIntoView(options) {
     this.scrollIntoViewCalls.push(options);
-  }
-}
-
-export class FakeResizeObserver {
-  constructor(callback) {
-    this.callback = callback;
-    this.observed = [];
-    this.disconnectCount = 0;
-    FakeResizeObserver.instances.push(this);
-  }
-  observe(target) {
-    this.observed.push(target);
-  }
-  unobserve() {}
-  disconnect() {
-    this.disconnectCount += 1;
-  }
-  emit() {
-    this.callback();
   }
 }
 

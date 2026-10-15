@@ -15,14 +15,25 @@ export function parseTestTimeout(value) {
   return timeout;
 }
 
-export function createTestCommand({ timeoutMs = defaultTimeoutMs } = {}) {
+export function parseTestConcurrency(value) {
+  if (value === undefined || value === "") return 3;
+  if (!/^\d+$/.test(String(value)) || !Number.isSafeInteger(Number(value)) || Number(value) <= 0) {
+    throw new Error(`PI_TEST_CONCURRENCY must be a positive integer, received ${value}`);
+  }
+  return Number(value);
+}
+
+export function createTestCommand({ timeoutMs = defaultTimeoutMs, concurrency = 3 } = {}) {
   return {
     command: process.execPath,
     args: [
       "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
       "--test",
       `--test-timeout=${timeoutMs}`,
+      `--test-concurrency=${concurrency}`,
       "src/**/*.test.mjs",
+      "scripts/**/*.test.mjs",
+      "tests/**/*.test.mjs",
     ],
   };
 }
@@ -41,7 +52,10 @@ export function cleanLegacyTestModules(root, fileSystem = fs) {
 export function runTests(root, options = {}) {
   const spawn = options.spawnSync ?? spawnSync;
   const fileSystem = options.fileSystem ?? fs;
-  const command = createTestCommand({ timeoutMs: parseTestTimeout(options.timeout ?? process.env.PI_TEST_TIMEOUT_MS) });
+  const command = createTestCommand({
+    timeoutMs: parseTestTimeout(options.timeout ?? process.env.PI_TEST_TIMEOUT_MS),
+    concurrency: parseTestConcurrency(options.concurrency ?? process.env.PI_TEST_CONCURRENCY),
+  });
   assertNoLegacyTestBundleUsage(root);
   cleanLegacyTestModules(root, fileSystem);
   try {

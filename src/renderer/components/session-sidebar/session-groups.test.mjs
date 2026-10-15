@@ -1,3 +1,4 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -21,20 +22,7 @@ const { SessionGroupsSection } = await importTestBundle("session-sidebar-session
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "session-groups-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "session-groups" }));
-        build.onLoad({ filter: /.*/, namespace: "session-groups" }, () => ({
-          contents:
-            "function stubT(_key, fallback) { return fallback; }\n" +
-            'export function useI18n() { return { language: "en", t: stubT }; }',
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 const GLOBAL_NAMES = ["window", "fetch", "IS_REACT_ACT_ENVIRONMENT"];

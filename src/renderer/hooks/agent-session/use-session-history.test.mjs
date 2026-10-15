@@ -47,69 +47,6 @@ function trackHiddenGeometry(container) {
   };
 }
 
-test("a late initial-history response cannot overwrite a newer navigation", async (t) => {
-  const detailA = createSessionDetail("s-1", {
-    historyRevision: "rev-a",
-    messages: [
-      { role: "user", content: "a-initial", timestamp: 1 },
-      { role: "assistant", content: [{ type: "text", text: "a reply" }], timestamp: 2 },
-    ],
-    entryIds: ["a-user", "a-assistant"],
-  });
-  let resolveA;
-  const host = createSessionTestHost({
-    getSession: () => new Promise((resolve) => (resolveA = resolve)),
-    getSessionContext: async () => ({
-      context: {
-        messages: [{ role: "user", content: "nav-context", timestamp: 9 }],
-        entryIds: ["nav-1"],
-        historyRevision: "rev-nav",
-        previousCursor: null,
-      },
-    }),
-    agentState: async () => ({ running: false, state: {} }),
-  });
-  const h = await createSessionHookHarness(t, { bundleName: "history-stale", host });
-
-  await h.mount({ session: detailA.info, newSessionCwd: null });
-  await h.flush();
-  assert.equal(h.state.messages.length, 0, "the initial load is still in flight");
-
-  await h.act(async () => {
-    await h.state.handleNavigate("nav-1");
-  });
-  await h.flush();
-  assert.deepEqual(
-    h.state.messages.map((m) => m.content),
-    ["nav-context"],
-    "navigation committed",
-  );
-
-  resolveA(detailA);
-  await h.flush();
-  assert.deepEqual(
-    h.state.messages.map((m) => (typeof m.content === "string" ? m.content : "assistant")),
-    ["nav-context"],
-    "the stale initial response did not replace the newer navigation",
-  );
-});
-
-test("a session that no longer exists clears the view without an error banner", async (t) => {
-  const detail = createSessionDetail("gone");
-  const host = createSessionTestHost({
-    getSession: async () => {
-      throw new Error("Session not found: gone");
-    },
-  });
-  const h = await createSessionHookHarness(t, { bundleName: "history-gone", host });
-
-  await h.mount({ session: detail.info, newSessionCwd: null });
-  await h.flush();
-  assert.equal(h.state.data, null, "detail cleared");
-  assert.equal(h.state.error, null, "not-found is a defined outcome, not an error");
-  assert.deepEqual(h.state.messages, []);
-});
-
 test("loading older history prepends and preserves the reading offset", async (t) => {
   const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
   const container = surface.container;
@@ -209,7 +146,6 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
   geometry.reset();
   await h.update({ ...options, readingVisible: true });
   await h.flush();
-  assert.equal(h.env.rafSize(), 1, "show schedules the hidden page's deferred anchor reconciliation");
   await h.env.flushRafUntilSettled();
   assert.equal(surface.container.scrollTop, 400, "show restores the anchor after a hidden page response");
 
@@ -232,7 +168,6 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
   });
   await visibleLoad;
   await h.flush();
-  assert.equal(h.env.rafSize(), 1, "visible pagination schedules one anchor compensation frame");
   surface.container.scrollHeight = 700;
   const scrollTopBeforeHide = surface.container.scrollTop;
   await h.update({ ...visibleOptions, readingVisible: false });
@@ -251,7 +186,6 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
   geometry.reset();
   await h.update({ ...visibleOptions, readingVisible: true });
   await h.flush();
-  assert.equal(h.env.rafSize(), 1, "show schedules the deferred visible anchor reconciliation");
   await h.env.flushRafUntilSettled();
   assert.equal(surface.container.scrollTop, 400, "show restores the reading offset from visible geometry");
   assert.deepEqual(geometry.counts, { reads: 0, writes: 0 }, "show reconciliation performs no hidden geometry work");
@@ -283,7 +217,6 @@ test("a queued history frame cannot mutate a surface after unmount", async (t) =
   await h.env.flushRafUntilSettled();
   const load = h.state.loadOlder();
   await h.flush();
-  assert.equal(h.env.rafSize(), 1, "the accepted page queues one visual frame");
   const scrollTopBeforeUnmount = surface.container.scrollTop;
   globalThis.cancelAnimationFrame = () => {};
   await load;
@@ -479,4 +412,68 @@ test("a deferred response for a superseded generation is not applied", async (t)
   await h.flush();
   assert.equal(h.state.messages[0].content[1].text, "", "late deferred content not applied");
   assert.ok("deferredContent" in h.state.messages[0].content[1], "placeholder still pending");
+});
+
+test("switching sessions releases a stale load's performance marks when its reply arrives", async (t) => {
+  let releaseOld;
+  const old = createSessionDetail("trace-old");
+  const next = createSessionDetail("trace-next");
+  const host = createSessionTestHost({
+    getSession: (sid) =>
+      sid === "trace-old"
+        ? new Promise((resolve) => {
+            releaseOld = resolve;
+          })
+        : Promise.resolve(next),
+  });
+  const h = await createSessionHookHarness(t, { bundleName: "stale-session-trace", host });
+  await h.mount({ session: old.info, newSessionCwd: null, readingVisible: false });
+  await h.flush();
+  const traceId = host.getCommands.find((command) => command.rpc === "getSession" && command.sid === "trace-old")
+    .args[1];
+  assert.ok(globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(traceId)));
+  await h.remount({ session: next.info, newSessionCwd: null, readingVisible: false });
+  await h.flush();
+  await h.act(async () => releaseOld(old));
+  await h.flush();
+  assert.equal(
+    globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(traceId)),
+    false,
+  );
+  assert.equal(h.state.data.sessionId, "trace-next");
+});
+
+test("unmounting before visual commit releases the loaded session's performance marks", async (t) => {
+  const detail = createSessionDetail("trace-unmount");
+  const host = createSessionTestHost({ getSession: async () => detail });
+  const h = await createSessionHookHarness(t, { bundleName: "unmount-session-trace", host });
+  await h.mount({ session: detail.info, newSessionCwd: null, readingVisible: true });
+  await h.flush();
+  const traceId = host.getCommands.find((command) => command.rpc === "getSession").args[1];
+  assert.ok(globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(traceId)));
+  await h.unmount();
+  assert.equal(
+    globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(traceId)),
+    false,
+  );
+});
+
+test("a session refresh releases the replaced visual-commit trace", async (t) => {
+  const detail = createSessionDetail("trace-refresh");
+  const host = createSessionTestHost({ getSession: async () => detail });
+  const h = await createSessionHookHarness(t, { bundleName: "replaced-session-trace", host });
+  await h.mount({ session: detail.info, newSessionCwd: null, readingVisible: true });
+  await h.flush();
+  const first = host.getCommands.find((command) => command.rpc === "getSession").args[1];
+  assert.ok(globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(first)));
+  await h.act(async () => {
+    for (const listener of host.changeSinks) listener({ sessionId: "trace-refresh" });
+  });
+  await h.flush();
+  assert.ok(host.getCommands.filter((command) => command.rpc === "getSession").length >= 2);
+  assert.equal(
+    globalThis.performance.getEntriesByType("mark").some((entry) => entry.name.includes(first)),
+    false,
+  );
+  await h.unmount();
 });

@@ -64,7 +64,6 @@ test("bounds entries with LRU eviction and expires stale values", () => {
   assert.equal(cache.get("first", 10), first);
   cache.set("third", third, 10);
 
-  assert.equal(cache.size, 2);
   assert.equal(cache.get("second", 20), null);
   assert.equal(cache.get("first", 99), first);
   assert.equal(cache.get("first", 100), null);

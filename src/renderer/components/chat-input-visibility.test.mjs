@@ -1,122 +1,30 @@
-import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import path from "node:path";
 import test, { after, beforeEach } from "node:test";
 import { act } from "react";
-import { createElement, createRef } from "react";
-import { createRoot } from "react-dom/client";
-import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.harness.mjs";
-
-// The visibility contract is tested with the same real contenteditable harness
-// as the attachment and skill journeys. The imported DOM must exist before the
-// ChatInput bundle is evaluated.
-const dom = harness.dom;
-const { ChatInput, resetDraftCache } = await importTestBundle("src/renderer/components/chat-input-visibility", {
-  stdin: {
-    contents: 'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts";',
-    resolveDir: import.meta.dirname,
-    sourcefile: "chat-input-visibility-test-entry.tsx",
-    loader: "tsx",
-  },
-  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-});
-
-const editorEl = () => rootEl.querySelector(".composer-editor");
-const inputRoot = () => rootEl.firstElementChild;
-const modelPortal = () =>
-  Array.from(dom.window.document.body.querySelectorAll(".composer-pop-in")).find((node) => !rootEl.contains(node));
-
-let mounted = null;
-let activeRef = null;
-let currentProps = {};
-
-function elementFor(props, ref) {
-  currentProps = props;
-  return createElement(ChatInput, {
-    cwd: "/workspace/project",
-    visible: props.visible ?? true,
-    draftKey: props.draftKey,
-    isStreaming: props.isStreaming ?? false,
-    model: props.model ?? { provider: "test", modelId: "model-a" },
-    modelList: props.modelList ?? [{ id: "model-a", name: "Model A", provider: "test" }],
-    onModelChange() {},
-    onModelsRefresh() {},
-    onAbort() {},
-    onSend: props.onSend ?? (() => {}),
-    onFollowUp: props.onFollowUp,
-    thinkingLevel: props.thinkingLevel,
-    onThinkingLevelChange: props.onThinkingLevelChange,
-    availableThinkingLevels: props.availableThinkingLevels,
-    ref,
-  });
-}
-
-async function mount(props = {}) {
-  const ref = createRef();
-  currentProps = props;
-  activeRef = ref;
-  mounted = createRoot(rootEl);
-  await act(async () => mounted.render(elementFor(props, ref)));
-  return ref;
-}
-
-async function rerender(props = {}) {
-  assert.ok(mounted, "the visibility harness must be mounted");
-  const next = { ...currentProps, ...props };
-  await act(async () => mounted.render(elementFor(next, activeRef)));
-}
-
-async function unmount() {
-  if (!mounted) return;
-  const root = mounted;
-  mounted = null;
-  activeRef = null;
-  await act(async () => root.unmount());
-  rootEl.textContent = "";
-}
-
-async function setEditorText(text, caret = text.length) {
-  const editor = editorEl();
-  assert.ok(editor, "the composer editor must be mounted");
-  editor.textContent = text;
-  const selection = dom.window.getSelection();
-  const range = dom.window.document.createRange();
-  if (editor.firstChild) range.setStart(editor.firstChild, caret);
-  else range.setStart(editor, 0);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  await act(async () => editor.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true })));
-}
-
-async function click(node) {
-  assert.ok(node, "the requested control must exist");
-  await act(async () => node.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })));
-}
-
-async function pressKey(key, options = {}) {
-  await act(async () =>
-    editorEl().dispatchEvent(
-      new dom.window.KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options }),
-    ),
-  );
-}
-
-async function mouseDown(node) {
-  assert.ok(node, "the requested control must exist");
-  await act(async () => node.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true })));
-}
-
+import {
+  dom,
+  harness,
+  rootEl,
+  restoreGlobals,
+  resetDraftCache,
+  editorEl,
+  modelPortal,
+  mount,
+  rerender,
+  unmount,
+  setEditorText,
+  click,
+  pressKey,
+  mouseDown,
+} from "./chat-input-visibility.harness.mjs";
 const clearDraftStorage = (key) => harness.storedValues.delete(`dexon-draft:${key}`);
-
-after(() => restoreGlobals());
-// Each case owns its request history, storage and draft cache (ASTRA-R5-F001).
+after(restoreGlobals);
 beforeEach(() => {
   harness.resetRequests();
   harness.storedValues.clear();
   resetDraftCache();
 });
+
 test("visible to hidden to visible keeps the same editor and commits its draft", async (t) => {
   t.after(async () => unmount());
   const draftKey = `phase-8-visibility-draft-${Date.now()}`;
@@ -130,9 +38,9 @@ test("visible to hidden to visible keeps the same editor and commits its draft",
   await setEditorText("draft survives a hidden page");
   const editorBeforeHide = editorEl();
   await rerender({ visible: false });
-  assert.equal(inputRoot().hasAttribute("hidden"), true, "hidden ChatInput must be removed from layout");
-  assert.equal(inputRoot().getAttribute("aria-hidden"), "true", "hidden ChatInput must be hidden from assistive tech");
-  assert.equal(inputRoot().hasAttribute("inert"), true, "hidden ChatInput must be inert");
+  assert.ok(editorEl().closest("[hidden]"), "hidden ChatInput must be removed from layout");
+  assert.ok(editorEl().closest('[aria-hidden="true"]'), "hidden ChatInput must be hidden from assistive tech");
+  assert.ok(editorEl().closest("[inert]"), "hidden ChatInput must be inert");
   assert.equal(
     JSON.parse(harness.storedValues.get(`dexon-draft:${draftKey}`)).value,
     "draft survives a hidden page",
@@ -396,7 +304,13 @@ test("hidden input loses focus, becomes non-editable, and restores editing on re
   assert.strictEqual(dom.window.document.activeElement, editor, "the visible editor should accept focus");
 
   await rerender({ visible: false });
-  await click(rootEl.querySelector('button[aria-label="Send"]'));
+  // Adversarial input, not an ordinary user click: deliberately inject an
+  // event into the hidden control to verify the component's own guard.
+  await act(async () =>
+    rootEl
+      .querySelector('button[aria-label="Send"]')
+      .dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true })),
+  );
   assert.deepEqual(sent, [], "hidden send controls must not submit a prompt");
   assert.notStrictEqual(dom.window.document.activeElement, editor, "hidden input must not retain focus");
   assert.equal(editor.getAttribute("contenteditable"), "false", "hidden input must not remain editable");
@@ -434,7 +348,10 @@ test("hiding closes local menus and the body-mounted model menu", async (t) => {
     node.textContent?.includes("Use a skill"),
   );
   await mouseDown(skillRow);
-  assert.ok(rootEl.querySelector("[data-skill-search]"), "the skill picker must open when visible");
+  assert.ok(
+    rootEl.querySelector('[role="menu"][aria-label="Use a skill"] input[placeholder="Search skills…"]'),
+    "the skill picker must open when visible",
+  );
   await rerender({ visible: false });
   assert.equal(rootEl.querySelectorAll(".composer-pop-in").length, 0, "hiding must close the skill picker");
 
@@ -497,4 +414,27 @@ test("the hidden composer does not consume Escape intended for another page", as
   );
   outside.remove();
   await unmount();
+});
+
+test("switching draft keys commits the previous key and unmount commits the current one", async (t) => {
+  t.after(async () => unmount());
+  const keyA = `phase-8-switch-a-${Date.now()}`;
+  const keyB = `phase-8-switch-b-${Date.now()}`;
+  clearDraftStorage(keyA);
+  clearDraftStorage(keyB);
+  await mount({ draftKey: keyA });
+  await setEditorText("edited under key a");
+  await rerender({ draftKey: keyB });
+  assert.equal(
+    JSON.parse(harness.storedValues.get(`dexon-draft:${keyA}`)).value,
+    "edited under key a",
+    "switching keys commits the previous key's draft",
+  );
+  await setEditorText("edited under key b");
+  await unmount();
+  assert.equal(
+    JSON.parse(harness.storedValues.get(`dexon-draft:${keyB}`)).value,
+    "edited under key b",
+    "unmounting commits the current draft",
+  );
 });

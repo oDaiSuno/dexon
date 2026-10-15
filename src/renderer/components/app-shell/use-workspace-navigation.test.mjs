@@ -1,3 +1,5 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -11,40 +13,18 @@ import { act, create } from "react-test-renderer";
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { useWorkspaceNavigation } = await importTestBundle("app-shell-workspace-navigation", {
+const { resetRpc, useWorkspaceNavigation } = await importTestBundle("app-shell-workspace-navigation", {
   stdin: {
     contents:
-      'export { useWorkspaceNavigation } from "./src/renderer/components/app-shell/use-workspace-navigation.ts";',
+      'export { useWorkspaceNavigation } from "./src/renderer/components/app-shell/use-workspace-navigation.ts";' +
+      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts";',
     resolveDir: projectRoot,
     sourcefile: "workspace-navigation-test-entry.ts",
     loader: "ts",
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "workspace-navigation-stubs",
-      setup(build) {
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "workspace-navigation" }));
-        build.onResolve({ filter: /(^|\/)router-compat$/ }, () => ({
-          path: "router",
-          namespace: "workspace-navigation",
-        }));
-        build.onLoad({ filter: /.*/, namespace: "workspace-navigation" }, ({ path: modulePath }) => ({
-          contents:
-            modulePath === "router"
-              ? "export const routerCompat = {\n" +
-                "  replace: (...args) => globalThis.__workspaceNavHarness.routerReplace(...args),\n" +
-                "};\n" +
-                "export function readSessionIdFromSearch(search) {\n" +
-                '  return new URLSearchParams(search).get("session");\n' +
-                "}"
-              : "export const listSessions = (...args) => globalThis.__workspaceNavHarness.listSessions(...args);",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 function session(id, overrides = {}) {
@@ -59,12 +39,13 @@ function session(id, overrides = {}) {
   };
 }
 
-const GLOBAL_NAMES = ["window", "IS_REACT_ACT_ENVIRONMENT"];
+const GLOBAL_NAMES = ["window", "IS_REACT_ACT_ENVIRONMENT", "__workspaceNavHarness"];
 
 function installEnvironment({ search = "" } = {}) {
   const originals = new Map(GLOBAL_NAMES.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const deepLinkHandlers = [];
   const menuHandlers = [];
+  const cleanups = [];
   let listSessionsResponse = { sessions: [] };
   const harness = {
     routerReplaceCalls: [],
@@ -77,7 +58,13 @@ function installEnvironment({ search = "" } = {}) {
   };
   globalThis.__workspaceNavHarness = harness;
   globalThis.window = {
-    location: { search },
+    location: { search, pathname: "/" },
+    history: {
+      replaceState(_state, _title, url) {
+        harness.routerReplaceCalls.push([url]);
+      },
+    },
+    dispatchEvent() {},
     localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     piBridge: {
       onDeepLinkSession: (handler) => {
@@ -99,18 +86,30 @@ function installEnvironment({ search = "" } = {}) {
     removeEventListener() {},
   };
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+  const hostBoundary = installApiHostBridge(globalThis.window, () => globalThis.__workspaceNavHarness, resetRpc);
   return {
     harness,
-    deepLinkHandlers,
-    menuHandlers,
+    async deepLink(id) {
+      for (const handler of [...deepLinkHandlers]) await handler(id);
+    },
+    menu(name) {
+      for (const entry of [...menuHandlers]) if (entry.name === name) entry.handler();
+    },
     setListSessionsResponse(next) {
       listSessionsResponse = next;
     },
+    ownCleanup(cleanup) {
+      cleanups.push(cleanup);
+    },
     async restore() {
-      delete globalThis.__workspaceNavHarness;
-      for (const [name, descriptor] of originals) {
-        if (descriptor) Object.defineProperty(globalThis, name, descriptor);
-        else delete globalThis[name];
+      try {
+        for (const cleanup of cleanups) await cleanup();
+      } finally {
+        hostBoundary.close();
+        for (const [name, descriptor] of originals) {
+          if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+          else delete globalThis[name];
+        }
       }
     },
   };
@@ -121,49 +120,48 @@ async function withEnvironment(options, run) {
   try {
     await run(env);
   } finally {
-    env.restore();
+    await env.restore();
   }
 }
 
 async function mountNavigation(env, { isMobile = false } = {}) {
-  const calls = {
-    mobileSidebarClose: 0,
-    topPanelDismiss: 0,
-    switchSessionRequested: 0,
-    beforeDeleted: [],
+  const effects = {
+    mobileSidebarOpen: true,
+    topPanelOpen: true,
+    sessionPickerOpen: false,
+    deletedSessionIds: [],
   };
   const state = { value: undefined };
   function Probe() {
     state.value = useWorkspaceNavigation({
       isMobile,
       onMobileSidebarClose: () => {
-        calls.mobileSidebarClose += 1;
+        effects.mobileSidebarOpen = false;
       },
       onTopPanelDismiss: () => {
-        calls.topPanelDismiss += 1;
+        effects.topPanelOpen = false;
       },
       onSwitchSessionRequested: () => {
-        calls.switchSessionRequested += 1;
+        effects.sessionPickerOpen = true;
       },
       onBeforeSessionDeleted: (id) => {
-        calls.beforeDeleted.push(id);
+        effects.deletedSessionIds.push(id);
       },
     });
     return null;
   }
   let renderer;
+  let mounted = true;
+  const unmount = async () => {
+    if (!mounted) return;
+    mounted = false;
+    await act(async () => renderer?.unmount());
+  };
+  env.ownCleanup(unmount);
   await act(async () => {
     renderer = create(createElement(Probe));
   });
-  return {
-    state,
-    calls,
-    unmount: async () => {
-      await act(async () => {
-        renderer.unmount();
-      });
-    },
-  };
+  return { state, effects, unmount };
 }
 
 test("keeps the open session when the cwd moves within the same project", async () => {
@@ -172,14 +170,14 @@ test("keeps the open session when the cwd moves within the same project", async 
     await act(async () => {
       mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo/wt-a", projectRoot: "/repo" }));
     });
-    assert.equal(mounted.state.value.sessionKey, 1);
+    const openSessionIdentity = mounted.state.value.sessionKey;
     await act(async () => {
       mounted.state.value.handleCwdChange("/repo/wt-b", "/repo");
     });
     assert.equal(mounted.state.value.activeCwd, "/repo/wt-b");
     assert.equal(mounted.state.value.selectedSession.id, "s1");
-    assert.equal(mounted.state.value.sessionKey, 1);
-    assert.deepEqual(env.harness.routerReplaceCalls, [["?session=s1", { scroll: false }]]);
+    assert.equal(mounted.state.value.sessionKey, openSessionIdentity, "the open chat keeps its identity");
+    assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=s1"]]);
     await mounted.unmount();
   });
 });
@@ -190,14 +188,14 @@ test("closes the open session when the cwd crosses projects", async () => {
     await act(async () => {
       mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo/wt-a", projectRoot: "/repo" }));
     });
-    const dismissCallsBefore = mounted.calls.topPanelDismiss;
+    const openSessionIdentity = mounted.state.value.sessionKey;
     await act(async () => {
       mounted.state.value.handleCwdChange("/other", "/other");
     });
     assert.equal(mounted.state.value.selectedSession, null);
-    assert.equal(mounted.state.value.sessionKey, 2);
-    assert.equal(mounted.calls.topPanelDismiss, dismissCallsBefore + 1);
-    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/", { scroll: false }]);
+    assert.notEqual(mounted.state.value.sessionKey, openSessionIdentity, "the old chat identity is retired");
+    assert.equal(mounted.effects.topPanelOpen, false);
+    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/"]);
     await mounted.unmount();
   });
 });
@@ -210,7 +208,7 @@ test("keeps a matching new-session cwd and clears a stale one", async () => {
     });
     assert.equal(mounted.state.value.newSessionCwd, "/a");
     assert.equal(mounted.state.value.selectedSession, null);
-    assert.equal(mounted.calls.topPanelDismiss, 1);
+    assert.equal(mounted.effects.topPanelOpen, false);
     await act(async () => {
       mounted.state.value.handleCwdChange("/a", "/a");
     });
@@ -223,13 +221,13 @@ test("keeps a matching new-session cwd and clears a stale one", async () => {
   });
 });
 
-test("suppresses the cwd bump exactly once after a restore selection", async () => {
+test("a restored session survives the initial cwd update but closes on a later project change", async () => {
   await withEnvironment({}, async (env) => {
     const mounted = await mountNavigation(env);
     await act(async () => {
       mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo", projectRoot: "/repo" }), true);
     });
-    assert.equal(mounted.state.value.sessionKey, 1);
+    const restoredIdentity = mounted.state.value.sessionKey;
     assert.equal(mounted.state.value.initialSessionRestored, true);
     assert.deepEqual(env.harness.routerReplaceCalls, []);
     // The restore flow's own cwd effect must not close the just-restored session.
@@ -238,12 +236,12 @@ test("suppresses the cwd bump exactly once after a restore selection", async () 
     });
     assert.equal(mounted.state.value.activeCwd, "/cross-project");
     assert.equal(mounted.state.value.selectedSession.id, "s1");
-    assert.equal(mounted.state.value.sessionKey, 1);
+    assert.equal(mounted.state.value.sessionKey, restoredIdentity);
     await act(async () => {
       mounted.state.value.handleCwdChange("/other", "/other");
     });
     assert.equal(mounted.state.value.selectedSession, null);
-    assert.equal(mounted.state.value.sessionKey, 2);
+    assert.notEqual(mounted.state.value.sessionKey, restoredIdentity);
     await mounted.unmount();
   });
 });
@@ -251,14 +249,15 @@ test("suppresses the cwd bump exactly once after a restore selection", async () 
 test("routes normal selection and closes the mobile sidebar", async () => {
   await withEnvironment({}, async (env) => {
     const mounted = await mountNavigation(env, { isMobile: true });
+    const previousIdentity = mounted.state.value.sessionKey;
     await act(async () => {
       mounted.state.value.handleSelectSession(session("s1"));
     });
     assert.equal(mounted.state.value.selectedSession.id, "s1");
-    assert.equal(mounted.state.value.sessionKey, 1);
+    assert.notEqual(mounted.state.value.sessionKey, previousIdentity);
     assert.equal(mounted.state.value.newSessionCwd, null);
-    assert.equal(mounted.calls.mobileSidebarClose, 1);
-    assert.deepEqual(env.harness.routerReplaceCalls, [["?session=s1", { scroll: false }]]);
+    assert.equal(mounted.effects.mobileSidebarOpen, false);
+    assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=s1"]]);
     await mounted.unmount();
   });
 });
@@ -267,13 +266,20 @@ test("adopts created sessions and hydrates the missing project root", async () =
   await withEnvironment({}, async (env) => {
     env.setListSessionsResponse({ sessions: [session("new-1", { projectRoot: "/repo", cwd: "/repo" })] });
     const mounted = await mountNavigation(env);
+    const previousRefresh = mounted.state.value.refreshKey;
+    const composerIdentity = mounted.state.value.sessionKey;
     await act(async () => {
       mounted.state.value.handleSessionCreated(session("new-1", { cwd: "/repo" }));
     });
     assert.equal(mounted.state.value.selectedSession.id, "new-1");
     assert.equal(mounted.state.value.newSessionCwd, null);
-    assert.equal(mounted.state.value.refreshKey, 1);
-    assert.deepEqual(env.harness.routerReplaceCalls, [["?session=new-1", { scroll: false }]]);
+    assert.notEqual(mounted.state.value.refreshKey, previousRefresh);
+    assert.equal(
+      mounted.state.value.sessionKey,
+      composerIdentity,
+      "adopting the real id does not recreate the composer",
+    );
+    assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=new-1"]]);
     await act(async () => {});
     assert.equal(mounted.state.value.selectedSession.projectRoot, "/repo");
     await mounted.unmount();
@@ -287,15 +293,17 @@ test("swaps the selected session identity on fork and keeps the row context", as
     await act(async () => {
       mounted.state.value.handleSelectSession(session("base-1", { cwd: "/repo", projectRoot: "/repo", name: "base" }));
     });
+    const previousIdentity = mounted.state.value.sessionKey;
+    const previousRefresh = mounted.state.value.refreshKey;
     await act(async () => {
       mounted.state.value.handleSessionForked("fork-1");
     });
     assert.equal(mounted.state.value.selectedSession.id, "fork-1");
     assert.equal(mounted.state.value.selectedSession.cwd, "/repo");
     assert.equal(mounted.state.value.selectedSession.name, "base");
-    assert.equal(mounted.state.value.sessionKey, 2);
-    assert.equal(mounted.state.value.refreshKey, 1);
-    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["?session=fork-1", { scroll: false }]);
+    assert.notEqual(mounted.state.value.sessionKey, previousIdentity);
+    assert.notEqual(mounted.state.value.refreshKey, previousRefresh);
+    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/?session=fork-1"]);
     await act(async () => {});
     assert.equal(mounted.state.value.selectedSession.projectRoot, "/repo");
     await mounted.unmount();
@@ -308,20 +316,23 @@ test("falls back to the deleted session's cwd only when it was selected", async 
     await act(async () => {
       mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo" }));
     });
+    const openSessionIdentity = mounted.state.value.sessionKey;
+    const previousRefresh = mounted.state.value.refreshKey;
     await act(async () => {
       mounted.state.value.handleSessionDeleted("other");
     });
     assert.equal(mounted.state.value.selectedSession.id, "s1");
-    assert.deepEqual(mounted.calls.beforeDeleted, ["other"]);
-    assert.equal(mounted.state.value.refreshKey, 1);
+    assert.equal(mounted.state.value.sessionKey, openSessionIdentity);
+    assert.deepEqual(mounted.effects.deletedSessionIds, ["other"]);
+    assert.notEqual(mounted.state.value.refreshKey, previousRefresh);
     await act(async () => {
       mounted.state.value.handleSessionDeleted("s1");
     });
     assert.equal(mounted.state.value.selectedSession, null);
     assert.equal(mounted.state.value.newSessionCwd, "/repo");
-    assert.equal(mounted.state.value.sessionKey, 2);
-    assert.deepEqual(mounted.calls.beforeDeleted, ["other", "s1"]);
-    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/", { scroll: false }]);
+    assert.notEqual(mounted.state.value.sessionKey, openSessionIdentity);
+    assert.deepEqual(mounted.effects.deletedSessionIds, ["other", "s1"]);
+    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/"]);
     await mounted.unmount();
   });
 });
@@ -330,49 +341,48 @@ test("opens deep-linked sessions after resolving them from the list", async () =
   await withEnvironment({}, async (env) => {
     env.setListSessionsResponse({ sessions: [session("s1"), session("s2")] });
     const mounted = await mountNavigation(env);
+    const previousIdentity = mounted.state.value.sessionKey;
+    const previousRefresh = mounted.state.value.refreshKey;
     await act(async () => {
-      await env.deepLinkHandlers[0]("s2");
+      await env.deepLink("s2");
     });
     assert.equal(mounted.state.value.selectedSession.id, "s2");
-    assert.equal(mounted.state.value.sessionKey, 1);
-    assert.equal(mounted.state.value.refreshKey, 1);
-    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["?session=s2"]);
+    assert.notEqual(mounted.state.value.sessionKey, previousIdentity);
+    assert.notEqual(mounted.state.value.refreshKey, previousRefresh);
+    assert.deepEqual(env.harness.routerReplaceCalls.at(-1), ["/?session=s2"]);
+    const deepLinkedIdentity = mounted.state.value.sessionKey;
     await act(async () => {
-      await env.deepLinkHandlers[0]("missing");
+      await env.deepLink("missing");
     });
     assert.equal(mounted.state.value.selectedSession.id, "s2");
+    assert.equal(mounted.state.value.sessionKey, deepLinkedIdentity);
     await mounted.unmount();
   });
 });
 
-test("wires the desktop menu actions for new and switch session", async () => {
+test("desktop menu opens a new session in the active project and requests session switching", async () => {
   await withEnvironment({}, async (env) => {
     const mounted = await mountNavigation(env);
-    assert.deepEqual(
-      env.menuHandlers.map((entry) => entry.name),
-      ["new-session", "switch-session"],
-    );
-    const newSessionHandler = env.menuHandlers.find((entry) => entry.name === "new-session").handler;
     await act(async () => {
-      newSessionHandler();
+      env.menu("new-session");
     });
     assert.equal(mounted.state.value.newSessionCwd, null);
     await act(async () => {
       mounted.state.value.handleCwdChange("/repo", "/repo");
     });
     assert.equal(mounted.state.value.activeCwd, "/repo");
-    const latestNewSession = env.menuHandlers.find((entry) => entry.name === "new-session").handler;
+    const previousIdentity = mounted.state.value.sessionKey;
     await act(async () => {
-      latestNewSession();
+      env.menu("new-session");
     });
     assert.equal(mounted.state.value.newSessionCwd, "/repo");
-    assert.equal(mounted.state.value.sessionKey, 2);
-    const switchHandler = env.menuHandlers.find((entry) => entry.name === "switch-session").handler;
+    assert.notEqual(mounted.state.value.sessionKey, previousIdentity);
+    const previousRefresh = mounted.state.value.refreshKey;
     await act(async () => {
-      switchHandler();
+      env.menu("switch-session");
     });
-    assert.equal(mounted.calls.switchSessionRequested, 1);
-    assert.equal(mounted.state.value.refreshKey, 1);
+    assert.equal(mounted.effects.sessionPickerOpen, true);
+    assert.notEqual(mounted.state.value.refreshKey, previousRefresh);
     await mounted.unmount();
   });
 });

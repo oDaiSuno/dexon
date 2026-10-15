@@ -1,3 +1,4 @@
+import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.harness.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -5,37 +6,41 @@ import test, { after, afterEach, beforeEach } from "node:test";
 import { createElement, createRef } from "react";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.harness.mjs";
+import { allByRole, button, click, getByRole, mouseDown, text, waitFor } from "../../../tests/support/dom-events.mjs";
 
 // The composer is a contenteditable surface; the jsdom harness (imported
 // first) provides the real DOM environment before the bundle loads.
 const dom = harness.dom;
 
-const { ChatInput, resetDraftCache } = await importTestBundle("src/renderer/components/chat-input-skill-reference", {
-  stdin: {
-    contents: 'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts";',
-    resolveDir: import.meta.dirname,
-    sourcefile: "chat-input-skill-reference-test-entry.tsx",
-    loader: "tsx",
+const { ChatInput, resetDraftCache, installApiShims, resetRpc } = await importTestBundle(
+  "src/renderer/components/chat-input-skill-reference",
+  {
+    stdin: {
+      contents:
+        'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts"; export {installApiShims} from "../lib/api-fetch.ts"; export {resetRpc} from "../lib/api-client.ts";',
+      resolveDir: import.meta.dirname,
+      sourcefile: "chat-input-skill-reference-test-entry.tsx",
+      loader: "tsx",
+    },
+    tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
+    external: ["react", "react-dom", "react-dom/*"],
   },
-  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-});
+);
+harness.connectApi(
+  { installApiShims, resetRpc },
+  {
+    skills: ["fast-context", "groksearch"].map((name) => ({
+      name,
+      description: "Installed skill",
+      filePath: `/skills/${name}/SKILL.md`,
+      baseDir: `/skills/${name}`,
+      disableModelInvocation: false,
+      sourceInfo: { scope: "user" },
+    })),
+  },
+);
 
-const editorEl = () => rootEl.querySelector(".composer-editor");
-/**
- * Waits for an observable DOM result instead of elapsed time: re-reads after
- * each React-flushed event-loop turn. Exhausting the bounded turns returns the
- * last read, so the caller's own assertion reports a missing result.
- */
-async function waitForObservable(read, maxTurns = 20) {
-  for (let turn = 0; turn < maxTurns; turn += 1) {
-    const observed = read();
-    if (observed) return observed;
-    await act(async () => new Promise((resolve) => setImmediate(resolve)));
-  }
-  return read();
-}
+const editorEl = () => rootEl.querySelector('[role="textbox"][aria-multiline="true"]');
 
 let mounted = null;
 
@@ -107,29 +112,23 @@ async function pressKey(key, options = {}) {
   });
 }
 
-/** Serialized value of the editable surface, skill chips included. */
-function serializedValue() {
-  const el = editorEl();
-  const parts = [];
-  for (const child of Array.from(el.childNodes)) {
-    if (child.nodeType === dom.window.Node.TEXT_NODE) parts.push(child.textContent);
-    else if (child.hasAttribute?.("data-skill-token")) parts.push(`/skill:${child.dataset.skillName}`);
-    else if (child.hasAttribute?.("data-attachment-token")) {
-      parts.push(child.dataset.path.includes(" ") ? `@"${child.dataset.path}"` : `@${child.dataset.path}`);
-    } else if (child.tagName === "BR") parts.push("\n");
-  }
-  return parts.join("");
+/** Pick through the same menu a user opens; only the Host's skill list is a fixture. */
+async function pickSkill(name) {
+  await click(button(rootEl, "Add images or local file references"));
+  await mouseDown(getByRole(rootEl, "menuitem", /^Use a skill/));
+  const item = await waitFor(() => {
+    const menu = getByRole(rootEl, "menu", "Use a skill");
+    const row = allByRole(menu, "menuitem").find((candidate) => text(candidate, name));
+    assert.ok(row, `the skill picker lists ${name}`);
+    return row;
+  });
+  await mouseDown(item);
 }
-
-const skillChip = () => rootEl.querySelector("[data-skill-token]");
 
 // An interrupted case must not leave its mounted root alive past the shared
 // environment restore (ASTRA-R10-F001).
 afterEach(() => unmount());
-after(async () => {
-  await harness.restoreGlobals?.();
-  restoreGlobals();
-});
+after(restoreGlobals);
 // Each case owns its request history, storage and draft cache (ASTRA-R5-F001).
 beforeEach(() => {
   harness.resetRequests();
@@ -137,89 +136,93 @@ beforeEach(() => {
   resetDraftCache();
 });
 
-test("a picked skill becomes a chip at message start, serialized as /skill:name", async () => {
-  const handle = await mount();
-  await act(async () => {
-    handle.current.insertSkill("fast-context");
-    await Promise.resolve();
-  });
-  const chip = skillChip();
-  assert.ok(chip, "the skill chip must be rendered");
-  assert.equal(chip.dataset.skillName, "fast-context");
-  assert.equal(serializedValue(), "/skill:fast-context ");
-  // caret sits after the separator space, ready for arguments
+test("a picked skill is displayed at message start and sent with the typed arguments", async () => {
+  const sent = [];
+  await mount({ sent });
+  await pickSkill("fast-context");
+  assert.ok(getByRole(editorEl(), "button", "fast-context"));
+  assert.deepEqual(sent, [], "picking a skill must not submit the prompt");
+  // The caret must be ready for arguments after the selected skill.
   const sel = dom.window.getSelection();
   assert.ok(sel.isCollapsed);
   await typeText("帮我梳理架构");
-  assert.equal(serializedValue(), "/skill:fast-context 帮我梳理架构");
+  assert.match(editorEl().textContent, /帮我梳理架构$/);
+
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["/skill:fast-context 帮我梳理架构"]);
+  assert.equal(editorEl().textContent, "");
   await unmount();
 });
 
-test("picking another skill replaces the existing leading skill chip", async () => {
-  const handle = await mount();
-  await act(async () => {
-    handle.current.insertSkill("fast-context");
-    await Promise.resolve();
-  });
-  await act(async () => {
-    handle.current.insertSkill("groksearch");
-    await Promise.resolve();
-  });
-  assert.equal(rootEl.querySelectorAll("[data-skill-token]").length, 1);
-  assert.equal(skillChip().dataset.skillName, "groksearch");
-  assert.equal(serializedValue(), "/skill:groksearch ");
+test("picking another skill sends only the replacement command and message text", async () => {
+  const sent = [];
+  await mount({ sent });
+  await pickSkill("fast-context");
+  assert.ok(getByRole(editorEl(), "button", "fast-context"));
+  await pickSkill("groksearch");
+  assert.equal(allByRole(editorEl(), "button", "Remove skill").length, 1);
+  assert.equal(button(editorEl(), "fast-context"), undefined);
+  assert.ok(getByRole(editorEl(), "button", "groksearch"));
+
+  await typeText("查找参考资料");
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["/skill:groksearch 查找参考资料"]);
   await unmount();
 });
 
-test("typing a leading /skill command materializes on the closing space", async () => {
-  await mount();
+test("a leading /skill command followed by a space displays a chip and sends with later text", async () => {
+  const sent = [];
+  await mount({ sent });
   await setEditorText("/skill:fast-context ");
-  assert.ok(skillChip(), "the closed command must materialize into a chip");
-  assert.equal(skillChip().dataset.skillName, "fast-context");
-  assert.equal(serializedValue(), "/skill:fast-context ");
+  assert.ok(getByRole(editorEl(), "button", "fast-context"));
+
+  await typeText("帮我梳理架构");
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["/skill:fast-context 帮我梳理架构"]);
   await unmount();
 });
 
 test("an open /skill query stays plain text so the slash palette keeps working", async () => {
   await mount();
   await setEditorText("/skill:fast");
-  assert.equal(skillChip(), null, "no chip while the command is still open");
-  assert.equal(serializedValue(), "/skill:fast");
+  assert.equal(allByRole(editorEl(), "button", "Remove skill").length, 0, "the command is still open");
+  assert.equal(editorEl().textContent, "/skill:fast");
   await unmount();
 });
 
 test("mid-message /skill text is prose, not a command chip", async () => {
   await mount();
   await setEditorText("请先读 /skill:fast-context 说明 ");
-  assert.equal(skillChip(), null);
-  assert.equal(serializedValue(), "请先读 /skill:fast-context 说明 ");
+  assert.equal(allByRole(editorEl(), "button", "Remove skill").length, 0);
+  assert.equal(editorEl().textContent, "请先读 /skill:fast-context 说明 ");
   await unmount();
 });
 
-test("draft-restore style setValue materializes the leading command (rebuild path)", async () => {
-  const handle = await mount();
+test("an inserted leading skill command keeps its original text and later edits when sent", async () => {
+  const sent = [];
+  const handle = await mount({ sent });
   await act(async () => {
     handle.current.insertIfEmpty("/skill:refactoring-ui 优化按钮样式");
     await Promise.resolve();
   });
-  assert.ok(skillChip());
-  assert.equal(skillChip().dataset.skillName, "refactoring-ui");
-  assert.equal(serializedValue(), "/skill:refactoring-ui 优化按钮样式");
+  assert.ok(getByRole(editorEl(), "button", "refactoring-ui"));
+
+  await typeText("，突出重点");
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["/skill:refactoring-ui 优化按钮样式，突出重点"]);
   await unmount();
 });
 
-test("backspace at the chip boundary removes the whole skill chip atomically", async () => {
-  const handle = await mount();
-  await act(async () => {
-    handle.current.insertSkill("fast-context");
-    await Promise.resolve();
-  });
+test("backspace removes the skill chip and sends only the remaining text", async () => {
+  const sent = [];
+  await mount({ sent });
+  await pickSkill("fast-context");
   await typeText("more");
   const el = editorEl();
-  const chip = skillChip();
+  const chip = getByRole(el, "button", "fast-context");
   const sel = dom.window.getSelection();
   const range = dom.window.document.createRange();
-  range.setStart(el, Array.from(el.childNodes).indexOf(chip) + 1);
+  range.setStartAfter(chip);
   range.collapse(true);
   sel.removeAllRanges();
   sel.addRange(range);
@@ -233,41 +236,36 @@ test("backspace at the chip boundary removes the whole skill chip atomically", a
     ),
   );
   assert.equal(prevented, false, "the atomic delete must be prevented at the DOM level");
-  assert.equal(rootEl.querySelectorAll("[data-skill-token]").length, 0);
-  assert.equal(serializedValue(), "more");
+  assert.equal(button(el, "fast-context"), undefined);
+  assert.equal(el.textContent, "more");
+
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["more"]);
   await unmount();
 });
 
-test("clicking the skill chip opens the details card and ✕ removes the chip", async () => {
-  const handle = await mount();
-  await act(async () => {
-    handle.current.insertSkill("fast-context");
-    await Promise.resolve();
-  });
-  const chip = skillChip();
-  await act(async () => {
-    chip.dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
-  });
-  const dialog = await waitForObservable(() => rootEl.querySelector('[role="dialog"]'));
-  assert.ok(dialog, "the skill details card must open");
-  assert.ok(dialog.textContent.includes("fast-context"), "the card names the skill");
-  await act(async () => {
-    chip
-      .querySelector("[data-chip-remove]")
-      .dispatchEvent(new dom.window.MouseEvent("click", { bubbles: true, cancelable: true }));
-  });
-  assert.equal(rootEl.querySelectorAll("[data-skill-token]").length, 0);
-  assert.equal(serializedValue(), "");
-  await unmount();
-});
-
-test("sending submits the serialized /skill command text", async () => {
+test("a skill chip opens its details and removing it excludes the command from the next send", async () => {
   const sent = [];
-  const handle = await mount({ sent });
-  await act(async () => {
-    handle.current.insertSkill("fast-context");
-    await Promise.resolve();
-  });
+  await mount({ sent });
+  await pickSkill("fast-context");
+  const chip = getByRole(editorEl(), "button", "fast-context");
+  await click(chip);
+  const dialog = await waitFor(() => getByRole(rootEl, "dialog", "Skill details"));
+  assert.ok(dialog.textContent.includes("fast-context"), "the card names the skill");
+  await click(button(chip, "Remove skill"));
+  assert.equal(button(editorEl(), "fast-context"), undefined);
+  assert.equal(editorEl().textContent, "");
+
+  await typeText("只发送这句话");
+  await click(button(rootEl, "Send"));
+  assert.deepEqual(sent, ["只发送这句话"]);
+  await unmount();
+});
+
+test("pressing Enter sends the selected skill command and message text", async () => {
+  const sent = [];
+  await mount({ sent });
+  await pickSkill("fast-context");
   await typeText("帮我梳理架构");
   await pressKey("Enter");
   assert.deepEqual(sent, ["/skill:fast-context 帮我梳理架构"]);

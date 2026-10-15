@@ -1,3 +1,8 @@
+export { createSessionTestHost } from "../../../../tests/fixtures/session-host.mjs";
+import { createBrowserObservers } from "../../../../tests/support/browser-observers.mjs";
+import { realRendererGraphOptions } from "../../components/renderer-real-graph.mjs";
+import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
+import { releaseAll } from "../../../../tests/support/cleanup.mjs";
 import { importTestBundle } from "#test-bundle";
 import path from "node:path";
 import { createElement } from "react";
@@ -5,7 +10,6 @@ import TestRenderer, { act } from "react-test-renderer";
 import {
   FakeElement,
   FakeKeyboardEvent,
-  FakeResizeObserver,
   FakeTouchEvent,
   FakeWheelEvent,
   createReadingSurface,
@@ -17,7 +21,7 @@ export { createReadingSurface, createSessionDetail };
 
 /**
  * Shared harness for exercising the real useAgentSession composition
- * (agent-session/* modules) against stubbed host RPCs.
+ * (agent-session/* modules) against replies from an external Host fixture.
  *
  * Environment is assembled fresh per harness instance and fully restored in
  * t.after: no shared mutable state survives between tests, and every blocking
@@ -32,102 +36,6 @@ let activeEnvironmentLeases = 0;
 let capturedOriginals = null;
 /** The shared stand-in environment every harness of the test operates on. */
 let activeEnvironment = null;
-
-export const API_CLIENT_NAMES = [
-  "agentState",
-  "call",
-  "cancelModelsRefresh",
-  "getSession",
-  "getSessionContext",
-  "getSessionContextPage",
-  "getSessionEntryContent",
-  "listModels",
-  "newAgent",
-  "refreshModels",
-  "subscribeAgentEvents",
-  "subscribeSessionsChanged",
-];
-
-export const AGENT_CLIENT_NAMES = ["sendAgentCommand"];
-
-export function createSessionTestHost(overrides = {}) {
-  const eventSinks = [];
-  const changeSinks = [];
-  const sendCommands = [];
-  const getCommands = [];
-  const autoTitleRequests = [];
-  const i18nKeys = [];
-  const recordRpc = async (rpc, sid, ...rest) => {
-    getCommands.push({ rpc, sid, args: rest });
-    const fn = overrides[rpc];
-    if (typeof fn !== "function") throw new Error(`${rpc} is not configured in the harness host`);
-    return fn(sid, ...rest);
-  };
-  const delegateApi =
-    (name) =>
-    (...args) => {
-      const fn = overrides[name];
-      if (typeof fn !== "function") throw new Error(`${name} is not configured in the harness host`);
-      return fn(...args);
-    };
-  return {
-    eventSinks,
-    changeSinks,
-    sendCommands,
-    getCommands,
-    autoTitleRequests,
-    i18nKeys,
-    subscribeAgentEvents:
-      overrides.subscribeAgentEvents ??
-      ((sid, onEvent) => {
-        const sink = { sid, onEvent, active: true };
-        eventSinks.push(sink);
-        return Promise.resolve(() => {
-          sink.active = false;
-        });
-      }),
-    subscribeSessionsChanged:
-      overrides.subscribeSessionsChanged ??
-      ((onChange) => {
-        changeSinks.push(onChange);
-        return Promise.resolve(() => {
-          onChange.active = false;
-        });
-      }),
-    listModels:
-      overrides.listModels ??
-      (async () => ({
-        models: [],
-        nameMap: {},
-        thinkingLevels: {},
-        thinkingLevelMaps: {},
-        catalog: { source: "cache", refreshed: false, aborted: false, warnings: [] },
-        defaultModel: null,
-      })),
-    newAgent: delegateApi("newAgent"),
-    refreshModels: delegateApi("refreshModels"),
-    cancelModelsRefresh: delegateApi("cancelModelsRefresh"),
-    sendAgentCommand(sid, payload) {
-      sendCommands.push({ sid, payload });
-      const fn = overrides.sendAgentCommand;
-      if (typeof fn !== "function") return {};
-      return fn(sid, payload);
-    },
-    getSession: (sid, ...rest) => recordRpc("getSession", sid, ...rest),
-    getSessionContext: (sid, ...rest) => recordRpc("getSessionContext", sid, ...rest),
-    getSessionContextPage: (sid, ...rest) => recordRpc("getSessionContextPage", sid, ...rest),
-    getSessionEntryContent: (sid, ...rest) => recordRpc("getSessionEntryContent", sid, ...rest),
-    agentState: (sid, ...rest) => recordRpc("agentState", sid, ...rest),
-    // External RPC boundary of the real auto-session-title module. The title
-    // request is recorded here; the local eligibility policy is not doubled.
-    call(method, params) {
-      if (method !== "agent.generateTitle") throw new Error("api-client.call is not configured in the harness host");
-      autoTitleRequests.push(params);
-      return Promise.resolve({ title: null });
-    },
-    t: overrides.t ?? ((_key, fallback) => fallback),
-  };
-}
 
 /**
  * Installs window/document/RAF/observer stand-ins for the duration of the test.
@@ -158,7 +66,6 @@ export function setupSessionHookEnvironment() {
   ];
   if (activeEnvironmentLeases === 0) {
     capturedOriginals = new Map(globalNames.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
-    FakeResizeObserver.instances = [];
     activeEnvironment = createEnvironment();
   }
   activeEnvironmentLeases += 1;
@@ -183,9 +90,8 @@ export function setupSessionHookEnvironment() {
     get documentListeners() {
       return activeEnvironment.documentListeners;
     },
-    get resizeObservers() {
-      return FakeResizeObserver.instances;
-    },
+    resize: (...args) => activeEnvironment.browser.resize(...args),
+    resizeTargets: () => activeEnvironment.browser.resizeTargets(),
     windowEvent: (...args) => activeEnvironment.windowEvent(...args),
     documentEvent: (...args) => activeEnvironment.documentEvent(...args),
     setVisibility: (...args) => activeEnvironment.setVisibility(...args),
@@ -197,6 +103,7 @@ export function setupSessionHookEnvironment() {
 
 /** Builds the shared stand-in environment; called only on the 0 -> 1 lease. */
 function createEnvironment() {
+  const browser = createBrowserObservers();
   const windowListeners = new Map();
   const documentListeners = new Map();
   const rafQueue = new Map();
@@ -217,7 +124,7 @@ function createEnvironment() {
   globalThis.WheelEvent = FakeWheelEvent;
   globalThis.TouchEvent = FakeTouchEvent;
   globalThis.Element = FakeElement;
-  globalThis.ResizeObserver = FakeResizeObserver;
+  globalThis.ResizeObserver = browser.ResizeObserver;
   globalThis.requestAnimationFrame = (callback) => {
     const id = (rafSeq = (rafSeq ?? 0) + 1);
     rafQueue.set(id, callback);
@@ -226,12 +133,14 @@ function createEnvironment() {
   globalThis.cancelAnimationFrame = (id) => rafQueue.delete(id);
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   globalThis.window = {
+    navigator: { language: "en-US" },
     localStorage: { getItem: () => null },
     sessionStorage: memoryStorage(),
     addEventListener: recordListener(windowListeners),
     removeEventListener: unrecordListener(windowListeners),
   };
   globalThis.document = {
+    documentElement: { lang: "en" },
     title: "",
     visibilityState: "visible",
     addEventListener: recordListener(documentListeners),
@@ -239,6 +148,7 @@ function createEnvironment() {
   };
 
   return {
+    browser,
     windowListeners,
     documentListeners,
     windowEvent(type, event) {
@@ -273,57 +183,24 @@ function createEnvironment() {
 
 /**
  * Builds a bundle exposing the real useAgentSession composition with the
- * host RPC layer and i18n replaced by harness delegates. Auto-title runs the
- * real module: only its `call` RPC reaches the harness host.
+ * real renderer client, translation and session policies. Only messages to the
+ * external Host receive test replies.
  */
-export async function createSessionHookBundle(t, { bundleName, host, extraEntryExports = "" }) {
-  const globalName = `__sessionHookHost_${bundleName.replace(/[^a-zA-Z0-9]/g, "_")}`;
-  globalThis[globalName] = host;
-  t.after(() => {
-    delete globalThis[globalName];
-  });
-
-  const delegate = (module, names) =>
-    names
-      .map(
-        (name) =>
-          `export function ${name}(...args) { const host = globalThis.${globalName}; const fn = host?.${name}; ` +
-          `if (typeof fn !== "function") throw new Error("${module}.${name} is not configured in the harness host"); ` +
-          `return fn(...args); }`,
-      )
-      .join("\n");
-
-  const { useAgentSession } = await importTestBundle(bundleName, {
-    packages: "external",
-    tsconfig: path.resolve(ROOT, "tsconfig.renderer.json"),
+export async function createSessionHookBundle({ bundleName, host, extraEntryExports = "" }) {
+  const { useAgentSession, resetRpc } = await importTestBundle(bundleName, {
+    ...realRendererGraphOptions(ROOT),
     stdin: {
-      contents: 'export { useAgentSession } from "./src/renderer/hooks/useAgentSession.ts";\n' + extraEntryExports,
+      contents:
+        'export { useAgentSession } from "./src/renderer/hooks/useAgentSession.ts";\n' +
+        'export {resetRpc} from "./src/renderer/lib/api-client.ts";\n' +
+        extraEntryExports,
       resolveDir: ROOT,
       sourcefile: `${bundleName}-entry.ts`,
       loader: "ts",
     },
-    plugins: [
-      {
-        name: "session-hook-stubs",
-        setup(build) {
-          build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "session-hook" }));
-          build.onResolve({ filter: /(^|\/)agent-client$/ }, () => ({ path: "agent", namespace: "session-hook" }));
-          build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "session-hook" }));
-          build.onLoad({ filter: /.*/, namespace: "session-hook" }, ({ path: modulePath }) => ({
-            contents:
-              modulePath === "i18n"
-                ? `const t = (key, fallback) => { globalThis.${globalName}?.i18nKeys?.push(key); return fallback; };` +
-                  'export const useI18n = () => ({ t, language: "en" });'
-                : modulePath === "agent"
-                  ? delegate("agent-client", AGENT_CLIENT_NAMES, globalName)
-                  : delegate("api-client", API_CLIENT_NAMES, globalName),
-            loader: "js",
-          }));
-        },
-      },
-    ],
   });
-  return { useAgentSession };
+  const boundary = installApiHostBridge(globalThis.window, () => host, resetRpc);
+  return { useAgentSession, releaseHost: boundary.close };
 }
 
 /**
@@ -333,24 +210,25 @@ export async function createSessionHookBundle(t, { bundleName, host, extraEntryE
 let harnessSequence = 0;
 
 export async function createSessionHookHarness(t, { bundleName, host, attach, extraEntryExports = "" }) {
-  // Every harness instance needs its own global host slot: several harnesses
-  // may live in one test file and the bundle delegates resolve the slot by
-  // name at call time.
+  // Each instance owns a real client and port; several sessions can stay live
+  // without replacing or sharing their external Host replies.
   const uniqueBundle = `${bundleName}-${(harnessSequence += 1)}`;
   const env = setupSessionHookEnvironment();
   const errorSpy = t.mock?.method?.(console, "error");
   let renderer;
+  let releaseHost = () => {};
+  t.after(() =>
+    releaseAll(
+      unmount,
+      () => releaseHost(),
+      () => errorSpy?.mock.restore(),
+      () => env.restore(),
+    ),
+  );
 
-  t.after(async () => {
-    if (renderer) {
-      await act(async () => renderer.unmount());
-      renderer = null;
-    }
-    errorSpy?.mock.restore();
-    env.restore();
-  });
-
-  const { useAgentSession } = await createSessionHookBundle(t, { bundleName: uniqueBundle, host, extraEntryExports });
+  const bundle = await createSessionHookBundle({ bundleName: uniqueBundle, host, extraEntryExports });
+  const { useAgentSession } = bundle;
+  releaseHost = bundle.releaseHost;
 
   let latest;
   let latestOptions;
@@ -397,8 +275,9 @@ export async function createSessionHookHarness(t, { bundleName, host, attach, ex
 
   async function unmount() {
     if (!renderer) return;
-    await act(async () => renderer.unmount());
+    const active = renderer;
     renderer = null;
+    await act(async () => active.unmount());
   }
 
   return {

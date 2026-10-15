@@ -1,15 +1,14 @@
+import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
+import { installRendererApi } from "../../../../tests/support/renderer-api.mjs";
+import { createDeferredHost, hostError } from "../../../../tests/support/deferred-host.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
 import test, { after } from "node:test";
 // The DOM environment must be evaluated before react and react-dom so their
 // module-level feature detection sees a realistic browser (see dom module).
-import {
-  createManagedDomRoot,
-  reactPropsOf,
-  restoreGlobals,
-  trackBeforeUnloadListeners,
-} from "../resource-dom-environment.mjs";
+import { createManagedDomRoot, dom, restoreGlobals } from "../resource-dom-environment.mjs";
+import { click, input, keyDown, text as pageText } from "../../../../tests/support/dom-events.mjs";
 import { act, createElement } from "react";
 
 // Real-DOM journey tests for the split SkillsConfig composition root: the
@@ -22,32 +21,18 @@ after(() => {
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { SkillsConfig } = await importTestBundle("skills-config-journey", {
+const { resetRpc, installApiShims, SkillsConfig } = await importTestBundle("skills-config-journey", {
   stdin: {
-    contents: 'export { SkillsConfig } from "./src/renderer/components/SkillsConfig.tsx";',
+    contents:
+      'export { SkillsConfig } from "./src/renderer/components/SkillsConfig.tsx";' +
+      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts"; export {installApiShims} from "./src/renderer/lib/api-fetch.ts";',
     resolveDir: projectRoot,
     sourcefile: "skills-config-journey-test-entry.tsx",
     loader: "tsx",
   },
   tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
   external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "skills-config-journey-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "skills-journey" }));
-        build.onResolve({ filter: /(^|\/)api-client$/ }, () => ({ path: "api", namespace: "skills-journey" }));
-        build.onLoad({ filter: /.*/, namespace: "skills-journey" }, ({ path: modulePath }) => ({
-          contents:
-            modulePath === "i18n"
-              ? "function stubT(_key, fallback) { return fallback; }\n" +
-                'export function useI18n() { return { language: "en", t: stubT }; }'
-              : "export const call = (method, params) => globalThis.__skillsJourneyHarness.call(method, params);",
-          loader: "js",
-        }));
-      },
-    },
-  ],
+  ...realRendererGraphOptions(projectRoot),
 });
 
 function createDeferred() {
@@ -73,16 +58,11 @@ function skill(name, overrides = {}) {
 }
 
 function createHarness() {
-  const pending = [];
-  const fetchDescriptor = Object.getOwnPropertyDescriptor(globalThis, "fetch");
-  globalThis.fetch = (url, options) => {
-    const deferred = createDeferred();
-    pending.push({ url, options, deferred });
-    return deferred.promise;
-  };
+  const deferredHost = createDeferredHost(["skills.list", "skills.set"]);
+  const pending = deferredHost.pending;
   const getContentCalls = [];
   const getContentDeferreds = [];
-  globalThis.__skillsJourneyHarness = {
+  const replies = {
     call(method, params) {
       if (method === "skills.getContent") {
         getContentCalls.push(params);
@@ -90,22 +70,11 @@ function createHarness() {
         getContentDeferreds.push(deferred);
         return deferred.promise;
       }
-      throw new Error(`unexpected api call: ${method}`);
+      return deferredHost.call(method, params);
     },
   };
-  const beforeUnloadTracker = trackBeforeUnloadListeners();
-  return {
-    pending,
-    getContentCalls,
-    getContentDeferreds,
-    beforeUnloadTracker,
-    async restore() {
-      delete globalThis.__skillsJourneyHarness;
-      if (fetchDescriptor) Object.defineProperty(globalThis, "fetch", fetchDescriptor);
-      else delete globalThis.fetch;
-      beforeUnloadTracker.restore();
-    },
-  };
+  const hostBoundary = installRendererApi(dom.window, { installApiShims, resetRpc }, () => replies);
+  return { pending, getContentCalls, getContentDeferreds, restore: hostBoundary.close };
 }
 
 let activeManaged = null;
@@ -129,11 +98,15 @@ async function renderSkills(overrides = {}) {
 }
 
 function clickableText(rootEl, text) {
-  const matches = [...rootEl.querySelectorAll("*")].filter(
-    (el) => el.textContent === text && typeof reactPropsOf(el).onClick === "function",
-  );
-  assert.ok(matches.length >= 1, `expected a clickable "${text}" element`);
-  return matches[0];
+  const element = pageText(rootEl, text);
+  assert.ok(element, `expected the visible text "${text}"`);
+  return element;
+}
+
+function unloadPrevented() {
+  const event = new dom.window.Event("beforeunload", { cancelable: true });
+  dom.window.dispatchEvent(event);
+  return event.defaultPrevented;
 }
 
 function textareaOf(rootEl) {
@@ -141,11 +114,7 @@ function textareaOf(rootEl) {
 }
 
 async function typeIntoTextarea(rootEl, value) {
-  const textarea = textareaOf(rootEl);
-  await act(async () => {
-    textarea.value = value;
-    reactPropsOf(textarea).onChange({ target: textarea });
-  });
+  await input(textareaOf(rootEl), value);
 }
 
 function promptDialog(rootEl) {
@@ -160,30 +129,24 @@ async function promptButton(rootEl, label) {
   return buttons[0];
 }
 
-async function click(element) {
-  await act(async () => {
-    element.click();
-  });
-}
-
 async function withEnvironment(run) {
   const harness = createHarness();
   try {
     await run(harness);
   } finally {
-    await activeManaged?.unmount();
-    activeManaged = null;
-    await harness.restore();
+    try {
+      await activeManaged?.unmount();
+    } finally {
+      activeManaged = null;
+      await harness.restore();
+    }
   }
 }
 
 async function loadTwoSkills(harness) {
   await act(async () => {
-    harness.pending[0].deferred.resolve({
-      ok: true,
-      json: async () => ({ skills: [skill("alpha"), skill("beta")] }),
-    });
-    await harness.pending[0].deferred.promise;
+    harness.pending[0].deferred.resolve({ skills: [skill("alpha"), skill("beta")] });
+    await harness.pending[0].deferred.promise.catch(() => {});
   });
 }
 
@@ -203,7 +166,7 @@ test("an editor switch with unsaved changes is held by the prompt; cancel keeps 
     await loadTwoSkills(harness);
     await openEditor(harness, mounted);
     await typeIntoTextarea(mounted.rootEl(), "# Alpha edited");
-    assert.equal(harness.beforeUnloadTracker.listeners.size, 1, "the window guard tracks the dirty editor");
+    assert.equal(unloadPrevented(), true, "a dirty editor prevents losing changes on window close");
 
     await click(clickableText(mounted.rootEl(), "beta"));
     assert.equal(harness.getContentCalls.length, 1, "no detail switch happened before the prompt resolves");
@@ -228,7 +191,7 @@ test("discarding switches to the requested skill and clears the dirty flag", asy
     await click(await promptButton(mounted.rootEl(), "Discard"));
     assert.equal(promptDialog(mounted.rootEl()), null, "the prompt is dismissed");
     assert.equal(harness.getContentCalls[1]?.filePath, "/repo/.pi/agent/skills/beta/SKILL.md");
-    assert.equal(harness.beforeUnloadTracker.listeners.size, 0, "the new editor starts clean");
+    assert.equal(unloadPrevented(), false, "the new editor starts clean");
     await mounted.unmount();
   });
 });
@@ -245,10 +208,10 @@ test("saving from the add-skill prompt continues only after the save succeeds", 
 
     // A failed save keeps the prompt and stays in the editor.
     await click(await promptButton(mounted.rootEl(), "Save"));
-    const patchIndex = harness.pending.findIndex((entry) => entry.url === "/api/skills");
+    const patchIndex = harness.pending.findIndex((entry) => entry.method === "skills.set");
     await act(async () => {
-      harness.pending[patchIndex].deferred.resolve({ ok: false, status: 500, json: async () => ({}) });
-      await harness.pending[patchIndex].deferred.promise;
+      harness.pending[patchIndex].deferred.reject(hostError("Disk full"));
+      await harness.pending[patchIndex].deferred.promise.catch(() => {});
     });
     assert.ok(promptDialog(mounted.rootEl()), "a failed save keeps the prompt");
     assert.equal(textareaOf(mounted.rootEl()).value, "# Alpha edited");
@@ -256,17 +219,17 @@ test("saving from the add-skill prompt continues only after the save succeeds", 
     // Retrying with a successful save opens the add panel.
     await click(await promptButton(mounted.rootEl(), "Save"));
     const retryPatch = harness.pending[harness.pending.length - 1];
-    assert.equal(retryPatch.url, "/api/skills");
+    assert.equal(retryPatch.method, "skills.set");
     await act(async () => {
-      retryPatch.deferred.resolve({ ok: true, json: async () => ({ success: true }) });
-      await retryPatch.deferred.promise;
+      retryPatch.deferred.resolve({ ok: true });
+      await retryPatch.deferred.promise.catch(() => {});
     });
     assert.equal(promptDialog(mounted.rootEl()), null, "the prompt is dismissed");
     assert.ok(
       [...mounted.rootEl().querySelectorAll("input")].some((input) => input.type === "search"),
       "the add-skill panel replaced the editor",
     );
-    assert.equal(harness.beforeUnloadTracker.listeners.size, 0, "no dirty editor remains");
+    assert.equal(unloadPrevented(), false, "no dirty editor remains");
     await mounted.unmount();
   });
 });
@@ -303,9 +266,10 @@ test("escape inside the prompt cancels the held transition", async () => {
     await click(clickableText(mounted.rootEl(), "Close"));
     const dialog = promptDialog(mounted.rootEl());
     assert.ok(dialog, "the prompt is open");
-    await act(async () => {
-      reactPropsOf(dialog).onKeyDown({ key: "Escape", preventDefault() {}, stopPropagation() {} });
-    });
+    await keyDown(
+      [...dialog.querySelectorAll("button")].find((control) => control.textContent === "Cancel"),
+      "Escape",
+    );
     assert.equal(promptDialog(mounted.rootEl()), null, "escape dismisses the prompt");
     assert.equal(mounted.onCloseCalls.count, 0);
     await mounted.unmount();

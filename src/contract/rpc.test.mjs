@@ -233,9 +233,10 @@ test("subscribe throws without retaining a local subscription when postMessage f
   client.close();
 });
 
-test("server attach/detach is idempotent and removes message and close listeners", () => {
+test("duplicate attachment responds once and repeated detach releases the transport", async () => {
   const listeners = new Map();
   let closeCalls = 0;
+  const responses = [];
   const port = {
     on(type, listener) {
       const entries = listeners.get(type) ?? new Set();
@@ -245,7 +246,9 @@ test("server attach/detach is idempotent and removes message and close listeners
     off(type, listener) {
       listeners.get(type)?.delete(listener);
     },
-    postMessage() {},
+    postMessage(message) {
+      responses.push(message);
+    },
     start() {},
     close() {
       closeCalls += 1;
@@ -255,8 +258,12 @@ test("server attach/detach is idempotent and removes message and close listeners
 
   server.attachPort(port);
   server.attachPort(port);
-  assert.equal(listeners.get("message").size, 1);
-  assert.equal(listeners.get("close").size, 1);
+  server.handle({ "host.ping": () => ({ ok: true, ts: 42 }) });
+  for (const listener of [...(listeners.get("message") ?? [])]) {
+    listener({ data: { kind: "request", id: "duplicate-attach", method: "host.ping" } });
+  }
+  await nextTurn();
+  assert.deepEqual(responses, [{ kind: "response", id: "duplicate-attach", ok: true, result: { ok: true, ts: 42 } }]);
 
   server.detachPort(port);
   server.detachPort(port);

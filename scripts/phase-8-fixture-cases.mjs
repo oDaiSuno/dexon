@@ -65,7 +65,7 @@ export function fixtureCases() {
     "composition-consumer-2-geometry",
     composition,
     "an active minimap drag and a pending follow frame are cancelled by hiding",
-    message("the drag installs a window mousemove listener"),
+    message("dragging the viewport halfway across its travel scrolls halfway down"),
   );
   consumer(
     "composition-consumer-3",
@@ -124,13 +124,13 @@ export function fixtureCases() {
   consumer(
     "tool-cards-environment",
     `${components}interactive-tools/tool-cards.test.mjs`,
-    "hidden ordinary cards ignore text, Enter, and response buttons",
-    message("hidden text input does not update the retained draft"),
+    "hidden ordinary cards leave retained text and response delivery unchanged",
+    message("a hidden card does not consume Enter"),
   );
   consumer(
     "tool-cards-mock-timer",
     `${components}interactive-tools/tool-cards.test.mjs`,
-    "single selection advances once, last question waits for manual submit",
+    "single selection advances one question and the last question waits for explicit submission",
   );
   consumer(
     "events-geometry",
@@ -165,7 +165,7 @@ export function fixtureCases() {
     "history-visual-DOM-frame-consumer-1",
     `${hooks}agent-session/use-session-history-visuals.test.mjs`,
     "history visual scheduling survives StrictMode effect replay",
-    message("a StrictMode-replayed hook must still schedule a valid frame"),
+    message("the valid post-replay anchor must be restored"),
   );
   consumer(
     "history-visual-DOM-frame-consumer-3",
@@ -176,18 +176,18 @@ export function fixtureCases() {
   consumer(
     "height-DOM-prototype",
     `${hooks}useObservedElementHeight.test.mjs`,
-    "the hook attaches when a visible ref element appears after the first render",
-    message("the later-mounted visible element must be observed"),
+    "a later-mounted visible element responds to size changes without accepting removed-element notifications",
+    message("the visible element publishes its changed height"),
   );
   consumer(
     "draft-localStorage-stage",
     "src/renderer/lib/draft-persistence.test.mjs",
-    "staging a draft performs no synchronous localStorage write until flush",
+    "staging changes memory without replacing storage until an explicit flush",
   );
   consumer(
     "draft-localStorage-tombstone",
     "src/renderer/lib/draft-persistence.test.mjs",
-    "an in-memory empty draft hides stale persisted content before debounce flush",
+    "an in-memory empty draft hides stale saved text before its pending removal",
   );
   return cases;
 }

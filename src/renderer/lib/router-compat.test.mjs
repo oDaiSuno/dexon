@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import test from "node:test";
 
 import { readSessionIdFromSearch, routerCompat } from "./router-compat.ts";
@@ -43,16 +42,4 @@ test("router replacement preserves pathname query navigation semantics", () => {
 test("initial session id parsing handles present and absent values", () => {
   assert.equal(readSessionIdFromSearch("?session=a%2Fb&view=chat"), "a/b");
   assert.equal(readSessionIdFromSearch("?view=chat"), null);
-});
-
-test("AppShell no longer creates a reactive search subscription or router object", () => {
-  const shell = fs.readFileSync(new URL("../components/AppShell.tsx", import.meta.url), "utf8");
-  const navigation = fs.readFileSync(
-    new URL("../components/app-shell/use-workspace-navigation.ts", import.meta.url),
-    "utf8",
-  );
-
-  assert.doesNotMatch(shell, /useSearchParamsCompat|useRouterCompat|useSyncExternalStore/);
-  assert.doesNotMatch(navigation, /useSearchParamsCompat|useRouterCompat|useSyncExternalStore/);
-  assert.match(navigation, /const router = routerCompat;/);
 });

@@ -33,12 +33,13 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
 
   const handleTabSyncError = useCallback(
     (cause: unknown) => {
-      const message = messageOf(cause);
+      // Decide recovery from the protocol error, not its localized display text.
+      const message = cause instanceof Error ? cause.message : String(cause);
       if (message.includes("TAB_NOT_FOUND")) {
         void refresh();
         return;
       }
-      setError(message);
+      setError(messageOf(cause));
     },
     [refresh],
   );

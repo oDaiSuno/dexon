@@ -1,101 +1,78 @@
-import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test, { after } from "node:test";
+import { createDeferred } from "#test-timing";
+import { importTestBundle } from "#test-bundle";
 
-const sessionReaderMock = `
-let calls = 0;
-let releaseFirst;
-
-export function listAllSessions() {
-  calls++;
-  if (calls === 1) {
-    return new Promise((resolve) => {
-      releaseFirst = resolve;
-    });
+const base = mkdtempSync(path.join(tmpdir(), "dexon-real-roots-"));
+const env = new Map(["PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR"].map((name) => [name, process.env[name]]));
+process.env.PI_CODING_AGENT_DIR = path.join(base, "agent");
+process.env.PI_CODING_AGENT_SESSION_DIR = path.join(base, "sessions");
+mkdirSync(process.env.PI_CODING_AGENT_SESSION_DIR, { recursive: true });
+after(() => {
+  for (const [name, value] of env) {
+    if (value === undefined) delete process.env[name];
+    else process.env[name] = value;
   }
-  return Promise.resolve([{ cwd: "/fresh", projectRoot: "/fresh" }]);
-}
-
-export function getSessionScanCount() {
-  return calls;
-}
-
-export function releaseFirstSessionScan(sessions) {
-  releaseFirst(sessions);
-}
-`;
-
-const sessionFileReferencesMock = `
-export async function isFilePathReferencedBySession() {
-  return false;
-}
-`;
-
-const {
-  getAllowedFileRoots,
-  getAllowedRootsCache,
-  getSessionScanCount,
-  invalidateAllowedRootsCache,
-  releaseFirstSessionScan,
-  setAllowedRootsWatcherHealthy,
-} = await importTestBundle("src/agent-host/file-access-cache", {
-  stdin: {
-    contents: `
-      export { getAllowedFileRoots } from "./file-access.ts";
-      export {
-        getAllowedRootsCache,
-        invalidateAllowedRootsCache,
-        setAllowedRootsWatcherHealthy,
-      } from "../shared/allowed-roots.ts";
-      export { getSessionScanCount, releaseFirstSessionScan } from "roots-test-control";
-    `,
-    resolveDir: import.meta.dirname,
-    sourcefile: "file-access-cache-test-entry.ts",
-    loader: "ts",
-  },
-  plugins: [
-    {
-      name: "session-reader-mock",
-      setup(builder) {
-        builder.onResolve({ filter: /^\.\/session-reader$/ }, (args) => {
-          if (!args.importer.endsWith("file-access.ts")) return null;
-          return { path: "session-reader", namespace: "roots-test" };
-        });
-        builder.onResolve({ filter: /^\.\/session-file-references$/ }, (args) => {
-          if (!args.importer.endsWith("file-access.ts")) return null;
-          return { path: "session-file-references", namespace: "roots-test" };
-        });
-        builder.onResolve({ filter: /^roots-test-control$/ }, () => ({
-          path: "session-reader",
-          namespace: "roots-test",
-        }));
-        builder.onLoad({ filter: /.*/, namespace: "roots-test" }, (args) =>
-          args.path === "session-file-references"
-            ? { contents: sessionFileReferencesMock, loader: "js" }
-            : { contents: sessionReaderMock, loader: "js" },
-        );
-      },
-    },
-  ],
+  rmSync(base, { recursive: true, force: true });
 });
+const { getAllowedFileRoots, invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy, setGitCommandRunner } =
+  await importTestBundle("real-file-roots-cache", {
+    packages: "external",
+    stdin: {
+      contents:
+        'export {getAllowedFileRoots, invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
+      resolveDir: import.meta.dirname,
+      loader: "ts",
+    },
+  });
 
-test("an invalidation during a roots scan retries and never caches the stale snapshot", async () => {
+test("a directory change during a real session scan cannot publish stale allowed roots", async (t) => {
+  const stale = path.join(base, "stale");
+  const fresh = path.join(base, "fresh");
+  mkdirSync(stale);
+  mkdirSync(fresh);
+  const file = path.join(process.env.PI_CODING_AGENT_SESSION_DIR, "fixture.jsonl");
+  const writeSession = (cwd) =>
+    writeFileSync(
+      file,
+      JSON.stringify({ type: "session", version: 3, id: "fixture", cwd, timestamp: "2026-08-06T00:00:00.000Z" }) + "\n",
+    );
+  writeSession(stale);
+  const enteredGit = createDeferred();
+  const releaseGit = createDeferred();
+  let delayed = false;
+  // Keep session parsing and files real; pause only the external Git command
+  // so the watcher invalidation lands in the middle of the public roots scan.
+  const restoreGit = setGitCommandRunner({
+    async run(cwd) {
+      if (cwd === stale && !delayed) {
+        delayed = true;
+        enteredGit.resolve();
+        await releaseGit.promise;
+      }
+      throw new Error("fixture directory is not a Git repository");
+    },
+  });
+  t.after(() => {
+    releaseGit.resolve();
+    restoreGit();
+    setAllowedRootsWatcherHealthy(false);
+    invalidateAllowedRootsCache();
+  });
   setAllowedRootsWatcherHealthy(true);
   invalidateAllowedRootsCache();
-
-  const pendingRoots = getAllowedFileRoots();
-  assert.equal(getSessionScanCount(), 1);
-
+  const scanning = getAllowedFileRoots();
+  await enteredGit.promise;
+  writeSession(fresh);
   invalidateAllowedRootsCache();
-  releaseFirstSessionScan([{ cwd: "/stale", projectRoot: "/stale" }]);
-
-  const roots = await pendingRoots;
-  assert.equal(getSessionScanCount(), 2);
-  assert.equal(roots.has("/fresh"), true);
-  assert.equal(roots.has("/stale"), false);
-  assert.equal(getAllowedRootsCache().roots.has("/fresh"), true);
-  assert.equal(getAllowedRootsCache().roots.has("/stale"), false);
-
-  setAllowedRootsWatcherHealthy(false);
-  invalidateAllowedRootsCache();
+  releaseGit.resolve();
+  const roots = await scanning;
+  assert.equal(roots.has(fresh), true);
+  assert.equal(roots.has(stale), false);
+  const following = await getAllowedFileRoots();
+  assert.equal(following.has(fresh), true);
+  assert.equal(following.has(stale), false, "the next caller cannot read a cached stale directory");
 });

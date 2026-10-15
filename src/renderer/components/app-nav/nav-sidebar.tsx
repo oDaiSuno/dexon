@@ -123,7 +123,8 @@ export function NavSidebar({
 
   if (!expanded) {
     return (
-      <div
+      <nav
+        aria-label={t("mainNavigation", "Main navigation")}
         className="app-nav"
         style={{
           width: NAV_RAIL_WIDTH,
@@ -204,7 +205,7 @@ export function NavSidebar({
             <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.38.33.72.6 1 .3.29.69.42 1.1.4h.09v4h-.09a1.7 1.7 0 0 0-1.7.6Z" />
           </svg>
         </RailButton>
-      </div>
+      </nav>
     );
   }
 
@@ -253,7 +254,8 @@ export function NavSidebar({
   ];
 
   return (
-    <div
+    <nav
+      aria-label={t("mainNavigation", "Main navigation")}
       className="app-nav"
       style={{
         width: NAV_EXPANDED_WIDTH,
@@ -419,6 +421,6 @@ export function NavSidebar({
           </span>
         </button>
       </div>
-    </div>
+    </nav>
   );
 }

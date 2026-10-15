@@ -9,7 +9,15 @@ const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
 import { managedProcessSecurityChecks } from "./desktop-security/managed-process.mjs";
 import { desktopSecurityChecks } from "./desktop-security/desktop.mjs";
 import { browserSecurityChecks } from "./desktop-security/browser.mjs";
-const checks = [...managedProcessSecurityChecks(read), ...desktopSecurityChecks(read), ...browserSecurityChecks(read)];
+import { offlineAssetSecurityChecks } from "./desktop-security/offline-assets.mjs";
+import { trustBoundarySecurityChecks } from "./desktop-security/trust-boundaries.mjs";
+const checks = [
+  ...managedProcessSecurityChecks(read),
+  ...desktopSecurityChecks(read),
+  ...browserSecurityChecks(read),
+  ...offlineAssetSecurityChecks(read),
+  ...trustBoundarySecurityChecks(read),
+];
 const failures = checks.filter(([ok]) => !ok).map(([, message]) => message);
 if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL: ${failure}`);

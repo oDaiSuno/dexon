@@ -1,44 +1,35 @@
-import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import path from "node:path";
-import test from "node:test";
-import { createElement } from "react";
-import { act, create } from "react-test-renderer";
+import test, { after } from "node:test";
+import { createManualScheduler } from "#test-timing";
+import {
+  act,
+  button,
+  click,
+  dom,
+  hover,
+  input,
+  keyDown,
+  loadRenderer,
+  mount,
+  restoreGlobals,
+} from "../../../../tests/support/renderer.mjs";
 
-// Characterization tests for the split-out session row: rename commit rules,
-// delete confirmation with the running-session guard, and the collapse toggle.
+import { installRendererApi } from "../../../../tests/support/renderer-api.mjs";
+import { releaseAll } from "../../../../tests/support/cleanup.mjs";
 
-const projectRoot = path.resolve(import.meta.dirname, "../../../..");
-
-const { SessionItem } = await importTestBundle("session-sidebar-session-item", {
-  stdin: {
-    contents: 'export { SessionItem } from "./src/renderer/components/session-sidebar/session-item.tsx";',
-    resolveDir: projectRoot,
-    sourcefile: "session-item-test-entry.tsx",
-    loader: "tsx",
-  },
-  tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-  plugins: [
-    {
-      name: "session-item-stubs",
-      setup(build) {
-        build.onResolve({ filter: /^@\/i18n$/ }, () => ({ path: "i18n", namespace: "session-item" }));
-        build.onLoad({ filter: /.*/, namespace: "session-item" }, () => ({
-          contents:
-            "function stubT(_key, fallback) { return fallback; }\n" +
-            'export function useI18n() { return { language: "en", t: stubT }; }',
-          loader: "js",
-        }));
-      },
-    },
-  ],
-});
+after(restoreGlobals);
+const api = await loadRenderer(
+  "session-sidebar-session-item",
+  'export { SessionItem } from "./src/renderer/components/session-sidebar/session-item.tsx";',
+  // In Chromium these identifiers belong to the window. Keep JSDOM's own
+  // Node-side selection notifications outside the component-owned clock.
+  { define: { setTimeout: "window.setTimeout", clearTimeout: "window.clearTimeout" } },
+);
 
 function session(id, overrides = {}) {
   return {
     id,
-    name: "",
+    name: "Base session",
     firstMessage: "",
     cwd: "/workspace/dexon",
     modified: "2026-07-15T12:00:00.000Z",
@@ -47,258 +38,174 @@ function session(id, overrides = {}) {
   };
 }
 
-const GLOBAL_NAMES = ["window", "fetch", "IS_REACT_ACT_ENVIRONMENT"];
-
-function installEnvironment() {
-  const originals = new Map(GLOBAL_NAMES.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
-  const env = {
-    alertCalls: [],
-    fetchRequests: [],
-    nextFetchResponse: () => ({ ok: true, json: async () => ({}) }),
-  };
-  globalThis.__sessionItemEnv = env;
-  globalThis.window = {
-    alert: (message) => env.alertCalls.push(message),
-    localStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    requestAnimationFrame: (callback) => {
-      callback(0);
-      return 1;
+async function mountItem(t, props = {}) {
+  const clock = createManualScheduler();
+  const bindings = [
+    [dom.window, "setTimeout", clock.setTimeout],
+    [dom.window, "clearTimeout", clock.clearTimeout],
+    [globalThis, "requestAnimationFrame", clock.requestAnimationFrame],
+    [globalThis, "cancelAnimationFrame", clock.cancelAnimationFrame],
+    [dom.window, "requestAnimationFrame", clock.requestAnimationFrame],
+    [dom.window, "cancelAnimationFrame", clock.cancelAnimationFrame],
+    [dom.window, "alert", (message) => env.alertCalls.push(message)],
+  ];
+  const env = { alertCalls: [], requests: [], reply: () => ({ ok: true }) };
+  const originals = bindings.map(([owner, name]) => [owner, name, Object.getOwnPropertyDescriptor(owner, name)]);
+  for (const [owner, name, value] of bindings)
+    Object.defineProperty(owner, name, { configurable: true, writable: true, value });
+  const boundary = installRendererApi(dom.window, api, () => ({
+    call(method, params) {
+      assert.ok(method === "sessions.rename" || method === "sessions.delete", `unexpected row request: ${method}`);
+      env.requests.push({ method, params });
+      return env.reply(method, params);
     },
-    cancelAnimationFrame: () => {},
-  };
-  globalThis.fetch = async (url, options) => {
-    env.fetchRequests.push({ url, options });
-    return env.nextFetchResponse();
-  };
-  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  env.restore = async () => {
-    delete globalThis.__sessionItemEnv;
-    for (const [name, descriptor] of originals) {
-      if (descriptor) Object.defineProperty(globalThis, name, descriptor);
-      else delete globalThis[name];
+  }));
+  const view = await mount(
+    t,
+    api.SessionItem,
+    { session: session("s1"), isSelected: false, onClick: () => {}, ...props },
+    {
+      release: () =>
+        releaseAll(boundary.close, () => {
+          for (const [owner, name, descriptor] of originals) {
+            if (descriptor) Object.defineProperty(owner, name, descriptor);
+            else delete owner[name];
+          }
+        }),
+    },
+  );
+  return { ...view, env, clock, input: () => view.container.querySelector("input") };
+}
+
+async function flushBrowserWork(view) {
+  await act(async () => {
+    for (let pass = 0; view.clock.pendingCount() > 0; pass += 1) {
+      if (pass >= 20) throw new Error("The row's browser work did not settle");
+      await view.clock.runNext();
     }
-  };
-  return env;
-}
-
-async function withEnvironment(run) {
-  const env = installEnvironment();
-  try {
-    await run(env);
-  } finally {
-    env.restore();
-  }
-}
-
-function nodeText(node) {
-  const children = node.children ?? [];
-  return children.map((child) => (typeof child === "string" ? child : nodeText(child))).join("");
-}
-
-async function mountItem(props = {}) {
-  let renderer;
-  await act(async () => {
-    renderer = create(
-      createElement(SessionItem, {
-        session: session("s1", { name: "Base session" }),
-        isSelected: false,
-        onClick: () => {},
-        ...props,
-      }),
-    );
   });
-  return {
-    renderer,
-    unmount: async () => {
-      await act(async () => {
-        renderer.unmount();
-      });
-    },
-  };
 }
 
-function findButtonByText(root, text) {
-  const matches = root.findAll((node) => node.type === "button" && nodeText(node).includes(text));
-  assert.equal(matches.length, 1, `expected exactly one button containing ${JSON.stringify(text)}`);
-  return matches[0];
-}
-
-function findActionsSummary(root) {
-  const matches = root.findAll((node) => node.props?.className === "session-actions-summary");
-  assert.equal(matches.length, 1, "expected the session actions summary button");
-  return matches[0];
-}
-
-function click(node) {
-  return node.props.onClick({ stopPropagation() {} });
-}
-
-async function openActionsMenu(renderer) {
-  const summary = findActionsSummary(renderer.root);
-  await act(async () => {
-    click(summary);
-  });
+async function openActionsMenu(view) {
+  await hover(view.container.querySelector('[role="listitem"]'));
+  const summary = button(view.container, "Session actions for Base session");
+  await click(summary);
+  assert.ok(view.container.querySelector('[role="menu"]'));
   return summary;
 }
 
-async function startRename(mounted) {
-  await openActionsMenu(mounted.renderer);
-  await act(async () => {
-    click(findButtonByText(mounted.renderer.root, "Rename"));
-  });
-  const inputs = mounted.renderer.root.findAll((node) => node.type === "input");
-  assert.equal(inputs.length, 1);
-  return inputs[0];
+async function startRename(view) {
+  await openActionsMenu(view);
+  await click(button(view.container, "Rename"));
+  assert.ok(view.input(), "entering rename presents an input");
+  return view.input();
 }
 
-test("commits a rename through the session API and notifies the parent", async () => {
-  await withEnvironment(async (env) => {
-    const renamed = [];
-    env.nextFetchResponse = () => ({ ok: true, json: async () => ({}) });
-    const mounted = await mountItem({ onRenamed: () => renamed.push("renamed") });
-    const input = await startRename(mounted);
-    assert.equal(input.props.value, "Base session");
-    await act(async () => {
-      input.props.onChange({ target: { value: "Renamed session" } });
-    });
-    await act(async () => {
-      input.props.onBlur();
-    });
-    assert.equal(env.fetchRequests.length, 1);
-    const request = env.fetchRequests[0];
-    assert.equal(request.url, "/api/sessions/s1");
-    assert.equal(request.options.method, "PATCH");
-    assert.deepEqual(JSON.parse(request.options.body), { name: "Renamed session" });
-    assert.deepEqual(renamed, ["renamed"]);
-    await mounted.unmount();
-  });
+test("commits a rename through the session API and notifies the parent", async (t) => {
+  const renamed = [];
+  const view = await mountItem(t, { onRenamed: () => renamed.push("renamed") });
+  const field = await startRename(view);
+  assert.equal(field.value, "Base session");
+  await input(field, "Renamed session");
+  await act(async () => field.blur());
+  assert.equal(view.env.requests.length, 1);
+  const request = view.env.requests[0];
+  assert.deepEqual(request, { method: "sessions.rename", params: { id: "s1", name: "Renamed session" } });
+  assert.deepEqual(renamed, ["renamed"]);
 });
 
-test("skips the rename request when the name is unchanged", async () => {
-  await withEnvironment(async (env) => {
-    const renamed = [];
-    const mounted = await mountItem({ onRenamed: () => renamed.push("renamed") });
-    const input = await startRename(mounted);
-    await act(async () => {
-      input.props.onBlur();
-    });
-    assert.deepEqual(renamed, []);
-    assert.equal(env.fetchRequests.length, 0);
-    await mounted.unmount();
-  });
+test("skips the rename request when the name is unchanged", async (t) => {
+  const renamed = [];
+  const view = await mountItem(t, { onRenamed: () => renamed.push("renamed") });
+  const field = await startRename(view);
+  await act(async () => field.blur());
+  assert.deepEqual(renamed, []);
+  assert.deepEqual(view.env.requests, []);
 });
 
-test("blocks deleting a running session behind an alert", async () => {
-  await withEnvironment(async (env) => {
-    const deleted = [];
-    const mounted = await mountItem({ isRunning: true, onDeleted: (id) => deleted.push(id) });
-    await openActionsMenu(mounted.renderer);
-    await act(async () => {
-      click(findButtonByText(mounted.renderer.root, "Delete"));
-    });
-    assert.equal(env.alertCalls.length, 1);
-    assert.deepEqual(deleted, []);
-    assert.equal(env.fetchRequests.length, 0);
-    assert.equal(
-      mounted.renderer.root.findAll((node) => nodeText(node).includes("Delete “")).length,
-      0,
-      "no inline confirmation should replace the row",
-    );
-    await mounted.unmount();
-  });
+test("blocks deleting a running session behind an alert", async (t) => {
+  const deleted = [];
+  const view = await mountItem(t, { isRunning: true, onDeleted: (id) => deleted.push(id) });
+  await openActionsMenu(view);
+  await click(button(view.container, "Delete"));
+  assert.equal(view.env.alertCalls.length, 1);
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(view.env.requests, []);
+  assert.doesNotMatch(view.container.textContent, /Delete “/);
 });
 
-test("confirms deletion and reports the deleted id", async () => {
-  await withEnvironment(async (env) => {
-    const deleted = [];
-    let resolveDelete;
-    env.nextFetchResponse = () =>
-      new Promise((resolve) => {
-        resolveDelete = resolve;
-      });
-    const mounted = await mountItem({ onDeleted: (id) => deleted.push(id) });
-    await openActionsMenu(mounted.renderer);
-    await act(async () => {
-      click(findButtonByText(mounted.renderer.root, "Delete"));
+test("confirms deletion and reports the deleted id", async (t) => {
+  const deleted = [];
+  let resolveDelete;
+  const view = await mountItem(t, { onDeleted: (id) => deleted.push(id) });
+  view.env.reply = () =>
+    new Promise((resolve) => {
+      resolveDelete = resolve;
     });
-    assert.equal(
-      mounted.renderer.root.findAll((node) => nodeText(node).includes("Delete “")).length > 0,
-      true,
-      "the inline confirmation replaces the row",
-    );
-    const confirmButton = mounted.renderer.root.findAll(
-      (node) => node.type === "button" && nodeText(node) === "Delete",
-    )[0];
-    await act(async () => {
-      confirmButton.props.onClick({ stopPropagation() {} });
-    });
-    assert.equal(env.fetchRequests.length, 1);
-    assert.equal(env.fetchRequests[0].url, "/api/sessions/s1");
-    assert.equal(env.fetchRequests[0].options.method, "DELETE");
-    assert.deepEqual(deleted, []);
-    await act(async () => {
-      resolveDelete({ ok: true, json: async () => ({}) });
-    });
-    assert.deepEqual(deleted, ["s1"]);
-    await mounted.unmount();
-  });
+  await openActionsMenu(view);
+  await click(button(view.container, "Delete"));
+  assert.match(view.container.textContent, /Delete “/);
+  await click(button(view.container, "Delete"));
+  assert.equal(view.env.requests.length, 1);
+  assert.deepEqual(view.env.requests[0], { method: "sessions.delete", params: { id: "s1" } });
+  assert.deepEqual(deleted, []);
+  await act(async () => resolveDelete({ ok: true }));
+  assert.deepEqual(deleted, ["s1"]);
 });
 
-test("surfaces delete failures through an alert and keeps the row usable", async () => {
-  await withEnvironment(async (env) => {
-    const deleted = [];
-    env.nextFetchResponse = () => ({ ok: false, json: async () => ({ error: "denied" }) });
-    const mounted = await mountItem({ onDeleted: (id) => deleted.push(id) });
-    await openActionsMenu(mounted.renderer);
-    await act(async () => {
-      click(findButtonByText(mounted.renderer.root, "Delete"));
-    });
-    const confirmButton = mounted.renderer.root.findAll(
-      (node) => node.type === "button" && nodeText(node) === "Delete",
-    )[0];
-    await act(async () => {
-      confirmButton.props.onClick({ stopPropagation() {} });
-    });
-    assert.deepEqual(deleted, []);
-    assert.equal(env.alertCalls.length, 1);
-    assert.equal(env.alertCalls[0], "denied");
-    assert.equal(
-      mounted.renderer.root.findAll((node) => nodeText(node).includes("Base session")).length > 0,
-      true,
-      "the row returns to its normal view after a failed delete",
-    );
-    await mounted.unmount();
-  });
+test("surfaces delete failures through an alert and keeps the row usable", async (t) => {
+  const deleted = [];
+  const view = await mountItem(t, { onDeleted: (id) => deleted.push(id) });
+  view.env.reply = () => {
+    throw new Error("denied");
+  };
+  await openActionsMenu(view);
+  await click(button(view.container, "Delete"));
+  await click(button(view.container, "Delete"));
+  assert.deepEqual(deleted, []);
+  assert.deepEqual(view.env.alertCalls, ["denied"]);
+  assert.ok(button(view.container, "Base session"), "the row remains selectable after a failed delete");
 });
 
-test("toggles fork collapse from the row button", async () => {
-  await withEnvironment(async () => {
-    let toggles = 0;
-    const mounted = await mountItem({ hasChildren: true, onToggleCollapse: () => (toggles += 1) });
-    const toggle = mounted.renderer.root.findAll(
-      (node) => node.type === "button" && node.props["aria-label"] === "Collapse forks",
-    )[0];
-    assert.ok(toggle, "expected the collapse toggle on a row with children");
-    await act(async () => {
-      toggle.props.onClick({ stopPropagation() {} });
-    });
-    assert.equal(toggles, 1);
-    await mounted.unmount();
+test("toggles fork collapse from the row button without selecting the session", async (t) => {
+  const actions = [];
+  const view = await mountItem(t, {
+    hasChildren: true,
+    onToggleCollapse: () => actions.push("collapse"),
+    onClick: () => actions.push("select"),
   });
+  await click(button(view.container, "Collapse forks"));
+  assert.deepEqual(actions, ["collapse"]);
 });
 
-test("closes the actions menu on Escape", async () => {
-  await withEnvironment(async () => {
-    const mounted = await mountItem();
-    await openActionsMenu(mounted.renderer);
-    assert.equal(mounted.renderer.root.findAll((node) => node.props?.role === "menu").length, 1);
-    const wrapper = mounted.renderer.root.findAll(
-      (node) => node.type === "div" && typeof node.props.onKeyDown === "function",
-    )[0];
-    await act(async () => {
-      wrapper.props.onKeyDown({ key: "Escape", preventDefault() {} });
-    });
-    assert.equal(mounted.renderer.root.findAll((node) => node.props?.role === "menu").length, 0);
-    await mounted.unmount();
-  });
+test("Escape in the actions menu closes it and restores focus to its trigger", async (t) => {
+  const view = await mountItem(t);
+  const summary = await openActionsMenu(view);
+  await keyDown(view.container.querySelector('[role="menuitem"]'), "Escape");
+  await flushBrowserWork(view);
+  assert.equal(view.container.querySelector('[role="menu"]'), null);
+  assert.equal(dom.window.document.activeElement, summary);
+});
+
+test("entering rename focuses and selects the known existing name", async (t) => {
+  const view = await mountItem(t);
+  const field = await startRename(view);
+  await flushBrowserWork(view);
+  assert.equal(dom.window.document.activeElement, field);
+  assert.equal(field.value, "Base session");
+  assert.deepEqual([field.selectionStart, field.selectionEnd], [0, 12]);
+});
+
+test("unmounting during rename leaves no browser work or late focus change", async (t) => {
+  const view = await mountItem(t);
+  await startRename(view);
+  await view.unmount();
+  assert.equal(view.clock.pendingCount(), 0, "the unmounted row owns no remaining timers or frames");
+  const following = dom.window.document.createElement("input");
+  dom.window.document.body.appendChild(following);
+  t.after(() => following.remove());
+  following.focus();
+  await flushBrowserWork(view);
+  assert.equal(dom.window.document.activeElement, following);
+  assert.deepEqual(view.env.requests, [], "disposing the editor is not a rename submission");
 });

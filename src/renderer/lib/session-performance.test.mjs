@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
-import fs from "node:fs";
 import test from "node:test";
+import { performance } from "node:perf_hooks";
 
-import { PendingSessionLoadTraceRegistry } from "./session-performance.ts";
+import {
+  beginSessionLoadTrace,
+  consumeSessionLoadTrace,
+  finishSessionLoadTrace,
+  failSessionLoadTrace,
+  markSessionLoadPhase,
+  PendingSessionLoadTraceRegistry,
+} from "./session-performance.ts";
 
 function trace(sessionId, startedAt, id = sessionId) {
   return { id, sessionId, source: "selection", startedAt };
@@ -21,10 +28,9 @@ test("replacing and taking traces clean up the exact pending entry", () => {
   registry.set(replacement);
 
   assert.deepEqual(discarded, ["first"]);
-  assert.equal(registry.size, 1);
   assert.equal(registry.delete(first), false);
   assert.equal(registry.take("session"), replacement);
-  assert.equal(registry.size, 0);
+  assert.equal(registry.take("session"), undefined);
 });
 
 test("pending traces enforce TTL and insertion-order capacity", () => {
@@ -43,36 +49,29 @@ test("pending traces enforce TTL and insertion-order capacity", () => {
   now = 6;
   registry.set(trace("c", 6));
   assert.deepEqual(discarded, ["a"]);
-  assert.equal(registry.size, 2);
+  assert.equal(registry.take("a"), undefined, "the evicted trace cannot be consumed");
 
   now = 15;
   assert.equal(registry.take("missing"), undefined);
   assert.deepEqual(discarded, ["a", "b"]);
-  assert.equal(registry.size, 1);
   assert.equal(registry.take("c")?.id, "c");
 });
 
-test("finish and fail paths both remove pending ownership and clear marks", () => {
-  const source = fs.readFileSync(new URL("./session-performance.ts", import.meta.url), "utf8");
-  const finish = source.slice(
-    source.indexOf("export function finishSessionLoadTrace"),
-    source.indexOf("export function failSessionLoadTrace"),
-  );
-  const fail = source.slice(
-    source.indexOf("export function failSessionLoadTrace"),
-    source.indexOf("export function logSessionPerformanceEvent"),
-  );
-
-  for (const body of [finish, fail]) {
-    assert.match(body, /pendingBySession\.delete\(trace\)/);
-    assert.match(body, /clearSessionLoadTrace\(trace\)/);
-  }
-});
-
-test("session hook terminates stale, replaced, and unmounted commit traces", () => {
-  const source = fs.readFileSync(new URL("../hooks/agent-session/use-session-history.ts", import.meta.url), "utf8");
-
-  assert.match(source, /sessionIdRef\.current !== sid[\s\S]*failSessionLoadTrace\(trace\)/);
-  assert.match(source, /replacedCommitTrace[\s\S]*failSessionLoadTrace\(replacedCommitTrace\)/);
-  assert.match(source, /pendingSessionLoadTraceRef\.current = null;[\s\S]*if \(trace\) failSessionLoadTrace\(trace\)/);
-});
+for (const [outcome, terminate] of [
+  ["completed", finishSessionLoadTrace],
+  ["failed", failSessionLoadTrace],
+]) {
+  test(`a ${outcome} session load releases its pending ownership and performance marks`, () => {
+    const trace = beginSessionLoadTrace(`performance-${outcome}`, "selection");
+    markSessionLoadPhase(trace, "rpc-start");
+    assert.ok(performance.getEntriesByType("mark").some((entry) => entry.name.includes(trace.id)));
+    terminate(trace);
+    assert.equal(
+      performance.getEntriesByType("mark").some((entry) => entry.name.includes(trace.id)),
+      false,
+    );
+    const following = consumeSessionLoadTrace(trace.sessionId, "initial");
+    assert.notEqual(following.id, trace.id, "a finished load cannot be reused as a new pending load");
+    terminate(following);
+  });
+}

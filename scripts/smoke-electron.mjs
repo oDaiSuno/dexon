@@ -1,74 +1,66 @@
 #!/usr/bin/env node
 /**
- * Smoke test: launch Electron and a hidden renderer, connect to the Host over
- * MessagePort, and verify
- * ping, sessions, Worktree conflict handling, Git status, directory watching,
- * exact binary download, and safe Skill editing.
+ * Verify the actual production entry's single-instance handover, then the
+ * renderer/Host workflows. Each phase owns isolated userData and completion
+ * evidence; a zero exit alone cannot declare either phase successful.
  */
-import { spawn, spawnSync } from "child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import path from "path";
-import { fileURLToPath } from "url";
-import {
-  assertSuccessfulSpawn,
-  resolveElectronBinary,
-  resolvePackageFile,
-  terminateProcessTree,
-} from "./process-utils.mjs";
+import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync } from "node:fs";
+import { SMOKE_RESULT_FILE } from "../src/smoke/result.ts";
+import { runElectronCheck } from "./electron-test-run.mjs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { assertSuccessfulSpawn, resolvePackageFile } from "./process-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const main = path.join(root, ".artifacts", "smoke", "main.js");
+const output = path.join(root, ".artifacts", "smoke");
+const productionMain = path.join(root, "out", "main", "main.js");
+const phases = [
+  {
+    label: "production-startup",
+    main: path.join(output, "production-startup.js"),
+    result: "production-startup-result.json",
+  },
+  { label: "host-workflows", main: path.join(output, "main.js"), result: SMOKE_RESULT_FILE },
+];
 
 const tsupCli = resolvePackageFile(root, "tsup", "dist/cli-default.js");
 assertSuccessfulSpawn(
   spawnSync(process.execPath, [tsupCli, "--config", "tsup.smoke.config.ts"], { cwd: root, stdio: "inherit" }),
   "smoke build",
 );
+for (const main of [productionMain, ...phases.map((phase) => phase.main)]) {
+  if (!existsSync(main)) throw new Error(`Missing smoke entry ${main}; build the application before running smoke.`);
+}
+const evidenceDirectory = path.join(output, "results");
+mkdirSync(evidenceDirectory, { recursive: true });
 
-if (!existsSync(main)) {
-  console.error(`Smoke build did not produce ${main}; rerun npm run build:smoke for diagnostics.`);
-  process.exit(1);
+async function runSmoke(phase) {
+  const { completion, exit } = await runElectronCheck({
+    name: phase.label,
+    root,
+    main: phase.main,
+    resultName: phase.result,
+    evidence: path.join(evidenceDirectory, phase.result),
+    log: path.join(evidenceDirectory, `${phase.label}.log`),
+    timeoutMs: 60_000,
+  });
+  if (
+    phase.label === "production-startup" &&
+    (completion.entry !== productionMain ||
+      completion.handover !== true ||
+      completion.firstInstanceStillServes !== true ||
+      completion.secondInstance?.code !== 0 ||
+      completion.secondInstance?.signal !== null ||
+      completion.shutdown !== "will-quit")
+  )
+    throw new Error("Production startup completion does not prove handover, continued service and normal shutdown");
+  console.log(`smoke: ${phase.label} completion evidence verified pid=${exit.pid}`);
 }
 
-const electronBin = resolveElectronBinary(root);
-const smokeUserData = mkdtempSync(path.join(tmpdir(), "dexon-smoke-"));
-let smokeUserDataRemoved = false;
-
-function removeSmokeUserData() {
-  if (smokeUserDataRemoved) return;
-  smokeUserDataRemoved = true;
-  rmSync(smokeUserData, { recursive: true, force: true });
+try {
+  for (const phase of phases) await runSmoke(phase);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : String(error));
+  process.exitCode = 1;
 }
-
-const child = spawn(electronBin, [main], {
-  cwd: root,
-  env: {
-    ...process.env,
-    ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
-    PI_DESKTOP_SMOKE_USER_DATA: smokeUserData,
-  },
-  stdio: "inherit",
-  detached: process.platform !== "win32",
-});
-
-const timer = setTimeout(() => {
-  console.error("smoke timeout");
-  terminateProcessTree(child);
-  removeSmokeUserData();
-  process.exit(1);
-}, 45_000);
-
-child.on("error", (error) => {
-  clearTimeout(timer);
-  removeSmokeUserData();
-  console.error(`smoke Electron failed to start: ${error.message}`);
-  process.exit(1);
-});
-
-child.on("exit", (code, signal) => {
-  clearTimeout(timer);
-  removeSmokeUserData();
-  if (signal) console.error(`smoke Electron terminated by signal ${signal}`);
-  process.exit(code ?? 1);
-});

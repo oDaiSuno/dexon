@@ -30,7 +30,20 @@ export function createManualScheduler() {
     return handle;
   };
   const clear = (handle) => {
-    if (handle && typeof handle === "object" && "id" in handle) tasks.delete(handle.id);
+    const id = typeof handle === "number" ? handle : handle?.id;
+    tasks.delete(id);
+  };
+
+  const nextTask = () =>
+    [...tasks.values()].sort((left, right) => left.dueAt - right.dueAt || left.handle.id - right.handle.id)[0];
+  const runNext = async () => {
+    const task = nextTask();
+    if (!task) throw new Error("No scheduled task is pending");
+    elapsed = task.dueAt;
+    if (task.repeat) task.dueAt += task.delay;
+    else tasks.delete(task.handle.id);
+    task.callback();
+    await new Promise((resolve) => setImmediate(resolve));
   };
 
   return {
@@ -42,19 +55,18 @@ export function createManualScheduler() {
       return schedule(callback, delay, true);
     },
     clearInterval: clear,
+    requestAnimationFrame(callback) {
+      return schedule(() => callback(elapsed), 16, false).id;
+    },
+    cancelAnimationFrame: clear,
     pendingCount() {
       return tasks.size;
     },
-    async runNext() {
-      const task = [...tasks.values()].sort(
-        (left, right) => left.dueAt - right.dueAt || left.handle.id - right.handle.id,
-      )[0];
-      if (!task) throw new Error("No scheduled task is pending");
-      elapsed = task.dueAt;
-      if (task.repeat) task.dueAt += task.delay;
-      else tasks.delete(task.handle.id);
-      task.callback();
-      await new Promise((resolve) => setImmediate(resolve));
+    runNext,
+    async advanceBy(duration) {
+      const target = elapsed + Math.max(0, Number(duration) || 0);
+      while (nextTask()?.dueAt <= target) await runNext();
+      elapsed = target;
     },
   };
 }

@@ -155,10 +155,3 @@ export function createManagedDomRoot() {
     },
   };
 }
-
-/** React attaches its live props to each DOM node under a private key. */
-export function reactPropsOf(element) {
-  const propsKey = Object.keys(element).find((key) => key.startsWith("__reactProps$"));
-  if (!propsKey) throw new Error("expected React props on the element");
-  return element[propsKey];
-}

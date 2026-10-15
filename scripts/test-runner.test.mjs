@@ -4,16 +4,19 @@ import test from "node:test";
 
 import { assertTestSpawnResult, createTestCommand, parseTestTimeout, runTests } from "./test-runner.mjs";
 
-test("test discovery uses one glob regardless of fixture count and applies a per-test timeout", () => {
+test("test discovery covers the legacy tree and the new tests tree with a per-test timeout", () => {
   const command = createTestCommand({ timeoutMs: 4567 });
   assert.equal(command.command, process.execPath);
   assert.deepEqual(command.args, [
     "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
     "--test",
     "--test-timeout=4567",
+    "--test-concurrency=3",
     "src/**/*.test.mjs",
+    "scripts/**/*.test.mjs",
+    "tests/**/*.test.mjs",
   ]);
-  assert.equal(command.args.filter((argument) => argument.endsWith(".test.mjs")).length, 1);
+  assert.equal(command.args.filter((argument) => argument.endsWith(".test.mjs")).length, 3);
 });
 
 test("timeout parsing rejects malformed, zero, and unsafe values", () => {
@@ -41,7 +44,7 @@ test("legacy test modules are cleaned before and after every result", () => {
         fileSystem: { rmSync: (target, options) => removed.push({ target, options }) },
         spawnSync: (command, args, options) => {
           assert.equal(command, process.execPath);
-          assert.equal(args.at(-1), "src/**/*.test.mjs");
+          assert.ok(args.includes("src/**/*.test.mjs"));
           assert.equal(options.shell, false);
           return { error: undefined, signal: null, status: 7 };
         },

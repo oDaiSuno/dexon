@@ -1,3 +1,4 @@
+import { harness, restoreGlobals, rootEl } from "./chat-input-file-reference.harness.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -5,18 +6,22 @@ import test, { after, beforeEach } from "node:test";
 import { act } from "react";
 import { createElement, createRef, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { harness, restoreGlobals, rootEl } from "./chat-input-file-reference.harness.mjs";
 
-const { ChatInput, resetDraftCache } = await importTestBundle("src/renderer/components/chat-input-draft-migration", {
-  stdin: {
-    contents: 'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts";',
-    resolveDir: import.meta.dirname,
-    sourcefile: "chat-input-draft-migration-test-entry.tsx",
-    loader: "tsx",
+const { ChatInput, resetDraftCache, installApiShims, resetRpc } = await importTestBundle(
+  "src/renderer/components/chat-input-draft-migration",
+  {
+    stdin: {
+      contents:
+        'export { ChatInput } from "./ChatInput.tsx"; export { resetDraftCache } from "../lib/draft-store.ts"; export {installApiShims} from "../lib/api-fetch.ts"; export {resetRpc} from "../lib/api-client.ts";',
+      resolveDir: import.meta.dirname,
+      sourcefile: "chat-input-draft-migration-test-entry.tsx",
+      loader: "tsx",
+    },
+    tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
+    external: ["react", "react-dom", "react-dom/*"],
   },
-  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-});
+);
+harness.connectApi({ installApiShims, resetRpc });
 
 after(() => restoreGlobals());
 // Each case owns its storage and draft cache (ASTRA-R5-F001).
@@ -30,7 +35,7 @@ let activeRef = null;
 let currentProps = {};
 
 function editor() {
-  return rootEl.querySelector(".composer-editor");
+  return rootEl.querySelector('[role="textbox"][aria-multiline="true"]');
 }
 
 function elementFor(props, ref) {

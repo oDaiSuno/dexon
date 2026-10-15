@@ -314,6 +314,8 @@ export function ComposerView(props: ComposerViewProps) {
           )}
 
           <div
+            role="group"
+            aria-label={t("messageComposer", "Message input")}
             className="chat-composer-shell"
             style={{
               display: "flex",

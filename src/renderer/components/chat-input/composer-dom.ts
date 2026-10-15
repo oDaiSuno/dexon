@@ -419,6 +419,7 @@ export function fillChipContent(chip: HTMLElement, path: string, visual: PillVis
   remove.setAttribute("data-chip-remove", "");
   remove.setAttribute("role", "button");
   remove.title = visual.removeLabel;
+  remove.setAttribute("aria-label", visual.removeLabel);
   remove.innerHTML = CHIP_REMOVE_SVG;
   chip.append(icon, name, remove);
 }
@@ -448,6 +449,7 @@ export function createSkillChip(name: string, visual: SkillChipVisual): HTMLElem
   remove.setAttribute("data-chip-remove", "");
   remove.setAttribute("role", "button");
   remove.title = visual.removeLabel;
+  remove.setAttribute("aria-label", visual.removeLabel);
   remove.innerHTML = CHIP_REMOVE_SVG;
   chip.append(icon, nameSpan, remove);
   return chip;

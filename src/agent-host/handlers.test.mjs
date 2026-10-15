@@ -4,8 +4,10 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSy
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { MessageChannel } from "node:worker_threads";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import { CredentialSynchronizationError } from "@earendil-works/pi-coding-agent";
+import { createRpcClient, createRpcServer } from "../contract/rpc.ts";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 const isolatedAgentDirectory = mkdtempSync(path.join(tmpdir(), "pi-handler-agent-"));
@@ -40,6 +42,14 @@ async function captureHandlers() {
     },
   });
   return { handlers, events };
+}
+
+async function waitFor(predicate, timeoutMs, stepMs = 50) {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error("waitFor timed out");
+    await new Promise((resolve) => setTimeout(resolve, stepMs));
+  }
 }
 
 test("registerHandlers exposes every contract method exactly once", async () => {
@@ -721,5 +731,65 @@ test("sessions.get returns the contract shape without rescanning known session p
   await assert.rejects(
     handlers["sessions.entryContent"]({ id: sessionId, entryId: "another-session-entry", blockIndex: 0 }),
     (error) => error.code === "NOT_FOUND",
+  );
+});
+
+// The composition root owns the aggregated cleanup. Registration completeness
+// is owned statically by check:contract and behaviorally by the capture test
+// above; this test observes the release consequence through the real RPC
+// boundary: when cleanup resolves, the host-owned file watch goes silent. The
+// other four cleanup owners (models, processes, channels, sessions) release
+// through the same aggregation; their release rules are owned by the
+// service-level behavior tests (model-runtime, managed-process service,
+// channel-manager, session teardown). A change to the cleanup aggregation that
+// forgets one owner would leak that owner's resources into those tests.
+test("host cleanup releases the file watch it owns and silences its events", async (t) => {
+  const { registerHandlers } = await loadHandlersModule();
+
+  const watchRoot = mkdtempSync(path.join(tmpdir(), "pi-host-cleanup-"));
+  const watchedFile = path.join(watchRoot, "watched.txt");
+  writeFileSync(watchedFile, "before cleanup\n");
+
+  const server = createRpcServer();
+  const { port1, port2 } = new MessageChannel();
+  server.attachPort(port1);
+  const client = createRpcClient(port2);
+  const cleanup = registerHandlers(server);
+  t.after(() => {
+    client.close();
+    server.detachPort(port1);
+    rmSync(watchRoot, { recursive: true, force: true });
+  });
+
+  const changeEvents = [];
+  client.subscribe("files.changed", watchedFile, (event) => changeEvents.push(event));
+
+  await client.call("system.allowRoot", { path: watchRoot });
+  assert.deepEqual(await client.call("files.watchStart", { path: watchedFile }), { ok: true });
+  await waitFor(() => changeEvents.some((event) => event.event === "connected"), 5_000);
+
+  let changeObserved = false;
+  for (let attempt = 0; attempt < 3 && !changeObserved; attempt += 1) {
+    // macOS can register a file watch with short latency: a write landing
+    // immediately after the subscription may be missed. Liveness proves the
+    // relay works; the touch retries, the silence below never does.
+    writeFileSync(watchedFile, `touch-${attempt}-${Date.now()}\n`);
+    try {
+      await waitFor(() => changeEvents.some((event) => event.event === "change"), 1_200);
+      changeObserved = true;
+    } catch {
+      if (attempt === 2) throw new Error("the live watch never relayed a file change before cleanup");
+    }
+  }
+
+  await cleanup();
+
+  const eventsBeforeSilence = changeEvents.length;
+  writeFileSync(watchedFile, `quiet-${Date.now()}\n`);
+  await new Promise((resolve) => setTimeout(resolve, 700));
+  assert.equal(
+    changeEvents.length,
+    eventsBeforeSilence,
+    "the host-owned watch must not emit after the composition cleanup releases it",
   );
 });

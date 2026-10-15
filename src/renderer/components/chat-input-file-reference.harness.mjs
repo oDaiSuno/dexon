@@ -1,4 +1,6 @@
 import { JSDOM } from "jsdom";
+import { installRendererApi } from "../../../tests/support/renderer-api.mjs";
+import { releaseAll } from "../../../tests/support/cleanup.mjs";
 
 /**
  * Shared jsdom harness for the composer tests. The composer is a
@@ -24,7 +26,6 @@ dom.window.HTMLElement.prototype.detachEvent = () => {};
 const BORROWED_GLOBALS = [
   "cancelAnimationFrame",
   "document",
-  "fetch",
   "HTMLElement",
   "navigator",
   "Node",
@@ -76,15 +77,14 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 // jsdom does not implement scrolling (menu rows call scrollIntoView in effects).
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
 
-const fetchRequests = [];
+const requests = [];
 const showItemInFolderCalls = [];
-const defaultFetchImplementation = async () => ({
-  ok: true,
-  async json() {
-    return { files: ["src/main.ts", "src/renderer/App.tsx", "README.md"], truncated: false };
-  },
+const defaultFileSearch = async () => ({
+  files: ["src/main.ts", "src/renderer/App.tsx", "README.md"],
+  truncated: false,
 });
-let fetchImplementation = defaultFetchImplementation;
+let fileSearch = defaultFileSearch;
+let apiBoundary;
 let stageClipboardImageImplementation = async () => ({
   ok: false,
   code: "stage-unavailable",
@@ -98,11 +98,6 @@ let stageClipboardImageImplementation = async () => ({
 let rafQueueMode = false;
 const pendingFrames = new Map();
 let rafSeq = 0;
-
-globalThis.fetch = async (url, options) => {
-  fetchRequests.push(String(url));
-  return fetchImplementation(url, options);
-};
 
 dom.window.piBridge = {
   getPathForFile(file) {
@@ -123,24 +118,38 @@ dom.window.piBridge = {
 export const rootEl = dom.window.document.getElementById("root");
 
 export function restoreGlobals() {
-  for (const [name, descriptor] of originals) {
-    if (descriptor) Object.defineProperty(globalThis, name, descriptor);
-    else delete globalThis[name];
-  }
-  dom.window.close();
+  return releaseAll(
+    () => apiBoundary?.close(),
+    () => {
+      for (const [name, descriptor] of originals) {
+        if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+        else delete globalThis[name];
+      }
+    },
+    () => dom.window.close(),
+  );
 }
 
 export const harness = {
   dom,
   storedValues,
-  fetchRequests,
+  requests,
   showItemInFolderCalls,
-  defaultFetch: defaultFetchImplementation,
-  setFetch(implementation) {
-    fetchImplementation = implementation;
+  connectApi(api, { skills = [] } = {}) {
+    apiBoundary = installRendererApi(dom.window, api, () => ({
+      call(method, params) {
+        if (method === "skills.list") return { skills };
+        if (method !== "files.index") throw new Error(`Unexpected composer Host request: ${method}`);
+        requests.push({ method, params });
+        return fileSearch(params);
+      },
+    }));
   },
-  resetFetch() {
-    fetchImplementation = defaultFetchImplementation;
+  setFileSearch(implementation) {
+    fileSearch = implementation;
+  },
+  resetFileSearch() {
+    fileSearch = defaultFileSearch;
   },
   setStageClipboardImage(implementation) {
     stageClipboardImageImplementation = implementation;
@@ -150,7 +159,8 @@ export const harness = {
   },
   /** Give every test an isolated request history regardless of execution order. */
   resetRequests() {
-    fetchRequests.length = 0;
+    requests.length = 0;
+    fileSearch = defaultFileSearch;
     showItemInFolderCalls.length = 0;
   },
   /** Opt into queued rAF so tests can prove cancellation; off by default. */

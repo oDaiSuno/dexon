@@ -23,6 +23,12 @@ run("lint", "npm", ["run", "lint"]);
 run("typecheck (main/host)", "npx", ["tsc", "--noEmit", "-p", "tsconfig.json"]);
 run("typecheck (renderer)", "npx", ["tsc", "--noEmit", "-p", "tsconfig.renderer.json"]);
 run("dependency contract", "node", ["scripts/check-dependency-contract.mjs"]);
+run("architecture constraints", "node", ["scripts/check-architecture.mjs"]);
+run("design constraints", "node", [
+  "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+  "--experimental-strip-types",
+  "scripts/check-design.mjs",
+]);
 run("unit tests", "npm", ["test"]);
 run("managed process development workflows", "npm", ["run", "test:managed-process-workflows"]);
 run("managed process 60s flood", "npm", ["run", "test:managed-process-flood"]);
@@ -35,10 +41,14 @@ run("toolchain catalog", "node", [
 ]);
 run("Browser i18n invariants", "npm", ["run", "check:browser-i18n"]);
 run("desktop security invariants", "node", ["scripts/check-desktop-security.mjs"]);
+run("desktop workflow invariants", "node", ["scripts/check-desktop-workflow.mjs"]);
+run("test infrastructure invariants", "node", ["scripts/check-test-infra.mjs"]);
 run("build", "npm", ["run", "build"]);
 run("production artifact isolation", "node", ["scripts/check-production-artifacts.mjs"]);
 run("smoke electron", "npm", ["run", "smoke"]);
 run("Interactive tool cards Electron integration", "npm", ["run", "test:interactive-tools-electron"]);
+run("Real chat layout and composer Electron integration", "npm", ["run", "test:chat-layout-electron"]);
+run("Navigation layout and keyboard Electron integration", "npm", ["run", "test:nav-layout-electron"]);
 run("Browser Electron integration", "npm", ["run", "test:browser-electron"]);
 run("Browser real Agent E2E", "npm", ["run", "test:browser-agent-e2e"]);
 
