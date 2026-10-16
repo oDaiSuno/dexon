@@ -381,7 +381,6 @@ export function AppShell({
           navigationRequestId={settingsNavigationRequestId}
           onClose={closeSettings}
           onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
-          onPluginsReloaded={bumpSessionKey}
           onChannelsChanged={channels.setChannelSnapshot}
           chatAppearance={chatAppearance}
           chatAppearanceSaving={chatAppearanceSaving}

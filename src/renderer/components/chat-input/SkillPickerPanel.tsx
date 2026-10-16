@@ -61,7 +61,7 @@ export function SkillPickerPanel({
     if (error) return { key: "error", text: t("skillPickerLoadFailed", "Failed to load skills. Try again.") };
     if (loading) return { key: "loading", text: t("skillPickerLoading", "Loading skills…") };
     if (skills.length === 0)
-      return { key: "empty", text: t("skillPickerEmpty", "No skills installed yet. Install them in Settings.") };
+      return { key: "empty", text: t("skillPickerEmpty", "No skills installed yet. Add them from Plugins & Skills.") };
     if (filtered.length === 0) return { key: "nomatch", text: t("skillPickerNoMatch", "No skills match this search") };
     return null;
   })();

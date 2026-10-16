@@ -51,11 +51,18 @@ const NAVIGATION_INTEGRATION_KEYS = new Set([
   "retry",
 ]);
 
+const SETTINGS_MIGRATION_KEYS = new Set([
+  "settingsDescription",
+  "skillPickerEmpty",
+  "projectRequiredDescription",
+  "projectRequiredTitle",
+]);
+
 // interactive-tools 词典模块是显式追加、由组合/奇偶校验与行为测试单独核对的，
 // 指纹基线同样排除。历史指纹本身保持不变。
 export const PRE_SPLIT_BASELINE = {
-  enUS: "a0f49b4ce5c9f7c436cfd6c67f9e8d575475ff9aabe7d55840bc2e681cfa22c1",
-  zhCN: "b63505953caceb84039315255d010fefcbfcf8deccb692dc8908a9c11092f52b",
+  enUS: "dc586909a1505bec127bfcf3db2c8cfd110c6e18d1da161d300a185667e1247d",
+  zhCN: "51d79ff92b31ace5d958c6fba770067754bbb98ba9729985ea8d9f4628118b6d",
 };
 
 // 关键 UI 场景：空态、不可逆删除、外部冲突、频道状态、更新失败。
@@ -153,7 +160,13 @@ export function dictionaryCompositionFailures({ partials, enUS, zhCN }) {
 /** 拆分前的历史键和值保持不变；显式追加的模块、导航键和区域名不进入历史指纹。 */
 export function dictionaryBaselineFailures({ enUS, zhCN, interactiveKeys, expected = PRE_SPLIT_BASELINE }) {
   const excluded = new Set(interactiveKeys ?? []);
-  for (const key of [...PHASE_4_NAV_KEYS, ...ACCESSIBLE_REGION_KEYS, ...NAVIGATION_INTEGRATION_KEYS]) excluded.add(key);
+  for (const key of [
+    ...PHASE_4_NAV_KEYS,
+    ...ACCESSIBLE_REGION_KEYS,
+    ...NAVIGATION_INTEGRATION_KEYS,
+    ...SETTINGS_MIGRATION_KEYS,
+  ])
+    excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));
   const failures = [];
   if (dictionaryFingerprint(withoutExcluded(enUS)) !== expected.enUS) {

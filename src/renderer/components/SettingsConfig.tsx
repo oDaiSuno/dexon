@@ -1,20 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { ModelsConfig } from "./ModelsConfig";
-import { SkillsConfig, type SkillsConfigHandle } from "./SkillsConfig";
-import { PluginsConfig } from "./PluginsConfig";
 import { ToolchainsConfig } from "./ToolchainsConfig";
 import { BrowserSettings } from "./browser/BrowserSettings";
 import { ChannelsConfig } from "./channels/ChannelsConfig";
 import { GeneralSettings } from "./settings/general-settings";
 import { AboutSettings } from "./settings/about-settings";
-import { ProjectRequired } from "./settings/project-required";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 
-export type SettingsTab = "general" | "browser" | "channels" | "models" | "tools" | "skills" | "plugins" | "about";
+export type SettingsTab = "general" | "browser" | "channels" | "models" | "tools" | "about";
 
 interface SettingsConfigProps {
   cwd: string | null;
@@ -23,7 +20,6 @@ interface SettingsConfigProps {
   navigationRequestId?: number;
   onClose: () => void;
   onModelsChanged: () => void;
-  onPluginsReloaded: () => void;
   onChannelsChanged: (snapshot: ChannelsSnapshot) => void;
   chatAppearance: ChatAppearancePreferences;
   chatAppearanceSaving: boolean;
@@ -37,7 +33,6 @@ export function SettingsConfig({
   navigationRequestId = 0,
   onClose,
   onModelsChanged,
-  onPluginsReloaded,
   onChannelsChanged,
   chatAppearance,
   chatAppearanceSaving,
@@ -51,23 +46,13 @@ export function SettingsConfig({
   activeTabRef.current = activeTab;
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
-  const skillsConfigRef = useRef<SkillsConfigHandle>(null);
   const returnFocusRef = useRef<HTMLElement | null>(
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
 
-  const requestSettingsTransition = useCallback((action: () => void) => {
-    if (activeTabRef.current === "skills" && skillsConfigRef.current) {
-      skillsConfigRef.current.requestLeave(action);
-      return;
-    }
-    action();
-  }, []);
-
   useEffect(() => {
-    if (initialTab !== activeTabRef.current) requestSettingsTransition(() => setActiveTab(initialTab));
-    // navigationRequestId intentionally retries an externally requested tab after a cancelled dirty-editor prompt.
-  }, [initialTab, navigationRequestId, requestSettingsTransition]);
+    if (initialTab !== activeTabRef.current) setActiveTab(initialTab);
+  }, [initialTab, navigationRequestId]);
 
   useEffect(() => {
     const returnFocus = returnFocusRef.current;
@@ -87,8 +72,6 @@ export function SettingsConfig({
   const tabs: { id: SettingsTab; label: string }[] = [
     { id: "general", label: t("general", "General") },
     { id: "models", label: t("models", "Models") },
-    { id: "skills", label: t("skills", "Skills") },
-    { id: "plugins", label: t("plugins", "Plugins") },
     { id: "browser", label: t("browser", "Browser") },
     { id: "channels", label: t("channels", "Channels") },
     { id: "tools", label: t("developerTools", "Developer Tools") },
@@ -108,7 +91,7 @@ export function SettingsConfig({
         justifyContent: "center",
       }}
       onClick={(event) => {
-        if (event.target === event.currentTarget) requestSettingsTransition(onClose);
+        if (event.target === event.currentTarget) onClose();
       }}
     >
       <div
@@ -119,7 +102,7 @@ export function SettingsConfig({
         onKeyDown={(event) => {
           if (event.key === "Escape") {
             event.preventDefault();
-            requestSettingsTransition(onClose);
+            onClose();
             return;
           }
           if (event.key !== "Tab") return;
@@ -179,14 +162,14 @@ export function SettingsConfig({
             </div>
             {!isMobile && (
               <div style={{ marginTop: 2, fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
-                {t("settingsDescription", "Manage app preferences, models, skills, and plugins.")}
+                {t("settingsDescription", "Manage app preferences, models, channels, and app information.")}
               </div>
             )}
           </div>
           <button
             ref={closeButtonRef}
             type="button"
-            onClick={() => requestSettingsTransition(onClose)}
+            onClick={onClose}
             aria-label={t("close", "Close")}
             style={{
               background: "none",
@@ -237,7 +220,7 @@ export function SettingsConfig({
                   aria-controls="settings-tabpanel"
                   tabIndex={active ? 0 : -1}
                   onClick={() => {
-                    if (!active) requestSettingsTransition(() => setActiveTab(tab.id));
+                    if (!active) setActiveTab(tab.id);
                   }}
                   onKeyDown={(event) => {
                     const currentIndex = tabs.findIndex((item) => item.id === tab.id);
@@ -249,10 +232,8 @@ export function SettingsConfig({
                     if (nextIndex === undefined) return;
                     event.preventDefault();
                     const nextTab = tabs[nextIndex];
-                    requestSettingsTransition(() => {
-                      setActiveTab(nextTab.id);
-                      document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
-                    });
+                    setActiveTab(nextTab.id);
+                    document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
                   }}
                   style={{
                     position: "relative",
@@ -302,24 +283,6 @@ export function SettingsConfig({
             )}
             {activeTab === "tools" && <ToolchainsConfig cwd={cwd} />}
             {activeTab === "channels" && <ChannelsConfig onSnapshotChange={onChannelsChanged} />}
-            {activeTab === "skills" &&
-              (cwd ? (
-                <SkillsConfig ref={skillsConfigRef} embedded cwd={cwd} onClose={() => undefined} />
-              ) : (
-                <ProjectRequired />
-              ))}
-            {activeTab === "plugins" &&
-              (cwd ? (
-                <PluginsConfig
-                  embedded
-                  cwd={cwd}
-                  sessionId={sessionId}
-                  onClose={() => undefined}
-                  onReloaded={onPluginsReloaded}
-                />
-              ) : (
-                <ProjectRequired />
-              ))}
             {activeTab === "about" && <AboutSettings onClose={onClose} />}
           </div>
         </div>
