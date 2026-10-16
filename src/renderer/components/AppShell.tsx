@@ -24,6 +24,7 @@ import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab } from "./app-nav/resource-page";
+import { useDepartureGuard } from "./app-shell/use-departure-guard";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -44,6 +45,11 @@ export function AppShell({
   const [page, setPage] = useState<NavPage>("chat");
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
   const showChatPage = useCallback(() => setPage("chat"), []);
+  const { leaveRef, requestDeparture } = useDepartureGuard();
+  const changeResourceTab = useCallback(
+    (tab: ResourceTab) => requestDeparture(() => setResourceTab(tab)),
+    [requestDeparture],
+  );
 
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
@@ -90,6 +96,7 @@ export function AppShell({
     onTopPanelDismiss: dismissTopPanel,
     onSwitchSessionRequested: openSidebarForSwitchSession,
     onShowChat: showChatPage,
+    requestDeparture,
     onBeforeSessionDeleted: useCallback((sessionId: string) => {
       thinkingExpansionRegistryRef.current.delete(sessionId);
       processDetailsExpansionRegistryRef.current.delete(sessionId);
@@ -147,11 +154,18 @@ export function AppShell({
   }, [returnToPersonalSpace, handleCwdChange]);
   const handleNavigate = useCallback(
     (target: NavPage) => {
-      if (target === "resources") setActiveTopPanel(null);
-      if (isMobile) setSidebarOpen(false);
-      setPage(target);
+      if (target === "resources") {
+        setActiveTopPanel(null);
+        if (isMobile) setSidebarOpen(false);
+        setPage(target);
+        return;
+      }
+      requestDeparture(() => {
+        if (isMobile) setSidebarOpen(false);
+        setPage(target);
+      });
     },
-    [isMobile],
+    [isMobile, requestDeparture],
   );
   const onResources = page === "resources";
 
@@ -258,6 +272,7 @@ export function AppShell({
           onInitialRestoreDone={handleInitialRestoreDone}
           refreshKey={refreshKey}
           onSessionDeleted={handleSessionDeleted}
+          requestDeparture={requestDeparture}
         />
 
         {/* Center: chat */}
@@ -296,7 +311,8 @@ export function AppShell({
                 cwd={activeCwd ?? coordination.spaceCwd ?? ""}
                 sessionId={selectedSession?.id ?? null}
                 activeTab={resourceTab}
-                onTabChange={setResourceTab}
+                onTabChange={changeResourceTab}
+                skillsRef={leaveRef}
                 onPluginsReloaded={bumpSessionKey}
               />
             )}

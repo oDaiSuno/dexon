@@ -1,6 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type Ref } from "react";
 import { useI18n } from "@/i18n";
-import { SkillsConfig } from "../SkillsConfig";
+import { SkillsConfig, type SkillsConfigHandle } from "../SkillsConfig";
 import { PluginsConfig } from "../PluginsConfig";
 
 // Phase 4: the resource main page — one sidebar entry opening a page with the
@@ -17,12 +17,14 @@ export function ResourcePage({
   activeTab,
   onTabChange,
   onPluginsReloaded,
+  skillsRef,
 }: {
   cwd: string;
   sessionId?: string | null;
   activeTab: ResourceTab;
   onTabChange: (tab: ResourceTab) => void;
   onPluginsReloaded?: () => void;
+  skillsRef?: Ref<SkillsConfigHandle>;
 }) {
   const { t } = useI18n();
   const tabs: { id: ResourceTab; label: string }[] = [
@@ -140,6 +142,7 @@ export function ResourcePage({
       <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {activeTab === "plugins" ? (
           <PluginsConfig
+            key={cwd}
             cwd={cwd}
             sessionId={sessionId}
             embedded
@@ -147,7 +150,7 @@ export function ResourcePage({
             onReloaded={onPluginsReloaded}
           />
         ) : (
-          <SkillsConfig cwd={cwd} embedded onClose={() => undefined} />
+          <SkillsConfig ref={skillsRef} cwd={cwd} embedded onClose={() => undefined} />
         )}
       </div>
     </div>

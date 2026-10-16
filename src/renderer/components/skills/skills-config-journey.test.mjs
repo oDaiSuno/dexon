@@ -206,17 +206,18 @@ test("saving from the add-skill prompt continues only after the save succeeds", 
     await click(clickableText(mounted.rootEl(), "Add skill"));
     assert.ok(promptDialog(mounted.rootEl()), "the add-skill transition is held by the prompt");
 
-    // A failed save keeps the prompt and stays in the editor.
+    // A failed save closes the prompt and stays in the editor.
     await click(await promptButton(mounted.rootEl(), "Save"));
     const patchIndex = harness.pending.findIndex((entry) => entry.method === "skills.set");
     await act(async () => {
       harness.pending[patchIndex].deferred.reject(hostError("Disk full"));
       await harness.pending[patchIndex].deferred.promise.catch(() => {});
     });
-    assert.ok(promptDialog(mounted.rootEl()), "a failed save keeps the prompt");
+    assert.equal(promptDialog(mounted.rootEl()), null, "a failed save closes the prompt");
     assert.equal(textareaOf(mounted.rootEl()).value, "# Alpha edited");
 
-    // Retrying with a successful save opens the add panel.
+    // Asking again and saving successfully opens the add panel.
+    await click(clickableText(mounted.rootEl(), "Add skill"));
     await click(await promptButton(mounted.rootEl(), "Save"));
     const retryPatch = harness.pending[harness.pending.length - 1];
     assert.equal(retryPatch.method, "skills.set");

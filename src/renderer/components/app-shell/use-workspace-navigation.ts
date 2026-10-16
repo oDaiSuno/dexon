@@ -18,7 +18,9 @@ export function useWorkspaceNavigation({
   onSwitchSessionRequested,
   onBeforeSessionDeleted,
   onShowChat,
+  requestDeparture = (action) => action(),
 }: {
+  requestDeparture?: (action: () => void) => void;
   isMobile: boolean;
   onMobileSidebarClose: () => void;
   onTopPanelDismiss: () => void;
@@ -47,12 +49,14 @@ export function useWorkspaceNavigation({
           const { sessions } = await listSessions();
           const found = sessions.find((s) => s.id === sessionId);
           if (found) {
-            onShowChat?.();
-            setNewSessionCwd(null);
-            setSelectedSession(found as SessionInfo);
-            setSessionKey((k) => k + 1);
-            setRefreshKey((k) => k + 1);
-            router.replace(`?session=${encodeURIComponent(sessionId)}`);
+            requestDeparture(() => {
+              onShowChat?.();
+              setNewSessionCwd(null);
+              setSelectedSession(found as SessionInfo);
+              setSessionKey((k) => k + 1);
+              setRefreshKey((k) => k + 1);
+              router.replace(`?session=${encodeURIComponent(sessionId)}`);
+            });
           }
         } catch (error) {
           console.error("deep link open failed", error);
@@ -60,13 +64,14 @@ export function useWorkspaceNavigation({
       })();
     });
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
-      if (activeCwd) {
+      if (!activeCwd) return;
+      requestDeparture(() => {
         onShowChat?.();
         setSelectedSession(null);
         setNewSessionCwd(activeCwd);
         setSessionKey((k) => k + 1);
         router.replace("/", { scroll: false });
-      }
+      });
     });
     // ISSUE-016: Switch Session palette — focus sidebar / open project list
     const offSwitch = window.piBridge?.onMenu?.("switch-session", () => {
@@ -78,7 +83,7 @@ export function useWorkspaceNavigation({
       offNew?.();
       offSwitch?.();
     };
-  }, [activeCwd, router, onSwitchSessionRequested, onShowChat]);
+  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, requestDeparture]);
 
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null) => {

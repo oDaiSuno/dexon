@@ -83,6 +83,8 @@ export function UnsavedSkillPrompt({
           <button
             type="button"
             disabled={saving}
+            aria-label={t("save", "Save")}
+            aria-busy={saving || undefined}
             onClick={() => void onSave()}
             style={{
               ...leavePromptButtonStyle,

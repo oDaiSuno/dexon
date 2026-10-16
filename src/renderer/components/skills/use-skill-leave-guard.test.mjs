@@ -209,7 +209,7 @@ test("saving continues the held action only when the save succeeds", async () =>
       state.value.requestTransition(() => executed.push("action"));
     });
 
-    // Save failure keeps the prompt so the user can retry or discard.
+    // Save failure closes the prompt and keeps the user in place.
     let firstSave;
     await act(async () => {
       firstSave = state.value.saveAndContinue();
@@ -221,9 +221,12 @@ test("saving continues the held action only when the save succeeds", async () =>
     });
     assert.equal(state.value.transitionSaving, false);
     assert.deepEqual(executed, []);
-    assert.notEqual(state.value.pendingTransition, null);
+    assert.equal(state.value.pendingTransition, null);
 
-    // Retrying with a successful save continues the original action.
+    // Asking again and saving successfully continues the new request.
+    await act(async () => {
+      state.value.requestTransition(() => executed.push("action"));
+    });
     let secondSave;
     await act(async () => {
       secondSave = state.value.saveAndContinue();

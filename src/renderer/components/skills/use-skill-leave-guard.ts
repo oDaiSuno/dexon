@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import type { SkillDetailHandle } from "./skill-detail";
 
 export interface SkillLeaveGuard {
@@ -16,16 +16,23 @@ export function useSkillLeaveGuard(detailRef: RefObject<SkillDetailHandle | null
   const [detailDirty, setDetailDirty] = useState(false);
   const [pendingTransition, setPendingTransition] = useState<(() => void) | null>(null);
   const [transitionSaving, setTransitionSaving] = useState(false);
+  const pendingRef = useRef<(() => void) | null>(null);
+
+  const settlePending = useCallback((action: (() => void) | null) => {
+    pendingRef.current = action;
+    setPendingTransition(() => action);
+  }, []);
 
   const requestTransition = useCallback(
     (action: () => void) => {
+      if (pendingRef.current) return;
       if (!(detailRef.current?.hasUnsavedChanges() ?? detailDirty)) {
         action();
         return;
       }
-      setPendingTransition(() => action);
+      settlePending(action);
     },
-    [detailDirty, detailRef],
+    [detailDirty, detailRef, settlePending],
   );
 
   useEffect(() => {
@@ -39,23 +46,24 @@ export function useSkillLeaveGuard(detailRef: RefObject<SkillDetailHandle | null
   }, [detailDirty]);
 
   const discardAndContinue = useCallback(() => {
-    const action = pendingTransition;
-    setPendingTransition(null);
+    const action = pendingRef.current;
+    settlePending(null);
     setDetailDirty(false);
     action?.();
-  }, [pendingTransition]);
+  }, [settlePending]);
 
-  const cancelTransition = useCallback(() => setPendingTransition(null), []);
+  const cancelTransition = useCallback(() => settlePending(null), [settlePending]);
 
   const saveAndContinue = useCallback(async () => {
+    const detail = detailRef.current;
+    if (!detail) return;
     setTransitionSaving(true);
-    const saved = (await detailRef.current?.save()) ?? false;
+    const saved = await detail.save();
     setTransitionSaving(false);
-    if (!saved) return;
-    const action = pendingTransition;
-    setPendingTransition(null);
-    action?.();
-  }, [pendingTransition, detailRef]);
+    const action = pendingRef.current;
+    settlePending(null);
+    if (saved) action?.();
+  }, [detailRef, settlePending]);
 
   return {
     detailDirty,

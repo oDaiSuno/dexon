@@ -30,16 +30,20 @@ export interface WorktreeState {
 export type WorkspaceSelectResult =
   { status: "cancelled" } | { status: "selected" } | { status: "invalid"; error: string };
 
+const proceed = (action: () => void) => action();
+
 export function useProjectWorkspace({
   sessions,
   selectedCwdProp,
   onCwdChange,
   refreshKey,
+  requestDeparture = proceed,
 }: {
   sessions: SessionInfo[];
   selectedCwdProp: string | null | undefined;
   onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   refreshKey?: number;
+  requestDeparture?: (action: () => void) => void;
 }) {
   const { t } = useI18n();
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -184,14 +188,14 @@ export function useProjectWorkspace({
       if (!res.ok || data.error) {
         return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
       }
-      setSelectedCwd(data.cwd ?? dir);
+      requestDeparture(() => setSelectedCwd(data.cwd ?? dir));
       return { status: "selected" };
     } catch (e) {
       return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
     }
-  }, [t]);
+  }, [t, requestDeparture]);
 
-  const handleCreateWorktree = useCallback(async () => {
+  const createWorktree = useCallback(async () => {
     const branch = wtNewBranch.trim();
     if (!branch || wtBusy || !worktreeState) return;
     setWtBusy(true);
@@ -227,6 +231,11 @@ export function useProjectWorkspace({
     }
   }, [wtNewBranch, wtBusy, worktreeState]);
 
+  const handleCreateWorktree = useCallback(() => {
+    if (!wtNewBranch.trim() || wtBusy || !worktreeState) return;
+    requestDeparture(() => void createWorktree());
+  }, [wtNewBranch, wtBusy, worktreeState, requestDeparture, createWorktree]);
+
   const handleRemoveWorktree = useCallback(
     async (path: string, force: boolean) => {
       if (!worktreeState || wtBusy) return;
@@ -257,11 +266,14 @@ export function useProjectWorkspace({
 
   // Clicking a worktree row moves the effective cwd and closes the dropdown —
   // verbatim from the original monolith.
-  const handleSelectWorktree = useCallback((path: string) => {
-    setSelectedCwd(path);
-    setWtDropdownOpen(false);
-    setWtError(null);
-  }, []);
+  const handleSelectWorktree = useCallback(
+    (path: string) => {
+      setWtDropdownOpen(false);
+      setWtError(null);
+      requestDeparture(() => setSelectedCwd(path));
+    },
+    [requestDeparture],
+  );
 
   // Outside click closes the dropdown and resets its entry/confirm/error state —
   // verbatim from the original monolith's shared document listener.
