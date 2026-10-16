@@ -1,3 +1,4 @@
+import { createDeferred } from "#test-timing";
 import { browserState } from "../support/browser-state.mjs";
 import {
   createdWorktreeBranch,
@@ -78,6 +79,7 @@ export function navigationBoundary({
     operations: [],
   };
   let sessionSequence = 0;
+  let skillWrites = 0;
   const noSubscription = () => () => {};
   const resourceFor = (cwd) => {
     const resource = resources.get(cwd);
@@ -237,6 +239,7 @@ export function navigationBoundary({
           throw new Error("Skill belongs to a different space");
         return { content: files.get(params.filePath) };
       case "skills.set":
+        skillWrites++;
         if (!resourceFor(params.cwd).skills.some((item) => item.filePath === params.filePath))
           throw new Error("Skill belongs to a different space");
         if (typeof params.content !== "string") throw new Error("Fixture expects a content edit");
@@ -247,6 +250,15 @@ export function navigationBoundary({
         unexpected.push(method);
         throw new Error(`Unexpected navigation boundary request: ${method}`);
     }
+  };
+  const holds = [];
+  const allHolds = [];
+  const passGate = async (method, params) => {
+    const index = holds.findIndex((entry) => entry.method === method && entry.matches(params ?? {}));
+    if (index < 0) return;
+    const [entry] = holds.splice(index, 1);
+    entry.reached = true;
+    await entry.released.promise;
   };
   const tracked = async (work) => {
     activity.started++;
@@ -335,12 +347,42 @@ export function navigationBoundary({
     ),
   );
   return {
-    host: { call: (method, params) => tracked(() => call(method, params)), subscribe },
+    host: {
+      call: (method, params) =>
+        tracked(async () => {
+          await passGate(method, params);
+          return call(method, params);
+        }),
+      subscribe,
+    },
     bridge,
     desktop,
     failures,
     unexpected,
     activity: () => ({ ...activity }),
+    hold(method, matches = () => true) {
+      const entry = { method, matches, reached: false, released: createDeferred() };
+      entry.released.promise.catch(() => {});
+      holds.push(entry);
+      allHolds.push(entry);
+      return {
+        reached: () => entry.reached,
+        release: () => entry.released.resolve(),
+        fail: (message) => entry.released.reject(new Error(message)),
+      };
+    },
+    // A test that fails mid-way must not leave a held request hanging.
+    releaseHolds() {
+      holds.length = 0;
+      for (const entry of allHolds) entry.released.resolve();
+    },
+    // Skill file writes that reached the Host, whether or not they succeeded.
+    skillWrites: () => skillWrites,
+    // Gives one skill file distinct text, so a test can tell whose file is shown.
+    writeSkillFile(filePath, content) {
+      if (!files.has(filePath)) throw new Error(`Fixture has no skill file ${filePath}`);
+      files.set(filePath, content);
+    },
     addConversation(detail) {
       details.push(detail);
     },

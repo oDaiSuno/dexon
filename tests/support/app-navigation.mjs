@@ -149,6 +149,7 @@ export async function startNavigation(t, options = {}, external = navigationBoun
   if (options.viewport === "narrow") useNarrowViewport(t);
   const boundary = installRendererApi(dom.window, api, () => external.host, { bridge: external.bridge });
   const view = await mount(t, api.App, {}, { release: boundary.close });
+  t.after(() => external.releaseHolds());
   t.after(() => assert.deepEqual(external.unexpected, [], "the App made no request outside the fixture contract"));
   // Establish a healthy real App before looking for any proposed navigation.
   // Connection errors, error-boundary fallback and empty bootstrap cannot be Red.
@@ -174,13 +175,13 @@ export async function startNavigation(t, options = {}, external = navigationBoun
     // more turn starts nothing new. Work scheduled behind a timer (debounce,
     // delayed notices) can start after this returns, so "nothing appeared"
     // checks only cover request-driven updates.
-    async settled() {
+    async settled({ held = 0 } = {}) {
       const deadline = Date.now() + PAGE_TIMEOUT;
       for (;;) {
         const before = external.activity();
         await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
         const after = external.activity();
-        if (before.pending === 0 && after.pending === 0 && after.started === before.started) return;
+        if (before.pending === held && after.pending === held && after.started === before.started) return;
         if (Date.now() >= deadline) throw new Error("Host requests did not settle");
       }
     },
