@@ -96,6 +96,13 @@ function checkWindowsQuality() {
     if (smoke.if !== "runner.os == 'Windows'") failures.push("Electron smoke must be gated on Windows runners");
     if (smoke.run !== "npm run smoke") failures.push("Electron smoke must run npm run smoke");
   }
+  const navigation = step("package", "Run production navigation acceptance");
+  if (navigation) {
+    if (navigation.if !== "runner.os != 'Linux'")
+      failures.push("production navigation acceptance must run on the macOS and Windows runners");
+    if (!/npm run test:app-navigation-electron/.test(navigation.run ?? ""))
+      failures.push("production navigation acceptance must run npm run test:app-navigation-electron");
+  }
   const packageSteps = workflow.jobs.package?.steps ?? [];
   const bundledTools = step("package", "Prepare verified bundled search tools");
   if (bundledTools && smoke && packageSteps.indexOf(bundledTools) >= packageSteps.indexOf(smoke)) {

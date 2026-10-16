@@ -308,6 +308,18 @@ jobs:
         if: runner.os == 'Windows'
         run: npm run smoke
 
+      - name: Run production navigation acceptance
+        if: runner.os != 'Linux'
+        run: npm run test:app-navigation-electron -- --out ${{ runner.temp }}/app-navigation-electron
+
+      - name: Upload production navigation evidence
+        if: always() && runner.os != 'Linux'
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-navigation-evidence-${{ matrix.tool_target }}
+          path: ${{ runner.temp }}/app-navigation-electron
+          if-no-files-found: ignore
+
       - name: Package ${{ matrix.name }}
         shell: bash
         run: npx electron-builder --${{ matrix.platform }} ${{ matrix.targets }} --${{ matrix.arch }} --publish never
