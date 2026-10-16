@@ -35,6 +35,7 @@ export function RightPanelDock({
   onOpenFile,
   onAtMention,
   activeCwd,
+  suspended = false,
 }: {
   activeFileTabId: string;
   fileTabs: { id: string; label: string; filePath: string; sourceSessionId?: string | null }[];
@@ -60,12 +61,13 @@ export function RightPanelDock({
   onOpenFile: (filePath: string, fileName: string, sourceSessionId?: string | null) => void;
   onAtMention: (relativePath: string, isDir: boolean) => void;
   activeCwd: string | null;
+  suspended?: boolean;
 }) {
   const { language, t } = useI18n();
   const activeFileTab = fileTabs.find((t) => t.id === activeFileTabId) ?? null;
 
   const panelStyle: CSSProperties = {
-    display: "flex",
+    display: suspended ? "none" : "flex",
     flexDirection: "column",
     borderLeft: "1px solid var(--border)",
     background: "var(--bg)",
@@ -77,6 +79,9 @@ export function RightPanelDock({
     <div
       className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelResizing ? " right-panel-resizing" : ""}`}
       style={panelStyle}
+      hidden={suspended}
+      aria-hidden={suspended || !rightPanelOpen ? true : undefined}
+      inert={suspended || !rightPanelOpen ? true : undefined}
     >
       <div
         className="right-panel-resizer"
@@ -292,7 +297,7 @@ export function RightPanelDock({
       <div style={{ flex: 1, overflow: "hidden" }}>
         {activeFileTabId === BROWSER_TAB_ID ? (
           <BrowserDock
-            visible={rightPanelOpen && !settingsOpen && !browserAuthorizationOpen}
+            visible={rightPanelOpen && !suspended && !settingsOpen && !browserAuthorizationOpen}
             ownerSessionId={selectedSessionId}
           />
         ) : activeFileTabId === PROCESSES_TAB_ID ? (

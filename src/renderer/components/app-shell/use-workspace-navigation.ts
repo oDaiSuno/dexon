@@ -17,12 +17,14 @@ export function useWorkspaceNavigation({
   onTopPanelDismiss,
   onSwitchSessionRequested,
   onBeforeSessionDeleted,
+  onShowChat,
 }: {
   isMobile: boolean;
   onMobileSidebarClose: () => void;
   onTopPanelDismiss: () => void;
   onSwitchSessionRequested: () => void;
   onBeforeSessionDeleted?: (sessionId: string) => void;
+  onShowChat?: () => void;
 }) {
   const router = routerCompat;
   const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
@@ -45,6 +47,7 @@ export function useWorkspaceNavigation({
           const { sessions } = await listSessions();
           const found = sessions.find((s) => s.id === sessionId);
           if (found) {
+            onShowChat?.();
             setNewSessionCwd(null);
             setSelectedSession(found as SessionInfo);
             setSessionKey((k) => k + 1);
@@ -58,6 +61,7 @@ export function useWorkspaceNavigation({
     });
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
       if (activeCwd) {
+        onShowChat?.();
         setSelectedSession(null);
         setNewSessionCwd(activeCwd);
         setSessionKey((k) => k + 1);
@@ -74,7 +78,7 @@ export function useWorkspaceNavigation({
       offNew?.();
       offSwitch?.();
     };
-  }, [activeCwd, router, onSwitchSessionRequested]);
+  }, [activeCwd, router, onSwitchSessionRequested, onShowChat]);
 
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null) => {
@@ -111,6 +115,7 @@ export function useWorkspaceNavigation({
   const handleSelectSession = useCallback(
     (session: SessionInfo, isRestore = false) => {
       beginSessionLoadTrace(session.id, isRestore ? "restore" : "selection");
+      if (!isRestore) onShowChat?.();
       setNewSessionCwd(null);
       setSelectedSession(session);
       setSessionKey((k) => k + 1);
@@ -128,11 +133,12 @@ export function useWorkspaceNavigation({
         router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
       }
     },
-    [router, isMobile, onMobileSidebarClose],
+    [router, isMobile, onMobileSidebarClose, onShowChat],
   );
 
   const handleNewSession = useCallback(
     (_sessionId: string, cwd: string) => {
+      onShowChat?.();
       setSelectedSession(null);
       setNewSessionCwd(cwd);
       setSessionKey((k) => k + 1);
@@ -140,7 +146,7 @@ export function useWorkspaceNavigation({
       if (isMobile) onMobileSidebarClose();
       router.replace("/", { scroll: false });
     },
-    [router, isMobile, onTopPanelDismiss, onMobileSidebarClose],
+    [router, isMobile, onTopPanelDismiss, onMobileSidebarClose, onShowChat],
   );
 
   // Client-built transient SessionInfo (new session / fork) lacks the

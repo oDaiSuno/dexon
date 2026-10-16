@@ -61,11 +61,15 @@ export function useRightPanelDock({
   isMobile,
   sidebarOpen,
   onCollapseSidebar,
+  suspended = false,
 }: {
   isMobile: boolean;
   sidebarOpen: boolean;
   onCollapseSidebar: () => void;
+  suspended?: boolean;
 }) {
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
   // Right panel — file tabs only
   const [{ tabs: fileTabs, activeTabId: activeFileTabId }, dispatchFileTab] = useReducer(reduceFileTabState, {
     tabs: [],
@@ -109,7 +113,7 @@ export function useRightPanelDock({
     refreshCount();
     void subscribe("processes.changed", "*", (event) => {
       refreshCount();
-      if (event.reason === "created" && event.activateUi) {
+      if (event.reason === "created" && event.activateUi && !suspendedRef.current) {
         if (isMobile) onCollapseSidebar();
         dispatchFileTab({ type: "select", tabId: PROCESSES_TAB_ID });
         setRightPanelOpen(true);
@@ -211,6 +215,7 @@ export function useRightPanelDock({
 
   useEffect(() => {
     const openBrowserTab = (event: Event) => {
+      if (suspendedRef.current) return;
       const tabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId;
       dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
       openRightPanel();
@@ -225,7 +230,7 @@ export function useRightPanelDock({
       window.piBridge.onBrowserEvent((event) => {
         if (event.type !== "tab-created" || !event.tab.ownerSessionId) return;
         void window.piBridge.browserGetSettings().then((settings) => {
-          if (!settings.settings.panel.openOnAgentUse) return;
+          if (!settings.settings.panel.openOnAgentUse || suspendedRef.current) return;
           dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
           openRightPanel();
         });

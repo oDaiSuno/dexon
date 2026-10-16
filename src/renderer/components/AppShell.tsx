@@ -3,7 +3,6 @@ import { ChatWindow } from "./ChatWindow";
 import { SettingsConfig } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { useI18n } from "@/i18n";
 import { getFileName } from "@/lib/file-paths";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { buildAtMentionText } from "@/lib/file-fuzzy";
@@ -23,6 +22,8 @@ import { useSettingsDialog } from "./app-shell/use-settings-dialog";
 import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
+import { RightPanelToggle } from "./app-shell/right-panel-toggle";
+import { ResourcePage, type ResourceTab } from "./app-nav/resource-page";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -39,8 +40,10 @@ export function AppShell({
   onChatAppearanceChange: (preferences: ChatAppearancePreferences) => Promise<void>;
 }) {
   const isMobile = useIsMobile();
-  const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [page, setPage] = useState<NavPage>("chat");
+  const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
+  const showChatPage = useCallback(() => setPage("chat"), []);
 
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
@@ -86,6 +89,7 @@ export function AppShell({
     onMobileSidebarClose: collapseMobileSidebar,
     onTopPanelDismiss: dismissTopPanel,
     onSwitchSessionRequested: openSidebarForSwitchSession,
+    onShowChat: showChatPage,
     onBeforeSessionDeleted: useCallback((sessionId: string) => {
       thinkingExpansionRegistryRef.current.delete(sessionId);
       processDetailsExpansionRegistryRef.current.delete(sessionId);
@@ -142,16 +146,20 @@ export function AppShell({
     });
   }, [returnToPersonalSpace, handleCwdChange]);
   const handleNavigate = useCallback(
-    (page: NavPage) => {
-      if (page === "resources") openSettings("plugins");
+    (target: NavPage) => {
+      if (target === "resources") setActiveTopPanel(null);
+      if (isMobile) setSidebarOpen(false);
+      setPage(target);
     },
-    [openSettings],
+    [isMobile],
   );
+  const onResources = page === "resources";
 
   const dock = useRightPanelDock({
     isMobile,
     sidebarOpen,
     onCollapseSidebar: collapseMobileSidebar,
+    suspended: onResources,
   });
 
   const authorization = useBrowserAuthorization({
@@ -236,13 +244,14 @@ export function AppShell({
           open={sidebarOpen}
           onToggle={handleSidebarToggle}
           onClose={collapseMobileSidebar}
-          page="chat"
+          page={page}
           onNavigate={handleNavigate}
           onOpenSettings={() => openSettings("general")}
           coordination={coordination}
           onCwdChange={handleSidebarCwdChange}
           onReturnToPersonalSpace={handleReturnToPersonalSpace}
           selectedSessionId={selectedSession?.id ?? null}
+          readingSessionId={onResources ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
           initialSessionId={initialSessionId}
@@ -267,7 +276,7 @@ export function AppShell({
             onToggleSidebar={handleSidebarToggle}
             showSidebarToggle={isMobile}
             isMobile={isMobile}
-            selectedSession={selectedSession}
+            selectedSession={onResources ? null : selectedSession}
             channelSnapshot={channels.channelSnapshot}
             onChannelSnapshotChange={channels.setChannelSnapshot}
             activeTopPanel={activeTopPanel}
@@ -277,14 +286,24 @@ export function AppShell({
             copyFeedback={info.sessionCopyFeedback}
             onCopyField={info.handleCopySessionField}
             rightPanelOpen={dock.rightPanelOpen}
-            showChat={showChat}
+            showChat={showChat && !onResources}
           />
 
           {/* Chat content */}
           <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+            {onResources && (
+              <ResourcePage
+                cwd={activeCwd ?? coordination.spaceCwd ?? ""}
+                sessionId={selectedSession?.id ?? null}
+                activeTab={resourceTab}
+                onTabChange={setResourceTab}
+                onPluginsReloaded={bumpSessionKey}
+              />
+            )}
             {showChat ? (
               <SessionProfiler key={sessionKey} id="ChatWindow">
                 <ChatWindow
+                  visible={!onResources}
                   session={selectedSession}
                   newSessionCwd={effectiveNewSessionCwd}
                   onAgentEnd={handleAgentEnd}
@@ -304,7 +323,7 @@ export function AppShell({
                   )}
                 />
               </SessionProfiler>
-            ) : showPlaceholder ? (
+            ) : showPlaceholder && !onResources ? (
               <ChatPlaceholder activeCwd={activeCwd} />
             ) : null}
           </div>
@@ -334,53 +353,10 @@ export function AppShell({
           onOpenFile={handleOpenFile}
           onAtMention={handleAtMention}
           activeCwd={activeCwd}
+          suspended={onResources}
         />
       </div>
-      {/* File panel toggle — always visible at top-right */}
-      <button
-        onClick={dock.handleRightPanelToggle}
-        title={dock.rightPanelOpen ? t("hideFilePanel", "Hide file panel") : t("showFilePanel", "Show file panel")}
-        aria-label={dock.rightPanelOpen ? t("hideFilePanel", "Hide file panel") : t("showFilePanel", "Show file panel")}
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          zIndex: 300,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 36,
-          height: 36,
-          padding: 0,
-          background: "var(--bg-panel)",
-          border: "none",
-          borderLeft: "1px solid var(--border)",
-          borderBottom: "1px solid var(--border)",
-          color: dock.rightPanelOpen ? "var(--text)" : "var(--text-muted)",
-          cursor: "pointer",
-          transition: "color 0.12s",
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--text)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = dock.rightPanelOpen ? "var(--text)" : "var(--text-muted)";
-        }}
-      >
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <rect x="3" y="3" width="18" height="18" rx="2" />
-          <line x1="15" y1="3" x2="15" y2="21" />
-        </svg>
-      </button>
+      {!onResources && <RightPanelToggle open={dock.rightPanelOpen} onToggle={dock.handleRightPanelToggle} />}
       {settingsOpen && (
         <SettingsConfig
           cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}
