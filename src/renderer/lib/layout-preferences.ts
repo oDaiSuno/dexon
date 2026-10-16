@@ -3,7 +3,8 @@ export const RIGHT_PANEL_MIN_WIDTH = 280;
 export const RIGHT_PANEL_DEFAULT_WIDTH = 360;
 export const RIGHT_PANEL_MAX_VIEWPORT_RATIO = 0.4;
 export const CHAT_MIN_WIDTH = 420;
-export const SIDEBAR_WIDTH = 280;
+export const NAV_EXPANDED_WIDTH = 224;
+export const NAV_RAIL_WIDTH = 52;
 
 const RIGHT_PANEL_KEYBOARD_STEP = 16;
 const RIGHT_PANEL_KEYBOARD_LARGE_STEP = 48;
@@ -45,7 +46,7 @@ export function getRightPanelWidthBounds(viewportWidth: number, sidebarOpen: boo
   }
 
   const ratioLimit = Math.floor(viewportWidth * RIGHT_PANEL_MAX_VIEWPORT_RATIO);
-  const reservedWidth = CHAT_MIN_WIDTH + (sidebarOpen ? SIDEBAR_WIDTH : 0);
+  const reservedWidth = CHAT_MIN_WIDTH + (sidebarOpen ? NAV_EXPANDED_WIDTH : NAV_RAIL_WIDTH);
   const availableLimit = Math.floor(viewportWidth - reservedWidth);
   const maxWidth = Math.max(0, Math.min(ratioLimit, availableLimit));
 
@@ -64,7 +65,7 @@ export function clampRightPanelWidth(width: number, viewportWidth: number, sideb
 
 export function shouldCollapseSidebarForRightPanel(viewportWidth: number): boolean {
   if (!Number.isFinite(viewportWidth)) return false;
-  return viewportWidth < SIDEBAR_WIDTH + CHAT_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH;
+  return viewportWidth < NAV_EXPANDED_WIDTH + CHAT_MIN_WIDTH + RIGHT_PANEL_MIN_WIDTH;
 }
 
 export function getKeyboardAdjustedRightPanelWidth(

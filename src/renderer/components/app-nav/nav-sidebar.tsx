@@ -5,6 +5,7 @@ import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory } from "./nav-history";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
 import appIconUrl from "../../../../build/icon.png";
+import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 
 // Phase 4 composition root of the new app navigation sidebar. Two states:
 // the expanded 224px navigation (top space, main functions, history, bottom
@@ -12,8 +13,7 @@ import appIconUrl from "../../../../build/icon.png";
 // entries. Presentation only — data and actions arrive via props; the space
 // coordination (Phase 6) and the production wiring (Phase 11) own the rest.
 
-export const NAV_EXPANDED_WIDTH = 224;
-export const NAV_RAIL_WIDTH = 52;
+export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
 export type NavPage = "chat" | "resources";
 
