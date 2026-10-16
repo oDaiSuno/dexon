@@ -49,6 +49,7 @@ e2e/       现实验证（smoke 与真实流程，必须留下可检查的 artif
 - 聊天与导航原生检查按可访问角色、名称和正式标签关系找区域与控件，不按内部类名、直接子节点或按钮的父层猜测位置。760/960px 测量的是完整输入面板、消息区域与工具卡，而非内部打字区；224/52px 测量的是命名的主导航，长名称高度测量的是工作区控制区。
 - 原生检查共用 `scripts/electron-test-run.mjs`：隔离 HOME、Electron 配置、Agent、会话和临时数据，限制执行时间，核对当前进程的完成记录，再清理临时环境。退出码为零、旧报告或截图存在都不能单独宣告通过；布局检查还必须完成列出的全部场景。
 - 导航和聊天的测量及截图分别保存在 `.artifacts/nav-layout-electron/` 与 `.artifacts/chat-layout-electron/`；入口均可通过 `--out <目录>` 指定位置。原生窗口可能短暂显示，生成截图本身不是通过，必须同时核对实际测量与页面行为。
+- 正式导航接入另用 `npm run test:app-navigation` 从真实 `App` 检查资源、聊天、空间、设置，以及显式插件重载、中英文旧指引和从旧设置迁来的技能离开保护；`npm run test:app-navigation-electron` 重新构建并加载正式 Main/preload/Host，检查真实资源读写、224/52px 和有真实历史前提的键盘焦点。原生证据按次保存于 `.artifacts/app-navigation-electron/run-*/`；`--out <目录>` 指定输出根目录，每次运行会打印新建的 `run-*` 目录。逐条覆盖、历史 Red 及受阻范围见 [本轮说明](../docs/app-navigation-tests.md)，不能用组件预览或受阻的后续场景冒充正式接入通过。
 
 ## mock 白名单
 

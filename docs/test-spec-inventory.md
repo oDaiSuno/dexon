@@ -1886,6 +1886,8 @@
 2. **skills-unsaved-changes-contract.test.mjs（6 个测试）——删除**：5 条规则由 use-skill-leave-guard / skills-config-journey / skill-detail 既有行为测试断言级覆盖；第 6 条（Settings 层 Escape/关闭/切页过守卫）为孤立规则，新增 settings-config-journey.test.mjs 3 个真 DOM 行为测试补上后删除。
 3. **skills-config-request-contract.test.mjs（2 个测试）——删除**：use-skill-directory 既有 9 个行为测试断言级覆盖。
 
+后续导航迁移更新：`settings-config-journey.test.mjs` 暂时保留，继续保护设置里仍然存在的技能离开守卫；在正式移除设置中技能页签的同一次改动里，再由 `tests/dom/app-navigation-resource-leave.test.mjs` 的资源页离开规格替代并删除。新规格尚未运行，下面的历史通过记录不为其背书。
+
 **牙齿验证（突变测试，全部先红后恢复）：** 删除四处生产代码的清理逻辑/守卫逻辑，对应测试逐一变红（1/1/1/3 个失败），git 恢复后全绿。禁令注入违规文件 → check-architecture FAIL、退出码 1。
 
 **守卫执法记录：** 新写的 pi-agent-title 测试因命名空间含 "stub" 字样被守卫当场拦截，改名后通过——禁令对新代码生效的第一次实战。

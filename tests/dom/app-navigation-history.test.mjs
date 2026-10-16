@@ -1,0 +1,154 @@
+import assert from "node:assert/strict";
+import test, { after } from "node:test";
+import {
+  startNavigation,
+  control,
+  roles,
+  visibleText,
+  click,
+  hover,
+  input,
+  act,
+  keyDown,
+  dom,
+  waitFor,
+  historyRows,
+  historyRowsWithStatus,
+  restoreGlobals,
+} from "../support/app-navigation.mjs";
+import { laterConversation } from "../fixtures/app-navigation-data.mjs";
+
+after(restoreGlobals);
+
+test("selecting a history row shows that conversation", async (t) => {
+  const scene = await startNavigation(t);
+  await click(await waitFor(() => control(scene.history(), "button", "Another personal conversation")));
+  await waitFor(() => visibleText(scene.container, "Other conversation marker"));
+  assert.equal(dom.window.location.search, "?session=personal-other");
+  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+});
+
+test("the history search in the production navigation selects the matching session rather than the first conversation", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  await click(control(scene.navigation(), "button", "Search sessions"));
+  await input(control(scene.navigation(), "searchbox", "Search sessions"), "personal-other");
+  assert.equal(roles(scene.navigation(), "button", "Personal release notes").length, 0);
+  await click(control(scene.navigation(), "button", "Another personal conversation"));
+  await waitFor(() => visibleText(scene.container, "Other conversation marker"));
+  assert.equal(dom.window.location.search, "?session=personal-other");
+});
+
+test("new session from the navigation replaces the open conversation with an empty chat and keeps the existing history rows", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  await click(control(scene.navigation(), "button", /^new session$/i));
+  await waitFor(() => control(scene.container, "group", "Message input"));
+  assert.equal(dom.window.location.search, "");
+  assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
+  await scene.settled();
+  assert.equal(roles(scene.history(), "listitem").length, 2);
+  historyRows(scene, "Personal release notes", "Another personal conversation");
+});
+
+async function openRowActions(scene, title) {
+  await hover(await waitFor(() => control(scene.history(), "button", title)));
+  await click(control(scene.history(), "button", `Session actions for ${title}`));
+  return waitFor(() => control(scene.history(), "menu", "Session actions"));
+}
+
+test("renaming a conversation from the production navigation shows the new name in history", async (t) => {
+  const scene = await startNavigation(t);
+  const menu = await openRowActions(scene, "Another personal conversation");
+  await click(control(menu, "menuitem", "Rename"));
+  const field = await waitFor(() => control(scene.history(), "textbox"));
+  await input(field, "Renamed personal conversation");
+  await keyDown(field, "Enter");
+  await waitFor(() => control(scene.history(), "button", "Renamed personal conversation"));
+  assert.equal(roles(scene.history(), "button", "Another personal conversation").length, 0);
+  control(scene.history(), "button", "Personal release notes");
+});
+
+test("deleting the open conversation removes it from history and leaves an empty chat in the same space", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+  const menu = await openRowActions(scene, "Personal release notes");
+  await click(control(menu, "menuitem", "Delete"));
+  await click(await waitFor(() => control(scene.history(), "button", "Delete")));
+  await waitFor(() => assert.equal(roles(scene.history(), "button", "Personal release notes").length, 0));
+  control(scene.history(), "button", "Another personal conversation");
+  await waitFor(() => control(scene.container, "group", "Message input"));
+  assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
+  assert.equal(dom.window.location.search, "");
+  control(scene.workspace(), "button", "Personal space");
+});
+
+test("a conversation the Host reports as running is marked as running in the production history", async (t) => {
+  const scene = await startNavigation(t, { runningSessionIds: ["personal-other"] });
+  await waitFor(() =>
+    assert.equal(historyRowsWithStatus(scene, "Another personal conversation", "Agent running").length, 1),
+  );
+  control(scene.history(), "button", "Personal release notes");
+  assert.equal(historyRowsWithStatus(scene, "Personal release notes", "Agent running").length, 0);
+});
+
+test("a conversation that finishes in the background is marked as new activity until the user opens it", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  await waitFor(() => assert.ok(scene.external.runningSubscribers() > 0, "the history listens for running work"));
+  await act(async () => scene.external.running(["personal-other"]));
+  await waitFor(() =>
+    assert.equal(historyRowsWithStatus(scene, "Another personal conversation", "Agent running").length, 1),
+  );
+  await act(async () => scene.external.running([]));
+  const [unread] = await waitFor(() => {
+    const rows = historyRowsWithStatus(scene, "Another personal conversation", "New activity");
+    assert.equal(rows.length, 1);
+    return rows;
+  });
+  assert.equal(historyRowsWithStatus(scene, "Personal release notes", "New activity").length, 0);
+  await click(unread);
+  await waitFor(() => visibleText(scene.container, "Other conversation marker"));
+  await waitFor(() => control(scene.history(), "button", "Another personal conversation"));
+  assert.equal(historyRowsWithStatus(scene, "Another personal conversation", "New activity").length, 0);
+});
+
+test("refreshing history shows a conversation the Host recorded after the list was first loaded", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  await scene.settled();
+  scene.external.addConversation(laterConversation());
+  assert.equal(roles(scene.history(), "button", "Later personal conversation").length, 0);
+  await click(control(scene.history(), "button", "Refresh"));
+  await waitFor(() => control(scene.history(), "button", "Later personal conversation"));
+});
+
+async function collapseAndExpand(scene) {
+  await click(control(scene.navigation(), "button", "Hide sidebar"));
+  await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
+  await click(control(scene.navigation(), "button", "Show sidebar"));
+  await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"));
+}
+
+test("folded forks stay folded after the navigation is collapsed and expanded again", async (t) => {
+  const scene = await startNavigation(t, { forks: true });
+  await waitFor(() => historyRows(scene, "Another personal conversation", "Forked personal conversation"));
+  await click(control(scene.history(), "button", "Collapse forks"));
+  await waitFor(() => assert.equal(roles(scene.history(), "button", "Forked personal conversation").length, 0));
+  await collapseAndExpand(scene);
+  await waitFor(() => historyRows(scene, "Another personal conversation"));
+  assert.equal(roles(scene.history(), "button", "Forked personal conversation").length, 0);
+  control(scene.history(), "button", "Expand forks");
+});
+
+test("collapsing the navigation ends an active history search", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  await click(control(scene.history(), "button", "Search sessions"));
+  await input(control(scene.history(), "searchbox", "Search sessions"), "personal-other");
+  await waitFor(() => assert.equal(roles(scene.history(), "button", "Personal release notes").length, 0));
+  await collapseAndExpand(scene);
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  assert.equal(roles(scene.history(), "searchbox").length, 0);
+});

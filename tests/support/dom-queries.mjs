@@ -20,7 +20,9 @@ function roleElements(container, role) {
     main: "main",
   };
   const selectors = [`[role="${role}"]`, implicit[role]].filter(Boolean).join(",");
-  return [...container.querySelectorAll(selectors)];
+  return [...container.querySelectorAll(selectors)].filter(
+    (element) => !element.hasAttribute("role") || element.getAttribute("role") === role,
+  );
 }
 
 function matchesName(element, name) {

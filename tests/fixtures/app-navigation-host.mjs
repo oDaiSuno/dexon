@@ -1,0 +1,311 @@
+import { browserState } from "../support/browser-state.mjs";
+import {
+  createdWorktreeBranch,
+  forkedConversation,
+  initialSkillContent,
+  personalPrepareReason,
+  navigationConversations,
+  navigationPaths,
+  navigationResources,
+  reloadedPluginStatus,
+} from "./app-navigation-data.mjs";
+
+// Test answers live at the Main/Host process boundary. The App, components,
+// compatibility fetch layer, RPC client and wire protocol remain production code.
+export function navigationBoundary({
+  history = true,
+  lastSpaceCwd = null,
+  emptySkills = false,
+  runningSessionIds = [],
+  unavailableSpaces = {},
+  personalPrepareFailures = 0,
+  forks = false,
+  dirtyWorktrees = [],
+} = {}) {
+  const details = history ? navigationConversations() : [];
+  if (history && forks) details.push(forkedConversation());
+  const resources = navigationResources();
+  if (emptySkills) {
+    for (const resource of resources.values()) resource.skills = [];
+  }
+  const files = new Map();
+  for (const resource of resources.values()) {
+    for (const skill of resource.skills) files.set(skill.filePath, initialSkillContent);
+  }
+  const menus = new Map();
+  const browserListeners = new Set();
+  const deepLinkListeners = new Set();
+  const failures = { skillSave: null };
+  const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
+  const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
+  const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0 };
+  const unexpected = [];
+  const activity = { pending: 0, started: 0 };
+  const runningListeners = new Set();
+  const projectWorktrees = [
+    { path: navigationPaths.project, branch: "main", isMain: true },
+    { path: navigationPaths.worktree, branch: "review", isMain: false },
+  ];
+  let remainingPrepareFailures = personalPrepareFailures;
+  const toolchainState = {
+    schemaVersion: 1,
+    revision: 1,
+    platform: "darwin",
+    arch: "arm64",
+    coreReady: true,
+    capabilities: {},
+    components: {},
+    caches: {},
+    operations: [],
+  };
+  let sessionSequence = 0;
+  const noSubscription = () => () => {};
+  const resourceFor = (cwd) => {
+    const resource = resources.get(cwd);
+    if (!resource) throw new Error(`Fixture has no resource scope for ${cwd}`);
+    return resource;
+  };
+  const pluginList = (cwd) => ({
+    packages: structuredClone(resourceFor(cwd).packages),
+    totals: { extensions: 0, skills: 2, prompts: 0, themes: 0 },
+    diagnostics: [],
+  });
+  const modelList = {
+    models: [],
+    nameMap: {},
+    thinkingLevels: {},
+    thinkingLevelMaps: {},
+    catalog: { source: "cache", refreshed: false, aborted: false, warnings: [] },
+    defaultModel: null,
+  };
+  const call = async (method, params) => {
+    switch (method) {
+      case "system.home":
+        return { home: navigationPaths.home };
+      case "system.defaultCwd":
+        if (remainingPrepareFailures > 0) {
+          remainingPrepareFailures--;
+          throw new Error(personalPrepareReason);
+        }
+        return { cwd: navigationPaths.personal };
+      case "system.validateCwd":
+        if (Object.hasOwn(unavailableSpaces, params.path)) return { ok: false, error: unavailableSpaces[params.path] };
+        return { ok: true, path: params.path };
+      case "sessions.list":
+        return {
+          sessions: structuredClone(details.map((detail) => detail.info)),
+          runningSessionIds: [...runningSessionIds],
+        };
+      case "sessions.rename": {
+        const detail = details.find((item) => item.sessionId === params.id);
+        if (!detail) throw new Error(`Cannot rename unknown session ${params.id}`);
+        detail.info.name = params.name;
+        return { ok: true };
+      }
+      case "sessions.delete": {
+        const index = details.findIndex((item) => item.sessionId === params.id);
+        if (index < 0) throw new Error(`Cannot delete unknown session ${params.id}`);
+        details.splice(index, 1);
+        return { ok: true };
+      }
+      case "sessions.get": {
+        const detail = details.find((item) => item.sessionId === params.id);
+        if (!detail) throw new Error(`Fixture has no session ${params.id}`);
+        return structuredClone(detail);
+      }
+      case "agent.new":
+        return { sessionId: `new-navigation-session-${++sessionSequence}` };
+      case "agent.state":
+        return structuredClone(
+          details.find((item) => item.sessionId === params.sessionId)?.agentState ?? { running: false },
+        );
+      case "agent.command": {
+        if (params.command.type === "get_commands") return { commands: [] };
+        if (params.command.type === "reload") {
+          const detail = details.find((item) => item.sessionId === params.sessionId);
+          if (!detail) throw new Error(`Cannot reload unknown session ${params.sessionId}`);
+          detail.agentState = {
+            running: false,
+            state: { extensionStatuses: [{ key: "navigation-plugin", text: reloadedPluginStatus }] },
+          };
+          return {};
+        }
+        throw new Error(`Fixture has no agent command ${params.command.type}`);
+      }
+      case "agent.generateTitle":
+        return { title: null };
+      case "models.list":
+        return modelList;
+      case "modelsConfig.get":
+        return { config: { providers: {} }, version: "navigation-fixture-v1" };
+      case "models.preferences.get":
+        return { enabledModels: null, models: [] };
+      case "auth.providers":
+      case "auth.allProviders":
+        return { providers: [] };
+      case "channels.list":
+        return { accounts: [], statuses: [], pairings: [], bindings: [], activities: [] };
+      case "processes.list":
+        return { revision: 1, processes: [] };
+      case "git.status":
+        return {
+          isGit: false,
+          branch: null,
+          clean: true,
+          staged: 0,
+          modified: 0,
+          untracked: 0,
+          conflicted: 0,
+          entries: [],
+        };
+      case "files.list":
+        return { entries: [] };
+      case "files.watchStart":
+      case "files.watchStop":
+        return { ok: true };
+      case "worktrees.list":
+        return projectWorktrees.some((worktree) => worktree.path === params.projectRoot)
+          ? {
+              projectRoot: navigationPaths.project,
+              isGit: true,
+              isTopLevel: true,
+              worktrees: structuredClone(projectWorktrees),
+            }
+          : { projectRoot: params.projectRoot, isGit: false, isTopLevel: false, worktrees: [] };
+      case "worktrees.create": {
+        if (params.projectRoot !== navigationPaths.project || params.branch !== createdWorktreeBranch)
+          throw new Error(`Fixture cannot create worktree ${params.branch} in ${params.projectRoot}`);
+        const worktree = { path: navigationPaths.createdWorktree, branch: params.branch, isMain: false };
+        projectWorktrees.push(worktree);
+        return { worktree: structuredClone(worktree) };
+      }
+      case "worktrees.remove": {
+        const index = projectWorktrees.findIndex((worktree) => worktree.path === params.path && !worktree.isMain);
+        if (index < 0) throw new Error(`Fixture cannot remove worktree ${params.path}`);
+        if (dirtyWorktrees.includes(params.path) && params.force !== true)
+          throw Object.assign(new Error("Fixture worktree has uncommitted changes"), {
+            code: "CONFLICT",
+            detail: { dirty: true },
+          });
+        projectWorktrees.splice(index, 1);
+        return { ok: true };
+      }
+      case "plugins.list":
+        return pluginList(params?.cwd);
+      case "plugins.set": {
+        const pkg = resourceFor(params.cwd).packages.find(
+          (item) => item.source === params.source && item.scope === params.scope,
+        );
+        if (!pkg || !["enable", "disable"].includes(params.action))
+          throw new Error("Unsupported fixture plugin mutation");
+        pkg.disabled = params.action === "disable";
+        pkg.status = pkg.disabled ? "disabled" : "loaded";
+        return pluginList(params.cwd);
+      }
+      case "skills.list":
+        return { skills: structuredClone(resourceFor(params?.cwd).skills) };
+      case "skills.getContent":
+        if (!resourceFor(params.cwd).skills.some((item) => item.filePath === params.filePath))
+          throw new Error("Skill belongs to a different space");
+        return { content: files.get(params.filePath) };
+      case "skills.set":
+        if (!resourceFor(params.cwd).skills.some((item) => item.filePath === params.filePath))
+          throw new Error("Skill belongs to a different space");
+        if (typeof params.content !== "string") throw new Error("Fixture expects a content edit");
+        if (failures.skillSave) throw new Error(failures.skillSave);
+        files.set(params.filePath, params.content);
+        return { ok: true };
+      default:
+        unexpected.push(method);
+        throw new Error(`Unexpected navigation boundary request: ${method}`);
+    }
+  };
+  const tracked = async (work) => {
+    activity.started++;
+    activity.pending++;
+    try {
+      return await work();
+    } finally {
+      activity.pending--;
+    }
+  };
+  const subscribe = (topic, _key, listener) => {
+    if (topic !== "agent.running") return () => {};
+    runningListeners.add(listener);
+    return () => runningListeners.delete(listener);
+  };
+  const desktopBridge = {
+    getUiState: async () => structuredClone(uiState),
+    setUiState: async (patch) => {
+      Object.assign(uiState, patch);
+    },
+    getManagedProcessCapability: async () => ({ ready: false }),
+    openDirectory: async (directory) => {
+      desktop.openedDirectory = directory;
+    },
+    selectDirectory: async () => {
+      desktop.directoryRequests++;
+      return desktop.selectedDirectory;
+    },
+    openExternal: async () => {},
+    onMenu(command, listener) {
+      if (!menus.has(command)) menus.set(command, new Set());
+      menus.get(command).add(listener);
+      return () => menus.get(command).delete(listener);
+    },
+    onHostRestarted: noSubscription,
+    onHostCrashed: noSubscription,
+    onDeepLinkSession(listener) {
+      deepLinkListeners.add(listener);
+      return () => deepLinkListeners.delete(listener);
+    },
+    onBrowserEvent(listener) {
+      browserListeners.add(listener);
+      return () => browserListeners.delete(listener);
+    },
+    browserGetState: async () => browserState(),
+    browserListPageSnippets: async () => [],
+    browserGetHeaderRules: async () => [],
+    browserSetSurfaceVisible: async () => {},
+    browserRespondAgentAuthorization: async () => {},
+    onUpdateState: noSubscription,
+    getUpdateState: async () => ({ ...updateState }),
+    checkForUpdates: async () => ({ ...updateState }),
+    onToolchainState: noSubscription,
+    getToolchainState: async () => structuredClone(toolchainState),
+    rescanToolchains: async () => structuredClone(toolchainState),
+    clearBadge: async () => {},
+    setRunningCount: async () => {},
+  };
+  // Desktop preference writes, directory pickers and folder opening are
+  // asynchronous Main-process work too; settled() must wait for them as well.
+  const bridge = Object.fromEntries(
+    Object.entries(desktopBridge).map(([name, value]) =>
+      name.startsWith("on") ? [name, value] : [name, (...args) => tracked(() => value(...args))],
+    ),
+  );
+  return {
+    host: { call: (method, params) => tracked(() => call(method, params)), subscribe },
+    bridge,
+    desktop,
+    failures,
+    unexpected,
+    activity: () => ({ ...activity }),
+    addConversation(detail) {
+      details.push(detail);
+    },
+    runningSubscribers: () => runningListeners.size,
+    running(sessionIds) {
+      for (const listener of runningListeners) listener({ type: "running", sessionIds: [...sessionIds] });
+    },
+    menu(command) {
+      for (const listener of menus.get(command) ?? []) listener();
+    },
+    deepLink(sessionId) {
+      for (const listener of deepLinkListeners) listener(sessionId);
+    },
+    browserEvent(event) {
+      for (const listener of browserListeners) listener(event);
+    },
+  };
+}

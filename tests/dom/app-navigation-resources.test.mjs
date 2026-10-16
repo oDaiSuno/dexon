@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import test, { after } from "node:test";
+import {
+  startNavigation,
+  control,
+  roles,
+  visibleText,
+  textBlocks,
+  click,
+  input,
+  mouseDown,
+  dom,
+  waitFor,
+  restoreGlobals,
+} from "../support/app-navigation.mjs";
+import { initialSkillContent, savedSkillContent, reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
+
+after(restoreGlobals);
+
+test("with no history or selected session, the official Resources entry opens personal-space plugins as a main page", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  const panel = await scene.resources();
+  await waitFor(() => visibleText(panel, "npm:personal-navigation-plugin"));
+  visibleText(panel, "npm:shared-navigation-plugin");
+  assert.equal(roles(scene.container, "dialog", "Settings").length, 0);
+  assert.deepEqual(
+    roles(scene.container, "tab").map((element) => element.textContent.trim()),
+    ["Plugins", "Skills"],
+  );
+  assert.equal(control(scene.container, "tab", "Plugins").getAttribute("aria-selected"), "true");
+  assert.equal(control(scene.navigation(), "button", "Plugins & Skills").getAttribute("aria-current"), "page");
+  assert.notEqual(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+});
+
+test("the Skills tab reached from the official entry reads a personal skill and its file without needing a session", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  const editor = await scene.skills();
+  assert.equal(editor.value, initialSkillContent);
+  assert.equal(control(scene.container, "tab", "Skills").getAttribute("aria-selected"), "true");
+  visibleText(scene.resourcePanel(), "shared-checklist");
+});
+
+test("disabling a plugin from the new resource page remains visible after reloading the application", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  await scene.resources();
+  await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
+  await click(visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
+  await click(control(scene.resourcePanel(), "button", "Disable package"));
+  await waitFor(() => control(scene.resourcePanel(), "button", "Enable package"));
+  const reopened = await scene.reload();
+  await reopened.resources();
+  await waitFor(() => visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
+  await click(visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
+  assert.equal(control(reopened.resourcePanel(), "button", "Enable package").getAttribute("aria-pressed"), "false");
+});
+
+test("explicit plugin reload from Resources refreshes the same conversation when returning to Chat", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+  assert.equal(control(scene.container, "region", "Chat").textContent.includes(reloadedPluginStatus), false);
+  await scene.resources();
+  await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
+  await click(visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
+  const reload = control(scene.resourcePanel(), "button", "Reload session");
+  assert.equal(reload.disabled, false, "Resources retains the selected session as the reload target");
+  await click(reload);
+  await waitFor(() => visibleText(scene.resourcePanel(), "Session reloaded."));
+  await click(control(scene.navigation(), "button", "Chat"));
+  const chat = await waitFor(() => control(scene.container, "region", "Chat"));
+  await waitFor(() => visibleText(chat, reloadedPluginStatus));
+  visibleText(chat, "Personal conversation marker");
+  assert.equal(dom.window.location.search, "?session=personal-history");
+  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+});
+
+for (const [language, unsettled, obsoleteGuidance] of [
+  [
+    "en-US",
+    /Loading skills|Failed to load skills/i,
+    /\b(?:install|add|manage)\b[^.!?]*\bSettings\b|\bSettings\b[^.!?]*\b(?:install|add|manage)\b/i,
+  ],
+  ["zh-CN", /正在加载技能|技能列表加载失败/, /设置[^。！？]*(?:安装|添加|管理)|(?:安装|添加|管理)[^。！？]*设置/],
+]) {
+  test(`the ${language} empty skill picker no longer sends users to Settings to install skills`, async (t) => {
+    const scene = await startNavigation(t, { language, emptySkills: true, initialSession: "personal-history" });
+    await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+    await click(control(scene.container, "button", scene.labels.attach));
+    await mouseDown(control(scene.container, "menuitem", scene.labels.skillAction));
+    const picker = await waitFor(() => control(scene.container, "menu", scene.labels.skillPicker));
+    await waitFor(() => {
+      assert.ok(picker.textContent.trim(), "an empty skill list still provides visible guidance");
+      assert.doesNotMatch(picker.textContent, unsettled);
+    });
+    assert.equal(roles(picker, "menuitem").length, 0);
+    assert.deepEqual(
+      textBlocks(picker).filter((block) => obsoleteGuidance.test(block)),
+      [],
+    );
+  });
+}
+
+test("saving a skill through the official resource page is read back after reloading the application", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  const editor = await scene.skills();
+  await input(editor, savedSkillContent);
+  await click(control(scene.resourcePanel(), "button", "Save changes"));
+  await waitFor(() => assert.equal(control(scene.resourcePanel(), "button", "Save changes").disabled, true));
+  const reopened = await scene.reload();
+  const savedEditor = await reopened.skills();
+  assert.equal(savedEditor.value, savedSkillContent);
+});

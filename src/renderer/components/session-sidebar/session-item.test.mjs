@@ -4,6 +4,7 @@ import { createManualScheduler } from "#test-timing";
 import {
   act,
   button,
+  byRole,
   click,
   dom,
   hover,
@@ -96,7 +97,7 @@ async function openActionsMenu(view) {
 
 async function startRename(view) {
   await openActionsMenu(view);
-  await click(button(view.container, "Rename"));
+  await click(byRole(view.container, "menuitem", "Rename"));
   assert.ok(view.input(), "entering rename presents an input");
   return view.input();
 }
@@ -127,7 +128,7 @@ test("blocks deleting a running session behind an alert", async (t) => {
   const deleted = [];
   const view = await mountItem(t, { isRunning: true, onDeleted: (id) => deleted.push(id) });
   await openActionsMenu(view);
-  await click(button(view.container, "Delete"));
+  await click(byRole(view.container, "menuitem", "Delete"));
   assert.equal(view.env.alertCalls.length, 1);
   assert.deepEqual(deleted, []);
   assert.deepEqual(view.env.requests, []);
@@ -143,7 +144,7 @@ test("confirms deletion and reports the deleted id", async (t) => {
       resolveDelete = resolve;
     });
   await openActionsMenu(view);
-  await click(button(view.container, "Delete"));
+  await click(byRole(view.container, "menuitem", "Delete"));
   assert.match(view.container.textContent, /Delete “/);
   await click(button(view.container, "Delete"));
   assert.equal(view.env.requests.length, 1);
@@ -160,7 +161,7 @@ test("surfaces delete failures through an alert and keeps the row usable", async
     throw new Error("denied");
   };
   await openActionsMenu(view);
-  await click(button(view.container, "Delete"));
+  await click(byRole(view.container, "menuitem", "Delete"));
   await click(button(view.container, "Delete"));
   assert.deepEqual(deleted, []);
   assert.deepEqual(view.env.alertCalls, ["denied"]);
