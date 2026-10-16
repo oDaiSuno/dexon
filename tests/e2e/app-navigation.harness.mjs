@@ -15,6 +15,7 @@ import {
 import { remainingSettings, railEntries } from "../fixtures/app-navigation-data.mjs";
 import { productionPage } from "./app-navigation-page.mjs";
 import { productionResourceProbe } from "./app-navigation-host-probe.mjs";
+import { captureFinalVisuals } from "./app-navigation-visuals.mjs";
 
 configureSmokeEnvironment();
 app.commandLine.appendSwitch("lang", "en-US");
@@ -63,6 +64,11 @@ async function key(keyCode, modifiers = []) {
   window.webContents.sendInputEvent({ type: "keyDown", keyCode, modifiers });
   if (keyCode === "Enter") window.webContents.sendInputEvent({ type: "char", keyCode: "\r", modifiers });
   window.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
+}
+
+async function replaceFocusedText(value) {
+  window.webContents.selectAll();
+  await window.webContents.insertText(value);
 }
 
 async function click(role, name, text) {
@@ -225,8 +231,7 @@ async function run() {
       "the original skill file content",
     );
     await click("textbox", "Skill markdown content");
-    await key("A", [process.platform === "darwin" ? "meta" : "control"]);
-    await window.webContents.insertText(nativeSkillSaved);
+    await replaceFocusedText(nativeSkillSaved);
     await waitFor(
       async () => (await attribute("button", "Save changes", "disabled")) === null,
       "an enabled Save changes button",
@@ -328,6 +333,9 @@ async function run() {
     await waitFor(() => exists("group", "Message input"), "the chat composer beside the navigation");
     return { ...measurement, viewport: window.getContentSize() };
   });
+  await scene("11-final-visuals", async () => ({
+    screens: await captureFinalVisuals({ window, js, click, exists, waitFor, screenshot }),
+  }));
   assert.deepEqual(consoleErrors, [], "production renderer emitted no errors");
 }
 

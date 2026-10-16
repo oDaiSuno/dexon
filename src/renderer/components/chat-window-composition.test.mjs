@@ -301,7 +301,7 @@ test("delayed element readiness attaches the viewport observer", async (t) => {
   teardown.h = h;
   await h.mount({ session: detail.info });
   await flushAsync();
-  assert.equal(scrollContainerOf(env), null, "the loading state has no scroll container");
+  assert.equal(scrollContainerOf(env), undefined, "the loading state has no scroll container");
   await act(async () => resolveSession(detail));
   await flushAsync();
   await act(async () => env.flushRafUntilSettled());

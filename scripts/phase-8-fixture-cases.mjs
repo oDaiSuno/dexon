@@ -79,12 +79,12 @@ export function fixtureCases() {
   consumer(
     "file-reference-clipboard-descriptors",
     `${components}chat-input-file-reference.test.mjs`,
-    "pasted clipboard images are staged and referenced as chips",
+    "an image without a local path is staged, displayed, and sent by its staged path",
   );
   consumer(
     "file-reference-editor-geometry",
     `${components}chat-input-file-reference.test.mjs`,
-    "typing a path then a space materializes it into a chip",
+    "typing a path then a space displays a chip and sends the path with later text",
   );
   consumer(
     "file-reference-mock-timer",
@@ -112,8 +112,8 @@ export function fixtureCases() {
   consumer(
     "skill-environment-consumer",
     `${components}chat-input-skill-reference.test.mjs`,
-    "a picked skill becomes a chip at message start, serialized as /skill:name",
-    message("the skill chip must be rendered"),
+    "a picked skill is displayed at message start and sent with the typed arguments",
+    message("picking a skill must not submit the prompt"),
   );
   consumer(
     "migration-environment-consumer",

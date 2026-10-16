@@ -12,6 +12,7 @@ export const nativeNavigationScenes = [
   "08-new-chat-and-expand",
   "09-space-menu-keyboard",
   "10-minimum-window-width",
+  "11-final-visuals",
 ];
 
 export const nativeHistoryTitle = "Production history before collapse";
