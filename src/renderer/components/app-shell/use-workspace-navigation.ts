@@ -61,6 +61,7 @@ export function useWorkspaceNavigation({
         setSelectedSession(null);
         setNewSessionCwd(activeCwd);
         setSessionKey((k) => k + 1);
+        router.replace("/", { scroll: false });
       }
     });
     // ISSUE-016: Switch Session palette — focus sidebar / open project list

@@ -126,18 +126,25 @@ export function useSpaceCoordination({
     [persist, setPhase],
   );
 
-  const preparePersonal = useCallback(() => {
+  const [attemptedCwd, setAttemptedCwd] = useState<string | null>(null);
+  const [personalCwd, setPersonalCwd] = useState<string | null>(null);
+
+  const preparePersonal = useCallback((): Promise<string | null> => {
     const generation = ++generationRef.current;
     attemptedRef.current = "personal";
+    setAttemptedCwd(null);
     setPhase({ phase: "preparing", target: "personal" });
-    io.preparePersonalSpace().then(
+    return io.preparePersonalSpace().then(
       (cwd) => {
-        if (generation !== generationRef.current) return;
+        if (generation !== generationRef.current) return null;
+        setPersonalCwd(cwd);
         commit(cwd);
+        return cwd;
       },
       (error) => {
-        if (generation !== generationRef.current) return;
+        if (generation !== generationRef.current) return null;
         setPhase({ phase: "unavailable", attempted: "personal", reason: errorMessage(error) });
+        return null;
       },
     );
   }, [commit, io, setPhase]);
@@ -146,6 +153,7 @@ export function useSpaceCoordination({
     (path: string) => {
       const generation = ++generationRef.current;
       attemptedRef.current = "stored";
+      setAttemptedCwd(path);
       setPhase({ phase: "preparing", target: "stored" });
       io.validateSpace(path).then(
         (validated) => {
@@ -194,7 +202,7 @@ export function useSpaceCoordination({
     if (phaseRef.current.phase === "ready") return;
     storedCwdRef.current = decision.type === "restore" ? decision.path : null;
     if (decision.type === "restore") restoreStored(decision.path);
-    else preparePersonal();
+    else void preparePersonal();
   }, [sessionIntent, sessionResolved, sessionFound, storedSpaceCwd, preparePersonal, restoreStored]);
 
   /**
@@ -230,12 +238,10 @@ export function useSpaceCoordination({
   const retry = useCallback(() => {
     if (phaseRef.current.phase !== "unavailable") return;
     if (attemptedRef.current === "stored" && storedCwdRef.current) restoreStored(storedCwdRef.current);
-    else preparePersonal();
+    else void preparePersonal();
   }, [preparePersonal, restoreStored]);
 
-  const returnToPersonalSpace = useCallback(() => {
-    preparePersonal();
-  }, [preparePersonal]);
+  const returnToPersonalSpace = useCallback(() => preparePersonal(), [preparePersonal]);
 
   const openCurrentFolder = useCallback(async () => {
     const current = phaseRef.current;
@@ -246,6 +252,8 @@ export function useSpaceCoordination({
   return {
     spaceCwd: spacePhase.phase === "ready" ? spacePhase.cwd : null,
     spacePhase,
+    attemptedCwd,
+    personalCwd,
     remembered,
     rememberFailed,
     noteExternalCwd,
@@ -259,3 +267,5 @@ function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message) return error.message;
   return String(error);
 }
+
+export type SpaceCoordination = ReturnType<typeof useSpaceCoordination>;

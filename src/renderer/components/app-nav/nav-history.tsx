@@ -71,6 +71,8 @@ export function NavHistory({
   onSessionDeleted,
   onNewSession,
   onRefreshSessions,
+  foldedSessionIds,
+  onToggleFold,
 }: {
   sessions: SessionInfo[];
   loading: boolean;
@@ -84,6 +86,8 @@ export function NavHistory({
   onSessionDeleted: (id: string) => void;
   onNewSession: () => void;
   onRefreshSessions: () => void;
+  foldedSessionIds?: ReadonlySet<string>;
+  onToggleFold?: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -261,6 +265,8 @@ export function NavHistory({
         onSelectSession={onSelectSession}
         onRenamed={onRenamed}
         onSessionDeleted={onSessionDeleted}
+        foldedSessionIds={foldedSessionIds}
+        onToggleFold={onToggleFold}
       />
     </nav>
   );

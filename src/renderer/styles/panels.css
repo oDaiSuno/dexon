@@ -1,6 +1,6 @@
 /* panels — sidebar/right-panel width animation and mobile drawer — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
 
-/* Desktop sidebar: animate width */
+/* Desktop sidebar */
 @media (min-width: 641px) {
   .sidebar-overlay-backdrop {
     display: none !important;
@@ -8,23 +8,6 @@
   .sidebar-container {
     position: relative;
     overflow: hidden;
-    transition:
-      width 0.2s ease,
-      min-width 0.2s ease;
-  }
-  .sidebar-container.sidebar-open {
-    width: 280px;
-    min-width: 280px;
-  }
-  .sidebar-container.sidebar-closed {
-    width: 0;
-    min-width: 0;
-    border-right: none !important;
-  }
-  /* keep inner content at fixed width so it doesn't reflow during animation */
-  .sidebar-container > * {
-    width: 280px;
-    min-width: 280px;
   }
 }
 
@@ -96,7 +79,7 @@
     top: 0;
     left: 0;
     bottom: 0;
-    width: 280px;
+    width: 224px;
     max-width: 85vw;
     transition:
       transform 0.25s ease,

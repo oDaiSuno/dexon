@@ -90,6 +90,9 @@ export function NavSidebar({
   onChooseFolder,
   onSwitchSpace,
   onBackToPersonalSpace,
+  spacePanel,
+  foldedSessionIds,
+  onToggleFold,
 }: {
   expanded: boolean;
   page: NavPage;
@@ -113,6 +116,9 @@ export function NavSidebar({
   onChooseFolder: () => void;
   onSwitchSpace: () => void;
   onBackToPersonalSpace: () => void;
+  spacePanel?: ReactNode;
+  foldedSessionIds?: ReadonlySet<string>;
+  onToggleFold?: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
   // The friendly space name defaults to the personal-space label (N05): the
@@ -277,6 +283,7 @@ export function NavSidebar({
         onSwitchSpace={onSwitchSpace}
         onBackToPersonalSpace={onBackToPersonalSpace}
       />
+      {spacePanel}
 
       {/* Main functions: the two approved primary pages */}
       <div
@@ -362,6 +369,8 @@ export function NavSidebar({
           onSessionDeleted={(id) => onSessionDeleted?.(id)}
           onNewSession={onNewSession}
           onRefreshSessions={onRefreshSessions}
+          foldedSessionIds={foldedSessionIds}
+          onToggleFold={onToggleFold}
         />
       </div>
 

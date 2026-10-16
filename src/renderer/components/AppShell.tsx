@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { ChatWindow } from "./ChatWindow";
-import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
+import { SettingsConfig } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
@@ -18,14 +18,16 @@ import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
 import { useSessionInfo } from "./app-shell/use-session-info";
 import { TopBar } from "./app-shell/top-bar";
-import { SidebarContent } from "./app-shell/sidebar-content";
+import { NavigationSidebar } from "./app-shell/navigation-sidebar";
+import { useSettingsDialog } from "./app-shell/use-settings-dialog";
+import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
-// layout, chat area, settings modal and desktop menu entries for settings
-// remain here; everything stateful lives in the split modules.
+// layout, chat area and settings modal remain here; everything stateful lives
+// in the split modules.
 
 export function AppShell({
   chatAppearance,
@@ -39,16 +41,12 @@ export function AppShell({
   const isMobile = useIsMobile();
   const { t } = useI18n();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [mobileSidebarReady, setMobileSidebarReady] = useState(false);
 
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
-  useEffect(() => {
-    setMobileSidebarReady(true);
-  }, []);
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const thinkingExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
   const processDetailsExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
@@ -60,9 +58,8 @@ export function AppShell({
     setSidebarOpen(true);
   }, []);
 
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("general");
-  const [settingsNavigationRequestId, setSettingsNavigationRequestId] = useState(0);
+  const { settingsOpen, settingsInitialTab, settingsNavigationRequestId, openSettings, closeSettings } =
+    useSettingsDialog();
   const [authorizationSettingsSessionId, setAuthorizationSettingsSessionId] = useState<string | null>(null);
   const [modelsRefreshKey, setModelsRefreshKey] = useState(0);
   const [activeTopPanel, setActiveTopPanel] = useState<"session" | null>(null);
@@ -138,6 +135,18 @@ export function AppShell({
     },
     [handleCwdChange, noteCoordinatorCwd, coordination],
   );
+  const { returnToPersonalSpace } = coordination;
+  const handleReturnToPersonalSpace = useCallback(() => {
+    void returnToPersonalSpace().then((cwd) => {
+      if (cwd) handleCwdChange(cwd, cwd);
+    });
+  }, [returnToPersonalSpace, handleCwdChange]);
+  const handleNavigate = useCallback(
+    (page: NavPage) => {
+      if (page === "resources") openSettings("plugins");
+    },
+    [openSettings],
+  );
 
   const dock = useRightPanelDock({
     isMobile,
@@ -158,30 +167,6 @@ export function AppShell({
     bumpRefresh();
     setExplorerRefreshKey((k) => k + 1);
   }, [bumpRefresh]);
-
-  useEffect(() => {
-    const offSettings = window.piBridge?.onMenu?.("settings", () => {
-      setSettingsInitialTab("general");
-      setSettingsNavigationRequestId((id) => id + 1);
-      setSettingsOpen(true);
-    });
-    const offCheckForUpdates = window.piBridge?.onMenu?.("check-for-updates", () => {
-      setSettingsInitialTab("about");
-      setSettingsNavigationRequestId((id) => id + 1);
-      setSettingsOpen(true);
-      void window.piBridge.checkForUpdates().catch(() => undefined);
-    });
-    const offShowUpdate = window.piBridge?.onMenu?.("show-update", () => {
-      setSettingsInitialTab("about");
-      setSettingsNavigationRequestId((id) => id + 1);
-      setSettingsOpen(true);
-    });
-    return () => {
-      offSettings?.();
-      offCheckForUpdates?.();
-      offShowUpdate?.();
-    };
-  }, []);
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
   // read tool resolves it the same way (it strips the @ prefix).
@@ -221,21 +206,6 @@ export function AppShell({
     dispatchFileTab({ type: "select", tabId: EXPLORER_TAB_ID });
   }, [activeCwd, isMobile, dispatchFileTab]);
 
-  const sidebarContent = (
-    <SidebarContent
-      selectedSessionId={selectedSession?.id ?? null}
-      onSelectSession={handleSelectSession}
-      onNewSession={handleNewSession}
-      initialSessionId={initialSessionId}
-      onInitialRestoreDone={handleInitialRestoreDone}
-      refreshKey={refreshKey}
-      onSessionDeleted={handleSessionDeleted}
-      selectedCwd={coordination.spaceCwd}
-      onCwdChange={handleSidebarCwdChange}
-      onOpenSettings={() => setSettingsOpen(true)}
-    />
-  );
-
   return (
     <>
       <style>{`
@@ -261,35 +231,25 @@ export function AppShell({
       }
     `}</style>
       <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
-        {/* Mobile overlay backdrop */}
-        <div
-          className={`sidebar-overlay-backdrop${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
-          onClick={() => setSidebarOpen(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 199,
-            background: "rgba(0,0,0,0.4)",
-            opacity: sidebarOpen ? 1 : 0,
-            pointerEvents: sidebarOpen ? "auto" : "none",
-            transition: "opacity 0.25s ease",
-          }}
+        <NavigationSidebar
+          isMobile={isMobile}
+          open={sidebarOpen}
+          onToggle={handleSidebarToggle}
+          onClose={collapseMobileSidebar}
+          page="chat"
+          onNavigate={handleNavigate}
+          onOpenSettings={() => openSettings("general")}
+          coordination={coordination}
+          onCwdChange={handleSidebarCwdChange}
+          onReturnToPersonalSpace={handleReturnToPersonalSpace}
+          selectedSessionId={selectedSession?.id ?? null}
+          onSelectSession={handleSelectSession}
+          onNewSession={handleNewSession}
+          initialSessionId={initialSessionId}
+          onInitialRestoreDone={handleInitialRestoreDone}
+          refreshKey={refreshKey}
+          onSessionDeleted={handleSessionDeleted}
         />
-
-        {/* Left sidebar */}
-        <div
-          className={`sidebar-container${sidebarOpen ? " sidebar-open" : " sidebar-closed"}${mobileSidebarReady ? "" : " sidebar-mobile-pending"}`}
-          style={{
-            background: "var(--bg-panel)",
-            borderRight: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0,
-            zIndex: 200,
-          }}
-        >
-          {sidebarContent}
-        </div>
 
         {/* Center: chat */}
         <div
@@ -305,6 +265,7 @@ export function AppShell({
           <TopBar
             sidebarOpen={sidebarOpen}
             onToggleSidebar={handleSidebarToggle}
+            showSidebarToggle={isMobile}
             isMobile={isMobile}
             selectedSession={selectedSession}
             channelSnapshot={channels.channelSnapshot}
@@ -426,10 +387,7 @@ export function AppShell({
           sessionId={authorizationSettingsSessionId ?? selectedSession?.id ?? null}
           initialTab={settingsInitialTab}
           navigationRequestId={settingsNavigationRequestId}
-          onClose={() => {
-            setSettingsOpen(false);
-            setSettingsInitialTab("general");
-          }}
+          onClose={closeSettings}
           onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
           onPluginsReloaded={bumpSessionKey}
           onChannelsChanged={channels.setChannelSnapshot}
@@ -452,9 +410,7 @@ export function AppShell({
             onRespond={authorization.respondToBrowserAuthorization}
             onManage={() => {
               setAuthorizationSettingsSessionId(authorizationRequest.sessionId);
-              setSettingsInitialTab("browser");
-              setSettingsNavigationRequestId((value) => value + 1);
-              setSettingsOpen(true);
+              openSettings("browser");
             }}
           />
         );

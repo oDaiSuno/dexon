@@ -15,6 +15,8 @@ export function SessionTreeItem({
   onSessionDeleted,
   depth,
   homeDir,
+  foldedSessionIds,
+  onToggleFold,
 }: {
   node: SessionTreeNode;
   selectedSessionId: string | null;
@@ -25,8 +27,14 @@ export function SessionTreeItem({
   onSessionDeleted?: (id: string) => void;
   depth: number;
   homeDir: string;
+  foldedSessionIds?: ReadonlySet<string>;
+  onToggleFold?: (sessionId: string) => void;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [localCollapsed, setLocalCollapsed] = useState(false);
+  const collapsed = foldedSessionIds ? foldedSessionIds.has(node.session.id) : localCollapsed;
+  const toggleCollapsed = onToggleFold
+    ? () => onToggleFold(node.session.id)
+    : () => setLocalCollapsed((value) => !value);
   const hasChildren = node.children.length > 0;
 
   return (
@@ -57,7 +65,7 @@ export function SessionTreeItem({
           depth={depth}
           hasChildren={hasChildren}
           collapsed={collapsed}
-          onToggleCollapse={() => setCollapsed((v) => !v)}
+          onToggleCollapse={toggleCollapsed}
           homeDir={homeDir}
         />
       </div>
@@ -75,6 +83,8 @@ export function SessionTreeItem({
               onSessionDeleted={onSessionDeleted}
               depth={depth + 1}
               homeDir={homeDir}
+              foldedSessionIds={foldedSessionIds}
+              onToggleFold={onToggleFold}
             />
           ))}
         </div>

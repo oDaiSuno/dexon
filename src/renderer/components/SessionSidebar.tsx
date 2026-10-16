@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import type { SessionInfo } from "@/lib/types";
-import { getRecentProjects, resolveInitialSessionRestore } from "@/lib/session-list";
+import { getRecentProjects } from "@/lib/session-list";
+import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { useSessionDirectory } from "./session-sidebar/session-directory";
 import { useProjectWorkspace } from "./session-sidebar/project-workspace";
@@ -9,6 +10,7 @@ import { ProjectPicker } from "./session-sidebar/project-picker";
 import { WorktreeSwitcher } from "./session-sidebar/worktree-switcher";
 import { WorktreeInactiveHint } from "./session-sidebar/worktree-inactive-hint";
 import { SessionList } from "./session-sidebar/session-list";
+import { useInitialSessionRestore } from "./session-sidebar/use-initial-session-restore";
 
 // Phase 2 composition root: wires the session directory (data) and project
 // workspace (space) owners into the existing sidebar presentation. The visible
@@ -80,27 +82,15 @@ export function SessionSidebar({
   } = workspace;
 
   // Auto-select cwd and restore session from URL on first load
-  const restoredRef = useRef(false);
-  useEffect(() => {
-    const restore = resolveInitialSessionRestore(
-      sessions,
-      initialSessionId,
-      loading,
-      error !== null,
-      restoredRef.current,
-    );
-    if (restore.status === "wait") return;
-    if (restore.status === "restore") {
-      restoredRef.current = true;
-      setSelectedCwd(restore.session.cwd);
-      onSelectSession(restore.session, true);
-      return;
-    }
-    if (restore.status === "not-found") {
-      restoredRef.current = true;
-      onInitialRestoreDone?.();
-    }
-  }, [sessions, error, initialSessionId, loading, onInitialRestoreDone, onSelectSession, setSelectedCwd]);
+  const restoredRef = useInitialSessionRestore({
+    sessions,
+    initialSessionId,
+    loading,
+    error,
+    setSelectedCwd,
+    onSelectSession,
+    onInitialRestoreDone,
+  });
 
   // Clicking a session moves the effective cwd to that session's worktree.
   // Done on the click path (not via the selectedCwd prop sync) so it also
@@ -118,11 +108,7 @@ export function SessionSidebar({
     if (!selectedCwd) return;
     // Generate a temporary UUID client-side — no backend call needed.
     // Pi will be spawned lazily when the user sends the first message.
-    const tempId =
-      typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
-    onNewSession?.(tempId, selectedCwd);
+    onNewSession?.(createTemporarySessionId(), selectedCwd);
   }, [selectedCwd, onNewSession]);
 
   // Sessions of every worktree in the selected project are shown together.

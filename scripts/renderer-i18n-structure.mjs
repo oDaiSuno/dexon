@@ -43,6 +43,14 @@ const ACCESSIBLE_REGION_KEYS = new Set([
   "workspaceControls",
 ]);
 
+const NAVIGATION_INTEGRATION_KEYS = new Set([
+  "switchSpaceList",
+  "noOtherSpaces",
+  "spaceUnavailable",
+  "personalSpaceUnavailable",
+  "retry",
+]);
+
 // interactive-tools 词典模块是显式追加、由组合/奇偶校验与行为测试单独核对的，
 // 指纹基线同样排除。历史指纹本身保持不变。
 export const PRE_SPLIT_BASELINE = {
@@ -145,7 +153,7 @@ export function dictionaryCompositionFailures({ partials, enUS, zhCN }) {
 /** 拆分前的历史键和值保持不变；显式追加的模块、导航键和区域名不进入历史指纹。 */
 export function dictionaryBaselineFailures({ enUS, zhCN, interactiveKeys, expected = PRE_SPLIT_BASELINE }) {
   const excluded = new Set(interactiveKeys ?? []);
-  for (const key of [...PHASE_4_NAV_KEYS, ...ACCESSIBLE_REGION_KEYS]) excluded.add(key);
+  for (const key of [...PHASE_4_NAV_KEYS, ...ACCESSIBLE_REGION_KEYS, ...NAVIGATION_INTEGRATION_KEYS]) excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));
   const failures = [];
   if (dictionaryFingerprint(withoutExcluded(enUS)) !== expected.enUS) {

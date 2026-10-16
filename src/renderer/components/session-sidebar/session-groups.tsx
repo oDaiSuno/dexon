@@ -21,6 +21,8 @@ export function SessionGroupsSection({
   onSelectSession,
   onRenamed,
   onSessionDeleted,
+  foldedSessionIds,
+  onToggleFold,
 }: {
   sessions: SessionInfo[];
   loading: boolean;
@@ -33,6 +35,8 @@ export function SessionGroupsSection({
   onSelectSession: (session: SessionInfo) => void;
   onRenamed: () => void;
   onSessionDeleted: (id: string) => void;
+  foldedSessionIds?: ReadonlySet<string>;
+  onToggleFold?: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
 
@@ -92,6 +96,8 @@ export function SessionGroupsSection({
                       onSessionDeleted={onSessionDeleted}
                       depth={0}
                       homeDir={homeDir}
+                      foldedSessionIds={foldedSessionIds}
+                      onToggleFold={onToggleFold}
                     />
                   ))}
                 </div>

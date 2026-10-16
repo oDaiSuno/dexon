@@ -65,6 +65,11 @@ export const enUS: Record<string, string> = {
   chooseOtherFolder: "Choose another folder…",
   switchSpace: "Switch space…",
   backToPersonalSpace: "Back to personal space",
+  switchSpaceList: "Switch space",
+  noOtherSpaces: "No other spaces yet",
+  spaceUnavailable: "This space can't be opened.",
+  personalSpaceUnavailable: "The personal space couldn't be prepared.",
+  retry: "Retry",
   pluginsTab: "Plugins",
   skillsTab: "Skills",
 };
@@ -135,6 +140,11 @@ export const zhCN: Record<string, string> = {
   chooseOtherFolder: "选择其他文件夹…",
   switchSpace: "切换已有空间…",
   backToPersonalSpace: "返回个人空间",
+  switchSpaceList: "切换空间",
+  noOtherSpaces: "还没有其他空间",
+  spaceUnavailable: "无法打开这个空间。",
+  personalSpaceUnavailable: "个人空间准备失败。",
+  retry: "重试",
   pluginsTab: "插件",
   skillsTab: "技能",
 };
