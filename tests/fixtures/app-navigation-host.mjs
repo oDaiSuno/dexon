@@ -8,6 +8,7 @@ import {
   navigationPaths,
   navigationResources,
   reloadedPluginStatus,
+  toolConversation,
 } from "./app-navigation-data.mjs";
 
 // Test answers live at the Main/Host process boundary. The App, components,
@@ -21,9 +22,27 @@ export function navigationBoundary({
   personalPrepareFailures = 0,
   forks = false,
   dirtyWorktrees = [],
+  streamingSessionId = null,
+  toolHistory = false,
+  browserTabs = [],
 } = {}) {
   const details = history ? navigationConversations() : [];
   if (history && forks) details.push(forkedConversation());
+  if (history && toolHistory) details.push(toolConversation());
+  const runningSessions = new Set(runningSessionIds);
+  if (streamingSessionId) {
+    const detail = details.find((item) => item.sessionId === streamingSessionId);
+    if (!detail) throw new Error(`Fixture cannot stream unknown session ${streamingSessionId}`);
+    detail.agentState = { running: true, state: { isStreaming: true } };
+    runningSessions.add(streamingSessionId);
+  }
+  const stopRequests = [];
+  const prompts = [];
+  const sessionReads = new Map();
+  const agentListeners = new Map();
+  const processListeners = new Set();
+  const browser = browserState(structuredClone(browserTabs));
+  const nativeSurface = { tabId: null, visible: false };
   const resources = navigationResources();
   if (emptySkills) {
     for (const resource of resources.values()) resource.skills = [];
@@ -94,7 +113,7 @@ export function navigationBoundary({
       case "sessions.list":
         return {
           sessions: structuredClone(details.map((detail) => detail.info)),
-          runningSessionIds: [...runningSessionIds],
+          runningSessionIds: [...runningSessions],
         };
       case "sessions.rename": {
         const detail = details.find((item) => item.sessionId === params.id);
@@ -109,6 +128,7 @@ export function navigationBoundary({
         return { ok: true };
       }
       case "sessions.get": {
+        sessionReads.set(params.id, (sessionReads.get(params.id) ?? 0) + 1);
         const detail = details.find((item) => item.sessionId === params.id);
         if (!detail) throw new Error(`Fixture has no session ${params.id}`);
         return structuredClone(detail);
@@ -121,6 +141,14 @@ export function navigationBoundary({
         );
       case "agent.command": {
         if (params.command.type === "get_commands") return { commands: [] };
+        if (params.command.type === "abort") {
+          stopRequests.push(params.sessionId);
+          return {};
+        }
+        if (params.command.type === "prompt") {
+          prompts.push({ sessionId: params.sessionId, message: params.command.message });
+          return {};
+        }
         if (params.command.type === "reload") {
           const detail = details.find((item) => item.sessionId === params.sessionId);
           if (!detail) throw new Error(`Cannot reload unknown session ${params.sessionId}`);
@@ -229,10 +257,22 @@ export function navigationBoundary({
       activity.pending--;
     }
   };
-  const subscribe = (topic, _key, listener) => {
+  const subscribe = (topic, key, listener) => {
+    if (topic === "agent.events") {
+      if (!agentListeners.has(key)) agentListeners.set(key, new Set());
+      agentListeners.get(key).add(listener);
+      return () => agentListeners.get(key)?.delete(listener);
+    }
+    if (topic === "processes.changed") {
+      processListeners.add(listener);
+      return () => processListeners.delete(listener);
+    }
     if (topic !== "agent.running") return () => {};
     runningListeners.add(listener);
     return () => runningListeners.delete(listener);
+  };
+  const emitBrowser = (event) => {
+    for (const listener of browserListeners) listener(event);
   };
   const desktopBridge = {
     getUiState: async () => structuredClone(uiState),
@@ -263,10 +303,20 @@ export function navigationBoundary({
       browserListeners.add(listener);
       return () => browserListeners.delete(listener);
     },
-    browserGetState: async () => browserState(),
+    browserGetState: async () => structuredClone(browser),
+    browserGetSettings: async () => structuredClone(browser.settings),
     browserListPageSnippets: async () => [],
     browserGetHeaderRules: async () => [],
-    browserSetSurfaceVisible: async () => {},
+    browserSetSurfaceVisible: async ({ tabId, visible }) => {
+      if (tabId) nativeSurface.tabId = tabId;
+      nativeSurface.visible = visible;
+    },
+    browserSetBounds: async () => {},
+    browserActivateTab: async (tabId) => {
+      browser.activeTabId = tabId;
+      nativeSurface.tabId = tabId;
+      emitBrowser({ type: "active-tab-changed", tabId });
+    },
     browserRespondAgentAuthorization: async () => {},
     onUpdateState: noSubscription,
     getUpdateState: async () => ({ ...updateState }),
@@ -296,7 +346,40 @@ export function navigationBoundary({
     },
     runningSubscribers: () => runningListeners.size,
     running(sessionIds) {
+      runningSessions.clear();
+      for (const id of sessionIds) runningSessions.add(id);
       for (const listener of runningListeners) listener({ type: "running", sessionIds: [...sessionIds] });
+    },
+    // The Host's view of user stop requests: the observable side effect of
+    // an abort, not a log of renderer calls.
+    stopRequests: () => [...stopRequests],
+    prompts: () => structuredClone(prompts),
+    sessionReads: (sessionId) => sessionReads.get(sessionId) ?? 0,
+    agentSubscribers: (sessionId) => agentListeners.get(sessionId)?.size ?? 0,
+    agentEvent(sessionId, event) {
+      for (const listener of agentListeners.get(sessionId) ?? []) listener(event);
+    },
+    // Ends a streamed turn the way the Host does: the session file gains the
+    // final reply, live state becomes idle, then the stream and running set report it.
+    finishStream(sessionId, text) {
+      const detail = details.find((item) => item.sessionId === sessionId);
+      if (!detail) throw new Error(`Fixture cannot finish unknown session ${sessionId}`);
+      detail.context.messages.push(assistantReply(text));
+      detail.context.entryIds.push(`${sessionId}-final`);
+      detail.context.historyRevision = `${sessionId}-finished`;
+      detail.agentState = { running: false };
+      for (const listener of agentListeners.get(sessionId) ?? []) listener({ type: "agent_end" });
+      runningSessions.delete(sessionId);
+      for (const listener of runningListeners) listener({ type: "running", sessionIds: [...runningSessions] });
+    },
+    processCreated(processId) {
+      for (const listener of processListeners)
+        listener({ revision: 2, processId, runId: `${processId}-run`, reason: "created", activateUi: true });
+    },
+    nativeSurface: () => ({ ...nativeSurface }),
+    browserTabCreated(tab) {
+      browser.tabs.push(structuredClone(tab));
+      emitBrowser({ type: "tab-created", tab: structuredClone(tab) });
     },
     menu(command) {
       for (const listener of menus.get(command) ?? []) listener();
@@ -304,8 +387,17 @@ export function navigationBoundary({
     deepLink(sessionId) {
       for (const listener of deepLinkListeners) listener(sessionId);
     },
-    browserEvent(event) {
-      for (const listener of browserListeners) listener(event);
-    },
+    browserEvent: emitBrowser,
+  };
+}
+
+export function assistantReply(text) {
+  return {
+    role: "assistant",
+    content: [{ type: "text", text }],
+    provider: "navigation-fixture",
+    model: "navigation-model",
+    stopReason: "stop",
+    timestamp: 3,
   };
 }

@@ -101,6 +101,48 @@ export function forkedConversation() {
   );
 }
 
+// One finished turn with a tool call, so the transcript shows a collapsible
+// "Process details" group in front of the final answer.
+export function toolConversation() {
+  const detail = conversation(
+    "personal-tools",
+    "Personal tool conversation",
+    navigationPaths.personal,
+    "Tool conversation marker",
+  );
+  detail.context.messages.push(
+    {
+      role: "assistant",
+      content: [{ type: "toolCall", toolCallId: "tool-read-1", toolName: "read", input: { path: "notes.md" } }],
+      provider: "navigation-fixture",
+      model: "navigation-model",
+      stopReason: "toolUse",
+      timestamp: 2,
+    },
+    {
+      role: "toolResult",
+      toolCallId: "tool-read-1",
+      toolName: "read",
+      content: [{ type: "text", text: "Tool result marker" }],
+      isError: false,
+      timestamp: 3,
+    },
+    {
+      role: "assistant",
+      content: [{ type: "text", text: "Tool answer marker" }],
+      provider: "navigation-fixture",
+      model: "navigation-model",
+      stopReason: "stop",
+      timestamp: 4,
+    },
+  );
+  detail.context.entryIds.push("personal-tools-call", "personal-tools-result", "personal-tools-answer");
+  detail.context.totalMessages = 4;
+  detail.context.loadedMessages = 4;
+  detail.info.messageCount = 4;
+  return detail;
+}
+
 export function laterConversation() {
   return conversation(
     "personal-later",
