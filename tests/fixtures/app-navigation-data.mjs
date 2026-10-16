@@ -45,6 +45,7 @@ export const navigationLabels = {
 };
 export const reloadedPluginStatus = "Navigation plugin ready after explicit reload";
 export const remainingSettings = ["General", "Browser", "Channels", "Models", "Developer Tools", "About"];
+export const remainingSettingsZhCN = ["通用", "浏览器", "消息渠道", "模型", "开发工具", "关于"];
 export const railEntries = ["Show sidebar", "new session", "Plugins & Skills", "Settings"];
 export const initialSkillContent = "# Personal checklist\n\nKeep the review scoped to the current space.\n";
 export const savedSkillContent = "# Personal checklist\n\nVerify the navigation before shipping.\n";

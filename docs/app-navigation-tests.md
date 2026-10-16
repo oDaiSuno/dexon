@@ -11,7 +11,7 @@
 | ① 换上新侧栏                 | `app-navigation-workspaces`、`app-navigation-history`、`app-navigation-external`、`app-navigation-rail`                         | 34   |
 | ② 资源页挂进主区（页面往返） | `app-navigation-pages`、`app-navigation-space-resources`、`app-navigation-resources`                                            | 20   |
 | ③ 离开保护                   | `app-navigation-resource-leave`、`app-navigation-leave-outcomes`、`app-navigation-leave-entries`、`app-navigation-leave-timing` | 42   |
-| ④ 设置减到六类               | `app-navigation-settings`                                                                                                       | 13   |
+| ④ 设置减到六类               | `app-navigation-settings`                                                                                                       | 18   |
 
 ① 的 34 条只依赖新侧栏，不需要资源页或设置迁移；原来混在一起的 W3–W6、H1–H4、E1、E2、C2、C4 已拆成"侧栏部分"和"资源页部分"两条，C3 不再断言六类设置。
 
@@ -27,6 +27,8 @@
 这是测试先行的 Red 证据，不是功能完成。入口处失败的用例，其后的断言尚未证明能抓出错误，见"变绿后必须做的变异验证"。
 
 **① 已接入（`24f5485` 之后的实现）：34 条全部通过，21 项变异全部变红**，记录见 `.artifacts/app-navigation-tests/sidebar-mutations.log`。② ③ ④ 的 32 条仍按预期失败（资源页未挂进主区、设置仍为八类、旧指引未改）。桌面菜单"新建会话"的现有缺陷已一并修好。
+
+**以上数字均为历史记录。** ①②③ 已在 `1ad35cf` 前接入；当前（`1ad35cf`，Node `v22.23.2`）`npm run test:app-navigation` 共 **128 条，115 条通过、13 条失败**：11 条是 ④ 设置，2 条是 `app-navigation-resources` 中“空技能选择器不再指引去设置”（同属 ④ 的文案迁移）。
 
 ## 如何运行
 
@@ -130,9 +132,25 @@ DOM 文件也会被 `npm test` 收集。桌面命令每次重新构建正式应�
 
 `settings-config-journey.test.mjs` 在移除设置中技能页签的同一次改动里由 ③ 替代并删除。
 
-## ④ 设置：13 条
+## ④ 设置：18 条
 
-内容与上一版相同，见 `app-navigation-settings.test.mjs`。
+见 `app-navigation-settings.test.mjs`。期望的六类名称来自 fixture 中手写的中英文清单（`remainingSettings`、`remainingSettingsZhCN`），不读取生产代码里的页签数组。
+
+| 组       | 条数 | 当用户这样做                                           | 应观察到什么                                                                                 |
+| -------- | ---- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| 入口     | 3    | 从展开导航、收起后的图标栏打开设置；中文界面打开设置   | 都恰好是六类，中文名称正确                                                                   |
+| 键盘     | 2    | 在选中的分类上连按下方向键；按 Home／End，再从两端越界 | 循环一圈恰好经过六类回到起点；Home 到 End 之间恰好五步；焦点跟随选中项，显示的内容属于该分类 |
+| 关闭     | 1    | 按 Escape                                              | 直接关闭、不弹未保存确认，焦点回到导航的设置入口                                             |
+| 旧指引   | 2    | 阅读中英文设置弹窗里的文字                             | 凡是提到插件或技能的段落，都必须同时指向新入口“插件与技能”；只删掉“管理”一词不能通过         |
+| 桌面入口 | 3    | 桌面菜单的设置、检查更新、显示更新                     | 分别选中通用、关于、关于，并且只有六类                                                       |
+| 保留内容 | 6    | 逐个打开六类                                           | 每类仍显示自己的真实配置                                                                     |
+| 授权弹窗 | 1    | 浏览器授权请求里点“管理永久权限”                       | 进入浏览器分类，并且只有六类                                                                 |
+
+键盘两条只断言“恰好六类、两端循环”，不固定六类的先后顺序。Escape 那条在实现前就是绿的，用来防止移除技能页签时把关闭或焦点归还弄坏。
+
+**实现前的执行结果（Node `v22.23.2`）：18 条中 7 条通过、11 条失败。** 通过的是六类保留内容和 Escape；失败都停在自己的断言上：多了 `Plugins`／`Skills`（或 `技能`／`插件`）两个页签、键盘循环经过了八类、中英文说明仍写着“技能、插件”。
+
+实现时一并删除 `src/renderer/components/settings-config-journey.test.mjs`：它保护的是设置里的技能离开守卫，那个页签移除后就没有对应行为了，资源页上的同类保护由 ③ 覆盖。
 
 ## 真实 Electron：10 个连续场景
 
