@@ -1,5 +1,5 @@
 import { importTestBundle } from "#test-bundle";
-import { test, beforeEach } from "node:test";
+import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 
@@ -17,8 +17,15 @@ function createFakeStorage() {
   };
 }
 
+const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+
 beforeEach(() => {
   globalThis.window = { localStorage: createFakeStorage() };
+});
+
+afterEach(() => {
+  if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+  else delete globalThis.window;
 });
 
 test("auto titles are enabled by default", () => {

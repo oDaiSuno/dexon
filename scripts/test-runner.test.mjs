@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
+import { pathToFileURL } from "node:url";
 
 import { assertTestSpawnResult, createTestCommand, parseTestTimeout, runTests } from "./test-runner.mjs";
 
@@ -9,6 +10,8 @@ test("test discovery covers the legacy tree and the new tests tree with a per-te
   assert.equal(command.command, process.execPath);
   assert.deepEqual(command.args, [
     "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+    "--import",
+    pathToFileURL(path.join(import.meta.dirname, "test-global-guard.mjs")).href,
     "--test",
     "--test-timeout=4567",
     "--test-concurrency=3",

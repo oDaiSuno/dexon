@@ -13,7 +13,7 @@ test("router object and replace method retain module-level identity", () => {
 });
 
 test("router replacement preserves pathname query navigation semantics", () => {
-  const originalWindow = globalThis.window;
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const replacements = [];
   const events = [];
   globalThis.window = {
@@ -32,7 +32,8 @@ test("router replacement preserves pathname query navigation semantics", () => {
     routerCompat.replace("session=abc");
     routerCompat.replace("/");
   } finally {
-    globalThis.window = originalWindow;
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
   }
 
   assert.deepEqual(replacements, ["/desktop?session=abc", "/"]);

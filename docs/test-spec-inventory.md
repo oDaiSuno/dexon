@@ -122,7 +122,11 @@
 - **package-desktop.test.mjs**（2 个测试）
   - pack and release plans use Node JS entries and set signing discovery in the child environment
   - packaging rejects unknown modes and diagnoses spawn failures, signals, and missing statuses
-- **phase-8-fixture-restoration.test.mjs**（0 个测试）
+- **test-global-guard.test.mjs**（4 个测试）
+  - a test that leaves a borrowed global behind fails and names the test and the global
+  - a test that removes an existing global and never puts it back fails
+  - setup outside any test that leaves a global behind fails at the end of the file
+  - a test that puts back what it borrowed, including a global that did not exist, passes
 - **process-utils.test.mjs**（5 个测试）
   - script dependencies resolve to real package files and the Electron executable
   - external dependency builds use the OS temp directory with explicit project resolution
@@ -1828,7 +1832,7 @@
 ## 五、方法与诚实的局限
 
 1. **提取方法**：用正则从源码提取 `test(...)` 名称，共得 1,401 个；套件实跑 1,390 个，相差 11 个（约 0.8%），
-   来源为注释/字符串里的 `test(` 误匹配、循环生成的测试名（如 phase-8-fixture-restoration 无法静态提取）。
+   来源为注释/字符串里的 `test(` 误匹配、循环生成的测试名无法静态提取。
 2. **结构家族的边界是模糊的**：共用了三种识别模式仍经历三轮补漏（`new URL` 直读、辅助函数包装、path.join/变量中转）。
    最终名单以『有 assert.match 且有文件读取』的 46 个候选逐个人工甄别后确定，不能保证 100% 无遗漏。
 3. **覆盖判定深度**：『删』判定基于目标行为测试的名称与抽查（如 leave-guard 7 个行为测试逐条读过），

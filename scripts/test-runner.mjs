@@ -1,9 +1,11 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 import { assertNoLegacyTestBundleUsage } from "./test-bundle.mjs";
 
 const defaultTimeoutMs = 120_000;
+const globalGuard = pathToFileURL(path.join(import.meta.dirname, "test-global-guard.mjs")).href;
 
 export function parseTestTimeout(value) {
   if (value === undefined || value === "") return defaultTimeoutMs;
@@ -28,6 +30,8 @@ export function createTestCommand({ timeoutMs = defaultTimeoutMs, concurrency = 
     command: process.execPath,
     args: [
       "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+      "--import",
+      globalGuard,
       "--test",
       `--test-timeout=${timeoutMs}`,
       `--test-concurrency=${concurrency}`,

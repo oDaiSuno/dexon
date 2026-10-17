@@ -4,9 +4,8 @@ import path from "node:path";
 import test from "node:test";
 
 const appliedAtImport = [];
-const originalDocument = globalThis.document;
-const originalLocalStorage = globalThis.localStorage;
-const originalWindow = globalThis.window;
+const borrowed = ["document", "localStorage", "window"];
+const originals = new Map(borrowed.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
 
 // 模块级导入时刻的平台面（theme-init 在 import 时同步应用主题，必须在加载前就位）。
 // documentElement.style 保留可断言：colorScheme 同步是行为，不是源码形状。
@@ -25,9 +24,10 @@ const { initializeTheme, resolveInitialTheme } = await importTestBundle("src/ren
   entryPoints: [path.join(import.meta.dirname, "theme-init.ts")],
 });
 
-globalThis.document = originalDocument;
-globalThis.localStorage = originalLocalStorage;
-globalThis.window = originalWindow;
+for (const [name, descriptor] of originals) {
+  if (descriptor) Object.defineProperty(globalThis, name, descriptor);
+  else delete globalThis[name];
+}
 
 test("module applies system dark mode synchronously before React mounts", () => {
   assert.deepEqual(appliedAtImport, [["class", "dark", true]]);
