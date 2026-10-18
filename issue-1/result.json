@@ -1,0 +1,46 @@
+{
+  "capturedAt": "2026-10-18T03:38:29.232Z",
+  "commit": "94b6d03b33e39d37b2ef50629abe181fa2d28b4e",
+  "versions": {
+    "electron": "43.1.1",
+    "chromium": "150.0.7871.114"
+  },
+  "boundary": "Real ComposerEditable, production interactive.css, public handle insertion, native keyboard events; not full App E2E",
+  "expectedAfterOneBackspace": "@/tmp/shot.png hell",
+  "captures": [
+    {
+      "file": "01-before-backspace.png",
+      "action": "① 退格前：图片 + hello",
+      "value": "@/tmp/shot.png hello",
+      "visibleText": "shot.png\n hello",
+      "caret": {
+        "kind": "text",
+        "offset": 6,
+        "collapsed": true
+      }
+    },
+    {
+      "file": "02-after-one-backspace.png",
+      "action": "② 按一次 Backspace：图片被误删",
+      "value": "hello",
+      "visibleText": "hello",
+      "caret": {
+        "kind": "editor",
+        "offset": 0,
+        "collapsed": true
+      }
+    },
+    {
+      "file": "03-after-two-backspaces.png",
+      "action": "③ 再按一次 Backspace：文字仍未删除",
+      "value": "hello",
+      "visibleText": "hello",
+      "caret": {
+        "kind": "editor",
+        "offset": 0,
+        "collapsed": true
+      }
+    }
+  ],
+  "reproduced": true
+}
