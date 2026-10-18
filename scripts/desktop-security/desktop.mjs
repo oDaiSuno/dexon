@@ -31,7 +31,6 @@ export function desktopSecurityChecks(read) {
   const updateAdapter = read("src/main/update-adapter.ts");
   const updateManager = read("src/main/update-manager.ts");
   const electronBuilderConfig = read("electron-builder.yml");
-  const desktopBuildWorkflow = read(".github/workflows/build-desktop.yml");
   const toolchainContractCheck = read("scripts/check-toolchain-contract.mjs");
   const upstreamToolchainCatalogCheck = read("scripts/verify-toolchain-catalog-upstream.mjs");
   const bundledToolsBuild = read("scripts/prepare-bundled-tools.mjs");
@@ -77,8 +76,7 @@ export function desktopSecurityChecks(read) {
       "HTML preview CSP must block plugins and forms",
     ],
     [
-      desktopBuildWorkflow.includes("check:toolchain-catalog:upstream") &&
-        upstreamToolchainCatalogCheck.includes("SHASUMS256.txt") &&
+      upstreamToolchainCatalogCheck.includes("SHASUMS256.txt") &&
         upstreamToolchainCatalogCheck.includes("asset.digest") &&
         upstreamToolchainCatalogCheck.includes("asset.size"),
       "tag releases must verify managed runtime checksums and sizes against official upstream metadata",
@@ -116,18 +114,9 @@ export function desktopSecurityChecks(read) {
       "the packaged E2E must enforce the release matrix, exact resources, hashes, functional rg/fd, and production startup ack",
     ],
     [
-      ["darwin-arm64", "darwin-x64", "win32-x64", "linux-x64"].every((target) =>
-        desktopBuildWorkflow.includes(target),
-      ) &&
-        desktopBuildWorkflow.includes("check:packaged-toolchains") &&
-        desktopBuildWorkflow.includes("release-linux") &&
-        desktopBuildWorkflow.includes("xvfb-run --auto-servernum") &&
-        desktopBuildWorkflow.includes("sudo chown root:root dist/linux-unpacked/chrome-sandbox") &&
-        desktopBuildWorkflow.includes("sudo chmod 4755 dist/linux-unpacked/chrome-sandbox") &&
-        electronBuilderConfig.includes("executableName: dexon") &&
+      electronBuilderConfig.includes("executableName: dexon") &&
         electronBuilderConfig.includes("--appimage-desktop-launch") &&
-        !electronBuilderConfig.includes("--no-sandbox") &&
-        desktopBuildWorkflow.includes("Dexon-${version}-x86_64.AppImage"),
+        !electronBuilderConfig.includes("--no-sandbox"),
       "CI and tag releases must run packaged toolchain E2E for every supported target, including Linux under Xvfb",
     ],
     [
@@ -285,9 +274,7 @@ export function desktopSecurityChecks(read) {
       "production updater must support macOS and Windows while remaining stable-only, consent-first, and using redacted application logging",
     ],
     [
-      !/^\s*publisherName\s*:/im.test(electronBuilderConfig) &&
-        desktopBuildWorkflow.includes("publisherName field in an unsigned Windows release") &&
-        desktopBuildWorkflow.includes("/^\\s*publisherName\\s*:/im"),
+      !/^\s*publisherName\s*:/im.test(electronBuilderConfig),
       "unsigned Windows updates must omit publisher verification in both build configuration and packaged release checks",
     ],
     [

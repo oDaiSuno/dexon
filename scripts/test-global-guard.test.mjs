@@ -4,9 +4,8 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
 
-const guard = fileURLToPath(new URL("./test-global-guard.mjs", import.meta.url));
+const guard = new URL("./test-global-guard.mjs", import.meta.url).href;
 
 function runWithGuard(t, source) {
   const directory = mkdtempSync(path.join(os.tmpdir(), "dexon-global-guard-"));

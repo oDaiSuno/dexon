@@ -1,0 +1,273 @@
+name: Desktop release
+on:
+  push:
+    tags:
+      - v*
+  workflow_dispatch: {}
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ci:
+    name: Validate release source
+    uses: ./.github/workflows/ci.yml
+  release-contract:
+    name: Validate release identity and upgrade baseline
+    needs:
+      - ci
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Reject mismatched tags and public versions
+        run: node scripts/check-release-contract.mjs
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Verify managed runtime catalog against upstream releases
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: npm run check:toolchain-catalog:upstream
+  release-macos:
+    name: Package both macOS architectures (Unsigned Beta)
+    needs:
+      - release-contract
+    runs-on: macos-15
+    timeout-minutes: 90
+    environment: release
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build and prepare both architectures
+        run: |-
+          npm run prepare:bundled-tools -- --target darwin-arm64 --target darwin-x64
+          npm run build
+      - name: Package unsigned macOS downloads
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npx electron-builder --mac dmg zip --arm64 --x64 --publish never
+      - name: Record the final unsigned bytes before independent acceptance
+        run: node scripts/release-artifacts.mjs record darwin unsigned-beta
+      - name: Upload final unsigned files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dexon-macos-release-${{ github.run_attempt }}
+          path: .artifacts/distribution/darwin
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+        id: upload
+  verify-macos:
+    name: Accept final unsigned package (${{ matrix.tool_target }})
+    needs:
+      - release-macos
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            tool_target: darwin-arm64
+          - runner: macos-15-intel
+            tool_target: darwin-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install verification dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts
+      - name: Download the exact macOS build artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.release-macos.outputs.artifact-id }}
+          merge-multiple: true
+          path: dist
+      - name: Verify mounted DMG, ZIP and native startup
+        run: node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --release
+      - name: Upload unsigned-package acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: unsigned-package-evidence-${{ matrix.tool_target }}-${{ github.run_attempt }}
+          path: .artifacts/distribution-evidence
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+        if: always()
+  release-windows:
+    name: Package Windows x64 (Unsigned Beta)
+    needs:
+      - release-contract
+    runs-on: windows-2025
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      RUSTUP_TOOLCHAIN: 1.96.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Electron runtime for Windows acceptance
+        run: npx install-electron --no
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+      - name: Build application
+        run: npm run build
+      - name: Rebuild authoritative Windows helper for the final package
+        run: npm run check:windows-helper-reproducibility
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target win32-x64
+      - name: Package Windows x64
+        run: npx electron-builder --win nsis --x64 --publish never
+      - name: Generate and verify Windows SBOM
+        run: |-
+          npm run build:windows-sbom
+          npm run check:windows-sbom
+
+          cp THIRD_PARTY_NOTICES.md dist/
+      - name: Accept final release installation files
+        run: node scripts/verify-distribution.mjs win32-x64 --release
+      - name: Upload exactly the accepted release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dexon-windows-release-${{ github.run_attempt }}
+          path: .artifacts/distribution/win32-x64
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+        id: upload
+      - name: Upload release acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-evidence-win32-x64-${{ github.run_attempt }}
+          path: .artifacts/distribution-evidence
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+        if: always()
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+  release-linux:
+    name: Package Linux x64
+    needs:
+      - release-contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      RUSTUP_TOOLCHAIN: 1.96.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build application
+        run: npm run build
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target linux-x64
+      - name: Package Linux x64
+        run: npx electron-builder --linux AppImage --x64 --publish never
+      - name: Accept final release installation files
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" node scripts/verify-distribution.mjs linux-x64 --release
+      - name: Upload exactly the accepted release files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: dexon-linux-release-${{ github.run_attempt }}
+          path: .artifacts/distribution/linux-x64
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+        id: upload
+      - name: Upload release acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: release-evidence-linux-x64-${{ github.run_attempt }}
+          path: .artifacts/distribution-evidence
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+        if: always()
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+  release:
+    name: Create desktop draft release
+    if: always()
+    needs:
+      - release-contract
+      - release-macos
+      - verify-macos
+      - release-windows
+      - release-linux
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Require every result to succeed
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/check-ci-results.mjs release-contract release-macos verify-macos release-windows release-linux
+      - name: Download only the accepted candidate artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          artifact-ids: ${{ needs.release-macos.outputs.artifact-id }},${{ needs.release-windows.outputs.artifact-id }},${{ needs.release-linux.outputs.artifact-id }}
+          path: release-artifacts
+      - name: Verify bytes and create a draft without replacing any existing asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/publish-release.mjs release-artifacts
+    permissions:
+      contents: write
+    environment: release

@@ -66,12 +66,23 @@ async function key(keyCode, modifiers = []) {
   window.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
 }
 
-async function replaceFocusedText(value) {
+async function replaceText(name, value) {
+  await click("textbox", name);
+  await waitFor(async () => {
+    const selection = await page("selection");
+    return selection.focused && selection.name === name;
+  }, `${name} focused before editing`);
   window.webContents.selectAll();
+  await waitFor(async () => {
+    const selection = await page("selection");
+    return selection.start === 0 && selection.end === selection.length;
+  }, `${name} fully selected before replacement`);
   await window.webContents.insertText(value);
+  await waitFor(async () => (await page("value", { role: "textbox", name })) === value, `${name} replacement text`);
 }
 
 async function click(role, name, text) {
+  if (role) await waitFor(() => exists(role, name), `${name} ready for native input`);
   const point = await page("point", { role, name, text });
   window.webContents.sendInputEvent({ type: "mouseMove", ...point });
   window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
@@ -115,7 +126,12 @@ async function reloadPage() {
 
 async function focusByTab(name) {
   for (let attempts = 0; attempts < 100; attempts++) {
+    const previous = await page("focus");
     await key("Tab");
+    await waitFor(async () => {
+      const current = await page("focus");
+      return current.name !== previous.name || JSON.stringify(current.rect) !== JSON.stringify(previous.rect);
+    }, "native Tab to move focus");
     const focus = await page("focus");
     if (caseless(focus.name) === caseless(name) && focus.inNavigation) return focus;
   }
@@ -158,6 +174,7 @@ async function navigationWidth(expected) {
 const loadedWindow = new Promise((resolve, reject) => {
   app.once("browser-window-created", (_event, created) => {
     window = created;
+    window.webContents.setBackgroundThrottling(false);
     window.webContents.on("console-message", (event) => {
       if (event.level === "error") consoleErrors.push(event.message);
     });
@@ -230,8 +247,7 @@ async function run() {
       async () => (await page("value", { role: "textbox", name: "Skill markdown content" })) === nativeSkillInitial,
       "the original skill file content",
     );
-    await click("textbox", "Skill markdown content");
-    await replaceFocusedText(nativeSkillSaved);
+    await replaceText("Skill markdown content", nativeSkillSaved);
     await waitFor(
       async () => (await attribute("button", "Save changes", "disabled")) === null,
       "an enabled Save changes button",
@@ -283,12 +299,14 @@ async function run() {
     const focusOrder = [];
     for (const name of railEntries.slice(1)) {
       await key("Tab");
+      await waitFor(async () => caseless((await page("focus")).name) === caseless(name), `${name} focused by Tab`);
       const focus = await page("focus");
       assert.equal(caseless(focus.name), caseless(name));
       assert.ok(focus.inNavigation && focus.visible && focus.hit && focus.focusVisible);
       focusOrder.push(focus.name);
     }
     await key("Tab");
+    await waitFor(async () => !(await page("focus")).inNavigation, "Tab to leave the collapsed navigation");
     assert.equal((await page("focus")).inNavigation, false, "collapsed history has no keyboard-focus ghosts");
     return { measurement, focusOrder, historyBeforeCollapse: { title: nativeHistoryTitle, focus: historyFocus } };
   });

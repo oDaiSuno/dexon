@@ -79,6 +79,16 @@ export function productionPage(operation, args = {}) {
       currentPage: [...element.querySelectorAll('[aria-current="page"]')].filter(exposed).map(nameOf),
     };
   }
+  if (operation === "selection") {
+    const element = document.activeElement;
+    return {
+      name: nameOf(element),
+      focused: document.hasFocus(),
+      start: element.selectionStart,
+      end: element.selectionEnd,
+      length: element.value?.length,
+    };
+  }
   if (operation === "settingsTabs") {
     const settings = find("dialog", "Settings");
     return settings ? [...settings.querySelectorAll('[role="tab"]')].filter(exposed).map(nameOf) : null;
@@ -89,6 +99,7 @@ export function productionPage(operation, args = {}) {
     const rect = element.getBoundingClientRect();
     return {
       name: nameOf(element),
+      rect: rectOf(element),
       visible: exposed(element),
       inNavigation: Boolean(nav()?.contains(element)),
       hit: element.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)),

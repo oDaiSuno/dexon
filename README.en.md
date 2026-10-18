@@ -78,7 +78,7 @@ Dexon is a derivative of [DLYZZT/Pi Agent Desktop](https://github.com/DLYZZT/pi-
 
 ### Development requirements
 
-- Node.js 22.19 (and below 23)
+- Node.js 22 (`nvm use` selects the CI-pinned 22.23.3; minimum 22.19 and below 23)
 - npm
 - macOS, Windows, or Linux
 
@@ -93,7 +93,7 @@ npm run dev
 
 The app reads sessions and configuration from `~/.pi/agent/`. If you already use the Pi CLI, existing data is reused without migration. Dexon discovers and verifies existing Node.js/npm, Python, Git, Bash, uv, jq, and Bun installs; bundled `rg`/`fd` keep search working offline.
 
-> Note: publishing configuration (GitHub Release, website links, app icon) still holds placeholder values pending the first release.
+> See [CI and desktop releases](./docs/ci-release.md) (Chinese) for merge gates, final-package acceptance, and publishing instructions. macOS and Windows use explicitly labeled Unsigned Beta releases. macOS retains the unsigned distribution used in v0.1.0, without Apple signing or notarization credentials; Gatekeeper approval and automatic update installation are not guaranteed.
 
 ### Build targets
 

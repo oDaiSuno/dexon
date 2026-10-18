@@ -1,2 +1,6 @@
 npx lint-staged
+local_git_variables="$(git rev-parse --local-env-vars)"
+for variable in $local_git_variables; do
+  unset "$variable"
+done
 npm test

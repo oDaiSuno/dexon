@@ -110,6 +110,8 @@ extraResources:
     to: toolchains/core/${platform}-${arch}
 
 mac:
+  identity: null
+  notarize: false
   category: public.app-category.developer-tools
   hardenedRuntime: true
   gatekeeperAssess: false

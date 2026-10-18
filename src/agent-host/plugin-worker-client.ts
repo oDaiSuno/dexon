@@ -114,13 +114,33 @@ export async function runPluginWorker(
     let stdoutTail: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     let stderrTail: Buffer<ArrayBufferLike> = Buffer.alloc(0);
     let settled = false;
-    let timingOut = false;
+    let terminating = false;
     const finish = (operation: () => void): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       operation();
     };
+    const terminateWithError = (error: ToolchainError): void => {
+      if (settled || terminating) return;
+      terminating = true;
+      void terminateProcessTree(child, terminationGraceMs).then(
+        () => finish(() => reject(error)),
+        (cause) =>
+          finish(() =>
+            reject(new ToolchainError({ code: "TOOLCHAIN_INTERNAL", message: "Plugin worker cleanup failed", cause })),
+          ),
+      );
+    };
+    child.stdin?.on("error", (cause) => {
+      terminateWithError(
+        new ToolchainError({
+          code: "TOOLCHAIN_INTERNAL",
+          message: "Plugin worker closed its input without a result",
+          cause,
+        }),
+      );
+    });
     child.stdout?.on("data", (value: Buffer | string) => {
       stdoutTail = appendTail(stdoutTail, Buffer.isBuffer(value) ? value : Buffer.from(value));
     });
@@ -128,7 +148,7 @@ export async function runPluginWorker(
       stderrTail = appendTail(stderrTail, Buffer.isBuffer(value) ? value : Buffer.from(value));
     });
     child.once("error", (error) => {
-      if (timingOut) return;
+      if (terminating) return;
       finish(() =>
         reject(
           new ToolchainError({
@@ -140,7 +160,7 @@ export async function runPluginWorker(
       );
     });
     child.once("close", (exitCode) => {
-      if (timingOut) return;
+      if (terminating) return;
       finish(() => {
         const response = extractPluginWorkerResponse(stdoutTail.toString("utf8"));
         if (response?.ok) {
@@ -163,11 +183,7 @@ export async function runPluginWorker(
       });
     });
     const timer = setTimeout(() => {
-      if (settled || timingOut) return;
-      timingOut = true;
-      void terminateProcessTree(child, terminationGraceMs).finally(() => {
-        finish(() => reject(new ToolchainError({ code: "TOOLCHAIN_INTERNAL", message: "Plugin worker timed out" })));
-      });
+      terminateWithError(new ToolchainError({ code: "TOOLCHAIN_INTERNAL", message: "Plugin worker timed out" }));
     }, timeoutMs);
     timer.unref();
     child.stdin?.end(input);

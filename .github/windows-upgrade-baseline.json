@@ -1,0 +1,7 @@
+{
+  "version": "0.1.0",
+  "repository": "oDaiSuno/dexon",
+  "installer": "Dexon-Unsigned-Beta-Setup-0.1.0.exe",
+  "sha256": "e566ff61c42154055a9c3d58f6f6cecf5c9c576648b69923ae6acb4f54e302de",
+  "helperSha256": "645646789a3559235af66a78523b405c7859f4787485862e24335a0e1810c171"
+}

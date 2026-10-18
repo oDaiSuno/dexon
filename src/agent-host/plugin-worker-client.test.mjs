@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
+import { Writable } from "node:stream";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -91,6 +93,24 @@ test("fails closed when the worker does not return a bounded protocol response",
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("a worker that closes its input rejects the request without crashing the host", async () => {
+  const child = new EventEmitter();
+  child.kill = () => true;
+  child.stdin = new Writable({
+    write(_chunk, _encoding, callback) {
+      callback(Object.assign(new Error("write EPIPE"), { code: "EPIPE" }));
+      setImmediate(() => child.emit("close", 1));
+    },
+  });
+  await assert.rejects(
+    runPluginWorker({ body: { action: "update", cwd: process.cwd() } }, context(), {
+      spawnProcess: () => child,
+      timeoutMs: 1_000,
+    }),
+    (error) => error.code === "TOOLCHAIN_INTERNAL" && /without a result/.test(error.message),
+  );
 });
 
 function processExists(pid) {

@@ -18,16 +18,21 @@ after(() => {
   }
   rmSync(base, { recursive: true, force: true });
 });
-const { getAllowedFileRoots, invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy, setGitCommandRunner } =
-  await importTestBundle("real-file-roots-cache", {
-    packages: "external",
-    stdin: {
-      contents:
-        'export {getAllowedFileRoots, invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
-      resolveDir: import.meta.dirname,
-      loader: "ts",
-    },
-  });
+const {
+  getAllowedFileRoots,
+  invalidateAllowedRootsCache,
+  isFilePathAllowed,
+  setAllowedRootsWatcherHealthy,
+  setGitCommandRunner,
+} = await importTestBundle("real-file-roots-cache", {
+  packages: "external",
+  stdin: {
+    contents:
+      'export {getAllowedFileRoots, invalidateAllowedRootsCache, isFilePathAllowed, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
+    resolveDir: import.meta.dirname,
+    loader: "ts",
+  },
+});
 
 test("a directory change during a real session scan cannot publish stale allowed roots", async (t) => {
   const stale = path.join(base, "stale");
@@ -70,9 +75,13 @@ test("a directory change during a real session scan cannot publish stale allowed
   invalidateAllowedRootsCache();
   releaseGit.resolve();
   const roots = await scanning;
-  assert.equal(roots.has(fresh), true);
-  assert.equal(roots.has(stale), false);
+  assert.equal(isFilePathAllowed(path.join(fresh, "notes.txt"), roots), true);
+  assert.equal(isFilePathAllowed(path.join(stale, "notes.txt"), roots), false);
   const following = await getAllowedFileRoots();
-  assert.equal(following.has(fresh), true);
-  assert.equal(following.has(stale), false, "the next caller cannot read a cached stale directory");
+  assert.equal(isFilePathAllowed(path.join(fresh, "notes.txt"), following), true);
+  assert.equal(
+    isFilePathAllowed(path.join(stale, "notes.txt"), following),
+    false,
+    "the next caller cannot read a cached stale directory",
+  );
 });

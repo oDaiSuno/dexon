@@ -25,7 +25,9 @@ function listTestFiles(root, fileSystem) {
     ...fileSystem.globSync("src/**/*.test.mjs", { cwd: root }),
     ...fileSystem.globSync("scripts/**/*.test.mjs", { cwd: root }),
     ...fileSystem.globSync("tests/**/*.test.mjs", { cwd: root }),
-  ].sort();
+  ]
+    .map((file) => file.replaceAll("\\", "/"))
+    .sort();
 }
 
 export function collectTestHygiene(root, fileSystem = { globSync, readFileSync }) {
@@ -41,7 +43,7 @@ export function collectTestHygiene(root, fileSystem = { globSync, readFileSync }
     const rules = findTestHygieneViolations(source);
     if (rules.length > 0) detected.push({ file, rules });
     for (const imported of relativeTestImports(source)) {
-      const helper = path.normalize(path.join(path.dirname(file), imported));
+      const helper = path.posix.normalize(path.posix.join(path.posix.dirname(file), imported));
       // Static-check programs are products with their own public behavior, not
       // renderer test doubles. Only follow the application's test-support graph.
       if (helper.startsWith("src/") || helper.startsWith("tests/")) queue.push(helper);

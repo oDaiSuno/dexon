@@ -1,0 +1,389 @@
+name: Desktop CI
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+  workflow_dispatch: {}
+  workflow_call: {}
+permissions:
+  contents: read
+defaults:
+  run:
+    shell: bash
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type != 'tag' }}
+jobs:
+  test-platforms:
+    name: Tests (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux x64
+            runner: ubuntu-24.04
+            timeout_minutes: 25
+            tool_target: linux-x64
+          - name: macOS arm64
+            runner: macos-15
+            timeout_minutes: 25
+            tool_target: darwin-arm64
+          - name: macOS x64
+            runner: macos-15-intel
+            timeout_minutes: 25
+            tool_target: darwin-x64
+          - name: Windows x64
+            runner: windows-2025
+            timeout_minutes: 45
+            tool_target: win32-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: ${{ matrix.timeout_minutes }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install pinned Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc --component rustfmt --component clippy
+      - name: Install Electron binary (Windows)
+        if: runner.os == 'Windows'
+        run: npx install-electron --no
+      - name: Validate Windows managed process helper
+        if: runner.os == 'Windows'
+        run: |-
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --disable-pip-version-check --no-input Flask==3.1.0 fastapi==0.128.0 uvicorn==0.40.0
+          cargo fmt --manifest-path native/windows-managed-process-helper/Cargo.toml --all -- --check
+          cargo clippy --manifest-path native/windows-managed-process-helper/Cargo.toml --locked --all-targets --target x86_64-pc-windows-msvc -- -D warnings
+          cargo test --manifest-path native/windows-managed-process-helper/Cargo.toml --locked --target x86_64-pc-windows-msvc
+          npm run check:windows-helper-reproducibility
+          $env:PI_WINDOWS_HELPER_HANDLE_LOOPS = "100"
+          npm run test:windows-managed-helper
+          npm run test:managed-process-workflows
+          $env:PI_MANAGED_FLOOD_DURATION_MS = "60000"
+          $env:PI_MANAGED_FLOOD_PROCESSES = "8"
+          $env:PI_MANAGED_FLOOD_STREAMS = "both"
+          npm run test:managed-process-flood
+        shell: pwsh
+      - name: Run unit and handler tests
+        shell: bash
+        run: |-
+          set -o pipefail
+          npm test 2>&1 | tee "${RUNNER_TEMP}/unit-tests.log"
+      - name: Publish unit test failure summary
+        if: failure()
+        shell: bash
+        run: |-
+          {
+            echo "### Unit test failure digest"
+            echo '```'
+            (grep -E "not ok|AssertionError|ERR_ASSERTION|Error:" "${RUNNER_TEMP}/unit-tests.log" || true) | tail -30
+            echo "--- tail ---"
+            tail -60 "${RUNNER_TEMP}/unit-tests.log"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Run cross-platform quality checks (Windows)
+        if: runner.os == 'Windows'
+        run: |-
+          npm run format:check
+          npm run lint
+          npm run typecheck
+          npm run check:dependencies
+          npm run check:contract
+          npm run check:pi-compat
+          npm run check:toolchain-contract
+          npm run check:toolchain-catalog
+          npm run check:browser-i18n
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.1
+  windows-frameworks:
+    name: Windows managed framework acceptance
+    runs-on: windows-2025
+    timeout-minutes: 35
+    env:
+      CI: "1"
+      NEXT_TELEMETRY_DISABLED: "1"
+      STORYBOOK_DISABLE_TELEMETRY: "1"
+      RUSTUP_TOOLCHAIN: 1.96.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Set up pinned Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: npm ci
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+      - name: Build authoritative Windows helper
+        run: npm run check:windows-helper-reproducibility
+      - name: Prepare pinned framework fixtures
+        shell: pwsh
+        run: |-
+          $ErrorActionPreference = "Stop"
+          $PSNativeCommandUseErrorActionPreference = $true
+          $nodeRoot = Join-Path $env:RUNNER_TEMP "framework-node-root"
+          New-Item -ItemType Directory -Path $nodeRoot -Force | Out-Null
+          Push-Location $nodeRoot
+          try {
+            npm init -y | Out-Null
+            npm install --save-exact --no-audit --no-fund next@16.3.2 react@19.2.4 react-dom@19.2.4 storybook@10.5.10 @storybook/react-vite@10.5.10 vite@6.4.3 typescript@5.9.3
+          } finally {
+            Pop-Location
+          }
+          $springZip = Join-Path $env:RUNNER_TEMP "spring-boot-4.1.1-fixture.zip"
+          $springUrl = "https://start.spring.io/starter.zip?type=maven-project&language=java&bootVersion=4.1.1&baseDir=spring-boot-4.1.1-fixture&groupId=com.example&artifactId=fixture&name=SpringFixture&packageName=com.example.fixture&packaging=jar&javaVersion=21&dependencies=web"
+          curl.exe --fail --location --retry 3 --output $springZip $springUrl
+          if ($LASTEXITCODE -ne 0) { throw "Spring Initializr download exited $LASTEXITCODE" }
+          Expand-Archive -LiteralPath $springZip -DestinationPath $env:RUNNER_TEMP
+          $springRoot = Join-Path $env:RUNNER_TEMP "spring-boot-4.1.1-fixture"
+          if (-not (Test-Path -LiteralPath (Join-Path $springRoot "mvnw.cmd"))) { throw "Spring wrapper is missing" }
+          "PI_FRAMEWORK_NODE_ROOT=$nodeRoot" >> $env:GITHUB_ENV
+          "PI_SPRING_BOOT_FIXTURE=$springRoot" >> $env:GITHUB_ENV
+          "PI_JAVA_EXECUTABLE=$((Get-Command java).Source)" >> $env:GITHUB_ENV
+          "PI_MAVEN_USER_HOME=$(Join-Path $env:RUNNER_TEMP 'maven-user-home-3.9.16')" >> $env:GITHUB_ENV
+      - name: Run real managed framework matrix
+        run: npm run test:managed-process-frameworks
+  quality:
+    name: Quality gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Electron binary
+        run: npx install-electron --no
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target linux-x64
+      - name: Configure Electron sandbox
+        run: |-
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+      - name: Run full verification
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm run verify -- --skip-unit-tests
+      - name: Upload desktop acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: desktop-acceptance-${{ github.run_attempt }}
+          path: |-
+            .artifacts/interactive-tools
+            .artifacts/chat-layout-electron
+            .artifacts/nav-layout-electron
+            .artifacts/browser-electron
+            .artifacts/browser-agent-e2e
+            .artifacts/test-infra
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+        if: always()
+  rust-security:
+    name: Rust supply chain and Windows cross-build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      RUSTUP_TOOLCHAIN: 1.96.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.1 --profile minimal --target x86_64-pc-windows-msvc
+      - name: Restore pinned Cargo tools
+        id: cargo-tools
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+        with:
+          path: |-
+            ~/.cargo/bin/cargo-audit
+            ~/.cargo/bin/cargo-deny
+            ~/.cargo/bin/cargo-xwin
+          key: cargo-tools-${{ runner.os }}-${{ runner.arch }}-rust-1.96.1-audit-0.22.2-deny-0.20.2-xwin-0.23.1-v1
+      - name: Install missing pinned Cargo tools
+        if: steps.cargo-tools.outputs.cache-hit != 'true'
+        run: |-
+          cargo install cargo-audit --locked --version 0.22.2
+          cargo install cargo-deny --locked --version 0.20.2
+          cargo install cargo-xwin --locked --version 0.23.1
+      - name: Verify tool versions and dependency security
+        run: |-
+          version="$(cargo-audit --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.22.2"
+          version="$(cargo-deny --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.20.2"
+          version="$(cargo-xwin --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.23.1"
+          cargo audit --file native/windows-managed-process-helper/Cargo.lock --deny warnings
+          cargo deny --manifest-path native/windows-managed-process-helper/Cargo.toml --config native/windows-managed-process-helper/deny.toml --locked check
+      - name: Install pinned LLVM cross-build prerequisites
+        run: |-
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends clang-18 lld-18 llvm-18
+      - name: Compile-check the non-authoritative Windows helper
+        run: npm run build:windows-helper
+  package:
+    name: Final package (${{ matrix.name }})
+    needs:
+      - quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS arm64
+            runner: macos-15
+            platform: mac
+            targets: dmg zip
+            arch: arm64
+            tool_target: darwin-arm64
+            artifact: dexon-macos-arm64
+          - name: macOS Intel x64
+            runner: macos-15-intel
+            platform: mac
+            targets: dmg zip
+            arch: x64
+            tool_target: darwin-x64
+            artifact: dexon-macos-x64
+          - name: Windows x64
+            runner: windows-2025
+            platform: win
+            targets: nsis
+            arch: x64
+            tool_target: win32-x64
+            artifact: dexon-windows-x64
+          - name: Linux x64
+            runner: ubuntu-24.04
+            platform: linux
+            targets: AppImage
+            arch: x64
+            tool_target: linux-x64
+            artifact: dexon-linux-x64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      RUSTUP_TOOLCHAIN: 1.96.1
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Install Electron runtime for Windows acceptance
+        if: runner.os == 'Windows'
+        run: npx install-electron --no
+      - name: Install pinned Rust toolchain (Windows)
+        if: runner.os == 'Windows'
+        run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
+      - name: Build application
+        run: npm run build
+      - name: Rebuild authoritative Windows helper for packaging
+        if: runner.os == 'Windows'
+        run: npm run check:windows-helper-reproducibility
+      - name: Prepare verified bundled search tools
+        run: npm run prepare:bundled-tools -- --target ${{ matrix.tool_target }}
+      - name: Run Electron smoke on Windows
+        if: runner.os == 'Windows'
+        run: npm run smoke
+      - name: Run production navigation acceptance
+        if: runner.os != 'Linux'
+        run: npm run test:app-navigation-electron -- --out ${{ runner.temp }}/app-navigation-electron
+      - name: Upload production navigation evidence
+        if: always() && runner.os != 'Linux'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: app-navigation-evidence-${{ matrix.tool_target }}
+          path: ${{ runner.temp }}/app-navigation-electron
+          if-no-files-found: ignore
+      - name: Package ${{ matrix.name }}
+        shell: bash
+        run: npx electron-builder --${{ matrix.platform }} ${{ matrix.targets }} --${{ matrix.arch }} --publish never
+      - name: Generate and verify Windows SBOM
+        if: runner.os == 'Windows'
+        run: |-
+          npm run build:windows-sbom
+          npm run check:windows-sbom
+
+          cp THIRD_PARTY_NOTICES.md dist/
+      - name: Accept final installer or mounted archives
+        if: runner.os != 'Linux'
+        run: node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
+      - name: Accept the final AppImage
+        if: runner.os == 'Linux'
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
+      - name: Upload exactly the accepted files
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: ${{ matrix.artifact }}-${{ github.run_attempt }}
+          path: .artifacts/distribution/${{ matrix.tool_target }}
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload final-package acceptance evidence
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: package-evidence-${{ matrix.tool_target }}-${{ github.run_attempt }}
+          path: .artifacts/distribution-evidence
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14
+        if: always()
+  ci-required:
+    name: CI required
+    if: always()
+    needs:
+      - quality
+      - test-platforms
+      - windows-frameworks
+      - rust-security
+      - package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - name: Require every result to succeed
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: node scripts/check-ci-results.mjs quality test-platforms windows-frameworks rust-security package
