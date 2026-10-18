@@ -1,0 +1,50 @@
+name: Reproduce baseline CI failures
+
+on:
+  push:
+    branches: [ci/reliable-desktop-pipeline]
+
+permissions:
+  contents: read
+
+jobs:
+  windows-baseline:
+    runs-on: windows-2025
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 476bd49686766ab3bec2f1afe55853ce791af7e9
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - run: npm ci
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-global-guard.test.mjs scripts/test-bundle.test.mjs scripts/test-hygiene.test.mjs src/agent-host/file-access-cache.test.mjs src/agent-host/handlers/system.test.mjs src/agent-host/personal-directory.test.mjs
+
+  linux-baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 476bd49686766ab3bec2f1afe55853ce791af7e9
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
+        with:
+          node-version: 22.23.3
+          cache: npm
+      - run: npm ci
+      - run: npx install-electron --no
+      - run: |
+          sudo chown root:root node_modules/electron/dist/chrome-sandbox
+          sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+      - run: xvfb-run --auto-servernum npm run test:interactive-tools-electron
+      - if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: linux-baseline-evidence
+          path: .artifacts/interactive-tools/electron
+          if-no-files-found: warn
+          retention-days: 7
