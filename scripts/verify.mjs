@@ -6,16 +6,18 @@
 import { spawnSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
+import { assertSuccessfulSpawn } from "./process-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const args = process.argv.slice(2);
+if (args.length > 1 || args.some((argument) => argument !== "--skip-unit-tests")) {
+  throw new Error("Usage: verify.mjs [--skip-unit-tests]");
+}
 
 function run(label, cmd, args) {
   console.log(`\n==> ${label}\n> ${cmd} ${args.join(" ")}\n`);
   const r = spawnSync(cmd, args, { cwd: root, stdio: "inherit", shell: true });
-  if (r.status !== 0) {
-    console.error(`\n[verify] FAILED: ${label}`);
-    process.exit(r.status ?? 1);
-  }
+  assertSuccessfulSpawn(r, `[verify] ${label}`);
 }
 
 run("format check", "npm", ["run", "format:check"]);
@@ -29,7 +31,7 @@ run("design constraints", "node", [
   "--experimental-strip-types",
   "scripts/check-design.mjs",
 ]);
-run("unit tests", "npm", ["test"]);
+if (!args.includes("--skip-unit-tests")) run("unit tests", "npm", ["test"]);
 run("managed process development workflows", "npm", ["run", "test:managed-process-workflows"]);
 run("managed process 60s flood", "npm", ["run", "test:managed-process-flood"]);
 run("contract coverage", "node", ["scripts/check-contract-coverage.mjs"]);

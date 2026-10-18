@@ -79,7 +79,7 @@ Dexon 基于 [DLYZZT/Pi Agent Desktop](https://github.com/DLYZZT/pi-desktop)（A
 
 ### 源码开发环境要求
 
-- Node.js 22.19（且低于 23）
+- Node.js 22（使用 `nvm use` 与 CI 固定的 22.23.3 保持一致；最低 22.19，低于 23）
 - npm（随 Node.js 安装即可）
 - macOS、Windows 或 Linux
 
@@ -94,7 +94,7 @@ npm run dev
 
 应用读取 `~/.pi/agent/` 中的会话与配置。如果你已经使用 Pi CLI，可以直接复用现有数据，无需迁移。Pi Desktop 会先发现并验证已安装的 Node.js/npm、Python、Git、Bash、uv、jq 和 Bun；内置的 `rg`/`fd` 保证离线搜索可用。
 
-> 说明：当前版本的发布配置（GitHub Release、官网链接、应用图标）仍为占位值，待正式发布时更新。
+> CI 门禁、最终安装包验收和新版本操作见 [CI 与桌面发布](./docs/ci-release.md)。Windows 目前为明确标注的 Unsigned Beta；正式 macOS 发布必须配置签名和公证，不会静默降级为未签名包。
 
 ### 构建
 

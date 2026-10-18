@@ -8,6 +8,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { assertSuccessfulSpawn } from "./process-utils.mjs";
+import { verifyUpdateConfiguration } from "./verify-update-configuration.mjs";
+import { validateUpgradeBaseline } from "./windows-upgrade-baseline.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
   console.log(JSON.stringify({ ok: true, skipped: "Windows x64 NSIS acceptance only" }));
@@ -15,14 +18,27 @@ if (process.platform !== "win32" || process.arch !== "x64") {
 }
 
 const [previousArgument, currentArgument, ...extra] = process.argv.slice(2);
-if (!previousArgument || !currentArgument || extra.length > 0) {
-  throw new Error("Usage: test-windows-nsis-upgrade.mjs <previous-installer.exe> <current-installer.exe>");
+if (
+  !previousArgument ||
+  !currentArgument ||
+  extra.length > 1 ||
+  extra.some((argument) => argument !== "--allow-same-version")
+) {
+  throw new Error(
+    "Usage: test-windows-nsis-upgrade.mjs <previous-installer.exe> <current-installer.exe> [--allow-same-version]",
+  );
 }
+const project = path.resolve(import.meta.dirname, "..");
+const baseline = JSON.parse(fs.readFileSync(path.join(project, ".github/windows-upgrade-baseline.json"), "utf8"));
+const previousVersion = baseline.version;
+const currentVersion = JSON.parse(fs.readFileSync(path.join(project, "package.json"), "utf8")).version;
+const repository = process.env.GITHUB_REPOSITORY ?? "oDaiSuno/dexon";
+const scenario = validateUpgradeBaseline(baseline, currentVersion, repository, extra.includes("--allow-same-version"));
 const previousInstaller = regularFile(previousArgument);
 const currentInstaller = regularFile(currentArgument);
-const previousVersion = fileVersion(previousInstaller);
-const currentVersion = fileVersion(currentInstaller);
-assert.ok(compareVersions(previousVersion, currentVersion) < 0, `${previousVersion} must precede ${currentVersion}`);
+assert.equal(sha256(previousInstaller), baseline.sha256, "Previous installer does not match the reviewed baseline");
+assert.equal(compareVersions(fileVersion(previousInstaller), previousVersion), 0);
+assert.equal(compareVersions(fileVersion(currentInstaller), currentVersion), 0);
 assertCleanUserInstallState();
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "Pi NSIS upgrade 回滚 "));
@@ -36,22 +52,33 @@ let completed = false;
 try {
   install(previousInstaller, installPath);
   installed = true;
-  assert.equal(fileVersion(appExecutable(installPath)), previousVersion);
-  assert.equal(fs.existsSync(path.join(installPath, "resources", "managed-process")), false);
+  assert.equal(compareVersions(fileVersion(appExecutable(installPath)), previousVersion), 0);
+  await verifyPreviousHelper(installPath);
   reports.push(validateStartup(appExecutable(installPath), isolated, previousVersion, "previous"));
 
   install(currentInstaller, installPath);
-  assert.equal(fileVersion(appExecutable(installPath)), currentVersion);
+  assert.equal(compareVersions(fileVersion(appExecutable(installPath)), currentVersion), 0);
   const helper = await verifyInstalledHelper(installPath);
+  verifyUpdateConfiguration(fs.readFileSync(path.join(installPath, "resources/app-update.yml"), "utf8"), repository);
+  assertSuccessfulSpawn(
+    spawnSync(
+      process.execPath,
+      [
+        "--disable-warning=MODULE_TYPELESS_PACKAGE_JSON",
+        path.join(project, "scripts/verify-packaged-toolchains.mjs"),
+        "win32-x64",
+        installPath,
+        "--release-helper",
+      ],
+      { cwd: project, stdio: "inherit", timeout: 240_000 },
+    ),
+    "Installed Windows package acceptance",
+  );
   reports.push(validateStartup(appExecutable(installPath), isolated, currentVersion, "upgraded"));
 
   install(previousInstaller, installPath);
-  assert.equal(fileVersion(appExecutable(installPath)), previousVersion);
-  assert.equal(
-    fs.existsSync(path.join(installPath, "resources", "managed-process")),
-    false,
-    "direct rollback must remove the newer helper directory",
-  );
+  assert.equal(compareVersions(fileVersion(appExecutable(installPath)), previousVersion), 0);
+  await verifyPreviousHelper(installPath);
   reports.push(validateStartup(appExecutable(installPath), isolated, previousVersion, "rolled-back"));
 
   uninstall(installPath);
@@ -62,6 +89,7 @@ try {
   console.log(
     JSON.stringify({
       ok: true,
+      scenario,
       previousVersion,
       currentVersion,
       previousInstallerSha256: sha256(previousInstaller),
@@ -152,6 +180,11 @@ function uninstall(directory) {
 }
 
 function validateStartup(executable, isolatedRoot, expectedVersion, phase) {
+  for (const previousReport of walkFiles(isolatedRoot).filter(
+    (file) => path.basename(file) === "packaged-startup-check.json",
+  )) {
+    fs.rmSync(previousReport);
+  }
   const userData = path.join(isolatedRoot, "user-data");
   const result = spawnSync(
     executable,
@@ -189,6 +222,19 @@ function validateStartup(executable, isolatedRoot, expectedVersion, phase) {
   assert.equal(report.hostReady, true);
   assert.equal(report.hostAckRevision, report.revision);
   return { phase, appVersion: report.appVersion, piVersion: report.piVersion, hostAckRevision: report.hostAckRevision };
+}
+
+async function verifyPreviousHelper(directory) {
+  if (baseline.helperSha256 === null) {
+    assert.equal(
+      fs.existsSync(path.join(directory, "resources", "managed-process")),
+      false,
+      "direct rollback must remove the newer helper directory for the historical no-helper baseline",
+    );
+  } else {
+    const helper = await verifyInstalledHelper(directory);
+    assert.equal(helper.sha256, baseline.helperSha256, "Previous helper must be restored exactly");
+  }
 }
 
 async function verifyInstalledHelper(directory) {
