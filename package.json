@@ -1,6 +1,6 @@
 {
   "name": "dexon",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "description": "Dexon — pure Electron desktop app for the pi coding agent",
   "homepage": "https://github.com/oDaiSuno/dexon#readme",
