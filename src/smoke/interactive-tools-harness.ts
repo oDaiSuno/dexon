@@ -106,6 +106,7 @@ async function run(): Promise<void> {
   });
   ipcMain.handle("tool-harness-settled", () => done);
   await window.loadFile(path.join(directory, "index.html"));
+  window.showInactive();
   const js = <T = Record<string, unknown>>(code: string): Promise<T> =>
     window!.webContents.executeJavaScript(code, true) as Promise<T>;
   await js("window.fixture.frame()");

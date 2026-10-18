@@ -1,4 +1,4 @@
-name: Reproduce baseline CI failures
+name: Verify diagnosed CI failures
 
 on:
   push:
@@ -8,13 +8,12 @@ permissions:
   contents: read
 
 jobs:
-  windows-baseline:
+  windows-verification:
     runs-on: windows-2025
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 476bd49686766ab3bec2f1afe55853ce791af7e9
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -23,13 +22,12 @@ jobs:
       - run: npm ci
       - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test scripts/test-global-guard.test.mjs scripts/test-bundle.test.mjs scripts/test-hygiene.test.mjs src/agent-host/file-access-cache.test.mjs src/agent-host/handlers/system.test.mjs src/agent-host/personal-directory.test.mjs
 
-  linux-baseline:
+  linux-verification:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          ref: 476bd49686766ab3bec2f1afe55853ce791af7e9
           persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38
         with:
@@ -44,7 +42,8 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          name: linux-baseline-evidence
+          name: linux-interactive-evidence
           path: .artifacts/interactive-tools/electron
+          include-hidden-files: true
           if-no-files-found: warn
           retention-days: 7

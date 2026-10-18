@@ -77,7 +77,7 @@ test("repeated defaultCwd calls keep one authorized root and a stable generation
   const rootsAfterFirst = await getAllowedFileRoots();
   // allowFileRoot stores the canonical (realpath) form with normalized
   // slashes; compare against that exact stored shape.
-  const authorizedRoot = normalizeSlashes(realpathSync(path.join(home, ".dexon")));
+  const authorizedRoot = normalizeSlashes(realpathSync.native(path.join(home, ".dexon")));
   const matchingRoots = [...rootsAfterFirst].filter((root) => root === authorizedRoot);
   assert.equal(matchingRoots.length, 1);
 

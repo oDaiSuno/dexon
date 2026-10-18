@@ -248,6 +248,6 @@ test("a symlinked .dexon pointing at a directory is reused through its canonical
   const result = preparePersonalDirectory({ home });
   assert.equal(result.ok, true);
   assert.equal(result.ok ? result.reused : false, true);
-  if (result.ok) assert.equal(result.canonicalPath, realpathSync(target));
+  if (result.ok) assert.equal(result.canonicalPath, realpathSync.native(target));
   assert.equal(readFileSync(path.join(target, "marker.txt"), "utf8"), "linked");
 });

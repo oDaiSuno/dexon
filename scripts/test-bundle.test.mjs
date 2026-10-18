@@ -46,7 +46,7 @@ test("repository policy reports every legacy bundle owner", () => {
     () =>
       assertNoLegacyTestBundleUsage("/fixture", {
         globSync: () => [...files.keys()],
-        readFileSync: (file) => files.get(file.replace("/fixture/", "")),
+        readFileSync: (file) => files.get(path.relative("/fixture", file).split(path.sep).join("/")),
       }),
     (error) =>
       error.message.includes("src/direct.test.mjs: direct esbuild import") &&
