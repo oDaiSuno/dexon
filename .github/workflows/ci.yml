@@ -87,7 +87,7 @@ jobs:
           {
             echo "### Unit test failure digest"
             echo '```'
-            (rg "not ok|AssertionError|ERR_ASSERTION|Error:" "${RUNNER_TEMP}/unit-tests.log" || true) | tail -30
+            (grep -E "not ok|AssertionError|ERR_ASSERTION|Error:" "${RUNNER_TEMP}/unit-tests.log" || true) | tail -30
             echo "--- tail ---"
             tail -60 "${RUNNER_TEMP}/unit-tests.log"
             echo '```'

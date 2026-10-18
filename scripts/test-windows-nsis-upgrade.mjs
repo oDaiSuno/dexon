@@ -96,7 +96,12 @@ try {
       currentInstallerSha256: sha256(currentInstaller),
       helper,
       reports,
-      scenarios: ["previous packaged startup", "cross-version upgrade", "direct rollback", "official uninstall"],
+      scenarios: [
+        "previous packaged startup",
+        scenario === "upgrade" ? "cross-version upgrade" : "same-version replacement",
+        "direct rollback",
+        "official uninstall",
+      ],
     }),
   );
 } finally {
