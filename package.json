@@ -66,9 +66,7 @@
     "prepare": "husky",
     "start": "electron .",
     "pack": "node scripts/package-desktop.mjs --dir",
-    "dist": "node scripts/package-desktop.mjs --release",
-    "dist:mac:signed": "node scripts/build-mac-release.mjs",
-    "dist:mac:notarized": "node scripts/build-mac-release.mjs --notarize"
+    "dist": "node scripts/package-desktop.mjs --release"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "0.84.0",

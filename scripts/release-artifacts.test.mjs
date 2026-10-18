@@ -104,6 +104,7 @@ test("candidate creation rejects unsupported identities, empty files and filesys
     { runId: "" },
     { runAttempt: "" },
     { signing: "maybe" },
+    { signing: "signed-notarized" },
   ]) {
     await assert.rejects(
       createArtifactManifest(fixture(t), { ...identity, ...change }),

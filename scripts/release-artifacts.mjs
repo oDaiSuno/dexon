@@ -36,7 +36,7 @@ export async function createArtifactManifest(directory, identity) {
     commit: /^[a-f0-9]{40}$/,
     runId: /^[1-9]\d*$/,
     runAttempt: /^[1-9]\d*$/,
-    signing: /^(?:unsigned|unsigned-ci|unsigned-beta|signed-notarized)$/,
+    signing: /^(?:unsigned|unsigned-ci|unsigned-beta)$/,
   })) {
     if (!pattern.test(identity[field] ?? "")) throw new Error(`Invalid artifact identity: ${field}`);
   }

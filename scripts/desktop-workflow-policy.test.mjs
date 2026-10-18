@@ -16,6 +16,10 @@ function workflows() {
     steps: [{ run: `node scripts/check-ci-results.mjs ${needs.join(" ")}`, env: { CI_NEEDS: "${{ toJSON(needs) }}" } }],
   });
   return {
+    packaging: {
+      mac: { identity: null, notarize: false },
+      win: { artifactName: "Dexon-Unsigned-Beta-Setup-${version}.${ext}" },
+    },
     ci: {
       on: { pull_request: {}, push: { branches: ["main"] }, workflow_call: {} },
       permissions: { contents: "read" },
@@ -61,9 +65,9 @@ function workflows() {
 }
 
 test("a skipped aggregate cannot masquerade as the required merge gate", () => {
-  const { ci, release } = workflows();
+  const { ci, release, packaging } = workflows();
   ci.jobs["ci-required"].if = "success()";
-  assert.match(workflowViolations(ci, release).join("\n"), /ci-required.*always/);
+  assert.match(workflowViolations(ci, release, packaging).join("\n"), /ci-required.*always/);
 });
 
 test("missing required work, a skipped required job or a missing native desktop target blocks the configuration", () => {
@@ -92,7 +96,7 @@ test("missing required work, a skipped required job or a missing native desktop 
   ]) {
     const fixture = workflows();
     mutate(fixture);
-    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release), []);
+    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release, fixture.packaging), []);
   }
 });
 
@@ -132,7 +136,7 @@ test("PRs cannot omit checks, receive publishing credentials or use mutable exte
   ]) {
     const fixture = workflows();
     mutate(fixture);
-    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release), []);
+    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release, fixture.packaging), []);
   }
 });
 
@@ -165,14 +169,38 @@ test("release publication must wait for CI and every final-package acceptance jo
   ]) {
     const fixture = workflows();
     mutate(fixture);
-    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release), []);
+    assert.notDeepEqual(workflowViolations(fixture.ci, fixture.release, fixture.packaging), []);
+  }
+});
+
+test("unsigned releases never receive signing secrets, including in the macOS build", () => {
+  for (const location of ["workflow", "job", "step"]) {
+    const { ci, release, packaging } = workflows();
+    const env = { CSC_LINK: "${{ secrets.MAC_CSC_LINK }}" };
+    if (location === "workflow") release.env = env;
+    else if (location === "job") release.jobs["release-macos"].env = env;
+    else release.jobs["release-macos"].steps.push({ run: "package", env });
+    assert.match(workflowViolations(ci, release, packaging).join("\n"), /unsigned releases.*secrets/i);
   }
 });
 
 test("complete read-only CI and isolated publication are accepted without depending on step labels or matrix order", () => {
-  const { ci, release } = workflows();
+  const { ci, release, packaging } = workflows();
   ci.jobs.package.strategy.matrix.include.reverse();
   ci.jobs["ci-required"].steps[0].name = "An independently renamed summary step";
   ci.jobs.quality.steps.push({ uses: `actions/checkout@${"a".repeat(40)}`, with: { "persist-credentials": false } });
-  assert.deepEqual(workflowViolations(ci, release), []);
+  assert.deepEqual(workflowViolations(ci, release, packaging), []);
+});
+
+test("macOS packaging stays unsigned even when the build machine has a certificate", () => {
+  for (const mac of [
+    {},
+    { identity: "Developer ID Application: Example", notarize: false },
+    { identity: null },
+    { identity: null, notarize: true },
+  ]) {
+    const { ci, release, packaging } = workflows();
+    packaging.mac = mac;
+    assert.match(workflowViolations(ci, release, packaging).join("\n"), /macOS.*identity.*notarization/i);
+  }
 });

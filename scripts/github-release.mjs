@@ -30,3 +30,18 @@ export function assertDraftRelease(release) {
       "Release is already public or is not a verified draft; use a new version instead of replacing assets",
     );
 }
+
+export function createReleaseDraft(repository, tag) {
+  return releaseRequest(`/repos/${repository}/releases`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      tag_name: tag,
+      name: tag,
+      draft: true,
+      prerelease: false,
+      generate_release_notes: true,
+      body: "macOS: **Unsigned Beta** — no Developer ID signature and not notarized by Apple. macOS may block opening the download; automatic update installation is not guaranteed.\n\nWindows: **Unsigned Beta — Unknown Publisher**. Do not describe this as a certificate-backed trusted Windows build.\n\nFinal installation files were verified without rebuilding or resigning. Candidate manifests record their SHA-256 digests and CI identity. Installer lifecycle coverage is not a test of in-app update discovery or download.\n\nReview the successful workflow and enable immutable releases before publishing this draft.",
+    }),
+  });
+}

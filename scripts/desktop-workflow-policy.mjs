@@ -7,11 +7,19 @@ const sameMembers = (left, right) =>
   left.length === right.length &&
   [...left].sort().every((value, index) => value === [...right].sort()[index]);
 
-export function workflowViolations(ci, release) {
+export function workflowViolations(ci, release, packaging) {
   const failures = [];
   const check = (condition, message) => {
     if (!condition) failures.push(message);
   };
+  check(
+    packaging?.mac?.identity === null && packaging.mac.notarize === false,
+    "macOS packages must explicitly disable certificate identity selection and notarization",
+  );
+  check(
+    packaging?.win?.artifactName === "Dexon-Unsigned-Beta-Setup-${version}.${ext}" && !packaging.win.publisherName,
+    "Unsigned Windows packages must retain the visible Beta filename and must not claim a publisher identity",
+  );
   const aggregate = (workflow, id, required) => {
     const job = workflow.jobs?.[id];
     check(expression(job?.if) === "always()", `${id} must use always() so skipped dependencies cannot bypass the gate`);
@@ -119,7 +127,7 @@ export function workflowViolations(ci, release) {
   for (const id of ["release-macos", "release-windows", "release-linux"]) {
     check(ancestors(id).has("release-contract"), `${id} must depend on the validated release contract`);
   }
-  check(ancestors("verify-macos").has("release-macos"), "macOS acceptance must depend on the final signed packages");
+  check(ancestors("verify-macos").has("release-macos"), "macOS acceptance must depend on the final unsigned packages");
   for (const id of ["release-macos", "release"]) {
     const environment = release.jobs?.[id]?.environment;
     check(
@@ -127,9 +135,6 @@ export function workflowViolations(ci, release) {
       `${id} must use the protected release environment`,
     );
   }
-  for (const [id, job] of Object.entries(release.jobs ?? {})) {
-    if (id !== "release-macos")
-      check(!/secrets\s*[.[]/.test(JSON.stringify(job)), `${id} must not receive signing credentials`);
-  }
+  check(!/secrets\s*[.[]/.test(JSON.stringify(release)), "Unsigned releases must not receive signing secrets");
   return failures;
 }

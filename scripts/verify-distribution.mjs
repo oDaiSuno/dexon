@@ -31,7 +31,7 @@ const mac = process.platform === "darwin";
 const manifestTarget = mac && release ? "darwin" : target;
 const signing = mac
   ? release
-    ? "signed-notarized"
+    ? "unsigned-beta"
     : "unsigned-ci"
   : process.platform === "win32"
     ? "unsigned-beta"
@@ -72,18 +72,7 @@ function verifyApplication(container, resources) {
 
 function verifyMacApplication(container) {
   const app = path.join(container, "Dexon.app");
-  if (release) {
-    assert.ok(process.env.APPLE_TEAM_ID, "Signed macOS acceptance requires the configured Apple Team ID");
-    run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
-    run("xcrun", ["stapler", "validate", app]);
-    run("spctl", ["--assess", "--type", "execute", "--verbose=4", app]);
-    const signature = run("codesign", ["-dv", "--verbose=4", app], { stdio: "pipe", encoding: "utf8" });
-    assert.ok(signature.stderr.includes(`TeamIdentifier=${process.env.APPLE_TEAM_ID}`));
-    assert.ok(signature.stderr.includes("Authority=Developer ID Application:"));
-    const renderer = path.join(app, "Contents/Frameworks/Dexon Helper (Renderer).app");
-    const entitlements = run("codesign", ["-d", "--entitlements", "-", renderer], { stdio: "pipe", encoding: "utf8" });
-    assert.match(entitlements.stdout + entitlements.stderr, /com\.apple\.security\.cs\.allow-jit/);
-  }
+
   verifyApplication(container, path.join(app, "Contents/Resources"));
 }
 

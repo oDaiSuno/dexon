@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { artifactIdentity, verifyArtifactManifest } from "./release-artifacts.mjs";
-import { assertDraftRelease, getExistingRelease, releaseRequest } from "./github-release.mjs";
+import { assertDraftRelease, createReleaseDraft, getExistingRelease, releaseRequest } from "./github-release.mjs";
 
 const directory = path.resolve(process.argv[2] ?? "release-artifacts");
 const repository = process.env.GITHUB_REPOSITORY;
@@ -16,7 +16,7 @@ const directories = fs
   .map((entry) => path.join(directory, entry.name));
 const files = [];
 for (const [target, signing] of [
-  ["darwin", "signed-notarized"],
+  ["darwin", "unsigned-beta"],
   ["win32-x64", "unsigned-beta"],
   ["linux-x64", "unsigned"],
 ]) {
@@ -42,18 +42,7 @@ await releaseRequest(`/repos/${repository}`);
 let release = await getExistingRelease(repository, tag);
 if (release) assertDraftRelease(release);
 else {
-  release = await releaseRequest(`/repos/${repository}/releases`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      tag_name: tag,
-      name: tag,
-      draft: true,
-      prerelease: false,
-      generate_release_notes: true,
-      body: "macOS: Developer ID signed and notarized.\n\nWindows: **Unsigned Beta — Unknown Publisher**. Do not describe this as a certificate-backed trusted Windows build.\n\nFinal installation files were verified without rebuilding or resigning. Candidate manifests record their SHA-256 digests and CI identity. Installer lifecycle coverage is not a test of in-app update discovery or download.\n\nReview the successful workflow and enable immutable releases before publishing this draft.",
-    }),
-  });
+  release = await createReleaseDraft(repository, tag);
 }
 assertDraftRelease(release);
 const expected = new Map(files.map((file) => [file.name, file]));
