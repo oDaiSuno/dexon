@@ -226,7 +226,7 @@ jobs:
       - name: Package Linux x64
         run: npx electron-builder --linux AppImage --x64 --publish never
       - name: Accept final release installation files
-        run: xvfb-run --auto-servernum node scripts/verify-distribution.mjs linux-x64 --release
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" node scripts/verify-distribution.mjs linux-x64 --release
       - name: Upload exactly the accepted release files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

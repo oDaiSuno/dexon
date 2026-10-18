@@ -188,16 +188,17 @@ jobs:
           sudo chown root:root node_modules/electron/dist/chrome-sandbox
           sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
       - name: Run full verification
-        run: xvfb-run --auto-servernum npm run verify -- --skip-unit-tests
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" npm run verify -- --skip-unit-tests
       - name: Upload desktop acceptance evidence
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: desktop-acceptance-${{ github.run_attempt }}
           path: |-
             .artifacts/interactive-tools
-            .artifacts/chat-layout
-            .artifacts/nav-layout
-            .artifacts/browser
+            .artifacts/chat-layout-electron
+            .artifacts/nav-layout-electron
+            .artifacts/browser-electron
+            .artifacts/browser-agent-e2e
             .artifacts/test-infra
           include-hidden-files: true
           if-no-files-found: warn
@@ -238,9 +239,9 @@ jobs:
           cargo install cargo-xwin --locked --version 0.23.1
       - name: Verify tool versions and dependency security
         run: |-
-          cargo audit --version | grep -Fx 'cargo-audit 0.22.2'
-          cargo deny --version | grep -Fx 'cargo-deny 0.20.2'
-          cargo xwin --version | grep -Fx 'cargo-xwin 0.23.1'
+          version="$(cargo-audit --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.22.2"
+          version="$(cargo-deny --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.20.2"
+          version="$(cargo-xwin --version)"; printf '%s\n' "$version"; test "${version##* }" = "0.23.1"
           cargo audit --file native/windows-managed-process-helper/Cargo.lock --deny warnings
           cargo deny --manifest-path native/windows-managed-process-helper/Cargo.toml --config native/windows-managed-process-helper/deny.toml --locked check
       - name: Install pinned LLVM cross-build prerequisites
@@ -343,7 +344,7 @@ jobs:
         run: node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
       - name: Accept the final AppImage
         if: runner.os == 'Linux'
-        run: xvfb-run --auto-servernum node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
+        run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
       - name: Upload exactly the accepted files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:

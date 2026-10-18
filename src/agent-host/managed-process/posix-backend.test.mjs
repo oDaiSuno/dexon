@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { setImmediate } from "node:timers";
+import { setTimeout as simulateSlowSystemCall } from "node:timers/promises";
+import { fileURLToPath } from "node:url";
+import { getProcessStartFingerprint } from "../process-tree.ts";
 import test from "node:test";
 import { PosixManagedProcessBackend } from "./posix-backend.ts";
 
@@ -140,3 +143,34 @@ test("POSIX backend reports host-failure and retains uncertainty when group clea
     exit: { code: 9, signal: "SIGKILL", reason: "host-failure" },
   });
 });
+
+test(
+  "a short-lived command reports its exit even when the operating system identity lookup is slower",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const backend = new PosixManagedProcessBackend({
+      platform: process.platform,
+      workerEntryPath: fileURLToPath(new URL("./worker.ts", import.meta.url)),
+      workerExecArgv: ["--disable-warning=MODULE_TYPELESS_PACKAGE_JSON"],
+      hostInstanceId: "short-lived-command",
+      fingerprint: async (pid) => {
+        await simulateSlowSystemCall(300);
+        return getProcessStartFingerprint(pid);
+      },
+    });
+    t.after(() => backend.dispose());
+    let exit;
+    backend.onEvent((event) => {
+      if (event.type === "exit") exit = event.exit;
+    });
+    const input = launchInput();
+    input.cwd = process.cwd();
+    input.command = "exit 7";
+    input.context.shellEnv = { PATH: process.env.PATH };
+    const prepared = await backend.prepare(input);
+    await backend.commit(prepared, 1);
+    await backend.waitForExit();
+    assert.equal(exit.code, 7);
+    assert.equal(exit.reason, "exit");
+  },
+);

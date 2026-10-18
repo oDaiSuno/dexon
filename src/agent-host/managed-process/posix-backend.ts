@@ -142,18 +142,26 @@ export class PosixManagedProcessBackend implements ManagedProcessBackend {
       command: input.command,
       shell: input.shell,
     };
-    worker.send(bootstrap);
-    await withTimeout(this.started.promise, WORKER_START_TIMEOUT_MS, "Managed process worker did not start");
+    const identifyAndStartWorker = async () => {
+      if (!worker.pid) throw new Error("Managed process worker has no PID");
+      const fingerprint = await (this.options.fingerprint ?? getProcessStartFingerprint)(worker.pid);
+      if (!fingerprint) {
+        await terminateProcessTree(worker, 500);
+        throw new Error("Could not verify managed process identity");
+      }
+      worker.send(bootstrap);
+      return fingerprint;
+    };
+    const [, fingerprint] = await withTimeout(
+      Promise.all([this.started.promise, identifyAndStartWorker()]),
+      WORKER_START_TIMEOUT_MS,
+      "Managed process worker did not start",
+    );
     if (signal?.aborted) {
       await this.dispose();
       throw new Error("Managed process start was cancelled");
     }
     if (!worker.pid) throw new Error("Managed process worker has no PID");
-    const fingerprint = await (this.options.fingerprint ?? getProcessStartFingerprint)(worker.pid);
-    if (!fingerprint) {
-      await terminateProcessTree(worker, 500);
-      throw new Error("Could not verify managed process identity");
-    }
     const prepared: PreparedContainment = {
       reaper: {
         version: 2,
