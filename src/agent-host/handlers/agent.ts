@@ -14,6 +14,7 @@ import { ensureSessionEvents, createAgentNewLockKey } from "../session-event-bin
 import { getRpcSession, startRpcSession } from "../rpc-manager";
 import { emitIndexedSessionChange, resolveSessionPath } from "../session-reader";
 import { invalidateSessionContent } from "../session-content-cache";
+import { announceSessionOnFirstMessage } from "../session-source";
 import {
   AUTO_TITLE_MAX_LENGTH,
   makeFallbackTitle,
@@ -215,6 +216,7 @@ export function registerAgentHandlers(server: RpcServer): void {
 
       // ISSUE-003: single event-binding entry only (ensureSessionEvents)
       ensureSessionEvents(server, session, realSessionId);
+      announceSessionOnFirstMessage(server, session);
 
       if (provider && modelId) {
         await session.send({ type: "set_model", provider, modelId });

@@ -144,6 +144,13 @@ export function toolConversation() {
   return detail;
 }
 
+export function startedConversation(id, cwd, message) {
+  const detail = conversation(id, undefined, cwd, message);
+  detail.leafId = `${id}-user`;
+  detail.info.path = "";
+  return detail;
+}
+
 export function laterConversation() {
   return conversation(
     "personal-later",

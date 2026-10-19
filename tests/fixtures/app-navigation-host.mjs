@@ -9,6 +9,7 @@ import {
   navigationPaths,
   navigationResources,
   reloadedPluginStatus,
+  startedConversation,
   toolConversation,
 } from "./app-navigation-data.mjs";
 
@@ -149,6 +150,12 @@ export function navigationBoundary({
         }
         if (params.command.type === "prompt") {
           prompts.push({ sessionId: params.sessionId, message: params.command.message });
+          if (!details.some((item) => item.sessionId === params.sessionId)) {
+            const started = startedConversation(params.sessionId, navigationPaths.personal, params.command.message);
+            started.agentState = { running: true, state: { isStreaming: true } };
+            details.push(started);
+            runningSessions.add(params.sessionId);
+          }
           return {};
         }
         if (params.command.type === "reload") {
@@ -400,6 +407,13 @@ export function navigationBoundary({
     agentSubscribers: (sessionId) => agentListeners.get(sessionId)?.size ?? 0,
     agentEvent(sessionId, event) {
       for (const listener of agentListeners.get(sessionId) ?? []) listener(event);
+    },
+    streamReply(sessionId, text) {
+      const detail = details.find((item) => item.sessionId === sessionId);
+      if (!detail?.agentState?.state) throw new Error(`Fixture cannot stream into ${sessionId}`);
+      const message = { ...assistantReply(text), stopReason: undefined };
+      detail.agentState.state.streamingMessage = message;
+      for (const listener of agentListeners.get(sessionId) ?? []) listener({ type: "message_update", message });
     },
     // Ends a streamed turn the way the Host does: the session file gains the
     // final reply, live state becomes idle, then the stream and running set report it.
