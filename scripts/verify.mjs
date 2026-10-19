@@ -50,6 +50,7 @@ run("production artifact isolation", "node", ["scripts/check-production-artifact
 run("smoke electron", "npm", ["run", "smoke"]);
 run("Interactive tool cards Electron integration", "npm", ["run", "test:interactive-tools-electron"]);
 run("Real chat layout and composer Electron integration", "npm", ["run", "test:chat-layout-electron"]);
+run("Composer editing Electron integration", "npm", ["run", "test:composer-editing-electron"]);
 run("Navigation layout and keyboard Electron integration", "npm", ["run", "test:nav-layout-electron"]);
 run("Browser Electron integration", "npm", ["run", "test:browser-electron"]);
 run("Browser real Agent E2E", "npm", ["run", "test:browser-agent-e2e"]);
