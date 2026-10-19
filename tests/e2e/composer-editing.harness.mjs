@@ -23,10 +23,13 @@ async function settle() {
   await js("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
   await new Promise((resolve) => setTimeout(resolve, 20));
 }
-async function waitFor(condition, label) {
+async function waitFor(condition, label, diagnose) {
   const deadline = Date.now() + 5000;
   while (!(await js(`!!(${condition})`))) {
-    if (Date.now() > deadline) throw new Error(`Unmet page condition: ${label ?? condition}`);
+    if (Date.now() > deadline) {
+      const detail = diagnose ? ` (${JSON.stringify(await diagnose())})` : "";
+      throw new Error(`Unmet page condition: ${label ?? condition}${detail}`);
+    }
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
 }
@@ -139,8 +142,17 @@ async function run() {
 
   await scene("pasted-screenshot-is-staged-edited-and-sent", async () => {
     clipboard.writeImage(sampleScreenshot());
+    await js(
+      "document.addEventListener('paste',e=>{window.__pasted=[...e.clipboardData.items].map(i=>i.kind+':'+i.type)},{capture:true,once:true})",
+    );
     await menu("paste");
-    await waitFor("window.composerEditing.view().chips.length===1", "the staged screenshot appears");
+    await waitFor("window.composerEditing.view().chips.length===1", "the staged screenshot appears", async () => ({
+      clipboard: clipboard.availableFormats(),
+      pasted: await js("window.__pasted ?? null"),
+      focused: (await view()).focused,
+      staged: await page("staged()"),
+      alerts: await page("bannerText()"),
+    }));
     const [stage] = await page("staged()");
     assert.equal(stage.ext, "png");
     await type("hello");
