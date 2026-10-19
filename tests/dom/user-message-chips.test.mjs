@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { accessibleName, allByRole } from "../support/dom-queries.mjs";
-import { click, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
+import { click, dom, loadRenderer, mount, restoreGlobals, text, waitFor } from "../support/renderer.mjs";
+import { installRendererApi } from "../support/renderer-api.mjs";
 
 const api = await loadRenderer(
   "user-bubble-chips",
@@ -228,4 +229,35 @@ test("raw html in a message cannot forge a chip or a reveal control", async (t) 
   assert.equal(chips(view.container, ["/etc/passwd"]).length, 0, "no chip carries the forged path");
   assert.deepEqual(allByRole(view.container, "button").map(nameOf), ["Copy message"]);
   assert.deepEqual(revealed, []);
+});
+
+test("a focused chip keeps keyboard focus when an image preview finishes loading", async (t) => {
+  let deliver;
+  const preview = new Promise((resolve) => (deliver = resolve));
+  const originalObjectUrl = Object.getOwnPropertyDescriptor(URL, "createObjectURL");
+  Object.defineProperty(URL, "createObjectURL", { configurable: true, value: () => "blob:focus-preview" });
+  t.after(() => {
+    if (originalObjectUrl) Object.defineProperty(URL, "createObjectURL", originalObjectUrl);
+    else delete URL.createObjectURL;
+  });
+  const host = installRendererApi(dom.window, api, () => ({
+    call(method, params) {
+      assert.equal(method, "files.read");
+      assert.equal(params.path, "/tmp/focus-preview.png");
+      return preview;
+    },
+  }));
+  const view = await mount(
+    t,
+    api.MessageView,
+    { message: { role: "user", content: "看 @/tmp/focus-preview.png 和 @src/main.ts", timestamp: 1 }, cwd: CWD },
+    { release: host.close },
+  );
+  const focused = control(view.container, "main.ts");
+  focused.focus();
+  assert.equal(dom.window.document.activeElement, focused);
+  deliver({ encoding: "base64", content: "iVBORw0KGgo=", mime: "image/png" });
+  await waitFor(() => assert.ok(chips(view.container, ["/tmp/focus-preview.png"])[0].querySelector("img")));
+  assert.ok(focused.isConnected, "the focused chip is still the same control on the page");
+  assert.equal(dom.window.document.activeElement, focused, "keyboard focus stays on the chip");
 });
