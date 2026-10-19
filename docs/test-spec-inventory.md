@@ -1045,7 +1045,7 @@
 - **process-flow.test.mjs**（3 个测试）
   - thinking row renders a summary chip and a gray full-text box without any chevron
   - tool call rows keep their detail expansion but expose no chevron
-  - items render in the given order with a running spinner state preserved
+  - process items keep their supplied order and show a running indicator
 - **resource-dom-environment-present.test.mjs**（2 个测试）
   - installDomEnvironment overwrites a pre-existing property
   - restoreGlobals restores the exact pre-import descriptor and value
@@ -1594,9 +1594,9 @@
 - **process-flow.test.mjs**（6 个测试）
   - formatTurnDuration renders compact seconds/minutes/hours
   - computeTurnDurationSeconds needs both timestamps and a positive gap
-  - flattens thinking/toolCall/text interleaved across messages in original order
-  - empty thinking/text blocks are skipped but keep their original block index
-  - final message block subset uses subset indices and counts toward totals
+  - flattens thinking and tool calls interleaved across messages in original order
+  - empty thinking blocks are skipped but keep their original block index
+  - a block subset keeps the message's original block indices and counts toward totals
   - custom messages always contribute one item
 - **quick-channel-binding-layout.test.mjs**（4 个测试）
   - right-aligns the desktop popover without crossing the viewport gutter
@@ -1751,9 +1751,9 @@
   - AST transform skips existing links, images, code, inline code, HTML, and math
   - does not treat web URLs, relative @ references, or bare drive roots as local paths
 - **message-display.test.mjs**（7 个测试）
-  - splits trailing final answer blocks from process blocks
-  - keeps pre-tool text in process blocks
-  - does not expose text before a trailing tool call as final answer
+  - an interleaved reply becomes answer, process, answer, process, answer runs
+  - a reply that ends on a tool call still keeps its sentence as answer content
+  - neighbouring blocks of the same kind join one run
   - drops empty thinking blocks after completion
   - keeps empty thinking while streaming
   - keeps an empty failed assistant message renderable and exposes its provider detail
@@ -2170,3 +2170,40 @@ ThinkingExpansionStore / Registry 去掉 keys / size 测试出口，改从公开
 监听器/观察器/帧/定时器数量及选择第一个回调的相关用例已扩展改写为事件、时间与页面结果；日志保留规则按文本与复制结果验证，不固定 DOM 子层级。故障注入位置随可见结果同步，辅助层先登记清理再挂载。会话目录、聊天可见性和历史加载测试按责任分离支持代码，避免继续扩大单个测试文件。
 
 生产启动的第十三节“尚未运行”是当时的历史状态。本轮已真实跑通生产入口、第二实例交接、首实例继续服务和正常退出；所有原生业务检查共用隔离环境与当前进程的完成证据。完整结果、后续统一入口的重新验证和文件摘要见 `.artifacts/test-compliance-20261015-093451/`；修复细节与边界见 `docs/test-rebuild-review.md` 第 13 节。Windows、打包和线上模型能力不在本轮通过范围内。
+
+## 十六、issue #3 修复记录（正文按类型折叠，2026-10-19）
+
+规则改变：一轮回复里某个内容块是否折，由它的类型决定，而不再由它是否位于回复最后决定。正文（text/image）在任何位置都直接显示为正常回复；思考、工具调用与自定义过程消息可以折叠，相邻的这类内容（含跨助手消息）仍合并成一个过程详情分组；正文会打断分组，既不进入分组也不被移到末尾。
+
+**新增界面规格：`tests/dom/chat-answer-visibility.test.mjs`（10 个测试，真实 `ChatWindow` 挂载）**
+
+- when a reopened turn interleaves a sentence, a tool call, a sentence and thinking in one reply, the reader sees all the sentences where they were written
+- when a turn keeps its sentences in several replies around tool results, the reader sees every sentence in the order it was written
+- when a turn ends on a tool call with no closing sentence, the sentences written before it stay readable
+- when the reader interrupts a turn after a sentence, the sentences written before the interruption stay readable
+- when one reply holds nothing but thinking and a tool call, the reader finds them behind a single group that opens to its details
+- when consecutive replies hold only thinking and tool calls, the reader finds them all behind one group that opens to every row
+- when the reader opens and closes the process groups, every sentence stays in place exactly once
+- when a turn streams its sentences one after another, they are readable while streaming and stay so once the turn completes
+- when a reply is nothing but a sentence, the reader sees a plain reply with nothing to open
+- when a provider failure lands in the middle of a turn, the reader sees it between the process details and the reply
+
+夹具集中在 `tests/fixtures/chat-answer-turn.mjs`（issue 复现示例：正文 → 工具调用 → 正文 → 思考 → 正文，以及以工具调用结束、被中断、纯正文、中途失败、连续过程内容等收尾方式）。
+
+**被新规则推翻而改写的规格：**
+
+| 文件                                            | 旧测试名                                                                      | 现测试名                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/shared/message-display.test.mjs`           | splits trailing final answer blocks from process blocks                       | an interleaved reply becomes answer, process, answer, process, answer runs         |
+| `src/shared/message-display.test.mjs`           | keeps pre-tool text in process blocks                                         | a reply that ends on a tool call still keeps its sentence as answer content        |
+| `src/shared/message-display.test.mjs`           | does not expose text before a trailing tool call as final answer              | neighbouring blocks of the same kind join one run                                  |
+| `src/renderer/lib/process-flow.test.mjs`        | flattens thinking/toolCall/text interleaved across messages in original order | flattens thinking and tool calls interleaved across messages in original order     |
+| `src/renderer/lib/process-flow.test.mjs`        | empty thinking/text blocks are skipped but keep their original block index    | empty thinking blocks are skipped but keep their original block index              |
+| `src/renderer/lib/process-flow.test.mjs`        | final message block subset uses subset indices and counts toward totals       | a block subset keeps the message's original block indices and counts toward totals |
+| `src/renderer/components/process-flow.test.mjs` | items render in the given order with a running spinner state preserved        | process items keep their supplied order and show a running indicator               |
+
+**同时删除的死代码：**`splitFinalAssistantBlocks` / `findFinalAssistantIndex` / `hasFinalAssistantAnswer` / `hasDisplayableProcessMessage` / `segmentTurnAtFailures` / `getAssistantRenderParts` / `withAssistantBlocks` / `countToolCallBlocks`，以及 `ProcessFlowItem` 的 `text` 分支（正文不再可能进入过程流）。
+
+**未表达为测试的范围：**图片块（image）按规则也属于正文，但界面里助手消息的 image 块渲染为空，没有用户可见结果可断言；等界面真正展示图片正文时再补规格。
+
+**验证：**新文件 10/10 全绿；全套件 1,603 通过、1 跳过（Windows 专属）、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture、check:i18n、check:design、check:contract、check:test-infra 均通过。

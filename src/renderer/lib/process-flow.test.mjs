@@ -29,7 +29,7 @@ test("computeTurnDurationSeconds needs both timestamps and a positive gap", asyn
   assert.equal(computeTurnDurationSeconds(2000, 1000), undefined);
 });
 
-test("flattens thinking/toolCall/text interleaved across messages in original order", async () => {
+test("flattens thinking and tool calls interleaved across messages in original order", async () => {
   const { buildProcessFlowItems } = await loadSubject();
   const first = assistant(
     [
@@ -38,15 +38,9 @@ test("flattens thinking/toolCall/text interleaved across messages in original or
     ],
     { timestamp: 10_000 },
   );
-  const second = assistant(
-    [
-      { type: "text", text: "checking" },
-      { type: "thinking", thinking: "second thought" },
-    ],
-    {
-      timestamp: 20_000,
-    },
-  );
+  const second = assistant([{ type: "thinking", thinking: "second thought" }], {
+    timestamp: 20_000,
+  });
   const result = buildProcessFlowItems(
     [
       {
@@ -62,7 +56,7 @@ test("flattens thinking/toolCall/text interleaved across messages in original or
 
   assert.deepEqual(
     result.items.map((item) => item.kind),
-    ["thinking", "toolCall", "text", "thinking"],
+    ["thinking", "toolCall", "thinking"],
   );
   assert.equal(result.messageCount, 2);
   assert.equal(result.toolCallCount, 1);
@@ -71,12 +65,11 @@ test("flattens thinking/toolCall/text interleaved across messages in original or
   assert.equal(toolCall.kind === "toolCall" && toolCall.duration, 3);
 });
 
-test("empty thinking/text blocks are skipped but keep their original block index", async () => {
+test("empty thinking blocks are skipped but keep their original block index", async () => {
   const { buildProcessFlowItems } = await loadSubject();
   const message = assistant([
     { type: "thinking", thinking: "  " },
     { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
-    { type: "text", text: "" },
   ]);
   const result = buildProcessFlowItems([{ message, entryId: "e1" }], keyFor);
 
@@ -85,15 +78,15 @@ test("empty thinking/text blocks are skipped but keep their original block index
   assert.equal(result.items[0].kind === "toolCall" && result.items[0].blockIndex, 1);
 });
 
-test("final message block subset uses subset indices and counts toward totals", async () => {
+test("a block subset keeps the message's original block indices and counts toward totals", async () => {
   const { buildProcessFlowItems } = await loadSubject();
-  const finalBlocks = [
+  const runBlocks = [
     { type: "thinking", thinking: "final thought" },
     { type: "toolCall", toolCallId: "call-9", toolName: "edit", input: {} },
   ];
-  const finalMessage = assistant(finalBlocks, { timestamp: 30_000 });
+  const message = assistant([{ type: "text", text: "earlier answer" }, ...runBlocks], { timestamp: 30_000 });
   const result = buildProcessFlowItems(
-    [{ message: finalMessage, blocks: finalBlocks, entryId: "ef", prevTimestamp: 25_000 }],
+    [{ message, blocks: runBlocks, firstBlockIndex: 1, entryId: "ef", prevTimestamp: 25_000 }],
     keyFor,
   );
 
@@ -101,8 +94,11 @@ test("final message block subset uses subset indices and counts toward totals", 
   assert.equal(result.toolCallCount, 1);
   const thinking = result.items[0];
   assert.ok(thinking.kind === "thinking");
-  assert.equal(thinking.blockIndex, 0);
+  assert.equal(thinking.blockIndex, 1);
   assert.equal(thinking.duration, 5);
+  const toolCall = result.items[1];
+  assert.ok(toolCall.kind === "toolCall");
+  assert.equal(toolCall.blockIndex, 2);
 });
 
 test("custom messages always contribute one item", async () => {

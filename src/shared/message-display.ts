@@ -1,4 +1,4 @@
-import type { AssistantContentBlock, AssistantMessage, TextContent, ThinkingContent, ToolCallContent } from "./types";
+import type { AssistantContentBlock, AssistantMessage, TextContent, ThinkingContent } from "./types";
 
 interface DisplayOptions {
   isStreaming?: boolean;
@@ -39,25 +39,29 @@ export function hasRenderableAssistantMessage(message: AssistantMessage, options
   return isAssistantFailure(message) || getDisplayableAssistantBlocks(message, options).length > 0;
 }
 
-function isFinalAnswerBlock(block: AssistantContentBlock): boolean {
+export type AssistantBlockRunKind = "answer" | "process";
+
+export interface AssistantBlockRun {
+  kind: AssistantBlockRunKind;
+  startIndex: number;
+  blocks: AssistantContentBlock[];
+}
+
+function isAnswerBlock(block: AssistantContentBlock): boolean {
   return block.type === "text" || block.type === "image";
 }
 
-export function splitFinalAssistantBlocks(
-  message: AssistantMessage,
-  options: DisplayOptions = {},
-): { answerBlocks: AssistantContentBlock[]; processBlocks: AssistantContentBlock[] } {
-  const blocks = getDisplayableAssistantBlocks(message, options);
-  const lastProcessIndex = blocks.findLastIndex((block: AssistantContentBlock) => !isFinalAnswerBlock(block));
-  if (lastProcessIndex === -1) {
-    return { answerBlocks: blocks, processBlocks: [] };
-  }
-  return {
-    answerBlocks: blocks.slice(lastProcessIndex + 1),
-    processBlocks: blocks.slice(0, lastProcessIndex + 1),
-  };
-}
-
-export function countToolCallBlocks(blocks: AssistantContentBlock[]): number {
-  return blocks.filter((block): block is ToolCallContent => block.type === "toolCall").length;
+export function splitAssistantBlockRuns(message: AssistantMessage, options: DisplayOptions = {}): AssistantBlockRun[] {
+  const runs: AssistantBlockRun[] = [];
+  (message.content ?? []).forEach((block, index) => {
+    if (isEmptyThinkingBlock(block, options) || isEmptyTextBlock(block, options)) return;
+    const kind: AssistantBlockRunKind = isAnswerBlock(block) ? "answer" : "process";
+    const current = runs[runs.length - 1];
+    if (current && current.kind === kind) {
+      current.blocks.push(block);
+      return;
+    }
+    runs.push({ kind, startIndex: index, blocks: [block] });
+  });
+  return runs;
 }
