@@ -1,18 +1,18 @@
-import { useCallback, useEffect, type KeyboardEvent, type MouseEvent } from "react";
-import { extractAtQuery, type AtQueryMatch } from "@/lib/file-fuzzy";
-import { looksLikePath } from "@shared/attachment-tokens";
-import { CHIP_SELECTOR, deleteRangeBeforeCaret, insertChipWithSpace, isChipEl } from "./composer-dom";
+import { useCallback, useEffect, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { CHIP_SELECTOR } from "./composer-dom";
+import { insertNativeLineBreak, planCloseTypedReference, planRemoveChip, type ComposerEdit } from "./composer-edit";
+import {
+  readComposerText,
+  selectionInComposer,
+  type ComposerSelection,
+  type ComposerTextMap,
+} from "./composer-text-map";
 
 interface Options {
   visible: boolean;
   getEditor: () => HTMLDivElement | null;
-  textBeforeCaret: () => string;
-  createChip: (path: string) => HTMLElement;
-  emit: () => void;
-  syncEditorHeight: (editor: HTMLElement) => void;
-  notifySelection: () => void;
-  insertAtCaret: (nodes: Node[], caretNode: Node | null, caretOffset: number) => void;
-  removeChip: (chip: HTMLElement) => void;
+  edit: (plan: (map: ComposerTextMap, selection: ComposerSelection) => ComposerEdit | null) => boolean;
+  isComposing: () => boolean;
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
@@ -21,77 +21,24 @@ interface Options {
 export function useComposerEditorEvents({
   visible,
   getEditor,
-  textBeforeCaret,
-  createChip,
-  emit,
-  syncEditorHeight,
-  notifySelection,
-  insertAtCaret,
-  removeChip,
+  edit,
+  isComposing,
   onKeyDown,
   onRevealToken,
   onSkillReveal,
 }: Options) {
-  const closeQueryAsChip = useCallback(
-    (query: AtQueryMatch) => {
-      if (!visible) return;
-      const el = getEditor();
-      const sel = window.getSelection();
-      if (!el || !sel) return;
-      const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-      const deleteRange = deleteRangeBeforeCaret(prefixLength, query.quoted);
-      if (!deleteRange) return;
-      deleteRange.deleteContents();
-      insertChipWithSpace(deleteRange, createChip(query.query));
-      emit();
-      syncEditorHeight(el);
-      notifySelection();
-    },
-    [createChip, emit, getEditor, notifySelection, syncEditorHeight, visible],
-  );
-
   const handleBeforeInputNative = useCallback(
     (native: InputEvent) => {
-      if (!visible) return;
+      if (!visible || isComposing()) return;
       const el = getEditor();
-      const sel = window.getSelection();
-      if (!el || !sel || !sel.rangeCount) return;
+      if (!el) return;
       if (native.inputType === "insertText" && native.data === " ") {
-        const query = extractAtQuery(textBeforeCaret());
-        if (query && query.query.length > 0 && looksLikePath(query.query)) {
-          const prefixLength = query.quoted ? query.query.length + 2 : query.query.length + 1;
-          if (deleteRangeBeforeCaret(prefixLength, false)) {
-            native.preventDefault();
-            closeQueryAsChip(query);
-            return;
-          }
-        }
-      }
-      if (native.inputType === "insertParagraph" || native.inputType === "insertLineBreak") {
-        native.preventDefault();
-        const node = document.createTextNode("\n");
-        insertAtCaret([node], node, 1);
+        if (edit(planCloseTypedReference)) native.preventDefault();
         return;
       }
-      if (native.inputType !== "deleteContentBackward" && native.inputType !== "deleteContentForward") return;
-      if (!sel.isCollapsed) return;
-      const { anchorNode, anchorOffset } = sel;
-      if (!anchorNode) return;
-      const neighbor =
-        native.inputType === "deleteContentBackward"
-          ? anchorNode === el
-            ? (el.childNodes[anchorOffset - 1] ?? null)
-            : (anchorNode.previousSibling ??
-              (anchorNode.parentNode !== el ? (anchorNode.parentNode?.previousSibling ?? null) : null))
-          : anchorNode === el
-            ? (el.childNodes[anchorOffset] ?? null)
-            : (anchorNode.nextSibling ??
-              (anchorNode.parentNode !== el ? (anchorNode.parentNode?.nextSibling ?? null) : null));
-      if (!(neighbor instanceof HTMLElement) || !isChipEl(neighbor)) return;
-      native.preventDefault();
-      removeChip(neighbor);
+      if (native.inputType === "insertParagraph" && insertNativeLineBreak(el)) native.preventDefault();
     },
-    [closeQueryAsChip, getEditor, insertAtCaret, removeChip, textBeforeCaret, visible],
+    [edit, getEditor, isComposing, visible],
   );
 
   useEffect(() => {
@@ -102,6 +49,35 @@ export function useComposerEditorEvents({
     el.addEventListener("beforeinput", listener);
     return () => el.removeEventListener("beforeinput", listener);
   }, [getEditor, handleBeforeInputNative, visible]);
+
+  const copySelection = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>): ComposerSelection | null => {
+      const el = getEditor();
+      if (!visible || !el) return null;
+      const map = readComposerText(el);
+      const selection = selectionInComposer(el, map);
+      if (!selection || selection.start === selection.end) return null;
+      event.preventDefault();
+      event.clipboardData.setData("text/plain", map.text.slice(selection.start, selection.end));
+      return selection;
+    },
+    [getEditor, visible],
+  );
+
+  const handleCopy = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>) => {
+      copySelection(event);
+    },
+    [copySelection],
+  );
+
+  const handleCut = useCallback(
+    (event: ClipboardEvent<HTMLDivElement>) => {
+      const selection = copySelection(event);
+      if (selection) edit(() => ({ start: selection.start, end: selection.end, content: [] }));
+    },
+    [copySelection, edit],
+  );
 
   const handleEditorKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
@@ -123,7 +99,7 @@ export function useComposerEditorEvents({
       if (target.closest?.("[data-chip-remove]")) {
         event.preventDefault();
         event.stopPropagation();
-        removeChip(chip);
+        edit((map) => planRemoveChip(map, chip));
         return;
       }
       if (chip.dataset.skillToken !== undefined) {
@@ -134,10 +110,10 @@ export function useComposerEditorEvents({
       const path = chip.dataset.path ?? "";
       if (path) onRevealToken(path);
     },
-    [onRevealToken, onSkillReveal, removeChip, visible],
+    [edit, onRevealToken, onSkillReveal, visible],
   );
 
-  return { handleEditorKeyDown, handleEditorMouseDown, handleEditorClick };
+  return { handleEditorKeyDown, handleEditorMouseDown, handleEditorClick, handleCopy, handleCut };
 }
 
 export type ComposerEditorEventsHandle = ReturnType<typeof useComposerEditorEvents>;
