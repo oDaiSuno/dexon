@@ -20,6 +20,7 @@ export type {
   CompactResultInfo,
   NoticeItem,
   QueuedMessages,
+  RetryInfo,
   SessionData,
   SlashCommandInfo,
   ThinkingLevelOption,

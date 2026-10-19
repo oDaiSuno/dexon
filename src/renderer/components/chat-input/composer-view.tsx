@@ -12,7 +12,7 @@ import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
 import { SlashMenu, type SlashCommandGroup } from "./SlashMenu";
-import { CompactResultBanner, NoticeBanner, QueuedMessagesPanel, RetryBanner } from "./StatusBanners";
+import { CompactResultBanner, NoticeBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SlashCommandPaletteItem } from "./slash-commands";
 import { PackageIcon, PaperclipIcon, PlusIcon } from "./icons";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
@@ -78,7 +78,6 @@ export interface ComposerViewProps {
   onDismissSubmissionNotice: () => void;
   queuedMessages?: QueuedMessages | null;
   onRecallQueue?: () => void;
-  retryInfo?: { attempt: number; maxAttempts: number; errorMessage?: string } | null;
   compactResult?: CompactResultInfo | null;
   model?: { provider: string; modelId: string } | null;
   modelOptionsByProvider: { provider: string; options: ModelOption[] }[];
@@ -177,7 +176,6 @@ export function ComposerView(props: ComposerViewProps) {
     onDismissSubmissionNotice,
     queuedMessages,
     onRecallQueue,
-    retryInfo,
     compactResult,
     model,
     modelOptionsByProvider,
@@ -233,7 +231,6 @@ export function ComposerView(props: ComposerViewProps) {
         {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
           <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
         )}
-        {retryInfo && <RetryBanner retryInfo={retryInfo} />}
         {imageAttachNotice && (
           <NoticeBanner
             message={imageAttachNotice}

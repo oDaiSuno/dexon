@@ -6,7 +6,13 @@ import { MessageView } from "../MessageView";
 import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
 import { ProcessFlow } from "../ProcessFlow";
 import { SessionProfiler } from "../SessionProfiler";
-import { findFinalAssistantIndex, getAssistantRenderParts, hasDisplayableProcessMessage } from "./shared";
+import {
+  findFinalAssistantIndex,
+  findRetriedFailureIndices,
+  failureOnlyMessage,
+  getAssistantRenderParts,
+  segmentTurnAtFailures,
+} from "./shared";
 import type { ChatWindowState } from "./use-chat-window";
 export function ChatMessages({
   messages,
@@ -74,6 +80,8 @@ export function ChatMessages({
       }
     }
 
+    const retriedFailureIndices = findRetriedFailureIndices(messages);
+
     const visibleRefIndexByMessage = new Map<number, number>();
     let refIdx = 0;
     messages.forEach((msg, idx) => {
@@ -140,6 +148,7 @@ export function ChatMessages({
             prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
             thinkingExpansionStore={thinkingExpansionStore}
             compact={compact}
+            retried={retriedFailureIndices.has(idx)}
           />
         </SessionProfiler>
       );
@@ -186,71 +195,57 @@ export function ChatMessages({
 
       rendered.push(renderMessage(userIdx));
 
-      const processIndices: number[] = [];
-      for (let processIdx = userIdx + 1; processIdx < finalAssistantIdx; processIdx++) {
-        processIndices.push(processIdx);
-      }
-      const visibleProcessIndices = processIndices.filter((processIdx) =>
-        hasDisplayableProcessMessage(messages[processIdx]),
-      );
       const finalAssistant = messages[finalAssistantIdx] as AssistantMessage;
       const finalParts = getAssistantRenderParts(assistantRenderParts, finalAssistant);
       const finalAnswerMessage = finalParts.answerMessage;
-
-      const processSources: ProcessFlowSource[] = visibleProcessIndices.map((processIdx) => ({
-        message: messages[processIdx] as AssistantMessage | CustomMessage,
-        entryId: entryIds[processIdx],
-        prevTimestamp:
-          processIdx > 0 ? (messages[processIdx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined,
-        toolData: toolMessageIndex.get(messages[processIdx]),
-      }));
-      if (finalParts.processMessage) {
-        processSources.push({
-          message: finalAssistant,
-          blocks: finalParts.processBlocks,
-          entryId: entryIds[finalAssistantIdx],
-          prevTimestamp:
-            finalAssistantIdx > 0
-              ? (messages[finalAssistantIdx - 1] as AgentMessage & { timestamp?: number }).timestamp
-              : undefined,
-          toolData: toolMessageIndex.get(finalAssistant),
-        });
-      }
-      const processFlow = buildProcessFlowItems(processSources, (message, entryId) =>
-        messageRenderKeys.keyFor(message, entryId, "process"),
+      const segments = segmentTurnAtFailures(messages, userIdx, finalAssistantIdx);
+      const turnDurationSeconds = computeTurnDurationSeconds(
+        (messages[userIdx] as AgentMessage & { timestamp?: number }).timestamp,
+        (finalAssistant as AgentMessage & { timestamp?: number }).timestamp,
       );
+      const finalKey = messageRenderKeys.keyFor(messages[finalAssistantIdx], entryIds[finalAssistantIdx], "final");
+      const userKey = messageRenderKeys.keyFor(messages[userIdx], entryIds[userIdx], "message");
 
-      if (processFlow.messageCount > 0) {
-        const processGroupKey = `process-group:${messageRenderKeys.keyFor(
-          messages[userIdx],
-          entryIds[userIdx],
-          "message",
-        )}:${messageRenderKeys.keyFor(messages[finalAssistantIdx], entryIds[finalAssistantIdx], "final")}`;
+      segments.forEach((segment, segmentIdx) => {
+        if (segment.kind === "failure") {
+          rendered.push(
+            renderMessage(segment.index, {
+              messageOverride: failureOnlyMessage(messages[segment.index] as AssistantMessage),
+            }),
+          );
+          return;
+        }
+        const isLastSegment = segmentIdx === segments.length - 1;
+        const processSources: ProcessFlowSource[] = segment.indices.map((processIdx) => ({
+          message: messages[processIdx] as AssistantMessage | CustomMessage,
+          entryId: entryIds[processIdx],
+          prevTimestamp:
+            processIdx > 0 ? (messages[processIdx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined,
+          toolData: toolMessageIndex.get(messages[processIdx]),
+        }));
+        if (isLastSegment && finalParts.processMessage) {
+          processSources.push({
+            message: finalAssistant,
+            blocks: finalParts.processBlocks,
+            entryId: entryIds[finalAssistantIdx],
+            prevTimestamp:
+              finalAssistantIdx > 0
+                ? (messages[finalAssistantIdx - 1] as AgentMessage & { timestamp?: number }).timestamp
+                : undefined,
+            toolData: toolMessageIndex.get(finalAssistant),
+          });
+        }
+        const processFlow = buildProcessFlowItems(processSources, (message, entryId) =>
+          messageRenderKeys.keyFor(message, entryId, "process"),
+        );
+        if (processFlow.messageCount === 0) return;
+
+        const processGroupKey = `process-group:${userKey}:${finalKey}${segmentIdx === 0 ? "" : `:${segmentIdx}`}`;
         const processRefIdx =
-          visibleProcessIndices
+          segment.indices
             .map((processIdx) => visibleRefIndexByMessage.get(processIdx))
             .find((value): value is number => typeof value === "number") ??
-          (finalAnswerMessage ? undefined : visibleRefIndexByMessage.get(finalAssistantIdx));
-        const processGroup = (
-          <ProcessDetailsGroup
-            stateKey={processGroupKey}
-            expansionStore={processDetailsExpansionStore}
-            messageCount={processFlow.messageCount}
-            toolCallCount={processFlow.toolCallCount}
-            durationSeconds={computeTurnDurationSeconds(
-              (messages[userIdx] as AgentMessage & { timestamp?: number }).timestamp,
-              (finalAssistant as AgentMessage & { timestamp?: number }).timestamp,
-            )}
-          >
-            <ProcessFlow
-              items={processFlow.items}
-              cwd={messageCwd}
-              onOpenFile={onOpenFile}
-              onLoadDeferredContent={loadDeferredContent}
-              thinkingExpansionStore={thinkingExpansionStore}
-            />
-          </ProcessDetailsGroup>
-        );
+          (isLastSegment && !finalAnswerMessage ? visibleRefIndexByMessage.get(finalAssistantIdx) : undefined);
         rendered.push(
           <div
             key={processGroupKey}
@@ -262,10 +257,24 @@ export function ChatMessages({
                   }
             }
           >
-            {processGroup}
+            <ProcessDetailsGroup
+              stateKey={processGroupKey}
+              expansionStore={processDetailsExpansionStore}
+              messageCount={processFlow.messageCount}
+              toolCallCount={processFlow.toolCallCount}
+              durationSeconds={segments.length === 1 ? turnDurationSeconds : undefined}
+            >
+              <ProcessFlow
+                items={processFlow.items}
+                cwd={messageCwd}
+                onOpenFile={onOpenFile}
+                onLoadDeferredContent={loadDeferredContent}
+                thinkingExpansionStore={thinkingExpansionStore}
+              />
+            </ProcessDetailsGroup>
           </div>,
         );
-      }
+      });
 
       if (finalAnswerMessage) {
         rendered.push(

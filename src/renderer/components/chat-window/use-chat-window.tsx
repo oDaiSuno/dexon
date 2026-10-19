@@ -284,7 +284,6 @@ export function useChatWindow({
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
       availableThinkingLevels={availableThinkingLevels}
       thinkingLevelMap={currentThinkingLevelMap}
-      retryInfo={retryInfo}
       queuedMessages={queuedMessages}
       onRecallQueue={handleRecallQueue}
       slashCommands={slashCommands}
@@ -345,6 +344,8 @@ export function useChatWindow({
     assistantRenderParts,
     processDetailsExpansionStore,
     agentPhase,
+    retryInfo,
+    handleAbort,
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,

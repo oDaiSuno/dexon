@@ -2,7 +2,7 @@ import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { splitLocalFileReferenceMarkdown } from "@/lib/file-url";
-import { RecallIcon, RetryIcon } from "./icons";
+import { RecallIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
 
 function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: string }) {
@@ -146,34 +146,6 @@ export function QueuedMessagesPanel({
       {queuedMessages.followUp.map((text, i) => (
         <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
       ))}
-    </div>
-  );
-}
-
-export function RetryBanner({
-  retryInfo,
-}: {
-  retryInfo: { attempt: number; maxAttempts: number; errorMessage?: string };
-}) {
-  const { t } = useI18n();
-  return (
-    <div
-      style={{
-        marginBottom: 8,
-        padding: "4px 12px",
-        background: "var(--warning-soft)",
-        border: "1px solid var(--warning-border)",
-        borderRadius: "var(--radius-control)",
-        fontSize: scaledChatFont(12),
-        color: "rgba(180,130,0,0.9)",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <RetryIcon size={11} />
-      {t("retrying", "Retrying")} ({retryInfo.attempt}/{retryInfo.maxAttempts})…
-      {retryInfo.errorMessage && <span style={{ opacity: 0.7, marginLeft: 4 }}>— {retryInfo.errorMessage}</span>}
     </div>
   );
 }

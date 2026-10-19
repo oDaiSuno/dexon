@@ -237,12 +237,17 @@ export function useSessionEvents(context: Dependencies) {
           agentRunningRef.current = true;
           setAgentRunning(true);
           setAgentPhase({ kind: "waiting_model" });
+          setRetryInfo((current) => (current ? { ...current, waiting: false } : current));
           dispatch({ type: "start" });
           break;
         case "agent_end":
           // A late agent_end can arrive over the stream after reconcileAgentState
           // already finished this run — don't re-trigger completion.
           if (!agentRunningRef.current) break;
+          if (event.willRetry === true) {
+            dispatch({ type: "reset" });
+            break;
+          }
           agentRunningRef.current = false;
           setAgentRunning(false);
           setAgentPhase(null);
@@ -262,6 +267,10 @@ export function useSessionEvents(context: Dependencies) {
               .catch(() => {});
           }
           onAgentEnd?.();
+          break;
+        case "agent_settled":
+          if (!agentRunningRef.current) break;
+          void finishPromptWithoutStream(sessionIdRef.current);
           break;
         case "prompt_done":
           if (!agentRunningRef.current) break;
@@ -359,7 +368,10 @@ export function useSessionEvents(context: Dependencies) {
             attempt: event.attempt as number,
             maxAttempts: event.maxAttempts as number,
             errorMessage: event.errorMessage as string | undefined,
+            retryAt: Date.now() + ((event.delayMs as number | undefined) ?? 0),
+            waiting: true,
           });
+          setAgentPhase(null);
           break;
         case "auto_retry_end":
           setRetryInfo(null);

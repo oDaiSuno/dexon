@@ -22,6 +22,7 @@ import {
   CompactResultInfo,
   ModelEntry,
   QueuedMessages,
+  RetryInfo,
   SelectedModel,
   SessionData,
   SlashCommandInfo,
@@ -71,9 +72,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
-  const [retryInfo, setRetryInfo] = useState<{ attempt: number; maxAttempts: number; errorMessage?: string } | null>(
-    null,
-  );
+  const [retryInfo, setRetryInfo] = useState<RetryInfo | null>(null);
   const [contextUsage, setContextUsage] = useState<{
     percent: number | null;
     contextWindow: number;

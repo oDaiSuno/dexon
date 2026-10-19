@@ -209,9 +209,11 @@ test("tool execution phases track their tools and settle back to waiting_model",
 test("retry and compaction events update their dedicated banners", async (t) => {
   const { h } = await mountedSession(t);
 
-  h.emit({ type: "auto_retry_start", attempt: 2, maxAttempts: 4, errorMessage: "rate limited" });
+  h.emit({ type: "auto_retry_start", attempt: 2, maxAttempts: 4, delayMs: 4000, errorMessage: "rate limited" });
   await h.flush();
-  assert.deepEqual(h.state.retryInfo, { attempt: 2, maxAttempts: 4, errorMessage: "rate limited" });
+  assert.equal(h.state.retryInfo.attempt, 2);
+  assert.equal(h.state.retryInfo.maxAttempts, 4);
+  assert.equal(h.state.retryInfo.waiting, true);
   h.emit({ type: "auto_retry_end" });
   await h.flush();
   assert.equal(h.state.retryInfo, null);
