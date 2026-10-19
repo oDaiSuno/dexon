@@ -86,7 +86,17 @@ test("a block subset keeps the message's original block indices and counts towar
   ];
   const message = assistant([{ type: "text", text: "earlier answer" }, ...runBlocks], { timestamp: 30_000 });
   const result = buildProcessFlowItems(
-    [{ message, blocks: runBlocks, firstBlockIndex: 1, entryId: "ef", prevTimestamp: 25_000 }],
+    [
+      {
+        message,
+        blockItems: [
+          { block: runBlocks[0], index: 1 },
+          { block: runBlocks[1], index: 2 },
+        ],
+        entryId: "ef",
+        prevTimestamp: 25_000,
+      },
+    ],
     keyFor,
   );
 
@@ -99,6 +109,38 @@ test("a block subset keeps the message's original block indices and counts towar
   const toolCall = result.items[1];
   assert.ok(toolCall.kind === "toolCall");
   assert.equal(toolCall.blockIndex, 2);
+});
+
+test("when a run drops an empty step, the stream keeps the later steps' own positions", async () => {
+  const { buildProcessFlowItems } = await loadSubject();
+  const firstLook = { type: "thinking", thinking: "先读文件。" };
+  const toolCall = { type: "toolCall", toolCallId: "call-1", toolName: "read", input: {} };
+  const secondLook = { type: "thinking", thinking: "再核对结论。" };
+  const message = assistant([firstLook, { type: "thinking", thinking: "   " }, toolCall, secondLook]);
+
+  const result = buildProcessFlowItems(
+    [
+      {
+        message,
+        blockItems: [
+          { block: firstLook, index: 0 },
+          { block: toolCall, index: 2 },
+          { block: secondLook, index: 3 },
+        ],
+        entryId: "e1",
+      },
+    ],
+    keyFor,
+  );
+
+  assert.deepEqual(
+    result.items.map((item) => item.blockIndex),
+    [0, 2, 3],
+  );
+  assert.deepEqual(
+    result.items.map((item) => item.kind),
+    ["thinking", "toolCall", "thinking"],
+  );
 });
 
 test("custom messages always contribute one item", async () => {

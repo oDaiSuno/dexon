@@ -1,13 +1,6 @@
-import type {
-  AssistantContentBlock,
-  AssistantMessage,
-  CustomMessage,
-  ThinkingContent,
-  ToolCallContent,
-  ToolResultMessage,
-} from "./types";
+import type { AssistantMessage, CustomMessage, ThinkingContent, ToolCallContent, ToolResultMessage } from "./types";
 import type { ToolMessageData } from "./tool-message-index";
-import { isEmptyThinkingBlock } from "../../shared/message-display.ts";
+import { isEmptyThinkingBlock, type AssistantBlockItem } from "../../shared/message-display.ts";
 
 /**
  * Flattened, order-preserving stream of "process" content for the collapsed
@@ -38,8 +31,7 @@ export type ProcessFlowItem =
 export interface ProcessFlowSource {
   message: AssistantMessage | CustomMessage;
   /** Block subset to render; defaults to the message's own content. */
-  blocks?: AssistantContentBlock[];
-  firstBlockIndex?: number;
+  blockItems?: AssistantBlockItem[];
   entryId?: string;
   /** Timestamp of the preceding message, used to derive thinking durations. */
   prevTimestamp?: number;
@@ -72,14 +64,12 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
       continue;
     }
     const message = source.message as AssistantMessage;
-    const content = source.blocks ?? message.content ?? [];
-    const firstBlockIndex = source.firstBlockIndex ?? 0;
+    const blockItems = source.blockItems ?? (message.content ?? []).map((block, index) => ({ block, index }));
     let contributed = false;
-    content.forEach((block, index) => {
-      const blockIndex = firstBlockIndex + index;
+    for (const { block, index: blockIndex } of blockItems) {
       const entryId = source.entryId;
       if (block.type === "thinking") {
-        if (isEmptyThinkingBlock(block)) return;
+        if (isEmptyThinkingBlock(block)) continue;
         contributed = true;
         items.push({
           kind: "thinking",
@@ -102,7 +92,7 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
           duration: source.toolData?.durations.get(block.toolCallId),
         });
       }
-    });
+    }
     if (contributed) messageCount += 1;
   }
 

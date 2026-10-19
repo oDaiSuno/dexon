@@ -33,11 +33,11 @@ test("an interleaved reply becomes answer, process, answer, process, answer runs
     ["answer", "process", "answer", "process", "answer"],
   );
   assert.deepEqual(
-    runs.map((run) => run.startIndex),
+    runs.map((run) => run.blockItems[0].index),
     [0, 1, 2, 3, 4],
   );
   assert.deepEqual(
-    runs.filter((run) => run.kind === "answer").map((run) => run.blocks.map((block) => block.text)),
+    runs.filter((run) => run.kind === "answer").map((run) => run.blockItems.map((item) => item.block.text)),
     [["我先检查项目。"], ["已经找到问题所在。"], ["这是最终结论。"]],
   );
 });
@@ -57,11 +57,11 @@ test("a reply that ends on a tool call still keeps its sentence as answer conten
     ["process", "answer", "process"],
   );
   assert.deepEqual(
-    runs.map((run) => run.startIndex),
+    runs.map((run) => run.blockItems[0].index),
     [0, 1, 2],
   );
-  assert.equal(runs[1].blocks[0].type, "text");
-  assert.equal(runs[1].blocks[0].text, "I need to call a tool.");
+  assert.equal(runs[1].blockItems[0].block.type, "text");
+  assert.equal(runs[1].blockItems[0].block.text, "I need to call a tool.");
 });
 
 test("neighbouring blocks of the same kind join one run", async () => {
@@ -81,12 +81,34 @@ test("neighbouring blocks of the same kind join one run", async () => {
     ["process", "answer"],
   );
   assert.deepEqual(
-    runs.map((run) => run.blocks.length),
+    runs.map((run) => run.blockItems.length),
     [4, 1],
   );
   assert.deepEqual(
-    runs.map((run) => run.startIndex),
+    runs.map((run) => run.blockItems[0].index),
     [0, 4],
+  );
+});
+
+test("when an empty thinking step sits inside a run, the later steps keep their own positions", async () => {
+  const { splitAssistantBlockRuns } = await loadSubject();
+  const message = assistant([
+    { type: "thinking", thinking: "先读文件。" },
+    { type: "thinking", thinking: "   " },
+    { type: "toolCall", toolCallId: "call-1", toolName: "read", input: {} },
+    { type: "thinking", thinking: "再核对结论。" },
+  ]);
+
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
+
+  assert.equal(runs.length, 1);
+  assert.deepEqual(
+    runs[0].blockItems.map((item) => item.index),
+    [0, 2, 3],
+  );
+  assert.deepEqual(
+    runs[0].blockItems.map((item) => item.block.type),
+    ["thinking", "toolCall", "thinking"],
   );
 });
 
@@ -107,9 +129,9 @@ test("drops empty thinking blocks after completion", async () => {
     runs.map((run) => run.kind),
     ["answer"],
   );
-  assert.equal(runs[0].startIndex, 1);
+  assert.equal(runs[0].blockItems[0].index, 1);
   assert.deepEqual(
-    runs[0].blocks.map((block) => block.type),
+    runs[0].blockItems.map((item) => item.block.type),
     ["text"],
   );
 });
@@ -128,7 +150,7 @@ test("keeps empty thinking while streaming", async () => {
     ["process", "answer"],
   );
   assert.deepEqual(
-    runs.map((run) => run.blocks.map((block) => block.type)),
+    runs.map((run) => run.blockItems.map((item) => item.block.type)),
     [["thinking"], ["text"]],
   );
 });

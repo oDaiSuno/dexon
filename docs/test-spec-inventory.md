@@ -1591,12 +1591,13 @@
 - **plugin-presentation.test.mjs**（2 个测试）
   - formats plugin resource counts with the selected locale
   - localizes plugin status and version summaries
-- **process-flow.test.mjs**（6 个测试）
+- **process-flow.test.mjs**（7 个测试）
   - formatTurnDuration renders compact seconds/minutes/hours
   - computeTurnDurationSeconds needs both timestamps and a positive gap
   - flattens thinking and tool calls interleaved across messages in original order
   - empty thinking blocks are skipped but keep their original block index
   - a block subset keeps the message's original block indices and counts toward totals
+  - when a run drops an empty step, the stream keeps the later steps' own positions
   - custom messages always contribute one item
 - **quick-channel-binding-layout.test.mjs**（4 个测试）
   - right-aligns the desktop popover without crossing the viewport gutter
@@ -1750,10 +1751,11 @@
   - links local filenames containing spaces and absolute directories without extensions
   - AST transform skips existing links, images, code, inline code, HTML, and math
   - does not treat web URLs, relative @ references, or bare drive roots as local paths
-- **message-display.test.mjs**（7 个测试）
+- **message-display.test.mjs**（8 个测试）
   - an interleaved reply becomes answer, process, answer, process, answer runs
   - a reply that ends on a tool call still keeps its sentence as answer content
   - neighbouring blocks of the same kind join one run
+  - when an empty thinking step sits inside a run, the later steps keep their own positions
   - drops empty thinking blocks after completion
   - keeps empty thinking while streaming
   - keeps an empty failed assistant message renderable and exposes its provider detail
@@ -2207,3 +2209,20 @@ ThinkingExpansionStore / Registry 去掉 keys / size 测试出口，改从公开
 **未表达为测试的范围：**图片块（image）按规则也属于正文，但界面里助手消息的 image 块渲染为空，没有用户可见结果可断言；等界面真正展示图片正文时再补规格。
 
 **验证：**新文件 10/10 全绿；全套件 1,603 通过、1 跳过（Windows 专属）、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture、check:i18n、check:design、check:contract、check:test-infra 均通过。
+
+### 十六之一、评审补修：空白的思考步骤不再让后面的步骤错位（2026-10-19）
+
+PR #15 的评审指出：一条助手消息里若有被丢弃的空思考块夹在过程内容中间，后面块的位置会被往前挤一位；过程详情里的思考行用这个位置当展开状态的记忆键，于是和生成过程中用的键对不上。
+
+**为什么没有用户界面层的新测试：**这条缺陷在界面上无法被稳定观测，三条机制把它盖住了——(1) 生成中的思考块整段默认展开（正在生成时展开态被强制打开），点击与否都看不出差别；(2) 三个阶段用的消息标识不同（生成气泡 → 本轮历史 → 重新载入），展开状态的键本来就会换一次；(3) 展开状态存储对没见过的键取"上一次点击后的默认值"，所以新键一出生就是展开的。三条叠加后，有缺陷与修好后的界面表现完全一致。改为在能确定观测的缝隙给出字面期望值：
+
+| 文件                                     | 测试名                                                                                  | 修前                                 | 修后                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------ |
+| `src/shared/message-display.test.mjs`    | when an empty thinking step sits inside a run, the later steps keep their own positions | 运行段根本说不出每个保留块的原始位置 | 段内保留块的位置为 `[0, 2, 3]` |
+| `src/renderer/lib/process-flow.test.mjs` | when a run drops an empty step, the stream keeps the later steps' own positions         | `[0, 1, 2]`                          | `[0, 2, 3]`                    |
+
+**改法：**段落不再只记一个起点，而是每个被保留的块自带它在消息里的原始位置（`AssistantBlockItem { block, index }`）；过程流直接用它做块下标，不再用"起点 + 数组下标"推算，`firstBlockIndex` 随之删除。
+
+**同时更新：**上面两条既有规格（`a block subset keeps ...`）改用新形状但保留原有字面期望值；节十六列出的界面规格数量不变。
+
+**验证：**新规格先红后绿（红证据见阶段报告）；全套件 1,606 个测试、1,605 通过、1 跳过、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture 均通过。

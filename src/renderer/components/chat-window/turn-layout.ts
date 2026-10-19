@@ -1,5 +1,5 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
-import { isAssistantFailure, splitAssistantBlockRuns } from "@/lib/message-display";
+import { isAssistantFailure, splitAssistantBlockRuns, type AssistantBlockItem } from "@/lib/message-display";
 import {
   buildProcessFlowItems,
   computeTurnDurationSeconds,
@@ -47,15 +47,15 @@ export interface TurnLayout {
 
 interface CachedAnswerPiece {
   kind: "answer";
-  startIndex: number;
+  firstIndex: number;
   body: AssistantMessage;
   footerBody: AssistantMessage;
 }
 
 interface CachedProcessPiece {
   kind: "process";
-  startIndex: number;
-  blocks: AssistantContentBlock[];
+  firstIndex: number;
+  blockItems: AssistantBlockItem[];
 }
 
 type CachedMessagePiece = CachedAnswerPiece | CachedProcessPiece;
@@ -86,16 +86,17 @@ export class AssistantBlockCache {
   piecesFor(message: AssistantMessage): CachedMessagePiece[] {
     const cached = this.byMessage.get(message);
     if (cached) return cached;
-    const created = splitAssistantBlockRuns(message).map((run): CachedMessagePiece =>
-      run.kind === "answer"
-        ? {
-            kind: "answer",
-            startIndex: run.startIndex,
-            body: answerBody(message, run.blocks, false),
-            footerBody: answerBody(message, run.blocks, true),
-          }
-        : { kind: "process", startIndex: run.startIndex, blocks: run.blocks },
-    );
+    const created = splitAssistantBlockRuns(message).map((run): CachedMessagePiece => {
+      const firstIndex = run.blockItems[0].index;
+      if (run.kind === "process") return { kind: "process", firstIndex, blockItems: run.blockItems };
+      const blocks = run.blockItems.map((item) => item.block);
+      return {
+        kind: "answer",
+        firstIndex,
+        body: answerBody(message, blocks, false),
+        footerBody: answerBody(message, blocks, true),
+      };
+    });
     this.byMessage.set(message, created);
     return created;
   }
@@ -178,7 +179,7 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
         flushGroup();
         pieces.push({
           kind: "answer",
-          key: `${input.keyFor(assistant, entryId, "answer")}:${piece.startIndex}`,
+          key: `${input.keyFor(assistant, entryId, "answer")}:${piece.firstIndex}`,
           refIndex: claimRef(index),
           index,
           entryId,
@@ -189,10 +190,9 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
         });
         continue;
       }
-      joinGroup(index, `${input.keyFor(assistant, entryId, "process")}:${piece.startIndex}`, {
+      joinGroup(index, `${input.keyFor(assistant, entryId, "process")}:${piece.firstIndex}`, {
         message: assistant,
-        blocks: piece.blocks,
-        firstBlockIndex: piece.startIndex,
+        blockItems: piece.blockItems,
         entryId,
         prevTimestamp,
         toolData,

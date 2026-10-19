@@ -41,10 +41,14 @@ export function hasRenderableAssistantMessage(message: AssistantMessage, options
 
 export type AssistantBlockRunKind = "answer" | "process";
 
+export interface AssistantBlockItem {
+  block: AssistantContentBlock;
+  index: number;
+}
+
 export interface AssistantBlockRun {
   kind: AssistantBlockRunKind;
-  startIndex: number;
-  blocks: AssistantContentBlock[];
+  blockItems: AssistantBlockItem[];
 }
 
 function isAnswerBlock(block: AssistantContentBlock): boolean {
@@ -58,10 +62,10 @@ export function splitAssistantBlockRuns(message: AssistantMessage, options: Disp
     const kind: AssistantBlockRunKind = isAnswerBlock(block) ? "answer" : "process";
     const current = runs[runs.length - 1];
     if (current && current.kind === kind) {
-      current.blocks.push(block);
+      current.blockItems.push({ block, index });
       return;
     }
-    runs.push({ kind, startIndex: index, blocks: [block] });
+    runs.push({ kind, blockItems: [{ block, index }] });
   });
   return runs;
 }
