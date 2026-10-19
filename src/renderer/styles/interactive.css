@@ -102,6 +102,12 @@
   border-color: var(--danger);
 }
 
+.token-chip-static,
+.token-chip-static:hover {
+  cursor: default;
+  border-color: var(--border);
+}
+
 .token-chip-thumb {
   width: 14px;
   height: 14px;
