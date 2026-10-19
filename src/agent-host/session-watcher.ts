@@ -7,6 +7,7 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../contract/rpc";
 import { invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy } from "./file-access";
 import { sessionIndex } from "./session-index";
+import { sessionsRoot as resolveSessionsRoot } from "./session-dir";
 import { classifySessionWatchChange } from "./session-watch-policy";
 
 export function startSessionWatcher(server: RpcServer): () => void {
@@ -25,7 +26,7 @@ export function startSessionWatcher(server: RpcServer): () => void {
     }
   }
 
-  const sessionsRoot = path.resolve(process.env.PI_CODING_AGENT_SESSION_DIR || path.join(agentDir, "sessions"));
+  const sessionsRoot = resolveSessionsRoot(agentDir);
   const changedPaths = new Set<string>();
   let fullRefreshRequired = false;
   let timer: ReturnType<typeof setTimeout> | null = null;

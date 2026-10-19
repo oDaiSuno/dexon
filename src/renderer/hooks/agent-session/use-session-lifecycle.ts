@@ -1,4 +1,5 @@
 import { subscribeSessionsChanged } from "@/lib/api-client";
+import { normalizeToolCalls } from "@/lib/normalize";
 import { useEffect, type MutableRefObject } from "react";
 import { subscribeActiveSessionLiveSync } from "../active-session-live-sync";
 import { EventStreamConnectionError, ThinkingLevelOption, normalizeQueuedMessages } from "./shared";
@@ -179,7 +180,8 @@ export function useSessionLifecycle(context: Dependencies) {
             agentRunningRef.current = true;
             setAgentRunning(true);
             setAgentPhase(agentState.state.isStreaming ? { kind: "waiting_model" } : { kind: "running_command" });
-            dispatch({ type: "start" });
+            const partialReply = agentState.state.streamingMessage;
+            dispatch(partialReply ? { type: "update", message: normalizeToolCalls(partialReply) } : { type: "start" });
             if (!agentState.state.isStreaming && agentState.state.isPromptRunning) {
               void waitForPromptSettlement(session.id);
             }

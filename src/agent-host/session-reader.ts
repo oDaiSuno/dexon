@@ -145,7 +145,7 @@ export async function buildSessionInfoFromManager(
   const header = manager.getHeader();
   if (!header) return null;
 
-  cacheSessionPath(header.id, filePath);
+  if (filePath) cacheSessionPath(header.id, filePath);
   let messageCount = 0;
   let firstMessage = "";
   let lastActivityTime: number | undefined;

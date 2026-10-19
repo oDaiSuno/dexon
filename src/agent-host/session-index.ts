@@ -1,8 +1,9 @@
 import { existsSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
-import { SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry, SessionInfo } from "../shared/types";
 import { buildSessionInfoFromManager } from "./session-reader";
+import { sessionsRoot } from "./session-dir";
 import { getProjectCacheRevision, resolveProject } from "../shared/worktree";
 
 const PROJECT_VIEW_TTL_MS = 60_000;
@@ -81,7 +82,7 @@ export class SessionIndex {
   };
 
   private sessionsRoot(): string {
-    return path.resolve(process.env.PI_CODING_AGENT_SESSION_DIR || path.join(getAgentDir(), "sessions"));
+    return sessionsRoot();
   }
 
   private rebuildDerivedState(): void {

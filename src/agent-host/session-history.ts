@@ -57,6 +57,10 @@ export function buildHistoryRevision(filePath: string, sessionId: string): strin
   return createHash("sha256").update(identity).digest("base64url").slice(0, 18);
 }
 
+export function buildUnsavedHistoryRevision(sessionId: string): string {
+  return createHash("sha256").update(`${sessionId}:unsaved`).digest("base64url").slice(0, 18);
+}
+
 export function encodeHistoryCursor(payload: HistoryCursorPayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
