@@ -66,27 +66,28 @@ function assistant(overrides = {}) {
   };
 }
 
-test("renders an empty provider failure as a persistent alert", () => {
+test("a failed upstream request shows the provider's own words with no added heading", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
       message: assistant({ stopReason: "error", errorMessage: "401: invalid API key" }),
     }),
   );
 
-  assert.match(html, /data-testid="assistant-error-message"/);
   assert.match(html, /role="alert"/);
-  assert.match(html, /Model request failed/);
   assert.match(html, /401: invalid API key/);
+  assert.doesNotMatch(html, /Model request failed/);
+  assert.doesNotMatch(html, /Retried/);
 });
 
-test("renders actionable fallback text when a failed response has no provider detail", () => {
+test("a failure without provider detail states that plainly instead of guessing a cause", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
       message: assistant({ stopReason: "error" }),
     }),
   );
 
-  assert.match(html, /Check the API key, service URL, and model configuration/);
+  assert.match(html, /The upstream service returned no error message/);
+  assert.doesNotMatch(html, /API key/);
 });
 
 test("continues to hide a completed empty non-error assistant message", () => {

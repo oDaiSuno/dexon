@@ -58,11 +58,21 @@ const SETTINGS_MIGRATION_KEYS = new Set([
   "projectRequiredTitle",
 ]);
 
+const UPSTREAM_FAILURE_KEYS = new Set([
+  "failureCollapse",
+  "failureCopy",
+  "failureExpand",
+  "failureRetried",
+  "retryInSeconds",
+  "retryingNow",
+  "upstreamErrorMissing",
+]);
+
 // interactive-tools 词典模块是显式追加、由组合/奇偶校验与行为测试单独核对的，
 // 指纹基线同样排除。历史指纹本身保持不变。
 export const PRE_SPLIT_BASELINE = {
-  enUS: "dc586909a1505bec127bfcf3db2c8cfd110c6e18d1da161d300a185667e1247d",
-  zhCN: "51d79ff92b31ace5d958c6fba770067754bbb98ba9729985ea8d9f4628118b6d",
+  enUS: "f1d719d20a5743868534f7e0da798c6a466c1b8db555b8ba9a7d813f9250a6d1",
+  zhCN: "18606dafa94ed7b16257b4824501fa863f00469affd0feb4bd9dd490a7c320ae",
 };
 
 // 关键 UI 场景：空态、不可逆删除、外部冲突、频道状态、更新失败。
@@ -165,6 +175,7 @@ export function dictionaryBaselineFailures({ enUS, zhCN, interactiveKeys, expect
     ...ACCESSIBLE_REGION_KEYS,
     ...NAVIGATION_INTEGRATION_KEYS,
     ...SETTINGS_MIGRATION_KEYS,
+    ...UPSTREAM_FAILURE_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));

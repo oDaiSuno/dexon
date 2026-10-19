@@ -49,7 +49,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onThinkingLevelChange,
     availableThinkingLevels,
     thinkingLevelMap,
-    retryInfo,
     queuedMessages,
     onRecallQueue,
     slashCommands,
@@ -403,7 +402,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onDismissSubmissionNotice={() => setSubmissionNotice(null)}
       queuedMessages={queuedMessages}
       onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}
-      retryInfo={retryInfo}
       compactResult={compactResult}
       model={model}
       modelOptionsByProvider={modelOptionsByProvider}

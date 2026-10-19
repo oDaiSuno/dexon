@@ -332,6 +332,7 @@ async function run() {
   await scene("09-space-menu-keyboard", async () => {
     await focusByTab("Hide sidebar");
     await key("Tab");
+    await waitFor(async () => (await page("focus")).name === "Personal space", "Personal space focused by Tab");
     const focus = await page("focus");
     assert.equal(focus.name, "Personal space");
     assert.ok(

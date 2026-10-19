@@ -80,6 +80,35 @@ export function hasDisplayableProcessMessage(message: AgentMessage): boolean {
   }
   return message.role === "custom";
 }
+export type TurnSegment = { kind: "process"; indices: number[] } | { kind: "failure"; index: number };
+export function segmentTurnAtFailures(messages: AgentMessage[], userIdx: number, finalIdx: number): TurnSegment[] {
+  const segments: TurnSegment[] = [];
+  let indices: number[] = [];
+  for (let idx = userIdx + 1; idx < finalIdx; idx++) {
+    const message = messages[idx];
+    if (hasDisplayableProcessMessage(message)) indices.push(idx);
+    if (message.role === "assistant" && isAssistantFailure(message as AssistantMessage)) {
+      segments.push({ kind: "process", indices }, { kind: "failure", index: idx });
+      indices = [];
+    }
+  }
+  segments.push({ kind: "process", indices });
+  return segments;
+}
+export function findRetriedFailureIndices(messages: AgentMessage[]): Set<number> {
+  const retried = new Set<number>();
+  let laterAssistantInTurn = false;
+  for (let idx = messages.length - 1; idx >= 0; idx--) {
+    const message = messages[idx];
+    if (message.role === "user") {
+      laterAssistantInTurn = false;
+    } else if (message.role === "assistant") {
+      if (laterAssistantInTurn && isAssistantFailure(message as AssistantMessage)) retried.add(idx);
+      laterAssistantInTurn = true;
+    }
+  }
+  return retried;
+}
 export function findFinalAssistantIndex(messages: AgentMessage[], userIdx: number, endIdx: number): number {
   for (let candidateIdx = endIdx - 1; candidateIdx > userIdx; candidateIdx--) {
     if (hasFinalAssistantAnswer(messages[candidateIdx])) return candidateIdx;
@@ -101,6 +130,14 @@ export function withAssistantBlocks(
     next.errorMessage = undefined;
   }
   return next;
+}
+const failureOnlyMessages = new WeakMap<AssistantMessage, AssistantMessage>();
+export function failureOnlyMessage(message: AssistantMessage): AssistantMessage {
+  const existing = failureOnlyMessages.get(message);
+  if (existing) return existing;
+  const created = withAssistantBlocks(message, [], { omitUsage: true });
+  failureOnlyMessages.set(message, created);
+  return created;
 }
 export type AssistantRenderParts = {
   processBlocks: AssistantContentBlock[];

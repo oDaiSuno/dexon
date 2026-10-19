@@ -54,6 +54,13 @@ export type AgentPhase =
   | { kind: "running_command" }
   | { kind: "running_tools"; tools: { id: string; name: string }[] }
   | null;
+export interface RetryInfo {
+  attempt: number;
+  maxAttempts: number;
+  errorMessage?: string;
+  retryAt: number;
+  waiting: boolean;
+}
 export interface CompactResultInfo {
   reason: "manual" | "threshold" | "overflow" | "auto" | string;
   tokensBefore: number;

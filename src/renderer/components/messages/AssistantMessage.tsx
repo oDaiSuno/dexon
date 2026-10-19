@@ -9,8 +9,8 @@ import {
   isEmptyTextBlock,
   isEmptyThinkingBlock,
 } from "@/lib/message-display";
-import { useI18n } from "@/i18n";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import { FailureLine } from "./FailureLine";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { DeferredContentActions, formatTime, tokenizeStreamTail } from "./shared";
@@ -37,6 +37,7 @@ export function AssistantMessageView({
   entryId,
   thinkingExpansionStore,
   compact,
+  retried,
 }: {
   message: AssistantMessage;
   isStreaming?: boolean;
@@ -54,8 +55,8 @@ export function AssistantMessageView({
      per-message footer (usage row + copy button) — the turn settles into
      groups once it completes. */
   compact?: boolean;
+  retried?: boolean;
 }) {
-  const { t } = useI18n();
   const time = showTimestamp ? formatTime(message.timestamp) : null;
   const blockItems = (message.content ?? [])
     .map((block, originalIndex) => ({ block, originalIndex }))
@@ -67,13 +68,7 @@ export function AssistantMessageView({
   const [tps, setTps] = useState<number | null>(null);
   const blockItemsRef = useRef(blockItems);
   blockItemsRef.current = blockItems;
-  const failureDetail = isAssistantFailure(message)
-    ? (getAssistantFailureDetail(message) ??
-      t(
-        "modelRequestFailedFallback",
-        "The model service did not return error details. Check the API key, service URL, and model configuration.",
-      ))
-    : null;
+  const failed = isAssistantFailure(message);
 
   // Streaming-based timing for thinking blocks
   const blockStartTimesRef = useRef<Map<number, number>>(new Map());
@@ -152,6 +147,9 @@ export function AssistantMessageView({
   }, [isStreaming]);
 
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
+  if (failed && blocks.length === 0 && !isStreaming) {
+    return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />;
+  }
 
   return (
     <div
@@ -239,27 +237,7 @@ export function AssistantMessageView({
           />
         ))}
         <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
-        {failureDetail && !isStreaming && (
-          <div
-            role="alert"
-            data-testid="assistant-error-message"
-            style={{
-              border: "1px solid color-mix(in srgb, var(--bui-red) 30%, transparent)",
-              borderRadius: "var(--bui-r-card)",
-              background: "var(--bui-red-tint)",
-              padding: "10px 12px",
-              fontSize: scaledChatFont(13),
-              lineHeight: 1.55,
-              overflowWrap: "anywhere",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            <div style={{ fontWeight: 600, marginBottom: 3, color: "var(--bui-red)" }}>
-              {t("modelRequestFailed", "Model request failed")}
-            </div>
-            <div style={{ color: "var(--bui-ink-2)" }}>{failureDetail}</div>
-          </div>
-        )}
+        {failed && !isStreaming && <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />}
       </div>
 
       {!compact && (

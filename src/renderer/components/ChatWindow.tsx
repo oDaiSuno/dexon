@@ -15,6 +15,7 @@ import { Welcome } from "./chat-window/welcome";
 import { ChatMinimap } from "./ChatMinimap";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { MessageView } from "./MessageView";
+import { RetryCountdownLine } from "./messages/FailureLine";
 import { SessionProfiler } from "./SessionProfiler";
 import { useLayoutEffect } from "react";
 export function ChatWindow(props: Props) {
@@ -66,6 +67,8 @@ export function ChatWindow(props: Props) {
     assistantRenderParts,
     processDetailsExpansionStore,
     agentPhase,
+    retryInfo,
+    handleAbort,
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,
@@ -210,7 +213,11 @@ export function ChatWindow(props: Props) {
                     </SessionProfiler>
                   )}
 
-                  {agentRunning && !streamState.streamingMessage && (
+                  {agentRunning && retryInfo?.waiting && (
+                    <RetryCountdownLine retryAt={retryInfo.retryAt} onCancel={handleAbort} />
+                  )}
+
+                  {agentRunning && !retryInfo?.waiting && !streamState.streamingMessage && (
                     <div className="py-2" style={{ fontSize: scaledChatFont(13) }}>
                       <span className="chat-shimmer-text" style={{ fontWeight: 500 }}>
                         {phaseLabel(agentPhase, t)}

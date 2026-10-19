@@ -29,6 +29,7 @@ interface Props {
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
   compact?: boolean;
+  retried?: boolean;
 }
 
 export const MessageView = memo(function MessageView({
@@ -52,6 +53,7 @@ export const MessageView = memo(function MessageView({
   onLoadDeferredContent,
   thinkingExpansionStore,
   compact,
+  retried,
 }: Props) {
   if (message.role === "user") {
     return (
@@ -87,6 +89,7 @@ export const MessageView = memo(function MessageView({
         entryId={entryId}
         thinkingExpansionStore={thinkingExpansionStore}
         compact={compact}
+        retried={retried}
       />
     );
   }
