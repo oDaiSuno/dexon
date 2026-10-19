@@ -24,7 +24,7 @@ export const enUS: Record<string, string> = {
   invalidDirectory: "Invalid directory",
   mainBranch: "main",
   messageCount: "{count} msgs",
-  newSession: "new session",
+  newSession: "New session",
   newSessionActivity: "New activity",
   newSessionActivityLabel: "New session activity",
   newSessionIn: "New session in selected project",

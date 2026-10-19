@@ -16,10 +16,9 @@
  */
 import { createHash } from "node:crypto";
 
-// Phase 4 的十个导航键是组合根之外显式追加、由 nav-language 行为测试单独核对的，
+// Phase 4 的九个导航键是组合根之外显式追加、由 nav-language 行为测试单独核对的，
 // 指纹基线必须排除它们——忠实原测试的豁免注释。
 const PHASE_4_NAV_KEYS = new Set([
-  "navChat",
   "navPluginsSkills",
   "navHistory",
   "personalSpace",
@@ -57,6 +56,10 @@ const SETTINGS_MIGRATION_KEYS = new Set([
   "projectRequiredDescription",
   "projectRequiredTitle",
 ]);
+
+export const INTENTIONAL_REWRITES = {
+  newSession: { enUS: "new session", zhCN: "新建会话" },
+};
 
 const UPSTREAM_FAILURE_KEYS = new Set([
   "failureCollapse",
@@ -168,7 +171,13 @@ export function dictionaryCompositionFailures({ partials, enUS, zhCN }) {
 }
 
 /** 拆分前的历史键和值保持不变；显式追加的模块、导航键和区域名不进入历史指纹。 */
-export function dictionaryBaselineFailures({ enUS, zhCN, interactiveKeys, expected = PRE_SPLIT_BASELINE }) {
+export function dictionaryBaselineFailures({
+  enUS,
+  zhCN,
+  interactiveKeys,
+  expected = PRE_SPLIT_BASELINE,
+  rewrittenKeys = {},
+}) {
   const excluded = new Set(interactiveKeys ?? []);
   for (const key of [
     ...PHASE_4_NAV_KEYS,
@@ -179,11 +188,16 @@ export function dictionaryBaselineFailures({ enUS, zhCN, interactiveKeys, expect
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));
+  const historical = (record, language) => {
+    const restored = { ...record };
+    for (const [key, values] of Object.entries(rewrittenKeys)) if (key in restored) restored[key] = values[language];
+    return withoutExcluded(restored);
+  };
   const failures = [];
-  if (dictionaryFingerprint(withoutExcluded(enUS)) !== expected.enUS) {
+  if (dictionaryFingerprint(historical(enUS, "enUS")) !== expected.enUS) {
     failures.push("en-US values drifted from the verified pre-split dictionary");
   }
-  if (dictionaryFingerprint(withoutExcluded(zhCN)) !== expected.zhCN) {
+  if (dictionaryFingerprint(historical(zhCN, "zhCN")) !== expected.zhCN) {
     failures.push("zh-CN values drifted from the verified pre-split dictionary");
   }
   return failures;

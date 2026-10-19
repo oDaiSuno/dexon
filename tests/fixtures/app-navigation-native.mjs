@@ -9,7 +9,7 @@ export const nativeNavigationScenes = [
   "05-resource-keyboard",
   "06-rail-layout-and-focus",
   "07-rail-settings",
-  "08-new-chat-and-expand",
+  "08-new-session-and-expand",
   "09-space-menu-keyboard",
   "10-minimum-window-width",
   "11-final-visuals",

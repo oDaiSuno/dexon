@@ -8,6 +8,7 @@ import {
   keyDown,
   act,
   waitFor,
+  historyRow,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { browserTab } from "../support/browser-state.mjs";
@@ -24,7 +25,7 @@ async function openPanel(scene, tool) {
 }
 
 async function backToChat(scene) {
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await waitFor(() => control(scene.container, "region", "Chat"));
 }
 

@@ -129,6 +129,7 @@ async function mountNavigation(env, { isMobile = false } = {}) {
     mobileSidebarOpen: true,
     topPanelOpen: true,
     sessionPickerOpen: false,
+    chatShown: false,
     deletedSessionIds: [],
   };
   const state = { value: undefined };
@@ -143,6 +144,9 @@ async function mountNavigation(env, { isMobile = false } = {}) {
       },
       onSwitchSessionRequested: () => {
         effects.sessionPickerOpen = true;
+      },
+      onShowChat: () => {
+        effects.chatShown = true;
       },
       onBeforeSessionDeleted: (id) => {
         effects.deletedSessionIds.push(id);
@@ -258,6 +262,28 @@ test("routes normal selection and closes the mobile sidebar", async () => {
     assert.equal(mounted.state.value.newSessionCwd, null);
     assert.equal(mounted.effects.mobileSidebarOpen, false);
     assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=s1"]]);
+    await mounted.unmount();
+  });
+});
+
+test("selecting the conversation that is already open only shows the chat page", async () => {
+  await withEnvironment({}, async (env) => {
+    const mounted = await mountNavigation(env, { isMobile: true });
+    await act(async () => {
+      mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo" }));
+    });
+    const openIdentity = mounted.state.value.sessionKey;
+    const openRefresh = mounted.state.value.refreshKey;
+    mounted.effects.mobileSidebarOpen = true;
+    env.harness.routerReplaceCalls.length = 0;
+    await act(async () => {
+      mounted.state.value.handleSelectSession(session("s1", { cwd: "/repo" }));
+    });
+    assert.equal(mounted.state.value.sessionKey, openIdentity, "the open chat keeps its identity");
+    assert.equal(mounted.state.value.refreshKey, openRefresh, "nothing is reloaded");
+    assert.deepEqual(env.harness.routerReplaceCalls, [], "the address is untouched");
+    assert.equal(mounted.effects.chatShown, true, "the chat page is shown");
+    assert.equal(mounted.effects.mobileSidebarOpen, false, "the mobile drawer still closes");
     await mounted.unmount();
   });
 });

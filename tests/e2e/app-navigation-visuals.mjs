@@ -1,3 +1,5 @@
+import { nativeHistoryTitle } from "../fixtures/app-navigation-native.mjs";
+
 export const finalVisualScreens = ["chat-expanded", "chat-rail", "plugins", "skills"];
 
 export async function captureFinalVisuals({ window, js, click, exists, waitFor, screenshot }) {
@@ -16,7 +18,7 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
   };
   const screens = {
     "chat-expanded": async () => {
-      await click("button", "Chat");
+      await click("button", nativeHistoryTitle);
       await waitFor(() => exists("group", "Message input"), "the chat page");
     },
     "chat-rail": async () => {

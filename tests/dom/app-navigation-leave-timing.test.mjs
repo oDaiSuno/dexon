@@ -11,6 +11,8 @@ import {
   dom,
   waitFor,
   pathChoice,
+  historyRow,
+  onChatPage,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import {
@@ -44,7 +46,7 @@ async function personalEditor(t) {
 test("while a departure save is still writing, its prompt cannot be answered a second time", async (t) => {
   const scene = await personalEditor(t);
   const save = scene.external.hold("skills.set");
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await answer(scene, "Save");
   await waitFor(() => assert.ok(save.reached(), "the save reached the Host"));
   const prompt = control(scene.container, "dialog", "Unsaved skill changes");
@@ -61,7 +63,7 @@ test("while a departure save is still writing, its prompt cannot be answered a s
 test("a session link that arrives while a departure save is writing does not override the requested destination", async (t) => {
   const scene = await personalEditor(t);
   const save = scene.external.hold("skills.set");
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await answer(scene, "Save");
   await waitFor(() => assert.ok(save.reached()));
   await act(async () => scene.external.deepLink("personal-other"));
@@ -72,7 +74,7 @@ test("a session link that arrives while a departure save is writing does not ove
   // Whether the link is dropped or opened once the requested departure has
   // completed is not yet a decided product rule; both are accepted, as long as
   // the shown conversation matches the address.
-  await waitFor(() => assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page"));
+  await waitFor(() => onChatPage(scene));
   await scene.settled();
   const search = dom.window.location.search;
   assert.ok(["?session=personal-history", "?session=personal-other"].includes(search), `unexpected address ${search}`);
@@ -82,7 +84,7 @@ test("a session link that arrives while a departure save is writing does not ove
 
 test("a session link that arrives while the unsaved-changes prompt is still unanswered does not bypass it", async (t) => {
   const scene = await personalEditor(t);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await leavePrompt(scene);
   await act(async () => scene.external.deepLink("personal-other"));
   await scene.settled();
@@ -98,7 +100,7 @@ test("a session link that arrives while the unsaved-changes prompt is still unan
 test("a history click made while a departure save is writing does not leave the resource page early", async (t) => {
   const scene = await personalEditor(t);
   const save = scene.external.hold("skills.set");
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await answer(scene, "Save");
   await waitFor(() => assert.ok(save.reached()));
   await click(control(scene.history(), "button", "Another personal conversation"));

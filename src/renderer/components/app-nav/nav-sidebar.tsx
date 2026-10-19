@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n";
 import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory } from "./nav-history";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
+import { NewSessionIcon, PluginsIcon, SettingsIcon } from "./nav-icons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 
@@ -66,6 +67,14 @@ function RailButton({
     </button>
   );
 }
+
+type MainEntry = {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  page?: NavPage;
+  onClick: () => void;
+};
 
 export function NavSidebar({
   expanded,
@@ -157,105 +166,37 @@ export function NavSidebar({
           height={20}
           style={{ borderRadius: "var(--radius-chip)", flexShrink: 0 }}
         />
-        <RailButton label={t("newSession", "new session")} onClick={onNewSession}>
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            aria-hidden="true"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+        <RailButton label={t("newSession", "New session")} onClick={onNewSession}>
+          <NewSessionIcon size={18} />
         </RailButton>
         <RailButton
           label={t("navPluginsSkills", "Plugins & Skills")}
           onClick={() => onNavigate("resources")}
           active={page === "resources"}
         >
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <rect x="3" y="3" width="7" height="7" rx="1.5" />
-            <rect x="14" y="3" width="7" height="7" rx="1.5" />
-            <rect x="3" y="14" width="7" height="7" rx="1.5" />
-            <rect x="14" y="14" width="7" height="7" rx="1.5" />
-          </svg>
+          <PluginsIcon size={18} />
         </RailButton>
         <span style={{ flex: 1 }} />
         <RailButton label={t("settings", "Settings")} onClick={onOpenSettings}>
-          <svg
-            width="18"
-            height="18"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <circle cx="12" cy="12" r="3" />
-            <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.38.33.72.6 1 .3.29.69.42 1.1.4h.09v4h-.09a1.7 1.7 0 0 0-1.7.6Z" />
-          </svg>
+          <SettingsIcon size={18} />
         </RailButton>
       </nav>
     );
   }
 
-  const entries = [
+  const entries: MainEntry[] = [
     {
-      id: "chat" as const,
-      label: t("navChat", "Chat"),
-      icon: (
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z" />
-        </svg>
-      ),
+      id: "new-session",
+      label: t("newSession", "New session"),
+      icon: <NewSessionIcon size={15} />,
+      onClick: onNewSession,
     },
     {
-      id: "resources" as const,
+      id: "resources",
       label: t("navPluginsSkills", "Plugins & Skills"),
-      icon: (
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="3" y="3" width="7" height="7" rx="1.5" />
-          <rect x="14" y="3" width="7" height="7" rx="1.5" />
-          <rect x="3" y="14" width="7" height="7" rx="1.5" />
-          <rect x="14" y="14" width="7" height="7" rx="1.5" />
-        </svg>
-      ),
+      icon: <PluginsIcon size={15} />,
+      page: "resources",
+      onClick: () => onNavigate("resources"),
     },
   ];
 
@@ -285,7 +226,7 @@ export function NavSidebar({
       />
       {spacePanel}
 
-      {/* Main functions: the two approved primary pages */}
+      {/* Main entries */}
       <div
         ref={entryListRef}
         style={{
@@ -297,48 +238,53 @@ export function NavSidebar({
           flexShrink: 0,
         }}
       >
-        {entries.map((entry, index) => (
-          <button
-            key={entry.id}
-            type="button"
-            data-nav-entry
-            aria-label={entry.label}
-            aria-current={page === entry.id ? "page" : undefined}
-            onMouseEnter={() => setActiveEntry(index)}
-            onMouseLeave={() => setActiveEntry(-1)}
-            onClick={() => onNavigate(entry.id)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              width: "100%",
-              height: ENTRY_ROW_HEIGHT,
-              padding: "0 10px",
-              background: page === entry.id ? "var(--bg-selected)" : "transparent",
-              border: "none",
-              borderRadius: "var(--radius-control)",
-              color: page === entry.id ? "var(--text)" : "var(--text-muted)",
-              cursor: "pointer",
-              fontSize: "var(--text-body)",
-              fontWeight: page === entry.id ? 500 : 400,
-              textAlign: "left",
-              position: "relative",
-              zIndex: 1,
-              transition:
-                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-            }}
-          >
-            <span
-              aria-hidden="true"
-              style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--text-dim)" }}
+        {entries.map((entry, index) => {
+          const current = entry.page === page;
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              data-nav-entry
+              aria-label={entry.label}
+              aria-current={current ? "page" : undefined}
+              onMouseEnter={() => setActiveEntry(index)}
+              onMouseLeave={() => setActiveEntry(-1)}
+              onClick={entry.onClick}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                width: "100%",
+                height: ENTRY_ROW_HEIGHT,
+                padding: "0 10px",
+                background: current ? "var(--bg-selected)" : "transparent",
+                border: "none",
+                borderRadius: "var(--radius-control)",
+                color: current ? "var(--text)" : "var(--text-muted)",
+                cursor: "pointer",
+                fontSize: "var(--text-body)",
+                fontWeight: current ? 500 : 400,
+                textAlign: "left",
+                position: "relative",
+                zIndex: 1,
+                transition:
+                  "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+              }}
             >
-              {entry.icon}
-            </span>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {entry.label}
-            </span>
-          </button>
-        ))}
+              <span
+                aria-hidden="true"
+                style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--text-dim)" }}
+              >
+                {entry.icon}
+              </span>
+              <span
+                style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+              >
+                {entry.label}
+              </span>
+            </button>
+          );
+        })}
         <GlideHighlight
           containerRef={entryListRef}
           rowSelector="[data-nav-entry]"
@@ -367,7 +313,6 @@ export function NavSidebar({
           onSelectSession={onSelectSession}
           onRenamed={onRefreshSessions}
           onSessionDeleted={(id) => onSessionDeleted?.(id)}
-          onNewSession={onNewSession}
           onRefreshSessions={onRefreshSessions}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={onToggleFold}
@@ -410,20 +355,7 @@ export function NavSidebar({
             aria-hidden="true"
             style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--text-dim)" }}
           >
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21h-4v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3v-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3h4v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.12.38.33.72.6 1 .3.29.69.42 1.1.4h.09v4h-.09a1.7 1.7 0 0 0-1.7.6Z" />
-            </svg>
+            <SettingsIcon size={15} />
           </span>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {t("settings", "Settings")}

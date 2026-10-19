@@ -120,7 +120,7 @@ export function SidebarHeader({
         }}
       >
         <span style={{ fontSize: "var(--text-body-lg)", lineHeight: 1 }}>+</span>
-        {t("newSession", "new session")}
+        {t("newSession", "New session")}
       </button>
     </>
   );

@@ -25,8 +25,7 @@ export function NavigationSidebar({
   coordination,
   onCwdChange,
   onReturnToPersonalSpace,
-  selectedSessionId,
-  readingSessionId,
+  shownSessionId,
   onSelectSession,
   onNewSession,
   initialSessionId,
@@ -46,8 +45,7 @@ export function NavigationSidebar({
   coordination: SpaceCoordination;
   onCwdChange: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   onReturnToPersonalSpace: () => void;
-  selectedSessionId: string | null;
-  readingSessionId: string | null;
+  shownSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
   onNewSession: (sessionId: string, cwd: string) => void;
   initialSessionId: string | null;
@@ -65,7 +63,7 @@ export function NavigationSidebar({
     setMobileReady(true);
   }, []);
 
-  const directory = useSessionDirectory({ selectedSessionId: readingSessionId, refreshKey, onSessionDeleted });
+  const directory = useSessionDirectory({ selectedSessionId: shownSessionId, refreshKey, onSessionDeleted });
   const workspace = useProjectWorkspace({
     sessions: directory.sessions,
     selectedCwdProp: coordination.spaceCwd,
@@ -221,7 +219,7 @@ export function NavigationSidebar({
           sessions={projectSessions}
           loading={directory.loading}
           error={directory.error}
-          selectedSessionId={selectedSessionId}
+          selectedSessionId={shownSessionId}
           runningSessionIds={directory.runningSessionIds}
           unreadSessionIds={directory.unreadSessionIds}
           homeDir={homeDir}

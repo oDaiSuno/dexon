@@ -6,9 +6,9 @@ import test from "node:test";
 // English and Chinese (check:i18n enforces placeholders; this pins presence).
 
 const { enUS, zhCN } = await import("../../i18n/app.ts");
+const historyCopy = await import("../../i18n/history.ts");
 
 const NEW_NAV_KEYS = [
-  "navChat",
   "navPluginsSkills",
   "navHistory",
   "personalSpace",
@@ -28,4 +28,9 @@ test("every phase-4 navigation key exists in both dictionaries with distinct tra
     assert.ok(typeof zh === "string" && zh.length > 0, `zhCN must define ${key}`);
     assert.notEqual(en, zh, `${key} must have a real Chinese translation, not the English string`);
   }
+});
+
+test("the entry that starts a session is named New session in English and 新建会话 in Chinese", () => {
+  assert.equal(historyCopy.enUS.newSession, "New session");
+  assert.equal(historyCopy.zhCN.newSession, "新建会话");
 });

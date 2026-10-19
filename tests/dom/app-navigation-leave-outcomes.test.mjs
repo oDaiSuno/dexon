@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { startNavigation, control, visibleText, click, waitFor, restoreGlobals } from "../support/app-navigation.mjs";
+import {
+  startNavigation,
+  control,
+  visibleText,
+  click,
+  waitFor,
+  historyRow,
+  currentPages,
+  restoreGlobals,
+} from "../support/app-navigation.mjs";
 import {
   dirtySkill,
   answer,
@@ -77,7 +86,7 @@ test("saving from a dirty space switch writes the skill of the space being left,
   await skillListShows(scene, "project-checklist", ["personal-checklist"]);
   control(scene.workspace(), "button", "navigation-project");
   assert.equal((await scene.skills("project-checklist")).value, initialSkillContent, "the project skill is untouched");
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
   await waitFor(() => control(scene.workspace(), "button", "Personal space"));
   assert.equal((await scene.skills()).value, savedSkillContent, "the save went to the original personal file");
@@ -94,13 +103,13 @@ test("a failed save from a dirty space switch stays in the personal space with t
 test("after a refused save, a second save that succeeds completes the originally requested switch", async (t) => {
   const scene = await personalEditor(t);
   scene.external.failures.skillSave = refusal;
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await answer(scene, "Save");
   await refusedSaveKeepsEverything(scene);
   scene.external.failures.skillSave = null;
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await answer(scene, "Save");
   await waitFor(() => visibleText(control(scene.container, "region", "Chat"), "Personal conversation marker"));
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Personal release notes"]);
   assert.equal((await scene.skills()).value, savedSkillContent);
 });
