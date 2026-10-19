@@ -210,7 +210,7 @@ export function useComposerSuggestions({
 
   const applySlashCommand = useCallback(
     (command: SlashCommandPaletteItem) => {
-      editableRef.current?.setValue(`/${command.name} `);
+      editableRef.current?.replaceAll(`/${command.name} `);
       setSlashMenuOpen(false);
       setSlashActiveIndex(0);
     },

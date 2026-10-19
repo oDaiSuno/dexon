@@ -129,9 +129,8 @@ test("hidden plain-text insertion preserves attachment token separation", async 
   const key = "phase-8-hidden-text-separator";
   clearDraft(key);
   try {
-    const handle = await mount({ draftKey: key });
+    const handle = await mount({ draftKey: key, visible: false });
     await act(async () => handle.current.insertIfEmpty("explain"));
-    await rerender({ visible: false });
     await act(async () => handle.current.insertText("@src/main.ts "));
     assert.equal(editor().querySelector("[data-attachment-token]")?.dataset.path, "src/main.ts");
     await unmount();
@@ -195,7 +194,7 @@ test("same-key edits own the draft when legacy migration resolves late", async (
       }),
   );
   try {
-    const handle = await mount({ draftKey: key });
+    const handle = await mount({ draftKey: key, visible: false });
     await settlePromises();
     await rerender({});
     assert.equal(typeof resolveStage, "function", "migration reached the deferred staging boundary");

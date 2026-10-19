@@ -53,12 +53,12 @@ export interface ChatInputProps {
 
 export interface ComposerEditableHandle {
   getValue(): string;
-  setValue(text: string): void;
+  replaceAll(text: string): void;
   insertTextAtCaret(text: string): void;
+  pasteTextAtCaret(text: string): void;
   insertTokenAtCaret(path: string): void;
   insertSkillAtStart(name: string): void;
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
-  textBeforeCaret(): string;
   focus(): void;
 }
 

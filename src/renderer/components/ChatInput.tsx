@@ -313,14 +313,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       insertIfEmpty(text: string) {
         if (draftValueRef.current.trim()) return;
         if (visible) editableRef.current?.focus();
-        editableRef.current?.setValue(text);
+        editableRef.current?.replaceAll(text);
         suggestions.clearAtQuery();
       },
       prependText(text: string) {
         if (!text.trim()) return;
         const combined = [text, draftValueRef.current].filter((item) => item.trim()).join("\n\n");
         if (visible) editableRef.current?.focus();
-        editableRef.current?.setValue(combined);
+        editableRef.current?.replaceAll(combined);
         suggestions.clearAtQuery();
       },
       insertText(text: string) {

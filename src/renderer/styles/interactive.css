@@ -28,12 +28,14 @@
 }
 
 /* The composer is a contenteditable surface; the placeholder shows via
-   :empty::before and disappears on the first character. */
-.composer-editor:empty::before {
+   [data-empty]::before and disappears on the first character. */
+.composer-editor[data-empty]::before {
   content: attr(data-placeholder);
   color: var(--text-dim);
   opacity: 1;
   pointer-events: none;
+  float: left;
+  height: 0;
 }
 
 .composer-editor {
@@ -50,21 +52,16 @@
 
 /* Attachment chips: shared visual for composer + transcript. Atomic inside
    the composer (contenteditable=false), hover reveals the remove button. */
-.token-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.token-chip,
+.skill-chip {
+  display: inline-block;
   height: 19px;
   max-width: 236px;
   padding: 0 3px 0 4px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  color: var(--text-dim);
   font-size: 0.82em;
-  line-height: 16px;
+  line-height: 17px;
   white-space: nowrap;
-  user-select: none;
   /* Middle-align on the box's geometric midpoint: length-based values
      synthesize the inline baseline from the first flex item, which differs
      between img thumbnails and svg glyphs and staggered chips on one line. */
@@ -72,6 +69,28 @@
   position: relative;
   top: -0.05em;
   cursor: pointer;
+}
+
+.token-chip > *,
+.skill-chip > * {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.token-chip svg,
+.skill-chip svg {
+  display: inline;
+}
+
+.token-chip > * + *,
+.skill-chip > * + * {
+  margin-left: 4px;
+}
+
+.token-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-dim);
   transition: border-color 0.12s ease;
 }
 
@@ -89,36 +108,30 @@
   object-fit: cover;
   border-radius: 3px;
   border: 1px solid var(--border);
-  flex: 0 0 auto;
-  display: block;
   background: var(--bg-panel);
 }
 
 .token-chip-glyph {
-  display: inline-flex;
-  align-items: center;
   color: var(--text-muted);
-  flex: 0 0 auto;
+  line-height: 0;
 }
 
 .token-chip-name {
+  max-width: 190px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .token-chip-remove {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 0;
   height: 13px;
-  margin-left: 0;
+  line-height: 0;
+  text-align: center;
   border-radius: 50%;
   color: var(--text-muted);
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
-  flex: 0 0 auto;
   transition:
     width 0.12s ease,
     margin-left 0.12s ease,
@@ -126,9 +139,14 @@
     background 0.12s ease;
 }
 
-.token-chip:hover .token-chip-remove {
+.token-chip-remove svg {
+  margin-top: 3.5px;
+}
+
+.token-chip:hover .token-chip-remove,
+.skill-chip:hover .token-chip-remove {
   width: 13px;
-  margin-left: 2px;
+  margin-left: 6px;
   opacity: 0.8;
   pointer-events: auto;
 }
@@ -141,24 +159,9 @@
 /* Skill chips: `/skill:name` command references. Accent-blue per the
    reference design; shares the attachment chip's hover-remove mechanism. */
 .skill-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 19px;
-  max-width: 236px;
-  padding: 0 3px 0 4px;
-  border-radius: 6px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 0.82em;
-  line-height: 16px;
-  white-space: nowrap;
-  user-select: none;
-  vertical-align: middle;
-  position: relative;
-  top: -0.05em;
-  cursor: pointer;
   transition:
     border-color 0.12s ease,
     background 0.12s ease;
@@ -169,23 +172,15 @@
 }
 
 .skill-chip-glyph {
-  display: inline-flex;
-  align-items: center;
   color: var(--accent);
-  flex: 0 0 auto;
+  line-height: 0;
 }
 
 .skill-chip-name {
+  max-width: 190px;
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.skill-chip:hover .token-chip-remove {
-  width: 13px;
-  margin-left: 2px;
-  opacity: 0.8;
-  pointer-events: auto;
 }
 
 .skill-chip .token-chip-remove:hover {

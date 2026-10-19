@@ -174,7 +174,7 @@ export function useComposerAttachments({
         return;
       }
       const text = event.clipboardData?.getData("text/plain") ?? "";
-      if (text) editableRef.current?.insertTextAtCaret(text);
+      if (text) editableRef.current?.pasteTextAtCaret(text.replace(/\r\n?/g, "\n"));
     },
     [editableRef, processFiles],
   );

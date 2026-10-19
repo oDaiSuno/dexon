@@ -983,6 +983,7 @@
   - Esc then a space closes a drill-down directory as a chip
   - a space inside an unfinished quoted query closes it as a chip
   - a non-path @word keeps its space as plain text
+- **输入框原生编辑（`npm run test:composer-editing-electron`，真实 Electron）**：上列 file-reference 中补全、本地文件、截图暂存、退格、显示与移除、重建、空格结束路径、Esc 后结束文件夹、带引号路径共 9 项，以及 skill-reference 中选择、替换、开头命令、插入、退格、详情与移除、Enter 发送共 7 项，因依赖 JSDOM 未实现的原生编辑命令移入该检查。
 - **chat-input-focus-frame.test.mjs**（1 个测试）
   - hiding cancels a queued focus-return frame before it can run
 - **chat-input-line-budget.test.mjs**（2 个测试）
