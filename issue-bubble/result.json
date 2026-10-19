@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-10-19T02:54:10Z",
+  "commit": "d5b9f18ab6d7cd08d2786a2468016d8960895ce0",
+  "versions": { "electron": "43.1.1", "chromium": "150.0.7871.114" },
+  "boundary": "Real UserMessageView with production stylesheet cascade; isolated Electron window; not full App E2E",
+  "messages": [
+    { "input": "看一下 @/tmp/shot.png 和 @src/main.ts 的关系", "renderedText": "看一下\n\n/tmp/shot.png\n\n和\n\nsrc/main.ts\n\n的关系" },
+    { "input": "运行下面的命令：\n```bash\ncat @src/a.ts | wc -l\n```\n然后告诉我结果", "renderedText": "运行下面的命令：\n\nbash\ncopy\n1cat \nsrc/a.ts\n\n| wc -l\n\ntext\ncopy\n1然后告诉我结果" }
+  ],
+  "reproduced": true
+}
