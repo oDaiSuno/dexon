@@ -45,10 +45,10 @@ e2e/       现实验证（smoke 与真实流程，必须留下可检查的 artif
 - 输入、选择、点击和键盘操作走 `tests/support/dom-events.mjs` 的真实 DOM 事件；不得读取 React 的私有属性后直接调用处理函数。
 - `tests/support/renderer.mjs` 的 `mount(t, Component, props, { release })` 为每个场景登记自动清理，同时关闭页面与该场景借用的通信环境。挂载失败、卸载失败和重复关闭都不能污染下一场景；多个释放错误应一起报告。
 - 浏览器尺寸与交叉通知通过 `tests/support/browser-observers.mjs` 按 DOM 目标发送。用例看页面结果，不选择某个内部观察器，也不固定显示时必须存在几个计时器或监听器；卸载后没有自有资源遗留仍是有效规格。
-- JSDOM 不测布局。导航的展开/收起宽度、长名称截断、横向溢出、真实 Tab 焦点和键盘操作由 `npm run test:nav-layout-electron` 检查；真实聊天卡片的位置、编辑和发送、四档字号、两档宽度及窄屏由 `npm run test:chat-layout-electron` 检查；输入框的退格、胶囊、撤销/重做、剪贴板与输入法行为依赖 JSDOM 未实现的原生编辑命令，由 `npm run test:composer-editing-electron` 检查。三者加载生产样式、Tailwind reset 与离线字体，保留真实组件和通信客户端；仅另一进程的回答使用夹具，不复用替换客户端的开发预览。
+- JSDOM 不测布局。导航的展开/收起宽度、长名称截断、横向溢出、真实 Tab 焦点和键盘操作由 `npm run test:nav-layout-electron` 检查；真实聊天卡片的位置、编辑和发送、四档字号、两档宽度及窄屏由 `npm run test:chat-layout-electron` 检查；输入框的退格、胶囊、撤销/重做、剪贴板与输入法行为依赖 JSDOM 未实现的原生编辑命令，由 `npm run test:composer-editing-electron` 检查；用户气泡里一句话是否仍在一行、气泡胶囊与输入框胶囊是否同款外观、点击或按回车能否在文件夹中定位文件，同样只能量出来，由 `npm run test:user-bubble-electron` 检查。四者加载生产样式、Tailwind reset 与离线字体，保留真实组件和通信客户端；仅另一进程的回答使用夹具，不复用替换客户端的开发预览。
 - 聊天与导航原生检查按可访问角色、名称和正式标签关系找区域与控件，不按内部类名、直接子节点或按钮的父层猜测位置。760/960px 测量的是完整输入面板、消息区域与工具卡，而非内部打字区；224/52px 测量的是命名的主导航，长名称高度测量的是工作区控制区。
 - 原生检查共用 `scripts/electron-test-run.mjs`：隔离 HOME、Electron 配置、Agent、会话和临时数据，限制执行时间，核对当前进程的完成记录，再清理临时环境。退出码为零、旧报告或截图存在都不能单独宣告通过；布局检查还必须完成列出的全部场景。
-- 导航、聊天与输入框编辑的测量及截图分别保存在 `.artifacts/nav-layout-electron/`、`.artifacts/chat-layout-electron/` 与 `.artifacts/composer-editing-electron/`；入口均可通过 `--out <目录>` 指定位置。原生窗口可能短暂显示，生成截图本身不是通过，必须同时核对实际测量与页面行为。
+- 导航、聊天、输入框编辑与用户气泡的测量及截图分别保存在 `.artifacts/nav-layout-electron/`、`.artifacts/chat-layout-electron/`、`.artifacts/composer-editing-electron/` 与 `.artifacts/user-bubble-electron/`；入口均可通过 `--out <目录>` 指定位置。原生窗口可能短暂显示，生成截图本身不是通过，必须同时核对实际测量与页面行为。
 - 正式导航接入另用 `npm run test:app-navigation` 从真实 `App` 检查资源、聊天、空间、设置，以及显式插件重载、中英文旧指引和从旧设置迁来的技能离开保护；`npm run test:app-navigation-electron` 重新构建并加载正式 Main/preload/Host，检查真实资源读写、224/52px 和有真实历史前提的键盘焦点。原生证据按次保存于 `.artifacts/app-navigation-electron/run-*/`；`--out <目录>` 指定输出根目录，每次运行会打印新建的 `run-*` 目录。逐条覆盖、历史 Red 及受阻范围见 [本轮说明](../docs/app-navigation-tests.md)，不能用组件预览或受阻的后续场景冒充正式接入通过。
 
 ## mock 白名单
