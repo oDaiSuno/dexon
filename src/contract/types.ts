@@ -84,6 +84,7 @@ export interface SessionRuntimeState {
   systemPrompt?: string;
   thinkingLevel?: string;
   isStreaming?: boolean;
+  streamingMessage?: AgentMessage | null;
   isPromptRunning?: boolean;
   isCompacting?: boolean;
   extensionStatuses?: ExtensionStatusItem[];

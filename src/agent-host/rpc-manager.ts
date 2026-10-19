@@ -14,6 +14,7 @@ import { peekManagedProcessService } from "./managed-process/runtime";
 import { installManagedProcessSessionRedaction } from "./managed-process/session-redaction";
 import { createManagedProcessToolDefinitions } from "./managed-process/tools";
 import { cacheSessionPath } from "./session-reader";
+import { configuredSessionDir } from "./session-dir";
 import { getDesktopSessionToolNames, setDesktopSessionToolNames } from "./session-tool-store";
 import { createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
@@ -50,6 +51,10 @@ function getLocks(): Map<string, Promise<{ session: AgentSessionWrapper; realSes
 
 export function getRpcSession(sessionId: string): AgentSessionWrapper | undefined {
   return getRegistry().get(sessionId);
+}
+
+export function listRpcSessions(): AgentSessionWrapper[] {
+  return [...getRegistry().values()];
 }
 
 export async function disposeAllRpcSessions(reason = "host-shutdown"): Promise<void> {
@@ -134,7 +139,7 @@ export async function startRpcSession(
 
     const sessionManager = sessionFile
       ? SessionManager.open(sessionFile, undefined)
-      : SessionManager.create(cwd, undefined);
+      : SessionManager.create(cwd, configuredSessionDir());
     installManagedProcessSessionRedaction(sessionManager);
 
     // Desktop-owned session choices live outside Pi's shared JSONL so the CLI

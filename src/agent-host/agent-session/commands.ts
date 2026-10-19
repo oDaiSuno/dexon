@@ -70,6 +70,7 @@ export async function sendSessionCommand(
         sessionId: context.inner.sessionId,
         sessionFile: context.inner.sessionFile ?? "",
         isStreaming: context.inner.isStreaming,
+        streamingMessage: context.inner.agent.state?.streamingMessage ?? null,
         isPromptRunning: context.promptRunning,
         isCompacting: context.inner.isCompacting,
         autoCompactionEnabled: context.inner.autoCompactionEnabled,

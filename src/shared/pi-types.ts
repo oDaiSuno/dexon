@@ -128,7 +128,9 @@ export interface AgentSessionLike {
   readonly modelRuntime: { getModel: (provider: string, modelId: string) => ModelLike | undefined };
   readonly sessionManager: SessionManager;
   readonly settingsManager: SettingsManager;
-  readonly agent: { state?: { systemPrompt?: string; thinkingLevel?: string; messages?: unknown[] } };
+  readonly agent: {
+    state?: { systemPrompt?: string; thinkingLevel?: string; messages?: unknown[]; streamingMessage?: unknown };
+  };
   readonly extensionRunner: ExtensionRunnerLike;
   readonly promptTemplates: readonly PromptTemplateLike[];
   readonly resourceLoader: ResourceLoaderLike;
