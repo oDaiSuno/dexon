@@ -76,3 +76,39 @@ test("when a long session opens with many oversized blocks, only a couple of ful
     );
   }
 });
+
+test("when the reader leaves a session while large bodies are still queued, the bodies left behind are never read", async (t) => {
+  const left = deferredHistory("deferred-left");
+  const next = createSessionDetail("deferred-next", { messages: [deferredMessage(9)], entryIds: ["entry-9"] });
+  const started = [];
+  const waiting = [];
+  const host = createSessionTestHost({
+    getSession: async (sid) => (sid === next.info.id ? next : left),
+    getSessionEntryContent: async (sid, entryId) => {
+      started.push(`${sid}/${entryId}`);
+      return new Promise((resolve) => {
+        waiting.push(() => resolve({ content: { type: "text", text: `Full text of ${entryId}` } }));
+      });
+    },
+  });
+  const leaving = await openConversation(t, { host, props: { session: left.info } });
+  await leaving.settle(() => assert.equal(started.length, 2));
+  await leaving.view.unmount();
+
+  const scene = await openConversation(t, { host, props: { session: next.info } });
+  await scene.settle(() => assert.ok(started.includes("deferred-next/entry-9"), "the next session's body is read"));
+  for (const release of waiting.splice(0, waiting.length)) await act(async () => release());
+  await scene.drain();
+  for (const release of waiting.splice(0, waiting.length)) await act(async () => release());
+  await scene.drain();
+
+  assert.deepEqual(
+    started.filter((read) => read.startsWith("deferred-left/")),
+    ["deferred-left/entry-0", "deferred-left/entry-1"],
+    "bodies still queued for the session the reader left are never read",
+  );
+  assert.ok(
+    text(byRole(scene.view.container, "group", "Messages"), "Full text of entry-9"),
+    "the session the reader moved to shows its full body",
+  );
+});

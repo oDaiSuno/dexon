@@ -21,6 +21,14 @@ export async function settleUntil(check, { passes = 40 } = {}) {
   throw lastError;
 }
 
+export async function drain({ passes = 20 } = {}) {
+  for (let pass = 0; pass < passes; pass += 1) {
+    await act(async () => {
+      await new Promise((resolve) => setImmediate(resolve));
+    });
+  }
+}
+
 export async function openConversation(t, { host, props = {} }) {
   const observers = observeIntersections(t);
   dom.window.piBridge = {};
@@ -52,5 +60,6 @@ export async function openConversation(t, { host, props = {} }) {
       await act(async () => observers.intersect(target, isIntersecting));
     },
     settle: (check, options) => settleUntil(check, options),
+    drain,
   };
 }

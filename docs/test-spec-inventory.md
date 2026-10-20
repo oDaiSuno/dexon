@@ -2252,7 +2252,7 @@ PR #15 的评审指出：一条助手消息里若有被丢弃的空思考块夹�
 - `tests/contract/session-history-paging.test.mjs`（2 个，真实 handler + 临时会话文件）：sessions.get reports usage and message counts for the whole session file regardless of the page window / when a long session is reopened with the default window, the conversation is visible and every message reads back once
 - `tests/dom/history-continuous-reading.test.mjs`（6 个，真实 `ChatWindow`）：五页历史无需点击读到开头；加载中重复进入视野只发一次请求；没有进展的页面不再自动重复请求；失败提示、重试与退避；隐藏时不重试；历史在阅读中变化后自动从新历史继续
 - `tests/dom/history-mid-turn-page.test.mjs`（1 个）：从一轮中间开始的页面可读，补齐前半轮后每段正文只出现一次且顺序正确，工具结果与调用配对
-- `tests/dom/deferred-content-loading.test.mjs`（1 个）：大量超大块同时打开时最多两个并发读取，全部自动补齐
+- `tests/dom/deferred-content-loading.test.mjs`（2 个）：大量超大块同时打开时最多两个并发读取，全部自动补齐；离开会话后，排队中的旧会话大块不再读取
 - `tests/dom/session-panel.test.mjs`（3 个）：显示整会话统计；统计未到时仍显示会话名称、文件和 ID；没有会话时才显示加载提示
 - `src/renderer/hooks/agent-session/use-session-stats.test.mjs`（2 个）：统计覆盖整个会话且不随翻页变化；切换会话时不显示上一个会话的统计
 
@@ -2261,3 +2261,5 @@ PR #15 的评审指出：一条助手消息里若有被丢弃的空思考块夹�
 **现实验证：**通过真实 `sessions.get` / `sessions.contextPage` 读取等价的无隐私样本（195 行、1,250,644 字节、默认窗口 20 轮 / 1 MiB）。修复前首页 0 条消息且没有继续位置；修复后首页 194 条，读到会话开头，没有重复，文件哈希不变。运行记录在 `.artifacts/issue-12/before.json` 与 `after.json`。另外 `npm run test:chat-layout-electron` 在原生 Electron 中通过。
 
 **验证：**全套件 1,653 个测试，1,652 通过、1 跳过（Windows 专属）、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:contract、check:architecture、check:i18n、check:design、check:test-infra 均通过。
+
+**评审补修（PR #19）：**排队等待的大块读取在真正开始前先确认会话仍是当前会话，离开的会话不再占用读取名额（新增规格先因“旧会话的大块仍被读取”变红，修复后变绿）；“没有进展的页面不再自动请求”和“隐藏时不重试”两条规格改为先等异步回答完成，再断言请求数。全套件 1,654 个测试，1,653 通过、1 跳过、0 失败。

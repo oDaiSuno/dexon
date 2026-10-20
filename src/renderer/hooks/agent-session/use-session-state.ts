@@ -143,9 +143,9 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const loadedEntryIdsRef = useRef<string[]>([]);
   const olderRequestRef = useRef<string | null>(null);
   const deferredContentCacheRef = useRef<Map<string, AssistantContentBlock | TextContent | ImageContent>>(new Map());
-  const deferredContentRequestRef = useRef<Map<string, Promise<AssistantContentBlock | TextContent | ImageContent>>>(
-    new Map(),
-  );
+  const deferredContentRequestRef = useRef<
+    Map<string, Promise<AssistantContentBlock | TextContent | ImageContent | undefined>>
+  >(new Map());
 
   const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
   const displayModel = isNew ? (newSessionModel ?? newSessionDefaultModel) : currentModel;

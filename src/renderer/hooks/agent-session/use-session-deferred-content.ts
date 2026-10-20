@@ -40,9 +40,10 @@ export function useSessionDeferredContent(context: Dependencies) {
       if (loadedContent === undefined) {
         let request = deferredContentRequestRef.current.get(cacheKey);
         if (!request) {
-          request = queueRef.current.run(() =>
-            getSessionEntryContent(sid, entryId, blockIndex).then((result) => result.content),
-          );
+          request = queueRef.current.run(async () => {
+            if (generation !== historyGenerationRef.current || sid !== sessionIdRef.current) return undefined;
+            return (await getSessionEntryContent(sid, entryId, blockIndex)).content;
+          });
           deferredContentRequestRef.current.set(cacheKey, request);
         }
         try {
@@ -50,6 +51,7 @@ export function useSessionDeferredContent(context: Dependencies) {
         } finally {
           deferredContentRequestRef.current.delete(cacheKey);
         }
+        if (loadedContent === undefined) return;
         const cache = deferredContentCacheRef.current;
         cache.delete(cacheKey);
         cache.set(cacheKey, loadedContent);

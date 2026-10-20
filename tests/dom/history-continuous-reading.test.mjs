@@ -115,7 +115,7 @@ test("when an older page brings nothing new, that page is not requested again on
   await scene.signalInView(sentinel);
   await scene.settle(() => assert.equal(olderPageRequests(scene.host).length, 1));
   await scene.signalInView(sentinel);
-  await scene.settle(() => assert.ok(true));
+  await scene.drain();
   assert.equal(
     olderPageRequests(scene.host).length,
     1,
@@ -146,7 +146,7 @@ test("when an older page fails, the reader is told and offered a retry, and the 
       assert.ok(waited < 60_000, "the failed page is retried on its own");
       await act(async () => t.mock.timers.tick(100));
       waited += 100;
-      await scene.settle(() => assert.ok(true));
+      await scene.drain({ passes: 2 });
     }
     return waited;
   }
@@ -197,7 +197,7 @@ test("when the chat is hidden after a failed page, the waiting retry sends nothi
 
   await scene.rerender({ visible: false });
   await act(async () => t.mock.timers.tick(60_000));
-  await scene.settle(() => assert.ok(true));
+  await scene.drain();
   assert.equal(attempts, 1, "a hidden chat sends no automatic retry, however long it stays hidden");
 
   await scene.rerender({ visible: true });
