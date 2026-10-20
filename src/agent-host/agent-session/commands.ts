@@ -105,6 +105,9 @@ export async function sendSessionCommand(
 
     case "fork": {
       const entryId = command.entryId as string;
+      const position = command.position ?? "before";
+      if (position !== "at" && position !== "before") throw new Error(`Unsupported fork position: ${position}`);
+
       const sessionManager = context.inner.sessionManager;
       const currentSessionFile = context.inner.sessionFile;
 
@@ -115,17 +118,16 @@ export async function sendSessionCommand(
       if (!entry) throw new Error("Invalid entry ID for forking");
 
       const sessionDir = sessionManager.getSessionDir();
+      const copyEndpoint = position === "at" ? entry.id : entry.parentId;
       let newSessionFile: string;
 
-      if (!entry.parentId) {
-        // Fork before the first message: create an empty session linked to this one
+      if (!copyEndpoint) {
         const newManager = SessionManager.create(sessionManager.getCwd(), sessionDir);
         newManager.newSession({ parentSession: currentSessionFile });
         newSessionFile = newManager.getSessionFile() as string;
       } else {
-        // Fork after some history: copy path up to (but not including) the fork point
         const sourceManager = SessionManager.open(currentSessionFile, sessionDir);
-        const forkedPath = sourceManager.createBranchedSession(entry.parentId);
+        const forkedPath = sourceManager.createBranchedSession(copyEndpoint);
         if (!forkedPath) throw new Error("Failed to create forked session");
         newSessionFile = forkedPath;
       }

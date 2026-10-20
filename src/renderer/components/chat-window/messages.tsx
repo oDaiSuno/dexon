@@ -138,8 +138,6 @@ export function ChatMessages({
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[idx]}
-            onFork={agentRunning || isNew || (idx === 0 && msg.role === "user") ? undefined : handleFork}
-            forking={forkingEntryId === entryIds[idx]}
             onNavigate={agentRunning ? undefined : handleNavigate}
             prevAssistantEntryId={agentRunning ? undefined : prevAssistantEntryId}
             onEditContent={insertEditedContent}
@@ -165,8 +163,9 @@ export function ChatMessages({
       );
     };
 
-    const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
+    const renderAnswer = (piece: TurnAnswerPiece, turnEndIdx: number): ReactNode => {
       const toolData = toolMessageIndex.get(messages[piece.index]);
+      const forkEntryId = piece.hasFooter ? entryIds[turnEndIdx - 1] : undefined;
       return (
         <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
           <SessionProfiler id="MessageView">
@@ -179,6 +178,9 @@ export function ChatMessages({
               cwd={messageCwd}
               onOpenFile={onOpenFile}
               entryId={piece.entryId}
+              forkEntryId={forkEntryId}
+              onFork={agentRunning || isNew ? undefined : handleFork}
+              forking={forkEntryId !== undefined && forkingEntryId === forkEntryId}
               onLoadDeferredContent={loadDeferredContent}
               showTimestamp={piece.hasFooter}
               prevTimestamp={piece.prevTimestamp}
@@ -266,7 +268,7 @@ export function ChatMessages({
       }
 
       for (const piece of layout.pieces) {
-        if (piece.kind === "answer") rendered.push(renderAnswer(piece));
+        if (piece.kind === "answer") rendered.push(renderAnswer(piece, endIdx));
         else if (piece.kind === "process") rendered.push(renderProcess(piece));
         else rendered.push(renderFailure(piece));
       }

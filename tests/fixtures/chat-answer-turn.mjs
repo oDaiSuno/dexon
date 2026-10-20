@@ -4,6 +4,8 @@ export const QUESTION = "帮我看看这个项目有什么问题。";
 export const OPENING = "我先检查项目。";
 export const MIDWAY = "已经找到问题所在。";
 export const CONCLUSION = "这是最终结论。";
+export const FOLLOW_UP_QUESTION = "那第二处问题呢？";
+export const SECOND_ANSWER = "第二处问题也修好了。";
 export const ANALYSIS = "分析修改方案：\n先复现问题，再修改代码。";
 export const REANALYSIS = "再确认一次修改范围：\n只改消息渲染这一处。";
 export const TOOL_OUTPUT = "src/app.ts 共 42 行，第 12 行没有空值判断。";
@@ -37,6 +39,10 @@ export function assistantReply(content, stopReason = "stop", timestamp = 1008) {
 
 export function userTurn() {
   return { role: "user", content: QUESTION, timestamp: 1000 };
+}
+
+export function followUpUserTurn() {
+  return { role: "user", content: FOLLOW_UP_QUESTION, timestamp: 1001 };
 }
 
 export function toolOutput(callId, value, timestamp = 1009) {
@@ -130,5 +136,35 @@ export function failedTurn(id = "answer-visibility-failed") {
     toolOutput("call-read-1", TOOL_OUTPUT, 1005),
     { ...assistantReply([], "error", 1006), errorMessage: FAILURE_DETAIL },
     assistantReply([textBlock(CONCLUSION)], "stop", 1012),
+  ]);
+}
+
+export function twoAnsweredTurns(id = "answer-new-session-two-turns") {
+  return turnDetail(id, [
+    userTurn(),
+    assistantReply([textBlock(OPENING)], "stop", 1004),
+    followUpUserTurn(),
+    assistantReply([textBlock(SECOND_ANSWER)], "stop", 1008),
+  ]);
+}
+
+export function toolThenAnswerTurn(id = "answer-new-session-tool-then-answer") {
+  return turnDetail(id, [
+    userTurn(),
+    assistantReply([textBlock(OPENING), readStep("call-read-1", "src/app.ts")], "toolUse", 1004),
+    toolOutput("call-read-1", TOOL_OUTPUT, 1005),
+    assistantReply([textBlock(CONCLUSION)], "stop", 1012),
+  ]);
+}
+
+export function failureOnlyTurn(id = "answer-new-session-failure-only") {
+  return turnDetail(id, [userTurn(), { ...assistantReply([], "error", 1006), errorMessage: FAILURE_DETAIL }]);
+}
+
+export function silentAbortTurn(id = "answer-new-session-silent-abort") {
+  return turnDetail(id, [
+    userTurn(),
+    assistantReply([readStep("call-read-1", "src/app.ts")], "aborted", 1006),
+    toolOutput("call-read-1", TOOL_OUTPUT, 1007),
   ]);
 }

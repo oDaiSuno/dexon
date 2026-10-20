@@ -19,6 +19,7 @@ interface Props {
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
+  forkEntryId?: string;
   onFork?: (entryId: string) => void;
   forking?: boolean;
   onNavigate?: (entryId: string) => void;
@@ -43,6 +44,7 @@ export const MessageView = memo(function MessageView({
   cwd,
   onOpenFile,
   entryId,
+  forkEntryId,
   onFork,
   forking,
   onNavigate,
@@ -63,9 +65,6 @@ export const MessageView = memo(function MessageView({
         afterAssistant={afterAssistant}
         cwd={cwd}
         onOpenFile={onOpenFile}
-        entryId={entryId}
-        onFork={onFork}
-        forking={forking}
         onNavigate={onNavigate}
         prevAssistantEntryId={prevAssistantEntryId}
         onEditContent={onEditContent}
@@ -87,6 +86,9 @@ export const MessageView = memo(function MessageView({
         prevTimestamp={prevTimestamp}
         onLoadDeferredContent={onLoadDeferredContent}
         entryId={entryId}
+        forkEntryId={forkEntryId}
+        onFork={onFork}
+        forking={forking}
         thinkingExpansionStore={thinkingExpansionStore}
         compact={compact}
         retried={retried}
