@@ -25,7 +25,7 @@ public class DexonW32 {
   [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr window);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessageText(IntPtr window, uint message, IntPtr wParam, string text);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendMessageW")] public static extern IntPtr SendMessageText(IntPtr window, uint message, IntPtr wParam, string text);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out RECT rect);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
