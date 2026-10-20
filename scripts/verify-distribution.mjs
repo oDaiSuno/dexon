@@ -141,6 +141,7 @@ try {
       ["scripts/test-windows-nsis-upgrade.mjs", previous, current, ...(!release ? ["--allow-same-version"] : [])],
       { timeout: 900_000 },
     );
+    run(process.execPath, ["scripts/test-windows-nsis-user-files.mjs", previous, current], { timeout: 900_000 });
   }
   await verifyArtifactManifest(directory, manifest, identity);
   if (!(mac && release)) {
