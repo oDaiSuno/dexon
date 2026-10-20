@@ -8,6 +8,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { darwinCodeDigest } from "../src/main/toolchains/darwin-binary-integrity.ts";
 import { extractFile, listPackage } from "@electron/asar";
+import {
+  describeManagedProcessHelperIntegrationFailure,
+  describePackagedStartupFailure,
+} from "./packaged-verification-diagnostics.mjs";
 import { verifyWindowsHelperPe } from "./windows-helper-pe.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -196,6 +200,7 @@ function verifyWindowsManagedProcessHelper(resources, toolTarget, executeHelper,
     }
     if (!validate(value)) throw new Error(`Packaged managed process helper ${mode} metadata mismatch`);
   }
+  const integrationTimeoutMs = 180_000;
   const integration = spawnSync(
     process.execPath,
     [
@@ -210,13 +215,13 @@ function verifyWindowsManagedProcessHelper(resources, toolTarget, executeHelper,
       // This is the full Windows containment suite, including GUI and optional
       // Java runtime scenarios. Cold hosted runners routinely need more than
       // 45 seconds even when every individual scenario is healthy.
-      timeout: 180_000,
+      timeout: integrationTimeoutMs,
       windowsHide: true,
     },
   );
   if (integration.status !== 0 || integration.signal || integration.error) {
     throw new Error(
-      `Packaged managed process helper integration failed: ${integration.error?.message ?? integration.stderr ?? integration.signal ?? integration.status}`,
+      describeManagedProcessHelperIntegrationFailure({ result: integration, timeoutMs: integrationTimeoutMs }),
     );
   }
   let report;
@@ -400,6 +405,7 @@ function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extra
     ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
     ...environmentPatch,
   };
+  const startupTimeoutMs = 60_000;
   try {
     const result = spawnSync(
       executable,
@@ -408,15 +414,12 @@ function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extra
         cwd: path.dirname(executable),
         env: environment,
         encoding: "utf8",
-        timeout: 60_000,
+        timeout: startupTimeoutMs,
         windowsHide: true,
       },
     );
-    if (result.error) throw result.error;
-    if (result.status !== 0) {
-      throw new Error(
-        `Packaged startup exited ${result.status}: ${[result.stdout, result.stderr].filter(Boolean).join("\n").slice(-4_000)}`,
-      );
+    if (result.error || result.signal || result.status !== 0) {
+      throw new Error(describePackagedStartupFailure({ result, isolatedRoot: isolated, timeoutMs: startupTimeoutMs }));
     }
     const reports = [];
     walkFiles(isolated, (file) => {

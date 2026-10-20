@@ -2,9 +2,11 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { once } from "node:events";
 import path from "node:path";
+import { finished } from "node:stream/promises";
 import { isCatalogArtifactUrlAllowed, type RuntimeCatalogVariant } from "../../shared/toolchains/catalog-schema.ts";
-import { ToolchainError } from "../../shared/toolchains/errors.ts";
+import { ToolchainError, toolchainCauseCode } from "../../shared/toolchains/errors.ts";
 import type { ManagedComponentId } from "../../shared/toolchains/types.ts";
+import { networkFailureCode } from "./network-failure.ts";
 
 const DOWNLOAD_TIMEOUT_MS = 10 * 60_000;
 export const MAX_RUNTIME_REDIRECTS = 5;
@@ -47,6 +49,16 @@ export function assertRuntimeRedirectUrl(value: string): URL {
   return url;
 }
 
+function transportFailure(error: unknown, message: string): ToolchainError {
+  const code = networkFailureCode(error);
+  return new ToolchainError({
+    code: code === undefined ? "TOOLCHAIN_DOWNLOAD_REJECTED" : "TOOLCHAIN_DOWNLOAD_OFFLINE",
+    message,
+    cause: error,
+    causeCode: code ?? toolchainCauseCode(error),
+  });
+}
+
 async function fetchArtifact(
   componentId: ManagedComponentId,
   initialUrl: string,
@@ -73,16 +85,7 @@ async function fetchArtifact(
         },
       });
     } catch (error) {
-      const code = (error as { code?: unknown }).code;
-      throw new ToolchainError({
-        code:
-          code === "ENOTFOUND" || code === "ECONNREFUSED"
-            ? "TOOLCHAIN_DOWNLOAD_OFFLINE"
-            : "TOOLCHAIN_DOWNLOAD_REJECTED",
-        message: "Could not download the managed runtime artifact",
-        cause: error,
-        causeCode: typeof code === "string" ? code : undefined,
-      });
+      throw transportFailure(error, "Could not download the managed runtime artifact");
     }
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
@@ -187,6 +190,7 @@ export async function downloadRuntimeArtifact(
       await once(output, "close");
     } catch (error) {
       output.destroy();
+      await finished(output).catch(() => undefined);
       throw error;
     }
     if (downloadedBytes !== variant.downloadBytes || hash.digest("hex") !== variant.sha256) {
@@ -209,11 +213,7 @@ export async function downloadRuntimeArtifact(
       });
     }
     if (error instanceof ToolchainError) throw error;
-    throw new ToolchainError({
-      code: "TOOLCHAIN_DOWNLOAD_REJECTED",
-      message: "Managed runtime download failed",
-      cause: error,
-    });
+    throw transportFailure(error, "Managed runtime download failed");
   } finally {
     clearTimeout(timer);
     options.signal?.removeEventListener("abort", abortFromCaller);
