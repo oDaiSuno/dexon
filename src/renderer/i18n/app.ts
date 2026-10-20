@@ -71,6 +71,7 @@ export const enUS: Record<string, string> = {
   retry: "Retry",
   pluginsTab: "Plugins",
   skillsTab: "Skills",
+  sessionPath: "Session path",
 };
 
 export const zhCN: Record<string, string> = {
@@ -145,4 +146,5 @@ export const zhCN: Record<string, string> = {
   retry: "重试",
   pluginsTab: "插件",
   skillsTab: "技能",
+  sessionPath: "会话路径",
 };

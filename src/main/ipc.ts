@@ -308,9 +308,14 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   trustedOn("desktop:set-badge-count", (_event, count: number) => applyBadgeCount(count));
   trustedHandle("desktop:get-ui-state", () => loadUiState());
   trustedHandle("desktop:managed-process-capability", () => getManagedProcessCapability());
-  trustedHandle("desktop:set-ui-state", (_event, patch: unknown) =>
-    saveUiStateStrict(validateDesktopUiStatePatch(patch)),
-  );
+  trustedHandle("desktop:set-ui-state", (_event, patch: unknown) => {
+    const validated = validateDesktopUiStatePatch(patch);
+    const saved = saveUiStateStrict(validated);
+    if (validated.sessionOrchestration) {
+      getHostManager()?.setSessionOrchestrationSettings(validated.sessionOrchestration);
+    }
+    return saved;
+  });
   trustedHandle("desktop:get-theme-source", () => nativeTheme.themeSource);
   trustedHandle("desktop:set-theme-source", (_event, source: "system" | "light" | "dark") => {
     nativeTheme.themeSource = source;

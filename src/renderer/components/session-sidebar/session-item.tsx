@@ -4,7 +4,10 @@ import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
-import { RunningSessionIndicator, UnreadSessionIndicator } from "./session-status-indicators";
+import { MAX_TREE_INDENT_DEPTH } from "@/lib/session-tree";
+import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
+import { COUNTED_ACTIVITIES, type SubtreeActivity } from "@/lib/session-tree-status";
+import { SessionRowCounts, SessionRowStatusSlot, sessionRowLabel } from "./session-row-status";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
 
 // Moved verbatim from SessionSidebar.tsx in Phase 2 (session row split). The
@@ -14,7 +17,9 @@ export function SessionItem({
   session,
   isSelected,
   isRunning,
-  isUnread,
+  activity,
+  relation,
+  descendants = null,
   onClick,
   onRenamed,
   onDeleted,
@@ -27,7 +32,9 @@ export function SessionItem({
   session: SessionInfo;
   isSelected: boolean;
   isRunning?: boolean;
-  isUnread?: boolean;
+  activity: SessionActivityStatus;
+  relation: SessionRelation | null;
+  descendants?: SubtreeActivity | null;
   onClick: () => void;
   onRenamed?: () => void;
   onDeleted?: (id: string) => void;
@@ -70,10 +77,9 @@ export function SessionItem({
   );
 
   const title = getSessionDisplayTitle(session);
+  const foldedDescendants = hasChildren && collapsed ? descendants : null;
+  const showCounts = foldedDescendants ? COUNTED_ACTIVITIES.some((kind) => foldedDescendants.counts[kind] > 0) : false;
 
-  // Single-line rows keep only title + relative time visible; everything else
-  // (full title, message count, worktree branch, cwd, modified time) lives in
-  // the hover tooltip.
   const tooltipText = [
     title,
     `${t("messageCount", "{count} msgs").replace("{count}", formatNumber(session.messageCount, language))}${
@@ -172,10 +178,14 @@ export function SessionItem({
     setConfirmDelete(false);
   }, []);
 
-  // Fixed-height outer wrapper — content swaps in place so the list never reflows.
-  // Single-line compact row: title left, relative time right. Snug pill matched
-  // to the reference (ink/pill ≈ 0.4, 32px pitch).
   const ITEM_HEIGHT = 28;
+  const rowBackground = confirmDelete
+    ? "color-mix(in srgb, var(--danger) 8%, transparent)"
+    : isSelected
+      ? "var(--bg-selected)"
+      : hovered
+        ? "var(--bg-hover)"
+        : "transparent";
 
   return (
     <div
@@ -191,16 +201,10 @@ export function SessionItem({
         display: "flex",
         alignItems: "center",
         margin: "0 4px 4px",
-        paddingLeft: depth > 0 ? depth * 12 + 10 : 10,
+        paddingLeft: Math.min(depth, MAX_TREE_INDENT_DEPTH) * 12 + 10,
         paddingRight: 8,
         cursor: "default",
-        background: confirmDelete
-          ? "color-mix(in srgb, var(--danger) 8%, transparent)"
-          : isSelected
-            ? "var(--bg-selected)"
-            : hovered
-              ? "var(--bg-hover)"
-              : "transparent",
+        background: rowBackground,
         border: confirmDelete
           ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
           : "1px solid transparent",
@@ -249,13 +253,7 @@ export function SessionItem({
               onClick();
             }}
             aria-current={isSelected ? "page" : undefined}
-            aria-label={
-              isRunning
-                ? `${title} · ${t("agentRunningStatus", "Agent running")}`
-                : isUnread
-                  ? `${title} · ${t("newSessionActivity", "New activity")}`
-                  : title
-            }
+            aria-label={sessionRowLabel({ title, activity, relation, descendants: foldedDescendants, t })}
             title={tooltipText}
             style={{
               alignSelf: "stretch",
@@ -273,9 +271,6 @@ export function SessionItem({
               textAlign: "left",
             }}
           >
-            {/* Status slot — fixed 18px so the title never shifts; idle rows
-                stay empty, selected rows get a dark marker dot, idle child
-                sessions show the fork icon */}
             <span
               aria-hidden="true"
               style={{
@@ -288,40 +283,10 @@ export function SessionItem({
                 color: "var(--text-dim)",
               }}
             >
-              {isRunning ? (
-                <RunningSessionIndicator />
-              ) : isUnread ? (
-                <UnreadSessionIndicator />
-              ) : depth > 0 ? (
-                <svg
-                  width="10"
-                  height="10"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ display: "block" }}
-                >
-                  <line x1="6" y1="3" x2="6" y2="15" />
-                  <circle cx="18" cy="6" r="3" />
-                  <circle cx="6" cy="18" r="3" />
-                  <path d="M18 9a9 9 0 0 1-9 9" />
-                </svg>
-              ) : isSelected ? (
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: "50%",
-                    flexShrink: 0,
-                    background: "var(--text)",
-                  }}
-                />
-              ) : null}
+              <SessionRowStatusSlot activity={activity} relation={relation} isSelected={isSelected} />
             </span>
             <span
+              data-session-row-title
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -336,16 +301,20 @@ export function SessionItem({
             >
               {title}
             </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: "var(--text-meta)",
-                color: "var(--text-dim)",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {formatRelativeDateTime(session.modified, language)}
-            </span>
+            {showCounts && foldedDescendants && <SessionRowCounts counts={foldedDescendants.counts} />}
+            {!showCounts && depth < MAX_TREE_INDENT_DEPTH && (
+              <span
+                data-session-row-time
+                style={{
+                  flexShrink: 0,
+                  fontSize: "var(--text-meta)",
+                  color: "var(--text-dim)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {formatRelativeDateTime(session.modified, language)}
+              </span>
+            )}
           </button>
 
           {/* Collapse toggle — always visible when has children */}
@@ -407,7 +376,7 @@ export function SessionItem({
               event.preventDefault();
               closeActionsMenu(true);
             }}
-            style={{ position: "relative", flexShrink: 0 }}
+            style={{ position: "absolute", top: 2, right: hasChildren ? 36 : 4, flexShrink: 0 }}
           >
             <button
               type="button"
@@ -428,7 +397,7 @@ export function SessionItem({
                 width: 24,
                 height: 24,
                 padding: 0,
-                background: "transparent",
+                background: actionsOpen || hovered ? rowBackground : "transparent",
                 border: actionsOpen ? "1px solid var(--border)" : "1px solid transparent",
                 borderRadius: "var(--radius-card)",
                 color: actionsOpen ? "var(--text)" : "var(--text-dim)",

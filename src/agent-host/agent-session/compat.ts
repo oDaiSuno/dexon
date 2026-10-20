@@ -1,5 +1,6 @@
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { AgentSessionLike } from "../../shared/pi-types";
+import { isSessionToolName } from "../../shared/session-orchestration";
 import { isBrowserToolName } from "../browser-tools";
 import { isSessionToolsType } from "../session-entry-compat";
 
@@ -73,7 +74,7 @@ export function withExtensionTools(session: AgentSessionLike, toolNames: string[
   const extensionToolNames = session
     .getAllTools()
     .map((t) => t.name)
-    .filter((name) => !codingToolNames.has(name) && !isBrowserToolName(name));
+    .filter((name) => !codingToolNames.has(name) && !isBrowserToolName(name) && !isSessionToolName(name));
 
   return [...new Set([...toolNames, ...extensionToolNames])];
 }

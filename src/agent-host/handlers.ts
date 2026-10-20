@@ -20,7 +20,10 @@ import { registerProjectHandlers } from "./handlers/project";
 import { registerResourceHandlers } from "./handlers/resources";
 import { registerSessionHandlers } from "./handlers/sessions";
 import { initializeManagedProcessService } from "./managed-process/runtime";
-import { subscribeRunningSessions } from "./rpc-manager";
+import { getRpcSessionStatuses, subscribeRunningSessions, syncSessionToolsForAllSessions } from "./rpc-manager";
+import { initializeSessionLauncher } from "./session-launcher";
+import { initializeSessionOrchestrationService } from "./session-orchestration/service";
+import { initializeSessionOrchestrationSettings } from "./session-orchestration/settings";
 
 export { applySessionNameIfEmpty, generateSessionTitleWithFallback } from "./handlers/agent";
 export { credentialMutationFailure } from "./handlers/auth";
@@ -36,6 +39,7 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
       type: "running",
       sessionIds: ids,
       runningSessionIds: ids,
+      sessionStatuses: getRpcSessionStatuses(),
     } as never);
     try {
       process.parentPort?.postMessage({ type: "running-sessions", sessionIds: ids });
@@ -45,6 +49,9 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
   });
 
   const managedProcesses = initializeManagedProcessService(server);
+  initializeSessionLauncher(server);
+  initializeSessionOrchestrationService();
+  initializeSessionOrchestrationSettings({ onSettingsChanged: syncSessionToolsForAllSessions });
 
   const processCleanup = registerProcessHandlers(server, { managedProcesses });
   const sessionsCleanup = registerSessionHandlers(server, { managedProcesses });

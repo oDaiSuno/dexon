@@ -63,6 +63,7 @@ export function navigationBoundary({
   const unexpected = [];
   const activity = { pending: 0, started: 0 };
   const runningListeners = new Set();
+  const sessionChangedListeners = new Set();
   const projectWorktrees = [
     { path: navigationPaths.project, branch: "main", isMain: true },
     { path: navigationPaths.worktree, branch: "review", isMain: false },
@@ -286,6 +287,10 @@ export function navigationBoundary({
       processListeners.add(listener);
       return () => processListeners.delete(listener);
     }
+    if (topic === "sessions.changed") {
+      sessionChangedListeners.add(listener);
+      return () => sessionChangedListeners.delete(listener);
+    }
     if (topic !== "agent.running") return () => {};
     runningListeners.add(listener);
     return () => runningListeners.delete(listener);
@@ -394,10 +399,24 @@ export function navigationBoundary({
       details.push(detail);
     },
     runningSubscribers: () => runningListeners.size,
-    running(sessionIds) {
+    sessionChangedSubscribers: () => sessionChangedListeners.size,
+    running(sessionIds, sessionStatuses = {}) {
       runningSessions.clear();
       for (const id of sessionIds) runningSessions.add(id);
-      for (const listener of runningListeners) listener({ type: "running", sessionIds: [...sessionIds] });
+      for (const listener of runningListeners)
+        listener({
+          type: "running",
+          sessionIds: [...sessionIds],
+          runningSessionIds: [...sessionIds],
+          sessionStatuses,
+        });
+    },
+    updateSession(sessionId, patch) {
+      const detail = details.find((item) => item.sessionId === sessionId);
+      if (!detail) throw new Error(`Fixture cannot update unknown session ${sessionId}`);
+      Object.assign(detail.info, patch);
+      for (const listener of sessionChangedListeners)
+        listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
     },
     // The Host's view of user stop requests: the observable side effect of
     // an abort, not a log of renderer calls.

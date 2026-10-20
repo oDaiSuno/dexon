@@ -6,11 +6,6 @@ import test, { after } from "node:test";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 
-// Contract tests for the shared session groups view extracted from the old
-// sidebar in Phase 4: three date groups with parent-child nesting, layer
-// sorting, and the loading/error/empty states consumed by both the old
-// SessionList and the new navigation history.
-
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
 const { SessionGroupsSection } = await importTestBundle("session-sidebar-session-groups", {
@@ -184,21 +179,33 @@ test("child sessions nest after their parent inside the same group", async () =>
   }
 });
 
-test("rows sort newest-first within a layer", async () => {
+test("rows keep the order their sessions were created in", async () => {
   const restore = installWindowStub();
   let root;
   try {
-    const older = sessionFixture("sort-old", { name: "older first written", modified: todayStart.toISOString() });
+    const parent = sessionFixture("sort-parent", {
+      name: "parent of both",
+      created: daysAgoAtMidnight(6),
+      modified: daysAgoAtMidnight(6),
+    });
+    const older = sessionFixture("sort-old", {
+      name: "older first written",
+      parentSessionId: "sort-parent",
+      created: daysAgoAtMidnight(3),
+      modified: todayStart.toISOString(),
+    });
     const newer = sessionFixture("sort-new", {
       name: "newer second written",
+      parentSessionId: "sort-parent",
+      created: daysAgoAtMidnight(2),
       modified: new Date(todayStart.getTime() + 1).toISOString(),
     });
-    root = await renderView(viewProps({ sessions: [older, newer] }));
+    root = await renderView(viewProps({ sessions: [newer, older, parent] }));
     const flat = textOf(root).join("\n");
     const newerIndex = flat.indexOf("newer second written");
     const olderIndex = flat.indexOf("older first written");
     assert.ok(newerIndex >= 0 && olderIndex >= 0, "both rows must render");
-    assert.ok(newerIndex < olderIndex, "the newest session must render first within the group");
+    assert.ok(olderIndex < newerIndex, "the session created first renders first even when it was modified last");
   } finally {
     root?.unmount?.();
     restore();

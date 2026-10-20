@@ -2,11 +2,12 @@ import { type AgentSessionRuntimeDiagnostic } from "@earendil-works/pi-coding-ag
 import { randomUUID } from "crypto";
 import type { ChannelId } from "../../shared/channel-types";
 import type { AgentSessionLike, ExtensionUiContextLike } from "../../shared/pi-types";
+import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-orchestration";
 import type { ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
-import { browserCapabilityRuntime } from "../browser-capability-runtime";
-import { browserToolNamesForSnapshot, isBrowserToolName, setBrowserSessionSource } from "../browser-tools";
+import { setBrowserSessionSource } from "../browser-tools";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
+import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
 import { stripToolchainMarkers } from "../session-entry-compat";
 import { setDesktopSessionToolNames } from "../session-tool-store";
 
@@ -15,12 +16,19 @@ import { sendSessionCommand } from "./commands";
 import { stripLegacyChannelPrompts, withExtensionTools } from "./compat";
 import { disposeSession } from "./dispose";
 import { SessionExtensionUi } from "./extension-ui";
+import { type ExternalTurnParams, runExternalTurn as runExternalTurnOn } from "./external-turn";
+import { decorateUserMessageEvent } from "./message-sources";
+import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
+import { QueuedTurns } from "./queued-turns";
+import { activateBrowserTools, activateSessionTools } from "./tool-activation";
+import { SessionTurnStatus } from "./turn-status";
 import type {
   AgentEvent,
   EventListener,
   ExtensionBindingOptions,
   ExtensionCommandContextActionsLike,
   ExternalSessionCommand,
+  OrchestratedTurnOutcome,
 } from "./types";
 
 // ============================================================================
@@ -34,6 +42,9 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private promptRunning = false;
   private queuedTurnCount = 0;
   private turnTail: Promise<void> = Promise.resolve();
+  private orchestratedSource: SessionSourceRef | null = null;
+  public readonly queuedTurns = new QueuedTurns();
+  private readonly turnStatus = new SessionTurnStatus();
   protected externalTurnActive = false;
   private externalTurnChannel: ChannelId | null = null;
   private externalTurnAttachments: ChannelMessageAttachment[] | null = null;
@@ -94,7 +105,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   start(): void {
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       this.resetIdleTimer();
-      const displayEvent = this.withExternalChannelSource(event);
+      this.turnStatus.observe(event);
+      const displayEvent = this.withMessageSources(event);
       this.emit(displayEvent);
       try {
         this.externalTurnProgress?.(displayEvent);
@@ -114,23 +126,35 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       this.inner.setActiveToolsByName([]);
       return;
     }
-    const current = this.inner.getActiveToolNames().filter((name) => !isBrowserToolName(name));
-    const browserTools = browserToolNamesForSnapshot(browserCapabilityRuntime.getSnapshot());
-    this.inner.setActiveToolsByName([...new Set([...current, ...browserTools])]);
+    activateBrowserTools(this.inner);
   }
 
-  private withExternalChannelSource(event: AgentEvent): AgentEvent {
-    if (!this.externalTurnChannel || (event.type !== "message_start" && event.type !== "message_end")) return event;
-    const message = event.message;
-    if (!message || typeof message !== "object" || (message as { role?: unknown }).role !== "user") return event;
-    return {
-      ...event,
-      message: {
-        ...(message as Record<string, unknown>),
-        channelSource: this.externalTurnChannel,
-        ...(this.externalTurnAttachments?.length ? { channelAttachments: this.externalTurnAttachments } : {}),
-      },
-    };
+  syncSessionToolActivation(): void {
+    if (this.forceEmptySystemPrompt) {
+      this.inner.setActiveToolsByName([]);
+      return;
+    }
+    activateSessionTools(this.inner, sessionOrchestrationEnabled());
+  }
+
+  liveStatus(): SessionLiveStatus | "idle" {
+    return this.turnStatus.status({
+      alive: this._alive,
+      awaitingInput: this.getInteractiveSnapshot().requests.length > 0,
+      running: this.isRunning(),
+    });
+  }
+
+  lastTurnErrorMessage(): string | null {
+    return this.turnStatus.error();
+  }
+
+  private withMessageSources(event: AgentEvent): AgentEvent {
+    return decorateUserMessageEvent(event, {
+      channel: this.externalTurnChannel,
+      attachments: this.externalTurnAttachments,
+      session: this.orchestratedSource,
+    });
   }
 
   setToolchainSummary(revision: number, summary: readonly string[]): void {
@@ -253,6 +277,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     this.forceEmptySystemPrompt = toolNames.length === 0;
     this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
     this.syncBrowserToolActivation();
+    this.syncSessionToolActivation();
     this.applyForcedEmptySystemPrompt();
   }
 
@@ -263,6 +288,11 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   protected emit(event: AgentEvent): void {
+    if (event.type === "prompt_error") {
+      notifyRunningChange();
+    } else if (event.type === "extension_ui_snapshot") {
+      notifyRunningChange();
+    }
     for (const listener of this.listeners) {
       try {
         listener(event);
@@ -274,6 +304,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
 
   private enqueueTurn<T>(task: () => Promise<T>): Promise<T> {
     this.queuedTurnCount += 1;
+    this.turnStatus.beginTurn();
     notifyRunningChange();
     const run = this.turnTail
       .catch(() => undefined)
@@ -296,67 +327,46 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     return run;
   }
 
-  async runExternalTurn(params: {
-    runId: string;
-    message: string;
-    channel: ChannelId;
-    images?: Array<{ type: "image"; data: string; mimeType: string }>;
-    channelAttachments?: ChannelMessageAttachment[];
-    attachmentContext?: string;
-    onProgress?: (event: AgentEvent) => void;
-  }): Promise<{ runId: string; finalText: string }> {
-    return this.enqueueTurn(async () => {
-      this.emit({ type: "channel_turn_start", runId: params.runId });
-      this.externalTurnActive = true;
-      this.externalTurnChannel = params.channel;
-      this.externalTurnAttachments = params.channelAttachments ?? null;
-      setBrowserSessionSource(this.inner.sessionManager, "channel");
-      browserAgentRuntime.beginTurn(this.sessionId, "channel");
-      this.externalTurnProgress = params.onProgress ?? null;
-      try {
-        this.inner.sessionManager.appendCustomEntry("dexon-channel-source", {
-          runId: params.runId,
-          channel: params.channel,
-          ...(params.channelAttachments?.length ? { attachments: params.channelAttachments } : {}),
-        });
-        if (params.attachmentContext) {
-          await this.inner.sendCustomMessage(
-            {
-              customType: "dexon-channel-attachment-context",
-              content: params.attachmentContext,
-              display: false,
-            },
-            { deliverAs: "nextTurn" },
-          );
-        }
-        await this.inner.prompt(params.message, {
-          ...(params.images?.length ? { images: params.images } : {}),
-          expandPromptTemplates: false,
-          source: "rpc",
-        });
-        const finalText = this.inner.getLastAssistantText()?.trim() ?? "";
-        this.emit({ type: "channel_turn_end", runId: params.runId, finalText });
-        return { runId: params.runId, finalText };
-      } catch (error) {
-        try {
-          this.inner.sessionManager.appendCustomEntry("dexon-channel-source-cancelled", { runId: params.runId });
-        } catch {
-          // A best-effort UI marker must never hide the original turn failure.
-        }
-        this.emit({
-          type: "channel_turn_error",
-          runId: params.runId,
-          errorMessage: error instanceof Error ? error.message : String(error),
-        });
-        throw error;
-      } finally {
-        this.externalTurnProgress = null;
-        this.externalTurnActive = false;
-        this.externalTurnChannel = null;
-        this.externalTurnAttachments = null;
-        setBrowserSessionSource(this.inner.sessionManager, "local");
-      }
-    });
+  runOrchestratedTurn(params: { message: string; source?: SessionSourceRef }): Promise<OrchestratedTurnOutcome> {
+    return runOrchestratedTurnOn(
+      {
+        inner: this.inner,
+        sessionId: this.sessionId,
+        enqueueTurn: (task) => this.enqueueTurn(task),
+        queuedTurns: this.queuedTurns,
+        waitForExtensionsBound: () => this.waitForExtensionsBound(),
+        emit: (event) => this.emit(event),
+        setMessageSource: (source) => {
+          this.orchestratedSource = source;
+        },
+      },
+      params,
+    );
+  }
+
+  runExternalTurn(params: ExternalTurnParams): Promise<{ runId: string; finalText: string }> {
+    return runExternalTurnOn(
+      {
+        inner: this.inner,
+        sessionId: this.sessionId,
+        enqueueTurn: (task) => this.enqueueTurn(task),
+        emit: (event) => this.emit(event),
+        beginExternalTurn: (context) => {
+          this.externalTurnActive = true;
+          this.externalTurnChannel = context.channel;
+          this.externalTurnAttachments = context.attachments;
+          this.externalTurnProgress = context.progress;
+        },
+        endExternalTurn: () => {
+          this.externalTurnProgress = null;
+          this.externalTurnActive = false;
+          this.externalTurnChannel = null;
+          this.externalTurnAttachments = null;
+        },
+        setBrowserSource: (source) => setBrowserSessionSource(this.inner.sessionManager, source),
+      },
+      params,
+    );
   }
 
   private async reloadSessionResources(): Promise<void> {
@@ -441,6 +451,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       persistToolNames: this.persistToolNames,
       reloadSessionResources: this.reloadSessionResources.bind(this),
       syncBrowserToolActivation: this.syncBrowserToolActivation.bind(this),
+      syncSessionToolActivation: this.syncSessionToolActivation.bind(this),
       resolveExtensionUiResponse: this.resolveExtensionUiResponse.bind(this),
       handleExtensionUiInput: this.handleExtensionUiInput.bind(this),
     });

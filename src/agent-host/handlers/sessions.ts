@@ -7,7 +7,7 @@ import type { SessionTreeNode } from "../../shared/types";
 import { callMain } from "../parent-rpc";
 import type { ManagedProcessService } from "../managed-process/service";
 import { clearSessionEventBinding } from "../session-event-binding";
-import { getRpcSession, getRunningRpcSessionIds, disposeAllRpcSessions } from "../rpc-manager";
+import { getRpcSession, getRpcSessionStatuses, getRunningRpcSessionIds, disposeAllRpcSessions } from "../rpc-manager";
 import { resolveSessionContextWindow } from "../model-runtime";
 import {
   buildSessionContext,
@@ -33,6 +33,8 @@ import {
 import { reconstructSessionContextUsage } from "../session-context-usage";
 import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
+import { deleteSessionOrigin } from "../session-origin-store";
+import { removeSessionTranscript } from "../session-orchestration/transcript";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
   logSessionPerformance,
@@ -105,7 +107,11 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           invalidFiles: indexMetrics.invalidFiles,
           indexRefreshMs: indexMetrics.totalMs,
         });
-        return { sessions, runningSessionIds: getRunningRpcSessionIds() };
+        return {
+          sessions,
+          runningSessionIds: getRunningRpcSessionIds(),
+          sessionStatuses: getRpcSessionStatuses(),
+        };
       } catch (error) {
         logSessionPerformance("sessions.list", {
           traceId,
@@ -333,6 +339,8 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       }
       const filePath = savedPath ?? (await resolveSessionPath(id));
       const deletedSession = filePath ? removeSessionFile(filePath) : null;
+      deleteSessionOrigin(id);
+      removeSessionTranscript(id);
       invalidateSessionPathCache(id);
       void callMain("browser.sessionEnded", { sessionId: id }).catch(() => undefined);
       server.emit("sessions.changed", id, {

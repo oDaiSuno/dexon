@@ -64,6 +64,13 @@ export const enUS: Record<string, string> = {
   worktreeRepoRootOnlyHint: "Worktrees are available in Git repository roots.",
   worktrees: "Worktrees…",
   useDefaultDirectory: "Use default directory",
+  sessionStatusAwaitingInput: "Waiting for your answer",
+  sessionStatusError: "Last turn failed",
+  sessionRelationFork: "Forked session",
+  sessionRelationDelegate: "Created by session",
+  sessionCountAwaitingInput: "{count} waiting for your answer",
+  sessionCountRunning: "{count} running",
+  sessionCountError: "{count} failed",
 };
 
 export const zhCN: Record<string, string> = {
@@ -132,4 +139,11 @@ export const zhCN: Record<string, string> = {
   worktreeRepoRootOnlyHint: "Worktree 仅可在 Git 仓库根目录中使用。",
   worktrees: "Worktree…",
   useDefaultDirectory: "使用默认目录",
+  sessionStatusAwaitingInput: "等你回答",
+  sessionStatusError: "上一轮出错",
+  sessionRelationFork: "分叉会话",
+  sessionRelationDelegate: "由会话创建",
+  sessionCountAwaitingInput: "{count} 个等你回答",
+  sessionCountRunning: "{count} 个运行中",
+  sessionCountError: "{count} 个出错",
 };

@@ -27,6 +27,7 @@ import type {
   SkillRecord,
   SkillUpdateParams,
 } from "../shared/api-types";
+import type { SessionLiveStatus } from "../shared/session-orchestration";
 import type {
   ChannelAccountConfig,
   ChannelBinding,
@@ -110,7 +111,11 @@ export interface Api {
   // Sessions & projects
   "sessions.list": {
     params: { cwd?: string } | void;
-    result: { sessions: SessionInfo[]; runningSessionIds: string[] };
+    result: {
+      sessions: SessionInfo[];
+      runningSessionIds: string[];
+      sessionStatuses?: Record<string, SessionLiveStatus>;
+    };
   };
   "sessions.get": {
     params: { id: string; includeState?: boolean; traceId?: string; historyWindow?: HistoryWindow };

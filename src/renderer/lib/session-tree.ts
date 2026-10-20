@@ -1,34 +1,47 @@
 import type { SessionInfo } from "./types";
-
-// Pure projection used by the session sidebar: fold a flat session list into
-// the derived fork tree. Moved verbatim from SessionSidebar.tsx in Phase 2.
+import type { SessionRelation } from "@shared/session-orchestration";
 
 export interface SessionTreeNode {
   session: SessionInfo;
   children: SessionTreeNode[];
+  activity: string;
+}
+
+export const MAX_TREE_INDENT_DEPTH = 3;
+
+export function sessionRelation(session: SessionInfo): SessionRelation | null {
+  if (session.relation) return session.relation;
+  return session.parentSessionId ? "fork" : null;
+}
+
+function creationOrder(left: SessionInfo, right: SessionInfo): number {
+  const created = left.created.localeCompare(right.created);
+  return created !== 0 ? created : left.id.localeCompare(right.id);
+}
+
+function newest(values: string[]): string {
+  let latest = "";
+  for (const value of values) if (value > latest) latest = value;
+  return latest;
 }
 
 export function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
   const byId = new Map<string, SessionTreeNode>();
-  for (const s of sessions) {
-    byId.set(s.id, { session: s, children: [] });
-  }
+  for (const session of sessions) byId.set(session.id, { session, children: [], activity: session.modified });
 
-  // Build a map of parentSessionId chains so we can resolve missing ancestors
   const parentOf = new Map<string, string>();
-  for (const s of sessions) {
-    if (s.parentSessionId) parentOf.set(s.id, s.parentSessionId);
+  for (const session of sessions) {
+    if (session.parentSessionId) parentOf.set(session.id, session.parentSessionId);
   }
 
-  // Walk up the parentSessionId chain to find the nearest ancestor that exists in byId
   function resolveAncestor(id: string): string | null {
-    let cur = parentOf.get(id);
+    let current = parentOf.get(id);
     const visited = new Set<string>();
-    while (cur) {
-      if (visited.has(cur)) return null; // cycle guard
-      visited.add(cur);
-      if (byId.has(cur)) return cur;
-      cur = parentOf.get(cur);
+    while (current) {
+      if (visited.has(current)) return null;
+      visited.add(current);
+      if (byId.has(current)) return current;
+      current = parentOf.get(current);
     }
     return null;
   }
@@ -36,18 +49,20 @@ export function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
   const roots: SessionTreeNode[] = [];
   for (const node of byId.values()) {
     const ancestor = resolveAncestor(node.session.id);
-    if (ancestor) {
-      byId.get(ancestor)!.children.push(node);
-    } else {
-      roots.push(node);
-    }
+    if (ancestor) byId.get(ancestor)!.children.push(node);
+    else roots.push(node);
   }
 
-  // Sort each level by modified desc
-  const sort = (nodes: SessionTreeNode[]) => {
-    nodes.sort((a, b) => b.session.modified.localeCompare(a.session.modified));
-    nodes.forEach((n) => sort(n.children));
+  const order = (left: SessionTreeNode, right: SessionTreeNode) => creationOrder(left.session, right.session);
+
+  const arrange = (nodes: SessionTreeNode[]) => {
+    nodes.sort(order);
+    for (const node of nodes) {
+      arrange(node.children);
+      node.activity = newest([node.session.modified, ...node.children.map((child) => child.activity)]);
+    }
   };
-  sort(roots);
+  arrange(roots);
+  roots.sort((left, right) => right.activity.localeCompare(left.activity) || order(left, right));
   return roots;
 }

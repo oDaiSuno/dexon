@@ -1,16 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import {
   loadUnreadSessionIds as loadStoredUnreadSessionIds,
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
 } from "@/lib/unread-session-storage";
 import { applySessionChangedEvent } from "@/lib/session-sidebar-state";
-
-// Split from SessionSidebar.tsx in Phase 2: the session directory data owner.
-// Owns the session list, the live running stream, unread markers, incremental
-// change subscriptions, the home directory label, and the sidebar-owned
-// timers (refresh feedback + deferred focus).
+import { clearSessionCatalog, publishSessionCatalog } from "@/lib/session-catalog";
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -46,6 +43,7 @@ export function useSessionDirectory({
   const [homeDir, setHomeDir] = useState<string>("");
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
+  const [liveStatuses, setLiveStatuses] = useState<Record<string, SessionLiveStatus>>({});
   const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
   const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
   // Once the live stream has delivered a frame it is the source of truth for
@@ -93,13 +91,18 @@ export function useSessionDirectory({
                   ),
           );
         }
-        const data = (await res.json()) as { sessions?: SessionInfo[]; runningSessionIds?: string[] };
+        const data = (await res.json()) as {
+          sessions?: SessionInfo[];
+          runningSessionIds?: string[];
+          sessionStatuses?: Record<string, SessionLiveStatus>;
+        };
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
         setAllSessions(sessions);
         // Treat the fetched running set as an initial fallback only. Once the stream is
         // live it owns this state, so a slow fetch can't revive a stale snapshot.
         if (!streamAuthoritativeRef.current) {
           setRunningSessionIds(new Set(data.runningSessionIds ?? []));
+          setLiveStatuses(data.sessionStatuses ?? {});
         }
         // Drop unread markers for sessions that no longer exist (e.g. deleted).
         const existingIds = new Set(sessions.map((s) => s.id));
@@ -134,6 +137,12 @@ export function useSessionDirectory({
     void loadSessions(isFirst);
   }, [loadSessions, refreshKey]);
 
+  useEffect(() => {
+    publishSessionCatalog(allSessions);
+  }, [allSessions]);
+
+  useEffect(() => clearSessionCatalog, []);
+
   // Persist unread markers so they survive a browser refresh before the user
   // has actually opened the completed session.
   useEffect(() => {
@@ -154,10 +163,12 @@ export function useSessionDirectory({
             type?: string;
             runningSessionIds?: string[];
             sessionIds?: string[];
+            sessionStatuses?: Record<string, SessionLiveStatus>;
           };
           if (data.type === "running") {
             streamAuthoritativeRef.current = true;
             setRunningSessionIds(new Set(data.runningSessionIds ?? data.sessionIds ?? []));
+            setLiveStatuses(data.sessionStatuses ?? {});
           }
         } catch {
           // ignore malformed frames
@@ -252,6 +263,7 @@ export function useSessionDirectory({
     loading,
     error,
     runningSessionIds,
+    liveStatuses,
     unreadSessionIds,
     homeDir,
     sessionRefreshDone,

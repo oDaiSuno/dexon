@@ -26,3 +26,9 @@ export type ExtensionBindingOptions = {
 };
 
 export type ExternalSessionCommand = "compact" | "reload";
+
+export interface OrchestratedTurnOutcome {
+  reply?: string;
+  error?: string;
+  stopped?: boolean;
+}

@@ -9,6 +9,7 @@ import {
   isChannelAttachmentContextType,
   isChannelSourceCancelledType,
   isChannelSourceType,
+  isSessionSourceType,
 } from "./session-entry-compat";
 import type {
   AgentMessage,
@@ -19,9 +20,11 @@ import type {
   UserMessage,
 } from "../shared/types";
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
+import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { sessionIndex } from "./session-index";
+import { withSessionOrigin } from "./session-origin-store";
 
 export { getAgentDir };
 
@@ -55,7 +58,7 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
     // Populate path cache so resolveSessionPath works without a full scan
     cache.set(s.id, s.path);
     const project = s.cwd ? projectByCwd.get(s.cwd) : undefined;
-    return {
+    return withSessionOrigin({
       path: s.path,
       id: s.id,
       cwd: s.cwd,
@@ -67,7 +70,7 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
       parentSessionId: s.parentSessionPath ? pathToId.get(s.parentSessionPath) : undefined,
       projectRoot: project?.projectRoot ?? s.cwd,
       ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
-    };
+    });
   });
 }
 
@@ -164,7 +167,7 @@ export async function buildSessionInfoFromManager(
   const project = header.cwd && options.resolveProjectInfo !== false ? await resolveProject(header.cwd) : undefined;
   const parentSessionId = header.parentSession ? findCachedSessionId(header.parentSession) : undefined;
 
-  return {
+  return withSessionOrigin({
     path: filePath,
     id: header.id,
     cwd: header.cwd,
@@ -176,7 +179,7 @@ export async function buildSessionInfoFromManager(
     ...(parentSessionId ? { parentSessionId } : {}),
     projectRoot: project?.projectRoot ?? header.cwd,
     ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
-  };
+  });
 }
 
 export function getSessionEntries(filePath: string): SessionEntry[] {
@@ -220,7 +223,12 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
   const messages: AgentMessage[] = [];
   const entryIds: string[] = [];
   let pendingChannelSource: ChannelSourceMarker | null = null;
+  let pendingSessionSource: SessionSourceRef | null = null;
   for (const e of path) {
+    if (e.type === "custom" && isSessionSourceType(e.customType)) {
+      pendingSessionSource = parseSessionSourceMarker(e.data);
+      continue;
+    }
     if (e.type === "custom" && isChannelSourceType(e.customType)) {
       const marker = parseChannelSourceMarker(e.data);
       if (marker) pendingChannelSource = marker;
@@ -236,7 +244,9 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
     if (m) {
       if (m.role === "user") {
         m = withUserMessageSource(m, pendingChannelSource?.channel, pendingChannelSource?.attachments);
+        if (pendingSessionSource) m = { ...m, sessionSource: pendingSessionSource };
         pendingChannelSource = null;
+        pendingSessionSource = null;
       }
       messages.push(m);
       entryIds.push(e.id);
@@ -274,6 +284,16 @@ type ChannelSourceMarker = {
   runId?: string;
   attachments?: ChannelMessageAttachment[];
 };
+
+export function parseSessionSourceMarker(data: unknown): SessionSourceRef | null {
+  if (!data || typeof data !== "object") return null;
+  const marker = data as { sessionId?: unknown; title?: unknown };
+  if (typeof marker.sessionId !== "string" || !marker.sessionId) return null;
+  return {
+    sessionId: marker.sessionId,
+    ...(typeof marker.title === "string" && marker.title ? { title: marker.title } : {}),
+  };
+}
 
 function parseChannelAttachments(value: unknown): ChannelMessageAttachment[] {
   if (!Array.isArray(value)) return [];

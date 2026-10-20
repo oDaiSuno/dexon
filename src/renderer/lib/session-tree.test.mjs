@@ -9,6 +9,7 @@ function session(id, overrides = {}) {
     name: "",
     firstMessage: "",
     cwd: "/workspace/dexon",
+    created: "2026-07-15T12:00:00.000Z",
     modified: "2026-07-15T12:00:00.000Z",
     messageCount: 1,
     ...overrides,
@@ -29,19 +30,45 @@ test("builds a flat forest sorted by most recent modification", () => {
   assert.deepEqual(tree[1].children, []);
 });
 
-test("nests children under their existing parent and sorts every level", () => {
+test("nests children under their existing parent and keeps every level in creation order", () => {
   const tree = buildSessionTree([
-    session("parent-a", { modified: "2026-07-10T12:00:00.000Z" }),
-    session("parent-b", { modified: "2026-07-14T12:00:00.000Z" }),
-    session("child-late", { parentSessionId: "parent-a", modified: "2026-07-12T12:00:00.000Z" }),
-    session("child-early", { parentSessionId: "parent-a", modified: "2026-07-11T12:00:00.000Z" }),
-    session("child-of-b", { parentSessionId: "parent-b", modified: "2026-07-13T12:00:00.000Z" }),
+    session("parent-a", { created: "2026-07-10T12:00:00.000Z", modified: "2026-07-10T12:00:00.000Z" }),
+    session("parent-b", { created: "2026-07-09T12:00:00.000Z", modified: "2026-07-14T12:00:00.000Z" }),
+    session("child-late", {
+      parentSessionId: "parent-a",
+      created: "2026-07-12T12:00:00.000Z",
+      modified: "2026-07-13T12:00:00.000Z",
+    }),
+    session("child-early", {
+      parentSessionId: "parent-a",
+      created: "2026-07-11T12:00:00.000Z",
+      modified: "2026-07-11T12:00:00.000Z",
+    }),
+    session("child-of-b", {
+      parentSessionId: "parent-b",
+      created: "2026-07-13T12:00:00.000Z",
+      modified: "2026-07-13T12:00:00.000Z",
+    }),
   ]);
   assert.deepEqual(ids(tree), ["parent-b", "parent-a"]);
   const parentA = tree.find((node) => node.session.id === "parent-a");
   const parentB = tree.find((node) => node.session.id === "parent-b");
-  assert.deepEqual(ids(parentA.children), ["child-late", "child-early"]);
+  assert.deepEqual(ids(parentA.children), ["child-early", "child-late"]);
   assert.deepEqual(ids(parentB.children), ["child-of-b"]);
+});
+
+test("roots are ordered by the newest activity anywhere inside them", () => {
+  const tree = buildSessionTree([
+    session("quiet-root", { created: "2026-07-10T12:00:00.000Z", modified: "2026-07-10T12:00:00.000Z" }),
+    session("busy-root", { created: "2026-07-09T12:00:00.000Z", modified: "2026-07-09T12:00:00.000Z" }),
+    session("busy-child", {
+      parentSessionId: "busy-root",
+      created: "2026-07-09T13:00:00.000Z",
+      modified: "2026-07-16T12:00:00.000Z",
+    }),
+  ]);
+  assert.deepEqual(ids(tree), ["busy-root", "quiet-root"]);
+  assert.equal(tree[0].activity, "2026-07-16T12:00:00.000Z");
 });
 
 test("nests a multi-generation chain through each direct parent", () => {

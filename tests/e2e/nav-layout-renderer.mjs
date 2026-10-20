@@ -6,13 +6,23 @@ import { setAppLanguage } from "../../src/renderer/i18n.ts";
 import { call, resetRpc } from "../../src/renderer/lib/api-client.ts";
 import { installApiShims } from "../../src/renderer/lib/api-fetch.ts";
 import { installApiHostBridge } from "../support/api-host.mjs";
-import { navigationSessions } from "../fixtures/nav-sidebar.mjs";
+import {
+  navigationSessions,
+  sessionTreeFoldedIds,
+  sessionTreeRunningIds,
+  sessionTreeSessions,
+  sessionTreeStatuses,
+} from "../fixtures/nav-sidebar.mjs";
 import { accessibleName, allByRole, byRole, getByRole, text } from "../support/dom-queries.mjs";
 import "./production-styles.mjs";
 
 const window = globalThis.window;
 const document = globalThis.document;
-let sessions = navigationSessions.map((item) => ({ ...item }));
+const sessionLists = {
+  default: navigationSessions,
+  tree: sessionTreeSessions(),
+};
+let sessions = sessionLists.default.map((item) => ({ ...item }));
 const requests = [];
 const actions = [];
 // Only the other process's answers are fixtures. The real client, API fetch
@@ -37,15 +47,34 @@ const root = createRoot(document.getElementById("root"));
 let epoch = 0;
 let currentSpaceName = "Personal space";
 
+function boxOf(element) {
+  const rect = element.getBoundingClientRect();
+  return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+}
+
 function navigation() {
   return getByRole(document, "navigation", document.documentElement.lang === "zh-CN" ? "主导航" : "Main navigation");
 }
 
-function NavigationScene({ expanded: initialExpanded, spaceName, initialSessions }) {
+function NavigationScene({
+  expanded: initialExpanded,
+  spaceName,
+  initialSessions,
+  foldedSessionIds,
+  liveStatuses,
+  runningSessionIds,
+}) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [page, setPage] = useState("chat");
   const [currentSessions, setSessions] = useState(initialSessions);
+  const [folded, setFolded] = useState(() => new Set(foldedSessionIds));
   const refresh = async () => setSessions((await call("sessions.list")).sessions);
+  const toggleFold = (sessionId) =>
+    setFolded((current) => {
+      const next = new Set(current);
+      if (!next.delete(sessionId)) next.add(sessionId);
+      return next;
+    });
   return createElement(
     "div",
     { style: { display: "flex", height: "100%", minWidth: 0, overflow: "hidden" } },
@@ -58,8 +87,11 @@ function NavigationScene({ expanded: initialExpanded, spaceName, initialSessions
       loading: false,
       error: null,
       selectedSessionId: null,
-      runningSessionIds: new Set(),
+      liveStatuses,
+      runningSessionIds: new Set(runningSessionIds),
       unreadSessionIds: new Set(),
+      foldedSessionIds: folded,
+      onToggleFold: toggleFold,
       homeDir: "/Users/tester",
       onToggleExpanded: () => setExpanded((value) => !value),
       onNavigate: setPage,
@@ -109,20 +141,55 @@ window.navLayout = {
       controls: allByRole(nav, "button").map((element) => ({ element, label: accessibleName(element) })),
     };
   },
-  async configure({ expanded = true, spaceName = "Personal space", theme = "light", language = "en-US" } = {}) {
+  async configure({
+    expanded = true,
+    spaceName = "Personal space",
+    theme = "light",
+    language = "en-US",
+    scene = "default",
+  } = {}) {
     currentSpaceName = spaceName;
+    sessions = sessionLists[scene].map((item) => ({ ...item }));
     setAppLanguage(language);
     document.documentElement.classList.toggle("dark", theme === "dark");
     const listed = await call("sessions.list");
+    const treeScene = scene === "tree";
     flushSync(() =>
       root.render(
-        createElement(NavigationScene, { key: ++epoch, expanded, spaceName, initialSessions: listed.sessions }),
+        createElement(NavigationScene, {
+          key: ++epoch,
+          expanded,
+          spaceName,
+          initialSessions: listed.sessions,
+          foldedSessionIds: treeScene ? sessionTreeFoldedIds : [],
+          liveStatuses: treeScene ? sessionTreeStatuses : {},
+          runningSessionIds: treeScene ? sessionTreeRunningIds : [],
+        }),
       ),
     );
     await document.fonts.load('14px "Geist"');
     await document.fonts.load('14px "Geist Mono"');
     await document.fonts.ready;
     await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
+  },
+  rows() {
+    const nav = navigation();
+    return [...nav.querySelectorAll('[role="listitem"]')].map((item) => {
+      const row = item.querySelector("button");
+      const title = item.querySelector("[data-session-row-title]");
+      const time = item.querySelector("[data-session-row-time]");
+      const counts = item.querySelector("[data-session-row-counts]");
+      return {
+        name: accessibleName(row),
+        indent: parseFloat(window.getComputedStyle(item).paddingLeft),
+        titleWidth: title ? title.clientWidth : null,
+        titleScrollWidth: title ? title.scrollWidth : null,
+        rowBox: boxOf(item),
+        time: time ? time.textContent : null,
+        counts: counts ? counts.textContent : null,
+        countsBox: counts ? boxOf(counts) : null,
+      };
+    });
   },
   snapshot: () => ({ requests, actions }),
   close() {

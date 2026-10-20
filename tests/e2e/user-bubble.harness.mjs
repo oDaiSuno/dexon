@@ -19,6 +19,8 @@ const COMMAND_MARKER = "运行下面的命令";
 const QUOTED_MARKER = "三者";
 const SPECIAL_MARKER = "__init__";
 const SKILL_MARKER = "fast-context";
+const FROM_SESSION_MARKER = "请把迁移清单做完";
+const DELEGATED_MARKER = "请在另一个会话里开始迁移";
 
 const js = (source) => window.webContents.executeJavaScript(source, true);
 const page = (call) => js(`window.userBubble.${call}`);
@@ -247,6 +249,110 @@ async function run() {
       name: "clicking-a-bubble-chip-reveals-the-file",
       measurement: { clicked: center, focused: "/tmp/shot.png", revealed: await page("revealed()") },
       screenshot: await capture("06-reveal"),
+      pass: true,
+    });
+  }
+
+  await show(FROM_SESSION_MARKER);
+  {
+    const layout = await page(`sourceChipLayout(${JSON.stringify(FROM_SESSION_MARKER)})`);
+    assert.ok(layout.exists, "the message from another session renders");
+    assert.ok(layout.chip, "the message names the session it came from");
+    assert.equal(layout.chip.label, "From session 委派会话", "the chip names the source session");
+    assert.equal(layout.paragraphs.length, 1, "the chip adds no paragraph to the bubble");
+    assert.equal(layout.lines, 1, "the prose still occupies a single line");
+    const paragraph = layout.paragraphs[0];
+    assert.ok(
+      layout.chip.rect.bottom <= paragraph.rect.top + 0.5,
+      "the chip sits above the prose, outside the paragraph",
+    );
+    assert.ok(
+      !paragraph.text.includes("From session"),
+      "the chip text is not part of the paragraph the markdown renderer builds",
+    );
+    assert.ok(layout.chip.rect.right <= layout.bubble.right + 0.5, "the chip stays inside the bubble");
+    records.push({
+      name: "message-from-another-session-names-it",
+      measurement: layout,
+      screenshot: await capture("08-from-session-chip"),
+      pass: true,
+    });
+  }
+
+  await show(DELEGATED_MARKER);
+  {
+    await js(
+      `(() => {const head=[...document.querySelectorAll('button')].find((element)=>element.textContent.includes('Process details')||element.textContent.includes('Processed')); if(head) head.click();})()`,
+    );
+    await paint();
+    const link = await page(`sessionLink("Open session 迁移会话")`);
+    assert.ok(link, "the session_new card names the session it created");
+    assert.equal(link.text, "迁移会话", "the link shows the target session title");
+    assert.ok(link.rect.width > 20 && link.rect.height > 10, "the link is a real visible control");
+    await page(`scrollSessionLinkIntoView("Open session 迁移会话")`);
+    let center = null;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      await settle();
+      const candidate = await page(`sessionLinkCenter("Open session 迁移会话")`);
+      if (candidate.hits) {
+        center = candidate;
+        break;
+      }
+    }
+    assert.ok(center, "the link settles where the user can click it");
+    await click(center);
+    assert.deepEqual(await page("openRequests()"), ["bubble-target"], "clicking the link asks to open that session");
+    records.push({
+      name: "tool-card-links-to-the-session-it-created",
+      measurement: { link, requested: await page("openRequests()") },
+      screenshot: await capture("09-tool-card-link"),
+      pass: true,
+    });
+  }
+
+  {
+    const path = await page("breadcrumb()");
+    assert.ok(path.exists, "the conversation shows the path that led to it");
+    assert.deepEqual(
+      path.segments.map((segment) => segment.label),
+      ["重构登录模块", "迁移旧接口", "补接口测试"],
+      "every ancestor and the current session are named in reading order",
+    );
+    assert.deepEqual(
+      path.segments.map((segment) => segment.current),
+      [null, null, "page"],
+      "only the session on screen is marked as the current page",
+    );
+    assert.deepEqual(
+      path.segments.map((segment) => segment.tag),
+      ["button", "button", "span"],
+      "ancestors are buttons and the current step is text",
+    );
+    assert.ok(path.segments[0].rect.right <= path.segments[1].rect.x + 0.5, "the path starts at the root");
+    assert.ok(path.segments[1].rect.right <= path.segments[2].rect.x + 0.5, "the path ends at the current session");
+    assert.ok(path.documentScrollWidth <= path.documentWidth + 1, "the path does not overflow the window");
+    const root = await page(`breadcrumbCenter("重构登录模块")`);
+    await click(root);
+    assert.deepEqual(await page("openRequests()"), ["bubble-target", "bulb-root"], "an ancestor opens that session");
+    await page(`publishCatalog(["bulb-mid", "bulb-leaf"])`);
+    await paint();
+    const trimmed = await page("breadcrumb()");
+    assert.deepEqual(
+      trimmed.segments.map((segment) => segment.label),
+      ["迁移旧接口", "补接口测试"],
+      "a deleted ancestor and its title leave the path",
+    );
+    await page(`publishCatalog(["bulb-root", "bulb-mid", "bulb-leaf"])`);
+    await page("clearCatalog()");
+    await paint();
+    const cleared = await page("breadcrumb()");
+    assert.equal(cleared.exists, false, "an empty catalog leaves no stale path");
+    await page(`publishCatalog(["bulb-root", "bulb-mid", "bulb-leaf"])`);
+    await paint();
+    records.push({
+      name: "session-path-names-and-opens-ancestors",
+      measurement: { path, trimmed, cleared, requested: await page("openRequests()") },
+      screenshot: await capture("10-session-path"),
       pass: true,
     });
   }

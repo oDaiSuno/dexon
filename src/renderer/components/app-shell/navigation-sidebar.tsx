@@ -220,6 +220,7 @@ export function NavigationSidebar({
           loading={directory.loading}
           error={directory.error}
           selectedSessionId={shownSessionId}
+          liveStatuses={directory.liveStatuses}
           runningSessionIds={directory.runningSessionIds}
           unreadSessionIds={directory.unreadSessionIds}
           homeDir={homeDir}

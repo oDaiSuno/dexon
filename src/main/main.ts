@@ -36,6 +36,7 @@ import {
   verifyWindowsManagedProcessHelperReplaceable,
 } from "../shared/windows-managed-process-helper";
 import type { ManagedProcessCapability } from "../contract/processes";
+import { normalizeSessionOrchestrationSettings } from "../shared/session-orchestration";
 import { projectManagedProcessCapability } from "./managed-process/capability";
 import { runPackagedCleanupFaultValidation } from "./packaged-cleanup-fault-validation";
 
@@ -587,6 +588,7 @@ function startMainProcess(): void {
     });
     hostManager.setToolchainSnapshot(toolchainManager.getSnapshot());
     hostManager.setBrowserCapabilitySnapshot(browserService.getCapabilitySnapshot());
+    hostManager.setSessionOrchestrationSettings(ui.sessionOrchestration);
     const credentialRequestHandler = createCredentialRequestHandler(credentialVault);
     hostManager.setRequestHandler(async (method, params) => {
       if (method.startsWith("channelSecrets.")) return credentialRequestHandler(method, params);
@@ -604,6 +606,9 @@ function startMainProcess(): void {
           throw new Error("Invalid Host toolchain resolution request");
         }
         return toolchainManager!.resolveForProject(body.cwd, { intent: body.intent, trusted: body.trusted });
+      }
+      if (method === "sessionOrchestration.getSettings") {
+        return normalizeSessionOrchestrationSettings(loadUiState().sessionOrchestration);
       }
       if (method === "managedProcesses.getSettings") {
         const status = managedProcessReaper?.status();

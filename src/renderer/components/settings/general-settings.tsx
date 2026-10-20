@@ -4,6 +4,7 @@ import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@share
 import type { ManagedProcessCapability } from "../../../contract/processes";
 import { isAutoSessionTitleEnabled, setAutoSessionTitleEnabled } from "../../lib/auto-session-title";
 import { SettingRow, selectStyle } from "./setting-row";
+import { SessionOrchestrationSettings } from "./session-orchestration-settings";
 
 export function GeneralSettings({
   language,
@@ -227,6 +228,10 @@ export function GeneralSettings({
           </p>
         )}
       </section>
+
+      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+
+      <SessionOrchestrationSettings />
 
       <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
 

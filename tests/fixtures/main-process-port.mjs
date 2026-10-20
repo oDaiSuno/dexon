@@ -8,7 +8,15 @@ const shell = {
   envPatch: {},
 };
 
-function answer(message) {
+const defaultSessionOrchestration = Object.freeze({
+  enabled: false,
+  maxRunning: 8,
+  model: null,
+  thinkingLevel: null,
+  allowUserSessions: true,
+});
+
+function answer(message, sessionOrchestration) {
   if (message.method === "toolchain.getSnapshot")
     return {
       revision: 1,
@@ -28,27 +36,39 @@ function answer(message) {
       commands: { "shell.bash": shell },
       summary: [],
     };
+  if (message.method === "sessionOrchestration.getSettings") {
+    return { ...sessionOrchestration, settings: sessionOrchestration };
+  }
   return {};
 }
 
-export function installMainProcessPort() {
+export function installMainProcessPort({ sessionOrchestration = defaultSessionOrchestration } = {}) {
   const descriptor = Object.getOwnPropertyDescriptor(process, "parentPort");
   const listeners = new Set();
+  let current = { ...sessionOrchestration };
+  const deliver = (listener, data) => globalThis.queueMicrotask(() => listener({ data }));
+
   process.parentPort = {
     on(type, listener) {
-      if (type === "message") listeners.add(listener);
+      if (type !== "message") return;
+      listeners.add(listener);
+      deliver(listener, { type: "session-orchestration:settings", settings: structuredClone(current) });
     },
     postMessage(message) {
       if (message?.type !== "host-rpc") return;
-      const result = answer(message);
-      globalThis.queueMicrotask(() => {
-        for (const listener of listeners)
-          listener({ data: { type: "host-rpc-result", id: message.id, ok: true, result } });
-      });
+      const result = answer(message, current);
+      for (const listener of listeners)
+        deliver(listener, { type: "host-rpc-result", id: message.id, ok: true, result });
     },
   };
-  return () => {
+  const restore = () => {
     if (descriptor) Object.defineProperty(process, "parentPort", descriptor);
     else delete process.parentPort;
   };
+  restore.setSessionOrchestrationSettings = (settings) => {
+    current = { ...settings };
+    for (const listener of listeners)
+      deliver(listener, { type: "session-orchestration:settings", settings: structuredClone(current) });
+  };
+  return restore;
 }

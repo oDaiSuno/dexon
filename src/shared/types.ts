@@ -1,4 +1,5 @@
 import type { QuestionDraft, QuestionnaireRequest } from "./interactive-tools";
+import type { SessionRelation, SessionSourceRef } from "./session-orchestration";
 
 // Types mirrored from pi-mono coding-agent session-manager
 
@@ -69,6 +70,7 @@ export interface UserMessage {
   channelSource?: "weixin" | "telegram" | "feishu";
   /** UI-only attachment metadata retained by channel source markers. */
   channelAttachments?: ChannelMessageAttachment[];
+  sessionSource?: SessionSourceRef;
   timestamp?: number;
 }
 
@@ -314,6 +316,8 @@ export interface SessionInfo {
   messageCount: number;
   firstMessage: string;
   parentSessionId?: string; // set if this session was forked from another
+  relation?: SessionRelation;
+  createdBySessionId?: string;
   /** Main repo root shared by all worktrees of this cwd (cwd itself for non-git dirs).
    *  Always set by the server; optional because the client builds transient
    *  SessionInfo objects before the first refresh. Fall back to cwd. */

@@ -1,4 +1,5 @@
 import type { InteractiveSnapshot } from "../shared/interactive-tools";
+import type { SessionLiveStatus, SessionRelation } from "../shared/session-orchestration";
 /** Shared domain types used by the IPC contract. */
 
 import type {
@@ -23,6 +24,8 @@ export interface SessionInfo {
   messageCount: number;
   firstMessage: string;
   parentSessionId?: string;
+  relation?: SessionRelation;
+  createdBySessionId?: string;
   projectRoot?: string;
   worktreeBranch?: string;
 }
@@ -227,6 +230,7 @@ export interface AgentEvent {
 export interface RunningStateEvent {
   type: "running";
   sessionIds: string[];
+  sessionStatuses?: Record<string, SessionLiveStatus>;
 }
 
 export interface CredentialMutationWarning {

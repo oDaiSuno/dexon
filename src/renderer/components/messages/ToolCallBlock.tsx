@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
+import { readSessionToolTarget, isSessionToolName, type SessionToolTargetDetails } from "@shared/session-orchestration";
+import { SessionTargetLink } from "./session-links";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
 import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
@@ -35,6 +37,7 @@ export function ToolCallBlock({
   const isRunning = !result;
   const preview = getToolPreview(block);
   const browserTabId = isBrowserToolName(block.toolName) ? browserTabIdFromResult(resultText) : null;
+  const sessionTarget = sessionToolTarget(block, result);
   const diffCounts = resultDiff ? countDiffLines(resultDiff.text) : null;
   const label = toolVerbLabel(block.toolName, t);
 
@@ -71,6 +74,11 @@ export function ToolCallBlock({
           </span>
         </button>
       </div>
+      {sessionTarget && (
+        <div style={{ display: "flex", paddingLeft: 22 }}>
+          <SessionTargetLink target={sessionTarget} />
+        </div>
+      )}
       {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
           `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
           the accordion root (this nesting is what broke expansion once). */}
@@ -165,6 +173,17 @@ function ToolStatusIcon({ done, error, toolName }: { done: boolean; error: boole
 
 function isBrowserToolName(value: string): boolean {
   return value.startsWith("browser_");
+}
+
+function sessionToolTarget(
+  block: ToolCallContent,
+  result: ToolResultMessage | undefined,
+): SessionToolTargetDetails | null {
+  if (!isSessionToolName(block.toolName)) return null;
+  const reported = readSessionToolTarget(result?.details);
+  if (reported) return reported;
+  const named = block.input.sessionId;
+  return typeof named === "string" && named.length > 0 ? { targetSessionId: named } : null;
 }
 
 /* Sub-second tools still earn a mark: anything under half a second shows

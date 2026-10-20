@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { SessionInfo } from "@/lib/types";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { filterSessionsForQuery } from "@/lib/session-list";
 import { SessionGroupsSection } from "./session-groups";
@@ -14,6 +15,7 @@ export function SessionList({
   loading,
   error,
   selectedSessionId,
+  liveStatuses,
   runningSessionIds,
   unreadSessionIds,
   homeDir,
@@ -25,6 +27,7 @@ export function SessionList({
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
+  liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
   homeDir: string;
@@ -134,6 +137,7 @@ export function SessionList({
         error={error}
         hasActiveFilter={sessionFilter.trim().length > 0}
         selectedSessionId={selectedSessionId}
+        liveStatuses={liveStatuses}
         runningSessionIds={runningSessionIds}
         unreadSessionIds={unreadSessionIds}
         homeDir={homeDir}

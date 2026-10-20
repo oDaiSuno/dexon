@@ -123,6 +123,8 @@ export const enUS: Record<string, string> = {
   toolSearch: "Search",
   welcomeGreeting: "What are we working on? Describe a task, paste an error, or drop in files.",
   waitingForModel: "Waiting for model…",
+  sessionSourceFrom: "From session {title}",
+  sessionTargetOpen: "Open session {title}",
 };
 
 export const zhCN: Record<string, string> = {
@@ -246,4 +248,6 @@ export const zhCN: Record<string, string> = {
   toolSearch: "搜索",
   welcomeGreeting: "今天想从哪里开始？描述任务、粘贴报错，或直接拖入文件。",
   waitingForModel: "正在等待模型…",
+  sessionSourceFrom: "来自会话 {title}",
+  sessionTargetOpen: "打开会话 {title}",
 };

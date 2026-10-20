@@ -1,13 +1,10 @@
 import type { SessionInfo } from "@/lib/types";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { sessionDateGroup, type SessionDateGroup } from "@/lib/session-list";
 import { buildSessionTree } from "@/lib/session-tree";
+import type { SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionTreeItem } from "./session-tree-item";
-
-// Extracted in Phase 4 from session-list.tsx so the old sidebar and the new
-// navigation history render the same three date groups, the derived tree and
-// the loading/error/empty states. Presentation only: consumers pass the
-// already-filtered sessions and own the search/filter state.
 
 export function SessionGroupsSection({
   sessions,
@@ -15,6 +12,7 @@ export function SessionGroupsSection({
   error,
   hasActiveFilter,
   selectedSessionId,
+  liveStatuses,
   runningSessionIds,
   unreadSessionIds,
   homeDir,
@@ -29,6 +27,7 @@ export function SessionGroupsSection({
   error: string | null;
   hasActiveFilter: boolean;
   selectedSessionId: string | null;
+  liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
   homeDir: string;
@@ -40,6 +39,7 @@ export function SessionGroupsSection({
 }) {
   const { t } = useI18n();
 
+  const signals: SessionActivitySignals = { liveStatuses: liveStatuses ?? {}, runningSessionIds, unreadSessionIds };
   const sessionTree = buildSessionTree(sessions);
   const sessionGroups: { id: SessionDateGroup; label: string; nodes: typeof sessionTree }[] = [
     { id: "today", label: t("sessionsToday", "Today"), nodes: [] },
@@ -47,7 +47,7 @@ export function SessionGroupsSection({
     { id: "older", label: t("sessionsOlder", "Older"), nodes: [] },
   ];
   for (const node of sessionTree) {
-    sessionGroups.find((group) => group.id === sessionDateGroup(node.session.modified))?.nodes.push(node);
+    sessionGroups.find((group) => group.id === sessionDateGroup(node.activity))?.nodes.push(node);
   }
 
   return (
@@ -89,8 +89,7 @@ export function SessionGroupsSection({
                       key={node.session.id}
                       node={node}
                       selectedSessionId={selectedSessionId}
-                      runningSessionIds={runningSessionIds}
-                      unreadSessionIds={unreadSessionIds}
+                      signals={signals}
                       onSelectSession={onSelectSession}
                       onRenamed={onRenamed}
                       onSessionDeleted={onSessionDeleted}
