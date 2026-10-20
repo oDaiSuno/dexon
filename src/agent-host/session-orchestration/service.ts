@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   SESSION_ORCHESTRATION_LIMITS,
@@ -7,6 +7,7 @@ import {
   type SessionSourceRef,
 } from "../../shared/session-orchestration";
 import { resolveProject } from "../../shared/worktree";
+import { worktreePathsEqual } from "../../shared/worktree-path";
 import {
   getRpcSession,
   listRpcSessions,
@@ -84,7 +85,7 @@ export class SessionOrchestrationService {
       throw new SessionOrchestrationError(`Directory does not exist: ${input.cwd ?? caller.cwd}`);
     }
     const [callerProject, targetProject] = await Promise.all([resolveProject(caller.cwd), resolveProject(cwd)]);
-    if (callerProject.projectRoot !== targetProject.projectRoot) {
+    if (!sameProjectRoot(callerProject.projectRoot, targetProject.projectRoot)) {
       throw new SessionOrchestrationError(CROSS_PROJECT_REFUSAL);
     }
     if (this.agentSessionLoad() >= settings.maxRunning) {
@@ -262,6 +263,18 @@ export class SessionOrchestrationService {
     ensureSessionEvents(sessionLauncherServer(), session, sessionId);
     return session;
   }
+}
+
+function canonicalProjectRoot(root: string): string {
+  try {
+    return realpathSync.native(root);
+  } catch {
+    return root;
+  }
+}
+
+function sameProjectRoot(left: string, right: string): boolean {
+  return worktreePathsEqual(canonicalProjectRoot(left), canonicalProjectRoot(right));
 }
 
 function callerModel(caller: AgentSessionWrapper): SessionModelRef | undefined {

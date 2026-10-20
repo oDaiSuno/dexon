@@ -4,6 +4,7 @@ import {
   type SessionRelation,
 } from "../../shared/session-orchestration";
 import type { AgentMessage, SessionInfo } from "../../shared/types";
+import { worktreePathsEqual } from "../../shared/worktree-path";
 import { getRpcSession } from "../rpc-manager";
 import { buildSessionContext } from "../session-reader";
 import { listHistorySessions, openSessionSource } from "../session-source";
@@ -92,7 +93,11 @@ export async function listSessionViews(options: {
   );
   const sessions: SessionToolView[] = [];
   for (const session of await listHistorySessions()) {
-    if (options.scope !== "all" && options.callerProjectRoot && session.projectRoot !== options.callerProjectRoot) {
+    if (
+      options.scope !== "all" &&
+      options.callerProjectRoot &&
+      !worktreePathsEqual(session.projectRoot ?? session.cwd, options.callerProjectRoot)
+    ) {
       continue;
     }
     sessions.push({
