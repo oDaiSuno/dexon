@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import test, { after } from "node:test";
 import { DEFAULT_MAX_LINES } from "@earendil-works/pi-coding-agent";
@@ -39,11 +39,9 @@ test(
   async () => {
     const parentCwd = host.workspace("transcript-parent");
     const parent = await host.createUserSession({ cwd: parentCwd });
+    writeFileSync(path.join(parentCwd, "build.log"), "tool-run\n");
     const childMessage = "Write a report about the build";
-    host.model.script(childMessage, [
-      toolCall("bash", { command: "echo tool-run" }),
-      { text: "The report is written" },
-    ]);
+    host.model.script(childMessage, [toolCall("read", { path: "build.log" }), { text: "The report is written" }]);
     let childId;
     host.model.script("Ask the worker for a report", [
       toolCall("session_new", { message: childMessage, name: "Reporter", wait: false }),
@@ -89,7 +87,7 @@ test(
     assert.deepEqual(sectionTitles(transcript), [
       `User — from session ${parent}`,
       "Assistant",
-      "Tool result: bash",
+      "Tool result: read",
       "Assistant",
     ]);
     assert.equal(payload.transcript.messages, 4, "one section per message");
@@ -103,11 +101,13 @@ test(
   "the transcript shows thinking, tool call input and tool results the way the session produced them",
   { timeout: 90_000 },
   async () => {
-    const parent = await host.createUserSession({ cwd: host.workspace("transcript-blocks-parent") });
+    const workspace = host.workspace("transcript-blocks-parent");
+    writeFileSync(path.join(workspace, "notes.txt"), "first-line\nsecond-line\n");
+    const parent = await host.createUserSession({ cwd: workspace });
     const childMessage = "Inspect the workspace";
     host.model.script(childMessage, [
-      { thinking: "I should look at the files first", toolCall: { name: "bash", input: { command: "ls -la" } } },
-      { toolCall: { name: "bash", input: { command: "printf 'first-line\\nsecond-line\\n'; exit 3" } } },
+      { thinking: "I should look at the files first", toolCall: { name: "read", input: { path: "notes.txt" } } },
+      { toolCall: { name: "read", input: { path: "missing.txt" } } },
       { text: "The workspace was inspected" },
     ]);
     let childId;
@@ -131,15 +131,15 @@ test(
     assert.match(transcript, /^Thinking:\n> I should look at the files first$/m, "thinking is quoted");
     assert.match(
       transcript,
-      /^Tool call: bash\n```json\n\{\n {2}"command": "ls -la"\n\}\n```$/m,
+      /^Tool call: read\n```json\n\{\n {2}"path": "notes.txt"\n\}\n```$/m,
       "a tool call shows its full input as readable json",
     );
     assert.deepEqual(sectionTitles(transcript), [
       `User — from session ${parent}`,
       "Assistant",
-      "Tool result: bash",
+      "Tool result: read",
       "Assistant",
-      "Tool result: bash (error)",
+      "Tool result: read (error)",
       "Assistant",
     ]);
     assert.match(transcript, /first-line\nsecond-line/, "a tool result keeps the text the tool returned");

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import test, { after } from "node:test";
 import {
   ENABLED_SETTINGS,
@@ -20,9 +21,11 @@ test(
   "reading another session returns its last reply and a transcript that keeps the tool results",
   { timeout: 90_000 },
   async () => {
-    const parent = await host.createUserSession({ cwd: host.workspace("read-parent") });
+    const workspace = host.workspace("read-parent");
+    writeFileSync(path.join(workspace, "report.txt"), "tool-run\n");
+    const parent = await host.createUserSession({ cwd: workspace });
     const childMessage = "Write a report to disk first";
-    host.model.script(childMessage, [toolCall("bash", { command: "echo tool-run" }), { text: LONG_REPLY }]);
+    host.model.script(childMessage, [toolCall("read", { path: "report.txt" }), { text: LONG_REPLY }]);
     let childId;
     host.model.script("Read the worker's report", [
       toolCall("session_new", { message: childMessage, wait: false }),
