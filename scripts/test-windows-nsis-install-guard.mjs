@@ -12,7 +12,6 @@ import {
   compareVersions,
   fileVersion,
   install,
-  installExpectingStatus,
   readInstalledVersion,
   regularFile,
   runInstallerWith,
@@ -25,11 +24,13 @@ import {
 } from "./windows-nsis-harness.mjs";
 import {
   attachVirtualDrive,
+  captureFailureEvidence,
   changeFacts,
   fileIds,
   startProcessMonitor,
   stopProcessMonitor,
 } from "./windows-nsis-cross-drive.mjs";
+import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
 import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
@@ -92,25 +93,21 @@ results.push(
       firstInstall(previousInstaller, installPath);
       track(installPath);
       const userFiles = seedUserFiles(installPath);
-      const before = snapshotFiles(installPath);
-      const helper = await startLockingHelper(installPath);
-      try {
-        installExpectingStatus(currentInstaller, installPath, 2);
-      } finally {
-        await stopLockingHelper(helper);
-      }
-      const after = snapshotFiles(installPath);
-      const changed = Object.keys(after).filter(
-        (relative) => relative !== "Uninstall Dexon.exe" && after[relative] !== before[relative],
-      );
-      const added = Object.keys(after).filter((relative) => !(relative in before));
-      assert.deepEqual(changed, [], "a stopped upgrade must leave every old file byte for byte");
-      assert.deepEqual(added, [], "a stopped upgrade must not add files");
-      assert.equal(readInstalledVersion(), previousVersion, "the old version must still be the registered one");
+      const facts = await busyUpgradeFacts({ root, installPath, label: "same-drive" });
+      console.log(`[nsis-install-guard] same-drive upgrade facts: ${JSON.stringify(facts)}`);
+      assert.equal(facts.status, 2, `a busy upgrade must stop with 2: ${JSON.stringify(facts)}`);
+      assert.equal(facts.missing.count, 0, `nothing may disappear: ${JSON.stringify(facts)}`);
+      assert.equal(facts.changed.count, 0, `no kept file may change: ${JSON.stringify(facts)}`);
+      assert.equal(facts.added.count, 0, `nothing may be added: ${JSON.stringify(facts)}`);
       assert.equal(
-        compareVersions(fileVersion(appExecutable(installPath)), previousVersion),
+        facts.displayVersion,
+        previousVersion,
+        `the old version must still be registered: ${JSON.stringify(facts)}`,
+      );
+      assert.equal(
+        compareVersions(facts.fileVersion, previousVersion),
         0,
-        "the old executable must still be the old version",
+        `the old executable must still be the old version: ${JSON.stringify(facts)}`,
       );
       install(currentInstaller, installPath);
       assertUserFilesKept(installPath, userFiles, "recovered upgrade");
@@ -135,25 +132,19 @@ results.push(
       track(installPath);
       const userFiles = seedUserFiles(installPath);
 
-      const before = snapshotFiles(installPath);
-      const beforeIds = fileIds(installPath);
-      const upgrade = await busyInstall(root, installPath, installerName, []);
       const upgradeFacts = {
         drive: drive.letter,
-        upgradeStatus: upgrade.status,
-        monitor: upgrade.processes,
-        displayVersion: readInstalledVersion(),
-        fileVersion: fileVersion(appExecutable(installPath)),
-        ...changeFacts(installPath, before, beforeIds),
+        ...(await busyUpgradeFacts({ root, installPath, label: "cross-drive" })),
       };
       console.log(`[nsis-install-guard] cross-drive upgrade facts: ${JSON.stringify(upgradeFacts)}`);
       assert.equal(
-        upgrade.status,
+        upgradeFacts.status,
         2,
         `a busy file on another drive must stop the upgrade: ${JSON.stringify(upgradeFacts)}`,
       );
       assert.equal(upgradeFacts.missing.count, 0, `nothing may disappear: ${JSON.stringify(upgradeFacts)}`);
       assert.equal(upgradeFacts.changed.count, 0, `no kept file may change: ${JSON.stringify(upgradeFacts)}`);
+      assert.equal(upgradeFacts.added.count, 0, `nothing may be added: ${JSON.stringify(upgradeFacts)}`);
       assert.equal(
         upgradeFacts.displayVersion,
         previousVersion,
@@ -202,12 +193,29 @@ console.log(
   }),
 );
 
+async function busyUpgradeFacts({ root, installPath, label }) {
+  const before = snapshotFiles(installPath);
+  const beforeIds = fileIds(installPath);
+  const run = await busyInstall(root, installPath, path.basename(currentInstaller), []);
+  const facts = {
+    status: run.status,
+    monitor: run.processes,
+    strayCopyWaited: run.strayCopyWaited,
+    displayVersion: readInstalledVersion(),
+    fileVersion: fileVersion(appExecutable(installPath)),
+    ...changeFacts(installPath, before, beforeIds),
+  };
+  if (facts.status !== 2) facts.evidence = captureFailureEvidence(root, label, run.processes);
+  return facts;
+}
+
 async function busyInstall(root, installPath, installerName, extraArguments) {
   const helper = await startLockingHelper(installPath);
   const monitor = startProcessMonitor(root, installerName);
   try {
     const status = runInstallerWith(currentInstaller, installPath, extraArguments).status;
-    return { status, processes: await stopProcessMonitor(monitor) };
+    const processes = await stopProcessMonitor(monitor);
+    return { status, processes, strayCopyWaited: waitForUninstallerCopy() };
   } finally {
     await stopLockingHelper(helper);
   }

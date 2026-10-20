@@ -131,12 +131,36 @@ export function changeFacts(installPath, before, beforeIds) {
   const moved = Object.keys(beforeIds).filter(
     (relative) => relative in afterIds && afterIds[relative] !== beforeIds[relative],
   );
+  const added = Object.keys(current).filter((relative) => !(relative in before));
   return {
     missing: { count: missing.length, first: missing.slice(0, 20) },
     changed: { count: changed.length, first: changed.slice(0, 20) },
+    added: { count: added.length, first: added.slice(0, 20) },
     idsChanged: { count: moved.length, first: moved.slice(0, 20) },
     stagingDirs: stagingFacts(),
   };
+}
+
+export function captureFailureEvidence(root, label, processes) {
+  const target = path.join(root, `failure-evidence-${label}`);
+  fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(path.join(target, "monitor.json"), JSON.stringify(processes, null, 2), "utf8");
+  const temporary = os.tmpdir();
+  const staging = fs
+    .readdirSync(temporary, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && /^ns.*\.tmp$/u.test(entry.name))
+    .map((entry) => {
+      const directory = path.join(temporary, entry.name);
+      return {
+        name: entry.name,
+        files: walkFiles(directory).map((file) => ({
+          name: path.relative(directory, file),
+          size: fs.statSync(file, { throwIfNoEntry: false })?.size ?? null,
+        })),
+      };
+    });
+  fs.writeFileSync(path.join(target, "staging.json"), JSON.stringify(staging, null, 2), "utf8");
+  return { directory: target, stagingDirectories: staging.length };
 }
 
 export function startProcessMonitor(root, installerName) {
@@ -212,21 +236,38 @@ $stop = $env:DEXON_MONITOR_STOP
 $installer = $env:DEXON_MONITOR_INSTALLER
 $start = Get-Date
 $seen = @{}
+$alive = @{}
 $ready = $false
-while (-not (Test-Path -LiteralPath $stop)) {
+function Get-Hits {
+  $hits = @{}
   foreach ($item in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
     $name = $item.Name
     $path = $item.ExecutablePath
     $hit = ($name -eq "old-uninstaller.exe") -or ($name -eq "Uninstall Dexon.exe") -or ($name -match "^(Au_|Un_[A-Z])\.exe$") -or ($null -ne $path -and $path.EndsWith($installer))
-    if ($hit) {
-      $key = [string]$item.ProcessId
-      if (-not $seen.ContainsKey($key)) {
-        $seen[$key] = [pscustomobject]@{ pid = $item.ProcessId; parentPid = $item.ParentProcessId; name = $name; commandLine = $item.CommandLine; firstSeenMs = [int64]((Get-Date) - $start).TotalMilliseconds }
-      }
+    if ($hit) { $hits[[string]$item.ProcessId] = $item }
+  }
+  return $hits
+}
+while (-not (Test-Path -LiteralPath $stop)) {
+  $now = [int64]((Get-Date) - $start).TotalMilliseconds
+  $hits = Get-Hits
+  foreach ($key in @($hits.Keys)) {
+    if (-not $seen.ContainsKey($key)) {
+      $item = $hits[$key]
+      $seen[$key] = [pscustomobject]@{ pid = $item.ProcessId; parentPid = $item.ParentProcessId; name = $item.Name; commandLine = $item.CommandLine; firstSeenMs = $now; exitObservedMs = $null }
     }
   }
+  foreach ($key in @($alive.Keys)) {
+    if (-not $hits.ContainsKey($key) -and $seen.ContainsKey($key) -and $null -eq $seen[$key].exitObservedMs) { $seen[$key].exitObservedMs = $now }
+  }
+  $alive = $hits
   if (-not $ready) { New-Item -ItemType File -Path $env:DEXON_MONITOR_READY -Force | Out-Null; $ready = $true }
   Start-Sleep -Milliseconds 150
+}
+$now = [int64]((Get-Date) - $start).TotalMilliseconds
+$final = Get-Hits
+foreach ($key in @($alive.Keys)) {
+  if (-not $final.ContainsKey($key) -and $seen.ContainsKey($key) -and $null -eq $seen[$key].exitObservedMs) { $seen[$key].exitObservedMs = $now }
 }
 ConvertTo-Json -Compress -InputObject @($seen.Values)
 `;
