@@ -8,13 +8,13 @@ import os from "node:os";
 import path from "node:path";
 import { assertSuccessfulSpawn } from "./process-utils.mjs";
 import { verifyUpdateConfiguration } from "./verify-update-configuration.mjs";
+import { firstInstall } from "./windows-nsis-first-install.mjs";
 import {
   appExecutable,
   assertCleanUserInstallState,
   assertNoFilesLeft,
   compareVersions,
   fileVersion,
-  firstInstall,
   install,
   regularFile,
   sha256,

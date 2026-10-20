@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { firstInstall } from "./windows-nsis-first-install.mjs";
 import {
   appExecutable,
   assertCleanUserInstallState,
@@ -12,7 +13,6 @@ import {
   assertUserFilesKept,
   compareVersions,
   fileVersion,
-  firstInstall,
   install,
   installExpectingStatus,
   readInstalledVersion,

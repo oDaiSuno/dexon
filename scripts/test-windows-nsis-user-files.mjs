@@ -3,12 +3,12 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import { firstInstall } from "./windows-nsis-first-install.mjs";
 import {
   assertCleanUserInstallState,
   assertDirectoryRemoved,
   assertNoFilesLeft,
   assertUserFilesKept,
-  firstInstall,
   install,
   installExpectingStatus,
   listInstalledFiles,
@@ -48,7 +48,7 @@ results.push(
     name: "when nothing but Dexon is in the folder, uninstall removes the folder itself",
     body: async ({ root, track, untrack }) => {
       const installPath = path.join(root, "Dexon clean");
-      install(currentInstaller, installPath);
+      firstInstall(currentInstaller, installPath);
       track(installPath);
       currentFiles = listInstalledFiles(installPath);
       assert.ok(currentFiles.includes("Dexon.exe"), "the packaged install must contain Dexon.exe");
@@ -130,7 +130,7 @@ results.push(
     name: "when the current version is reinstalled over itself, user files stay and uninstall leaves only them",
     body: async ({ root, track, untrack }) => {
       const installPath = path.join(root, "Dexon 重装");
-      install(currentInstaller, installPath);
+      firstInstall(currentInstaller, installPath);
       track(installPath);
       const userFiles = seedUserFiles(installPath);
       install(currentInstaller, installPath);

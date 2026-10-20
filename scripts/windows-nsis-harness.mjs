@@ -5,13 +5,7 @@ import { once } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { workflowWarning } from "./ci-retry.mjs";
 import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
-import {
-  ACCESS_VIOLATION_EXIT_STATUS,
-  FIRST_INSTALL_PHASE,
-  shouldRetryFirstInstall,
-} from "./windows-installer-retry.mjs";
 
 export function regularFile(value) {
   const resolved = path.resolve(value);
@@ -46,27 +40,6 @@ export function compareVersions(left, right) {
     if (delta !== 0) return delta;
   }
   return 0;
-}
-
-export function firstInstall(installer, directory) {
-  const result = runInstaller(installer, directory);
-  if (!installFailed(result)) return;
-  if (
-    !shouldRetryFirstInstall({
-      phase: FIRST_INSTALL_PHASE,
-      result,
-      installState: readUserInstallState(),
-      installDirectoryEntries: installDirectoryEntries(directory),
-    })
-  ) {
-    throw installerFailure(result);
-  }
-  console.log(
-    workflowWarning(
-      `First install of the previous installer exited ${ACCESS_VIOLATION_EXIT_STATUS} (0xC0000005) with no install record left; retrying once. A crash dump may be uploaded for diagnosis.`,
-    ),
-  );
-  install(installer, directory);
 }
 
 export function install(installer, directory) {

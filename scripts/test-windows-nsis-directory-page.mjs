@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { workflowWarning } from "./ci-retry.mjs";
+import { FIRST_INSTALL_ATTEMPTS, firstInstallCrashWarning } from "./windows-installer-retry.mjs";
 import { assertCleanUserInstallState, regularFile, sha256, uninstall } from "./windows-nsis-harness.mjs";
 import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
@@ -56,7 +58,7 @@ function Get-PageEdit([IntPtr]$outer) {
 }
 function Test-DirectoryPage([IntPtr]$outer) { return [int64](Get-PageEdit $outer) -ne 0 }
 $process = Start-Process -FilePath $env:DEXON_NSIS_INSTALLER -ArgumentList "/currentuser" -PassThru
-$report = [ordered]@{ mode = $Mode; window = $false; pageReached = $false; nextEnabledAfterTyping = $false; nextEnabledAfterNext = $false; pageAdvanced = $false; exited = $false }
+$report = [ordered]@{ mode = $Mode; window = $false; pageReached = $false; nextEnabledAfterTyping = $false; nextEnabledAfterNext = $false; pageAdvanced = $false; exited = $false; exitCode = $null }
 try {
   $deadline = (Get-Date).AddSeconds(40)
   $window = [IntPtr]::Zero
@@ -64,7 +66,12 @@ try {
     $window = Get-WizardWindow $process.Id
     if ([int64]$window -eq 0) { Start-Sleep -Milliseconds 250 }
   }
-  if ([int64]$window -eq 0) { $report.reason = "installer wizard window did not appear"; return ($report | ConvertTo-Json -Compress) }
+  if ([int64]$window -eq 0) {
+    $report.reason = "installer wizard window did not appear"
+    $process.Refresh()
+    if ($process.HasExited) { $report.exitCode = $process.ExitCode }
+    return ($report | ConvertTo-Json -Compress)
+  }
   $report.window = $true
   for ($attempt = 0; $attempt -lt 20; $attempt++) {
     if (Test-DirectoryPage $window) { break }
@@ -158,9 +165,12 @@ results.push(
     body: async ({ root }) => {
       fs.mkdirSync(evidence, { recursive: true });
       const target = path.join(root, "Dexon项目");
-      fs.mkdirSync(target, { recursive: true });
-      fs.writeFileSync(path.join(target, "note.txt"), "not ours\n");
-      const report = runPage(root, target, "disabled");
+      const prepare = () => {
+        fs.rmSync(target, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
+        fs.mkdirSync(target, { recursive: true });
+        fs.writeFileSync(path.join(target, "note.txt"), "not ours\n");
+      };
+      const report = runPage(root, target, "disabled", prepare);
       assert.equal(report.window, true, `the installer window must appear: ${JSON.stringify(report)}`);
       assert.equal(report.pageReached, true, `the directory page must appear: ${JSON.stringify(report)}`);
       assert.equal(report.pageAdvanced, false, "the refused directory page must not be left");
@@ -186,7 +196,8 @@ results.push(
     name: "when the directory page points at a new empty folder, next stays available",
     body: async ({ root }) => {
       const target = path.join(root, "Dexon fresh");
-      const report = runPage(root, target, "advanced");
+      const prepare = () => fs.rmSync(target, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
+      const report = runPage(root, target, "advanced", prepare);
       assert.equal(report.pageReached, true, `the directory page must appear: ${JSON.stringify(report)}`);
       assert.equal(report.nextEnabledAfterTyping, true, "next must stay enabled for a new empty folder");
       assert.equal(report.pageAdvanced, true, "an accepted directory page must be left");
@@ -202,10 +213,13 @@ results.push(
     name: "when the directory page points at an existing Dexon folder, next stays available",
     body: async ({ root }) => {
       const target = path.join(root, "Dexon");
-      fs.mkdirSync(target, { recursive: true });
-      fs.writeFileSync(path.join(target, "Dexon.exe"), "stub\n");
-      fs.writeFileSync(path.join(target, "Uninstall Dexon.exe"), "stub\n");
-      const report = runPage(root, target, "advanced");
+      const prepare = () => {
+        fs.rmSync(target, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
+        fs.mkdirSync(target, { recursive: true });
+        fs.writeFileSync(path.join(target, "Dexon.exe"), "stub\n");
+        fs.writeFileSync(path.join(target, "Uninstall Dexon.exe"), "stub\n");
+      };
+      const report = runPage(root, target, "advanced", prepare);
       assert.equal(report.pageReached, true, `the directory page must appear: ${JSON.stringify(report)}`);
       assert.equal(report.nextEnabledAfterTyping, true, "next must stay enabled for an existing Dexon folder");
       assert.equal(report.pageAdvanced, true, "an accepted directory page must be left");
@@ -223,9 +237,19 @@ console.log(
   }),
 );
 
-function runPage(root, target, mode) {
+function runPage(root, target, mode, prepare) {
   const script = path.join(root, `directory-page-${mode}.ps1`);
   fs.writeFileSync(script, USER32, "utf8");
+  for (let attempt = 1; ; attempt += 1) {
+    prepare();
+    const report = runPageOnce(script, target, mode);
+    removeInstalledCopy(target);
+    if (report.window !== false || !crashedBeforeWindow(report) || attempt >= FIRST_INSTALL_ATTEMPTS) return report;
+    console.log(workflowWarning(firstInstallCrashWarning(attempt, report.exitCode)));
+  }
+}
+
+function runPageOnce(script, target, mode) {
   const result = spawnSync(
     "powershell.exe",
     ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, mode],
@@ -241,9 +265,11 @@ function runPage(root, target, mode) {
       },
     },
   );
-  const report = parseReport(result);
-  removeInstalledCopy(target);
-  return report;
+  return parseReport(result);
+}
+
+function crashedBeforeWindow(report) {
+  return report.exitCode === -1073741819 || report.exitCode === 3221225477;
 }
 
 function parseReport(result) {
