@@ -8,8 +8,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { workflowWarning } from "./ci-retry.mjs";
 import { assertSuccessfulSpawn } from "./process-utils.mjs";
 import { verifyUpdateConfiguration } from "./verify-update-configuration.mjs";
+import {
+  ACCESS_VIOLATION_EXIT_STATUS,
+  FIRST_INSTALL_PHASE,
+  shouldRetryFirstInstall,
+} from "./windows-installer-retry.mjs";
 import { validateUpgradeBaseline } from "./windows-upgrade-baseline.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
@@ -50,7 +56,7 @@ let installed = false;
 let completed = false;
 
 try {
-  install(previousInstaller, installPath);
+  firstInstall(previousInstaller, installPath);
   installed = true;
   assert.equal(compareVersions(fileVersion(appExecutable(installPath)), previousVersion), 0);
   await verifyPreviousHelper(installPath);
@@ -151,18 +157,49 @@ function compareVersions(left, right) {
   return 0;
 }
 
+function firstInstall(installer, directory) {
+  const result = runInstaller(installer, directory);
+  if (!installFailed(result)) return;
+  if (
+    !shouldRetryFirstInstall({
+      phase: FIRST_INSTALL_PHASE,
+      result,
+      installState: readUserInstallState(),
+      installDirectoryEntries: installDirectoryEntries(directory),
+    })
+  ) {
+    throw installerFailure(result);
+  }
+  console.log(
+    workflowWarning(
+      `First install of the previous installer exited ${ACCESS_VIOLATION_EXIT_STATUS} (0xC0000005) with no install record left; retrying once. A crash dump may be uploaded for diagnosis.`,
+    ),
+  );
+  install(installer, directory);
+}
+
 function install(installer, directory) {
-  const result = spawnSync(installer, ["/S", `/D=${directory}`], {
+  const result = runInstaller(installer, directory);
+  if (installFailed(result)) throw installerFailure(result);
+}
+
+function runInstaller(installer, directory) {
+  return spawnSync(installer, ["/S", `/D=${directory}`], {
     encoding: "utf8",
     timeout: 180_000,
     windowsHide: true,
   });
-  if (result.error || result.signal || result.status !== 0) {
-    throw new Error(
-      `installer failed: ${result.error?.message ?? result.signal ?? result.status}\n${result.stderr ?? ""}`,
-      { cause: result.error },
-    );
-  }
+}
+
+function installFailed(result) {
+  return Boolean(result.error || result.signal || result.status !== 0);
+}
+
+function installerFailure(result) {
+  return new Error(
+    `installer failed: ${result.error?.message ?? result.signal ?? result.status}\n${result.stderr ?? ""}`,
+    { cause: result.error },
+  );
 }
 
 function uninstall(directory) {
@@ -328,7 +365,7 @@ function waitForInstalledHelperHello(child) {
   });
 }
 
-function assertCleanUserInstallState(timeoutMs = 0) {
+function readUserInstallState() {
   const script = String.raw`
 $entries=@(
   Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue
@@ -338,17 +375,21 @@ $entries=@(
 $shortcut=Join-Path ([Environment]::GetFolderPath('Programs')) 'Dexon.lnk'
 $processes=@(Get-CimInstance Win32_Process|Where-Object{$_.Name -in @('Dexon.exe','pi-managed-process-helper.exe')})
 [pscustomobject]@{entries=@($entries).Count;shortcut=(Test-Path -LiteralPath $shortcut);processes=$processes.Count}|ConvertTo-Json -Compress`;
+  return JSON.parse(
+    execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
+      encoding: "utf8",
+      windowsHide: true,
+    }),
+  );
+}
+
+function assertCleanUserInstallState(timeoutMs = 0) {
   const expected = { entries: 0, shortcut: false, processes: 0 };
   const deadline = Date.now() + timeoutMs;
   let state;
   let pending = true;
   while (pending) {
-    state = JSON.parse(
-      execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-        encoding: "utf8",
-        windowsHide: true,
-      }),
-    );
+    state = readUserInstallState();
     if (isDeepStrictEqual(state, expected)) return;
     pending = Date.now() < deadline;
     if (pending) sleepSync(250);
@@ -356,12 +397,16 @@ $processes=@(Get-CimInstance Win32_Process|Where-Object{$_.Name -in @('Dexon.exe
   assert.deepEqual(state, expected, "NSIS test requires a clean user install state");
 }
 
+function installDirectoryEntries(directory) {
+  return fs.existsSync(directory) ? fs.readdirSync(directory) : [];
+}
+
 function assertNoMaterialInstallResidue(directory, timeoutMs = 0) {
   const deadline = Date.now() + timeoutMs;
   let entries;
   let pending = true;
   while (pending) {
-    entries = fs.existsSync(directory) ? fs.readdirSync(directory) : [];
+    entries = installDirectoryEntries(directory);
     if (entries.length === 0) return;
     pending = Date.now() < deadline;
     if (pending) sleepSync(250);

@@ -3,6 +3,9 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { npmInvocation } from "./npm-invocation.mjs";
+
+export { npmInvocation };
 
 const expectedNodeMajor = 22;
 const expectedNodeTypes = "22.19.0";
@@ -33,17 +36,6 @@ export function validateEsbuildTree(tree) {
     if (version !== expectedBuildEsbuild) failures.push(`${owner} build esbuild resolved to ${version ?? "missing"}`);
   }
   return failures;
-}
-
-export function npmInvocation(
-  platform = process.platform,
-  npmExecPath = process.env.npm_execpath,
-  nodeExecutable = process.execPath,
-) {
-  if (typeof npmExecPath === "string" && path.isAbsolute(npmExecPath) && fs.existsSync(npmExecPath)) {
-    return { command: nodeExecutable, args: [npmExecPath], shell: false };
-  }
-  return { command: platform === "win32" ? "npm.cmd" : "npm", args: [], shell: platform === "win32" };
 }
 
 function main() {

@@ -9,7 +9,9 @@ import { findComponentEntrypoint } from "../src/main/toolchains/component-entryp
 import { downloadRuntimeArtifact, hashFile, verifyDownloadedArtifact } from "../src/main/toolchains/downloader.ts";
 import { extractRuntimeArchive } from "../src/main/toolchains/secure-extractor.ts";
 import { darwinCodeDigest } from "../src/main/toolchains/darwin-binary-integrity.ts";
+import { httpDownloadFailure, isRetryableDownloadFailure } from "./bundled-tools-retry.mjs";
 import { parseBundledToolTargets } from "./bundled-tools-targets.mjs";
+import { retry } from "./ci-retry.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const catalogPath = path.join(root, "build", "toolchains", "core-catalog.json");
@@ -66,7 +68,7 @@ async function downloadFixedFile(definition, destination) {
       signal: controller.signal,
       headers: { "User-Agent": "Dexon-Bundled-Tools-Build" },
     });
-    if (!response.ok) fail(`${definition.url} returned HTTP ${response.status}`);
+    if (!response.ok) throw httpDownloadFailure(definition.url, response.status);
     const content = Buffer.from(await response.arrayBuffer());
     const digest = createHash("sha256").update(content).digest("hex");
     if (content.length !== definition.bytes || digest !== definition.sha256) {
@@ -104,7 +106,11 @@ async function prepareTarget(catalog, target) {
       const artifact = path.join(cacheRoot, `${component.id}-${component.version}-${target}.artifact`);
       if (!(await verifyDownloadedArtifact(artifact, variant))) {
         console.log(`[bundled-tools] downloading ${component.id}@${component.version} for ${target}`);
-        await downloadRuntimeArtifact(component.id, variant, artifact);
+        await retry(
+          `download ${component.id}@${component.version} for ${target}`,
+          () => downloadRuntimeArtifact(component.id, variant, artifact),
+          { shouldRetry: isRetryableDownloadFailure },
+        );
       }
       if (!(await verifyDownloadedArtifact(artifact, variant))) fail(`${component.id} artifact verification failed`);
 
@@ -126,7 +132,9 @@ async function prepareTarget(catalog, target) {
       if (!componentLicenses) fail(`missing license definition for ${component.id}`);
       for (const license of componentLicenses) {
         const cachedLicense = path.join(cacheRoot, "licenses", license.name);
-        await downloadFixedFile(license, cachedLicense);
+        await retry(`download license ${license.name}`, () => downloadFixedFile(license, cachedLicense), {
+          shouldRetry: isRetryableDownloadFailure,
+        });
         fs.copyFileSync(cachedLicense, path.join(staging, "licenses", license.name), fs.constants.COPYFILE_EXCL);
         licenses.push({
           componentId: component.id,

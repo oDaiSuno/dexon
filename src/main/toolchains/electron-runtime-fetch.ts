@@ -4,6 +4,15 @@ import { assertRuntimeRedirectUrl, MAX_RUNTIME_REDIRECTS } from "./downloader.ts
 
 export type ElectronRequestFactory = (options: ClientRequestConstructorOptions) => ClientRequest;
 
+const CHROMIUM_NET_ERROR = /^net::(ERR_[A-Z0-9_]+)$/;
+
+function withChromiumCode(error: Error): Error {
+  if (typeof (error as { code?: unknown }).code === "string") return error;
+  const name = CHROMIUM_NET_ERROR.exec(error.message)?.[1];
+  if (!name) return error;
+  return Object.assign(error, { code: name });
+}
+
 function abortError(): Error {
   return new DOMException("The operation was aborted", "AbortError");
 }
@@ -38,7 +47,7 @@ function responseBody(
         if (finished) return;
         finished = true;
         cleanup();
-        controller.error(error);
+        controller.error(withChromiumCode(error));
       };
       const onAborted = (): void => onError(abortError());
       const onSignalAbort = (): void => {
@@ -146,7 +155,7 @@ export function createElectronRuntimeFetch(requestFactory: ElectronRequestFactor
           }),
         );
       });
-      request.on("error", fail);
+      request.on("error", (error) => fail(withChromiumCode(error)));
       // ClientRequest can emit close while a validated redirect transitions to
       // its next connection. It is not terminal; errors and the caller timeout
       // remain responsible for rejecting a request that never yields a response.
