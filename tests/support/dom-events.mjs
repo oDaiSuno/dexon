@@ -41,6 +41,11 @@ export async function input(element, value) {
   });
 }
 
+export async function blur(element) {
+  requireControl(element);
+  await act(async () => element.blur());
+}
+
 export async function selectOption(element, value) {
   requireControl(element);
   const dom = { window: browserOf(element) };
