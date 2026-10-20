@@ -117,7 +117,7 @@ test("a folder is never handed to the per-file step", (t) => {
 
   assert.equal(result.status, 0, result.stderr);
   const files = quotedItems(fs.readFileSync(generated, "utf8"), "dexonFiles");
-  for (const folder of ['"resources"', '"locales"', '"swiftshader"', '"$$weird"', '"resources\\\\managed-process"']) {
+  for (const folder of ['"resources"', '"locales"', '"swiftshader"', '"$$weird"', '"resources\\managed-process"']) {
     assert.equal(files.includes(folder), false, `${folder} must not be staged as a file`);
   }
 });

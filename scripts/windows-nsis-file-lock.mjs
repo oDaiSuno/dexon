@@ -69,8 +69,8 @@ export function isFileLocked(file) {
   const probe = `${file}.probe`;
   try {
     fs.renameSync(file, probe);
-  } catch {
-    return true;
+  } catch (error) {
+    return error.code !== "ENOENT";
   }
   fs.renameSync(probe, file);
   return false;
