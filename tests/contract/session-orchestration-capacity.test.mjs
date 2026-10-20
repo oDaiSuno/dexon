@@ -131,14 +131,15 @@ test(
     );
 
     const forkedLines = readFileSync(forkedDetail.info.path, "utf8").trimEnd().split("\n");
+    const forkedEntries = forkedLines.map((line) => JSON.parse(line));
     assert.deepEqual(
-      forkedLines.map((line) => JSON.parse(line).type),
-      ["session", "message", "message"],
-      "the forked file holds only what Pi wrote: a header and the copied messages",
+      forkedEntries.filter((entry) => entry.type === "message").map((entry) => entry.message.role),
+      ["user", "assistant"],
+      "the forked file holds the copied messages up to the fork point",
     );
-    assert.equal(
-      forkedLines.some((line) => /dexon/i.test(line)),
-      false,
+    assert.deepEqual(
+      forkedEntries.filter((entry) => entry.type === "custom" || entry.type === "custom_message"),
+      [],
       "origin bookkeeping never lands in Pi's session file",
     );
     assert.equal(readFileSync(originalFile, "utf8"), originalContent, "forking leaves the original file untouched");

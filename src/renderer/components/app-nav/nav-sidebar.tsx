@@ -1,5 +1,6 @@
 import { useRef, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory } from "./nav-history";
@@ -85,6 +86,7 @@ export function NavSidebar({
   loading,
   error,
   selectedSessionId,
+  liveStatuses,
   runningSessionIds,
   unreadSessionIds,
   homeDir,
@@ -111,6 +113,7 @@ export function NavSidebar({
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
+  liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
   homeDir: string;
@@ -307,6 +310,7 @@ export function NavSidebar({
           loading={loading}
           error={error}
           selectedSessionId={selectedSessionId}
+          liveStatuses={liveStatuses}
           runningSessionIds={runningSessionIds}
           unreadSessionIds={unreadSessionIds}
           homeDir={homeDir}

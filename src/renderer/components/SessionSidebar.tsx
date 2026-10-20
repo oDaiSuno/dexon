@@ -51,6 +51,7 @@ export function SessionSidebar({
     loading,
     error,
     runningSessionIds,
+    liveStatuses,
     unreadSessionIds,
     homeDir,
     sessionRefreshDone,
@@ -189,6 +190,7 @@ export function SessionSidebar({
         loading={loading}
         error={error}
         selectedSessionId={selectedSessionId}
+        liveStatuses={liveStatuses}
         runningSessionIds={runningSessionIds}
         unreadSessionIds={unreadSessionIds}
         homeDir={homeDir}

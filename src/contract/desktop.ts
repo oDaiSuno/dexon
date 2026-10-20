@@ -1,6 +1,7 @@
 import type { ChannelId } from "../shared/channel-types";
 import type { ManagedProcessCapability } from "./processes";
 import type { ChatAppearancePreferences } from "../shared/chat-appearance";
+import type { SessionOrchestrationSettings } from "../shared/session-orchestration";
 import type { PublicToolchainState, ToolchainActionRequest } from "../shared/toolchains/types";
 import type {
   BrowserBoundsInput,
@@ -137,6 +138,7 @@ export type StageClipboardImageResult =
 export interface DesktopUiState {
   backgroundMode?: boolean;
   managedProcessesEnabled?: boolean;
+  sessionOrchestration?: SessionOrchestrationSettings;
   chatAppearance?: ChatAppearancePreferences;
   /** Remembered last workspace directory (space); null clears the record. */
   lastSpaceCwd?: string | null;

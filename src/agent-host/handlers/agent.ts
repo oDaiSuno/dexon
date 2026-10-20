@@ -1,4 +1,3 @@
-import { existsSync } from "fs";
 import { randomUUID } from "crypto";
 import {
   SessionManager,
@@ -8,13 +7,12 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
-import { allowFileRoot } from "../file-access";
 import { validateExistingDirectory } from "../file-access-core";
-import { ensureSessionEvents, createAgentNewLockKey } from "../session-event-binding";
 import { getRpcSession, startRpcSession } from "../rpc-manager";
+import { ensureSessionEvents } from "../session-event-binding";
 import { emitIndexedSessionChange, resolveSessionPath } from "../session-reader";
 import { invalidateSessionContent } from "../session-content-cache";
-import { announceSessionOnFirstMessage } from "../session-source";
+import { launchDesktopSession } from "../session-launcher";
 import {
   AUTO_TITLE_MAX_LENGTH,
   makeFallbackTitle,
@@ -203,36 +201,18 @@ export function registerAgentHandlers(server: RpcServer): void {
         [key: string]: unknown;
       };
       const { cwd, provider, modelId, toolNames, thinkingLevel, ...rest } = body;
-      if (!cwd || typeof cwd !== "string") {
-        throw new RpcError({ code: "BAD_REQUEST", message: "cwd is required" });
-      }
-      if (!existsSync(cwd)) {
-        throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
-      }
-
-      const tempKey = createAgentNewLockKey();
-      const { session, realSessionId } = await startRpcSession(tempKey, "", cwd, toolNames);
-      allowFileRoot(cwd);
-
-      // ISSUE-003: single event-binding entry only (ensureSessionEvents)
-      ensureSessionEvents(server, session, realSessionId);
-      announceSessionOnFirstMessage(server, session);
-
-      if (provider && modelId) {
-        await session.send({ type: "set_model", provider, modelId });
-      }
-      if (thinkingLevel) {
-        await session.send({ type: "set_thinking_level", level: thinkingLevel });
-      }
-
-      if (rest.type === "ensure_session") {
-        return { sessionId: realSessionId, data: null };
-      }
-
-      const command = rest.type ? rest : { type: "prompt", message: body.message ?? "" };
-      const data = await session.send(command as Record<string, unknown>);
-      await emitIndexedSessionChange(server, realSessionId, cwd);
-      return { sessionId: realSessionId, data };
+      const launched = await launchDesktopSession({
+        cwd,
+        ...(toolNames ? { toolNames } : {}),
+        ...(provider && modelId ? { provider, modelId } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
+        ...(rest.type === "ensure_session"
+          ? { announceChange: false }
+          : {
+              command: (rest.type ? rest : { type: "prompt", message: body.message ?? "" }) as Record<string, unknown>,
+            }),
+      });
+      return { sessionId: launched.sessionId, data: launched.data };
     },
 
     "agent.command": async (params) => {

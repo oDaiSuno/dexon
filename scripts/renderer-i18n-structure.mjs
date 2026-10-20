@@ -59,6 +59,31 @@ const SETTINGS_MIGRATION_KEYS = new Set([
   "projectRequiredTitle",
 ]);
 
+// Issue #10 追加：会话树状态、关系标记、面包屑与来源芯片、会话协作设置。
+// 同 PRE_SPLIT_BASELINE 处理方式——逐键排除新增项，不放宽任何旧文案。
+const SESSION_ORCHESTRATION_KEYS = new Set([
+  "sessionStatusAwaitingInput",
+  "sessionStatusError",
+  "sessionRelationFork",
+  "sessionRelationDelegate",
+  "sessionCountAwaitingInput",
+  "sessionCountRunning",
+  "sessionCountError",
+  "sessionPath",
+  "sessionSourceFrom",
+  "sessionTargetOpen",
+  "sessionCollaboration",
+  "sessionCollaborationDescription",
+  "sessionCollaborationEnable",
+  "sessionCollaborationMaxRunning",
+  "sessionCollaborationModel",
+  "sessionCollaborationThinking",
+  "sessionCollaborationAllowUserSessions",
+  "sessionCollaborationSameAsCreator",
+  "sessionCollaborationSaveFailed",
+  "sessionCollaborationLoadFailed",
+]);
+
 export const INTENTIONAL_REWRITES = {
   newSession: { enUS: "new session", zhCN: "新建会话" },
 };
@@ -188,6 +213,7 @@ export function dictionaryBaselineFailures({
     ...SETTINGS_MIGRATION_KEYS,
     ...UPSTREAM_FAILURE_KEYS,
     ...OLDER_HISTORY_KEYS,
+    ...SESSION_ORCHESTRATION_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));

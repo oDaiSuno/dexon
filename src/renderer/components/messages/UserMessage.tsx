@@ -6,6 +6,7 @@ import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { parseExpandedSkillMessage, splitLeadingSkillCommand } from "@shared/skill-commands";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
 import { AttachmentChip, SkillChip } from "./message-chips";
+import { SessionSourceChip } from "./session-links";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
 import { CHANNEL_ATTACHMENT_PROMPT_PLACEHOLDER, channelAttachmentCopyText } from "@shared/channel-message";
 import { useI18n } from "@/i18n";
@@ -162,6 +163,11 @@ export function UserMessageView({
             boxShadow: messageSource === "local" ? "var(--bui-shadow-btn)" : "none",
           }}
         >
+          {message.sessionSource && (
+            <div style={{ display: "flex", marginBottom: 2 }}>
+              <SessionSourceChip source={message.sessionSource} />
+            </div>
+          )}
           {imageBlocks.length > 0 && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: visibleContent ? 8 : 0 }}>
               {imageBlocks.map((img, i) => {

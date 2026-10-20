@@ -19,6 +19,7 @@ import { useSessionInfo } from "./app-shell/use-session-info";
 import { TopBar } from "./app-shell/top-bar";
 import { NavigationSidebar } from "./app-shell/navigation-sidebar";
 import { useSettingsDialog } from "./app-shell/use-settings-dialog";
+import { SessionBreadcrumb } from "./app-shell/session-breadcrumb";
 import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
@@ -295,6 +296,8 @@ export function AppShell({
             rightPanelOpen={dock.rightPanelOpen}
             showChat={showChat && !onResources}
           />
+
+          {selectedSession && !onResources && <SessionBreadcrumb session={selectedSession} />}
 
           {/* Chat content */}
           <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>

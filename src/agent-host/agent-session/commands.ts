@@ -5,6 +5,7 @@ import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
 import type { ExtensionUiResponse, ExtensionWidgetItem } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { cacheSessionPath } from "../session-reader";
+import { setSessionOrigin } from "../session-origin-store";
 
 import type { AgentEvent } from "./types";
 export interface SessionCommandContext {
@@ -23,6 +24,7 @@ export interface SessionCommandContext {
   persistToolNames(sessionId: string, names: string[]): void;
   reloadSessionResources(): Promise<void>;
   syncBrowserToolActivation(): void;
+  syncSessionToolActivation(): void;
   resolveExtensionUiResponse(response: ExtensionUiResponse): InteractiveReceipt;
   handleExtensionUiInput(id: string, data: string): void;
 }
@@ -130,6 +132,7 @@ export async function sendSessionCommand(
 
       const newSessionId = SessionManager.open(newSessionFile, sessionDir).getSessionId();
       cacheSessionPath(newSessionId, newSessionFile);
+      setSessionOrigin(newSessionId, { relation: "fork" });
       await context.dispose({ abort: true, reason: "fork" });
       return { cancelled: false, newSessionId };
     }
@@ -253,6 +256,7 @@ export async function sendSessionCommand(
     case "reload": {
       await context.enqueueTurn(() => context.reloadSessionResources());
       context.syncBrowserToolActivation();
+      context.syncSessionToolActivation();
       return { success: true };
     }
 

@@ -1,10 +1,12 @@
 import type { DesktopUiStatePatch } from "../contract/desktop";
 import { isChatAppearancePreferences } from "../shared/chat-appearance.ts";
+import { isSessionOrchestrationSettings } from "../shared/session-orchestration.ts";
 import path from "node:path";
 
 const RENDERER_WRITABLE_UI_STATE_FIELDS = new Set([
   "backgroundMode",
   "managedProcessesEnabled",
+  "sessionOrchestration",
   "chatAppearance",
   "lastSpaceCwd",
 ]);
@@ -26,6 +28,12 @@ export function validateDesktopUiStatePatch(value: unknown): DesktopUiStatePatch
       throw new Error("Managed processes setting must be a boolean");
     }
     validated.managedProcessesEnabled = patch.managedProcessesEnabled;
+  }
+  if ("sessionOrchestration" in patch) {
+    if (!isSessionOrchestrationSettings(patch.sessionOrchestration)) {
+      throw new Error("Invalid session collaboration settings");
+    }
+    validated.sessionOrchestration = patch.sessionOrchestration;
   }
   if ("chatAppearance" in patch) {
     if (!isChatAppearancePreferences(patch.chatAppearance)) throw new Error("Invalid chat appearance preferences");

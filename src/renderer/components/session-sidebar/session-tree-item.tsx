@@ -1,15 +1,17 @@
 import { useState } from "react";
 import type { SessionInfo } from "@/lib/types";
-import type { SessionTreeNode } from "@/lib/session-tree";
+import { MAX_TREE_INDENT_DEPTH, sessionRelation, type SessionTreeNode } from "@/lib/session-tree";
+import { descendantActivity, ownActivity, type SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionItem } from "./session-item";
 
-// Moved verbatim from SessionSidebar.tsx in Phase 2 (session list split).
+// One row of the session tree plus its children. The row shows only its own
+// activity while the subtree is open; once folded, the parent speaks for
+// everything below it so a waiting session stays visible from the outside.
 
 export function SessionTreeItem({
   node,
   selectedSessionId,
-  runningSessionIds,
-  unreadSessionIds,
+  signals,
   onSelectSession,
   onRenamed,
   onSessionDeleted,
@@ -20,8 +22,7 @@ export function SessionTreeItem({
 }: {
   node: SessionTreeNode;
   selectedSessionId: string | null;
-  runningSessionIds: Set<string>;
-  unreadSessionIds: Set<string>;
+  signals: SessionActivitySignals;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
   onSessionDeleted?: (id: string) => void;
@@ -36,6 +37,8 @@ export function SessionTreeItem({
     ? () => onToggleFold(node.session.id)
     : () => setLocalCollapsed((value) => !value);
   const hasChildren = node.children.length > 0;
+  const activity = ownActivity(node.session.id, signals);
+  const indent = Math.min(depth, MAX_TREE_INDENT_DEPTH);
 
   return (
     <div>
@@ -45,7 +48,7 @@ export function SessionTreeItem({
           <div
             style={{
               position: "absolute",
-              left: depth * 12 + 6,
+              left: indent * 12 + 6,
               top: 0,
               bottom: 0,
               width: 1,
@@ -57,8 +60,10 @@ export function SessionTreeItem({
         <SessionItem
           session={node.session}
           isSelected={node.session.id === selectedSessionId}
-          isRunning={runningSessionIds.has(node.session.id)}
-          isUnread={unreadSessionIds.has(node.session.id)}
+          isRunning={activity === "running" || activity === "awaiting_input"}
+          activity={activity}
+          relation={sessionRelation(node.session)}
+          descendants={hasChildren && collapsed ? descendantActivity(node, signals) : null}
           onClick={() => onSelectSession(node.session)}
           onRenamed={onRenamed}
           onDeleted={(id) => onSessionDeleted?.(id)}
@@ -76,8 +81,7 @@ export function SessionTreeItem({
               key={child.session.id}
               node={child}
               selectedSessionId={selectedSessionId}
-              runningSessionIds={runningSessionIds}
-              unreadSessionIds={unreadSessionIds}
+              signals={signals}
               onSelectSession={onSelectSession}
               onRenamed={onRenamed}
               onSessionDeleted={onSessionDeleted}

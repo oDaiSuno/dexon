@@ -13,6 +13,7 @@ import { createBrowserToolDefinitions } from "./browser-tools";
 import { peekManagedProcessService } from "./managed-process/runtime";
 import { installManagedProcessSessionRedaction } from "./managed-process/session-redaction";
 import { createManagedProcessToolDefinitions } from "./managed-process/tools";
+import { createSessionOrchestrationToolDefinitions } from "./session-orchestration/tools";
 import { cacheSessionPath } from "./session-reader";
 import { configuredSessionDir } from "./session-dir";
 import { getDesktopSessionToolNames, setDesktopSessionToolNames } from "./session-tool-store";
@@ -22,8 +23,9 @@ import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 
 import { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
 import { AgentSessionWrapper } from "./agent-session/wrapper";
+import type { SessionLiveStatus } from "../shared/session-orchestration";
 export { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
-export type { AgentEvent, ExternalSessionCommand } from "./agent-session/types";
+export type { AgentEvent, ExternalSessionCommand, OrchestratedTurnOutcome } from "./agent-session/types";
 export { AgentSessionWrapper } from "./agent-session/wrapper";
 // ============================================================================
 // Session registry
@@ -73,6 +75,19 @@ export function getRunningRpcSessionIds(): string[] {
   return [...ids];
 }
 
+export function getRpcSessionStatuses(): Record<string, SessionLiveStatus> {
+  const statuses: Record<string, SessionLiveStatus> = {};
+  for (const [sessionId, session] of getRegistry()) {
+    const status = session.liveStatus();
+    if (status !== "idle") statuses[session.sessionId || sessionId] = status;
+  }
+  return statuses;
+}
+
+export function syncSessionToolsForAllSessions(): void {
+  for (const session of getRegistry().values()) session.syncSessionToolActivation();
+}
+
 // ----------------------------------------------------------------------------
 // Running-status broadcaster
 //
@@ -94,6 +109,11 @@ export function subscribeRunningSessions(listener: (ids: string[]) => void): () 
   };
 }
 
+/** Subscribe to every status broadcast, including awaiting-input and failure transitions. */
+export function subscribeSessionStatuses(listener: () => void): () => void {
+  return subscribeRunningSessions(() => listener());
+}
+
 let lastRunningSnapshot = "";
 
 /**
@@ -102,7 +122,8 @@ let lastRunningSnapshot = "";
  */
 export function notifyRunningChange(): void {
   const ids = getRunningRpcSessionIds();
-  const snapshot = JSON.stringify([...ids].sort());
+  const statuses = getRpcSessionStatuses();
+  const snapshot = JSON.stringify([[...ids].sort(), Object.entries(statuses).sort()]);
   if (snapshot === lastRunningSnapshot) return;
   lastRunningSnapshot = snapshot;
   for (const listener of getRunningListeners()) {
@@ -190,6 +211,7 @@ export async function startRpcSession(
             peekManagedProcessService()!,
           )
         : []),
+      ...createSessionOrchestrationToolDefinitions(),
     ] as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>;
     const { session: inner } = await createAgentSessionFromServices({
       services,
@@ -211,6 +233,7 @@ export async function startRpcSession(
     wrapper.setToolchainSummary(executionContext.inventoryRevision, executionContext.summary);
     wrapper.start();
     wrapper.syncBrowserToolActivation();
+    wrapper.syncSessionToolActivation();
 
     const realSessionFile = inner.sessionFile as string | undefined;
     if (realSessionFile) cacheSessionPath(realSessionId, realSessionFile);

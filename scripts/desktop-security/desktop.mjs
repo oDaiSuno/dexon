@@ -19,6 +19,7 @@ export function desktopSecurityChecks(read) {
   const rpcManager = [
     "src/agent-host/rpc-manager.ts",
     "src/agent-host/agent-session/wrapper.ts",
+    "src/agent-host/agent-session/external-turn.ts",
     "src/agent-host/agent-session/compat.ts",
   ]
     .map(read)

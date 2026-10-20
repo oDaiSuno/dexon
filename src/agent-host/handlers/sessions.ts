@@ -7,7 +7,7 @@ import type { SessionTreeNode } from "../../shared/types";
 import { callMain } from "../parent-rpc";
 import type { ManagedProcessService } from "../managed-process/service";
 import { clearSessionEventBinding } from "../session-event-binding";
-import { getRpcSession, getRunningRpcSessionIds, disposeAllRpcSessions } from "../rpc-manager";
+import { getRpcSession, getRpcSessionStatuses, getRunningRpcSessionIds, disposeAllRpcSessions } from "../rpc-manager";
 import { resolveSessionContextWindow } from "../model-runtime";
 import {
   buildSessionContext,
@@ -105,7 +105,11 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           invalidFiles: indexMetrics.invalidFiles,
           indexRefreshMs: indexMetrics.totalMs,
         });
-        return { sessions, runningSessionIds: getRunningRpcSessionIds() };
+        return {
+          sessions,
+          runningSessionIds: getRunningRpcSessionIds(),
+          sessionStatuses: getRpcSessionStatuses(),
+        };
       } catch (error) {
         logSessionPerformance("sessions.list", {
           traceId,

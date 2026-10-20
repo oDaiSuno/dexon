@@ -60,7 +60,9 @@ test(
     );
 
     await host.prompt(parent, "Read the report now");
-    const payload = expectToolPayload((await results.next())[0], "the Agent must receive what it read");
+    const [, readResult] = await results.next(2);
+    assert.equal(readResult.name, "session_read", "after the worker's own bash result comes the Agent's reading");
+    const payload = expectToolPayload(readResult, "the Agent must receive what it read");
     const rendered = JSON.stringify(payload);
     assert.ok(rendered.includes(LONG_REPLY.slice(0, 30)), "the beginning of the last reply is reported");
     assert.ok(

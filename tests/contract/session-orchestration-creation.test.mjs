@@ -192,7 +192,7 @@ test(
     const childMessage = "Work in the linked worktree";
     host.model.script(childMessage, [{ text: "Working in the worktree" }]);
     const [accepted] = await runAgentTurn(host, acceptingParent, {
-      prompt: "Work in the linked worktree",
+      prompt: "Hand this to a worker in the linked worktree",
       steps: [toolCall("session_new", { cwd: worktree, message: childMessage }), { text: "Started" }],
     });
     const payload = expectToolPayload(accepted, "a worktree of the same repository must be accepted");

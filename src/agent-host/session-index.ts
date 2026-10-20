@@ -3,6 +3,7 @@ import path from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry, SessionInfo } from "../shared/types";
 import { buildSessionInfoFromManager } from "./session-reader";
+import { withSessionOrigin } from "./session-origin-store";
 import { sessionsRoot } from "./session-dir";
 import { getProjectCacheRevision, resolveProject } from "../shared/worktree";
 
@@ -97,10 +98,10 @@ export class SessionIndex {
     for (const record of this.byPath.values()) {
       if (!record.info) continue;
       const parentSessionId = record.parentPath ? idByPath.get(record.parentPath) : undefined;
-      record.info = {
+      record.info = withSessionOrigin({
         ...record.info,
         ...(parentSessionId ? { parentSessionId } : { parentSessionId: undefined }),
-      };
+      });
     }
   }
 

@@ -6,6 +6,7 @@ import { getRpcSession, listRpcSessions, type AgentSessionWrapper } from "./rpc-
 import { buildSessionInfoFromManager, listAllSessions, resolveSessionPath } from "./session-reader";
 import { buildHistoryRevision, buildUnsavedHistoryRevision } from "./session-history";
 import { getSessionContentSnapshot } from "./session-content-cache";
+import { getSessionOrigin } from "./session-origin-store";
 
 export interface SessionSource {
   filePath: string;
@@ -25,7 +26,7 @@ function readUnsaved(session: AgentSessionWrapper | undefined): SessionSource | 
   if (session.sessionFile && existsSync(session.sessionFile)) return null;
   const manager = session.inner.sessionManager;
   const entries = manager.getEntries() as unknown as SessionEntry[];
-  if (!hasUserMessage(entries)) return null;
+  if (!hasUserMessage(entries) && !getSessionOrigin(session.sessionId)) return null;
   return { filePath: "", manager, entries, historyRevision: buildUnsavedHistoryRevision(session.sessionId) };
 }
 

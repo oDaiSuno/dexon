@@ -8,6 +8,10 @@ import path from "path";
 import { appendMainLog, appendMainLogs } from "./logger";
 import type { ToolchainSnapshot } from "../shared/toolchains/types";
 import type { BrowserCapabilitySnapshot } from "../contract/browser";
+import {
+  normalizeSessionOrchestrationSettings,
+  type SessionOrchestrationSettings,
+} from "../shared/session-orchestration";
 import { BrowserError } from "./browser/browser-error";
 import { createHostExitSignal, reserveHostRestart, trySpawnHost, type HostExitSignal } from "./host-restart-core";
 import { HostOutputLineBuffer } from "./logger-core";
@@ -50,6 +54,7 @@ export class HostManager {
   private toolchainAckRevision = -1;
   private browserCapabilitySnapshot: BrowserCapabilitySnapshot | null = null;
   private browserAckRevision = -1;
+  private sessionOrchestrationSettings: SessionOrchestrationSettings | null = null;
   private piVersion: string | null = null;
   private hostInstanceId: string | null = null;
   private managedProcessOwnerReady = false;
@@ -102,6 +107,11 @@ export class HostManager {
 
   getBrowserAckRevision(): number {
     return this.browserAckRevision;
+  }
+
+  setSessionOrchestrationSettings(settings: unknown): void {
+    this.sessionOrchestrationSettings = normalizeSessionOrchestrationSettings(settings);
+    if (this.child && this.status === "ready") this.postSessionOrchestrationSettings();
   }
 
   start(): void {
@@ -269,6 +279,7 @@ export class HostManager {
         this.wasReadyBeforeExit = false;
         this.postToolchainSnapshot("toolchain:init");
         this.postBrowserSnapshot("browser:init");
+        this.postSessionOrchestrationSettings();
         this.postManagedProcessOwnerIdentity();
         this.setStatus("ready");
         this.startPing();
@@ -430,6 +441,20 @@ export class HostManager {
       this.child.postMessage({ type, snapshot: this.browserCapabilitySnapshot });
     } catch (error) {
       appendMainLog(`browser snapshot delivery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private postSessionOrchestrationSettings(): void {
+    if (!this.child || !this.sessionOrchestrationSettings) return;
+    try {
+      this.child.postMessage({
+        type: "session-orchestration:settings",
+        settings: this.sessionOrchestrationSettings,
+      });
+    } catch (error) {
+      appendMainLog(
+        `session collaboration settings delivery failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 

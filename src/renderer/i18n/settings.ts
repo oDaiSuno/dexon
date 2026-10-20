@@ -109,6 +109,18 @@ export const enUS: Record<string, string> = {
   updatesDisabled: "Updates are unavailable in this build",
   updatesDisabledDescription:
     "Software updates are available only in installed production builds on supported platforms.",
+  sessionCollaboration: "Session collaboration",
+  sessionCollaborationDescription:
+    "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
+  sessionCollaborationEnable: "Enable session collaboration",
+  sessionCollaborationMaxRunning: "Maximum running sessions",
+  sessionCollaborationModel: "Session model",
+  sessionCollaborationThinking: "Thinking level",
+  sessionCollaborationAllowUserSessions: "Allow messaging any session",
+  sessionCollaborationSameAsCreator: "Same as creator",
+  sessionCollaborationSaveFailed:
+    "Session collaboration settings could not be saved. The previous setting was restored.",
+  sessionCollaborationLoadFailed: "Session collaboration settings could not be loaded. The feature stays off.",
 };
 
 export const zhCN: Record<string, string> = {
@@ -216,4 +228,15 @@ export const zhCN: Record<string, string> = {
   updateRestartWarning: "可立即重启安装，或选择“稍后”并在下次完全退出时安装。",
   updatesDisabled: "当前版本无法使用软件更新",
   updatesDisabledDescription: "软件更新仅适用于受支持平台上已安装的正式版本。",
+  sessionCollaboration: "会话协作",
+  sessionCollaborationDescription:
+    "允许会话里的 Agent 新建、发送消息、等待和关闭其他会话。每个会话都和手动新建的一样，随时可以查看或接手。",
+  sessionCollaborationEnable: "启用会话协作",
+  sessionCollaborationMaxRunning: "同时运行的会话上限",
+  sessionCollaborationModel: "会话模型",
+  sessionCollaborationThinking: "思考等级",
+  sessionCollaborationAllowUserSessions: "允许向任意会话发消息",
+  sessionCollaborationSameAsCreator: "与创建者相同",
+  sessionCollaborationSaveFailed: "会话协作设置保存失败，已恢复原来的设置。",
+  sessionCollaborationLoadFailed: "会话协作设置加载失败，该功能保持关闭。",
 };

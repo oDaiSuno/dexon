@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { filterSessionsForQuery } from "@/lib/session-list";
 import { SessionGroupsSection } from "../session-sidebar/session-groups";
@@ -63,6 +64,7 @@ export function NavHistory({
   loading,
   error,
   selectedSessionId,
+  liveStatuses,
   runningSessionIds,
   unreadSessionIds,
   homeDir,
@@ -77,6 +79,7 @@ export function NavHistory({
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
+  liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
   homeDir: string;
@@ -242,6 +245,7 @@ export function NavHistory({
         error={error}
         hasActiveFilter={sessionFilter.trim().length > 0}
         selectedSessionId={selectedSessionId}
+        liveStatuses={liveStatuses}
         runningSessionIds={runningSessionIds}
         unreadSessionIds={unreadSessionIds}
         homeDir={homeDir}

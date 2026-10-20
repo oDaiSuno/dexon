@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { listSessions } from "@/lib/api-client";
 import { beginSessionLoadTrace } from "@/lib/session-performance";
 import { readSessionIdFromSearch, routerCompat } from "@/lib/router-compat";
+import { getSessionCatalog } from "@/lib/session-catalog";
+import { subscribeOpenSessionRequests } from "@/lib/session-open-request";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { SessionInfo } from "@/lib/types";
 
@@ -41,28 +43,37 @@ export function useWorkspaceNavigation({
   // Suppresses sessionKey bump in handleCwdChange during the initial URL restore
   const suppressCwdBumpRef = useRef(false);
 
-  // Deep link + menu actions from Electron main
-  useEffect(() => {
-    const offDeep = window.piBridge?.onDeepLinkSession?.((sessionId) => {
+  // Opening a session from outside the sidebar — a deep link from Electron,
+  // the path above a conversation, a message chip, a session tool card — all
+  // take the same road: leave the current page politely, then show it.
+  const openSessionById = useCallback(
+    (sessionId: string) => {
       void (async () => {
         try {
-          const { sessions } = await listSessions();
-          const found = sessions.find((s) => s.id === sessionId);
-          if (found) {
-            requestDeparture(() => {
-              onShowChat?.();
-              setNewSessionCwd(null);
-              setSelectedSession(found as SessionInfo);
-              setSessionKey((k) => k + 1);
-              setRefreshKey((k) => k + 1);
-              router.replace(`?session=${encodeURIComponent(sessionId)}`);
-            });
-          }
+          const listed = getSessionCatalog().find((session) => session.id === sessionId);
+          const found = listed ?? (await listSessions()).sessions.find((session) => session.id === sessionId);
+          if (!found) return;
+          requestDeparture(() => {
+            onShowChat?.();
+            setNewSessionCwd(null);
+            setSelectedSession(found as SessionInfo);
+            setSessionKey((k) => k + 1);
+            setRefreshKey((k) => k + 1);
+            router.replace(`?session=${encodeURIComponent(sessionId)}`);
+          });
         } catch (error) {
-          console.error("deep link open failed", error);
+          console.error("open session failed", error);
         }
       })();
-    });
+    },
+    [onShowChat, requestDeparture, router],
+  );
+
+  useEffect(() => subscribeOpenSessionRequests(openSessionById), [openSessionById]);
+
+  // Deep link + menu actions from Electron main
+  useEffect(() => {
+    const offDeep = window.piBridge?.onDeepLinkSession?.((sessionId) => openSessionById(sessionId));
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
       if (!activeCwd) return;
       requestDeparture(() => {
@@ -83,7 +94,7 @@ export function useWorkspaceNavigation({
       offNew?.();
       offSwitch?.();
     };
-  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, requestDeparture]);
+  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, openSessionById, requestDeparture]);
 
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null) => {
