@@ -4,6 +4,7 @@
  */
 import { app, utilityProcess, MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { appendMainLog, appendMainLogs } from "./logger";
 import type { ToolchainSnapshot } from "../shared/toolchains/types";
@@ -242,6 +243,7 @@ export class HostManager {
         serviceName: "pi-agent-host",
         stdio: "pipe",
         env,
+        cwd: os.homedir(),
       }),
     );
     if (!spawnResult.ok) {
