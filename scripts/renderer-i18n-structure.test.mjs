@@ -80,8 +80,8 @@ test("baseline fingerprints stay silent for excluded keys and catch any other dr
   // 新名称的注册和双语完整性仍由 CLI 的其他校验负责。
   assert.deepEqual(
     dictionaryBaselineFailures({
-      enUS: { stable: "Pinned", interactiveOnly: "Any value", navChat: "Any value", ...addedRegionNames },
-      zhCN: { stable: "钉住", interactiveOnly: "任意", navChat: "任意", ...addedRegionNames },
+      enUS: { stable: "Pinned", interactiveOnly: "Any value", navPluginsSkills: "Any value", ...addedRegionNames },
+      zhCN: { stable: "钉住", interactiveOnly: "任意", navPluginsSkills: "任意", ...addedRegionNames },
       interactiveKeys,
       expected,
     }),
@@ -110,6 +110,36 @@ test("baseline fingerprints stay silent for excluded keys and catch any other dr
 
   // 默认基准是拆分前逐键核对的真实指纹（CLI 路径），合成数据不可能碰巧命中。
   assert.equal(dictionaryBaselineFailures({ enUS: {}, zhCN: {}, interactiveKeys: [] }).length, 2);
+});
+
+test("an intentionally rewritten copy keeps the historical fingerprint while other drift still fails", () => {
+  const expected = {
+    enUS: dictionaryFingerprint({ stable: "Pinned", newSession: "new session" }),
+    zhCN: dictionaryFingerprint({ stable: "钉住", newSession: "新建会话" }),
+  };
+  const rewrittenKeys = { newSession: { enUS: "new session", zhCN: "新建会话" } };
+
+  assert.deepEqual(
+    dictionaryBaselineFailures({
+      enUS: { stable: "Pinned", newSession: "New session" },
+      zhCN: { stable: "钉住", newSession: "新建会话" },
+      interactiveKeys: [],
+      expected,
+      rewrittenKeys,
+    }),
+    [],
+  );
+
+  assert.deepEqual(
+    dictionaryBaselineFailures({
+      enUS: { stable: "Drifted", newSession: "New session" },
+      zhCN: { stable: "钉住", newSession: "新建会话" },
+      interactiveKeys: [],
+      expected,
+      rewrittenKeys,
+    }),
+    ["en-US values drifted from the verified pre-split dictionary"],
+  );
 });
 
 test("export contract requires dictionary aliases and bilingual key parity", () => {

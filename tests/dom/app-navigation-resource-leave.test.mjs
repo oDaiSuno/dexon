@@ -10,6 +10,8 @@ import {
   keyDown,
   dom,
   waitFor,
+  historyRow,
+  currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { initialSkillContent, savedSkillContent } from "../fixtures/app-navigation-data.mjs";
@@ -38,7 +40,7 @@ async function leavePrompt(scene) {
 
 test("Escape cancels a dirty resource-page departure and retains the skill edit and selected conversation", async (t) => {
   const scene = await dirtyResourceEditor(t);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   const prompt = await leavePrompt(scene);
   await keyDown(control(prompt, "button", "Cancel"), "Escape");
   await waitFor(() => assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0));
@@ -64,10 +66,10 @@ test("a dirty resource-tab switch waits for consent: cancel retains the edit and
 
 test("saving from the departure prompt writes the skill and then returns to the requested Chat", async (t) => {
   const scene = await dirtyResourceEditor(t);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await click(control(await leavePrompt(scene), "button", "Save"));
   await waitFor(() => visibleText(control(scene.container, "region", "Chat"), "Personal conversation marker"));
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Personal release notes"]);
   assert.equal(dom.window.location.search, "?session=personal-history");
   assert.equal((await scene.skills()).value, savedSkillContent);
 });
@@ -75,7 +77,7 @@ test("saving from the departure prompt writes the skill and then returns to the 
 test("a failed save from the departure prompt keeps the editor, its edit and the resource page", async (t) => {
   const scene = await dirtyResourceEditor(t);
   scene.external.failures.skillSave = "Fixture refused to save the skill file";
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await click(control(await leavePrompt(scene), "button", "Save"));
   await waitFor(() => assert.match(scene.resourcePanel().textContent, /Fixture refused to save the skill file/));
   retainedEdit(scene);
@@ -84,14 +86,14 @@ test("a failed save from the departure prompt keeps the editor, its edit and the
 
 test("cancelling a dirty resource departure stays put; discarding returns to the requested Chat without saving", async (t) => {
   const scene = await dirtyResourceEditor(t);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await click(control(await leavePrompt(scene), "button", "Cancel"));
   await waitFor(() => assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0));
   retainedEdit(scene);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await click(control(await leavePrompt(scene), "button", "Discard"));
   await waitFor(() => visibleText(control(scene.container, "region", "Chat"), "Personal conversation marker"));
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Personal release notes"]);
   assert.equal(dom.window.location.search, "?session=personal-history");
   assert.equal(roles(scene.container, "heading", "Plugins & Skills").length, 0);
   assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0);

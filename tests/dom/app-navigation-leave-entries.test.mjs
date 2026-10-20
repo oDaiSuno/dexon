@@ -11,6 +11,8 @@ import {
   act,
   dom,
   waitFor,
+  historyRow,
+  currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import {
@@ -63,7 +65,7 @@ test("choosing another conversation in history while a skill edit is unsaved ask
   await cancelThenRetry(scene, () => click(control(scene.history(), "button", "Another personal conversation")));
   await waitFor(() => visibleText(chatRegion(scene), "Other conversation marker"));
   assert.equal(dom.window.location.search, "?session=personal-other");
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Another personal conversation"]);
   await personalFileUnchanged(scene);
 });
 
@@ -72,30 +74,30 @@ test("choosing the already open conversation in history while a skill edit is un
   await cancelThenRetry(scene, () => click(control(scene.history(), "button", "Personal release notes")));
   await waitFor(() => visibleText(chatRegion(scene), "Personal conversation marker"));
   assert.equal(dom.window.location.search, "?session=personal-history");
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Personal release notes"]);
   await personalFileUnchanged(scene);
 });
 
-test("starting a new session from history while a skill edit is unsaved asks first, and discarding shows an empty chat", async (t) => {
+test("starting a new session from the main navigation while a skill edit is unsaved asks first, and discarding shows an empty chat", async (t) => {
   const scene = await personalEditor(t);
-  await cancelThenRetry(scene, () => click(control(scene.history(), "button", /^new session$/i)));
+  await cancelThenRetry(scene, () => click(control(scene.navigation(), "button", scene.labels.newSession)));
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.doesNotMatch(chatRegion(scene).textContent, /Personal conversation marker/);
   assert.equal(dom.window.location.search, "");
   await personalFileUnchanged(scene);
 });
 
-test("collapsing the sidebar keeps the unsaved edit, and the rail's new session still asks before leaving", async (t) => {
+test("collapsing the sidebar keeps the unsaved edit, and the rail's New session still asks before leaving", async (t) => {
   const scene = await personalEditor(t);
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
   noPrompt(scene);
   assert.equal(control(scene.resourcePanel(), "textbox", "Skill markdown content").value, savedSkillContent);
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await answer(scene, "Cancel");
   await promptClosed(scene);
   assert.equal(control(scene.resourcePanel(), "textbox", "Skill markdown content").value, savedSkillContent);
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await answer(scene, "Discard");
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.equal(dom.window.location.search, "");
@@ -140,12 +142,12 @@ test("leaving an opened but unchanged skill, or one edited back to its saved tex
   const scene = await startNavigation(t, { initialSession: "personal-history" });
   await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
   await scene.skills();
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await waitFor(() => visibleText(chatRegion(scene), "Personal conversation marker"));
   noPrompt(scene);
   const editor = await dirtySkill(scene);
   await input(editor, initialSkillContent);
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   await waitFor(() => visibleText(chatRegion(scene), "Personal conversation marker"));
   noPrompt(scene);
 });

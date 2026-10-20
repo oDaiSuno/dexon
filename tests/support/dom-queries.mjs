@@ -51,6 +51,11 @@ export function button(container, label) {
   return byRole(container, "button", label);
 }
 
+export function precedes(first, other) {
+  const order = first.ownerDocument.defaultView.Node.DOCUMENT_POSITION_FOLLOWING;
+  return Boolean(first.compareDocumentPosition(other) & order);
+}
+
 export function text(container, value) {
   return [...container.querySelectorAll("*")].find(
     (element) =>

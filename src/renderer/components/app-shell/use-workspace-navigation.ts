@@ -119,8 +119,12 @@ export function useWorkspaceNavigation({
 
   const handleSelectSession = useCallback(
     (session: SessionInfo, isRestore = false) => {
-      beginSessionLoadTrace(session.id, isRestore ? "restore" : "selection");
       if (!isRestore) onShowChat?.();
+      if (!isRestore && selectedSession?.id === session.id) {
+        if (isMobile) onMobileSidebarClose();
+        return;
+      }
+      beginSessionLoadTrace(session.id, isRestore ? "restore" : "selection");
       setNewSessionCwd(null);
       setSelectedSession(session);
       setSessionKey((k) => k + 1);
@@ -138,7 +142,7 @@ export function useWorkspaceNavigation({
         router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
       }
     },
-    [router, isMobile, onMobileSidebarClose, onShowChat],
+    [router, isMobile, onMobileSidebarClose, onShowChat, selectedSession],
   );
 
   const handleNewSession = useCallback(

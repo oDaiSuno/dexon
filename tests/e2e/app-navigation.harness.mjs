@@ -318,14 +318,14 @@ async function run() {
     await waitFor(async () => !(await exists("dialog", "Settings")), "Settings closed by Escape");
     return { categories: remainingSettings };
   });
-  await scene("08-new-chat-and-expand", async () => {
-    await click("button", "new session");
-    await waitFor(() => exists("group", "Message input"), "a real new-chat composer");
+  await scene("08-new-session-and-expand", async () => {
+    await click("button", railEntries[1]);
+    await waitFor(() => exists("group", "Message input"), "a real new-session composer");
     assert.equal(await exists("heading", "Plugins & Skills"), false);
     await click("button", "Show sidebar");
     await waitFor(() => exists("button", "Personal space"), "restored friendly workspace controls");
     const measurement = await navigationWidth(224);
-    assert.ok(measurement.currentPage.includes("Chat"));
+    assert.deepEqual(measurement.currentPage, [], "an empty session marks no navigation entry as the current page");
     await waitFor(() => exists("button", nativeHistoryTitle), "the original conversation after expansion");
     return { ...measurement, restoredHistory: nativeHistoryTitle };
   });

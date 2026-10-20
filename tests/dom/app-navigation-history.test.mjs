@@ -14,18 +14,19 @@ import {
   waitFor,
   historyRows,
   historyRowsWithStatus,
+  currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { laterConversation } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
 
-test("selecting a history row shows that conversation", async (t) => {
+test("selecting a history row shows that conversation and marks that row as the current page", async (t) => {
   const scene = await startNavigation(t);
   await click(await waitFor(() => control(scene.history(), "button", "Another personal conversation")));
   await waitFor(() => visibleText(scene.container, "Other conversation marker"));
   assert.equal(dom.window.location.search, "?session=personal-other");
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Another personal conversation"]);
 });
 
 test("the history search in the production navigation selects the matching session rather than the first conversation", async (t) => {
@@ -39,17 +40,26 @@ test("the history search in the production navigation selects the matching sessi
   assert.equal(dom.window.location.search, "?session=personal-other");
 });
 
-test("new session from the navigation replaces the open conversation with an empty chat and keeps the existing history rows", async (t) => {
+test("New session on the main navigation replaces the open conversation with an empty chat and keeps the existing history rows", async (t) => {
   const scene = await startNavigation(t, { initialSession: "personal-history" });
   await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.equal(dom.window.location.search, "");
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
+  assert.deepEqual(currentPages(scene), [], "an empty session is the current page nowhere in the navigation");
   await scene.settled();
   assert.equal(roles(scene.history(), "listitem").length, 2);
   historyRows(scene, "Personal release notes", "Another personal conversation");
+});
+
+test("the history header offers search and refresh without a separate new-session control", async (t) => {
+  const scene = await startNavigation(t);
+  const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  control(history, "button", "Search sessions");
+  control(history, "button", "Refresh");
+  assert.equal(roles(history, "button", /^new session$/i).length, 0, "history has no new-session entry of its own");
 });
 
 async function openRowActions(scene, title) {

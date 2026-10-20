@@ -11,6 +11,8 @@ import {
   mouseDown,
   dom,
   waitFor,
+  historyRow,
+  currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { initialSkillContent, savedSkillContent, reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
@@ -28,8 +30,7 @@ test("with no history or selected session, the official Resources entry opens pe
     ["Plugins", "Skills"],
   );
   assert.equal(control(scene.container, "tab", "Plugins").getAttribute("aria-selected"), "true");
-  assert.equal(control(scene.navigation(), "button", "Plugins & Skills").getAttribute("aria-current"), "page");
-  assert.notEqual(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Plugins & Skills"]);
 });
 
 test("the Skills tab reached from the official entry reads a personal skill and its file without needing a session", async (t) => {
@@ -65,12 +66,12 @@ test("explicit plugin reload from Resources refreshes the same conversation when
   assert.equal(reload.disabled, false, "Resources retains the selected session as the reload target");
   await click(reload);
   await waitFor(() => visibleText(scene.resourcePanel(), "Session reloaded."));
-  await click(control(scene.navigation(), "button", "Chat"));
+  await click(historyRow(scene, "Personal release notes"));
   const chat = await waitFor(() => control(scene.container, "region", "Chat"));
   await waitFor(() => visibleText(chat, reloadedPluginStatus));
   visibleText(chat, "Personal conversation marker");
   assert.equal(dom.window.location.search, "?session=personal-history");
-  assert.equal(control(scene.navigation(), "button", "Chat").getAttribute("aria-current"), "page");
+  assert.deepEqual(currentPages(scene), ["Personal release notes"]);
 });
 
 for (const [language, unsettled, obsoleteGuidance] of [

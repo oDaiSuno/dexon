@@ -45,7 +45,7 @@ function onlyRow(scene, title) {
 }
 
 async function sendFirstMessage(scene) {
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   const composer = await waitFor(() => control(chat(scene), "textbox"));
   await type(composer, firstMessage);
   await click(control(chat(scene), "button", "Send"));
@@ -117,14 +117,14 @@ test("a slow reply for the conversation the user just left cannot replace the ne
 test("a new chat that has only an unsent draft does not appear in history and keeps its draft", async (t) => {
   const scene = await startNavigation(t, { initialSession: "personal-history" });
   await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await type(await waitFor(() => control(chat(scene), "textbox")), "Unsent draft line");
   await click(control(scene.history(), "button", "Personal release notes"));
   await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
   await scene.settled();
   assert.equal(rowsFor(scene, "Unsent draft line").length, 0);
   assert.equal(roles(scene.history(), "listitem").length, 2);
-  await click(control(scene.navigation(), "button", /^new session$/i));
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
   await waitFor(() => assert.equal(control(chat(scene), "textbox").textContent, "Unsent draft line"));
   assert.deepEqual(scene.external.prompts(), [], "nothing was sent");
 });

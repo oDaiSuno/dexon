@@ -10,6 +10,7 @@ import {
   dom,
   waitFor,
   historyRowsWithStatus,
+  historyRow,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 
@@ -18,8 +19,8 @@ after(restoreGlobals);
 const chat = (scene) => control(scene.container, "region", "Chat");
 const composer = (scene) => control(chat(scene), "textbox");
 
-async function backToChat(scene) {
-  await click(control(scene.navigation(), "button", "Chat"));
+async function backToChat(scene, title) {
+  await click(historyRow(scene, title));
   return waitFor(() => chat(scene));
 }
 
@@ -67,7 +68,7 @@ test("a reply that keeps streaming while Resources is open is shown in full, sti
     ),
   );
   await scene.settled();
-  await backToChat(scene);
+  await backToChat(scene, "Personal release notes");
   await waitFor(() =>
     visibleText(chat(scene), "First streamed sentence. Second sentence arrived while Resources was open."),
   );
@@ -82,10 +83,24 @@ test("a round trip through Resources keeps the same conversation attached instea
   await scene.resources();
   await scene.settled();
   assert.ok(scene.external.agentSubscribers("personal-history") > 0, "the hidden chat still follows the run");
-  await backToChat(scene);
+  await backToChat(scene, "Personal release notes");
   await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
   await scene.settled();
   assert.equal(scene.external.sessionReads("personal-history"), reads, "returning did not load the conversation again");
+});
+
+test("clicking the conversation already open on the Chat page keeps it attached instead of loading it again", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
+  await type(composer(scene), "Draft typed before clicking the open row");
+  await scene.settled();
+  const reads = scene.external.sessionReads("personal-history");
+  await click(historyRow(scene, "Personal release notes"));
+  await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
+  await scene.settled();
+  assert.equal(scene.external.sessionReads("personal-history"), reads, "the conversation was not loaded again");
+  assert.equal(dom.window.location.search, "?session=personal-history");
+  assert.equal(composer(scene).textContent, "Draft typed before clicking the open row");
 });
 
 test("a selected conversation that finishes while Resources is open is marked as new activity until Chat shows it again", async (t) => {
@@ -95,7 +110,7 @@ test("a selected conversation that finishes while Resources is open is marked as
   await act(async () => scene.external.finishStream("personal-history", "Final answer written in the background"));
   await waitFor(() => assert.equal(historyRowsWithStatus(scene, "Personal release notes", "New activity").length, 1));
   assert.equal(historyRowsWithStatus(scene, "Another personal conversation", "New activity").length, 0);
-  await backToChat(scene);
+  await backToChat(scene, "Personal release notes");
   await waitFor(() => visibleText(chat(scene), "Final answer written in the background"));
   await waitFor(() => assert.equal(historyRowsWithStatus(scene, "Personal release notes", "New activity").length, 0));
 });
@@ -116,7 +131,7 @@ test("an unsent draft survives a visit to Resources and is what gets sent, and t
   await scene.resources();
   assert.equal(roles(scene.container, "region", "Chat").length, 0, "the chat is not exposed behind Resources");
   assert.equal(roles(scene.container, "group", "Message input").length, 0, "the composer is not reachable");
-  await backToChat(scene);
+  await backToChat(scene, "Personal release notes");
   assert.equal(dom.window.location.search, "?session=personal-history");
   await click(control(chat(scene), "button", "Send"));
   await waitFor(() =>
@@ -134,7 +149,7 @@ test("expanded process details in the conversation stay expanded after a visit t
   await click(toggle());
   await waitFor(() => assert.equal(toggle().getAttribute("aria-expanded"), "true"));
   await scene.resources();
-  await backToChat(scene);
+  await backToChat(scene, "Personal tool conversation");
   await waitFor(() => visibleText(chat(scene), "Tool answer marker"));
   assert.equal(toggle().getAttribute("aria-expanded"), "true");
 });

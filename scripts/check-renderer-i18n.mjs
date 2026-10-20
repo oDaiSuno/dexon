@@ -6,6 +6,7 @@ import { checkRendererI18n } from "./renderer-i18n-checker.mjs";
 import {
   CRITICAL_SCENARIO_OWNERS,
   CRITICAL_SCENARIOS,
+  INTENTIONAL_REWRITES,
   criticalScenarioFailures,
   dictionaryBaselineFailures,
   dictionaryCompositionFailures,
@@ -47,6 +48,7 @@ const structureFailures = [
     enUS: composition.enUS,
     zhCN: composition.zhCN,
     interactiveKeys,
+    rewrittenKeys: INTENTIONAL_REWRITES,
   }),
   ...dictionaryExportContractFailures({
     dictionaries: composition.dictionaries,

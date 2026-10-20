@@ -127,6 +127,28 @@ export function historyRowsWithStatus(scene, title, status) {
   });
 }
 
+export function historyRow(scene, title) {
+  const matches = roles(scene.history(), "button").filter((element) => {
+    const name = accessibleName(element);
+    return name.includes(title) && !name.startsWith("Session actions");
+  });
+  assert.equal(matches.length, 1, `Expected one history row for ${title}; found ${matches.length}`);
+  return matches[0];
+}
+
+export function currentPages(scene) {
+  return [...scene.navigation().querySelectorAll('[aria-current="page"]')].map(accessibleName);
+}
+
+export function onChatPage(scene) {
+  const chat = control(scene.container, "region", "Chat");
+  assert.equal(roles(scene.container, "heading", "Plugins & Skills").length, 0, "Resources is not the page shown");
+  const marked = currentPages(scene);
+  for (const entry of ["Plugins & Skills", "New session"])
+    assert.equal(marked.includes(entry), false, `${entry} is not the current page`);
+  return chat;
+}
+
 export function noHistoryRows(scene, ...titles) {
   for (const title of titles) assert.equal(roles(scene.history(), "button", title).length, 0, `${title} is not shown`);
 }

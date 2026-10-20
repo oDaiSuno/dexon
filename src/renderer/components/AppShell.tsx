@@ -154,18 +154,11 @@ export function AppShell({
   }, [returnToPersonalSpace, handleCwdChange]);
   const handleNavigate = useCallback(
     (target: NavPage) => {
-      if (target === "resources") {
-        setActiveTopPanel(null);
-        if (isMobile) setSidebarOpen(false);
-        setPage(target);
-        return;
-      }
-      requestDeparture(() => {
-        if (isMobile) setSidebarOpen(false);
-        setPage(target);
-      });
+      setActiveTopPanel(null);
+      if (isMobile) setSidebarOpen(false);
+      setPage(target);
     },
-    [isMobile, requestDeparture],
+    [isMobile],
   );
   const onResources = page === "resources";
 
@@ -264,8 +257,7 @@ export function AppShell({
           coordination={coordination}
           onCwdChange={handleSidebarCwdChange}
           onReturnToPersonalSpace={handleReturnToPersonalSpace}
-          selectedSessionId={selectedSession?.id ?? null}
-          readingSessionId={onResources ? null : (selectedSession?.id ?? null)}
+          shownSessionId={onResources ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
           initialSessionId={initialSessionId}
