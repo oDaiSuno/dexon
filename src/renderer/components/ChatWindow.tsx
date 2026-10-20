@@ -187,7 +187,6 @@ export function ChatWindow(props: Props) {
                         sessionId={session?.id}
                         message={streamState.streamingMessage as AgentMessage}
                         isStreaming
-                        modelNames={modelNames}
                         cwd={messageCwd}
                         onOpenFile={onOpenFile}
                         entryId="streaming"

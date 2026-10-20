@@ -161,6 +161,75 @@ export function failureOnlyTurn(id = "answer-new-session-failure-only") {
   return turnDetail(id, [userTurn(), { ...assistantReply([], "error", 1006), errorMessage: FAILURE_DETAIL }]);
 }
 
+export function usageOf(input, output, cacheRead, total) {
+  return {
+    input,
+    output,
+    cacheRead,
+    cacheWrite: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total },
+  };
+}
+
+export const T0 = Date.parse("2026-01-01T09:00:00.000Z");
+export const at = (seconds) => T0 + seconds * 1000;
+
+function timedQuestion() {
+  return { ...userTurn(), timestamp: at(0) };
+}
+
+export function timedInterleavedTurn(id = "answer-footer-timed-interleaved") {
+  return turnDetail(id, [
+    timedQuestion(),
+    {
+      ...assistantReply([textBlock(OPENING), readStep("call-read-1")], "toolUse", at(4)),
+      usage: usageOf(1000, 200, 300, 0.01),
+    },
+    toolOutput("call-read-1", TOOL_OUTPUT, at(16)),
+    {
+      ...assistantReply([textBlock(MIDWAY), thinkingBlock(ANALYSIS), textBlock(CONCLUSION)], "stop", at(56)),
+      usage: usageOf(2000, 400, 500, 0.025),
+    },
+  ]);
+}
+
+export function timedSingleGroupTurn(id = "answer-footer-timed-single-group") {
+  return turnDetail(id, [
+    timedQuestion(),
+    assistantReply([textBlock(OPENING), readStep("call-read-1")], "toolUse", at(3)),
+    toolOutput("call-read-1", TOOL_OUTPUT, at(12)),
+    assistantReply([textBlock(CONCLUSION)], "stop", at(30)),
+  ]);
+}
+
+export function timedToolEndedTurn(id = "answer-footer-timed-tool-ended") {
+  return turnDetail(id, [
+    timedQuestion(),
+    {
+      ...assistantReply([textBlock(OPENING), readStep("call-read-1")], "toolUse", at(5)),
+      usage: usageOf(700, 50, 0, 0.002),
+    },
+    toolOutput("call-read-1", TOOL_OUTPUT, at(9)),
+    assistantReply([thinkingBlock(ANALYSIS), readStep("call-read-2", "src/main.ts")], "toolUse", at(14)),
+    toolOutput("call-read-2", SECOND_TOOL_OUTPUT, at(20)),
+  ]);
+}
+
+export function timedFailureThenAnswerTurn(id = "answer-footer-failure-usage") {
+  return turnDetail(id, [
+    timedQuestion(),
+    { ...assistantReply([], "error", at(2)), errorMessage: FAILURE_DETAIL, usage: usageOf(100, 0, 0, 0.001) },
+    { ...assistantReply([textBlock(CONCLUSION)], "stop", at(8)), usage: usageOf(900, 80, 0, 0.004) },
+  ]);
+}
+
+export function failureOnlyWithUsageTurn(id = "answer-footer-failure-only") {
+  return turnDetail(id, [
+    timedQuestion(),
+    { ...assistantReply([], "error", at(2)), errorMessage: FAILURE_DETAIL, usage: usageOf(100, 0, 0, 0.001) },
+  ]);
+}
+
 export function silentAbortTurn(id = "answer-new-session-silent-abort") {
   return turnDetail(id, [
     userTurn(),

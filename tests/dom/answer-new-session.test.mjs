@@ -173,12 +173,8 @@ test("when a turn answers through several replies around a tool call, the reader
   assert.equal(controls.length, 1, "a turn written in several replies still offers a single control");
   comesBefore(onScreen(view, CONCLUSION), controls[0], "the control follows the closing sentence of the turn");
   const copies = answerCopyControls(root);
-  assert.equal(copies.length, 2, "each sentence of the turn keeps its own copy control");
-  comesBefore(
-    copies.at(-1),
-    controls[0],
-    "the control joins the footer of the closing sentence rather than an earlier one",
-  );
+  assert.equal(copies.length, 1, "the turn keeps a single copy control in its footer");
+  comesBefore(copies[0], controls[0], "the copy control and New session share the turn's single footer");
   await hover(onScreen(view, CONCLUSION));
   await click(controls[0]);
   await settle();

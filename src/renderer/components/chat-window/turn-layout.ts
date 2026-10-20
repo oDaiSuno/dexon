@@ -9,6 +9,17 @@ import {
 import type { ToolMessageData } from "@/lib/tool-message-index";
 import type { AgentMessage, AssistantContentBlock, AssistantMessage, CustomMessage } from "@/lib/types";
 
+export type AssistantUsage = NonNullable<AssistantMessage["usage"]>;
+
+export interface TurnFooter {
+  copyText: string;
+  forkEntryId?: string;
+  timestamp?: number;
+  usage?: AssistantUsage;
+  provider?: string;
+  model?: string;
+}
+
 export interface TurnAnswerPiece {
   kind: "answer";
   key: string;
@@ -16,8 +27,6 @@ export interface TurnAnswerPiece {
   index: number;
   entryId?: string;
   body: AssistantMessage;
-  footerBody: AssistantMessage;
-  hasFooter: boolean;
   prevTimestamp?: number;
 }
 
@@ -43,13 +52,13 @@ export type TurnPiece = TurnAnswerPiece | TurnProcessPiece | TurnFailurePiece;
 export interface TurnLayout {
   pieces: TurnPiece[];
   lastAssistantIndex: number;
+  footer: TurnFooter | null;
 }
 
 interface CachedAnswerPiece {
   kind: "answer";
   firstIndex: number;
   body: AssistantMessage;
-  footerBody: AssistantMessage;
 }
 
 interface CachedProcessPiece {
@@ -60,11 +69,11 @@ interface CachedProcessPiece {
 
 type CachedMessagePiece = CachedAnswerPiece | CachedProcessPiece;
 
-function answerBody(message: AssistantMessage, blocks: AssistantContentBlock[], keepUsage: boolean): AssistantMessage {
+function answerBody(message: AssistantMessage, blocks: AssistantContentBlock[]): AssistantMessage {
   return {
     ...message,
     content: blocks,
-    usage: keepUsage ? message.usage : undefined,
+    usage: undefined,
     stopReason: undefined,
     errorMessage: undefined,
   };
@@ -89,12 +98,13 @@ export class AssistantBlockCache {
     const created = splitAssistantBlockRuns(message).map((run): CachedMessagePiece => {
       const firstIndex = run.blockItems[0].index;
       if (run.kind === "process") return { kind: "process", firstIndex, blockItems: run.blockItems };
-      const blocks = run.blockItems.map((item) => item.block);
       return {
         kind: "answer",
         firstIndex,
-        body: answerBody(message, blocks, false),
-        footerBody: answerBody(message, blocks, true),
+        body: answerBody(
+          message,
+          run.blockItems.map((item) => item.block),
+        ),
       };
     });
     this.byMessage.set(message, created);
@@ -118,10 +128,76 @@ interface OpenGroup {
   key: string;
   refIndex?: number;
   sources: ProcessFlowSource[];
+  startTimestamp?: number;
 }
 
 function timestampOf(message: AgentMessage | undefined): number | undefined {
   return (message as (AgentMessage & { timestamp?: number }) | undefined)?.timestamp;
+}
+
+function laterOf(current: number | undefined, candidate: number | undefined): number | undefined {
+  if (candidate === undefined) return current;
+  if (current === undefined) return candidate;
+  return candidate > current ? candidate : current;
+}
+
+function lastProcessingTimestamp(sources: ProcessFlowSource[], flow: ProcessFlow): number | undefined {
+  let latest: number | undefined;
+  for (const source of sources) latest = laterOf(latest, source.message.timestamp);
+  for (const item of flow.items) {
+    if (item.kind === "toolCall") latest = laterOf(latest, item.result?.timestamp);
+  }
+  return latest;
+}
+
+function sumUsage(messages: AgentMessage[], userIdx: number, endIdx: number): AssistantUsage | undefined {
+  let total: AssistantUsage | undefined;
+  for (let index = userIdx + 1; index < endIdx; index += 1) {
+    const message = messages[index];
+    if (message?.role !== "assistant" || !message.usage) continue;
+    const usage = message.usage;
+    total ??= {
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+    };
+    total.input += usage.input ?? 0;
+    total.output += usage.output ?? 0;
+    total.cacheRead += usage.cacheRead ?? 0;
+    total.cacheWrite += usage.cacheWrite ?? 0;
+    total.cost.input += usage.cost?.input ?? 0;
+    total.cost.output += usage.cost?.output ?? 0;
+    total.cost.cacheRead += usage.cost?.cacheRead ?? 0;
+    total.cost.cacheWrite += usage.cost?.cacheWrite ?? 0;
+    total.cost.total += usage.cost?.total ?? 0;
+  }
+  return total;
+}
+
+function copyTextOf(pieces: TurnPiece[]): string {
+  const paragraphs: string[] = [];
+  for (const piece of pieces) {
+    if (piece.kind !== "answer") continue;
+    for (const block of piece.body.content) {
+      if (block.type === "text" && block.text) paragraphs.push(block.text);
+    }
+  }
+  return paragraphs.join("\n\n");
+}
+
+function footerFor(input: TurnLayoutInput, pieces: TurnPiece[], lastAssistantIndex: number): TurnFooter | null {
+  if (!pieces.some((piece) => piece.kind === "answer")) return null;
+  const last = input.messages[lastAssistantIndex] as AssistantMessage;
+  return {
+    copyText: copyTextOf(pieces),
+    forkEntryId: input.entryIds[input.endIdx - 1],
+    timestamp: last.timestamp,
+    usage: sumUsage(input.messages, input.userIdx, input.endIdx),
+    provider: last.provider,
+    model: last.model,
+  };
 }
 
 export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
@@ -133,7 +209,7 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
       break;
     }
   }
-  if (lastAssistantIndex === -1) return { pieces: [], lastAssistantIndex };
+  if (lastAssistantIndex === -1) return { pieces: [], lastAssistantIndex, footer: null };
 
   const pieces: TurnPiece[] = [];
   const claimedRefs = new Set<number>();
@@ -147,7 +223,7 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
   };
 
   const joinGroup = (messageIndex: number, key: string, source: ProcessFlowSource) => {
-    if (!group) group = { key, sources: [] };
+    if (!group) group = { key, sources: [], startTimestamp: source.prevTimestamp };
     if (group.refIndex === undefined) group.refIndex = claimRef(messageIndex);
     group.sources.push(source);
   };
@@ -155,7 +231,14 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
   const flushGroup = () => {
     if (!group) return;
     const flow = buildProcessFlowItems(group.sources, (message, entryId) => input.keyFor(message, entryId, "process"));
-    pieces.push({ kind: "process", key: group.key, refIndex: group.refIndex, flow });
+    const end = lastProcessingTimestamp(group.sources, flow);
+    pieces.push({
+      kind: "process",
+      key: group.key,
+      refIndex: group.refIndex,
+      flow,
+      durationSeconds: computeTurnDurationSeconds(group.startTimestamp, end),
+    });
     group = null;
   };
 
@@ -184,8 +267,6 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
           index,
           entryId,
           body: piece.body,
-          footerBody: piece.footerBody,
-          hasFooter: false,
           prevTimestamp,
         });
         continue;
@@ -212,18 +293,5 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
   }
   flushGroup();
 
-  const turnDuration = computeTurnDurationSeconds(
-    timestampOf(messages[userIdx]),
-    timestampOf(messages[lastAssistantIndex]),
-  );
-  const groups = pieces.filter((piece): piece is TurnProcessPiece => piece.kind === "process");
-  if (groups.length === 1) groups[0].durationSeconds = turnDuration;
-
-  const footerCandidates = pieces.filter(
-    (piece): piece is TurnAnswerPiece => piece.kind === "answer" && piece.index === lastAssistantIndex,
-  );
-  const footer = footerCandidates[footerCandidates.length - 1];
-  if (footer) footer.hasFooter = true;
-
-  return { pieces, lastAssistantIndex };
+  return { pieces, lastAssistantIndex, footer: footerFor(input, pieces, lastAssistantIndex) };
 }
