@@ -22,6 +22,7 @@ import { toolchainRuntime } from "./toolchain-runtime";
 import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 
 import { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
+import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
 import { AgentSessionWrapper } from "./agent-session/wrapper";
 import type { SessionLiveStatus } from "../shared/session-orchestration";
 export { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
@@ -216,6 +217,7 @@ export async function startRpcSession(
       services,
       sessionManager,
       customTools,
+      excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
     });
     const realSessionId = inner.sessionId as string;
 

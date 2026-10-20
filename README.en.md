@@ -56,7 +56,7 @@ Dexon is a derivative of [DLYZZT/Pi Agent Desktop](https://github.com/DLYZZT/pi-
 
 ### Unified model and extension management
 
-- Bundled Pi Coding Agent 0.84.0 with model provider and model configuration management
+- Bundled Pi Coding Agent 0.84.4 with model provider and model configuration management
 - Browser OAuth login flows
 - Search, install, and configure Skills; manage Plugins through the Pi extension system
 
