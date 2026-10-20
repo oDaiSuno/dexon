@@ -47,30 +47,36 @@ export function install(installer, directory) {
 }
 
 export function installExpectingStatus(installer, directory, expectedStatus, extraArguments = []) {
-  const result = spawnSync(installer, ["/S", ...extraArguments, `/D=${directory}`], {
-    encoding: "utf8",
-    timeout: 180_000,
-    windowsHide: true,
-  });
-  if (result.error?.code === "ETIMEDOUT") {
-    throw new Error(
-      `installer did not finish in 180 s; a hidden dialog is the likely cause (${directory})\n${result.stderr ?? ""}`,
-      { cause: result.error },
-    );
-  }
-  if (result.error) throw new Error(`installer failed to start: ${result.error.message}`, { cause: result.error });
-  if (result.signal) throw new Error(`installer was killed by ${result.signal} (${directory})`);
-  if (result.status !== expectedStatus) {
-    throw new Error(
-      `installer exited ${result.status}, expected ${expectedStatus} (${directory})\n${result.stderr ?? ""}`,
-    );
+  const result = runInstallerWith(installer, directory, extraArguments);
+  if (result.error || result.signal || result.status !== expectedStatus) {
+    throw installerStatusError(result, directory, expectedStatus);
   }
   waitForUninstallerCopy();
   return result;
 }
 
+export function installerStatusError(result, directory, expectedStatus) {
+  if (result.error?.code === "ETIMEDOUT") {
+    return new Error(
+      `installer did not finish in 180 s; a hidden dialog is the likely cause (${directory})\n${result.stderr ?? ""}`,
+      { cause: result.error },
+    );
+  }
+  if (result.error) {
+    return new Error(`installer failed to start: ${result.error.message}`, { cause: result.error });
+  }
+  if (result.signal) return new Error(`installer was killed by ${result.signal} (${directory})`);
+  return new Error(
+    `installer exited ${result.status}, expected ${expectedStatus} (${directory})\n${result.stderr ?? ""}`,
+  );
+}
+
 export function runInstaller(installer, directory) {
-  return spawnSync(installer, ["/S", `/D=${directory}`], {
+  return runInstallerWith(installer, directory, []);
+}
+
+export function runInstallerWith(installer, directory, extraArguments = []) {
+  return spawnSync(installer, ["/S", ...extraArguments, `/D=${directory}`], {
     encoding: "utf8",
     timeout: 180_000,
     windowsHide: true,

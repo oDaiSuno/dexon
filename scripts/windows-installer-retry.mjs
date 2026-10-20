@@ -28,3 +28,12 @@ export function shouldRetryFirstInstall({ phase, result, installState, installDi
     installDirectoryEntries.length === 0
   );
 }
+
+export function shouldRetryRefusedFreshInstall({ result, installState }) {
+  return (
+    !result.error &&
+    !result.signal &&
+    result.status === ACCESS_VIOLATION_EXIT_STATUS &&
+    isCleanInstallState(installState)
+  );
+}

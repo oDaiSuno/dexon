@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { firstInstall } from "./windows-nsis-first-install.mjs";
+import { firstInstall, refusedFreshInstall } from "./windows-nsis-first-install.mjs";
 import {
   appExecutable,
   assertCleanUserInstallState,
@@ -62,7 +62,7 @@ results.push(
           fs.writeFileSync(path.join(directory, "nested", "inner.txt"), "not ours either\n");
           const variant = [name, ...extraArguments].join(" ");
           const before = snapshotFiles(directory);
-          installExpectingStatus(currentInstaller, directory, 2, extraArguments);
+          refusedFreshInstall(currentInstaller, directory, extraArguments);
           assert.deepEqual(
             snapshotFiles(directory),
             before,
