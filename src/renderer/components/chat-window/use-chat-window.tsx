@@ -6,10 +6,10 @@ import { useObservedElementHeight } from "@/hooks/useObservedElementHeight";
 import { useI18n } from "@/i18n";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
-import type { AssistantMessage } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatInput } from "../ChatInput";
-import { AssistantRenderParts, Props, toMinimapMessage } from "./shared";
+import { Props, toMinimapMessage } from "./shared";
+import { AssistantBlockCache } from "./turn-layout";
 
 export function useChatWindow({
   session,
@@ -37,7 +37,7 @@ export function useChatWindow({
 
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
 
-  const assistantRenderParts = useRef(new WeakMap<AssistantMessage, AssistantRenderParts>()).current;
+  const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
@@ -341,7 +341,7 @@ export function useChatWindow({
     insertEditedContent,
     loadDeferredContent,
     thinkingExpansionStore,
-    assistantRenderParts,
+    assistantBlockCache,
     processDetailsExpansionStore,
     agentPhase,
     retryInfo,

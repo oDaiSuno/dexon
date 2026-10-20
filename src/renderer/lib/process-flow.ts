@@ -1,19 +1,11 @@
-import type {
-  AssistantContentBlock,
-  AssistantMessage,
-  CustomMessage,
-  TextContent,
-  ThinkingContent,
-  ToolCallContent,
-  ToolResultMessage,
-} from "./types";
+import type { AssistantMessage, CustomMessage, ThinkingContent, ToolCallContent, ToolResultMessage } from "./types";
 import type { ToolMessageData } from "./tool-message-index";
-import { isEmptyTextBlock, isEmptyThinkingBlock } from "../../shared/message-display.ts";
+import { isEmptyThinkingBlock, type AssistantBlockItem } from "../../shared/message-display.ts";
 
 /**
  * Flattened, order-preserving stream of "process" content for the collapsed
- * process-details group: thinking rows, tool-call rows, interstitial text and
- * custom messages interleave exactly in the order the agent produced them.
+ * process-details group: thinking rows, tool-call rows and custom messages
+ * interleave exactly in the order the agent produced them.
  */
 export type ProcessFlowItem =
   | {
@@ -34,13 +26,12 @@ export type ProcessFlowItem =
       result?: ToolResultMessage;
       duration?: number;
     }
-  | { kind: "text"; key: string; block: TextContent }
   | { kind: "custom"; key: string; message: CustomMessage; entryId?: string };
 
 export interface ProcessFlowSource {
   message: AssistantMessage | CustomMessage;
-  /** Block subset to render (e.g. the final message's process blocks); defaults to the message's own content. */
-  blocks?: AssistantContentBlock[];
+  /** Block subset to render; defaults to the message's own content. */
+  blockItems?: AssistantBlockItem[];
   entryId?: string;
   /** Timestamp of the preceding message, used to derive thinking durations. */
   prevTimestamp?: number;
@@ -73,12 +64,13 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
       continue;
     }
     const message = source.message as AssistantMessage;
-    const content = source.blocks ?? message.content ?? [];
+    const blockItems = source.blockItems ?? (message.content ?? []).map((block, index) => ({ block, index }));
     let contributed = false;
-    content.forEach((block, blockIndex) => {
+    for (const { block, index: blockIndex } of blockItems) {
       const entryId = source.entryId;
       if (block.type === "thinking") {
-        if (isEmptyThinkingBlock(block)) return;
+        if (isEmptyThinkingBlock(block)) continue;
+        contributed = true;
         items.push({
           kind: "thinking",
           key: keyFor(message, entryId) + `:${blockIndex}`,
@@ -88,6 +80,7 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
           duration: thinkingDurationSeconds(message, source.prevTimestamp),
         });
       } else if (block.type === "toolCall") {
+        contributed = true;
         toolCallCount += 1;
         items.push({
           kind: "toolCall",
@@ -98,15 +91,8 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
           result: source.toolData?.results.get(block.toolCallId),
           duration: source.toolData?.durations.get(block.toolCallId),
         });
-      } else if (block.type === "text") {
-        if (isEmptyTextBlock(block)) return;
-        items.push({ kind: "text", key: keyFor(message, entryId) + `:${blockIndex}`, block });
-      } else if (block.type === "image") {
-        // Images inside process messages render nowhere (legacy BlockView
-        // behavior) but still count the message toward the header fallback.
       }
-      contributed = true;
-    });
+    }
     if (contributed) messageCount += 1;
   }
 

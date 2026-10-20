@@ -14,67 +14,106 @@ function assistant(content) {
   };
 }
 
-test("splits trailing final answer blocks from process blocks", async () => {
-  const { splitFinalAssistantBlocks } = await loadSubject();
+const toolCall = { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} };
+
+test("an interleaved reply becomes answer, process, answer, process, answer runs", async () => {
+  const { splitAssistantBlockRuns } = await loadSubject();
   const message = assistant([
-    { type: "thinking", thinking: "work through it" },
-    { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
-    { type: "text", text: "Final answer" },
-    { type: "image", source: { type: "url", url: "https://example.com/final.png" } },
+    { type: "text", text: "我先检查项目。" },
+    toolCall,
+    { type: "text", text: "已经找到问题所在。" },
+    { type: "thinking", thinking: "分析修改方案。" },
+    { type: "text", text: "这是最终结论。" },
   ]);
 
-  const result = splitFinalAssistantBlocks(message, { isStreaming: false });
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
 
   assert.deepEqual(
-    result.answerBlocks.map((block) => block.type),
-    ["text", "image"],
+    runs.map((run) => run.kind),
+    ["answer", "process", "answer", "process", "answer"],
   );
   assert.deepEqual(
-    result.processBlocks.map((block) => block.type),
-    ["thinking", "toolCall"],
+    runs.map((run) => run.blockItems[0].index),
+    [0, 1, 2, 3, 4],
+  );
+  assert.deepEqual(
+    runs.filter((run) => run.kind === "answer").map((run) => run.blockItems.map((item) => item.block.text)),
+    [["我先检查项目。"], ["已经找到问题所在。"], ["这是最终结论。"]],
   );
 });
 
-test("keeps pre-tool text in process blocks", async () => {
-  const { splitFinalAssistantBlocks } = await loadSubject();
-  const message = assistant([
-    { type: "text", text: "I will inspect the repo first." },
-    { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
-    { type: "text", text: "Final answer" },
-  ]);
-
-  const result = splitFinalAssistantBlocks(message, { isStreaming: false });
-
-  assert.deepEqual(
-    result.answerBlocks.map((block) => block.type),
-    ["text"],
-  );
-  assert.equal(result.answerBlocks[0].text, "Final answer");
-  assert.deepEqual(
-    result.processBlocks.map((block) => block.type),
-    ["text", "toolCall"],
-  );
-});
-
-test("does not expose text before a trailing tool call as final answer", async () => {
-  const { splitFinalAssistantBlocks } = await loadSubject();
+test("a reply that ends on a tool call still keeps its sentence as answer content", async () => {
+  const { splitAssistantBlockRuns } = await loadSubject();
   const message = assistant([
     { type: "thinking", thinking: "work through it" },
     { type: "text", text: "I need to call a tool." },
-    { type: "toolCall", toolCallId: "call-1", toolName: "bash", input: {} },
+    toolCall,
   ]);
 
-  const result = splitFinalAssistantBlocks(message, { isStreaming: false });
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
 
-  assert.deepEqual(result.answerBlocks, []);
   assert.deepEqual(
-    result.processBlocks.map((block) => block.type),
-    ["thinking", "text", "toolCall"],
+    runs.map((run) => run.kind),
+    ["process", "answer", "process"],
+  );
+  assert.deepEqual(
+    runs.map((run) => run.blockItems[0].index),
+    [0, 1, 2],
+  );
+  assert.equal(runs[1].blockItems[0].block.type, "text");
+  assert.equal(runs[1].blockItems[0].block.text, "I need to call a tool.");
+});
+
+test("neighbouring blocks of the same kind join one run", async () => {
+  const { splitAssistantBlockRuns } = await loadSubject();
+  const message = assistant([
+    { type: "thinking", thinking: "first look" },
+    { type: "thinking", thinking: "second look" },
+    toolCall,
+    { type: "toolCall", toolCallId: "call-2", toolName: "read", input: {} },
+    { type: "image", source: { type: "url", url: "https://example.com/final.png" } },
+  ]);
+
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
+
+  assert.deepEqual(
+    runs.map((run) => run.kind),
+    ["process", "answer"],
+  );
+  assert.deepEqual(
+    runs.map((run) => run.blockItems.length),
+    [4, 1],
+  );
+  assert.deepEqual(
+    runs.map((run) => run.blockItems[0].index),
+    [0, 4],
+  );
+});
+
+test("when an empty thinking step sits inside a run, the later steps keep their own positions", async () => {
+  const { splitAssistantBlockRuns } = await loadSubject();
+  const message = assistant([
+    { type: "thinking", thinking: "先读文件。" },
+    { type: "thinking", thinking: "   " },
+    { type: "toolCall", toolCallId: "call-1", toolName: "read", input: {} },
+    { type: "thinking", thinking: "再核对结论。" },
+  ]);
+
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
+
+  assert.equal(runs.length, 1);
+  assert.deepEqual(
+    runs[0].blockItems.map((item) => item.index),
+    [0, 2, 3],
+  );
+  assert.deepEqual(
+    runs[0].blockItems.map((item) => item.block.type),
+    ["thinking", "toolCall", "thinking"],
   );
 });
 
 test("drops empty thinking blocks after completion", async () => {
-  const { getDisplayableAssistantBlocks, splitFinalAssistantBlocks } = await loadSubject();
+  const { getDisplayableAssistantBlocks, splitAssistantBlockRuns } = await loadSubject();
   const message = assistant([
     { type: "thinking", thinking: "" },
     { type: "text", text: "Final answer" },
@@ -85,30 +124,34 @@ test("drops empty thinking blocks after completion", async () => {
     ["text"],
   );
 
-  const result = splitFinalAssistantBlocks(message, { isStreaming: false });
+  const runs = splitAssistantBlockRuns(message, { isStreaming: false });
   assert.deepEqual(
-    result.answerBlocks.map((block) => block.type),
+    runs.map((run) => run.kind),
+    ["answer"],
+  );
+  assert.equal(runs[0].blockItems[0].index, 1);
+  assert.deepEqual(
+    runs[0].blockItems.map((item) => item.block.type),
     ["text"],
   );
-  assert.deepEqual(result.processBlocks, []);
 });
 
 test("keeps empty thinking while streaming", async () => {
-  const { splitFinalAssistantBlocks } = await loadSubject();
+  const { splitAssistantBlockRuns } = await loadSubject();
   const message = assistant([
     { type: "thinking", thinking: "" },
     { type: "text", text: "Partial answer" },
   ]);
 
-  const result = splitFinalAssistantBlocks(message, { isStreaming: true });
+  const runs = splitAssistantBlockRuns(message, { isStreaming: true });
 
   assert.deepEqual(
-    result.answerBlocks.map((block) => block.type),
-    ["text"],
+    runs.map((run) => run.kind),
+    ["process", "answer"],
   );
   assert.deepEqual(
-    result.processBlocks.map((block) => block.type),
-    ["thinking"],
+    runs.map((run) => run.blockItems.map((item) => item.block.type)),
+    [["thinking"], ["text"]],
   );
 });
 
