@@ -7,11 +7,11 @@ import { firstInstall, refusedFreshInstall } from "./windows-nsis-first-install.
 import {
   appExecutable,
   assertCleanUserInstallState,
-  assertDirectoryRemoved,
   assertUserFilesKept,
   compareVersions,
   fileVersion,
   install,
+  listInstalledFiles,
   readInstalledVersion,
   regularFile,
   runInstallerWith,
@@ -184,7 +184,11 @@ results.push(
       const staging = reinstallFacts.stagingDirs;
       uninstall(installPath);
       untrack(installPath);
-      assertDirectoryRemoved(installPath, 20_000);
+      assert.deepEqual(
+        listInstalledFiles(installPath),
+        Object.keys(userFiles).sort(),
+        "uninstall on another drive must leave exactly the user files",
+      );
       return { drive: drive.letter, crossDriveStaging: staging };
     },
   }),
