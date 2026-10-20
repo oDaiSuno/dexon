@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync, spawn, spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
 import fs from "node:fs";
@@ -238,16 +238,6 @@ if ($null -eq $entry) { '' } else { $entry.DisplayVersion }`;
     windowsHide: true,
   }).trim();
   return output === "" ? null : output;
-}
-
-export async function startLockingHelper(directory) {
-  const executable = regularFile(
-    path.join(directory, "resources", "managed-process", "win32-x64", "pi-managed-process-helper.exe"),
-  );
-  const child = spawn(executable, ["--owner-stdio-v1"], { stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
-  await once(child, "spawn");
-  await waitForInstalledHelperHello(child);
-  return { child, executable };
 }
 
 export async function stopLockingHelper(handle) {

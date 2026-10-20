@@ -18,8 +18,6 @@ import {
   seedUserFiles,
   sha256,
   snapshotFiles,
-  startLockingHelper,
-  stopLockingHelper,
   uninstall,
 } from "./windows-nsis-harness.mjs";
 import {
@@ -30,6 +28,7 @@ import {
   startProcessMonitor,
   stopProcessMonitor,
 } from "./windows-nsis-cross-drive.mjs";
+import { holdFileLock, isFileLocked, releaseFileLock } from "./windows-nsis-file-lock.mjs";
 import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
 import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
@@ -95,6 +94,7 @@ results.push(
       const userFiles = seedUserFiles(installPath);
       const facts = await busyUpgradeFacts({ root, installPath, label: "same-drive" });
       console.log(`[nsis-install-guard] same-drive upgrade facts: ${JSON.stringify(facts)}`);
+      assert.equal(facts.lockStillHeld, true, `the fixture must keep the lock: ${JSON.stringify(facts)}`);
       assert.equal(facts.status, 2, `a busy upgrade must stop with 2: ${JSON.stringify(facts)}`);
       assert.equal(facts.missing.count, 0, `nothing may disappear: ${JSON.stringify(facts)}`);
       assert.equal(facts.changed.count, 0, `no kept file may change: ${JSON.stringify(facts)}`);
@@ -137,6 +137,7 @@ results.push(
         ...(await busyUpgradeFacts({ root, installPath, label: "cross-drive" })),
       };
       console.log(`[nsis-install-guard] cross-drive upgrade facts: ${JSON.stringify(upgradeFacts)}`);
+      assert.equal(upgradeFacts.lockStillHeld, true, `the fixture must keep the lock: ${JSON.stringify(upgradeFacts)}`);
       assert.equal(
         upgradeFacts.status,
         2,
@@ -164,10 +165,16 @@ results.push(
       const reinstall = await busyInstall(root, installPath, installerName, []);
       const reinstallFacts = {
         reinstallStatus: reinstall.status,
+        lockStillHeld: reinstall.lockStillHeld,
         monitor: reinstall.processes,
         ...changeFacts(installPath, before2, beforeIds2),
       };
       console.log(`[nsis-install-guard] cross-drive reinstall facts: ${JSON.stringify(reinstallFacts)}`);
+      assert.equal(
+        reinstallFacts.lockStillHeld,
+        true,
+        `the fixture must keep the lock: ${JSON.stringify(reinstallFacts)}`,
+      );
       assert.equal(reinstall.status, 2, `a busy same-version reinstall must stop: ${JSON.stringify(reinstallFacts)}`);
       assert.deepEqual(
         snapshotFiles(installPath),
@@ -199,6 +206,7 @@ async function busyUpgradeFacts({ root, installPath, label }) {
   const run = await busyInstall(root, installPath, path.basename(currentInstaller), []);
   const facts = {
     status: run.status,
+    lockStillHeld: run.lockStillHeld,
     monitor: run.processes,
     strayCopyWaited: run.strayCopyWaited,
     displayVersion: readInstalledVersion(),
@@ -210,13 +218,19 @@ async function busyUpgradeFacts({ root, installPath, label }) {
 }
 
 async function busyInstall(root, installPath, installerName, extraArguments) {
-  const helper = await startLockingHelper(installPath);
+  const lock = await holdFileLock(lockTarget(installPath));
   const monitor = startProcessMonitor(root, installerName);
+  let outcome;
   try {
     const status = runInstallerWith(currentInstaller, installPath, extraArguments).status;
     const processes = await stopProcessMonitor(monitor);
-    return { status, processes, strayCopyWaited: waitForUninstallerCopy() };
+    outcome = { status, processes, lockStillHeld: isFileLocked(lock.file) };
   } finally {
-    await stopLockingHelper(helper);
+    await releaseFileLock(lock);
   }
+  return { ...outcome, strayCopyWaited: waitForUninstallerCopy() };
+}
+
+function lockTarget(installPath) {
+  return path.join(installPath, "resources", "managed-process", "win32-x64", "pi-managed-process-helper.exe");
 }
