@@ -25,12 +25,10 @@ import {
 } from "./windows-nsis-harness.mjs";
 import {
   attachVirtualDrive,
-  inodeFacts,
-  installFacts,
-  probeFacts,
-  probeLock,
-  probeUninstaller,
-  registryFacts,
+  changeFacts,
+  fileIds,
+  startProcessMonitor,
+  stopProcessMonitor,
 } from "./windows-nsis-cross-drive.mjs";
 import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
@@ -132,43 +130,60 @@ results.push(
       const drive = attachVirtualDrive(root);
       cleanup(() => drive.detach());
       const installPath = path.join(drive.root, "Dexon 用户文件");
+      const installerName = path.basename(currentInstaller);
       firstInstall(previousInstaller, installPath);
       track(installPath);
       const userFiles = seedUserFiles(installPath);
+
+      const before = snapshotFiles(installPath);
+      const beforeIds = fileIds(installPath);
+      const upgrade = await busyInstall(root, installPath, installerName, []);
+      const upgradeFacts = {
+        drive: drive.letter,
+        upgradeStatus: upgrade.status,
+        monitor: upgrade.processes,
+        displayVersion: readInstalledVersion(),
+        fileVersion: fileVersion(appExecutable(installPath)),
+        ...changeFacts(installPath, before, beforeIds),
+      };
+      console.log(`[nsis-install-guard] cross-drive upgrade facts: ${JSON.stringify(upgradeFacts)}`);
+      assert.equal(
+        upgrade.status,
+        2,
+        `a busy file on another drive must stop the upgrade: ${JSON.stringify(upgradeFacts)}`,
+      );
+      assert.equal(upgradeFacts.missing.count, 0, `nothing may disappear: ${JSON.stringify(upgradeFacts)}`);
+      assert.equal(upgradeFacts.changed.count, 0, `no kept file may change: ${JSON.stringify(upgradeFacts)}`);
+      assert.equal(
+        upgradeFacts.displayVersion,
+        previousVersion,
+        `the old version must stay registered: ${JSON.stringify(upgradeFacts)}`,
+      );
+      assert.equal(
+        compareVersions(upgradeFacts.fileVersion, previousVersion),
+        0,
+        `the old executable must stay installed: ${JSON.stringify(upgradeFacts)}`,
+      );
+
       install(currentInstaller, installPath);
       assertUserFilesKept(installPath, userFiles, "cross-drive upgrade");
-      const before = snapshotFiles(installPath);
-      const helper = await startLockingHelper(installPath);
-      const facts = { drive: drive.letter };
-      let staging;
-      try {
-        facts.lock = probeLock(helper.executable);
-        if (facts.lock.restored === false) failWithFacts("cross-drive lock probe could not restore the helper", facts);
-        facts.registryBefore = registryFacts(installPath);
-        facts.inodeBefore = inodeFacts(installPath);
-        Object.assign(facts, probeUninstaller(installPath));
-        if (facts.spaced) {
-          failWithFacts("the probe uninstaller path must not contain spaces because _?= has to stay unquoted", facts);
-        }
-        Object.assign(facts, probeFacts(installPath, before, helper));
-        facts.registryAfterProbe = registryFacts(installPath);
-        facts.inodeAfterProbe = inodeFacts(installPath);
-        if (facts.probeStatus === 0 || facts.missingAfterProbe.count > 0) {
-          failWithFacts("cross-drive busy uninstall did not stop", facts);
-        }
-        const installerStatus = runInstallerWith(currentInstaller, installPath, []).status;
-        Object.assign(facts, { installerStatus }, installFacts(installPath, before, helper));
-        staging = facts.stagingDirsAfterInstall;
-        if (installerStatus !== 2) failWithFacts("cross-drive busy upgrade must stop with 2", facts);
-        assert.deepEqual(
-          snapshotFiles(installPath),
-          before,
-          `a busy file on another drive must stop the upgrade without changing anything: ${JSON.stringify(facts)}`,
-        );
-        console.log(`[nsis-install-guard] cross-drive facts: ${JSON.stringify(facts)}`);
-      } finally {
-        await stopLockingHelper(helper);
-      }
+
+      const before2 = snapshotFiles(installPath);
+      const beforeIds2 = fileIds(installPath);
+      const reinstall = await busyInstall(root, installPath, installerName, []);
+      const reinstallFacts = {
+        reinstallStatus: reinstall.status,
+        monitor: reinstall.processes,
+        ...changeFacts(installPath, before2, beforeIds2),
+      };
+      console.log(`[nsis-install-guard] cross-drive reinstall facts: ${JSON.stringify(reinstallFacts)}`);
+      assert.equal(reinstall.status, 2, `a busy same-version reinstall must stop: ${JSON.stringify(reinstallFacts)}`);
+      assert.deepEqual(
+        snapshotFiles(installPath),
+        before2,
+        `a stopped same-version reinstall must change nothing: ${JSON.stringify(reinstallFacts)}`,
+      );
+      const staging = reinstallFacts.stagingDirs;
       uninstall(installPath);
       untrack(installPath);
       assertDirectoryRemoved(installPath, 20_000);
@@ -187,7 +202,13 @@ console.log(
   }),
 );
 
-function failWithFacts(message, facts) {
-  console.log(`[nsis-install-guard] cross-drive facts: ${JSON.stringify(facts)}`);
-  assert.fail(`${message}: ${JSON.stringify(facts)}`);
+async function busyInstall(root, installPath, installerName, extraArguments) {
+  const helper = await startLockingHelper(installPath);
+  const monitor = startProcessMonitor(root, installerName);
+  try {
+    const status = runInstallerWith(currentInstaller, installPath, extraArguments).status;
+    return { status, processes: await stopProcessMonitor(monitor) };
+  } finally {
+    await stopLockingHelper(helper);
+  }
 }

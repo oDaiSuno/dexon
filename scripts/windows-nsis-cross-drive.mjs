@@ -1,11 +1,10 @@
-import { execFileSync, spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { sleepSync, snapshotFiles, walkFiles } from "./windows-nsis-harness.mjs";
-import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
 
-const HELPER_RELATIVE = "resources/managed-process/win32-x64/pi-managed-process-helper.exe";
+const UNINSTALLER_RELATIVE = "Uninstall Dexon.exe";
 
 export function freeDriveLetter() {
   for (const letter of "RSTUVWXYZ") {
@@ -109,118 +108,125 @@ export function stagingFacts() {
   return { count: staging.length, first: staging.slice(0, 5) };
 }
 
-export function probeLock(executable) {
-  const parked = `${executable}.probe`;
-  let renameSameDrive;
-  try {
-    fs.renameSync(executable, parked);
-    fs.renameSync(parked, executable);
-    renameSameDrive = { ok: true };
-  } catch (error) {
-    renameSameDrive = { ok: false, code: error.code ?? String(error) };
-    if (fs.existsSync(parked) && !fs.existsSync(executable)) fs.renameSync(parked, executable);
-  }
-  const copy = path.join(os.tmpdir(), `dexon-helper-copy-${process.pid}.exe`);
-  fs.copyFileSync(executable, copy);
-  let copyThenDelete;
-  let restored = null;
-  try {
-    fs.unlinkSync(executable);
-    copyThenDelete = { deleted: true };
-    try {
-      fs.copyFileSync(copy, executable);
-      restored = true;
-    } catch {
-      restored = false;
-    }
-  } catch (error) {
-    copyThenDelete = { deleted: false, code: error.code ?? String(error) };
-  }
-  fs.rmSync(copy, { force: true, maxRetries: 20, retryDelay: 500 });
-  return { renameSameDrive, copyThenDelete, restored };
-}
-
-export function registryFacts(installPath) {
-  const script = String.raw`
-$uninstall=Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' -ErrorAction SilentlyContinue|Where-Object{$_.DisplayName -like 'Dexon*'}|Select-Object -First 1
-$install=Get-ItemProperty 'HKCU:\Software\*' -ErrorAction SilentlyContinue|Where-Object{$_.InstallLocation -eq $env:DEXON_NSIS_INSTALL_PATH}|Select-Object -First 1
-[pscustomobject]@{displayVersion=$uninstall.DisplayVersion;installLocation=$uninstall.InstallLocation;uninstallString=$uninstall.UninstallString;softwareKey=$install.PSChildName;softwareInstallLocation=$install.InstallLocation}|ConvertTo-Json -Compress`;
-  const output = execFileSync("powershell.exe", ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script], {
-    encoding: "utf8",
-    windowsHide: true,
-    env: { ...process.env, DEXON_NSIS_INSTALL_PATH: installPath },
-  }).trim();
-  return output === "" ? null : JSON.parse(output);
-}
-
-export function inodeFacts(installPath) {
-  return {
-    exe: statFacts(path.join(installPath, "Dexon.exe")),
-    helper: statFacts(path.join(installPath, HELPER_RELATIVE)),
-  };
-}
-
 export function statFacts(file) {
   const stats = fs.statSync(file, { bigint: true, throwIfNoEntry: false });
   return stats ? { ino: String(stats.ino), birthtimeMs: String(stats.birthtimeMs) } : null;
 }
 
-export function snapshotDiff(installPath, before) {
-  const current = snapshotFiles(installPath);
-  return {
-    helperAtSource: current[HELPER_RELATIVE] === before[HELPER_RELATIVE],
-    missing: Object.keys(before).filter((relative) => !(relative in current)),
-    changed: Object.keys(before).filter((relative) => relative in current && current[relative] !== before[relative]),
-  };
+export function fileIds(installPath) {
+  const ids = {};
+  for (const file of walkFiles(installPath)) {
+    ids[path.relative(installPath, file).split(path.sep).join("/")] = statFacts(file)?.ino ?? null;
+  }
+  return ids;
 }
 
-export function probeFacts(installPath, before, helper) {
-  const diff = snapshotDiff(installPath, before);
+export function changeFacts(installPath, before, beforeIds) {
+  const current = snapshotFiles(installPath);
+  const missing = Object.keys(before).filter((relative) => !(relative in current));
+  const changed = Object.keys(before).filter(
+    (relative) => relative !== UNINSTALLER_RELATIVE && relative in current && current[relative] !== before[relative],
+  );
+  const afterIds = fileIds(installPath);
+  const moved = Object.keys(beforeIds).filter(
+    (relative) => relative in afterIds && afterIds[relative] !== beforeIds[relative],
+  );
   return {
-    helperAtSource: diff.helperAtSource,
-    helperProcessAlive: helper.child.exitCode === null,
-    missingAfterProbe: { count: diff.missing.length, first: diff.missing.slice(0, 20) },
-    changedAfterProbe: { count: diff.changed.length, first: diff.changed.slice(0, 20) },
+    missing: { count: missing.length, first: missing.slice(0, 20) },
+    changed: { count: changed.length, first: changed.slice(0, 20) },
+    idsChanged: { count: moved.length, first: moved.slice(0, 20) },
     stagingDirs: stagingFacts(),
   };
 }
 
-export function installFacts(installPath, before, helper) {
-  const diff = snapshotDiff(installPath, before);
-  return {
-    helperAtSourceAfterInstall: diff.helperAtSource,
-    helperProcessAliveAfterInstall: helper.child.exitCode === null,
-    missingAfterInstall: { count: diff.missing.length, first: diff.missing.slice(0, 20) },
-    changedAfterInstall: { count: diff.changed.length, first: diff.changed.slice(0, 20) },
-    stagingDirsAfterInstall: stagingFacts(),
-  };
+export function startProcessMonitor(root, installerName) {
+  const script = path.join(root, "process-monitor.ps1");
+  const stop = path.join(root, "process-monitor.stop");
+  const ready = path.join(root, "process-monitor.ready");
+  fs.writeFileSync(script, MONITOR_SCRIPT, "utf8");
+  fs.rmSync(stop, { force: true });
+  fs.rmSync(ready, { force: true });
+  const child = spawn(
+    "powershell.exe",
+    ["-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script],
+    {
+      stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
+      env: {
+        ...process.env,
+        DEXON_MONITOR_STOP: stop,
+        DEXON_MONITOR_READY: ready,
+        DEXON_MONITOR_INSTALLER: installerName,
+      },
+    },
+  );
+  const output = { text: "" };
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk) => {
+    output.text += chunk;
+  });
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (chunk) => {
+    output.text += chunk;
+  });
+  const deadline = Date.now() + 15_000;
+  while (!fs.existsSync(ready) && child.exitCode === null && Date.now() < deadline) sleepSync(100);
+  return { child, stop, output };
 }
 
-export function probeUninstaller(installPath) {
-  const probeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dexon-probe-"));
-  const probe = path.join(probeRoot, "old-uninstaller.exe");
-  fs.copyFileSync(path.join(installPath, "Uninstall Dexon.exe"), probe);
-  const report = {
-    probePath: probe,
-    spaced: /\s/u.test(probe),
-    probeStatus: null,
-    probeMs: 0,
-    probeFailure: null,
-    strayCopyWaited: false,
-  };
-  if (!report.spaced) {
-    const started = Date.now();
-    const result = spawnSync(probe, ["/S", "/KEEP_APP_DATA", "/currentuser", "--updated", `_?=${installPath}`], {
-      encoding: "utf8",
-      timeout: 180_000,
-      windowsHide: true,
-      windowsVerbatimArguments: true,
-    });
-    report.probeMs = Date.now() - started;
-    report.probeStatus = result.status;
-    report.probeFailure = result.error?.message ?? result.signal ?? null;
-    report.strayCopyWaited = waitForUninstallerCopy();
+export async function stopProcessMonitor(handle) {
+  fs.writeFileSync(handle.stop, "", "utf8");
+  await exitWithin(handle.child, 15_000);
+  const line = handle.output.text
+    .split(/\r?\n/u)
+    .reverse()
+    .find((candidate) => candidate.trim().startsWith("["));
+  if (!line) {
+    console.error(`[nsis-install-guard] process monitor produced no report: ${handle.output.text.trim() || "(empty)"}`);
+    return [];
   }
-  fs.rmSync(probeRoot, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
-  return report;
+  try {
+    return JSON.parse(line);
+  } catch {
+    console.error(`[nsis-install-guard] process monitor report is not valid JSON: ${line}`);
+    return [];
+  }
 }
+
+function exitWithin(child, timeoutMs) {
+  if (child.exitCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (child.exitCode === null) child.kill();
+      resolve();
+    }, timeoutMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+const MONITOR_SCRIPT = String.raw`
+$stop = $env:DEXON_MONITOR_STOP
+$installer = $env:DEXON_MONITOR_INSTALLER
+$start = Get-Date
+$seen = @{}
+$ready = $false
+while (-not (Test-Path -LiteralPath $stop)) {
+  foreach ($item in @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)) {
+    $name = $item.Name
+    $path = $item.ExecutablePath
+    $hit = ($name -eq "old-uninstaller.exe") -or ($name -eq "Uninstall Dexon.exe") -or ($name -match "^(Au_|Un_[A-Z])\.exe$") -or ($null -ne $path -and $path.EndsWith($installer))
+    if ($hit) {
+      $key = [string]$item.ProcessId
+      if (-not $seen.ContainsKey($key)) {
+        $seen[$key] = [pscustomobject]@{ pid = $item.ProcessId; parentPid = $item.ParentProcessId; name = $name; commandLine = $item.CommandLine; firstSeenMs = [int64]((Get-Date) - $start).TotalMilliseconds }
+      }
+    }
+  }
+  if (-not $ready) { New-Item -ItemType File -Path $env:DEXON_MONITOR_READY -Force | Out-Null; $ready = $true }
+  Start-Sleep -Milliseconds 150
+}
+ConvertTo-Json -Compress -InputObject @($seen.Values)
+`;
