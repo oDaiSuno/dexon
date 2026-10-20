@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownBody } from "../MarkdownBody";
 import { scaledChatFont } from "@/lib/chat-appearance";
-import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import {
   getAssistantFailureDetail,
   hasRenderableAssistantMessage,
@@ -13,8 +12,7 @@ import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { FailureLine } from "./FailureLine";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
-import { DeferredContentActions, formatTime, tokenizeStreamTail } from "./shared";
-import { NewSessionAction } from "./new-session-action";
+import { DeferredContentActions, tokenizeStreamTail } from "./shared";
 import type {
   AssistantContentBlock,
   AssistantMessage,
@@ -29,16 +27,11 @@ export function AssistantMessageView({
   isStreaming,
   toolResults,
   toolCallDurations,
-  modelNames,
   cwd,
   onOpenFile,
-  showTimestamp,
   prevTimestamp,
   onLoadDeferredContent,
   entryId,
-  forkEntryId,
-  onFork,
-  forking,
   thinkingExpansionStore,
   compact,
   retried,
@@ -47,16 +40,11 @@ export function AssistantMessageView({
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   toolCallDurations?: ReadonlyMap<string, number>;
-  modelNames?: Record<string, string>;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
-  showTimestamp?: boolean;
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
-  forkEntryId?: string;
-  onFork?: (entryId: string) => void;
-  forking?: boolean;
   thinkingExpansionStore?: ThinkingExpansionStore;
   /* In-flight process stream: 8px rhythm like the process-details flow, no
      per-message footer (usage row + copy button) — the turn settles into
@@ -64,13 +52,10 @@ export function AssistantMessageView({
   compact?: boolean;
   retried?: boolean;
 }) {
-  const time = showTimestamp ? formatTime(message.timestamp) : null;
   const blockItems = (message.content ?? [])
     .map((block, originalIndex) => ({ block, originalIndex }))
     .filter(({ block }) => !isEmptyThinkingBlock(block, { isStreaming }) && !isEmptyTextBlock(block, { isStreaming }));
   const blocks = blockItems.map(({ block }) => block);
-  const [hovered, setHovered] = useState(false);
-  const { copied, copy } = useCopyFeedback();
   const streamStartRef = useRef<number | null>(null);
   const [tps, setTps] = useState<number | null>(null);
   const blockItemsRef = useRef(blockItems);
@@ -88,13 +73,6 @@ export function AssistantMessageView({
     const secs = Math.round((message.timestamp - prevTimestamp) / 1000);
     return secs > 0 ? secs : undefined;
   }, [message.timestamp, prevTimestamp]);
-
-  const textContent = blocks
-    .filter((b): b is TextContent => b.type === "text")
-    .map((b) => b.text)
-    .join("\n");
-
-  const copyContent = () => void copy(textContent);
 
   useEffect(() => {
     if (!isStreaming) {
@@ -159,13 +137,8 @@ export function AssistantMessageView({
   }
 
   return (
-    <div
-      style={{ marginBottom: compact ? 8 : 14 }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      {/* Streaming meta: token estimate + live t/s (quiet mono). The model
-          name joins the usage line once the turn completes. */}
+    <div style={{ marginBottom: compact ? 8 : 14 }}>
+      {/* Streaming meta: token estimate + live t/s (quiet mono). */}
       {isStreaming && (
         <div
           style={{
@@ -246,114 +219,6 @@ export function AssistantMessageView({
         <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
         {failed && !isStreaming && <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />}
       </div>
-
-      {!compact && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-            marginTop: 6,
-          }}
-        >
-          {message.usage && !isStreaming && (
-            <div
-              style={{
-                fontSize: scaledChatFont(11),
-                color: "var(--bui-ink-3)",
-                fontFamily: "var(--font-mono)",
-                fontVariantNumeric: "tabular-nums",
-                marginRight: 2,
-              }}
-            >
-              {/* model identity lives here, joined to the usage figures */}
-              {message.provider && (
-                <span style={{ marginRight: 8 }}>
-                  {modelNames?.[`${message.provider}:${message.model}`] ?? modelNames?.[message.model] ?? message.model}
-                </span>
-              )}
-              {formatUsage(message.usage)}
-            </div>
-          )}
-          {!isStreaming && (textContent || time) && (
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
-              {textContent && (
-                <button
-                  type="button"
-                  className="message-hover-action"
-                  onClick={copyContent}
-                  title="Copy message"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 24,
-                    height: 24,
-                    background: "none",
-                    border: "none",
-                    borderRadius: "var(--bui-r-chip)",
-                    color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
-                    cursor: "pointer",
-                    opacity: hovered ? 1 : 0,
-                    pointerEvents: hovered ? "auto" : "none",
-                    transition:
-                      "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
-                  }}
-                >
-                  {copied ? (
-                    <svg
-                      width="13"
-                      height="13"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="3"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M20 6L9 17l-5-5" />
-                    </svg>
-                  ) : (
-                    <svg
-                      width="15"
-                      height="15"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <rect x="9" y="9" width="12" height="12" rx="2.5" />
-                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                    </svg>
-                  )}
-                </button>
-              )}
-              {textContent && onFork && forkEntryId && (
-                <NewSessionAction entryId={forkEntryId} onFork={onFork} forking={forking} hovered={hovered} />
-              )}
-              {time && (
-                <span
-                  style={{
-                    fontSize: scaledChatFont(11),
-                    color: "var(--bui-ink-3)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
-                  {time}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -471,19 +336,4 @@ function TextBlock({
       </span>
     </div>
   );
-}
-
-function formatUsage(usage: {
-  input: number;
-  output: number;
-  cacheRead: number;
-  cacheWrite: number;
-  cost: { total: number };
-}): string {
-  const parts = [];
-  if (usage.input) parts.push(`${usage.input.toLocaleString()} in`);
-  if (usage.output) parts.push(`${usage.output.toLocaleString()} out`);
-  if (usage.cacheRead) parts.push(`${usage.cacheRead.toLocaleString()} cache`);
-  if (usage.cost?.total) parts.push(`$${usage.cost.total.toFixed(4)}`);
-  return parts.join(" · ");
 }
