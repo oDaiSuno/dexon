@@ -2,6 +2,7 @@ import { scaledChatFont } from "@/lib/chat-appearance";
 import type { AgentMessage } from "@/lib/types";
 import { DragOverlay } from "./chat-window/drag-overlay";
 import { ChatMessages } from "./chat-window/messages";
+import { OlderHistoryZone } from "./chat-window/older-history-zone";
 import {
   CHAT_COLUMN_PADDING,
   CHAT_INPUT_RIGHT_PADDING,
@@ -41,7 +42,8 @@ export function ChatWindow(props: Props) {
     hasOlder,
     loadingOlder,
     olderHistorySentinelRef,
-    loadOlder,
+    loadOlderHistory,
+    olderHistoryFailed,
     interactiveTools,
     extensionStatuses,
     aboveEditorWidgets,
@@ -145,31 +147,13 @@ export function ChatWindow(props: Props) {
                 }}
               >
                 <div role="group" aria-label={t("messages", "Messages")} className="chat-content-column">
-                  {(hasOlder || loadingOlder) && (
-                    <div
-                      ref={olderHistorySentinelRef}
-                      role="group"
-                      aria-label={t("earlierMessages", "Earlier messages")}
-                      style={{ display: "flex", justifyContent: "center", padding: 8 }}
-                    >
-                      <button
-                        type="button"
-                        disabled={loadingOlder}
-                        onClick={() => void loadOlder()}
-                        style={{
-                          border: "1px solid var(--border)",
-                          borderRadius: "var(--radius-card)",
-                          background: "var(--bg-panel)",
-                          color: "var(--text-muted)",
-                          cursor: loadingOlder ? "default" : "pointer",
-                          fontSize: scaledChatFont(11),
-                          padding: "4px 12px",
-                        }}
-                      >
-                        {loadingOlder ? "Loading earlier messages…" : "Load earlier messages"}
-                      </button>
-                    </div>
-                  )}
+                  <OlderHistoryZone
+                    sentinelRef={olderHistorySentinelRef}
+                    hasOlder={hasOlder}
+                    loadingOlder={loadingOlder}
+                    failed={olderHistoryFailed}
+                    onLoad={loadOlderHistory}
+                  />
                   <ExtensionStatusBar statuses={extensionStatuses} />
                   <ExtensionWidgets widgets={aboveEditorWidgets} />
 

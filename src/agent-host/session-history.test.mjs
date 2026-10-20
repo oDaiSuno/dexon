@@ -285,3 +285,231 @@ test("append-only growth keeps cursors valid while truncation invalidates them",
     StaleHistoryCursorError,
   );
 });
+
+function longToolTurn() {
+  const definitions = [user("analyze the repository")];
+  for (let index = 0; index < 80; index += 1) {
+    definitions.push(
+      assistant([
+        { type: "thinking", thinking: "reasoning-".repeat(150), thinkingSignature: "signature-".repeat(1200) },
+        { type: "toolCall", toolCallId: `call-${index}`, toolName: "read", input: { path: `src/file-${index}.ts` } },
+      ]),
+      toolResult(`call-${index}`, "output-".repeat(2_200)),
+    );
+  }
+  definitions.push(assistant([{ type: "text", text: "final summary" }]));
+  const entries = chain(definitions);
+  return { entries, displayEntryIds: entries.map((entry) => entry.id) };
+}
+
+function reportedSampleTurn() {
+  const definitions = [user("analyze this session")];
+  for (let index = 0; index < 80; index += 1) {
+    definitions.push(
+      assistant([
+        { type: "thinking", thinking: "reasoning ".repeat(150), thinkingSignature: "signature ".repeat(900) },
+        { type: "toolCall", toolCallId: `call-${index}`, toolName: "read", input: { path: `src/file-${index}.ts` } },
+      ]),
+      toolResult(`call-${index}`, "output ".repeat(430)),
+    );
+  }
+  definitions.push(assistant([{ type: "text", text: "final summary" }]));
+  return chain(definitions);
+}
+
+test("when the reported long session is reopened, the whole conversation is visible because hidden signatures no longer count", () => {
+  const entries = reportedSampleTurn();
+  const page = buildSessionHistoryPage({
+    entries,
+    historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
+    historyRevision: "reported-sample-revision",
+  });
+  assert.equal(page.messages.length, 162);
+  assert.equal(page.loadedMessages, 162);
+  assert.equal(page.totalMessages, 162);
+  assert.equal(page.truncatedBefore, false);
+  assert.equal(page.previousCursor, undefined);
+});
+
+test("when the newest turn cannot fit the byte budget, the newest page still returns visible messages and a cursor", () => {
+  const { entries } = longToolTurn();
+  const page = buildSessionHistoryPage({
+    entries,
+    historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
+    historyRevision: "long-session-revision",
+  });
+  assert.equal(page.messages.length > 0, true);
+  assert.equal(page.truncatedBefore, true);
+  assert.equal(typeof page.previousCursor, "string");
+});
+
+function readAllPages(entries, historyWindow, historyRevision) {
+  const pages = [];
+  let cursor;
+  do {
+    const page = buildSessionHistoryPage({
+      entries,
+      historyWindow,
+      historyRevision,
+      ...(cursor ? { cursor: decodeHistoryCursor(cursor) } : {}),
+    });
+    pages.unshift(page);
+    cursor = page.previousCursor;
+    if (pages.length > 2_000) throw new Error("history paging never reached the start of the branch");
+  } while (cursor);
+  return pages;
+}
+
+test("when a turn exceeds the byte budget, every page read back to the start yields each branch message once in order", () => {
+  const { entries, displayEntryIds } = longToolTurn();
+  const pages = readAllPages(entries, { maxTurns: 20, maxBytes: 1024 * 1024 }, "long-session-revision");
+  assert.equal(pages.length > 1, true);
+  assert.deepEqual(
+    pages.flatMap((page) => page.entryIds),
+    displayEntryIds,
+  );
+  assert.equal(pages.flatMap((page) => page.messages).length, displayEntryIds.length);
+  assert.equal(pages.at(-1).truncatedBefore, true);
+  assert.equal(pages[0].truncatedBefore, false);
+  assert.equal(pages[0].previousCursor, undefined);
+});
+
+function toolCallIdsBefore(page, index) {
+  return page.messages
+    .slice(0, index)
+    .flatMap((message) =>
+      message.role === "assistant"
+        ? message.content.filter((block) => block.type === "toolCall").map((block) => block.toolCallId)
+        : [],
+    );
+}
+
+test("when a page break lands inside a turn, no page starts with a tool result cut away from its call", () => {
+  const { entries } = longToolTurn();
+  const pages = readAllPages(entries, { maxTurns: 20, maxBytes: 1024 * 1024 }, "long-session-revision");
+  assert.equal(pages.length > 1, true);
+  for (const page of pages) {
+    assert.notEqual(page.messages[0].role, "toolResult");
+    page.messages.forEach((message, index) => {
+      if (message.role !== "toolResult") return;
+      assert.equal(toolCallIdsBefore(page, index).includes(message.toolCallId), true);
+    });
+  }
+});
+
+function bulkToolTurn() {
+  const calls = Array.from({ length: 40 }, (_unused, index) => ({
+    type: "toolCall",
+    toolCallId: `bulk-${index}`,
+    toolName: "read",
+    input: { path: `p-${index}` },
+  }));
+  const definitions = [user("read everything"), assistant(calls)];
+  for (let index = 0; index < 40; index += 1) definitions.push(toolResult(`bulk-${index}`, "chunk-".repeat(7_000)));
+  const entries = chain(definitions);
+  return { entries, displayEntryIds: entries.map((entry) => entry.id) };
+}
+
+test("when one tool call and its results are larger than a whole page, every page still makes progress and no message is lost", () => {
+  const { entries, displayEntryIds } = bulkToolTurn();
+  const pages = readAllPages(entries, { maxTurns: 20, maxBytes: 32 * 1024 }, "bulk-revision");
+  assert.equal(pages.length > 1, true);
+  assert.equal(
+    pages.every((page) => page.messages.length > 0),
+    true,
+  );
+  assert.deepEqual(
+    pages.flatMap((page) => page.entryIds),
+    displayEntryIds,
+  );
+});
+
+test("when one message alone exceeds the page budget, it is still returned with every block deferred", () => {
+  const giant = "giant-body-".repeat(300_000);
+  const entries = chain([
+    user([
+      { type: "text", text: giant },
+      { type: "text", text: giant },
+    ]),
+    assistant([{ type: "text", text: "noted" }]),
+  ]);
+  const page = buildSessionHistoryPage({
+    entries,
+    historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
+    historyRevision: "giant-revision",
+  });
+  const restored = page.messages.find((message) => message.role === "user");
+  assert.equal(restored.content.length, 2);
+  assert.deepEqual(
+    restored.content.map((block) => block.deferredContent.originalBytes),
+    [Buffer.byteLength(giant), Buffer.byteLength(giant)],
+  );
+  assert.equal(page.entryIds[0], "entry-0");
+  assert.equal(page.previousCursor, undefined);
+});
+
+test("when a turn holds many large blocks, reading every page covers each message once and keeps entry ids aligned", () => {
+  const block = { type: "text", text: "block-body-".repeat(20_000) };
+  const definitions = [user("inspect everything")];
+  for (let index = 0; index < 40; index += 1) definitions.push(assistant([block, block, block, block, block, block]));
+  const entries = chain(definitions);
+  const pages = readAllPages(entries, { maxTurns: 20, maxBytes: 1024 * 1024 }, "large-block-revision");
+  assert.equal(pages.length > 1, true);
+  assert.deepEqual(
+    pages.flatMap((page) => page.entryIds),
+    entries.map((entry) => entry.id),
+  );
+});
+
+test("when messages carry large hidden metadata, reading every page still covers each message once", () => {
+  const definitions = [user("think hard")];
+  for (let index = 0; index < 200; index += 1) {
+    definitions.push(
+      assistant([{ type: "thinking", thinking: `step-${index}`, thinkingSignature: "signature-".repeat(2_000) }]),
+    );
+  }
+  const entries = chain(definitions);
+  const pages = readAllPages(entries, { maxTurns: 20, maxBytes: 1024 * 1024 }, "hidden-metadata-revision");
+  assert.deepEqual(
+    pages.flatMap((page) => page.entryIds),
+    entries.map((entry) => entry.id),
+  );
+});
+
+function signedAssistant() {
+  return chain([
+    user("explain"),
+    assistant([
+      { type: "thinking", thinking: "why", thinkingSignature: "thinking-sig" },
+      { type: "text", text: "answer", textSignature: "text-sig" },
+      { type: "toolCall", toolCallId: "call", toolName: "read", input: { path: "a" }, thoughtSignature: "call-sig" },
+    ]),
+  ]);
+}
+
+test("when a history page is projected for display, thinking, text and tool-call signatures are not shipped", () => {
+  const entries = signedAssistant();
+  const page = buildSessionHistoryPage({
+    entries,
+    historyWindow: { maxTurns: 20, maxBytes: 64 * 1024 },
+    historyRevision: "signature-revision",
+  });
+  assert.deepEqual(page.messages[1].content, [
+    { type: "thinking", thinking: "why" },
+    { type: "text", text: "answer" },
+    { type: "toolCall", toolCallId: "call", toolName: "read", input: { path: "a" } },
+  ]);
+  assert.equal(entries[1].message.content[0].thinkingSignature, "thinking-sig");
+  assert.equal(entries[1].message.content[1].textSignature, "text-sig");
+});
+
+test("when one block is read back for display, its model-only signatures are not shipped either", () => {
+  const entries = signedAssistant();
+  assert.deepEqual(readSessionEntryContent(entries, "entry-1", 0), { type: "thinking", thinking: "why" });
+  assert.deepEqual(readSessionEntryContent(entries, "entry-1", 1), { type: "text", text: "answer" });
+  assert.deepEqual(entries[1].message.content[0], {
+    type: "thinking",
+    thinking: "why",
+    thinkingSignature: "thinking-sig",
+  });
+});

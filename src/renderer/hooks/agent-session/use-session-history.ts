@@ -1,10 +1,4 @@
-import {
-  agentState,
-  getSession,
-  getSessionContext,
-  getSessionContextPage,
-  getSessionEntryContent,
-} from "@/lib/api-client";
+import { agentState, getSession, getSessionContext, getSessionContextPage } from "@/lib/api-client";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { normalizeSessionHistory, type SessionHistoryValue } from "@/lib/session-history-update";
 import { mergeHistoryTail, prependHistoryPage } from "@/lib/session-pagination";
@@ -19,7 +13,6 @@ import type { AgentMessage } from "@/lib/types";
 import { useCallback, useEffect, useRef } from "react";
 import {
   AgentStateResponse,
-  DEFERRED_CONTENT_CACHE_SIZE,
   HISTORY_PAGE_MAX_BYTES,
   INITIAL_HISTORY_TURNS,
   SessionData,
@@ -64,6 +57,8 @@ type Dependencies = Pick<
 > & {
   messageRefs?: HistoryMessageRefs;
 };
+export type OlderHistoryOutcome = "unavailable" | "loaded" | "stalled" | "discarded" | "reset" | "failed";
+
 export function useSessionHistory(context: Dependencies, readingVisible = true) {
   const {
     readingVisibleRef,
@@ -343,15 +338,16 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     [commitHistory, historyGenerationRef, olderRequestRef, setLoadingOlder, updatePagingState],
   );
 
-  const loadOlder = useCallback(async () => {
-    if (!readingVisibleRef.current) return;
+  const loadOlder = useCallback(async (): Promise<OlderHistoryOutcome> => {
+    if (!readingVisibleRef.current) return "unavailable";
     const sid = sessionIdRef.current;
     const cursor = previousCursorRef.current;
     const revision = historyRevisionRef.current;
-    if (!sid || !cursor || !revision || olderRequestRef.current === cursor) return;
+    if (!sid || !cursor || !revision || olderRequestRef.current === cursor) return "unavailable";
     const generation = historyGenerationRef.current;
     const startedAt = performance.now();
     let outcome = "ok";
+    let result: OlderHistoryOutcome = "loaded";
     const scrollElement = scrollContainerRef.current;
     const previousScrollHeight = scrollElement?.scrollHeight ?? 0;
     const previousScrollTop = scrollElement?.scrollTop ?? 0;
@@ -366,12 +362,14 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         revision !== historyRevisionRef.current
       ) {
         outcome = "discarded";
-        return;
+        result = "discarded";
+        return result;
       }
       if (page.context.historyRevision !== revision) {
         outcome = "revision-reset";
+        result = "reset";
         await loadSession(sid, false, false, true);
-        return;
+        return result;
       }
       const prepended = prependHistoryPage(
         {
@@ -384,9 +382,13 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       );
       if (!prepended) {
         outcome = "revision-reset";
+        result = "reset";
         await loadSession(sid, false, false, true);
-        return;
+        return result;
       }
+      const advanced =
+        prepended.messages.length > loadedMessagesRef.current.length && (prepended.previousCursor ?? null) !== cursor;
+      result = advanced ? "loaded" : "stalled";
       commitHistory(prepended.messages, prepended.entryIds);
       updatePagingState(revision, prepended.previousCursor ?? undefined);
       if (scrollElement) {
@@ -404,9 +406,11 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("STALE_CURSOR")) {
         outcome = "stale-reset";
+        result = "reset";
         await loadSession(sid, false, false, true);
       } else {
         outcome = "error";
+        result = "failed";
         console.error("Failed to load older session history:", error);
       }
     } finally {
@@ -417,6 +421,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
       });
     }
+    return result;
   }, [
     commitHistory,
     historyGenerationRef,
@@ -435,50 +440,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     updatePagingState,
   ]);
 
-  const loadDeferredContent = useCallback(
-    async (entryId: string, blockIndex = 0) => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      const generation = historyGenerationRef.current;
-      const cacheKey = `${sid}:${entryId}:${blockIndex}`;
-      let loadedContent = deferredContentCacheRef.current.get(cacheKey);
-      if (loadedContent === undefined) {
-        let request = deferredContentRequestRef.current.get(cacheKey);
-        if (!request) {
-          request = getSessionEntryContent(sid, entryId, blockIndex).then((result) => result.content);
-          deferredContentRequestRef.current.set(cacheKey, request);
-        }
-        try {
-          loadedContent = await request;
-        } finally {
-          deferredContentRequestRef.current.delete(cacheKey);
-        }
-        const cache = deferredContentCacheRef.current;
-        cache.delete(cacheKey);
-        cache.set(cacheKey, loadedContent);
-        while (cache.size > DEFERRED_CONTENT_CACHE_SIZE) cache.delete(cache.keys().next().value!);
-      }
-      if (generation !== historyGenerationRef.current || sid !== sessionIdRef.current) return;
-      const nextMessages = loadedMessagesRef.current.map((message, messageIndex) => {
-        if (loadedEntryIdsRef.current[messageIndex] !== entryId || !Array.isArray(message.content)) return message;
-        const content = message.content.map((block, index) => {
-          if (index !== blockIndex || !("deferredContent" in block)) return block;
-          return loadedContent;
-        });
-        return { ...message, content } as AgentMessage;
-      });
-      commitHistory(nextMessages, loadedEntryIdsRef.current);
-    },
-    [
-      commitHistory,
-      deferredContentCacheRef,
-      deferredContentRequestRef,
-      historyGenerationRef,
-      loadedEntryIdsRef,
-      loadedMessagesRef,
-      sessionIdRef,
-    ],
-  );
   return {
     loadSession,
     updateHistory,
@@ -487,7 +448,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     contextGenRef,
     commitHistory,
     loadOlder,
-    loadDeferredContent,
   };
 }
 export type SessionHistory = ReturnType<typeof useSessionHistory>;

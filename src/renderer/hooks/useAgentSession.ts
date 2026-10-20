@@ -3,6 +3,7 @@ import type { UseAgentSessionOptions } from "./agent-session/shared";
 import { useSessionActions } from "./agent-session/use-session-actions";
 import { useSessionCommands } from "./agent-session/use-session-commands";
 import { useSessionConnection } from "./agent-session/use-session-connection";
+import { useSessionDeferredContent } from "./agent-session/use-session-deferred-content";
 import { useSessionEffects } from "./agent-session/use-session-effects";
 import { useSessionEvents } from "./agent-session/use-session-events";
 import { useSessionExtensions } from "./agent-session/use-session-extensions";
@@ -33,6 +34,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const visualFrameIdsRef = useRef<Set<number>>(new Set());
   const state = useSessionState(opts);
   const history = useSessionHistory({ ...state, messageRefs: opts.messageRefs }, readingVisible);
+  const deferredContent = useSessionDeferredContent({ ...state, ...history });
   const connection = useSessionConnection({ ...state, ...history });
   const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
   const events = useSessionEvents({ ...state, ...history, ...connection, ...extensions, readingVisibleRef });
@@ -168,6 +170,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   } = {
     ...state,
     ...history,
+    ...deferredContent,
     ...connection,
     ...extensions,
     ...events,
@@ -211,6 +214,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     slashCommands,
     slashCommandsLoading,
     queuedMessages,
+    previousCursor,
     hasOlder: previousCursor !== null,
     loadingOlder,
     historyRevision,

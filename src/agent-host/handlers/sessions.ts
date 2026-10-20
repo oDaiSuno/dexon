@@ -31,6 +31,7 @@ import {
   type SessionSource,
 } from "../session-source";
 import { reconstructSessionContextUsage } from "../session-context-usage";
+import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
@@ -152,6 +153,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         const leafId = sm.getLeafId();
         const tree = projectSessionTreeForResponse(sm.getTree() as never) as SessionTreeNode[];
         const context = buildSessionHistoryPage({ entries, leafId, historyWindow, historyRevision });
+        const stats = computeSessionStats(entries);
         const contextMs = performance.now() - contextStartedAt;
 
         const infoStartedAt = performance.now();
@@ -190,6 +192,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           leafId,
           tree,
           context,
+          stats,
           ...(agentState !== undefined ? { agentState } : {}),
           ...(contextUsage !== undefined ? { contextUsage } : {}),
         };

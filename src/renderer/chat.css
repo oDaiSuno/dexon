@@ -155,6 +155,11 @@ html.dark .chat-appearance-scope {
   --user-fg: var(--bui-ink);
 }
 
+.chat-history-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}
+
 /* ── Beautiful UI keyframe set ── */
 
 @keyframes chat-fade-up {

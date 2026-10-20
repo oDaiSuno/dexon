@@ -47,6 +47,7 @@ test("the public return shape of useAgentSession is stable for consumers", async
     "slashCommands",
     "slashCommandsLoading",
     "queuedMessages",
+    "previousCursor",
     "hasOlder",
     "loadingOlder",
     "historyRevision",

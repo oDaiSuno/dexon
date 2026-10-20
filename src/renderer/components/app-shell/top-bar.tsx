@@ -2,6 +2,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { QuickChannelBinding } from "../channels/QuickChannelBinding";
+import { SessionIdentity } from "./session-identity";
 import { SessionInfoPopover } from "./session-info-popover";
 import type { SessionInfo } from "@/lib/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
@@ -215,7 +216,6 @@ export function TopBar({
       )}
       {/* Session stats — right-aligned in top bar */}
       {showChat &&
-        (sessionStats || contextUsage) &&
         (() => {
           const tokenStats = sessionStats?.tokens;
           const c = sessionStats?.cost ?? 0;
@@ -360,6 +360,14 @@ export function TopBar({
                   copyFeedback={copyFeedback}
                   onCopyField={onCopyField}
                   isMobile={isMobile}
+                />
+              ) : selectedSession ? (
+                <SessionIdentity
+                  sessionName={selectedSession.name}
+                  sessionFile={selectedSession.path}
+                  sessionId={selectedSession.id}
+                  copyFeedback={copyFeedback}
+                  onCopyField={onCopyField}
                 />
               ) : (
                 <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontStyle: "italic" }}>
