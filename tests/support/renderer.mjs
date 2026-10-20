@@ -6,6 +6,7 @@ import { createRoot } from "react-dom/client";
 import path from "node:path";
 import { importTestBundle } from "#test-bundle";
 import { realRendererGraphOptions } from "../../src/renderer/components/renderer-real-graph.mjs";
+import { createBrowserObservers } from "./browser-observers.mjs";
 import { releaseAll } from "./cleanup.mjs";
 
 export { dom, act, createElement };
@@ -145,4 +146,18 @@ export async function settle() {
   await act(async () => {
     await Promise.resolve();
   });
+}
+
+export function observeIntersections(t) {
+  const observers = createBrowserObservers();
+  const original = Object.getOwnPropertyDescriptor(globalThis, "IntersectionObserver");
+  Object.defineProperty(globalThis, "IntersectionObserver", {
+    configurable: true,
+    value: observers.IntersectionObserver,
+  });
+  t.after(() => {
+    if (original) Object.defineProperty(globalThis, "IntersectionObserver", original);
+    else delete globalThis.IntersectionObserver;
+  });
+  return observers;
 }

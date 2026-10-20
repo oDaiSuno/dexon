@@ -42,6 +42,8 @@ const ACCESSIBLE_REGION_KEYS = new Set([
   "workspaceControls",
 ]);
 
+const OLDER_HISTORY_KEYS = new Set(["loadEarlierMessages", "loadingEarlierMessages", "earlierMessagesLoadFailed"]);
+
 const NAVIGATION_INTEGRATION_KEYS = new Set([
   "switchSpaceList",
   "noOtherSpaces",
@@ -185,6 +187,7 @@ export function dictionaryBaselineFailures({
     ...NAVIGATION_INTEGRATION_KEYS,
     ...SETTINGS_MIGRATION_KEYS,
     ...UPSTREAM_FAILURE_KEYS,
+    ...OLDER_HISTORY_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));

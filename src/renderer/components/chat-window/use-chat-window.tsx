@@ -10,6 +10,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { ChatInput } from "../ChatInput";
 import { Props, toMinimapMessage } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
+import { useOlderHistory } from "./use-older-history";
 
 export function useChatWindow({
   session,
@@ -85,6 +86,7 @@ export function useChatWindow({
     slashCommandsLoading,
     queuedMessages,
     hasOlder,
+    previousCursor,
     loadingOlder,
     notices,
     interactiveTools,
@@ -218,30 +220,17 @@ export function useChatWindow({
     [chatInputRef],
   );
 
-  const olderHistorySentinelRef = useRef<HTMLDivElement | null>(null);
+  const { olderHistorySentinelRef, loadOlderHistory, olderHistoryFailed } = useOlderHistory({
+    visible,
+    sessionId: session?.id ?? null,
+    previousCursor,
+    hasOlder,
+    loadingOlder,
+    loadOlder,
+    messagesLength: messages.length,
+    scrollContainerRef,
+  });
 
-  const automaticHistoryPagesRef = useRef(0);
-
-  useEffect(() => {
-    automaticHistoryPagesRef.current = 0;
-  }, [session?.id]);
-
-  useEffect(() => {
-    if (!visible) return;
-    const sentinel = olderHistorySentinelRef.current;
-    const root = scrollContainerRef.current;
-    if (!sentinel || !root || !hasOlder || loadingOlder) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting || automaticHistoryPagesRef.current >= 3) return;
-        automaticHistoryPagesRef.current += 1;
-        void loadOlder();
-      },
-      { root, rootMargin: "160px 0px 0px" },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [hasOlder, loadOlder, loadingOlder, messages.length, scrollContainerRef, visible]);
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;
 
   const messageCwd = session?.cwd ?? newSessionCwd ?? undefined;
@@ -318,7 +307,8 @@ export function useChatWindow({
     hasOlder,
     loadingOlder,
     olderHistorySentinelRef,
-    loadOlder,
+    loadOlderHistory,
+    olderHistoryFailed,
     interactiveTools,
     extensionStatuses,
     aboveEditorWidgets,

@@ -1,28 +1,13 @@
 import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
-import { isChannelSourceCancelledType, isChannelSourceType } from "./session-entry-compat";
 import type { HistoryWindow, PagedContextInfo } from "../contract/types";
-import type {
-  AgentMessage,
-  DeferredContentRef,
-  ImageContent,
-  SessionEntry,
-  TextContent,
-  ThinkingContent,
-  ToolCallContent,
-} from "../shared/types";
-import {
-  buildSessionContext,
-  entryToUiMessage,
-  parseChannelSourceMarker,
-  parseRunId,
-  withUserMessageSource,
-} from "./session-reader";
+import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
+import { buildSessionContext, entryToUiMessage } from "./session-reader";
+import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
+import { projectDisplayMessages, withoutModelOnlyBlock, type ProjectedMessage } from "./session-display-projection";
 
 const DEFAULT_MAX_TURNS = 20;
 const DEFAULT_MAX_BYTES = 1024 * 1024;
-const DEFER_THRESHOLD_BYTES = 128 * 1024;
-const DEFER_PREVIEW_BYTES = 16 * 1024;
 const RESPONSE_OVERHEAD_BYTES = 2048;
 
 interface HistoryCursorPayload {
@@ -33,15 +18,9 @@ interface HistoryCursorPayload {
   anchorPathLength: number;
 }
 
-interface ProjectedMessage {
-  message: AgentMessage;
-  entryId: string;
-  pathIndex: number;
-}
-
-interface ContentCandidate {
-  bytes: number;
-  defer: (previewBytes: number) => void;
+interface MessageUnit {
+  turnIndex: number;
+  items: ProjectedMessage[];
 }
 
 export class StaleHistoryCursorError extends Error {
@@ -112,31 +91,6 @@ function deriveContextSettings(path: SessionEntry[]): Pick<PagedContextInfo, "th
   return { thinkingLevel, model };
 }
 
-function projectDisplayMessages(path: SessionEntry[]): ProjectedMessage[] {
-  const projected: ProjectedMessage[] = [];
-  let pendingChannelSource: ReturnType<typeof parseChannelSourceMarker> = null;
-  path.forEach((entry, pathIndex) => {
-    if (entry.type === "custom" && isChannelSourceType(entry.customType)) {
-      const marker = parseChannelSourceMarker(entry.data);
-      if (marker) pendingChannelSource = marker;
-      return;
-    }
-    if (entry.type === "custom" && isChannelSourceCancelledType(entry.customType)) {
-      const runId = parseRunId(entry.data);
-      if (!runId || pendingChannelSource?.runId === runId) pendingChannelSource = null;
-      return;
-    }
-    let message = entryToUiMessage(entry);
-    if (!message) return;
-    if (message.role === "user") {
-      message = withUserMessageSource(message, pendingChannelSource?.channel, pendingChannelSource?.attachments);
-      pendingChannelSource = null;
-    }
-    projected.push({ message, entryId: entry.id, pathIndex });
-  });
-  return projected;
-}
-
 function groupTurns(messages: ProjectedMessage[]): ProjectedMessage[][] {
   const turns: ProjectedMessage[][] = [];
   let current: ProjectedMessage[] = [];
@@ -151,141 +105,43 @@ function groupTurns(messages: ProjectedMessage[]): ProjectedMessage[][] {
   return turns;
 }
 
-function cloneMessages(turn: ProjectedMessage[]): AgentMessage[] {
-  return turn.map(({ message }) => {
-    const cloned = { ...message } as AgentMessage;
-    if (Array.isArray(message.content)) {
-      cloned.content = message.content.map((block) => ({ ...block })) as AgentMessage["content"];
-    }
-    return cloned;
-  });
-}
-
-function byteLength(value: unknown): number {
-  return Buffer.byteLength(JSON.stringify(value), "utf8");
-}
-
-function utf8Preview(text: string, previewBytes: number): string {
-  const buffer = Buffer.from(text, "utf8");
-  if (buffer.length <= previewBytes) return text;
-  let preview = buffer.subarray(0, previewBytes).toString("utf8");
-  if (preview.endsWith("�")) preview = preview.slice(0, -1);
-  return `${preview}\n\n… [content truncated; load full content]`;
-}
-
-function collectContentCandidates(messages: AgentMessage[], entryIds: string[]): ContentCandidate[] {
-  const candidates: ContentCandidate[] = [];
-  messages.forEach((message, messageIndex) => {
-    const entryId = entryIds[messageIndex];
-    if (typeof message.content === "string") {
-      const original = message.content;
-      const bytes = Buffer.byteLength(original, "utf8");
-      const deferredContent: DeferredContentRef = { entryId, blockIndex: 0, originalBytes: bytes, contentType: "text" };
-      candidates.push({
-        bytes,
-        defer: (previewBytes) => {
-          message.content = [{ type: "text", text: utf8Preview(original, previewBytes), deferredContent }];
-        },
-      });
-      return;
-    }
-    message.content.forEach((block, blockIndex) => {
-      if (block.type === "text") {
-        const original = block.text;
-        const bytes = Buffer.byteLength(original, "utf8");
-        const deferredContent: DeferredContentRef = {
-          entryId,
-          blockIndex,
-          originalBytes: bytes,
-          contentType: "text",
-        };
-        candidates.push({
-          bytes,
-          defer: (previewBytes) => {
-            (message.content as TextContent[])[blockIndex] = {
-              ...block,
-              text: utf8Preview(original, previewBytes),
-              deferredContent,
-            };
-          },
-        });
-      } else if (block.type === "thinking") {
-        const original = block.thinking;
-        const bytes = Buffer.byteLength(original, "utf8");
-        const deferredContent: DeferredContentRef = {
-          entryId,
-          blockIndex,
-          originalBytes: bytes,
-          contentType: "thinking",
-        };
-        candidates.push({
-          bytes,
-          defer: (previewBytes) => {
-            (message.content as ThinkingContent[])[blockIndex] = {
-              ...block,
-              thinking: utf8Preview(original, previewBytes),
-              deferredContent,
-            };
-          },
-        });
-      } else if (block.type === "toolCall") {
-        const serializedInput = JSON.stringify(block.input ?? {});
-        const bytes = Buffer.byteLength(serializedInput, "utf8");
-        const deferredContent: DeferredContentRef = {
-          entryId,
-          blockIndex,
-          originalBytes: bytes,
-          contentType: "toolCall",
-        };
-        candidates.push({
-          bytes,
-          defer: (previewBytes) => {
-            (message.content as ToolCallContent[])[blockIndex] = {
-              ...block,
-              input: { preview: utf8Preview(serializedInput, previewBytes) },
-              deferredContent,
-            };
-          },
-        });
-      } else if (block.type === "image") {
-        const bytes = byteLength(block);
-        const deferredContent: DeferredContentRef = {
-          entryId,
-          blockIndex,
-          originalBytes: bytes,
-          contentType: "image",
-        };
-        candidates.push({
-          bytes,
-          defer: () => {
-            (message.content as ImageContent[])[blockIndex] = {
-              type: "image",
-              source: { type: "url", url: "" },
-              deferredContent,
-            };
-          },
-        });
+function buildUnits(turns: ProjectedMessage[][]): MessageUnit[] {
+  const units: MessageUnit[] = [];
+  turns.forEach((turn, turnIndex) => {
+    for (const item of turn) {
+      const previous = units.at(-1);
+      if (previous && item.message.role === "toolResult") {
+        previous.items.push(item);
+        continue;
       }
-    });
+      units.push({ turnIndex, items: [item] });
+    }
   });
-  return candidates.sort((a, b) => b.bytes - a.bytes);
+  return units;
 }
 
-function fitTurnToBudget(turn: ProjectedMessage[], maxBytes: number): ProjectedMessage[] | null {
-  const messages = cloneMessages(turn);
-  const entryIds = turn.map((item) => item.entryId);
-  const candidates = collectContentCandidates(messages, entryIds);
-  for (const candidate of candidates) {
-    if (candidate.bytes <= DEFER_THRESHOLD_BYTES) continue;
-    candidate.defer(DEFER_PREVIEW_BYTES);
-  }
-  if (byteLength({ messages, entryIds }) > maxBytes) {
-    for (const candidate of candidates) {
-      if (candidate.bytes > 4 * 1024) candidate.defer(2 * 1024);
+function packPage(units: MessageUnit[], maxTurns: number, maxBytes: number): ProjectedMessage[] {
+  const newestTurn = units.at(-1)?.turnIndex ?? 0;
+  const selected: ProjectedMessage[] = [];
+  let selectedBytes = 0;
+  for (let index = units.length - 1; index >= 0; index -= 1) {
+    const unit = units[index];
+    if (newestTurn - unit.turnIndex + 1 > maxTurns) break;
+    const remaining = maxBytes - RESPONSE_OVERHEAD_BYTES - selectedBytes;
+    if (remaining <= 0) break;
+    const fitted = fitUnitToBudget(unit.items, remaining);
+    if (!fitted) {
+      if (selected.length === 0) selected.push(deferNewestMessage(unit.items));
+      break;
     }
+    if (!fitted.complete && selected.length > 0) break;
+    selectedBytes += measureItems(fitted.items);
+    for (let itemIndex = fitted.items.length - 1; itemIndex >= 0; itemIndex -= 1) {
+      selected.push(fitted.items[itemIndex]);
+    }
+    if (!fitted.complete) break;
   }
-  if (byteLength({ messages, entryIds }) > maxBytes) return null;
-  return turn.map((item, index) => ({ ...item, message: messages[index] }));
+  return selected.reverse();
 }
 
 export function buildSessionHistoryPage(options: {
@@ -321,24 +177,10 @@ export function buildSessionHistoryPage(options: {
   const beforePathIndex = cursor ? path.findIndex((entry) => entry.id === cursor.beforeEntryId) : path.length;
   if (beforePathIndex < 0) throw new StaleHistoryCursorError();
   const available = allMessages.filter((item) => item.pathIndex < beforePathIndex);
-  const turns = groupTurns(available);
+  const units = buildUnits(groupTurns(available));
   const maxTurns = Math.max(1, Math.floor(historyWindow?.maxTurns ?? DEFAULT_MAX_TURNS));
   const maxBytes = Math.max(32 * 1024, Math.floor(historyWindow?.maxBytes ?? DEFAULT_MAX_BYTES));
-  let selected: ProjectedMessage[] = [];
-
-  for (let index = turns.length - 1; index >= 0 && turns.length - index <= maxTurns; index -= 1) {
-    const remaining =
-      maxBytes -
-      RESPONSE_OVERHEAD_BYTES -
-      byteLength({
-        messages: selected.map((item) => item.message),
-        entryIds: selected.map((item) => item.entryId),
-      });
-    if (remaining <= 0) break;
-    const fitted = fitTurnToBudget(turns[index], remaining);
-    if (!fitted) break;
-    selected = [...fitted, ...selected];
-  }
+  const selected = packPage(units, maxTurns, maxBytes);
 
   const firstSelected = selected[0];
   const hasOlder = Boolean(firstSelected && allMessages.some((item) => item.pathIndex < firstSelected.pathIndex));
@@ -376,7 +218,8 @@ export function readSessionEntryContent(
   if (!message) return null;
   if (typeof message.content === "string") return blockIndex === 0 ? { type: "text", text: message.content } : null;
   const block = message.content[blockIndex];
-  return block?.type === "text" || block?.type === "image" || block?.type === "thinking" || block?.type === "toolCall"
-    ? block
-    : null;
+  if (block?.type !== "text" && block?.type !== "image" && block?.type !== "thinking" && block?.type !== "toolCall") {
+    return null;
+  }
+  return withoutModelOnlyBlock(block);
 }

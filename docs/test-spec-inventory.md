@@ -2241,3 +2241,23 @@ PR #15 的评审指出：一条助手消息里若有被丢弃的空思考块夹�
 **同时更新：**上面两条既有规格（`a block subset keeps ...`）改用新形状但保留原有字面期望值；节十六列出的界面规格数量不变。
 
 **验证：**新规格先红后绿（红证据见阶段报告）；全套件 1,606 个测试、1,605 通过、1 跳过、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture 均通过。
+
+## 十七、issue #12 修复记录（长会话重新打开后正文变空，2026-10-20）
+
+规则改变：只要当前分支上还有没读到的记录，每一页都必须带回至少一条可见消息，并说明前面是否还有更早的内容；一轮放不下时按消息拆到多页，一次工具调用和紧跟它的结果尽量留在同一页；单条超大消息只发送预览，完整内容随后自动补上。界面不会用到、只有模型需要的隐藏签名（`thinkingSignature`、`textSignature`、`thoughtSignature`）不再发给界面，会话文件本身不改。向上阅读时不再在第三页后停止，一直自动加载到会话开头；读取失败时显示提示和重试按钮，自动重试的间隔逐次变长。会话信息改用后台按整个文件统计的数字，不随已加载的页数变化。
+
+**新增规格：**
+
+- `src/agent-host/session-history.test.mjs`（10 个）：when the reported long session is reopened, the whole conversation is visible because hidden signatures no longer count / when the newest turn cannot fit the byte budget, the newest page still returns visible messages and a cursor / when a turn exceeds the byte budget, every page read back to the start yields each branch message once in order / when a page break lands inside a turn, no page starts with a tool result cut away from its call / when one tool call and its results are larger than a whole page, every page still makes progress and no message is lost / when one message alone exceeds the page budget, it is still returned with every block deferred / when a turn holds many large blocks, reading every page covers each message once and keeps entry ids aligned / when messages carry large hidden metadata, reading every page still covers each message once / when a history page is projected for display, thinking, text and tool-call signatures are not shipped / when one block is read back for display, its model-only signatures are not shipped either
+- `tests/contract/session-history-paging.test.mjs`（2 个，真实 handler + 临时会话文件）：sessions.get reports usage and message counts for the whole session file regardless of the page window / when a long session is reopened with the default window, the conversation is visible and every message reads back once
+- `tests/dom/history-continuous-reading.test.mjs`（6 个，真实 `ChatWindow`）：五页历史无需点击读到开头；加载中重复进入视野只发一次请求；没有进展的页面不再自动重复请求；失败提示、重试与退避；隐藏时不重试；历史在阅读中变化后自动从新历史继续
+- `tests/dom/history-mid-turn-page.test.mjs`（1 个）：从一轮中间开始的页面可读，补齐前半轮后每段正文只出现一次且顺序正确，工具结果与调用配对
+- `tests/dom/deferred-content-loading.test.mjs`（1 个）：大量超大块同时打开时最多两个并发读取，全部自动补齐
+- `tests/dom/session-panel.test.mjs`（3 个）：显示整会话统计；统计未到时仍显示会话名称、文件和 ID；没有会话时才显示加载提示
+- `src/renderer/hooks/agent-session/use-session-stats.test.mjs`（2 个）：统计覆盖整个会话且不随翻页变化；切换会话时不显示上一个会话的统计
+
+**随契约更新的既有测试：**`handlers.test.mjs` 的返回字段清单加入 `stats`；`use-agent-session-facade.test.mjs` 的公开字段清单加入 `previousCursor`；`use-agent-session-context-usage.test.mjs` 与 `session-hook-fixtures.mjs` 的夹具补上 `stats`。原有断言没有放宽。
+
+**现实验证：**通过真实 `sessions.get` / `sessions.contextPage` 读取等价的无隐私样本（195 行、1,250,644 字节、默认窗口 20 轮 / 1 MiB）。修复前首页 0 条消息且没有继续位置；修复后首页 194 条，读到会话开头，没有重复，文件哈希不变。运行记录在 `.artifacts/issue-12/before.json` 与 `after.json`。另外 `npm run test:chat-layout-electron` 在原生 Electron 中通过。
+
+**验证：**全套件 1,653 个测试，1,652 通过、1 跳过（Windows 专属）、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:contract、check:architecture、check:i18n、check:design、check:test-infra 均通过。

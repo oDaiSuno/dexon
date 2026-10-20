@@ -6,6 +6,7 @@ import { LatestRequestGate } from "@/lib/latest-request-gate";
 import { noticeReducer } from "@/lib/notice-queue";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { type SessionLoadTrace } from "@/lib/session-performance";
+import { summarizeSessionMessages } from "@/lib/session-stats";
 import type {
   AgentMessage,
   AssistantContentBlock,
@@ -151,39 +152,15 @@ export function useSessionState(opts: UseAgentSessionOptions) {
 
   const sessionStats = (() => {
     if (sessionStatsOverride) return sessionStatsOverride;
-    const tokens = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 };
-    let cost = 0;
-    let userMessages = 0;
-    let assistantMessages = 0;
-    let toolResults = 0;
-    let toolCalls = 0;
-    for (const msg of messages) {
-      if (msg.role === "user") userMessages += 1;
-      if (msg.role === "toolResult") toolResults += 1;
-      if (msg.role !== "assistant") continue;
-      assistantMessages += 1;
-      const u = (msg as import("@/lib/types").AssistantMessage).usage;
-      toolCalls += (msg as import("@/lib/types").AssistantMessage).content.filter((c) => c.type === "toolCall").length;
-      if (!u) continue;
-      tokens.input += u.input ?? 0;
-      tokens.output += u.output ?? 0;
-      tokens.cacheRead += u.cacheRead ?? 0;
-      tokens.cacheWrite += u.cacheWrite ?? 0;
-      cost += u.cost?.total ?? 0;
-    }
-    tokens.total = tokens.input + tokens.output + tokens.cacheRead + tokens.cacheWrite;
-    if (tokens.total === 0 && messages.length === 0) return null;
+    const detail = session && data?.sessionId === session.id ? data : null;
+    if (session && !detail) return null;
+    const summary = detail?.stats ?? summarizeSessionMessages(messages);
+    if (summary.totalMessages === 0 && summary.tokens.total === 0) return null;
     return {
-      sessionFile: data?.filePath || undefined,
-      sessionId: sessionIdRef.current ?? session?.id ?? "",
+      sessionFile: detail?.filePath || undefined,
+      sessionId: session?.id ?? sessionIdRef.current ?? "",
       sessionName: session?.name,
-      userMessages,
-      assistantMessages,
-      toolCalls,
-      toolResults,
-      totalMessages: messages.length,
-      tokens,
-      cost,
+      ...summary,
       ...(contextUsage ? { contextUsage } : {}),
     } satisfies SessionStatsInfo;
   })();

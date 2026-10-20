@@ -93,6 +93,15 @@ test("context usage survives session switches without a live runtime", async (pa
       },
       leafId: `${id}-assistant`,
       tree: [],
+      stats: {
+        userMessages: 1,
+        assistantMessages: 1,
+        toolCalls: 0,
+        toolResults: 0,
+        totalMessages: 2,
+        tokens: { input: 30_199_900, output: 100, cacheRead: 0, cacheWrite: 0, total: 30_200_000 },
+        cost: 0,
+      },
       context: {
         messages: [
           { role: "user", content: "fixture", timestamp: 1 },

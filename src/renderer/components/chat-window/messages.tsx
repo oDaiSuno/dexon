@@ -155,7 +155,11 @@ export function ChatMessages({
       );
       if (!isVisible || options.attachRef === false || currentRefIdx === undefined) return view;
       return (
-        <div key={renderKey} ref={attachVisibleRef(idx, currentRefIdx)}>
+        <div
+          key={renderKey}
+          className={compact ? undefined : "chat-history-item"}
+          ref={attachVisibleRef(idx, currentRefIdx)}
+        >
           {view}
         </div>
       );
@@ -164,7 +168,7 @@ export function ChatMessages({
     const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
       const toolData = toolMessageIndex.get(messages[piece.index]);
       return (
-        <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+        <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
           <SessionProfiler id="MessageView">
             <MessageView
               sessionId={session?.id}
@@ -186,7 +190,7 @@ export function ChatMessages({
     };
 
     const renderProcess = (piece: TurnProcessPiece): ReactNode => (
-      <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+      <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
         <ProcessDetailsGroup
           stateKey={piece.key}
           expansionStore={processDetailsExpansionStore}
@@ -206,7 +210,7 @@ export function ChatMessages({
     );
 
     const renderFailure = (piece: TurnFailurePiece): ReactNode => (
-      <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+      <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
         <SessionProfiler id="MessageView">
           <MessageView
             sessionId={session?.id}
