@@ -11,7 +11,7 @@ import { verifyUpdateConfiguration } from "./verify-update-configuration.mjs";
 import {
   appExecutable,
   assertCleanUserInstallState,
-  assertNoMaterialInstallResidue,
+  assertDirectoryRemoved,
   compareVersions,
   fileVersion,
   firstInstall,
@@ -19,8 +19,10 @@ import {
   regularFile,
   sha256,
   sleepSync,
+  stopLockingHelper,
   uninstall,
   validateStartup,
+  waitForInstalledHelperHello,
 } from "./windows-nsis-harness.mjs";
 import { validateUpgradeBaseline } from "./windows-upgrade-baseline.mjs";
 
@@ -96,7 +98,7 @@ try {
   uninstall(installPath);
   installed = false;
   assertCleanUserInstallState(20_000);
-  assertNoMaterialInstallResidue(installPath, 20_000);
+  assertDirectoryRemoved(installPath, 20_000);
   completed = true;
   console.log(
     JSON.stringify({
@@ -124,7 +126,7 @@ try {
       // Preserve the primary failure; residue checks below still fail closed.
     }
   }
-  if (completed) fs.rmSync(root, { recursive: true, force: true });
+  if (completed) fs.rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
   else console.error(`[nsis-upgrade] retained failed fixture for inspection: ${root}`);
 }
 
@@ -174,21 +176,7 @@ async function verifyInstalledHelperLock(executable) {
     if (fs.existsSync(probe) && !fs.existsSync(executable)) fs.renameSync(probe, executable);
     assert.equal(runningRenameFailed, true, "running installed helper must prevent replacement");
   } finally {
-    child.stdin.destroy();
-    if (child.exitCode === null) child.kill();
-    if (child.exitCode === null) {
-      let timer;
-      try {
-        await Promise.race([
-          once(child, "exit"),
-          new Promise((_, reject) => {
-            timer = setTimeout(() => reject(new Error("installed helper did not exit after termination")), 10_000);
-          }),
-        ]);
-      } finally {
-        if (timer) clearTimeout(timer);
-      }
-    }
+    await stopLockingHelper({ child });
   }
 
   const deadline = Date.now() + 20_000;
@@ -205,24 +193,4 @@ async function verifyInstalledHelperLock(executable) {
   }
   assert.equal(replaceable, true, "stopped installed helper must become replaceable");
   return { lockedWhileRunning: true, replaceableAfterExit: true };
-}
-
-function waitForInstalledHelperHello(child) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => finish(new Error("installed helper did not emit HELLO")), 5_000);
-    const onData = () => finish();
-    const onExit = (code) => finish(new Error(`installed helper exited before HELLO (${code ?? "unknown"})`));
-    const onError = (error) => finish(error);
-    const finish = (error) => {
-      clearTimeout(timer);
-      child.stdout.off("data", onData);
-      child.off("exit", onExit);
-      child.off("error", onError);
-      if (error) reject(error);
-      else resolve();
-    };
-    child.stdout.once("data", onData);
-    child.once("exit", onExit);
-    child.once("error", onError);
-  });
 }

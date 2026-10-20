@@ -2,16 +2,22 @@
 
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import {
   assertCleanUserInstallState,
+  assertDirectoryRemoved,
+  assertUserFilesKept,
   firstInstall,
   install,
+  installExpectingStatus,
+  listInstalledFiles,
   regularFile,
+  seedUserFiles,
   sha256,
+  snapshotFiles,
   uninstall,
 } from "./windows-nsis-harness.mjs";
+import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
   console.log(JSON.stringify({ ok: true, skipped: "Windows x64 NSIS acceptance only" }));
@@ -24,71 +30,140 @@ if (!previousArgument || !currentArgument || extra.length > 0) {
 }
 const project = path.resolve(import.meta.dirname, "..");
 const baseline = JSON.parse(fs.readFileSync(path.join(project, ".github/windows-upgrade-baseline.json"), "utf8"));
+const previousVersion = baseline.version;
 const previousInstaller = regularFile(previousArgument);
 const currentInstaller = regularFile(currentArgument);
 assert.equal(sha256(previousInstaller), baseline.sha256, "Previous installer does not match the reviewed baseline");
 assertCleanUserInstallState();
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), "Pi NSIS upgrade user-files "));
-const installPath = path.join(root, "Dexon 用户文件");
-let installed = false;
-let completed = false;
+const label = "nsis-user-files";
+const results = [];
+let currentFiles;
 
-try {
-  firstInstall(previousInstaller, installPath);
-  installed = true;
-  const userFiles = seedUserFiles(installPath);
+results.push(
+  await runNsisScenario({
+    label,
+    slug: "user-files clean",
+    name: "when nothing but Dexon is in the folder, uninstall removes the folder itself",
+    body: async ({ root, track, untrack }) => {
+      const installPath = path.join(root, "Dexon clean");
+      install(currentInstaller, installPath);
+      track(installPath);
+      currentFiles = listInstalledFiles(installPath);
+      assert.ok(currentFiles.includes("Dexon.exe"), "the packaged install must contain Dexon.exe");
+      uninstall(installPath);
+      untrack(installPath);
+      assertDirectoryRemoved(installPath, 20_000);
+      return { referenceFiles: currentFiles.length };
+    },
+  }),
+);
 
-  install(currentInstaller, installPath);
+results.push(
+  await runNsisScenario({
+    label,
+    slug: "user-files upgrade",
+    name: "when a v0.1.0 folder also holds user files, upgrading keeps them and leaves no v0.1.0-only files",
+    body: async ({ root, track, untrack }) => {
+      const installPath = path.join(root, "Dexon 用户文件");
+      firstInstall(previousInstaller, installPath);
+      track(installPath);
+      const userFiles = seedUserFiles(installPath);
+      install(currentInstaller, installPath);
+      assertUserFilesKept(installPath, userFiles, "upgrade");
+      assert.deepEqual(
+        listInstalledFiles(installPath),
+        combined(currentFiles, userFiles),
+        "the upgraded folder must hold exactly the current package plus the user files",
+      );
+      install(previousInstaller, installPath);
+      assertUserFilesKept(installPath, userFiles, "rollback");
+      const movedOut = path.join(root, "moved-user-files");
+      for (const relative of Object.keys(userFiles)) {
+        const destination = path.join(movedOut, relative);
+        fs.mkdirSync(path.dirname(destination), { recursive: true });
+        fs.renameSync(path.join(installPath, relative), destination);
+      }
+      uninstall(installPath);
+      untrack(installPath);
+      assertDirectoryRemoved(installPath, 20_000);
+      return { rolledBackVersion: previousVersion, movedOutBeforeUninstall: Object.keys(userFiles) };
+    },
+  }),
+);
 
-  const missing = Object.keys(userFiles).filter((relative) => !fs.existsSync(path.join(installPath, relative)));
-  assert.deepEqual(missing, [], `upgrade deleted user files: ${missing.join(", ")}`);
-  for (const [relative, content] of Object.entries(userFiles)) {
-    assert.equal(
-      fs.readFileSync(path.join(installPath, relative), "utf8"),
-      content,
-      `upgrade must keep user file ${relative} byte for byte`,
-    );
-  }
+results.push(
+  await runNsisScenario({
+    label,
+    slug: "user-files refusal",
+    name: "when the current installer refuses a non-empty folder, the old folder's uninstaller is already safe",
+    body: async ({ root, track, untrack }) => {
+      const installPath = path.join(root, "Dexon 旧安装");
+      firstInstall(previousInstaller, installPath);
+      track(installPath);
+      const userFiles = seedUserFiles(installPath);
+      const refused = path.join(root, "Someone else's folder");
+      fs.mkdirSync(path.join(refused, "nested"), { recursive: true });
+      fs.writeFileSync(path.join(refused, "note.txt"), "someone else's file\n");
+      fs.writeFileSync(path.join(refused, "nested", "inner.txt"), "someone else's nested file\n");
+      const before = snapshotFiles(refused);
+      installExpectingStatus(currentInstaller, refused, 2);
+      assert.deepEqual(snapshotFiles(refused), before, "a refused install must not touch the folder it refused");
+      uninstall(installPath);
+      untrack(installPath);
+      assertUserFilesKept(installPath, userFiles, "uninstall through the replaced uninstaller");
+      assert.deepEqual(
+        listInstalledFiles(installPath),
+        Object.keys(userFiles).sort(),
+        "after the safe uninstall only the user files stay behind",
+      );
+      return { refusedFolderUntouched: true };
+    },
+  }),
+);
 
-  uninstall(installPath);
-  installed = false;
-  completed = true;
-  console.log(
-    JSON.stringify({
-      ok: true,
-      scenario: "upgrade keeps user files inside the install folder",
-      previousInstallerSha256: sha256(previousInstaller),
-      currentInstallerSha256: sha256(currentInstaller),
-      userFiles: Object.keys(userFiles),
-    }),
-  );
-} finally {
-  if (installed) uninstallQuietly(installPath);
-  if (completed) fs.rmSync(root, { recursive: true, force: true });
-  else console.error(`[nsis-user-files] retained failed fixture for inspection: ${root}`);
-}
+results.push(
+  await runNsisScenario({
+    label,
+    slug: "user-files reinstall",
+    name: "when the current version is reinstalled over itself, user files stay and uninstall leaves only them",
+    body: async ({ root, track, untrack }) => {
+      const installPath = path.join(root, "Dexon 重装");
+      install(currentInstaller, installPath);
+      track(installPath);
+      const userFiles = seedUserFiles(installPath);
+      install(currentInstaller, installPath);
+      assertUserFilesKept(installPath, userFiles, "same-version reinstall");
+      assert.deepEqual(
+        listInstalledFiles(installPath),
+        combined(currentFiles, userFiles),
+        "the reinstalled folder must hold exactly the current package plus the user files",
+      );
+      uninstall(installPath);
+      untrack(installPath);
+      assert.deepEqual(
+        listInstalledFiles(installPath),
+        Object.keys(userFiles).sort(),
+        "uninstall must leave exactly the user files",
+      );
+      return { remainingFiles: Object.keys(userFiles).length };
+    },
+  }),
+);
 
-function seedUserFiles(directory) {
-  const files = {
-    "我的笔记.txt": "Dexon 升级说明：这一行是用户自己写的笔记，升级后必须还在。\n",
-    "Project Files/data.csv": "project,tasks\n阿尔法,3\n贝塔,7\n",
-    "resources/my-plugin/config.json": '{"plugin":"my-plugin","enabled":true}',
-    "locales/custom-dictionary.txt": "Dexon\n用户词典\n不能删除\n",
-  };
-  for (const [relative, content] of Object.entries(files)) {
-    const file = path.join(directory, relative);
-    fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, content);
-  }
-  return files;
-}
+console.log(
+  JSON.stringify({
+    ok: true,
+    previousVersion,
+    referenceFiles: currentFiles.length,
+    scenarios: results,
+    knownLimitation:
+      "v0.1.x uninstallers still delete the whole folder; user files were moved out before the final uninstall",
+    previousInstallerSha256: sha256(previousInstaller),
+    currentInstallerSha256: sha256(currentInstaller),
+  }),
+);
 
-function uninstallQuietly(directory) {
-  try {
-    uninstall(directory);
-    return true;
-  } catch {
-    return false;
-  }
+function combined(reference, files) {
+  return [...new Set([...reference, ...Object.keys(files)])].sort();
 }
