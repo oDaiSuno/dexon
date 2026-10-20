@@ -32,15 +32,16 @@ export async function runNsisScenario({ label, slug, name, body }) {
         untrack: (value) => installs.delete(value),
         cleanup: (dispose) => cleanups.push(dispose),
       })) ?? {};
+    for (const directory of installs) uninstallQuietly(directory);
     const cleanupErrors = [];
     await drain((error) => cleanupErrors.push(error));
-    for (const directory of installs) uninstallQuietly(directory);
     assertCleanUserInstallState(20_000);
     if (cleanupErrors.length > 0) throw cleanupErrors[0];
     fs.rmSync(root, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
     console.log(`[${label}] passed: ${name}`);
     return { scenario: name, ...details };
   } catch (error) {
+    for (const directory of installs) uninstallQuietly(directory);
     await drain((cleanupError) => console.error(`[${label}] cleanup failed: ${describe(cleanupError)}`));
     console.error(`[${label}] retained failed fixture for inspection: ${root}`);
     throw error;
