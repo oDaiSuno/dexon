@@ -181,7 +181,7 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
     // git prints resolved (symlink-free) paths; normalize cwd the same way
     let realCwd = cwd;
     try {
-      realCwd = realpathSync(cwd);
+      realCwd = (realpathSync.native ?? realpathSync)(cwd);
     } catch {
       /* keep as-is */
     }
