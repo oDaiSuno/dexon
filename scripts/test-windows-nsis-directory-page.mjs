@@ -27,6 +27,7 @@ public class DexonW32 {
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
   [DllImport("user32.dll", CharSet = CharSet.Unicode, EntryPoint = "SendMessageW")] public static extern IntPtr SendMessageText(IntPtr window, uint message, IntPtr wParam, string text);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out RECT rect);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr hdc, uint flags);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }
 }
 "@
@@ -95,7 +96,9 @@ try {
     if ([DexonW32]::GetWindowRect($window, [ref]$rect)) {
       $bitmap = [System.Drawing.Bitmap]::new($rect.Right - $rect.Left, $rect.Bottom - $rect.Top)
       $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
-      $graphics.CopyFromScreen($rect.Left, $rect.Top, 0, 0, $bitmap.Size)
+      $hdc = $graphics.GetHdc()
+      $report.printed = [DexonW32]::PrintWindow($window, $hdc, 2)
+      $graphics.ReleaseHdc($hdc)
       $bitmap.Save($env:DEXON_NSIS_SHOT, [System.Drawing.Imaging.ImageFormat]::Png)
       $graphics.Dispose()
       $bitmap.Dispose()
