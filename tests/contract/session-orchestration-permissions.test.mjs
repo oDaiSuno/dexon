@@ -10,8 +10,6 @@ import {
   waitUntil,
 } from "../support/session-orchestration-host.mjs";
 
-// This file uses the stricter collaboration policy: the Agent may not start
-// turns in sessions the user created.
 const host = await startSessionOrchestrationHost({
   name: "orchestration-permissions",
   settings: {

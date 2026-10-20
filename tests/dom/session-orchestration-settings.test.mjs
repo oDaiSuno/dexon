@@ -25,8 +25,6 @@ const SAVED_DEFAULTS = {
   sessionOrchestration: { enabled: true, maxRunning: 8, model: null, thinkingLevel: null, allowUserSessions: true },
 };
 
-// Only the other process answers: the Host's model catalogue and the desktop
-// bridge's preference store. The settings component itself stays production code.
 const host = {
   call: async (method) => {
     if (method === "models.list") {

@@ -12,9 +12,6 @@ import { installMainProcessPort } from "../fixtures/main-process-port.mjs";
 const ENVIRONMENT = ["PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "PI_DESKTOP_USER_DATA", "PI_OFFLINE"];
 const projectRoot = path.resolve(import.meta.dirname, "../..");
 
-// The user-visible tool surface from the issue: creation, prompting, waiting,
-// listing, reading, stopping and closing. No tool exists for answering another
-// session's question, so the list is also the proof of that absence.
 export const SESSION_TOOL_NAMES = [
   "session_new",
   "session_prompt",
@@ -77,8 +74,6 @@ export function toolCall(name, input) {
   return { toolCall: { name, input } };
 }
 
-// Tool results are recorded for the whole file, so every test reads forward from
-// where it started instead of guessing absolute indices.
 export function resultReader(host) {
   let cursor = host.model.toolResults().length;
   return {
@@ -91,8 +86,6 @@ export function resultReader(host) {
   };
 }
 
-// One Agent turn whose model asks for the tools in `steps`. Returns the tool
-// results the model itself received back, in order.
 export async function runAgentTurn(host, sessionId, { prompt, steps, results = 1 }) {
   const before = host.model.toolResults().length;
   host.model.script(prompt, steps);

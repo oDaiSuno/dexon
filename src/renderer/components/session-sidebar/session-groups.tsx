@@ -6,13 +6,6 @@ import { buildSessionTree } from "@/lib/session-tree";
 import type { SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionTreeItem } from "./session-tree-item";
 
-// Extracted in Phase 4 from session-list.tsx so the old sidebar and the new
-// navigation history render the same three date groups, the derived tree and
-// the loading/error/empty states. A tree belongs to the group of its newest
-// activity anywhere inside it, not of its root: a root from last week whose
-// children are working today is today's work. Presentation only: consumers
-// pass the already-filtered sessions and own the search/filter state.
-
 export function SessionGroupsSection({
   sessions,
   loading,

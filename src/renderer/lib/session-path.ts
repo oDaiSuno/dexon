@@ -1,9 +1,5 @@
 import type { SessionInfo } from "./types";
 
-// The chain from a root session down to the one on screen, resolved from the
-// session list the sidebar already holds. A parent that is not listed (another
-// project, a deleted session) ends the chain instead of inventing a step.
-
 export const SESSION_PATH_VISIBLE_HEAD = 1;
 export const SESSION_PATH_VISIBLE_TAIL = 3;
 

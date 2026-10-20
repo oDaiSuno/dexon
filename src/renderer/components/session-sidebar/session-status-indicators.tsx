@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { useI18n } from "@/i18n";
 
-// Moved verbatim from SessionSidebar.tsx in Phase 2 (session row split).
 // Phase 4 (review R2): the built-in SVG (SMIL) animations ignore CSS
 // prefers-reduced-motion handling, so under the reduced-motion preference the
 // indicators render their static, still-recognizable marks instead of the

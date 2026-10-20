@@ -80,9 +80,6 @@ export function SessionItem({
   const foldedDescendants = hasChildren && collapsed ? descendants : null;
   const showCounts = foldedDescendants ? COUNTED_ACTIVITIES.some((kind) => foldedDescendants.counts[kind] > 0) : false;
 
-  // Single-line rows keep only title + relative time visible; everything else
-  // (full title, message count, worktree branch, cwd, modified time) lives in
-  // the hover tooltip.
   const tooltipText = [
     title,
     `${t("messageCount", "{count} msgs").replace("{count}", formatNumber(session.messageCount, language))}${
@@ -181,10 +178,14 @@ export function SessionItem({
     setConfirmDelete(false);
   }, []);
 
-  // Fixed-height outer wrapper — content swaps in place so the list never reflows.
-  // Single-line compact row: title left, relative time right. Snug pill matched
-  // to the reference (ink/pill ≈ 0.4, 32px pitch).
   const ITEM_HEIGHT = 28;
+  const rowBackground = confirmDelete
+    ? "color-mix(in srgb, var(--danger) 8%, transparent)"
+    : isSelected
+      ? "var(--bg-selected)"
+      : hovered
+        ? "var(--bg-hover)"
+        : "transparent";
 
   return (
     <div
@@ -203,13 +204,7 @@ export function SessionItem({
         paddingLeft: Math.min(depth, MAX_TREE_INDENT_DEPTH) * 12 + 10,
         paddingRight: 8,
         cursor: "default",
-        background: confirmDelete
-          ? "color-mix(in srgb, var(--danger) 8%, transparent)"
-          : isSelected
-            ? "var(--bg-selected)"
-            : hovered
-              ? "var(--bg-hover)"
-              : "transparent",
+        background: rowBackground,
         border: confirmDelete
           ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
           : "1px solid transparent",
@@ -276,9 +271,6 @@ export function SessionItem({
               textAlign: "left",
             }}
           >
-            {/* Status slot — fixed 18px so the title never shifts: the most
-                urgent live status, else the relation glyph, else the selected
-                dot. A folded parent shows the counts of what is below it. */}
             <span
               aria-hidden="true"
               style={{
@@ -294,6 +286,7 @@ export function SessionItem({
               <SessionRowStatusSlot activity={activity} relation={relation} isSelected={isSelected} />
             </span>
             <span
+              data-session-row-title
               style={{
                 flex: 1,
                 minWidth: 0,
@@ -309,8 +302,9 @@ export function SessionItem({
               {title}
             </span>
             {showCounts && foldedDescendants && <SessionRowCounts counts={foldedDescendants.counts} />}
-            {!showCounts && (
+            {!showCounts && depth < MAX_TREE_INDENT_DEPTH && (
               <span
+                data-session-row-time
                 style={{
                   flexShrink: 0,
                   fontSize: "var(--text-meta)",
@@ -382,7 +376,7 @@ export function SessionItem({
               event.preventDefault();
               closeActionsMenu(true);
             }}
-            style={{ position: "relative", flexShrink: 0 }}
+            style={{ position: "absolute", top: 2, right: hasChildren ? 36 : 4, flexShrink: 0 }}
           >
             <button
               type="button"
@@ -403,7 +397,7 @@ export function SessionItem({
                 width: 24,
                 height: 24,
                 padding: 0,
-                background: "transparent",
+                background: actionsOpen || hovered ? rowBackground : "transparent",
                 border: actionsOpen ? "1px solid var(--border)" : "1px solid transparent",
                 borderRadius: "var(--radius-card)",
                 color: actionsOpen ? "var(--text)" : "var(--text-dim)",

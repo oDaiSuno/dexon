@@ -1,6 +1,6 @@
-import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { atomicWrite, desktopUserDataPath } from "./desktop-state-file";
 import { SESSION_RELATIONS, type SessionRelation } from "../shared/session-orchestration";
 import type { SessionInfo } from "../shared/types";
 
@@ -50,27 +50,6 @@ function normalizeState(value: unknown): SessionOriginStateFile {
   return { version: 1, sessions };
 }
 
-function atomicWrite(filePath: string, value: SessionOriginStateFile): void {
-  mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(temporaryPath, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
-  try {
-    renameSync(temporaryPath, filePath);
-    try {
-      chmodSync(filePath, 0o600);
-    } catch {
-      /* best effort on platforms without POSIX modes */
-    }
-  } catch (error) {
-    try {
-      unlinkSync(temporaryPath);
-    } catch {
-      /* ignore cleanup failure */
-    }
-    throw error;
-  }
-}
-
 export class SessionOriginStore {
   private state: SessionOriginStateFile | undefined;
 
@@ -81,6 +60,15 @@ export class SessionOriginStore {
     if (!normalizedId) return undefined;
     const record = this.load().sessions[normalizedId];
     return record ? { ...record } : undefined;
+  }
+
+  delete(sessionId: string): void {
+    const normalizedId = sessionId.trim();
+    if (!normalizedId) return;
+    const state = this.load();
+    if (!(normalizedId in state.sessions)) return;
+    delete state.sessions[normalizedId];
+    atomicWrite(this.filePath, state);
   }
 
   set(sessionId: string, record: SessionOriginRecord): void {
@@ -104,14 +92,6 @@ export class SessionOriginStore {
   }
 }
 
-function desktopUserDataPath(): string {
-  return (
-    process.env.PI_DESKTOP_USER_DATA?.trim() ||
-    (process.env.PI_CODING_AGENT_DIR ? path.join(process.env.PI_CODING_AGENT_DIR, "desktop") : "") ||
-    path.join(homedir(), ".pi", "desktop")
-  );
-}
-
 let defaultStore: SessionOriginStore | undefined;
 
 function getDefaultStore(): SessionOriginStore {
@@ -121,6 +101,10 @@ function getDefaultStore(): SessionOriginStore {
 
 export function getSessionOrigin(sessionId: string): SessionOriginRecord | undefined {
   return getDefaultStore().get(sessionId);
+}
+
+export function deleteSessionOrigin(sessionId: string): void {
+  getDefaultStore().delete(sessionId);
 }
 
 export function setSessionOrigin(sessionId: string, record: Omit<SessionOriginRecord, "createdAt">): void {

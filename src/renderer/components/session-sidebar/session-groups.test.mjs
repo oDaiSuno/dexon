@@ -6,11 +6,6 @@ import test, { after } from "node:test";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 
-// Contract tests for the shared session groups view extracted from the old
-// sidebar in Phase 4: three date groups with parent-child nesting, layer
-// sorting, and the loading/error/empty states consumed by both the old
-// SessionList and the new navigation history.
-
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
 const { SessionGroupsSection } = await importTestBundle("session-sidebar-session-groups", {

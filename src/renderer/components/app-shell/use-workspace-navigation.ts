@@ -43,9 +43,6 @@ export function useWorkspaceNavigation({
   // Suppresses sessionKey bump in handleCwdChange during the initial URL restore
   const suppressCwdBumpRef = useRef(false);
 
-  // Opening a session from outside the sidebar — a deep link from Electron,
-  // the path above a conversation, a message chip, a session tool card — all
-  // take the same road: leave the current page politely, then show it.
   const openSessionById = useCallback(
     (sessionId: string) => {
       void (async () => {

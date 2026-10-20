@@ -6,8 +6,6 @@ import {
   startSessionOrchestrationHost,
 } from "../support/session-orchestration-host.mjs";
 
-// The channel pipeline is the real one: the bridge starts the session, marks the
-// turn as coming from a messaging channel and runs it like an incoming message.
 const host = await startSessionOrchestrationHost({
   name: "orchestration-channel",
   settings: ENABLED_SETTINGS,

@@ -11,11 +11,6 @@ import {
 } from "@shared/session-orchestration";
 import { SettingRow, selectStyle } from "./setting-row";
 
-// Settings › General › Session collaboration. Every change is saved as a whole
-// settings object, so a failed save can be undone in one step and the section
-// never holds a half-applied state. The numeric limit is typed freely and only
-// leaves the field when it is a limit the feature can actually run with.
-
 interface ModelOption {
   provider: string;
   id: string;

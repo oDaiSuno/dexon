@@ -5,10 +5,6 @@ import {
 } from "@shared/session-orchestration";
 import type { SessionTreeNode } from "./session-tree";
 
-// The tree answers "where am I needed": every row carries its own activity,
-// and a folded parent carries the most urgent activity found anywhere below it
-// together with the counts of the three states worth acting on.
-
 export interface SessionActivitySignals {
   liveStatuses: Record<string, SessionLiveStatus>;
   runningSessionIds: ReadonlySet<string>;

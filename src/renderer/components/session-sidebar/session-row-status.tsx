@@ -9,10 +9,6 @@ import {
 } from "./session-status-indicators";
 import { SessionRelationGlyph } from "./session-relation-glyphs";
 
-// Presentation of one row's activity: the leading status slot, the compact
-// counts a folded parent shows in place of its relative time, and the words a
-// screen reader reads out for the whole row.
-
 type Translate = (key: string, fallback: string) => string;
 
 const COUNT_COLORS: Record<CountedActivity, string> = {
@@ -48,7 +44,6 @@ function countedPhrases(counts: SessionActivityCounts, t: Translate): string {
     .join(", ");
 }
 
-/** A folded parent carries what is below it; `descendants` is null otherwise. */
 export function sessionRowLabel({
   title,
   activity,
@@ -135,6 +130,7 @@ export function SessionRowCounts({ counts }: { counts: SessionActivityCounts }) 
   if (present.length === 0) return null;
   return (
     <span
+      data-session-row-counts
       aria-hidden="true"
       style={{
         display: "inline-flex",

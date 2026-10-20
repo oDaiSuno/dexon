@@ -1,10 +1,6 @@
 import { createSessionDetail } from "../../src/renderer/hooks/agent-session/session-hook-fixtures.mjs";
 import { navigationPaths } from "./app-navigation-data.mjs";
 
-// Hand-authored session details for the orchestrated-session tree: the answer
-// a Host gives when it lists or reads these sessions. Timestamps are relative
-// to the moment the test runs, so date-group membership stays meaningful.
-
 export function minutesAgo(minutes) {
   return new Date(Date.now() - minutes * 60_000).toISOString();
 }
@@ -20,8 +16,6 @@ function withInfo(detail, info) {
   return detail;
 }
 
-// A conversation as the sidebar lists it. Only the fields the tree, grouping
-// and status rules speak about are given distinct values.
 export function treeSession(id, options = {}) {
   const cwd = options.cwd ?? navigationPaths.personal;
   const marker = `${id} marker`;
@@ -54,7 +48,6 @@ export function treeSession(id, options = {}) {
   });
 }
 
-// A conversation whose user bubble came from another session.
 export function sourceConversation(id, options) {
   const messages = [
     {
@@ -87,8 +80,6 @@ export function sourceConversation(id, options) {
   });
 }
 
-// A finished turn that created another session: the tool result carries the
-// target session in `details`, exactly as the session tools report it.
 export function delegateToolConversation(id, options) {
   const messages = [
     { role: "user", content: options.text, timestamp: 1 },

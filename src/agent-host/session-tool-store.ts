@@ -1,6 +1,6 @@
-import { chmodSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { readFileSync } from "node:fs";
 import path from "node:path";
+import { atomicWrite, desktopUserDataPath } from "./desktop-state-file";
 
 type StoredSessionTools = {
   toolNames: string[];
@@ -40,27 +40,6 @@ function normalizeState(value: unknown): SessionToolStateFile {
   return { version: 1, sessions };
 }
 
-function atomicWrite(filePath: string, value: SessionToolStateFile): void {
-  mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(temporaryPath, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
-  try {
-    renameSync(temporaryPath, filePath);
-    try {
-      chmodSync(filePath, 0o600);
-    } catch {
-      /* best effort on platforms without POSIX modes */
-    }
-  } catch (error) {
-    try {
-      unlinkSync(temporaryPath);
-    } catch {
-      /* ignore cleanup failure */
-    }
-    throw error;
-  }
-}
-
 export class DesktopSessionToolStore {
   private state: SessionToolStateFile | undefined;
 
@@ -95,14 +74,6 @@ export class DesktopSessionToolStore {
     }
     return this.state;
   }
-}
-
-function desktopUserDataPath(): string {
-  return (
-    process.env.PI_DESKTOP_USER_DATA?.trim() ||
-    (process.env.PI_CODING_AGENT_DIR ? path.join(process.env.PI_CODING_AGENT_DIR, "desktop") : "") ||
-    path.join(homedir(), ".pi", "desktop")
-  );
 }
 
 let defaultStore: DesktopSessionToolStore | undefined;

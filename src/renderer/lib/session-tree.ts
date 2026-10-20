@@ -1,23 +1,14 @@
 import type { SessionInfo } from "./types";
 import type { SessionRelation } from "@shared/session-orchestration";
 
-// Pure projection used by the session sidebar: fold a flat session list into
-// the derived session tree. Siblings keep the order they were created in, so a
-// reader can remember where a session sits; whole trees are ordered by the
-// newest activity anywhere inside them, because an old root with busy children
-// is today's work.
-
 export interface SessionTreeNode {
   session: SessionInfo;
   children: SessionTreeNode[];
-  /** Newest `modified` anywhere in this subtree. */
   activity: string;
 }
 
-/** Three steps of indent fit the 224px sidebar; deeper rows keep their place. */
 export const MAX_TREE_INDENT_DEPTH = 3;
 
-/** How this session came to exist; a parent without a recorded relation is a fork. */
 export function sessionRelation(session: SessionInfo): SessionRelation | null {
   if (session.relation) return session.relation;
   return session.parentSessionId ? "fork" : null;

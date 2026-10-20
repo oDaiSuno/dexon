@@ -2,17 +2,22 @@ import { useSyncExternalStore } from "react";
 import type { SessionInfo } from "./types";
 import { getSessionDisplayTitle } from "./session-list";
 
-// The session list the sidebar already loads, published for the rest of the
-// window: the path above a conversation, the session a message came from and
-// the session a tool acted on all need titles, and none of them may ask the
-// Host again for something the sidebar is holding.
-
 let snapshot: SessionInfo[] = [];
 const listeners = new Set<() => void>();
 
+function notify(): void {
+  for (const listener of listeners) listener();
+}
+
 export function publishSessionCatalog(sessions: SessionInfo[]): void {
   snapshot = sessions;
-  for (const listener of listeners) listener();
+  notify();
+}
+
+export function clearSessionCatalog(): void {
+  if (snapshot.length === 0) return;
+  snapshot = [];
+  notify();
 }
 
 export function getSessionCatalog(): SessionInfo[] {
@@ -30,7 +35,6 @@ export function useSessionCatalog(): SessionInfo[] {
   return useSyncExternalStore(subscribeSessionCatalog, getSessionCatalog, getSessionCatalog);
 }
 
-/** Title for a session that may no longer be listed; the id is the last resort. */
 export function resolveSessionTitle(
   sessionId: string,
   title: string | undefined,

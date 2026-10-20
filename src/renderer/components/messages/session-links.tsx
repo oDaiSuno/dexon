@@ -4,10 +4,6 @@ import { requestOpenSession } from "@/lib/session-open-request";
 import type { SessionSourceRef, SessionToolTargetDetails } from "@shared/session-orchestration";
 import { scaledChatFont } from "@/lib/chat-appearance";
 
-// Inside a conversation, another conversation can be named twice: a message
-// written by another session, and a session tool that acted on one. Both read
-// as links back to that session.
-
 function HandoffGlyph({ color }: { color: string }) {
   return (
     <svg

@@ -175,8 +175,6 @@ function isBrowserToolName(value: string): boolean {
   return value.startsWith("browser_");
 }
 
-/* A session tool names the session it acted on in its result — or, while it is
-   still running, in its own input. Either way the card can offer a way there. */
 function sessionToolTarget(
   block: ToolCallContent,
   result: ToolResultMessage | undefined,

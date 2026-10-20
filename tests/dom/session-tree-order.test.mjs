@@ -7,10 +7,6 @@ import { daysAgo, minutesAgo, treeSession } from "../fixtures/session-tree-data.
 
 after(restoreGlobals);
 
-// One parent with three children whose creation order and modification order
-// disagree: the first child is the freshest, the second the stalest. Sorting a
-// layer by "who spoke last" moves the second child to the bottom; the list
-// must instead stay a checklist the reader can remember.
 function siblingTree() {
   return [
     treeSession("order-parent", {

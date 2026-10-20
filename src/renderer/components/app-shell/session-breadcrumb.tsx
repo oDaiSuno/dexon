@@ -6,10 +6,6 @@ import { sessionPath, type SessionPathSegment } from "@/lib/session-path";
 import { requestOpenSession } from "@/lib/session-open-request";
 import type { SessionInfo } from "@/lib/types";
 
-// Where the conversation on screen sits: the chain of sessions that led to it.
-// Every earlier step opens that session; the last step is the one you are
-// reading. A session without a parent has no steps to climb, so it shows none.
-
 type PathItem = SessionPathSegment | { gap: true };
 
 export function SessionBreadcrumb({ session }: { session: SessionInfo }) {

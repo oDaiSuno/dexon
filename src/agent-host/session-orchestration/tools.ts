@@ -6,6 +6,7 @@ import {
   type SessionToolTargetDetails,
 } from "../../shared/session-orchestration";
 import { getBrowserSessionSource } from "../browser-tools";
+import { CHANNEL_REFUSAL, DISABLED_REFUSAL } from "./errors";
 import { getSessionOrchestrationService, SessionOrchestrationError, type SessionWaitResult } from "./service";
 import { getSessionOrchestrationSettings } from "./settings";
 
@@ -51,14 +52,12 @@ function owner(ctx: ToolContext): string {
 }
 
 function assertEnabled(): void {
-  if (!getSessionOrchestrationSettings().enabled) {
-    throw new SessionOrchestrationError("Enable Session collaboration in Settings first");
-  }
+  if (!getSessionOrchestrationSettings().enabled) throw new SessionOrchestrationError(DISABLED_REFUSAL);
 }
 
 function assertLocalTurn(ctx: ToolContext): void {
   if (getBrowserSessionSource(ctx.sessionManager) === "channel") {
-    throw new SessionOrchestrationError("Session tools are unavailable for messaging-channel turns");
+    throw new SessionOrchestrationError(CHANNEL_REFUSAL);
   }
 }
 
@@ -95,10 +94,10 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
         timeoutMs,
       }),
       executionMode: "sequential",
-      async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+      async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
-          const created = await service.create(enter(ctx), input as never);
+          const created = await service.create(enter(ctx), input as never, signal);
           return text(
             {
               sessionId: created.sessionId,
@@ -121,10 +120,10 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       promptSnippet: "session_prompt: hand another task to a session without interrupting it",
       parameters: Type.Object({ sessionId, message, wait: Type.Optional(Type.Boolean()), timeoutMs }),
       executionMode: "sequential",
-      async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+      async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
-          const result = await service.prompt(enter(ctx), input as never);
+          const result = await service.prompt(enter(ctx), input as never, signal);
           return text(
             {
               sessionId: result.sessionId,
@@ -146,11 +145,10 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       promptSnippet: "session_wait: wait for a session to finish before reading its result",
       parameters: Type.Object({ sessionId, timeoutMs }),
       executionMode: "sequential",
-      async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+      async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
-          enter(ctx);
-          const result = await service.wait(input.sessionId, input.timeoutMs);
+          const result = await service.wait(enter(ctx), input.sessionId, input.timeoutMs, signal);
           return text(
             { sessionId: input.sessionId, ...waitResultPayload(result) },
             { targetSessionId: input.sessionId },

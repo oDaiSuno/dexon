@@ -18,6 +18,7 @@ await runRendererElectronCheck({
     "keyboard-focus",
     "native-search-and-rename",
     "05-collapsed-light",
+    "08-session-tree-light",
     "06-narrow-expanded-dark",
     "07-narrow-collapsed-dark",
   ],

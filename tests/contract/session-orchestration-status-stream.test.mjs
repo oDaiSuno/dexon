@@ -7,8 +7,6 @@ import {
   waitUntil,
 } from "../support/session-orchestration-host.mjs";
 
-// A failing provider reply must surface as a failed turn, so retries are off and
-// the failure is a single deterministic request.
 const host = await startSessionOrchestrationHost({
   name: "orchestration-status-stream",
   settings: ENABLED_SETTINGS,

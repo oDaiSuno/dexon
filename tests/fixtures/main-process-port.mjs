@@ -8,9 +8,6 @@ const shell = {
   envPatch: {},
 };
 
-// The Main process defaults documented in the issue: collaboration is off, at
-// most eight Agent-created sessions run at once, no model/thinking override, and
-// prompts to user sessions are allowed.
 const defaultSessionOrchestration = Object.freeze({
   enabled: false,
   maxRunning: 8,
@@ -40,9 +37,6 @@ function answer(message, sessionOrchestration) {
       summary: [],
     };
   if (message.method === "sessionOrchestration.getSettings") {
-    // Both envelopes are answered because the issue fixes the push message
-    // (`{ type, settings }`) but not whether the pull returns the settings
-    // directly or nested; the test must fail on missing behavior, not on this.
     return { ...sessionOrchestration, settings: sessionOrchestration };
   }
   return {};
@@ -58,8 +52,6 @@ export function installMainProcessPort({ sessionOrchestration = defaultSessionOr
     on(type, listener) {
       if (type !== "message") return;
       listeners.add(listener);
-      // Main pushes the current settings after a Host (re)start, so a listener
-      // that appears later still receives the value in force.
       deliver(listener, { type: "session-orchestration:settings", settings: structuredClone(current) });
     },
     postMessage(message) {

@@ -7,13 +7,7 @@ import {
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
 } from "@/lib/unread-session-storage";
 import { applySessionChangedEvent } from "@/lib/session-sidebar-state";
-import { publishSessionCatalog } from "@/lib/session-catalog";
-
-// Split from SessionSidebar.tsx in Phase 2: the session directory data owner.
-// Owns the session list, the live running stream, the live status of every
-// session that is not plain idle, unread markers, incremental change
-// subscriptions, the home directory label, and the sidebar-owned timers
-// (refresh feedback + deferred focus).
+import { clearSessionCatalog, publishSessionCatalog } from "@/lib/session-catalog";
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -146,6 +140,8 @@ export function useSessionDirectory({
   useEffect(() => {
     publishSessionCatalog(allSessions);
   }, [allSessions]);
+
+  useEffect(() => clearSessionCatalog, []);
 
   // Persist unread markers so they survive a browser refresh before the user
   // has actually opened the completed session.

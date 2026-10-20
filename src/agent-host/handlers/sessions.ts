@@ -33,6 +33,7 @@ import {
 import { reconstructSessionContextUsage } from "../session-context-usage";
 import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
+import { deleteSessionOrigin } from "../session-origin-store";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
   logSessionPerformance,
@@ -337,6 +338,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       }
       const filePath = savedPath ?? (await resolveSessionPath(id));
       const deletedSession = filePath ? removeSessionFile(filePath) : null;
+      deleteSessionOrigin(id);
       invalidateSessionPathCache(id);
       void callMain("browser.sessionEnded", { sessionId: id }).catch(() => undefined);
       server.emit("sessions.changed", id, {

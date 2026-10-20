@@ -56,6 +56,7 @@ async function capture(name) {
 
 async function measure(config, name) {
   await js(`window.navLayout.configure(${JSON.stringify(config)})`);
+  await measureSessionTree(config, name);
   const measurement = await js(`(() => {
     const {nav,workspace,label,toggle,controls:buttons}=window.navLayout.elements();
     const bounds=r=>({x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom});
@@ -201,10 +202,56 @@ async function run() {
   });
 
   await measure({ expanded: false }, "05-collapsed-light");
+  await measure({ scene: "tree" }, "08-session-tree-light");
   window.setContentSize(640, 760);
   await measure({ theme: "dark", language: "zh-CN", spaceName: longSpaceName }, "06-narrow-expanded-dark");
   await measure({ expanded: false, theme: "dark", language: "zh-CN" }, "07-narrow-collapsed-dark");
   assert.deepEqual(failures, [], "the native renderer reports no page errors");
+}
+
+function rowsByTitle(rows) {
+  return Object.fromEntries(rows.map((row) => [row.name.split(" · ")[0], row]));
+}
+
+function assertInside(inner, outer, message) {
+  assert.ok(
+    inner.x >= outer.x - 1 && inner.right <= outer.right + 1,
+    `${message}: ${JSON.stringify(inner)} inside ${JSON.stringify(outer)}`,
+  );
+}
+
+async function measureSessionTree(config, name) {
+  if (config.scene !== "tree" || config.expanded === false) return;
+  const rows = await js("window.navLayout.rows()");
+  const byTitle = rowsByTitle(rows);
+  const folded = byTitle["Release train"];
+  const expanded = byTitle["Release notes"];
+  const fork = byTitle["Forked release notes"];
+  const delegate = byTitle["Delegated release notes"];
+  const chain = [
+    "Refactor login",
+    "Migrate old API",
+    "Add API tests",
+    "Fix flaky test",
+    "Rewrite fixtures",
+    "Document migration",
+  ].map((title) => byTitle[title]);
+  assert.ok(folded && expanded && fork && delegate, `${name}: the folded, expanded, fork and delegate rows render`);
+  assert.ok(chain.every(Boolean), `${name}: the six-level chain renders every level`);
+  assert.ok(folded.counts, `${name}: the folded parent shows counts`);
+  assert.equal(folded.time, null, `${name}: the folded parent trades its relative time for the counts`);
+  assert.match(folded.name, /1 waiting for your answer/, `${name}: the folded parent counts the waiting child`);
+  assert.match(folded.name, /2 running/, `${name}: the folded parent counts the running children`);
+  assert.ok(expanded.time, `${name}: an expanded parent still shows its relative time`);
+  assert.equal(expanded.counts, null, `${name}: an expanded parent shows no counts`);
+  assert.match(fork.name, /Forked session/, `${name}: the fork child is announced as a fork`);
+  assert.match(delegate.name, /Created by session/, `${name}: the delegate child is announced as delegated`);
+  assert.ok(!fork.name.includes("Created by session"), `${name}: the two relations are never confused`);
+  assert.ok(chain[5].indent > chain[2].indent, `${name}: indent still grows up to the third level`);
+  assert.equal(chain[3].indent, chain[5].indent, `${name}: the fourth level stops indenting`);
+  assert.ok(chain[5].titleWidth >= 100, `${name}: the sixth level keeps a readable title box`);
+  assert.ok(chain[3].titleWidth >= 80, `${name}: the third level keeps a usable title box next to its fold toggle`);
+  assertInside(folded.countsBox, folded.rowBox, `${name}: the counts cluster sits inside its row`);
 }
 
 async function main() {

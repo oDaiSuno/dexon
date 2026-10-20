@@ -32,7 +32,6 @@ after(() => host.close());
 
 const FIRST_REPLY = "First reply begins and first reply ends";
 
-// The child stays busy until the test releases its first reply.
 function heldChild(message, secondReply = "Second reply") {
   return host.model.script(message, [
     { hold: true, partial: "First reply begins", rest: " and first reply ends" },

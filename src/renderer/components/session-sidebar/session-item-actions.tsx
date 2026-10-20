@@ -57,7 +57,7 @@ export function SessionItemActionsMenu({
       className="composer-pop-in"
       style={{
         position: "absolute",
-        top: 36,
+        top: 34,
         right: 0,
         zIndex: 50,
         transformOrigin: "top right",

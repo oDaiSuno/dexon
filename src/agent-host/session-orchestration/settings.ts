@@ -36,13 +36,18 @@ function applySettings(value: unknown): void {
   if (changed) onSettingsChanged?.();
 }
 
-export async function refreshSessionOrchestrationSettings(): Promise<void> {
+async function pullFromMain(): Promise<unknown> {
   try {
-    const result = await callMain<unknown>("sessionOrchestration.getSettings", undefined, SETTINGS_PULL_TIMEOUT_MS);
-    applySettings(unwrapSettings(result));
+    return await callMain<unknown>("sessionOrchestration.getSettings", undefined, SETTINGS_PULL_TIMEOUT_MS);
   } catch {
-    // Main owns persistence; the settings already in force stay valid.
+    return undefined;
   }
+}
+
+export async function refreshSessionOrchestrationSettings(): Promise<void> {
+  const answer = await pullFromMain();
+  if (answer === undefined) return;
+  applySettings(unwrapSettings(answer));
 }
 
 export function initializeSessionOrchestrationSettings(options: { onSettingsChanged: () => void }): void {

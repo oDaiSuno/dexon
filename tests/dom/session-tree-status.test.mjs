@@ -10,8 +10,6 @@ after(restoreGlobals);
 const AWAITING = "Waiting for your answer";
 const FAILED = "Last turn failed";
 
-// A parent with one child asking a question and two children running: the
-// shape a reader needs to see without opening the tree.
 function mixedTree() {
   return [
     treeSession("agg-parent", { name: "Aggregate parent", created: minutesAgo(30), modified: minutesAgo(30) }),

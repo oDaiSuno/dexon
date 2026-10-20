@@ -15,6 +15,9 @@ await runRendererElectronCheck({
     "skill-and-attachment-chips-share-a-line",
     "bubble-chip-matches-composer-chip",
     "clicking-a-bubble-chip-reveals-the-file",
+    "message-from-another-session-names-it",
+    "tool-card-links-to-the-session-it-created",
+    "session-path-names-and-opens-ancestors",
     "dark-theme-bubble",
   ],
 });

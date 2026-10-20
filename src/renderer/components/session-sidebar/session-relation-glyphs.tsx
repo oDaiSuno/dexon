@@ -1,9 +1,5 @@
 import type { SessionRelation } from "@shared/session-orchestration";
 
-// The two ways a session enters the tree: a copy of an existing conversation
-// (fork) and work handed to a new session (delegate). Shape carries the
-// difference; the row's accessible name states it in words.
-
 export function ForkSessionGlyph({ size = 10 }: { size?: number }) {
   return (
     <svg

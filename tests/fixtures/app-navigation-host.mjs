@@ -400,8 +400,6 @@ export function navigationBoundary({
     },
     runningSubscribers: () => runningListeners.size,
     sessionChangedSubscribers: () => sessionChangedListeners.size,
-    // A live-status frame as the Host broadcasts it: which sessions run, plus
-    // the live status of every live session that is not plain idle.
     running(sessionIds, sessionStatuses = {}) {
       runningSessions.clear();
       for (const id of sessionIds) runningSessions.add(id);
@@ -413,8 +411,6 @@ export function navigationBoundary({
           sessionStatuses,
         });
     },
-    // The Host rewrote a session and told the sidebar about it (a turn just
-    // added a message, a rename landed, the CLI touched the file).
     updateSession(sessionId, patch) {
       const detail = details.find((item) => item.sessionId === sessionId);
       if (!detail) throw new Error(`Fixture cannot update unknown session ${sessionId}`);

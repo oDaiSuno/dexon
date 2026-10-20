@@ -15,8 +15,6 @@ const MODELS = [
   { id: "held-model-d", reasoning: true },
 ];
 
-// The collaborator model Settings section: every Agent-created session runs on
-// the cheaper model at a lower thinking level unless the Agent says otherwise.
 const host = await startSessionOrchestrationHost({
   name: "orchestration-overrides",
   models: MODELS,

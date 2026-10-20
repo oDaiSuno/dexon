@@ -109,7 +109,6 @@ export function subscribeRunningSessions(listener: (ids: string[]) => void): () 
   };
 }
 
-/** Subscribe to every status broadcast, including awaiting-input and failure transitions. */
 export function subscribeSessionStatuses(listener: () => void): () => void {
   return subscribeRunningSessions(() => listener());
 }

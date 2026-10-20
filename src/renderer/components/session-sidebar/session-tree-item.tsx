@@ -4,10 +4,6 @@ import { MAX_TREE_INDENT_DEPTH, sessionRelation, type SessionTreeNode } from "@/
 import { descendantActivity, ownActivity, type SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionItem } from "./session-item";
 
-// One row of the session tree plus its children. The row shows only its own
-// activity while the subtree is open; once folded, the parent speaks for
-// everything below it so a waiting session stays visible from the outside.
-
 export function SessionTreeItem({
   node,
   selectedSessionId,
