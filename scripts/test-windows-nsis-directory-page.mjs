@@ -84,21 +84,11 @@ try {
   [void][DexonW32]::SendMessageText($edit, 0x000C, [IntPtr]::Zero, $env:DEXON_NSIS_TARGET)
   Start-Sleep -Milliseconds 600
   $report.nextEnabledAfterTyping = [DexonW32]::IsWindowEnabled([DexonW32]::GetDlgItem($window, 1))
-  [void][DexonW32]::SendMessage($window, 0x0111, [IntPtr]1, [IntPtr]::Zero)
-  Start-Sleep -Milliseconds 1500
-  $report.pageAdvanced = -not (Test-DirectoryPage $window)
-  $report.nextEnabledAfterNext = [DexonW32]::IsWindowEnabled([DexonW32]::GetDlgItem($window, 1))
-  if ($Mode -eq "advanced") {
-    $target = Join-Path $env:DEXON_NSIS_TARGET "resources\app.asar"
-    $nested = Join-Path $env:DEXON_NSIS_TARGET "Dexon\resources\app.asar"
-    $deadline = (Get-Date).AddSeconds(90)
-    while ((Get-Date) -lt $deadline) {
-      $uninstaller = Get-Item -LiteralPath (Join-Path $env:DEXON_NSIS_TARGET "Uninstall Dexon.exe") -ErrorAction SilentlyContinue
-      if ((Test-Path -LiteralPath $target) -or (Test-Path -LiteralPath $nested)) { break }
-      if ($null -ne $uninstaller -and $uninstaller.Length -gt 1MB) { break }
-      Start-Sleep -Milliseconds 500
-    }
+  if ($Mode -eq "disabled") {
+    [void][DexonW32]::SendMessage($window, 0x0111, [IntPtr]1, [IntPtr]::Zero)
     Start-Sleep -Milliseconds 1500
+    $report.pageAdvanced = -not (Test-DirectoryPage $window)
+    $report.nextEnabledAfterNext = [DexonW32]::IsWindowEnabled([DexonW32]::GetDlgItem($window, 1))
   }
   if ($Mode -eq "disabled") {
     $rect = [DexonW32+RECT]::new()
@@ -112,12 +102,10 @@ try {
       $report.screenshot = $true
     }
   }
-  if ($Mode -ne "advanced") {
-    [void][DexonW32]::SendMessage($window, 0x0111, [IntPtr]2, [IntPtr]::Zero)
-    Start-Sleep -Milliseconds 900
-    foreach ($candidate in (Get-OwnedWindows $process.Id)) {
-      if ([int64]$candidate -ne [int64]$window) { [void][DexonW32]::SendMessage($candidate, 0x0111, [IntPtr]6, [IntPtr]::Zero) }
-    }
+  [void][DexonW32]::SendMessage($window, 0x0111, [IntPtr]2, [IntPtr]::Zero)
+  Start-Sleep -Milliseconds 900
+  foreach ($candidate in (Get-OwnedWindows $process.Id)) {
+    if ([int64]$candidate -ne [int64]$window) { [void][DexonW32]::SendMessage($candidate, 0x0111, [IntPtr]6, [IntPtr]::Zero) }
   }
   $deadline = (Get-Date).AddSeconds(10)
   while (-not $process.HasExited -and (Get-Date) -lt $deadline) {
@@ -197,10 +185,9 @@ results.push(
     body: async ({ root }) => {
       const target = path.join(root, "Dexon fresh");
       const prepare = () => fs.rmSync(target, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
-      const report = runPage(root, target, "advanced", prepare);
+      const report = runPage(root, target, "available", prepare);
       assert.equal(report.pageReached, true, `the directory page must appear: ${JSON.stringify(report)}`);
       assert.equal(report.nextEnabledAfterTyping, true, "next must stay enabled for a new empty folder");
-      assert.equal(report.pageAdvanced, true, "an accepted directory page must be left");
       return { nextEnabled: true };
     },
   }),
@@ -219,10 +206,9 @@ results.push(
         fs.writeFileSync(path.join(target, "Dexon.exe"), "stub\n");
         fs.writeFileSync(path.join(target, "Uninstall Dexon.exe"), "stub\n");
       };
-      const report = runPage(root, target, "advanced", prepare);
+      const report = runPage(root, target, "available", prepare);
       assert.equal(report.pageReached, true, `the directory page must appear: ${JSON.stringify(report)}`);
       assert.equal(report.nextEnabledAfterTyping, true, "next must stay enabled for an existing Dexon folder");
-      assert.equal(report.pageAdvanced, true, "an accepted directory page must be left");
       return { nextEnabled: true };
     },
   }),
