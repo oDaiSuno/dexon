@@ -9,14 +9,25 @@ import {
   type MouseEvent,
   type ReactNode,
 } from "react";
-import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
+import ReactMarkdown, {
+  defaultUrlTransform,
+  type Components,
+  type Options as ReactMarkdownOptions,
+} from "react-markdown";
 import { SyntaxHighlighter, vs, vscDarkPlus } from "@/lib/syntax-highlight";
 import { useTheme } from "@/hooks/useTheme";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { resolveLocalFileHref } from "@/lib/file-links";
-import { markdownRehypePlugins, markdownRemarkPlugins } from "@/lib/markdown";
+import {
+  markdownRehypePlugins,
+  markdownRemarkPlugins,
+  userMessageRehypePlugins,
+  userMessageRemarkPlugins,
+  userMessageRemarkRehypeOptions,
+} from "@/lib/markdown";
 import { shouldHighlightCode } from "@/lib/code-highlight-policy";
 import { mermaidCacheKey, renderMermaidSvg } from "@/lib/mermaid-renderer";
+import { remarkLeadingSkill } from "@shared/markdown-attachment-tokens";
 import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
 import { scaledChatFont } from "@/lib/chat-appearance";
@@ -29,6 +40,18 @@ interface MarkdownBodyProps {
   imageBasePath?: string;
   sourceSessionId?: string | null;
   onOpenFile?: (filePath: string) => void;
+  inlineChips?: InlineChips;
+}
+
+export interface InlineChips {
+  leadingSkill?: string | null;
+  attachment: (token: { path: string; quoted: boolean }) => ReactNode;
+  skill: (name: string) => ReactNode;
+}
+
+interface ChipNodeData {
+  attachmentToken?: { path: string; quoted: boolean };
+  skillToken?: { name: string };
 }
 
 type MarkdownRenderContextValue = Pick<
@@ -153,6 +176,18 @@ const markdownComponents: Components = {
   table: MarkdownTable,
 };
 
+const InlineChipsContext = createContext<InlineChips | null>(null);
+
+function InlineChipSpan({ node, children, ...props }: MarkdownComponentProps<"span">) {
+  const chips = useContext(InlineChipsContext);
+  const data = (node as { data?: ChipNodeData } | undefined)?.data;
+  if (chips && data?.attachmentToken) return <>{chips.attachment(data.attachmentToken)}</>;
+  if (chips && data?.skillToken) return <>{chips.skill(data.skillToken.name)}</>;
+  return <span {...props}>{children}</span>;
+}
+
+const inlineChipComponents: Components = { ...markdownComponents, span: InlineChipSpan };
+
 // react-markdown 10 strips non-web protocols from href/src via defaultUrlTransform
 // (file: becomes ""). Local file links are this app's core feature, so allow file:.
 type UrlTransform = (url: string, key: string, node: unknown) => string;
@@ -169,26 +204,39 @@ export function MarkdownBody({
   imageBasePath,
   sourceSessionId,
   onOpenFile,
+  inlineChips,
 }: MarkdownBodyProps) {
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
     () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile }),
     [cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
   );
+  const hasInlineChips = inlineChips !== undefined;
+  const leadingSkill = inlineChips?.leadingSkill ?? null;
+  const remarkPlugins = useMemo<ReactMarkdownOptions["remarkPlugins"]>(() => {
+    if (!hasInlineChips) return markdownRemarkPlugins;
+    if (leadingSkill === null) return userMessageRemarkPlugins;
+    return [...userMessageRemarkPlugins, [remarkLeadingSkill, leadingSkill]];
+  }, [hasInlineChips, leadingSkill]);
+  const rehypePlugins = hasInlineChips ? userMessageRehypePlugins : markdownRehypePlugins;
+  const components = hasInlineChips ? inlineChipComponents : markdownComponents;
 
   return (
     <SessionProfiler id="MarkdownBody">
       <MarkdownRenderContext.Provider value={renderContext}>
-        <div className={["markdown-body", className].filter(Boolean).join(" ")}>
-          <ReactMarkdown
-            remarkPlugins={markdownRemarkPlugins}
-            rehypePlugins={markdownRehypePlugins}
-            urlTransform={fileAwareUrlTransform}
-            components={markdownComponents}
-          >
-            {normalizedMarkdown}
-          </ReactMarkdown>
-        </div>
+        <InlineChipsContext.Provider value={inlineChips ?? null}>
+          <div className={["markdown-body", className].filter(Boolean).join(" ")}>
+            <ReactMarkdown
+              remarkPlugins={remarkPlugins}
+              rehypePlugins={rehypePlugins}
+              remarkRehypeOptions={hasInlineChips ? userMessageRemarkRehypeOptions : undefined}
+              urlTransform={fileAwareUrlTransform}
+              components={components}
+            >
+              {normalizedMarkdown}
+            </ReactMarkdown>
+          </div>
+        </InlineChipsContext.Provider>
       </MarkdownRenderContext.Provider>
     </SessionProfiler>
   );

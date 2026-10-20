@@ -64,7 +64,7 @@ export function ChatWindow(props: Props) {
     insertEditedContent,
     loadDeferredContent,
     thinkingExpansionStore,
-    assistantRenderParts,
+    assistantBlockCache,
     processDetailsExpansionStore,
     agentPhase,
     retryInfo,
@@ -193,7 +193,7 @@ export function ChatWindow(props: Props) {
                     insertEditedContent={insertEditedContent}
                     loadDeferredContent={loadDeferredContent}
                     thinkingExpansionStore={thinkingExpansionStore}
-                    assistantRenderParts={assistantRenderParts}
+                    assistantBlockCache={assistantBlockCache}
                     processDetailsExpansionStore={processDetailsExpansionStore}
                   />
 

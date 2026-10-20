@@ -1,4 +1,4 @@
-export type MessageRenderRole = "message" | "process" | "process-final" | "final";
+export type MessageRenderRole = "message" | "process" | "answer" | "failure";
 
 export class MessageRenderKeyRegistry {
   private readonly localKeys = new WeakMap<object, string>();

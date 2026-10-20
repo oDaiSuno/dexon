@@ -984,6 +984,21 @@
   - a space inside an unfinished quoted query closes it as a chip
   - a non-path @word keeps its space as plain text
 - **输入框原生编辑（`npm run test:composer-editing-electron`，真实 Electron）**：上列 file-reference 中补全、本地文件、截图暂存、退格、显示与移除、重建、空格结束路径、Esc 后结束文件夹、带引号路径共 9 项，以及 skill-reference 中选择、替换、开头命令、插入、退格、详情与移除、Enter 发送共 7 项，因依赖 JSDOM 未实现的原生编辑命令移入该检查。
+- **用户气泡胶囊（`tests/dom/user-message-chips.test.mjs`，13 个测试）**：以真实 `MessageView` 挂载，只通过角色、文字、`title` 和元素标签观察用户看到的结果，期望值全部来自规格常量，不经 `findAttachmentTokens` / `attachmentTokenName` 重算。
+  - a sentence with two attachments stays one paragraph with the chips inline
+  - a fenced command keeps its attachment text inside one complete code block
+  - an attachment inside inline code stays literal text instead of a chip
+  - a prose attachment becomes a chip with no leftover @ and no local-file link
+  - chips show the file name and keep the full path in the tooltip
+  - markdown characters inside a path do not reformat the chip
+  - a mention and an email address stay ordinary text
+  - a skill chip and an attachment chip share a paragraph with the prose for the typed command
+  - a skill chip and an attachment chip share a paragraph with the prose for pi's expanded block
+  - the copy button copies the message the user sent, with the full paths
+  - clicking a chip reveals the file and an unlocatable path is not clickable
+  - raw html in a message cannot forge a chip or a reveal control
+  - a focused chip keeps keyboard focus when an image preview finishes loading
+- **用户气泡原生验收（`npm run test:user-bubble-electron`，真实 Electron）**：上列 12 项里，一句话是否保持同一行、代码块是否完整、胶囊是否与输入框胶囊同款外观、点击与 Tab 回车能否定位文件、暗色下是否横向溢出共 7 个场景 JSDOM 测不出，移入真实 Chromium 测量；胶囊文件名与完整路径提示、复制原文、伪造胶囊仍由 JSDOM 覆盖。
 - **chat-input-focus-frame.test.mjs**（1 个测试）
   - hiding cancels a queued focus-return frame before it can run
 - **chat-input-line-budget.test.mjs**（2 个测试）
@@ -1045,7 +1060,7 @@
 - **process-flow.test.mjs**（3 个测试）
   - thinking row renders a summary chip and a gray full-text box without any chevron
   - tool call rows keep their detail expansion but expose no chevron
-  - items render in the given order with a running spinner state preserved
+  - process items keep their supplied order and show a running indicator
 - **resource-dom-environment-present.test.mjs**（2 个测试）
   - installDomEnvironment overwrites a pre-existing property
   - restoreGlobals restores the exact pre-import descriptor and value
@@ -1591,12 +1606,13 @@
 - **plugin-presentation.test.mjs**（2 个测试）
   - formats plugin resource counts with the selected locale
   - localizes plugin status and version summaries
-- **process-flow.test.mjs**（6 个测试）
+- **process-flow.test.mjs**（7 个测试）
   - formatTurnDuration renders compact seconds/minutes/hours
   - computeTurnDurationSeconds needs both timestamps and a positive gap
-  - flattens thinking/toolCall/text interleaved across messages in original order
-  - empty thinking/text blocks are skipped but keep their original block index
-  - final message block subset uses subset indices and counts toward totals
+  - flattens thinking and tool calls interleaved across messages in original order
+  - empty thinking blocks are skipped but keep their original block index
+  - a block subset keeps the message's original block indices and counts toward totals
+  - when a run drops an empty step, the stream keeps the later steps' own positions
   - custom messages always contribute one item
 - **quick-channel-binding-layout.test.mjs**（4 个测试）
   - right-aligns the desktop popover without crossing the viewport gutter
@@ -1750,10 +1766,11 @@
   - links local filenames containing spaces and absolute directories without extensions
   - AST transform skips existing links, images, code, inline code, HTML, and math
   - does not treat web URLs, relative @ references, or bare drive roots as local paths
-- **message-display.test.mjs**（7 个测试）
-  - splits trailing final answer blocks from process blocks
-  - keeps pre-tool text in process blocks
-  - does not expose text before a trailing tool call as final answer
+- **message-display.test.mjs**（8 个测试）
+  - an interleaved reply becomes answer, process, answer, process, answer runs
+  - a reply that ends on a tool call still keeps its sentence as answer content
+  - neighbouring blocks of the same kind join one run
+  - when an empty thinking step sits inside a run, the later steps keep their own positions
   - drops empty thinking blocks after completion
   - keeps empty thinking while streaming
   - keeps an empty failed assistant message renderable and exposes its provider detail
@@ -2170,3 +2187,57 @@ ThinkingExpansionStore / Registry 去掉 keys / size 测试出口，改从公开
 监听器/观察器/帧/定时器数量及选择第一个回调的相关用例已扩展改写为事件、时间与页面结果；日志保留规则按文本与复制结果验证，不固定 DOM 子层级。故障注入位置随可见结果同步，辅助层先登记清理再挂载。会话目录、聊天可见性和历史加载测试按责任分离支持代码，避免继续扩大单个测试文件。
 
 生产启动的第十三节“尚未运行”是当时的历史状态。本轮已真实跑通生产入口、第二实例交接、首实例继续服务和正常退出；所有原生业务检查共用隔离环境与当前进程的完成证据。完整结果、后续统一入口的重新验证和文件摘要见 `.artifacts/test-compliance-20261015-093451/`；修复细节与边界见 `docs/test-rebuild-review.md` 第 13 节。Windows、打包和线上模型能力不在本轮通过范围内。
+
+## 十六、issue #3 修复记录（正文按类型折叠，2026-10-19）
+
+规则改变：一轮回复里某个内容块是否折，由它的类型决定，而不再由它是否位于回复最后决定。正文（text/image）在任何位置都直接显示为正常回复；思考、工具调用与自定义过程消息可以折叠，相邻的这类内容（含跨助手消息）仍合并成一个过程详情分组；正文会打断分组，既不进入分组也不被移到末尾。
+
+**新增界面规格：`tests/dom/chat-answer-visibility.test.mjs`（10 个测试，真实 `ChatWindow` 挂载）**
+
+- when a reopened turn interleaves a sentence, a tool call, a sentence and thinking in one reply, the reader sees all the sentences where they were written
+- when a turn keeps its sentences in several replies around tool results, the reader sees every sentence in the order it was written
+- when a turn ends on a tool call with no closing sentence, the sentences written before it stay readable
+- when the reader interrupts a turn after a sentence, the sentences written before the interruption stay readable
+- when one reply holds nothing but thinking and a tool call, the reader finds them behind a single group that opens to its details
+- when consecutive replies hold only thinking and tool calls, the reader finds them all behind one group that opens to every row
+- when the reader opens and closes the process groups, every sentence stays in place exactly once
+- when a turn streams its sentences one after another, they are readable while streaming and stay so once the turn completes
+- when a reply is nothing but a sentence, the reader sees a plain reply with nothing to open
+- when a provider failure lands in the middle of a turn, the reader sees it between the process details and the reply
+
+夹具集中在 `tests/fixtures/chat-answer-turn.mjs`（issue 复现示例：正文 → 工具调用 → 正文 → 思考 → 正文，以及以工具调用结束、被中断、纯正文、中途失败、连续过程内容等收尾方式）。
+
+**被新规则推翻而改写的规格：**
+
+| 文件                                            | 旧测试名                                                                      | 现测试名                                                                           |
+| ----------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `src/shared/message-display.test.mjs`           | splits trailing final answer blocks from process blocks                       | an interleaved reply becomes answer, process, answer, process, answer runs         |
+| `src/shared/message-display.test.mjs`           | keeps pre-tool text in process blocks                                         | a reply that ends on a tool call still keeps its sentence as answer content        |
+| `src/shared/message-display.test.mjs`           | does not expose text before a trailing tool call as final answer              | neighbouring blocks of the same kind join one run                                  |
+| `src/renderer/lib/process-flow.test.mjs`        | flattens thinking/toolCall/text interleaved across messages in original order | flattens thinking and tool calls interleaved across messages in original order     |
+| `src/renderer/lib/process-flow.test.mjs`        | empty thinking/text blocks are skipped but keep their original block index    | empty thinking blocks are skipped but keep their original block index              |
+| `src/renderer/lib/process-flow.test.mjs`        | final message block subset uses subset indices and counts toward totals       | a block subset keeps the message's original block indices and counts toward totals |
+| `src/renderer/components/process-flow.test.mjs` | items render in the given order with a running spinner state preserved        | process items keep their supplied order and show a running indicator               |
+
+**同时删除的死代码：**`splitFinalAssistantBlocks` / `findFinalAssistantIndex` / `hasFinalAssistantAnswer` / `hasDisplayableProcessMessage` / `segmentTurnAtFailures` / `getAssistantRenderParts` / `withAssistantBlocks` / `countToolCallBlocks`，以及 `ProcessFlowItem` 的 `text` 分支（正文不再可能进入过程流）。
+
+**未表达为测试的范围：**图片块（image）按规则也属于正文，但界面里助手消息的 image 块渲染为空，没有用户可见结果可断言；等界面真正展示图片正文时再补规格。
+
+**验证：**新文件 10/10 全绿；全套件 1,603 通过、1 跳过（Windows 专属）、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture、check:i18n、check:design、check:contract、check:test-infra 均通过。
+
+### 十六之一、评审补修：空白的思考步骤不再让后面的步骤错位（2026-10-19）
+
+PR #15 的评审指出：一条助手消息里若有被丢弃的空思考块夹在过程内容中间，后面块的位置会被往前挤一位；过程详情里的思考行用这个位置当展开状态的记忆键，于是和生成过程中用的键对不上。
+
+**为什么没有用户界面层的新测试：**这条缺陷在界面上无法被稳定观测，三条机制把它盖住了——(1) 生成中的思考块整段默认展开（正在生成时展开态被强制打开），点击与否都看不出差别；(2) 三个阶段用的消息标识不同（生成气泡 → 本轮历史 → 重新载入），展开状态的键本来就会换一次；(3) 展开状态存储对没见过的键取"上一次点击后的默认值"，所以新键一出生就是展开的。三条叠加后，有缺陷与修好后的界面表现完全一致。改为在能确定观测的缝隙给出字面期望值：
+
+| 文件                                     | 测试名                                                                                  | 修前                                 | 修后                           |
+| ---------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------ |
+| `src/shared/message-display.test.mjs`    | when an empty thinking step sits inside a run, the later steps keep their own positions | 运行段根本说不出每个保留块的原始位置 | 段内保留块的位置为 `[0, 2, 3]` |
+| `src/renderer/lib/process-flow.test.mjs` | when a run drops an empty step, the stream keeps the later steps' own positions         | `[0, 1, 2]`                          | `[0, 2, 3]`                    |
+
+**改法：**段落不再只记一个起点，而是每个被保留的块自带它在消息里的原始位置（`AssistantBlockItem { block, index }`）；过程流直接用它做块下标，不再用"起点 + 数组下标"推算，`firstBlockIndex` 随之删除。
+
+**同时更新：**上面两条既有规格（`a block subset keeps ...`）改用新形状但保留原有字面期望值；节十六列出的界面规格数量不变。
+
+**验证：**新规格先红后绿（红证据见阶段报告）；全套件 1,606 个测试、1,605 通过、1 跳过、0 失败；typecheck（双 tsconfig）、eslint、prettier、check:architecture 均通过。

@@ -1,8 +1,6 @@
 import { Fragment } from "react";
 import type { ProcessFlowItem } from "@/lib/process-flow";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
-import { scaledChatFont } from "@/lib/chat-appearance";
-import { MarkdownBody } from "./MarkdownBody";
 import { CompactionMessageView, CustomMessageView } from "./messages/SystemMessages";
 import { DeferredContentActions } from "./messages/shared";
 import { ThinkingBlock } from "./messages/ThinkingBlock";
@@ -10,9 +8,8 @@ import { ToolCallBlock } from "./messages/ToolCallBlock";
 
 /**
  * Continuous process stream inside the collapsed process-details group:
- * thinking rows, tool-call rows, interstitial text and custom messages
- * interleave in the order the agent produced them — no per-message usage
- * lines, no per-message spacing.
+ * thinking rows, tool-call rows and custom messages interleave in the order
+ * the agent produced them — no per-message usage lines, no per-message spacing.
  */
 export function ProcessFlow({
   items,
@@ -54,17 +51,6 @@ export function ProcessFlow({
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />
               </Fragment>
-            );
-          case "text":
-            return (
-              <div
-                key={item.key}
-                style={{ fontSize: scaledChatFont(13), lineHeight: 1.65, color: "var(--bui-ink-2)", minWidth: 0 }}
-              >
-                <MarkdownBody cwd={cwd} onOpenFile={onOpenFile}>
-                  {item.block.text}
-                </MarkdownBody>
-              </div>
             );
           case "custom": {
             const view =

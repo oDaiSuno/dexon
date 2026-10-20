@@ -1,18 +1,12 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
-import { buildProcessFlowItems, computeTurnDurationSeconds, type ProcessFlowSource } from "@/lib/process-flow";
-import type { AgentMessage, AssistantMessage, CustomMessage } from "@/lib/types";
+import type { AgentMessage } from "@/lib/types";
 import { type ReactNode } from "react";
 import { MessageView } from "../MessageView";
 import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
 import { ProcessFlow } from "../ProcessFlow";
 import { SessionProfiler } from "../SessionProfiler";
-import {
-  findFinalAssistantIndex,
-  findRetriedFailureIndices,
-  failureOnlyMessage,
-  getAssistantRenderParts,
-  segmentTurnAtFailures,
-} from "./shared";
+import { findRetriedFailureIndices } from "./shared";
+import { type TurnAnswerPiece, type TurnFailurePiece, type TurnProcessPiece, buildTurnLayout } from "./turn-layout";
 import type { ChatWindowState } from "./use-chat-window";
 export function ChatMessages({
   messages,
@@ -34,7 +28,7 @@ export function ChatMessages({
   insertEditedContent,
   loadDeferredContent,
   thinkingExpansionStore,
-  assistantRenderParts,
+  assistantBlockCache,
   processDetailsExpansionStore,
 }: Pick<
   ChatWindowState,
@@ -57,7 +51,7 @@ export function ChatMessages({
   | "insertEditedContent"
   | "loadDeferredContent"
   | "thinkingExpansionStore"
-  | "assistantRenderParts"
+  | "assistantBlockCache"
   | "processDetailsExpansionStore"
 >) {
   return (() => {
@@ -96,6 +90,13 @@ export function ChatMessages({
         (lastUserMsgRef as { current: HTMLDivElement | null }).current = el;
       }
     };
+
+    const refForPiece = (refIndex: number | undefined) =>
+      refIndex === undefined
+        ? undefined
+        : (el: HTMLDivElement | null) => {
+            messageRefs.current[refIndex] = el;
+          };
 
     const renderMessage = (
       idx: number,
@@ -160,6 +161,68 @@ export function ChatMessages({
       );
     };
 
+    const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
+      const toolData = toolMessageIndex.get(messages[piece.index]);
+      return (
+        <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+          <SessionProfiler id="MessageView">
+            <MessageView
+              sessionId={session?.id}
+              message={piece.hasFooter ? piece.footerBody : piece.body}
+              toolResults={toolData?.results}
+              toolCallDurations={toolData?.durations}
+              modelNames={modelNames}
+              cwd={messageCwd}
+              onOpenFile={onOpenFile}
+              entryId={piece.entryId}
+              onLoadDeferredContent={loadDeferredContent}
+              showTimestamp={piece.hasFooter}
+              prevTimestamp={piece.prevTimestamp}
+              thinkingExpansionStore={thinkingExpansionStore}
+            />
+          </SessionProfiler>
+        </div>
+      );
+    };
+
+    const renderProcess = (piece: TurnProcessPiece): ReactNode => (
+      <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+        <ProcessDetailsGroup
+          stateKey={piece.key}
+          expansionStore={processDetailsExpansionStore}
+          messageCount={piece.flow.messageCount}
+          toolCallCount={piece.flow.toolCallCount}
+          durationSeconds={piece.durationSeconds}
+        >
+          <ProcessFlow
+            items={piece.flow.items}
+            cwd={messageCwd}
+            onOpenFile={onOpenFile}
+            onLoadDeferredContent={loadDeferredContent}
+            thinkingExpansionStore={thinkingExpansionStore}
+          />
+        </ProcessDetailsGroup>
+      </div>
+    );
+
+    const renderFailure = (piece: TurnFailurePiece): ReactNode => (
+      <div key={piece.key} ref={refForPiece(piece.refIndex)}>
+        <SessionProfiler id="MessageView">
+          <MessageView
+            sessionId={session?.id}
+            message={piece.message}
+            modelNames={modelNames}
+            cwd={messageCwd}
+            onOpenFile={onOpenFile}
+            entryId={entryIds[piece.index]}
+            onLoadDeferredContent={loadDeferredContent}
+            thinkingExpansionStore={thinkingExpansionStore}
+            retried={piece.retried}
+          />
+        </SessionProfiler>
+      </div>
+    );
+
     const rendered: ReactNode[] = [];
     for (let idx = 0; idx < messages.length;) {
       const msg = messages[idx];
@@ -173,118 +236,37 @@ export function ChatMessages({
       let endIdx = userIdx + 1;
       while (endIdx < messages.length && messages[endIdx].role !== "user") endIdx += 1;
 
-      const finalAssistantIdx = findFinalAssistantIndex(messages, userIdx, endIdx);
-
-      if (finalAssistantIdx === -1) {
-        for (let renderIdx = userIdx; renderIdx < endIdx; renderIdx++) {
-          rendered.push(renderMessage(renderIdx));
-        }
-        idx = endIdx;
-        continue;
-      }
-
       const isLiveTail =
         (agentRunning || streamState.isStreaming) && endIdx === messages.length && userIdx === lastUserIdx;
-      if (isLiveTail) {
-        for (let renderIdx = userIdx; renderIdx < endIdx; renderIdx++) {
+      const layout = isLiveTail
+        ? null
+        : buildTurnLayout({
+            messages,
+            userIdx,
+            endIdx,
+            entryIds,
+            toolData: toolMessageIndex,
+            refIndexFor: (messageIndex) => visibleRefIndexByMessage.get(messageIndex),
+            keyFor: (message, entryId, role) => messageRenderKeys.keyFor(message, entryId, role),
+            retriedIndices: retriedFailureIndices,
+            cache: assistantBlockCache,
+          });
+
+      rendered.push(renderMessage(userIdx));
+      if (!layout || layout.lastAssistantIndex === -1) {
+        for (let renderIdx = userIdx + 1; renderIdx < endIdx; renderIdx++) {
           rendered.push(renderMessage(renderIdx));
         }
         idx = endIdx;
         continue;
       }
 
-      rendered.push(renderMessage(userIdx));
-
-      const finalAssistant = messages[finalAssistantIdx] as AssistantMessage;
-      const finalParts = getAssistantRenderParts(assistantRenderParts, finalAssistant);
-      const finalAnswerMessage = finalParts.answerMessage;
-      const segments = segmentTurnAtFailures(messages, userIdx, finalAssistantIdx);
-      const turnDurationSeconds = computeTurnDurationSeconds(
-        (messages[userIdx] as AgentMessage & { timestamp?: number }).timestamp,
-        (finalAssistant as AgentMessage & { timestamp?: number }).timestamp,
-      );
-      const finalKey = messageRenderKeys.keyFor(messages[finalAssistantIdx], entryIds[finalAssistantIdx], "final");
-      const userKey = messageRenderKeys.keyFor(messages[userIdx], entryIds[userIdx], "message");
-
-      segments.forEach((segment, segmentIdx) => {
-        if (segment.kind === "failure") {
-          rendered.push(
-            renderMessage(segment.index, {
-              messageOverride: failureOnlyMessage(messages[segment.index] as AssistantMessage),
-            }),
-          );
-          return;
-        }
-        const isLastSegment = segmentIdx === segments.length - 1;
-        const processSources: ProcessFlowSource[] = segment.indices.map((processIdx) => ({
-          message: messages[processIdx] as AssistantMessage | CustomMessage,
-          entryId: entryIds[processIdx],
-          prevTimestamp:
-            processIdx > 0 ? (messages[processIdx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined,
-          toolData: toolMessageIndex.get(messages[processIdx]),
-        }));
-        if (isLastSegment && finalParts.processMessage) {
-          processSources.push({
-            message: finalAssistant,
-            blocks: finalParts.processBlocks,
-            entryId: entryIds[finalAssistantIdx],
-            prevTimestamp:
-              finalAssistantIdx > 0
-                ? (messages[finalAssistantIdx - 1] as AgentMessage & { timestamp?: number }).timestamp
-                : undefined,
-            toolData: toolMessageIndex.get(finalAssistant),
-          });
-        }
-        const processFlow = buildProcessFlowItems(processSources, (message, entryId) =>
-          messageRenderKeys.keyFor(message, entryId, "process"),
-        );
-        if (processFlow.messageCount === 0) return;
-
-        const processGroupKey = `process-group:${userKey}:${finalKey}${segmentIdx === 0 ? "" : `:${segmentIdx}`}`;
-        const processRefIdx =
-          segment.indices
-            .map((processIdx) => visibleRefIndexByMessage.get(processIdx))
-            .find((value): value is number => typeof value === "number") ??
-          (isLastSegment && !finalAnswerMessage ? visibleRefIndexByMessage.get(finalAssistantIdx) : undefined);
-        rendered.push(
-          <div
-            key={processGroupKey}
-            ref={
-              processRefIdx === undefined
-                ? undefined
-                : (el) => {
-                    messageRefs.current[processRefIdx] = el;
-                  }
-            }
-          >
-            <ProcessDetailsGroup
-              stateKey={processGroupKey}
-              expansionStore={processDetailsExpansionStore}
-              messageCount={processFlow.messageCount}
-              toolCallCount={processFlow.toolCallCount}
-              durationSeconds={segments.length === 1 ? turnDurationSeconds : undefined}
-            >
-              <ProcessFlow
-                items={processFlow.items}
-                cwd={messageCwd}
-                onOpenFile={onOpenFile}
-                onLoadDeferredContent={loadDeferredContent}
-                thinkingExpansionStore={thinkingExpansionStore}
-              />
-            </ProcessDetailsGroup>
-          </div>,
-        );
-      });
-
-      if (finalAnswerMessage) {
-        rendered.push(
-          renderMessage(finalAssistantIdx, {
-            renderRole: "final",
-            messageOverride: finalAnswerMessage,
-          }),
-        );
+      for (const piece of layout.pieces) {
+        if (piece.kind === "answer") rendered.push(renderAnswer(piece));
+        else if (piece.kind === "process") rendered.push(renderProcess(piece));
+        else rendered.push(renderFailure(piece));
       }
-      for (let renderIdx = finalAssistantIdx + 1; renderIdx < endIdx; renderIdx++) {
+      for (let renderIdx = layout.lastAssistantIndex + 1; renderIdx < endIdx; renderIdx++) {
         rendered.push(renderMessage(renderIdx));
       }
       idx = endIdx;

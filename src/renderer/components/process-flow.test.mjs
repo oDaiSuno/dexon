@@ -48,19 +48,14 @@ test("a tool summary opens its input details", async (t) => {
 
 test("process items keep their supplied order and show a running indicator", async (t) => {
   const view = await mount(t, ProcessFlow, {
-    items: [
-      thinkingItem("t1", "thought"),
-      toolItem("grep", { pattern: "x" }),
-      { kind: "text", key: "tx1", block: { type: "text", text: "checking output" } },
-    ],
+    items: [thinkingItem("t1", "thought"), toolItem("grep", { pattern: "x" }), toolItem("bash", { command: "ls" })],
     thinkingExpansionStore: new ThinkingExpansionStore(),
   });
-  assert.ok(text(view.container, "running"), "the active tool reports its running state");
+  assert.ok(text(view.container, "running"), "the active tools report their running state");
   const summaries = view.container.querySelectorAll("button[aria-expanded]");
-  assert.equal(summaries.length, 2);
+  assert.equal(summaries.length, 3);
   assert.match(summaries[0].textContent, /thought/);
   assert.match(summaries[1].textContent, /x/);
-  const output = text(view.container, "checking output");
-  assert.ok(output);
-  assert.ok(summaries[1].compareDocumentPosition(output) & 4, "the text follows the thinking and tool summaries");
+  assert.match(summaries[2].textContent, /ls/);
+  assert.ok(summaries[1].compareDocumentPosition(summaries[2]) & 4, "the second tool follows the first");
 });

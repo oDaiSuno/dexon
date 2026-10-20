@@ -197,6 +197,7 @@ jobs:
             .artifacts/interactive-tools
             .artifacts/chat-layout-electron
             .artifacts/composer-editing-electron
+            .artifacts/user-bubble-electron
             .artifacts/nav-layout-electron
             .artifacts/browser-electron
             .artifacts/browser-agent-e2e
