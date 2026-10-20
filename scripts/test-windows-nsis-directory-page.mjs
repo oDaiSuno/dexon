@@ -182,7 +182,7 @@ results.push(
           "typing a folder that already holds other files must grey out next before it is clicked; a failure here means NSIS verified only when leaving the page",
         );
       }
-      assert.deepEqual(fs.readdirSync(target).sort(), ["note.txt"], "the refused folder must stay untouched");
+      assert.deepEqual(report.targetEntries, ["note.txt"], "the refused folder must stay untouched");
       assert.equal(fs.existsSync(screenshot), true, "the disabled next button must be captured");
       return { screenshot: path.relative(project, screenshot), report };
     },
@@ -242,7 +242,10 @@ function runPage(root, target, mode, prepare) {
   fs.writeFileSync(script, USER32, "utf8");
   for (let attempt = 1; ; attempt += 1) {
     prepare();
-    const report = runPageOnce(script, target, mode);
+    const report = {
+      ...runPageOnce(script, target, mode),
+      targetEntries: fs.existsSync(target) ? fs.readdirSync(target).sort() : null,
+    };
     removeInstalledCopy(target);
     if (report.window !== false || !crashedBeforeWindow(report) || attempt >= FIRST_INSTALL_ATTEMPTS) return report;
     console.log(workflowWarning(firstInstallCrashWarning(attempt, report.exitCode)));
