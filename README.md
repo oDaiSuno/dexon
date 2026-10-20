@@ -57,7 +57,7 @@ Dexon 基于 [DLYZZT/Pi Agent Desktop](https://github.com/DLYZZT/pi-desktop)（A
 
 ### 模型与扩展统一管理
 
-- 内置 Pi Coding Agent 0.84.0，管理模型提供商和模型配置
+- 内置 Pi Coding Agent 0.84.4，管理模型提供商和模型配置
 - 支持浏览器 OAuth 登录流程
 - 搜索、安装和配置 Skills；管理 Plugins，并沿用 Pi Agent 的扩展体系
 

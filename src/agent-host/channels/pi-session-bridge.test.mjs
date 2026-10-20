@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -144,6 +144,7 @@ const activeTools = async (session) =>
     .filter((tool) => tool.active)
     .map((tool) => tool.name)
     .sort();
+const registeredTools = async (session) => (await session.send({ type: "get_tools" })).map((tool) => tool.name).sort();
 
 test("restoring a channel session uses its saved directory and binding tool selection", async () => {
   const file = path.join(sessions, "saved.jsonl");
@@ -207,6 +208,60 @@ test("tool synchronization changes a live session's active tools and its persist
   await bridge.syncTools(binding({ sessionId: created.sessionId }), ["read"]);
   assert.deepEqual(await activeTools(opened), ["read"]);
   assert.deepEqual(getDesktopSessionToolNames(created.sessionId), ["read"]);
+});
+
+test("SDK PowerShell stays unavailable even when global defaultTools lists it", async () => {
+  const settingsFile = path.join(agent, "settings.json");
+  const originalSettings = readFileSync(settingsFile, "utf8");
+  writeFileSync(
+    settingsFile,
+    JSON.stringify({
+      defaultProvider: "fixture",
+      defaultModel: "fixture",
+      defaultTools: ["read", "powershell", "edit", "write"],
+    }),
+  );
+  writeFileSync(
+    path.join(sessions, "powershell.jsonl"),
+    JSON.stringify({
+      type: "session",
+      version: 3,
+      id: "powershell-session",
+      timestamp: "2026-08-06T00:00:00.000Z",
+      cwd: restoredCwd,
+    }) + "\n",
+  );
+  try {
+    let opened;
+    const bridge = new PiSessionBridge((session) => {
+      opened = session;
+    });
+    await bridge.newSession(binding(), ["read", "edit"]);
+    assert.ok(!(await registeredTools(opened)).includes("powershell"));
+    await bridge.runCommand(binding({ sessionId: "powershell-session", toolNames: ["read"] }), "reload");
+    assert.equal(opened.sessionId, "powershell-session");
+    assert.ok(!(await registeredTools(opened)).includes("powershell"));
+    await bridge.runTurn(
+      binding({ channel: "weixin" }),
+      {
+        id: "message-powershell",
+        channel: "weixin",
+        accountId: "account-one",
+        peer: { kind: "dm", id: "user-one" },
+        sender: { id: "user-one" },
+        text: "hello",
+        mentionsBot: false,
+        attachments: [],
+        timestamp: 1,
+      },
+      undefined,
+      [],
+      ["read", "edit"],
+    );
+    assert.ok(!(await registeredTools(opened)).includes("powershell"));
+  } finally {
+    writeFileSync(settingsFile, originalSettings);
+  }
 });
 
 test("tool synchronization persists an inactive session's selection without starting it", async () => {

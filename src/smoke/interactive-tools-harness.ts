@@ -13,6 +13,7 @@ import {
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import { AgentSessionWrapper } from "../agent-host/rpc-manager";
+import { EXCLUDED_SDK_TOOL_NAMES } from "../agent-host/agent-session/excluded-tools";
 
 configureSmokeEnvironment();
 
@@ -87,6 +88,7 @@ async function run(): Promise<void> {
   const { session } = await createAgentSessionFromServices({
     services,
     sessionManager: SessionManager.create(cwd, sessionDir),
+    excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
   });
   disposeSdk = () => session.dispose();
   wrapper = new AgentSessionWrapper(session, undefined, () => {});

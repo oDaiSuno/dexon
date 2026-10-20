@@ -71,9 +71,9 @@
     "dist": "node scripts/package-desktop.mjs --release"
   },
   "dependencies": {
-    "@earendil-works/pi-ai": "0.84.0",
-    "@earendil-works/pi-coding-agent": "0.84.0",
-    "@earendil-works/pi-telemetry": "0.84.0",
+    "@earendil-works/pi-ai": "0.84.4",
+    "@earendil-works/pi-coding-agent": "0.84.4",
+    "@earendil-works/pi-telemetry": "0.84.4",
     "@larksuiteoapi/node-sdk": "^1.71.1",
     "@lobehub/icons": "^5.6.0",
     "@rc-component/qrcode": "^2.0.0",
@@ -97,7 +97,7 @@
     "yauzl": "3.4.0"
   },
   "overrides": {
-    "@earendil-works/pi-telemetry": "0.84.0"
+    "@earendil-works/pi-telemetry": "0.84.4"
   },
   "devDependencies": {
     "@electron/asar": "3.2.18",

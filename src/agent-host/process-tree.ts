@@ -1,5 +1,6 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const POLL_INTERVAL_MS = 20;
@@ -131,9 +132,14 @@ function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boole
 function taskkill(processId: number, force: boolean): Promise<void> {
   return new Promise((resolve) => {
     const args = ["/PID", String(processId), "/T", ...(force ? ["/F"] : [])];
+    const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
     let command: ChildProcess;
     try {
-      command = spawn("taskkill", args, { shell: false, windowsHide: true, stdio: "ignore" });
+      command = spawn(path.win32.join(systemRoot, "System32", "taskkill.exe"), args, {
+        shell: false,
+        windowsHide: true,
+        stdio: "ignore",
+      });
     } catch {
       resolve();
       return;
