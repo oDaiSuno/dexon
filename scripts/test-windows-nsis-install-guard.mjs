@@ -1,9 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { firstInstall, refusedFreshInstall } from "./windows-nsis-first-install.mjs";
 import {
@@ -20,13 +18,20 @@ import {
   runInstallerWith,
   seedUserFiles,
   sha256,
-  sleepSync,
   snapshotFiles,
   startLockingHelper,
   stopLockingHelper,
   uninstall,
-  walkFiles,
 } from "./windows-nsis-harness.mjs";
+import {
+  attachVirtualDrive,
+  inodeFacts,
+  installFacts,
+  probeFacts,
+  probeLock,
+  probeUninstaller,
+  registryFacts,
+} from "./windows-nsis-cross-drive.mjs";
 import { runNsisScenario } from "./windows-nsis-scenarios.mjs";
 
 if (process.platform !== "win32" || process.arch !== "x64") {
@@ -47,7 +52,6 @@ assert.equal(sha256(previousInstaller), baseline.sha256, "Previous installer doe
 assertCleanUserInstallState();
 
 const label = "nsis-install-guard";
-const HELPER_RELATIVE = "resources/managed-process/win32-x64/pi-managed-process-helper.exe";
 const results = [];
 
 results.push(
@@ -140,8 +144,15 @@ results.push(
       try {
         facts.lock = probeLock(helper.executable);
         if (facts.lock.restored === false) failWithFacts("cross-drive lock probe could not restore the helper", facts);
-        facts.probeStatus = probeUninstaller(installPath, facts);
+        facts.registryBefore = registryFacts(installPath);
+        facts.inodeBefore = inodeFacts(installPath);
+        Object.assign(facts, probeUninstaller(installPath));
+        if (facts.spaced) {
+          failWithFacts("the probe uninstaller path must not contain spaces because _?= has to stay unquoted", facts);
+        }
         Object.assign(facts, probeFacts(installPath, before, helper));
+        facts.registryAfterProbe = registryFacts(installPath);
+        facts.inodeAfterProbe = inodeFacts(installPath);
         if (facts.probeStatus === 0 || facts.missingAfterProbe.count > 0) {
           failWithFacts("cross-drive busy uninstall did not stop", facts);
         }
@@ -175,160 +186,6 @@ console.log(
     currentInstallerSha256: sha256(currentInstaller),
   }),
 );
-
-function freeDriveLetter() {
-  for (const letter of "RSTUVWXYZ") {
-    if (!fs.existsSync(`${letter}:\\`)) return letter;
-  }
-  throw new Error("cross-drive acceptance needs a free drive letter between R and Z");
-}
-
-function runDiskpart(root, lines) {
-  const script = path.join(root, `diskpart-${Date.now()}.txt`);
-  fs.writeFileSync(script, `${lines.join("\r\n")}\r\n`, "utf8");
-  const result = spawnSync("diskpart", ["/s", script], { encoding: "buffer", timeout: 300_000, windowsHide: true });
-  fs.rmSync(script, { force: true });
-  return {
-    status: result.status,
-    error: result.error ? String(result.error) : (result.signal ?? null),
-    output: `${decodeDiskpart(result.stdout)}${decodeDiskpart(result.stderr)}`.trim(),
-  };
-}
-
-function decodeDiskpart(buffer) {
-  if (!buffer || buffer.length === 0) return "";
-  let zeros = 0;
-  for (const byte of buffer) if (byte === 0) zeros += 1;
-  return zeros > buffer.length / 4 ? buffer.toString("utf16le") : buffer.toString("utf8");
-}
-
-function describeDiskpart(result) {
-  return `status=${result.status ?? "none"} error=${result.error ?? "none"} output=${result.output || "(empty)"}`;
-}
-
-function waitForVolume(directory, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (!fs.existsSync(directory) && Date.now() < deadline) sleepSync(500);
-  return fs.existsSync(directory);
-}
-
-function attachVirtualDrive(root) {
-  const image = path.join(root, "cross-drive.vhdx");
-  const letter = freeDriveLetter();
-  const volume = `${letter}:\\`;
-  const created = runDiskpart(root, [
-    `create vdisk file="${image}" maximum=2048 type=expandable`,
-    `select vdisk file="${image}"`,
-    "attach vdisk",
-    "create partition primary",
-    "select partition 1",
-    "format fs=ntfs quick label=DexonAcceptance",
-    `assign letter=${letter}`,
-  ]);
-  if (!waitForVolume(volume, 90_000)) {
-    throw new Error(`cross-drive acceptance needs a second volume; diskpart failed: ${describeDiskpart(created)}`);
-  }
-  return {
-    letter,
-    root: volume,
-    detach: () => {
-      const detached = runDiskpart(root, [`select vdisk file="${image}"`, "detach vdisk"]);
-      const deadline = Date.now() + 20_000;
-      while (fs.existsSync(volume) && Date.now() < deadline) sleepSync(500);
-      if (fs.existsSync(volume)) {
-        throw new Error(`cross-drive acceptance could not detach ${letter}: ${describeDiskpart(detached)}`);
-      }
-      fs.rmSync(image, { force: true, recursive: true, maxRetries: 20, retryDelay: 500 });
-    },
-  };
-}
-
-function stagingFacts() {
-  const temporary = os.tmpdir();
-  const staging = fs
-    .readdirSync(temporary, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && /^ns.*\.tmp$/u.test(entry.name))
-    .map((entry) => path.join(temporary, entry.name, "old-install"))
-    .filter((directory) => fs.existsSync(directory))
-    .map((directory) => ({ path: directory, files: walkFiles(directory).length }));
-  return { count: staging.length, first: staging.slice(0, 5) };
-}
-
-function probeLock(executable) {
-  const parked = `${executable}.probe`;
-  let renameSameDrive;
-  try {
-    fs.renameSync(executable, parked);
-    fs.renameSync(parked, executable);
-    renameSameDrive = { ok: true };
-  } catch (error) {
-    renameSameDrive = { ok: false, code: error.code ?? String(error) };
-    if (fs.existsSync(parked) && !fs.existsSync(executable)) fs.renameSync(parked, executable);
-  }
-  const copy = path.join(os.tmpdir(), `dexon-helper-copy-${process.pid}.exe`);
-  fs.copyFileSync(executable, copy);
-  let copyThenDelete;
-  let restored = null;
-  try {
-    fs.unlinkSync(executable);
-    copyThenDelete = { deleted: true };
-    try {
-      fs.copyFileSync(copy, executable);
-      restored = true;
-    } catch {
-      restored = false;
-    }
-  } catch (error) {
-    copyThenDelete = { deleted: false, code: error.code ?? String(error) };
-  }
-  fs.rmSync(copy, { force: true, maxRetries: 20, retryDelay: 500 });
-  return { renameSameDrive, copyThenDelete, restored };
-}
-
-function probeUninstaller(installPath, facts) {
-  const probeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "dexon-probe-"));
-  const probe = path.join(probeRoot, "old-uninstaller.exe");
-  fs.copyFileSync(path.join(installPath, "Uninstall Dexon.exe"), probe);
-  const result = spawnSync(probe, ["/S", "/KEEP_APP_DATA", "/currentuser", "--updated", `_?=${installPath}`], {
-    encoding: "utf8",
-    timeout: 180_000,
-    windowsHide: true,
-  });
-  facts.probeFailure = result.error?.message ?? result.signal ?? null;
-  fs.rmSync(probeRoot, { recursive: true, force: true, maxRetries: 20, retryDelay: 500 });
-  return result.status;
-}
-
-function snapshotDiff(installPath, before) {
-  const current = snapshotFiles(installPath);
-  return {
-    helperAtSource: current[HELPER_RELATIVE] === before[HELPER_RELATIVE],
-    missing: Object.keys(before).filter((relative) => !(relative in current)),
-    changed: Object.keys(before).filter((relative) => relative in current && current[relative] !== before[relative]),
-  };
-}
-
-function probeFacts(installPath, before, helper) {
-  const diff = snapshotDiff(installPath, before);
-  return {
-    helperAtSource: diff.helperAtSource,
-    helperProcessAlive: helper.child.exitCode === null,
-    missingAfterProbe: { count: diff.missing.length, first: diff.missing.slice(0, 20) },
-    changedAfterProbe: { count: diff.changed.length, first: diff.changed.slice(0, 20) },
-    stagingDirs: stagingFacts(),
-  };
-}
-
-function installFacts(installPath, before, helper) {
-  const diff = snapshotDiff(installPath, before);
-  return {
-    helperAtSourceAfterInstall: diff.helperAtSource,
-    helperProcessAliveAfterInstall: helper.child.exitCode === null,
-    missingAfterInstall: { count: diff.missing.length, first: diff.missing.slice(0, 20) },
-    changedAfterInstall: { count: diff.changed.length, first: diff.changed.slice(0, 20) },
-    stagingDirsAfterInstall: stagingFacts(),
-  };
-}
 
 function failWithFacts(message, facts) {
   console.log(`[nsis-install-guard] cross-drive facts: ${JSON.stringify(facts)}`);

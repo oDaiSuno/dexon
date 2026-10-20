@@ -3,10 +3,12 @@ import { execFileSync } from "node:child_process";
 export function waitForUninstallerCopy(timeoutMs = 120_000) {
   const deadline = Date.now() + timeoutMs;
   let idlePolls = 0;
+  let sawCopy = false;
   while (idlePolls < 2) {
     const running = runningUninstallerCopies();
+    if (running.length > 0) sawCopy = true;
     idlePolls = running.length === 0 ? idlePolls + 1 : 0;
-    if (idlePolls >= 2) return;
+    if (idlePolls >= 2) return sawCopy;
     if (Date.now() >= deadline) {
       throw new Error(
         `uninstaller copy still running after ${Math.round(timeoutMs / 1000)} s: ${running
@@ -16,6 +18,7 @@ export function waitForUninstallerCopy(timeoutMs = 120_000) {
     }
     sleepSync(250);
   }
+  return sawCopy;
 }
 
 function runningUninstallerCopies() {
