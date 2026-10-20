@@ -8,6 +8,8 @@ export class SessionOrchestrationError extends Error {
 export const CROSS_PROJECT_REFUSAL =
   "Session tools can only create sessions inside the caller's own project; that directory belongs to another project";
 
+export const FOREIGN_PROJECT_REFUSAL = "Session tools only reach sessions in this session's own project";
+
 export const CALLER_ONLY_REFUSAL = "Only sessions created by this session can be";
 
 export const CYCLE_REFUSAL = "Waiting on that session would wait on this session itself (cycle)";

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test, { after } from "node:test";
 import {
   ENABLED_SETTINGS,
   expectToolPayload,
-  resultReader,
+  resultQueue,
   startSessionOrchestrationHost,
   textOf,
   toolCall,
@@ -15,25 +16,8 @@ after(() => host.close());
 
 const LONG_REPLY = `Head of the report ${"x".repeat(360)} tail of the report`;
 
-function recordsMentioning(value, sessionId, found = []) {
-  if (Array.isArray(value)) {
-    for (const item of value) recordsMentioning(item, sessionId, found);
-    return found;
-  }
-  if (!value || typeof value !== "object") return found;
-  if (Object.values(value).some((entry) => entry === sessionId)) found.push(value);
-  for (const entry of Object.values(value)) recordsMentioning(entry, sessionId, found);
-  return found;
-}
-
-function smallestRecordMentioning(value, sessionId) {
-  const candidates = recordsMentioning(value, sessionId);
-  assert.notEqual(candidates.length, 0, `the answer must describe session ${sessionId}`);
-  return candidates.sort((left, right) => JSON.stringify(left).length - JSON.stringify(right).length)[0];
-}
-
 test(
-  "reading another session returns its last reply and recent tool calls within the requested size",
+  "reading another session returns its last reply and a transcript that keeps the tool results",
   { timeout: 90_000 },
   async () => {
     const parent = await host.createUserSession({ cwd: host.workspace("read-parent") });
@@ -43,13 +27,13 @@ test(
     host.model.script("Read the worker's report", [
       toolCall("session_new", { message: childMessage, wait: false }),
       { text: "Worker started" },
-      { toolCall: { name: "session_read", input: () => ({ sessionId: childId, maxChars: 40, toolCalls: 3 }) } },
+      { toolCall: { name: "session_read", input: () => ({ sessionId: childId }) } },
       { text: "Read it" },
     ]);
-    const results = resultReader(host);
+    const results = resultQueue(host);
 
     await host.prompt(parent, "Read the worker's report");
-    childId = expectToolPayload((await results.next())[0], "the worker must be created").sessionId;
+    childId = expectToolPayload(await results.named("session_new"), "the worker must be created").sessionId;
     await waitUntil(
       async () => {
         const detail = await host.detail(childId);
@@ -60,16 +44,13 @@ test(
     );
 
     await host.prompt(parent, "Read the report now");
-    const [, readResult] = await results.next(2);
-    assert.equal(readResult.name, "session_read", "after the worker's own bash result comes the Agent's reading");
-    const payload = expectToolPayload(readResult, "the Agent must receive what it read");
-    const rendered = JSON.stringify(payload);
-    assert.ok(rendered.includes(LONG_REPLY.slice(0, 30)), "the beginning of the last reply is reported");
-    assert.ok(
-      !rendered.includes(LONG_REPLY.slice(-30)),
-      "a 40 character reading cannot contain the end of a long reply",
-    );
-    assert.match(rendered, /bash/, "recent tool calls are summarised by tool name");
+    const payload = expectToolPayload(await results.named("session_read"), "the Agent must receive what it read");
+    assert.equal(payload.lastReply, LONG_REPLY, "the whole last reply comes back in the answer");
+    assert.equal(payload.lastReplyTruncated, false, "a short reply is not shortened");
+
+    const transcript = readFileSync(payload.transcript.path, "utf8");
+    assert.ok(transcript.includes("tool-run"), "the tool result the worker produced is in the transcript");
+    assert.ok(transcript.includes(LONG_REPLY), "the report itself is in the transcript");
   },
 );
 
@@ -77,8 +58,9 @@ test(
   "listing sessions reports each session's live status and the session that created it",
   { timeout: 90_000 },
   async () => {
-    const parent = await host.createUserSession({ cwd: host.workspace("list-parent") });
-    const userSession = await host.createUserSession({ cwd: host.workspace("list-user-session") });
+    const parentCwd = host.workspace("list-parent");
+    const parent = await host.createUserSession({ cwd: parentCwd });
+    const userSession = await host.createUserSession({ cwd: parentCwd });
     host.model.script("The user's own quiet task", [{ text: "The user's own quiet answer" }]);
     await host.prompt(userSession, "The user's own quiet task");
     await waitUntil(
@@ -95,26 +77,24 @@ test(
     host.model.script("List the sessions you can see", [
       toolCall("session_new", { message: childMessage, wait: false }),
       { text: "Worker started" },
-      { toolCall: { name: "session_list", input: () => ({ scope: "all", limit: 50 }) } },
+      { toolCall: { name: "session_list", input: () => ({ limit: 50 }) } },
       { text: "Listed" },
     ]);
-    const results = resultReader(host);
+    const results = resultQueue(host);
 
     await host.prompt(parent, "List the sessions you can see");
-    childId = expectToolPayload((await results.next())[0], "the worker must be created").sessionId;
+    childId = expectToolPayload(await results.named("session_new"), "the worker must be created").sessionId;
     await waitUntil(async () => (await host.runningIds()).includes(childId), {
       timeoutMs: 10_000,
       label: "the worker to be running",
     });
 
     await host.prompt(parent, "List them now");
-    const payload = expectToolPayload((await results.next())[0], "the Agent must receive the session list");
+    const listed = expectToolPayload(await results.named("session_list"), "the Agent must receive the list");
+    const bySession = new Map(listed.sessions.map((session) => [session.sessionId, session]));
 
-    const running = JSON.stringify(smallestRecordMentioning(payload, childId));
-    assert.match(running, /:\s*"running"/, "the busy worker is reported as running");
-    assert.match(running, new RegExp(parent), "the listing names the session that created it");
-
-    const idle = JSON.stringify(smallestRecordMentioning(payload, userSession));
-    assert.doesNotMatch(idle, /:\s*"running"/, "a user session nobody is running is not reported as running");
+    assert.equal(bySession.get(childId)?.status, "running", "the busy worker is reported as running");
+    assert.equal(bySession.get(childId)?.createdBySessionId, parent, "the listing names the session that created it");
+    assert.equal(bySession.get(userSession)?.status, "idle", "a user session nobody is running is not running");
   },
 );

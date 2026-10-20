@@ -19,11 +19,11 @@ function messageText(message) {
   return (message?.content ?? []).map((part) => part?.text ?? "").join("");
 }
 
-function messagesOf(body) {
+function parsedBody(body) {
   try {
-    return JSON.parse(body).messages ?? [];
+    return JSON.parse(body);
   } catch {
-    return [];
+    return {};
   }
 }
 
@@ -51,7 +51,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
     }
   };
 
-  const record = (messages) => {
+  const record = (messages, tools) => {
     const names = new Map();
     for (const message of messages) {
       for (const call of message.tool_calls ?? []) names.set(call.id, call.function?.name ?? "");
@@ -65,7 +65,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
         content: messageText(message),
       });
     }
-    requests.push({ messages });
+    requests.push({ messages, tools });
     settleResultsWaiter();
   };
 
@@ -81,23 +81,24 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
       return;
     }
     response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
-    if (step.toolCall) {
-      const id = step.toolCall.id ?? `call-${scriptIndex}-${stepIndex}`;
-      const input = typeof step.toolCall.input === "function" ? step.toolCall.input() : (step.toolCall.input ?? {});
+    if (step.thinking) {
+      response.write(chunk({ role: "assistant", content: "" }));
+      response.write(chunk({ reasoning_content: step.thinking }));
+    }
+    const requested = step.toolCalls ?? (step.toolCall ? [step.toolCall] : []);
+    if (requested.length > 0) {
       response.write(chunk({ role: "assistant", content: "" }));
       response.write(
         chunk({
-          tool_calls: [
-            {
-              index: 0,
-              id,
-              type: "function",
-              function: {
-                name: step.toolCall.name,
-                arguments: JSON.stringify(input),
-              },
+          tool_calls: requested.map((call, index) => ({
+            index,
+            id: call.id ?? `call-${scriptIndex}-${stepIndex}-${index}`,
+            type: "function",
+            function: {
+              name: call.name,
+              arguments: JSON.stringify(typeof call.input === "function" ? call.input() : (call.input ?? {})),
             },
-          ],
+          })),
         }),
       );
       response.end(`${chunk({}, "tool_calls")}data: [DONE]\n\n`);
@@ -118,8 +119,9 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
     request.setEncoding("utf8");
     request.on("data", (part) => (body += part));
     request.on("end", () => {
-      const messages = messagesOf(body);
-      record(messages);
+      const parsed = parsedBody(body);
+      const messages = parsed.messages ?? [];
+      record(messages, parsed.tools);
       const script = pickScript(messages);
       if (!script) {
         response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });

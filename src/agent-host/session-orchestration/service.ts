@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   SESSION_ORCHESTRATION_LIMITS,
@@ -6,8 +6,6 @@ import {
   type SessionModelRef,
   type SessionSourceRef,
 } from "../../shared/session-orchestration";
-import { resolveProject } from "../../shared/worktree";
-import { worktreePathsEqual } from "../../shared/worktree-path";
 import {
   getRpcSession,
   listRpcSessions,
@@ -27,6 +25,7 @@ import { resolveSessionPath } from "../session-reader";
 import {
   CALLER_ONLY_REFUSAL,
   CROSS_PROJECT_REFUSAL,
+  FOREIGN_PROJECT_REFUSAL,
   OWNER_DISABLED_REFUSAL,
   runningLimitRefusal,
   SELF_TARGET_REFUSAL,
@@ -38,13 +37,15 @@ import {
   listSessionViews,
   liveStatusOf,
   readSessionView,
+  sessionCwd,
   type SessionReadView,
   type SessionToolView,
 } from "./inspection";
+import { projectRootOf, sameProjectRoot } from "./project-scope";
 import { getSessionOrchestrationSettings } from "./settings";
 import { openSessionWait, waitForSessionOutcome, type SessionWaitResult } from "./waiting";
 
-export type { SessionReadView, SessionToolCallSummary, SessionToolView } from "./inspection";
+export type { SessionReadView, SessionToolView } from "./inspection";
 export type { SessionWaitResult, SessionWaitStatus } from "./waiting";
 export { SessionOrchestrationError } from "./errors";
 
@@ -71,7 +72,7 @@ export class SessionOrchestrationService {
       thinkingLevel?: string;
       message: string;
       wait?: boolean;
-      timeoutMs?: number;
+      timeoutSeconds?: number;
     },
     signal?: AbortSignal,
   ): Promise<{ sessionId: string; name?: string; status: SessionLiveStatus | "idle"; wait?: SessionWaitResult }> {
@@ -84,8 +85,8 @@ export class SessionOrchestrationService {
     if (!cwd || !existsSync(cwd)) {
       throw new SessionOrchestrationError(`Directory does not exist: ${input.cwd ?? caller.cwd}`);
     }
-    const [callerProject, targetProject] = await Promise.all([resolveProject(caller.cwd), resolveProject(cwd)]);
-    if (!sameProjectRoot(callerProject.projectRoot, targetProject.projectRoot)) {
+    const [callerProjectRoot, targetProjectRoot] = await Promise.all([projectRootOf(caller.cwd), projectRootOf(cwd)]);
+    if (!callerProjectRoot || !targetProjectRoot || !sameProjectRoot(callerProjectRoot, targetProjectRoot)) {
       throw new SessionOrchestrationError(CROSS_PROJECT_REFUSAL);
     }
     if (this.agentSessionLoad() >= settings.maxRunning) {
@@ -106,7 +107,7 @@ export class SessionOrchestrationService {
 
     throwIfAborted(signal);
     const wait = input.wait
-      ? await this.waitOn(callerId, launched.sessionId, input.timeoutMs, launched.turn, signal)
+      ? await this.waitOn(callerId, launched.sessionId, input.timeoutSeconds, launched.turn, signal)
       : undefined;
     return {
       sessionId: launched.sessionId,
@@ -118,11 +119,12 @@ export class SessionOrchestrationService {
 
   async prompt(
     callerId: string,
-    input: { sessionId: string; message: string; wait?: boolean; timeoutMs?: number },
+    input: { sessionId: string; message: string; wait?: boolean; timeoutSeconds?: number },
     signal?: AbortSignal,
   ): Promise<{ sessionId: string; status: SessionLiveStatus | "idle"; wait?: SessionWaitResult }> {
     throwIfAborted(signal);
     if (input.sessionId === callerId) throw new SessionOrchestrationError(SELF_TARGET_REFUSAL);
+    await this.assertSameProject(callerId, input.sessionId);
     const settings = getSessionOrchestrationSettings();
     const origin = getSessionOrigin(input.sessionId);
     if (!settings.allowUserSessions && !origin?.createdBySessionId) {
@@ -140,7 +142,9 @@ export class SessionOrchestrationService {
     const turn = wakingIdleAgentSession
       ? this.startTurnWithReservedSlot(target, turnParams)
       : target.runOrchestratedTurn(turnParams);
-    const wait = input.wait ? await this.waitOn(callerId, input.sessionId, input.timeoutMs, turn, signal) : undefined;
+    const wait = input.wait
+      ? await this.waitOn(callerId, input.sessionId, input.timeoutSeconds, turn, signal)
+      : undefined;
     return {
       sessionId: input.sessionId,
       status: liveStatusOf(input.sessionId),
@@ -151,33 +155,35 @@ export class SessionOrchestrationService {
   async wait(
     callerId: string,
     sessionId: string,
-    timeoutMs: number | undefined,
+    timeoutSeconds: number | undefined,
     signal?: AbortSignal,
   ): Promise<SessionWaitResult> {
-    return this.waitOn(callerId, sessionId, timeoutMs, undefined, signal);
+    await this.assertSameProject(callerId, sessionId);
+    return this.waitOn(callerId, sessionId, timeoutSeconds, undefined, signal);
   }
 
-  async list(
-    callerId: string,
-    input: { scope?: "project" | "all"; limit?: number },
-  ): Promise<{ sessions: SessionToolView[] }> {
-    const caller = getRpcSession(callerId);
-    const callerProjectRoot = caller ? (await resolveProject(caller.cwd)).projectRoot : undefined;
+  async list(callerId: string, input: { limit?: number }): Promise<{ sessions: SessionToolView[] }> {
+    const callerProjectRoot = await projectRootOf(getRpcSession(callerId)?.cwd);
     return listSessionViews({ callerId, callerProjectRoot, ...input });
   }
 
-  read(sessionId: string, input: { maxChars?: number; toolCalls?: number }): Promise<SessionReadView> {
-    return readSessionView({ sessionId, ...input });
+  async read(callerId: string, sessionId: string): Promise<SessionReadView> {
+    await this.assertSameProject(callerId, sessionId);
+    return readSessionView(sessionId);
   }
 
   async stop(callerId: string, sessionId: string): Promise<{ sessionId: string; status: SessionLiveStatus | "idle" }> {
+    await this.assertSameProject(callerId, sessionId);
     this.requireOwnedSession(callerId, sessionId, "stopped");
-    const target = await this.requireLiveSession(sessionId);
+    const target = getRpcSession(sessionId);
+    target?.queuedTurns.cancelFrom(callerId);
+    if (!target?.isAlive()) return { sessionId, status: "idle" };
     await target.send({ type: "abort" });
     return { sessionId, status: liveStatusOf(sessionId) };
   }
 
   async close(callerId: string, sessionId: string): Promise<{ sessionId: string; status: "closed" }> {
+    await this.assertSameProject(callerId, sessionId);
     this.requireOwnedSession(callerId, sessionId, "closed");
     const target = getRpcSession(sessionId);
     if (target?.isAlive()) await target.dispose({ abort: true, reason: "agent-session-close" });
@@ -214,7 +220,7 @@ export class SessionOrchestrationService {
   private async waitOn(
     callerId: string,
     targetSessionId: string,
-    timeoutMs: number | undefined,
+    timeoutSeconds: number | undefined,
     turn: Promise<OrchestratedTurnOutcome> | undefined,
     signal: AbortSignal | undefined,
   ): Promise<SessionWaitResult> {
@@ -222,7 +228,7 @@ export class SessionOrchestrationService {
     try {
       return await waitForSessionOutcome({
         sessionId: targetSessionId,
-        timeoutMs: this.waitTimeout(timeoutMs),
+        timeoutMs: this.waitTimeoutMs(timeoutSeconds),
         ...(turn ? { turn } : {}),
         ...(signal ? { signal } : {}),
       });
@@ -237,13 +243,26 @@ export class SessionOrchestrationService {
     return { sessionId: callerId, ...(title ? { title } : {}) };
   }
 
-  private waitTimeout(timeoutMs: number | undefined): number {
-    return clampNumber(
-      timeoutMs,
-      SESSION_ORCHESTRATION_LIMITS.waitDefaultMs,
-      0,
-      SESSION_ORCHESTRATION_LIMITS.waitMaxMs,
+  private waitTimeoutMs(timeoutSeconds: number | undefined): number {
+    return (
+      clampNumber(
+        timeoutSeconds,
+        SESSION_ORCHESTRATION_LIMITS.waitDefaultSeconds,
+        0,
+        SESSION_ORCHESTRATION_LIMITS.waitMaxSeconds,
+      ) * 1_000
     );
+  }
+
+  private async assertSameProject(callerId: string, sessionId: string): Promise<void> {
+    const callerCwd = getRpcSession(callerId)?.cwd;
+    const targetCwd = await sessionCwd(sessionId);
+    if (!callerCwd) throw new SessionOrchestrationError("The calling session is no longer available");
+    if (!targetCwd) throw new SessionOrchestrationError(`Session ${sessionId} was not found`);
+    const [callerRoot, targetRoot] = await Promise.all([projectRootOf(callerCwd), projectRootOf(targetCwd)]);
+    if (!callerRoot || !targetRoot || !sameProjectRoot(callerRoot, targetRoot)) {
+      throw new SessionOrchestrationError(FOREIGN_PROJECT_REFUSAL);
+    }
   }
 
   private requireOwnedSession(callerId: string, sessionId: string, action: string): void {
@@ -263,18 +282,6 @@ export class SessionOrchestrationService {
     ensureSessionEvents(sessionLauncherServer(), session, sessionId);
     return session;
   }
-}
-
-function canonicalProjectRoot(root: string): string {
-  try {
-    return realpathSync.native(root);
-  } catch {
-    return root;
-  }
-}
-
-function sameProjectRoot(left: string, right: string): boolean {
-  return worktreePathsEqual(canonicalProjectRoot(left), canonicalProjectRoot(right));
 }
 
 function callerModel(caller: AgentSessionWrapper): SessionModelRef | undefined {

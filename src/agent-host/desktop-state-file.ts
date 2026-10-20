@@ -2,10 +2,10 @@ import { chmodSync, mkdirSync, renameSync, unlinkSync, writeFileSync } from "nod
 import { homedir } from "node:os";
 import path from "node:path";
 
-export function atomicWrite(filePath: string, value: unknown): void {
+export function atomicWriteText(filePath: string, text: string): void {
   mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
   const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(temporaryPath, JSON.stringify(value, null, 2), { encoding: "utf8", mode: 0o600 });
+  writeFileSync(temporaryPath, text, { encoding: "utf8", mode: 0o600 });
   try {
     renameSync(temporaryPath, filePath);
     try {
@@ -21,6 +21,10 @@ export function atomicWrite(filePath: string, value: unknown): void {
     }
     throw error;
   }
+}
+
+export function atomicWrite(filePath: string, value: unknown): void {
+  atomicWriteText(filePath, JSON.stringify(value, null, 2));
 }
 
 export function desktopUserDataPath(): string {

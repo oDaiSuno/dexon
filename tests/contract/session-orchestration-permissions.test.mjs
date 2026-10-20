@@ -51,13 +51,14 @@ test(
   "with user sessions excluded the Agent may start turns in sessions it created, but not in the user's own sessions",
   { timeout: 90_000 },
   async () => {
-    const userSession = await host.createUserSession({ cwd: host.workspace("strict-user") });
+    const parentCwd = host.workspace("strict-project");
+    const userSession = await host.createUserSession({ cwd: parentCwd });
     host.model.script("The user's own task", [{ text: "The user's own reply" }]);
     await host.prompt(userSession, "The user's own task");
     await waitForReply(userSession, "The user's own reply");
     const before = (await host.detail(userSession)).context.messages.length;
 
-    const parent = await host.createUserSession({ cwd: host.workspace("strict-parent") });
+    const parent = await host.createUserSession({ cwd: parentCwd });
     const childMessage = "Worker takes the first half";
     host.model.script(childMessage, [{ text: "First half done" }, { text: "Second half done" }]);
     let childId;
@@ -69,7 +70,7 @@ test(
       {
         toolCall: {
           name: "session_prompt",
-          input: () => ({ sessionId: childId, message: "Take the second half", wait: true, timeoutMs: 30_000 }),
+          input: () => ({ sessionId: childId, message: "Take the second half", wait: true, timeoutSeconds: 30 }),
         },
       },
       { text: "Worker continued" },
@@ -101,7 +102,8 @@ test(
   "the Agent can stop and close only the sessions it created, and a closed session keeps its history",
   { timeout: 120_000 },
   async () => {
-    const userSession = await host.createUserSession({ cwd: host.workspace("owned-user") });
+    const parentCwd = host.workspace("owned-project");
+    const userSession = await host.createUserSession({ cwd: parentCwd });
     const userTurns = host.model.script("The user starts some work", [
       { text: "User answered once" },
       { hold: true, partial: "User second reply", rest: " and it keeps going" },
@@ -111,7 +113,7 @@ test(
     await host.prompt(userSession, "The user keeps working");
     await userTurns.partialSent(1);
 
-    const parent = await host.createUserSession({ cwd: host.workspace("owned-parent") });
+    const parent = await host.createUserSession({ cwd: parentCwd });
     const childMessage = "Worker owns its own work";
     const child = host.model.script(childMessage, [
       { text: "Worker answered once" },

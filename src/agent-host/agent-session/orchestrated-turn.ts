@@ -2,23 +2,51 @@ import type { AgentSessionLike } from "../../shared/pi-types";
 import type { SessionSourceRef } from "../../shared/session-orchestration";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { SESSION_SOURCE_TYPE } from "../session-entry-compat";
+import { type QueuedTurn, type QueuedTurns } from "./queued-turns";
+import { lastAssistantOutcome } from "./turn-status";
 import type { AgentEvent, OrchestratedTurnOutcome } from "./types";
 
 export interface OrchestratedTurnHost {
   readonly inner: AgentSessionLike;
   readonly sessionId: string;
+  readonly queuedTurns: QueuedTurns;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   waitForExtensionsBound(): Promise<void>;
   emit(event: AgentEvent): void;
   setMessageSource(source: SessionSourceRef | null): void;
-  turnError(): string | null;
+}
+
+function messageList(inner: AgentSessionLike): unknown[] {
+  const messages = (inner.agent.state as { messages?: unknown } | undefined)?.messages;
+  return Array.isArray(messages) ? messages : [];
+}
+
+function cancellableTurn(host: OrchestratedTurnHost, source: SessionSourceRef | undefined) {
+  let cancelled = false;
+  const turn: QueuedTurn = {
+    ...(source ? { sourceSessionId: source.sessionId } : {}),
+    cancel: () => {
+      cancelled = true;
+    },
+  };
+  return { cancelled: () => cancelled, release: host.queuedTurns.add(turn) };
 }
 
 export function runOrchestratedTurn(
   host: OrchestratedTurnHost,
   params: { message: string; source?: SessionSourceRef },
 ): Promise<OrchestratedTurnOutcome> {
+  const turn = cancellableTurn(host, params.source);
+  return runQueuedTurn(host, params, turn).finally(turn.release);
+}
+
+function runQueuedTurn(
+  host: OrchestratedTurnHost,
+  params: { message: string; source?: SessionSourceRef },
+  turn: { cancelled: () => boolean },
+): Promise<OrchestratedTurnOutcome> {
   return host.enqueueTurn(async () => {
+    if (turn.cancelled()) return { stopped: true };
     await host.waitForExtensionsBound();
     browserAgentRuntime.beginTurn(host.sessionId, "local");
     host.setMessageSource(params.source ?? null);
@@ -29,11 +57,16 @@ export function runOrchestratedTurn(
           ...(params.source.title ? { title: params.source.title } : {}),
         });
       }
+      const before = messageList(host.inner).length;
       await host.inner.prompt(params.message, { source: "rpc" });
-      const failure = host.turnError();
-      if (failure) {
+      const outcome = lastAssistantOutcome(messageList(host.inner).slice(before));
+      if (outcome?.kind === "error") {
         host.emit({ type: "prompt_done" });
-        return { error: failure };
+        return { error: outcome.error };
+      }
+      if (outcome?.kind === "stopped") {
+        host.emit({ type: "prompt_done" });
+        return { stopped: true };
       }
       const reply = host.inner.getLastAssistantText()?.trim() ?? "";
       host.emit({ type: "prompt_done" });

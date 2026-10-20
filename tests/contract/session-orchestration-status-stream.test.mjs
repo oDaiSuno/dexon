@@ -44,3 +44,25 @@ test(
     }
   },
 );
+
+test("a turn the user stopped is reported as idle rather than as an error", { timeout: 60_000 }, async () => {
+  const session = await host.createUserSession({ cwd: host.workspace("stopped-status") });
+  const turn = host.model.script("Work until the user stops it", [
+    { hold: true, partial: "Working on it", rest: " and finished" },
+  ]);
+
+  await host.prompt(session, "Work until the user stops it");
+  await turn.partialSent(0);
+  await host.command(session, { type: "abort" });
+  await waitUntil(async () => (await host.state(session)).state?.isPromptRunning === false, {
+    timeoutMs: 20_000,
+    label: "the stopped turn to release the session",
+  });
+
+  const listed = await host.client.call("sessions.list");
+  assert.notEqual(
+    listed.sessionStatuses?.[session],
+    "error",
+    "stopping a turn is not a failure, so the session must not be reported as an error",
+  );
+});

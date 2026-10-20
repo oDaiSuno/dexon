@@ -86,6 +86,24 @@ export function resultReader(host) {
   };
 }
 
+export function resultQueue(host) {
+  let cursor = host.model.toolResults().length;
+  const pending = [];
+  return {
+    async named(name) {
+      for (;;) {
+        while (pending.length > 0) {
+          const next = pending.shift();
+          if (next.name === name) return next;
+        }
+        const all = await host.model.waitForToolResults(cursor + 1);
+        pending.push(...all.slice(cursor));
+        cursor = all.length;
+      }
+    },
+  };
+}
+
 export async function runAgentTurn(host, sessionId, { prompt, steps, results = 1 }) {
   const before = host.model.toolResults().length;
   host.model.script(prompt, steps);

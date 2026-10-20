@@ -4,11 +4,12 @@ import {
   type SessionRelation,
 } from "../../shared/session-orchestration";
 import type { AgentMessage, SessionInfo } from "../../shared/types";
-import { worktreePathsEqual } from "../../shared/worktree-path";
 import { getRpcSession } from "../rpc-manager";
 import { buildSessionContext } from "../session-reader";
 import { listHistorySessions, openSessionSource } from "../session-source";
 import { messageContentText } from "../session-title";
+import { sameProjectRoot } from "./project-scope";
+import { limitReply, writeSessionTranscript, type TranscriptSummary } from "./transcript";
 
 export interface SessionToolView {
   sessionId: string;
@@ -20,19 +21,13 @@ export interface SessionToolView {
   createdByCaller: boolean;
 }
 
-export interface SessionToolCallSummary {
-  toolName: string;
-  input?: string;
-  result?: string;
-}
-
 export interface SessionReadView {
   sessionId: string;
   title: string;
   status: SessionLiveStatus | "idle";
   lastReply: string;
-  truncated: boolean;
-  toolCalls: SessionToolCallSummary[];
+  lastReplyTruncated: boolean;
+  transcript: TranscriptSummary;
 }
 
 export function clampNumber(value: number | undefined, fallback: number, minimum: number, maximum: number): number {
@@ -60,6 +55,13 @@ export function sessionTitleOf(session: SessionInfo): string {
   return session.firstMessage || "(no messages)";
 }
 
+export async function sessionCwd(sessionId: string): Promise<string | undefined> {
+  const live = getRpcSession(sessionId);
+  if (live?.isAlive() && live.cwd) return live.cwd;
+  const info = (await listHistorySessions()).find((session) => session.id === sessionId);
+  return info?.cwd;
+}
+
 export async function sessionMessages(sessionId: string): Promise<AgentMessage[]> {
   const live = getRpcSession(sessionId);
   if (live?.isAlive()) {
@@ -82,7 +84,6 @@ export async function lastSessionReply(sessionId: string): Promise<string | unde
 export async function listSessionViews(options: {
   callerId: string;
   callerProjectRoot?: string;
-  scope?: "project" | "all";
   limit?: number;
 }): Promise<{ sessions: SessionToolView[] }> {
   const limit = clampNumber(
@@ -93,11 +94,7 @@ export async function listSessionViews(options: {
   );
   const sessions: SessionToolView[] = [];
   for (const session of await listHistorySessions()) {
-    if (
-      options.scope !== "all" &&
-      options.callerProjectRoot &&
-      !worktreePathsEqual(session.projectRoot ?? session.cwd, options.callerProjectRoot)
-    ) {
+    if (options.callerProjectRoot && !sameProjectRoot(session.projectRoot ?? session.cwd, options.callerProjectRoot)) {
       continue;
     }
     sessions.push({
@@ -114,34 +111,25 @@ export async function listSessionViews(options: {
   return { sessions };
 }
 
-export async function readSessionView(options: {
-  sessionId: string;
-  maxChars?: number;
-  toolCalls?: number;
-}): Promise<SessionReadView> {
-  const maxChars = clampNumber(
-    options.maxChars,
-    SESSION_ORCHESTRATION_LIMITS.readDefaultChars,
-    1,
-    SESSION_ORCHESTRATION_LIMITS.readMaxChars,
-  );
-  const maxToolCalls = clampNumber(
-    options.toolCalls,
-    SESSION_ORCHESTRATION_LIMITS.readToolCallsDefault,
-    0,
-    SESSION_ORCHESTRATION_LIMITS.readToolCallsMax,
-  );
-  const info = (await listHistorySessions()).find((session) => session.id === options.sessionId);
-  const messages = await sessionMessages(options.sessionId);
-  const reply = lastAssistantText(messages);
-  const truncated = truncate(reply, maxChars);
+export async function readSessionView(sessionId: string): Promise<SessionReadView> {
+  const source = await openSessionSource(sessionId);
+  const messages = source ? buildSessionContext(source.entries).messages : [];
+  const info = (await listHistorySessions()).find((session) => session.id === sessionId);
+  const title = info ? sessionTitleOf(info) : (liveSessionTitle(sessionId) ?? sessionId);
+  const status = liveStatusOf(sessionId);
   return {
-    sessionId: options.sessionId,
-    title: info ? sessionTitleOf(info) : (liveSessionTitle(options.sessionId) ?? options.sessionId),
-    status: liveStatusOf(options.sessionId),
-    lastReply: truncated.text,
-    truncated: truncated.truncated,
-    toolCalls: recentToolCalls(messages, maxToolCalls),
+    sessionId,
+    title,
+    status,
+    ...limitReply(lastAssistantText(messages)),
+    transcript: writeSessionTranscript({
+      sessionId,
+      title,
+      cwd: info?.cwd ?? (getRpcSession(sessionId)?.cwd || process.cwd()),
+      status,
+      ...(info?.createdBySessionId ? { createdBySessionId: info.createdBySessionId } : {}),
+      messages,
+    }),
   };
 }
 
@@ -152,44 +140,4 @@ function contentText(message: AgentMessage): string {
 function lastAssistantText(messages: AgentMessage[]): string {
   const lastAssistant = [...messages].reverse().find((message) => message.role === "assistant");
   return lastAssistant ? contentText(lastAssistant) : "";
-}
-
-function truncate(text: string, maxChars: number): { text: string; truncated: boolean } {
-  if (text.length <= maxChars) return { text, truncated: false };
-  return { text: text.slice(0, maxChars), truncated: true };
-}
-
-function recentToolCalls(messages: AgentMessage[], limit: number): SessionToolCallSummary[] {
-  if (limit <= 0) return [];
-  const names = new Map<string, string>();
-  const summaries: SessionToolCallSummary[] = [];
-  for (const message of messages) {
-    if (message.role === "assistant") {
-      for (const block of message.content) {
-        if (block.type !== "toolCall") continue;
-        names.set(block.toolCallId, block.toolName);
-        summaries.push({ toolName: block.toolName, input: compactJson(block.input) });
-      }
-      continue;
-    }
-    if (message.role !== "toolResult") continue;
-    const toolName = message.toolName ?? names.get(message.toolCallId) ?? "tool";
-    const result = message.content
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join(" ");
-    const pending = [...summaries].reverse().find((summary) => summary.toolName === toolName && !summary.result);
-    if (pending) pending.result = result.slice(0, 400);
-    else summaries.push({ toolName, result: result.slice(0, 400) });
-  }
-  return summaries.slice(-limit);
-}
-
-function compactJson(value: unknown): string {
-  try {
-    const serialized = JSON.stringify(value);
-    return serialized.length > 400 ? `${serialized.slice(0, 400)}…` : serialized;
-  } catch {
-    return "";
-  }
 }

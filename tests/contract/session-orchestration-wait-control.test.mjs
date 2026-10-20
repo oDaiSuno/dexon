@@ -44,7 +44,7 @@ test(
     host.model.script("Start a worker and wait for it", [
       toolCall("session_new", { message: childMessage, wait: false }),
       { text: "Worker started" },
-      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutMs: 120_000 }) } },
+      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutSeconds: 120 }) } },
       { text: "Gave up waiting" },
     ]);
     const events = host.events(parent);
@@ -90,14 +90,14 @@ test("a session cannot wait on a session that is already waiting on it", { timeo
       sessionId: parent,
       message: "Child asks for an answer",
       wait: true,
-      timeoutMs: 20_000,
+      timeoutSeconds: 20,
     })),
     { text: "Child got its answer" },
   ]);
   host.model.script("Start a child that waits for you", [
     toolCall("session_new", { message: childMessage, wait: false }),
     { text: "Child started" },
-    { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutMs: 20_000 }) } },
+    { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutSeconds: 20 }) } },
     { text: "Refused to wait in a circle" },
   ]);
   const results = resultReader(host);

@@ -58,7 +58,12 @@ test(
       {
         toolCall: {
           name: "session_prompt",
-          input: () => ({ sessionId: childId, message: "Worker takes the second task", wait: true, timeoutMs: 30_000 }),
+          input: () => ({
+            sessionId: childId,
+            message: "Worker takes the second task",
+            wait: true,
+            timeoutSeconds: 30,
+          }),
         },
       },
       { text: "Second pass finished" },
@@ -132,7 +137,7 @@ test(
     host.model.script("Start a slow worker", [
       toolCall("session_new", { message: childMessage, wait: false }),
       { text: "Worker started" },
-      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutMs: 300 }) } },
+      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutSeconds: 1 }) } },
       { text: "Gave up waiting" },
     ]);
 
@@ -170,7 +175,7 @@ test(
     host.model.script("Start a worker that needs the user", [
       toolCall("session_new", { message: "/ask-fixture", wait: false }),
       { text: "Worker started" },
-      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutMs: 20_000 }) } },
+      { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutSeconds: 20 }) } },
       { text: "The worker needs the user" },
     ]);
     const frames = [];

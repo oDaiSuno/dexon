@@ -3,7 +3,7 @@ import { getRpcSession, subscribeSessionStatuses, type OrchestratedTurnOutcome }
 import { CYCLE_REFUSAL, SessionOrchestrationError, throwIfAborted } from "./errors";
 import { isSessionRunning, lastSessionReply, liveStatusOf } from "./inspection";
 
-export type SessionWaitStatus = "idle" | "error" | "awaiting_input" | "timeout";
+export type SessionWaitStatus = "idle" | "error" | "awaiting_input" | "stopped" | "timeout";
 
 export interface SessionWaitResult {
   status: SessionWaitStatus;
@@ -86,6 +86,7 @@ export async function waitForSessionOutcome(request: SessionWaitRequest): Promis
       if (outcome.error) {
         return { status: "error", stillRunning: isSessionRunning(sessionId), error: outcome.error };
       }
+      if (outcome.stopped) return { status: "stopped", stillRunning: isSessionRunning(sessionId) };
       return {
         status: "idle",
         stillRunning: isSessionRunning(sessionId),

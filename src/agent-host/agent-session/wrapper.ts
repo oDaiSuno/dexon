@@ -19,6 +19,7 @@ import { SessionExtensionUi } from "./extension-ui";
 import { type ExternalTurnParams, runExternalTurn as runExternalTurnOn } from "./external-turn";
 import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
+import { QueuedTurns } from "./queued-turns";
 import { activateBrowserTools, activateSessionTools } from "./tool-activation";
 import { SessionTurnStatus } from "./turn-status";
 import type {
@@ -42,6 +43,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private queuedTurnCount = 0;
   private turnTail: Promise<void> = Promise.resolve();
   private orchestratedSource: SessionSourceRef | null = null;
+  public readonly queuedTurns = new QueuedTurns();
   private readonly turnStatus = new SessionTurnStatus();
   protected externalTurnActive = false;
   private externalTurnChannel: ChannelId | null = null;
@@ -331,12 +333,12 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         inner: this.inner,
         sessionId: this.sessionId,
         enqueueTurn: (task) => this.enqueueTurn(task),
+        queuedTurns: this.queuedTurns,
         waitForExtensionsBound: () => this.waitForExtensionsBound(),
         emit: (event) => this.emit(event),
         setMessageSource: (source) => {
           this.orchestratedSource = source;
         },
-        turnError: () => this.turnStatus.error(),
       },
       params,
     );

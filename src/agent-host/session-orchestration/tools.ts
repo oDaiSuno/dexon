@@ -9,33 +9,65 @@ import { getBrowserSessionSource } from "../browser-tools";
 import { CHANNEL_REFUSAL, DISABLED_REFUSAL } from "./errors";
 import { getSessionOrchestrationService, SessionOrchestrationError, type SessionWaitResult } from "./service";
 import { getSessionOrchestrationSettings } from "./settings";
+import { limitReply } from "./transcript";
 
 type ToolContext = { sessionManager: { getSessionId(): string } };
 
+const PARALLEL_GUIDELINE = "To run work in parallel, start every session without wait first, then wait on them.";
+
 const sessionId = Type.String({ minLength: 1, maxLength: 128, description: "Target session id from session_list" });
-const message = Type.String({
+const firstMessage = Type.String({
+  minLength: 1,
+  maxLength: SESSION_ORCHESTRATION_LIMITS.messageMaxChars,
+  description: "First task the new session receives as its first user message",
+});
+const nextMessage = Type.String({
   minLength: 1,
   maxLength: SESSION_ORCHESTRATION_LIMITS.messageMaxChars,
   description: "Message the other session receives as its next user turn",
 });
-const timeoutMs = Type.Optional(
+const cwd = Type.Optional(
+  Type.String({
+    minLength: 1,
+    maxLength: 4_096,
+    description: "Directory inside this project or a worktree of this repository; defaults to the caller's directory",
+  }),
+);
+const name = Type.Optional(
+  Type.String({
+    minLength: 1,
+    maxLength: SESSION_ORCHESTRATION_LIMITS.nameMaxChars,
+    description: "Title of the new session in the sidebar",
+  }),
+);
+const timeoutSeconds = Type.Optional(
   Type.Integer({
     minimum: 0,
-    maximum: SESSION_ORCHESTRATION_LIMITS.waitMaxMs,
-    description: "How long to wait before reporting a timeout; a timeout never stops the other session",
+    maximum: SESSION_ORCHESTRATION_LIMITS.waitMaxSeconds,
+    description:
+      "Seconds to wait before reporting a timeout (default 900, maximum 7200); a timeout never stops the other session",
   }),
 );
 const thinkingLevel = Type.Optional(
   Type.Union(
     SESSION_THINKING_LEVELS.map((level) => Type.Literal(level)),
-    { description: "Reasoning effort for the created session" },
+    {
+      description:
+        "Reasoning effort for the new session; defaults to the Settings choice, otherwise the caller's own level",
+    },
   ),
 );
 const model = Type.Optional(
-  Type.Object({
-    provider: Type.String({ minLength: 1, maxLength: 256 }),
-    modelId: Type.String({ minLength: 1, maxLength: 256 }),
-  }),
+  Type.Object(
+    {
+      provider: Type.String({ minLength: 1, maxLength: 256, description: "Provider id of the model" }),
+      modelId: Type.String({ minLength: 1, maxLength: 256, description: "Model id within that provider" }),
+    },
+    {
+      description:
+        "Provider and model id for the new session; defaults to the Settings choice, otherwise the caller's own model",
+    },
+  ),
 );
 
 function text(value: unknown, details?: SessionToolTargetDetails) {
@@ -71,7 +103,7 @@ function waitResultPayload(wait: SessionWaitResult): Record<string, unknown> {
   return {
     status: wait.status,
     stillRunning: wait.stillRunning,
-    ...(wait.lastReply ? { lastReply: wait.lastReply } : {}),
+    ...(wait.lastReply ? limitReply(wait.lastReply) : {}),
     ...(wait.error ? { error: wait.error } : {}),
   };
 }
@@ -84,16 +116,18 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       description:
         "Create another session in the same project and hand it a first task. It appears in the sidebar under this session and keeps working independently. Only use it for work that can proceed in parallel; use cwd only for a worktree of this repository.",
       promptSnippet: "session_new: start a collaborating session with its first task",
+      promptGuidelines: [PARALLEL_GUIDELINE],
       parameters: Type.Object({
-        message,
-        cwd: Type.Optional(Type.String({ minLength: 1, maxLength: 4_096 })),
-        name: Type.Optional(Type.String({ minLength: 1, maxLength: SESSION_ORCHESTRATION_LIMITS.nameMaxChars })),
+        message: firstMessage,
+        cwd,
+        name,
         model,
         thinkingLevel,
-        wait: Type.Optional(Type.Boolean({ description: "Wait for the created session's first turn to settle" })),
-        timeoutMs,
+        wait: Type.Optional(
+          Type.Boolean({ description: "Wait for the first turn of the new session to settle before returning" }),
+        ),
+        timeoutSeconds,
       }),
-      executionMode: "sequential",
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
@@ -118,8 +152,14 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       description:
         "Queue another message for a session. If the target is busy the message waits until its current turn finishes; the running turn is never interrupted. With wait it returns the reply of the turn this message caused.",
       promptSnippet: "session_prompt: hand another task to a session without interrupting it",
-      parameters: Type.Object({ sessionId, message, wait: Type.Optional(Type.Boolean()), timeoutMs }),
-      executionMode: "sequential",
+      parameters: Type.Object({
+        sessionId,
+        message: nextMessage,
+        wait: Type.Optional(
+          Type.Boolean({ description: "Wait for the turn this message causes to settle before returning" }),
+        ),
+        timeoutSeconds,
+      }),
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
@@ -141,14 +181,14 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       name: "session_wait",
       label: "wait for another session",
       description:
-        "Wait until a session becomes idle, fails, or asks the user a question. A timeout is not a failure: the session keeps working and the result says so.",
+        "Wait until a session settles and return the outcome: idle, error, awaiting_input, stopped or timeout. A timeout is not a failure: the session keeps working and the result says so.",
       promptSnippet: "session_wait: wait for a session to finish before reading its result",
-      parameters: Type.Object({ sessionId, timeoutMs }),
-      executionMode: "sequential",
+      promptGuidelines: [PARALLEL_GUIDELINE],
+      parameters: Type.Object({ sessionId, timeoutSeconds }),
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
-          const result = await service.wait(enter(ctx), input.sessionId, input.timeoutMs, signal);
+          const result = await service.wait(enter(ctx), input.sessionId, input.timeoutSeconds, signal);
           return text(
             { sessionId: input.sessionId, ...waitResultPayload(result) },
             { targetSessionId: input.sessionId },
@@ -161,13 +201,17 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
     defineTool({
       name: "session_list",
       label: "list sessions",
-      description:
-        "List sessions with their live status and the session that created them. scope project is the default; use all to look beyond the current project.",
+      description: "List the sessions of this project with their live status and the session that created each one.",
+      promptSnippet: "session_list: list the sessions of this project with their live status",
       parameters: Type.Object({
-        scope: Type.Optional(Type.Union([Type.Literal("project"), Type.Literal("all")])),
-        limit: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_ORCHESTRATION_LIMITS.listMax })),
+        limit: Type.Optional(
+          Type.Integer({
+            minimum: 1,
+            maximum: SESSION_ORCHESTRATION_LIMITS.listMax,
+            description: "How many sessions to list (default 30, maximum 100)",
+          }),
+        ),
       }),
-      executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
@@ -181,19 +225,13 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       name: "session_read",
       label: "read another session",
       description:
-        "Read the last reply of a session plus a summary of its recent tool calls, bounded by maxChars. Use it instead of asking the user to paste results.",
-      promptSnippet: "session_read: read another session's last reply and recent tool calls",
-      parameters: Type.Object({
-        sessionId,
-        maxChars: Type.Optional(Type.Integer({ minimum: 1, maximum: SESSION_ORCHESTRATION_LIMITS.readMaxChars })),
-        toolCalls: Type.Optional(Type.Integer({ minimum: 0, maximum: SESSION_ORCHESTRATION_LIMITS.readToolCallsMax })),
-      }),
-      executionMode: "sequential",
+        "Return the last reply of a session and write its whole history — every message, thinking, tool call input and result — to a Markdown snapshot at transcript.path. Explore that file with read, grep or bash; it is a snapshot of this moment, so call again for a fresh one.",
+      promptSnippet: "session_read: read another session's last reply and its full transcript file",
+      parameters: Type.Object({ sessionId }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
-          enter(ctx);
-          const view = await service.read(input.sessionId, input);
+          const view = await service.read(enter(ctx), input.sessionId);
           return text(view, { targetSessionId: input.sessionId, ...(view.title ? { targetTitle: view.title } : {}) });
         } catch (error) {
           return toolError(error);
@@ -204,9 +242,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       name: "session_stop",
       label: "stop another session's turn",
       description:
-        "Stop the current turn of a session this session created. The session stays open so it can be prompted again.",
+        "Stop the current turn of a session this session created and cancel the messages this session queued for it that have not started. The session stays open and can be prompted again.",
+      promptSnippet: "session_stop: stop a session's current turn and drop the messages this session queued",
       parameters: Type.Object({ sessionId }),
-      executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
@@ -222,8 +260,8 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       label: "close another session",
       description:
         "Stop and release a session this session created. Its history stays in the sidebar and the user can reopen it.",
+      promptSnippet: "session_close: close a session, keeping its history in the sidebar",
       parameters: Type.Object({ sessionId }),
-      executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
           const service = getSessionOrchestrationService();
