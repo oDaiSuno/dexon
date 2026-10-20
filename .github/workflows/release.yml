@@ -61,7 +61,7 @@ jobs:
           node-version: 22.23.3
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: node scripts/ci-install-dependencies.mjs
       - name: Build and prepare both architectures
         run: |-
           npm run prepare:bundled-tools -- --target darwin-arm64 --target darwin-x64
@@ -106,7 +106,7 @@ jobs:
           node-version: 22.23.3
           cache: npm
       - name: Install verification dependencies without lifecycle scripts
-        run: npm ci --ignore-scripts
+        run: node scripts/ci-install-dependencies.mjs --ignore-scripts
       - name: Download the exact macOS build artifact
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
         with:
@@ -144,7 +144,7 @@ jobs:
           node-version: 22.23.3
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: node scripts/ci-install-dependencies.mjs
       - name: Install Electron runtime for Windows acceptance
         run: npx install-electron --no
       - name: Install pinned Rust toolchain
@@ -205,7 +205,7 @@ jobs:
           node-version: 22.23.3
           cache: npm
       - name: Install dependencies
-        run: npm ci
+        run: node scripts/ci-install-dependencies.mjs
       - name: Build application
         run: npm run build
       - name: Prepare verified bundled search tools
