@@ -141,6 +141,9 @@ try {
       ["scripts/test-windows-nsis-upgrade.mjs", previous, current, ...(!release ? ["--allow-same-version"] : [])],
       { timeout: 900_000 },
     );
+    run(process.execPath, ["scripts/test-windows-nsis-user-files.mjs", previous, current], { timeout: 900_000 });
+    run(process.execPath, ["scripts/test-windows-nsis-install-guard.mjs", previous, current], { timeout: 900_000 });
+    run(process.execPath, ["scripts/test-windows-nsis-directory-page.mjs", previous, current], { timeout: 900_000 });
   }
   await verifyArtifactManifest(directory, manifest, identity);
   if (!(mac && release)) {
@@ -160,7 +163,7 @@ try {
         boundary: mac
           ? "final ZIP and mounted DMG"
           : process.platform === "win32"
-            ? "installed NSIS package, previous installer and rollback"
+            ? "installed NSIS package, previous installer and rollback, user files, refusal, busy files, other drive, directory page"
             : "extracted final AppImage with SUID sandbox; AppImage entry uses extraction mode without sandbox",
         inAppUpdateDiscoveryTested: false,
       },

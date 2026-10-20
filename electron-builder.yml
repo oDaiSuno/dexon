@@ -150,6 +150,8 @@ nsis:
   createDesktopShortcut: true
   createStartMenuShortcut: true
   shortcutName: Dexon
+  include: build/installer.nsh
+  preCompressedFileExtensions: []
 
 linux:
   executableName: dexon

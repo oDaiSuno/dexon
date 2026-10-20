@@ -377,9 +377,16 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: windows-crash-evidence-${{ github.run_attempt }}
-          path: |-
-            ${{ runner.temp }}/crash-dumps
-            ~/AppData/Local/Temp/Pi NSIS upgrade */
+          path: ${{ runner.temp }}/crash-dumps
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Upload retained Windows installer fixtures
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: windows-installer-fixtures-${{ github.run_attempt }}
+          path: ~/AppData/Local/Temp/Pi NSIS upgrade */
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 14
