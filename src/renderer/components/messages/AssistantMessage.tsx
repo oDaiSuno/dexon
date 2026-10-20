@@ -14,6 +14,7 @@ import { FailureLine } from "./FailureLine";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
 import { DeferredContentActions, formatTime, tokenizeStreamTail } from "./shared";
+import { NewSessionAction } from "./new-session-action";
 import type {
   AssistantContentBlock,
   AssistantMessage,
@@ -35,6 +36,9 @@ export function AssistantMessageView({
   prevTimestamp,
   onLoadDeferredContent,
   entryId,
+  forkEntryId,
+  onFork,
+  forking,
   thinkingExpansionStore,
   compact,
   retried,
@@ -50,6 +54,9 @@ export function AssistantMessageView({
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
+  forkEntryId?: string;
+  onFork?: (entryId: string) => void;
+  forking?: boolean;
   thinkingExpansionStore?: ThinkingExpansionStore;
   /* In-flight process stream: 8px rhythm like the process-details flow, no
      per-message footer (usage row + copy button) — the turn settles into
@@ -328,6 +335,9 @@ export function AssistantMessageView({
                     </svg>
                   )}
                 </button>
+              )}
+              {textContent && onFork && forkEntryId && (
+                <NewSessionAction entryId={forkEntryId} onFork={onFork} forking={forking} hovered={hovered} />
               )}
               {time && (
                 <span

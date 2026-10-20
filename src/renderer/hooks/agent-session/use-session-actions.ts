@@ -227,6 +227,7 @@ export function useSessionActions(context: Dependencies) {
         const result = await sendAgentCommand<{ cancelled?: boolean; newSessionId?: string }>(sid, {
           type: "fork",
           entryId,
+          position: "at",
         });
         const { cancelled, newSessionId } = result ?? {};
         if (!cancelled && newSessionId) {
