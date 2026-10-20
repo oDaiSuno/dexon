@@ -5,8 +5,15 @@ import { MessageView } from "../MessageView";
 import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
 import { ProcessFlow } from "../ProcessFlow";
 import { SessionProfiler } from "../SessionProfiler";
+import { AnswerTurn } from "./answer-turn";
 import { findRetriedFailureIndices } from "./shared";
-import { type TurnAnswerPiece, type TurnFailurePiece, type TurnProcessPiece, buildTurnLayout } from "./turn-layout";
+import {
+  type TurnAnswerPiece,
+  type TurnFailurePiece,
+  type TurnPiece,
+  type TurnProcessPiece,
+  buildTurnLayout,
+} from "./turn-layout";
 import type { ChatWindowState } from "./use-chat-window";
 export function ChatMessages({
   messages,
@@ -63,17 +70,6 @@ export function ChatMessages({
       }
     }
 
-    const timestampAssistantIndices = new Set<number>();
-    let foundAssistantInTurn = false;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user") {
-        foundAssistantInTurn = false;
-      } else if (messages[i].role === "assistant" && !foundAssistantInTurn) {
-        timestampAssistantIndices.add(i);
-        foundAssistantInTurn = true;
-      }
-    }
-
     const retriedFailureIndices = findRetriedFailureIndices(messages);
 
     const visibleRefIndexByMessage = new Map<number, number>();
@@ -104,7 +100,6 @@ export function ChatMessages({
         attachRef?: boolean;
         renderRole?: MessageRenderRole;
         messageOverride?: AgentMessage;
-        showTimestamp?: boolean;
       } = {},
     ): ReactNode => {
       const msg = options.messageOverride ?? messages[idx];
@@ -118,15 +113,6 @@ export function ChatMessages({
       // The in-flight turn renders as a process stream: 8px rhythm,
       // no per-message footer — it settles into groups on completion.
       const compact = (agentRunning || streamState.isStreaming) && lastUserIdx !== -1 && idx > lastUserIdx;
-      let showTimestamp = false;
-      if (msg.role === "assistant") {
-        showTimestamp = timestampAssistantIndices.has(idx);
-        // Hide on the currently-streaming tail (the streaming bubble owns the live timestamp)
-        if (showTimestamp && streamState.isStreaming && idx === messages.length - 1) {
-          showTimestamp = false;
-        }
-      }
-      if (options.showTimestamp !== undefined) showTimestamp = options.showTimestamp;
       const view = (
         <SessionProfiler key={renderKey} id="MessageView">
           <MessageView
@@ -134,7 +120,6 @@ export function ChatMessages({
             message={msg}
             toolResults={toolData?.results}
             toolCallDurations={toolData?.durations}
-            modelNames={modelNames}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[idx]}
@@ -143,7 +128,6 @@ export function ChatMessages({
             onEditContent={insertEditedContent}
             onLoadDeferredContent={loadDeferredContent}
             afterAssistant={prevIsAssistant}
-            showTimestamp={showTimestamp}
             prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
             thinkingExpansionStore={thinkingExpansionStore}
             compact={compact}
@@ -163,26 +147,20 @@ export function ChatMessages({
       );
     };
 
-    const renderAnswer = (piece: TurnAnswerPiece, turnEndIdx: number): ReactNode => {
+    const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
       const toolData = toolMessageIndex.get(messages[piece.index]);
-      const forkEntryId = piece.hasFooter ? entryIds[turnEndIdx - 1] : undefined;
       return (
         <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
           <SessionProfiler id="MessageView">
             <MessageView
               sessionId={session?.id}
-              message={piece.hasFooter ? piece.footerBody : piece.body}
+              message={piece.body}
               toolResults={toolData?.results}
               toolCallDurations={toolData?.durations}
-              modelNames={modelNames}
               cwd={messageCwd}
               onOpenFile={onOpenFile}
               entryId={piece.entryId}
-              forkEntryId={forkEntryId}
-              onFork={agentRunning || isNew ? undefined : handleFork}
-              forking={forkEntryId !== undefined && forkingEntryId === forkEntryId}
               onLoadDeferredContent={loadDeferredContent}
-              showTimestamp={piece.hasFooter}
               prevTimestamp={piece.prevTimestamp}
               thinkingExpansionStore={thinkingExpansionStore}
             />
@@ -217,7 +195,6 @@ export function ChatMessages({
           <MessageView
             sessionId={session?.id}
             message={piece.message}
-            modelNames={modelNames}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[piece.index]}
@@ -229,16 +206,15 @@ export function ChatMessages({
       </div>
     );
 
+    const renderPiece = (piece: TurnPiece): ReactNode => {
+      if (piece.kind === "answer") return renderAnswer(piece);
+      if (piece.kind === "process") return renderProcess(piece);
+      return renderFailure(piece);
+    };
+
     const rendered: ReactNode[] = [];
     for (let idx = 0; idx < messages.length;) {
-      const msg = messages[idx];
-      if (msg.role !== "user") {
-        rendered.push(renderMessage(idx));
-        idx += 1;
-        continue;
-      }
-
-      const userIdx = idx;
+      const userIdx = messages[idx].role === "user" ? idx : -1;
       let endIdx = userIdx + 1;
       while (endIdx < messages.length && messages[endIdx].role !== "user") endIdx += 1;
 
@@ -258,7 +234,7 @@ export function ChatMessages({
             cache: assistantBlockCache,
           });
 
-      rendered.push(renderMessage(userIdx));
+      if (userIdx !== -1) rendered.push(renderMessage(userIdx));
       if (!layout || layout.lastAssistantIndex === -1) {
         for (let renderIdx = userIdx + 1; renderIdx < endIdx; renderIdx++) {
           rendered.push(renderMessage(renderIdx));
@@ -267,11 +243,17 @@ export function ChatMessages({
         continue;
       }
 
-      for (const piece of layout.pieces) {
-        if (piece.kind === "answer") rendered.push(renderAnswer(piece, endIdx));
-        else if (piece.kind === "process") rendered.push(renderProcess(piece));
-        else rendered.push(renderFailure(piece));
-      }
+      rendered.push(
+        <AnswerTurn
+          key={messageRenderKeys.keyFor(messages[idx], entryIds[idx], "turn")}
+          footer={layout.footer}
+          modelNames={modelNames}
+          onFork={agentRunning || isNew ? undefined : handleFork}
+          forking={layout.footer?.forkEntryId !== undefined && forkingEntryId === layout.footer.forkEntryId}
+        >
+          {layout.pieces.map(renderPiece)}
+        </AnswerTurn>,
+      );
       for (let renderIdx = layout.lastAssistantIndex + 1; renderIdx < endIdx; renderIdx++) {
         rendered.push(renderMessage(renderIdx));
       }

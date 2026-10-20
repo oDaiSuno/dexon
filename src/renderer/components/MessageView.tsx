@@ -15,17 +15,12 @@ interface Props {
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   toolCallDurations?: ReadonlyMap<string, number>;
-  modelNames?: Record<string, string>;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
-  forkEntryId?: string;
-  onFork?: (entryId: string) => void;
-  forking?: boolean;
   onNavigate?: (entryId: string) => void;
   prevAssistantEntryId?: string;
   onEditContent?: (content: string) => void;
-  showTimestamp?: boolean;
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
@@ -40,17 +35,12 @@ export const MessageView = memo(function MessageView({
   isStreaming,
   toolResults,
   toolCallDurations,
-  modelNames,
   cwd,
   onOpenFile,
   entryId,
-  forkEntryId,
-  onFork,
-  forking,
   onNavigate,
   prevAssistantEntryId,
   onEditContent,
-  showTimestamp,
   prevTimestamp,
   onLoadDeferredContent,
   thinkingExpansionStore,
@@ -79,16 +69,11 @@ export const MessageView = memo(function MessageView({
         isStreaming={isStreaming}
         toolResults={toolResults}
         toolCallDurations={toolCallDurations}
-        modelNames={modelNames}
         cwd={cwd}
         onOpenFile={onOpenFile}
-        showTimestamp={showTimestamp}
         prevTimestamp={prevTimestamp}
         onLoadDeferredContent={onLoadDeferredContent}
         entryId={entryId}
-        forkEntryId={forkEntryId}
-        onFork={onFork}
-        forking={forking}
         thinkingExpansionStore={thinkingExpansionStore}
         compact={compact}
         retried={retried}

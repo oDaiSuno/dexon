@@ -18,13 +18,6 @@ const baseMessage = {
   stopReason: "end_turn",
 };
 
-test("completed messages show the model and recorded input/output usage", async (t) => {
-  const view = await mount(t, AssistantMessageView, { message: baseMessage });
-  assert.match(view.container.textContent, /flash-9/);
-  assert.match(view.container.textContent, /1,234 in/);
-  assert.match(view.container.textContent, /567 out/);
-});
-
 test("compact messages omit the per-message usage and copy action", async (t) => {
   const view = await mount(t, AssistantMessageView, { message: baseMessage, compact: true });
   assert.doesNotMatch(view.container.textContent, /1,234 in/);
