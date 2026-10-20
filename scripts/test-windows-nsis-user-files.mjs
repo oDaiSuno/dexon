@@ -6,6 +6,7 @@ import path from "node:path";
 import {
   assertCleanUserInstallState,
   assertDirectoryRemoved,
+  assertNoFilesLeft,
   assertUserFilesKept,
   firstInstall,
   install,
@@ -86,7 +87,7 @@ results.push(
       }
       uninstall(installPath);
       untrack(installPath);
-      assertDirectoryRemoved(installPath, 20_000);
+      assertNoFilesLeft(installPath, 20_000);
       return { rolledBackVersion: previousVersion, movedOutBeforeUninstall: Object.keys(userFiles) };
     },
   }),

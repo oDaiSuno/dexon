@@ -226,6 +226,16 @@ export function assertDirectoryRemoved(directory, timeoutMs = 0) {
   assert.equal(exists, false, `official uninstall must remove the install folder itself: ${directory}`);
 }
 
+export function assertNoFilesLeft(directory, timeoutMs = 0) {
+  const deadline = Date.now() + timeoutMs;
+  let files = listInstalledFiles(directory);
+  while (files.length > 0 && Date.now() < deadline) {
+    sleepSync(250);
+    files = listInstalledFiles(directory);
+  }
+  assert.deepEqual(files, [], `uninstall must leave no files behind: ${directory}`);
+}
+
 export function listInstalledFiles(directory) {
   return walkFiles(directory)
     .map((file) => path.relative(directory, file).split(path.sep).join("/"))

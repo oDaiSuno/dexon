@@ -11,7 +11,7 @@ import { verifyUpdateConfiguration } from "./verify-update-configuration.mjs";
 import {
   appExecutable,
   assertCleanUserInstallState,
-  assertDirectoryRemoved,
+  assertNoFilesLeft,
   compareVersions,
   fileVersion,
   firstInstall,
@@ -98,7 +98,7 @@ try {
   uninstall(installPath);
   installed = false;
   assertCleanUserInstallState(20_000);
-  assertDirectoryRemoved(installPath, 20_000);
+  assertNoFilesLeft(installPath, 20_000);
   completed = true;
   console.log(
     JSON.stringify({
