@@ -9,6 +9,8 @@
  * pi CLI's interactive semantics where a pasted file path is plain text.
  */
 
+import { isAbsoluteLocalFilePath, isLocalFilePathWithin, normalizeLocalFilePath } from "./file-url.ts";
+
 export interface AttachmentToken {
   /** Index of the leading "@" in the value. */
   start: number;
@@ -143,4 +145,20 @@ export function isImagePath(path: string): boolean {
   const base = attachmentTokenName(path);
   const ext = base.split(".").pop()?.toLowerCase() ?? "";
   return base.includes(".") && IMAGE_EXTENSIONS.has(ext);
+}
+
+/**
+ * The absolute path the renderer may hand to `showItemInFolder` for a token, or
+ * null when the token cannot be located (a `~` path, or a relative path that
+ * escapes the session cwd). Rendering still shows a chip in that case; only the
+ * reveal action is withheld.
+ */
+export function resolveAttachmentRevealPath(path: string, cwd?: string): string | null {
+  if (!path || path.startsWith("~")) return null;
+  if (isAbsoluteLocalFilePath(path)) return normalizeLocalFilePath(path);
+  const root = cwd ? normalizeLocalFilePath(cwd) : null;
+  if (!root) return null;
+  const candidate = normalizeLocalFilePath(`${root}/${path}`);
+  if (!candidate || !isLocalFilePathWithin(candidate, root)) return null;
+  return candidate;
 }

@@ -984,6 +984,21 @@
   - a space inside an unfinished quoted query closes it as a chip
   - a non-path @word keeps its space as plain text
 - **输入框原生编辑（`npm run test:composer-editing-electron`，真实 Electron）**：上列 file-reference 中补全、本地文件、截图暂存、退格、显示与移除、重建、空格结束路径、Esc 后结束文件夹、带引号路径共 9 项，以及 skill-reference 中选择、替换、开头命令、插入、退格、详情与移除、Enter 发送共 7 项，因依赖 JSDOM 未实现的原生编辑命令移入该检查。
+- **用户气泡胶囊（`tests/dom/user-message-chips.test.mjs`，13 个测试）**：以真实 `MessageView` 挂载，只通过角色、文字、`title` 和元素标签观察用户看到的结果，期望值全部来自规格常量，不经 `findAttachmentTokens` / `attachmentTokenName` 重算。
+  - a sentence with two attachments stays one paragraph with the chips inline
+  - a fenced command keeps its attachment text inside one complete code block
+  - an attachment inside inline code stays literal text instead of a chip
+  - a prose attachment becomes a chip with no leftover @ and no local-file link
+  - chips show the file name and keep the full path in the tooltip
+  - markdown characters inside a path do not reformat the chip
+  - a mention and an email address stay ordinary text
+  - a skill chip and an attachment chip share a paragraph with the prose for the typed command
+  - a skill chip and an attachment chip share a paragraph with the prose for pi's expanded block
+  - the copy button copies the message the user sent, with the full paths
+  - clicking a chip reveals the file and an unlocatable path is not clickable
+  - raw html in a message cannot forge a chip or a reveal control
+  - a focused chip keeps keyboard focus when an image preview finishes loading
+- **用户气泡原生验收（`npm run test:user-bubble-electron`，真实 Electron）**：上列 12 项里，一句话是否保持同一行、代码块是否完整、胶囊是否与输入框胶囊同款外观、点击与 Tab 回车能否定位文件、暗色下是否横向溢出共 7 个场景 JSDOM 测不出，移入真实 Chromium 测量；胶囊文件名与完整路径提示、复制原文、伪造胶囊仍由 JSDOM 覆盖。
 - **chat-input-focus-frame.test.mjs**（1 个测试）
   - hiding cancels a queued focus-return frame before it can run
 - **chat-input-line-budget.test.mjs**（2 个测试）
