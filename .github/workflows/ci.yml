@@ -313,6 +313,21 @@ jobs:
       - name: Install Electron runtime for Windows acceptance
         if: runner.os == 'Windows'
         run: npx install-electron --no
+      - name: Keep Windows crash dumps
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |-
+          $ErrorActionPreference = "Stop"
+          $dumps = Join-Path $env:RUNNER_TEMP "crash-dumps"
+          New-Item -ItemType Directory -Path $dumps -Force | Out-Null
+          $reporting = "HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting"
+          $localDumps = Join-Path $reporting "LocalDumps"
+          New-Item -Path $localDumps -Force | Out-Null
+          New-ItemProperty -Path $reporting -Name Disabled -PropertyType DWord -Value 0 -Force | Out-Null
+          New-ItemProperty -Path $reporting -Name DontShowUI -PropertyType DWord -Value 1 -Force | Out-Null
+          New-ItemProperty -Path $localDumps -Name DumpFolder -PropertyType ExpandString -Value $dumps -Force | Out-Null
+          New-ItemProperty -Path $localDumps -Name DumpType -PropertyType DWord -Value 1 -Force | Out-Null
+          New-ItemProperty -Path $localDumps -Name DumpCount -PropertyType DWord -Value 10 -Force | Out-Null
       - name: Install pinned Rust toolchain (Windows)
         if: runner.os == 'Windows'
         run: rustup toolchain install 1.96.1-x86_64-pc-windows-msvc --profile minimal --target x86_64-pc-windows-msvc
@@ -357,6 +372,17 @@ jobs:
       - name: Accept the final AppImage
         if: runner.os == 'Linux'
         run: xvfb-run --auto-servernum --server-args="-screen 0 1920x1080x24" node scripts/verify-distribution.mjs ${{ matrix.tool_target }} --ci
+      - name: Upload Windows crash evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: windows-crash-evidence-${{ github.run_attempt }}
+          path: |-
+            ${{ runner.temp }}/crash-dumps
+            ~/AppData/Local/Temp/Pi NSIS upgrade */
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload exactly the accepted files
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
