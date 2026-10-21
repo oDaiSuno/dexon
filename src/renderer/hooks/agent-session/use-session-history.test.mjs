@@ -240,6 +240,8 @@ test("a stale generation drops an in-flight older page", async (t) => {
       },
     }),
     agentState: async () => ({ running: false, state: {} }),
+    sendAgentCommand: async (sid, payload) =>
+      payload.type === "switch_version" ? { cancelled: false, leafId: "nav-1" } : {},
   });
   const h = await createSessionHookHarness(t, { bundleName: "history-older-stale", host });
   await h.mount({ session: detail.info, newSessionCwd: null });
@@ -247,7 +249,7 @@ test("a stale generation drops an in-flight older page", async (t) => {
 
   const loadPromise = h.state.loadOlder();
   await h.act(async () => {
-    await h.state.handleNavigate("nav-1");
+    await h.state.handleSwitchVersion("nav-1");
   });
   await h.flush();
   resolvePage({
@@ -394,6 +396,8 @@ test("a deferred response for a superseded generation is not applied", async (t)
       },
     }),
     agentState: async () => ({ running: false, state: {} }),
+    sendAgentCommand: async (sid, payload) =>
+      payload.type === "switch_version" ? { cancelled: false, leafId: "nav-1" } : {},
   });
   const h = await createSessionHookHarness(t, { bundleName: "history-deferred-stale", host });
   await h.mount({ session: detail.info, newSessionCwd: null });
@@ -401,7 +405,7 @@ test("a deferred response for a superseded generation is not applied", async (t)
 
   const pending = h.state.loadDeferredContent("d-1", 1);
   await h.act(async () => {
-    await h.state.handleNavigate("nav-1");
+    await h.state.handleSwitchVersion("nav-1");
   });
   await h.flush();
   resolveContent({

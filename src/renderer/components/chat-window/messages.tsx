@@ -31,8 +31,9 @@ export function ChatMessages({
   isNew,
   handleFork,
   forkingEntryId,
-  handleNavigate,
-  insertEditedContent,
+  editDraft,
+  editHandlers,
+  handleSwitchVersion,
   loadDeferredContent,
   thinkingExpansionStore,
   assistantBlockCache,
@@ -54,8 +55,9 @@ export function ChatMessages({
   | "isNew"
   | "handleFork"
   | "forkingEntryId"
-  | "handleNavigate"
-  | "insertEditedContent"
+  | "editDraft"
+  | "editHandlers"
+  | "handleSwitchVersion"
   | "loadDeferredContent"
   | "thinkingExpansionStore"
   | "assistantBlockCache"
@@ -104,7 +106,6 @@ export function ChatMessages({
     ): ReactNode => {
       const msg = options.messageOverride ?? messages[idx];
       const prevIsAssistant = msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant";
-      const prevAssistantEntryId = prevIsAssistant ? entryIds[idx - 1] : undefined;
       const isVisible = msg.role === "user" || msg.role === "assistant";
       const currentRefIdx = visibleRefIndexByMessage.get(idx);
       const renderRole = options.renderRole ?? "message";
@@ -123,9 +124,10 @@ export function ChatMessages({
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[idx]}
-            onNavigate={agentRunning ? undefined : handleNavigate}
-            prevAssistantEntryId={agentRunning ? undefined : prevAssistantEntryId}
-            onEditContent={insertEditedContent}
+            editDraft={editDraft}
+            editHandlers={editHandlers}
+            onSwitchVersion={handleSwitchVersion}
+            agentRunning={agentRunning}
             onLoadDeferredContent={loadDeferredContent}
             afterAssistant={prevIsAssistant}
             prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}

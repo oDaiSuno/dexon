@@ -15,7 +15,7 @@ import {
   type SlashCommandPaletteItem,
 } from "./slash-commands";
 import type { ComposerEditableHandle } from "./types";
-import { COMPOSITION_END_ENTER_GRACE_MS } from "./use-composer-draft";
+import { compositionEnterAction } from "./composition-guard";
 import type { AtSuggestionState } from "./AtMenu";
 
 interface Options {
@@ -257,10 +257,13 @@ export function useComposerSuggestions({
   const handleKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>) => {
       const nativeEvent = event.nativeEvent;
-      const recentlyComposed = Date.now() - lastCompositionEndAtRef.current < COMPOSITION_END_ENTER_GRACE_MS;
-      const isComposing = isComposingRef.current || nativeEvent.isComposing || nativeEvent.keyCode === 229;
-      if (event.key === "Enter" && !event.shiftKey && (isComposing || recentlyComposed)) {
-        if (recentlyComposed) event.preventDefault();
+      const enterAction = compositionEnterAction(
+        nativeEvent,
+        { composing: isComposingRef.current, endedAt: lastCompositionEndAtRef.current },
+        Date.now(),
+      );
+      if (event.key === "Enter" && !event.shiftKey && enterAction !== "send") {
+        if (enterAction === "prevent") event.preventDefault();
         return;
       }
       if (slashMenuOpen && slashQuery !== null) {
@@ -298,7 +301,8 @@ export function useComposerSuggestions({
           return;
         }
       }
-      if (atMenuOpen && atQuery !== null && !isComposing) {
+      const composing = isComposingRef.current || nativeEvent.isComposing === true || nativeEvent.keyCode === 229;
+      if (atMenuOpen && atQuery !== null && !composing) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setAtActiveIndex((index) => Math.min(Math.max(0, atMatches.length - 1), index + 1));

@@ -44,6 +44,18 @@ const ACCESSIBLE_REGION_KEYS = new Set([
 
 const OLDER_HISTORY_KEYS = new Set(["loadEarlierMessages", "loadingEarlierMessages", "earlierMessagesLoadFailed"]);
 
+const MESSAGE_VERSION_KEYS = new Set([
+  "editMessage",
+  "editMessageField",
+  "previousVersion",
+  "nextVersion",
+  "removeImage",
+  "versionFilesNotUndone",
+  "copyMessage",
+  "nothingToCopy",
+  "messageEditFailed",
+]);
+
 const NAVIGATION_INTEGRATION_KEYS = new Set([
   "switchSpaceList",
   "noOtherSpaces",
@@ -211,6 +223,7 @@ export function dictionaryBaselineFailures({
     ...SETTINGS_MIGRATION_KEYS,
     ...UPSTREAM_FAILURE_KEYS,
     ...OLDER_HISTORY_KEYS,
+    ...MESSAGE_VERSION_KEYS,
     ...SESSION_ORCHESTRATION_KEYS,
   ])
     excluded.add(key);

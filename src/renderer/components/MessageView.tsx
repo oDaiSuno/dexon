@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { UserMessageView } from "./messages/UserMessage";
+import type { EditDraft, EditDraftHandlers } from "./messages/user-message-editor";
 import { AssistantMessageView } from "./messages/AssistantMessage";
 import { CompactionMessageView, CustomMessageView } from "./messages/SystemMessages";
 import { DeferredContentActions } from "./messages/shared";
@@ -18,9 +19,10 @@ interface Props {
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   entryId?: string;
-  onNavigate?: (entryId: string) => void;
-  prevAssistantEntryId?: string;
-  onEditContent?: (content: string) => void;
+  editDraft?: EditDraft | null;
+  editHandlers?: EditDraftHandlers;
+  onSwitchVersion?: (entryId: string) => void;
+  agentRunning?: boolean;
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
@@ -38,9 +40,10 @@ export const MessageView = memo(function MessageView({
   cwd,
   onOpenFile,
   entryId,
-  onNavigate,
-  prevAssistantEntryId,
-  onEditContent,
+  editDraft,
+  editHandlers,
+  onSwitchVersion,
+  agentRunning,
   prevTimestamp,
   onLoadDeferredContent,
   thinkingExpansionStore,
@@ -54,10 +57,12 @@ export const MessageView = memo(function MessageView({
         sessionId={sessionId}
         afterAssistant={afterAssistant}
         cwd={cwd}
+        entryId={entryId}
         onOpenFile={onOpenFile}
-        onNavigate={onNavigate}
-        prevAssistantEntryId={prevAssistantEntryId}
-        onEditContent={onEditContent}
+        editDraft={editDraft}
+        editHandlers={editHandlers}
+        onSwitchVersion={onSwitchVersion}
+        agentRunning={agentRunning}
         onLoadDeferredContent={onLoadDeferredContent}
       />
     );

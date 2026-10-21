@@ -62,8 +62,9 @@ export function ChatWindow(props: Props) {
     isNew,
     handleFork,
     forkingEntryId,
-    handleNavigate,
-    insertEditedContent,
+    editDraft,
+    editHandlers,
+    handleSwitchVersion,
     loadDeferredContent,
     thinkingExpansionStore,
     assistantBlockCache,
@@ -173,8 +174,9 @@ export function ChatWindow(props: Props) {
                     isNew={isNew}
                     handleFork={handleFork}
                     forkingEntryId={forkingEntryId}
-                    handleNavigate={handleNavigate}
-                    insertEditedContent={insertEditedContent}
+                    editDraft={editDraft}
+                    editHandlers={editHandlers}
+                    handleSwitchVersion={handleSwitchVersion}
                     loadDeferredContent={loadDeferredContent}
                     thinkingExpansionStore={thinkingExpansionStore}
                     assistantBlockCache={assistantBlockCache}

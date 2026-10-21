@@ -242,24 +242,6 @@ export function useSessionActions(context: Dependencies) {
     [onSessionForked, sessionIdRef, setForkingEntryId],
   );
 
-  const handleNavigate = useCallback(
-    async (entryId: string) => {
-      const sid = sessionIdRef.current;
-      if (!sid) return;
-      // ISSUE-007: navigate first, then load context for that leaf
-      try {
-        await sendAgentCommand(sid, { type: "navigate_tree", targetId: entryId });
-      } catch (e) {
-        console.error("navigate_tree failed:", e);
-        return;
-      }
-      setActiveLeafId(entryId);
-      await loadContext(sid, entryId);
-      await refreshContextUsage(sid);
-    },
-    [loadContext, refreshContextUsage, sessionIdRef, setActiveLeafId],
-  );
-
   const handleLeafChange = useCallback(
     async (leafId: string | null) => {
       const sid = sessionIdRef.current;
@@ -349,7 +331,6 @@ export function useSessionActions(context: Dependencies) {
     handleSend,
     handleAbort,
     handleFork,
-    handleNavigate,
     handleModelChange,
     handleCompact,
   };

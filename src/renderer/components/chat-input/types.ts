@@ -63,7 +63,6 @@ export interface ComposerEditableHandle {
 
 export interface ChatInputHandle {
   insertText: (text: string) => void;
-  insertIfEmpty: (text: string) => void;
   prependText: (text: string) => void;
   addFiles: (files: File[]) => void;
 }

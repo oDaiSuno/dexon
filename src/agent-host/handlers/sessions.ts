@@ -33,7 +33,9 @@ import {
 import { reconstructSessionContextUsage } from "../session-context-usage";
 import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
+import { deleteSessionLeafChoice } from "../session-leaf-store";
 import { deleteSessionOrigin } from "../session-origin-store";
+import { resolveSessionLeafId } from "../session-leaf";
 import { removeSessionTranscript } from "../session-orchestration/transcript";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
@@ -156,7 +158,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         const { filePath, manager: sm, entries, historyRevision } = source;
 
         const contextStartedAt = performance.now();
-        const leafId = sm.getLeafId();
+        const leafId = resolveSessionLeafId(id, entries, sm.getLeafId());
         const tree = projectSessionTreeForResponse(sm.getTree() as never) as SessionTreeNode[];
         const context = buildSessionHistoryPage({ entries, leafId, historyWindow, historyRevision });
         const stats = computeSessionStats(entries);
@@ -233,7 +235,8 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     "sessions.context": async (params) => {
       const { id, leafId, historyWindow } = params as { id: string; leafId?: string; historyWindow?: HistoryWindow };
       const { entries, historyRevision } = await requireSessionSource(id);
-      const context = buildSessionHistoryPage({ entries, leafId, historyWindow, historyRevision });
+      const resolvedLeafId = leafId ?? resolveSessionLeafId(id, entries, entries.at(-1)?.id ?? null);
+      const context = buildSessionHistoryPage({ entries, leafId: resolvedLeafId, historyWindow, historyRevision });
       return { context };
     },
 
@@ -248,6 +251,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       try {
         const context = buildSessionHistoryPage({
           entries,
+          leafId: resolveSessionLeafId(id, entries, entries.at(-1)?.id ?? null),
           historyWindow: { maxTurns, maxBytes },
           historyRevision,
           cursor: decodeHistoryCursor(cursor),
@@ -340,6 +344,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const filePath = savedPath ?? (await resolveSessionPath(id));
       const deletedSession = filePath ? removeSessionFile(filePath) : null;
       deleteSessionOrigin(id);
+      deleteSessionLeafChoice(id);
       removeSessionTranscript(id);
       invalidateSessionPathCache(id);
       void callMain("browser.sessionEnded", { sessionId: id }).catch(() => undefined);

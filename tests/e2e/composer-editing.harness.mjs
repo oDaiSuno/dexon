@@ -240,7 +240,7 @@ async function run() {
     await type("/skill:fast-context 先读 /skill:groksearch 再说");
     assert.deepEqual((await view()).chips, ["fast-context"], "only the leading command becomes a skill");
     await key("Enter");
-    await page(`insertIfEmpty("/skill:groksearch 优化按钮样式")`);
+    await page(`insertText("/skill:groksearch 优化按钮样式")`);
     assert.deepEqual((await view()).chips, ["groksearch"], "inserted content shows its leading skill");
     await page("placeCaretAtEnd()");
     await type("，突出重点");
@@ -304,8 +304,6 @@ async function run() {
     await key("Enter");
     await waitFor("window.composerEditing.view().text==='draft one'", "the failed message is restored");
     await page("sendFails(false)");
-    await page(`insertIfEmpty("ignored")`);
-    assert.deepEqual((await view()).text, "draft one", "a non-empty draft is not replaced");
   });
 
   await scene("composition-enter-does-not-send", async () => {

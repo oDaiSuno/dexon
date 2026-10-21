@@ -8,8 +8,6 @@ import {
 import { insertAttachmentToken } from "@shared/attachment-tokens";
 import { registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 
-const COMPOSITION_END_ENTER_GRACE_MS = 100;
-
 type Translate = (key: string, fallback: string) => string;
 
 function extensionForImageMime(mimeType: string): string | null {
@@ -217,5 +215,3 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
     setSubmissionNotice,
   };
 }
-
-export { COMPOSITION_END_ENTER_GRACE_MS };

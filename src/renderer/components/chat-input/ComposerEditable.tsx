@@ -44,6 +44,7 @@ export function ComposerEditable({
   visible = true,
   handleRef,
   placeholder,
+  ariaLabel,
   onValueChange,
   onSelectionChange,
   onKeyDown,
@@ -62,6 +63,7 @@ export function ComposerEditable({
   visible?: boolean;
   handleRef: React.MutableRefObject<ComposerEditableHandle | null>;
   placeholder: string;
+  ariaLabel?: string;
   onValueChange: (text: string) => void;
   onSelectionChange: (textBeforeCaret: string) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
@@ -297,6 +299,7 @@ export function ComposerEditable({
       suppressContentEditableWarning
       spellCheck={false}
       role="textbox"
+      aria-label={ariaLabel}
       aria-multiline="true"
       data-placeholder={placeholder}
       data-empty={value === "" ? "" : undefined}
