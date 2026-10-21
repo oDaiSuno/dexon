@@ -3,19 +3,22 @@ out/
 dist/
 .DS_Store
 *.log
-.tsbuildinfo
+*.tsbuildinfo
 .cache/
 temp/
 .env
 .env.*
-.artifacts/
+!.env.example
+/.artifacts/
+/.worktrees/
 build/toolchains/.core-cache/
 build/toolchains/core/
 native/**/target/
 
 # 内部工作文档不入库
-gudaspec/
+/gudaspec/
 
 # 个人设计与工作文档仅本地保留
-DESIGN.md
-docs/
+/DESIGN.md
+/docs/
+/AGENTS.md
