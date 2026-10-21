@@ -1,0 +1,70 @@
+/* chat-motion — keyframes shared by chat surfaces. */
+
+/* ── Beautiful UI keyframe set ── */
+
+@keyframes chat-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(var(--distance-base));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes chat-fade-in {
+  0% {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes chat-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(var(--scale-small));
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes chat-stream-in {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+@keyframes chat-caret-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes chat-shimmer-text {
+  0% {
+    background-position: 150%;
+  }
+  to {
+    background-position: -50%;
+  }
+}
+
+@keyframes chat-spin {
+  to {
+    transform: rotate(1turn);
+  }
+}

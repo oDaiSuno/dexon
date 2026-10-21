@@ -1,0 +1,41 @@
+/* motion-tokens — shared motion scale (duration, easing, distance, scale, blur). */
+
+/* ─────────────────────────────────────────────────────────
+ * Dexon chat surface — "Vercel A" personality (user-approved
+ * 2026-09-03; preview .artifacts/ui-vercel/preview-vercel.html).
+ * Chat tokens are aliases onto the app gray ramp in globals.css
+ * (single source of truth): flat canvas, hairline layering, three
+ * ink levels, blue reserved for signals. Motion tokens from
+ * transitions.dev (_root.css scale) — unchanged by the re-skin.
+ * Chat-scoped tokens live under .chat-appearance-scope.
+ * ───────────────────────────────────────────────────────── */
+
+:root {
+  /* motion tokens (transitions.dev five dimensions) */
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-pop: 180ms;
+  --duration-glide: 220ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+  --ease-smooth-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: ease-in-out;
+  --ease-out: ease-out;
+  --ease-linear: linear;
+  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --distance-micro: 4px;
+  --distance-small: 6px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --distance-large: 30px;
+  --scale-large: 0.96;
+  --scale-medium: 0.97;
+  --scale-small: 0.98;
+  --scale-tiny: 0.99;
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --blur-large: 8px;
+}

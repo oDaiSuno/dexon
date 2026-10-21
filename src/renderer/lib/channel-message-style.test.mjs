@@ -34,7 +34,7 @@ test("channel bubbles keep distinct light/dark brand palettes; local follows the
     assert.equal(dark.foreground, "#faf9f7");
   }
 
-  // local bubble: theme-aware through chat.css tokens (bubble bg + ink text)
+  // local bubble: theme-aware through styles/chat-scope.css tokens (bubble bg + ink text)
   const localLight = getUserBubbleStyle(undefined, false);
   const localDark = getUserBubbleStyle(undefined, true);
   assert.equal(localLight.background, "var(--bui-bubble)");
@@ -54,7 +54,7 @@ test("every channel bubble palette meets WCAG AA text contrast", () => {
 });
 
 test("the local bubble tokens meet WCAG AA text contrast in both themes", () => {
-  // bubble/ink pairs from chat.css (Vercel A palette: gray-200 bubble)
+  // bubble/ink pairs from styles/chat-scope.css (Vercel A palette: gray-200 bubble)
   const pairs = [
     { background: "#eaeaea", foreground: "#0a0a0a" }, // light bubble / ink
     { background: "#262626", foreground: "#ededed" }, // dark bubble / ink

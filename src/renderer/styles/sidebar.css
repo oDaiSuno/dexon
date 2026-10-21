@@ -1,0 +1,15 @@
+/* sidebar — session list menus. */
+
+/* interactive — session menus, hover actions, composer, chips, micro-motion — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
+
+.session-actions-summary::marker,
+.session-actions-summary::-webkit-details-marker {
+  display: none;
+  content: "";
+}
+
+.session-menu-item:hover,
+.session-menu-item:focus-visible {
+  background: var(--bg-hover) !important;
+  color: var(--text) !important;
+}

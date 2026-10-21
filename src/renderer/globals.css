@@ -17,8 +17,7 @@
   font-display: swap;
 }
 
-/* App style partials are imported from main.tsx in cascade order (tokens,
-   base, interactive, markdown, motion, panels, then chat.css). */
+/* App style partials are imported from main.tsx in cascade order. */
 
 @theme {
   --color-bg: var(--bg);

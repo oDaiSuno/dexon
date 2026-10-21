@@ -12,13 +12,18 @@ import { ChatInput } from "../renderer/components/ChatInput.tsx";
 // script compiles globals.css through the real Tailwind postcss pipeline.
 import "../renderer/globals.css";
 import "../renderer/styles/tokens.css";
+import "../renderer/styles/motion-tokens.css";
 import "../renderer/styles/base.css";
-import "../renderer/styles/interactive.css";
+import "../renderer/styles/sidebar.css";
+import "../renderer/styles/composer.css";
 import "../renderer/styles/markdown.css";
 import "../renderer/styles/motion.css";
 import "../renderer/styles/nav.css";
 import "../renderer/styles/panels.css";
-import "../renderer/chat.css";
+import "../renderer/styles/chat-scope.css";
+import "../renderer/styles/chat-motion.css";
+import "../renderer/styles/chat-window.css";
+import "../renderer/styles/messages.css";
 import "../renderer/styles/tool-cards.css";
 import { buildPreviewData } from "./ui-preview-data.mjs";
 

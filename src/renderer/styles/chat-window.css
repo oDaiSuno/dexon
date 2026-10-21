@@ -1,0 +1,184 @@
+/* chat-window — chat stage: input dock transition, scroll-to-bottom, notice shelf, welcome entrance. */
+
+.chat-input-bottom-spacer {
+  flex: 1 1 0;
+  min-height: 0;
+  pointer-events: none;
+  transition: flex-grow 440ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-input-bottom-spacer[data-expanded="false"] {
+  flex-grow: 0;
+}
+
+.chat-input-transition-dock {
+  transition:
+    filter 280ms ease,
+    opacity 220ms ease;
+}
+
+.chat-input-transition-dock[data-position="conversation"] {
+  filter: drop-shadow(0 -2px 8px color-mix(in srgb, #000 3%, transparent));
+}
+
+.chat-conversation-enter {
+  animation: chat-conversation-enter var(--duration-medium, 350ms)
+    var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+@keyframes chat-conversation-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Floating "scroll to bottom" badge (chat) */
+.chat-scroll-to-bottom {
+  position: absolute;
+  z-index: 30;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  opacity: 0.96;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
+  animation: chat-scroll-to-bottom-in var(--duration-pop, 180ms) var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1))
+    both;
+}
+
+.chat-scroll-to-bottom:hover {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22);
+}
+
+.chat-scroll-to-bottom:active {
+  transform: translateY(0);
+}
+
+@keyframes chat-scroll-to-bottom-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-scroll-to-bottom-live-dot {
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes notice-shelf-in {
+  from {
+    opacity: 0;
+    height: 0;
+    max-height: 0;
+    min-height: 0;
+    margin-bottom: 0;
+    transform: translateY(-6px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    height: 60px;
+    max-height: 60px;
+    min-height: 60px;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes notice-shelf-out {
+  from {
+    opacity: 1;
+    height: 60px;
+    max-height: 60px;
+    min-height: 60px;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    height: 0;
+    max-height: 0;
+    min-height: 0;
+    margin-bottom: 0;
+    transform: translateY(-5px) scale(0.995);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-input-bottom-spacer {
+    transition-duration: 0.001ms !important;
+  }
+
+  .chat-input-transition-dock {
+    transition-duration: 0.001ms !important;
+  }
+
+  .chat-conversation-enter {
+    animation-duration: 0.001ms !important;
+  }
+
+  .notice-shelf-item {
+    animation-duration: 0.001ms !important;
+  }
+
+  .chat-scroll-to-bottom {
+    animation-duration: 0.001ms !important;
+  }
+
+  .chat-scroll-to-bottom-live-dot {
+    animation: none;
+  }
+}
+
+/* ── Welcome entrance (transitions.dev 18-texts-reveal, CSS-only:
+     staggered blurred rise; lines are .chat-welcome-line with --line-i) ──
+     NOTE: the keyframes own the blur; putting it in the base rule made
+     `fill-mode: both` restore the blurred state after the run. */
+
+@keyframes chat-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-medium));
+    filter: blur(var(--blur-medium));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.chat-welcome-line {
+  opacity: 0;
+  animation: chat-welcome-in var(--duration-very-slow) var(--ease-smooth-out) both;
+  animation-delay: calc(var(--line-i, 0) * var(--duration-stagger) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-welcome-line {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

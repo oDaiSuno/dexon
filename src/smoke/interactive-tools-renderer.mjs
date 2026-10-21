@@ -6,7 +6,10 @@ import { ToolCardDock } from "../renderer/components/interactive-tools/tool-card
 import { InteractiveToolStore } from "../renderer/lib/interactive-tool-store.ts";
 import "../renderer/styles/tokens.css";
 import "../renderer/styles/base.css";
-import "../renderer/chat.css";
+import "../renderer/styles/motion-tokens.css";
+import "../renderer/styles/chat-scope.css";
+import "../renderer/styles/chat-motion.css";
+import "../renderer/styles/messages.css";
 import "../renderer/styles/tool-cards.css";
 
 const document = globalThis.document;

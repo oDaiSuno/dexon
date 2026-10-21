@@ -1,233 +1,4 @@
-/* ─────────────────────────────────────────────────────────
- * Dexon chat surface — "Vercel A" personality (user-approved
- * 2026-09-03; preview .artifacts/ui-vercel/preview-vercel.html).
- * Chat tokens are aliases onto the app gray ramp in globals.css
- * (single source of truth): flat canvas, hairline layering, three
- * ink levels, blue reserved for signals. Motion tokens from
- * transitions.dev (_root.css scale) — unchanged by the re-skin.
- * Chat-scoped tokens live under .chat-appearance-scope.
- * ───────────────────────────────────────────────────────── */
-
-:root {
-  /* motion tokens (transitions.dev five dimensions) */
-  --duration-stagger: 40ms;
-  --duration-micro: 80ms;
-  --duration-quick: 150ms;
-  --duration-pop: 180ms;
-  --duration-glide: 220ms;
-  --duration-fast: 250ms;
-  --duration-medium: 350ms;
-  --duration-slow: 400ms;
-  --duration-very-slow: 500ms;
-  --ease-smooth-out: cubic-bezier(0.23, 1, 0.32, 1);
-  --ease-in-out: ease-in-out;
-  --ease-out: ease-out;
-  --ease-linear: linear;
-  --ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1);
-  --distance-micro: 4px;
-  --distance-small: 6px;
-  --distance-base: 8px;
-  --distance-medium: 12px;
-  --distance-large: 30px;
-  --scale-large: 0.96;
-  --scale-medium: 0.97;
-  --scale-small: 0.98;
-  --scale-tiny: 0.99;
-  --blur-small: 2px;
-  --blur-medium: 3px;
-  --blur-large: 8px;
-}
-
-.chat-appearance-scope {
-  /* Vercel A chat palette — light (aliases onto the app gray ramp) */
-  --bui-page: #fafafa; /* var(--gray-50) */
-  --bui-canvas: #ffffff; /* chat reads as a document on the page */
-  --bui-surface: #ffffff;
-  --bui-inset: #fafafa;
-  --bui-hover: var(--gray-100);
-  --bui-hover-2: var(--gray-200);
-  --bui-ink: var(--gray-1000);
-  --bui-ink-2: var(--gray-600);
-  --bui-ink-3: var(--gray-400);
-  --bui-line: var(--gray-200);
-  --bui-line-strong: var(--gray-300);
-  --bui-field: var(--gray-100); /* quiet boxes: thinking traces, insets */
-  --bui-bubble: var(--gray-200); /* local user bubble */
-  --bui-accent: #0060dd;
-  --bui-accent-ink: #0052c4;
-  --bui-accent-tint: rgba(0, 96, 221, 0.08);
-  --bui-green: #29a383;
-  --bui-green-tint: rgba(41, 163, 131, 0.1);
-  --bui-orange: #f5a623;
-  --bui-orange-tint: rgba(245, 166, 35, 0.12);
-  --bui-red: #e00000;
-  --bui-red-tint: rgba(224, 0, 0, 0.08);
-  --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.05);
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.03);
-  /* concentric radii: chip 6 / control 8 / card 10 */
-  --bui-r-chip: 6px;
-  --bui-r-control: 8px;
-  --bui-r-card: 10px;
-  /* chat type scale (multiplied by --chat-font-scale) */
-  --chat-f-chip: 11.5px;
-  --chat-f-micro: 11px;
-  --chat-f-name: 12.5px;
-  --chat-f-meta: 12px;
-  --chat-f-body: 13.5px;
-  /* chat canvas = flat surface; texture-free per Vercel personality */
-  background: var(--bui-canvas);
-  color: var(--bui-ink);
-
-  /* B11: alias the app-level warm tokens to the chat palette so every
-     remaining reference inside the chat scope (composer, markdown, badges)
-     follows the Beautiful UI surface without logic changes. */
-  --border: var(--bui-line);
-  --bg-panel: var(--bui-surface);
-  --bg-hover: var(--bui-hover);
-  --bg-selected: var(--bui-accent-tint);
-  --bg-subtle: var(--bui-hover);
-  --text: var(--bui-ink);
-  --text-muted: var(--bui-ink-2);
-  --text-dim: var(--bui-ink-3);
-  --accent: var(--bui-accent);
-  --accent-hover: var(--bui-accent-ink);
-  --accent-soft: var(--bui-accent-tint);
-  --accent-soft-border: color-mix(in srgb, var(--bui-accent) 30%, transparent);
-  --danger: var(--bui-red);
-  --success: var(--bui-green);
-  --warning: var(--bui-orange);
-  --thinking-bg: transparent;
-  --thinking-border: var(--bui-line);
-  --assistant-bg: transparent;
-  --user-bg: var(--bui-bubble);
-  --user-fg: var(--bui-ink);
-}
-
-html.dark .chat-appearance-scope {
-  /* Vercel A chat palette — dark (true-black family) */
-  --bui-page: #0a0a0a;
-  --bui-canvas: #0a0a0a;
-  --bui-surface: #111111;
-  --bui-inset: #141414;
-  --bui-hover: var(--gray-100);
-  --bui-hover-2: var(--gray-200);
-  --bui-ink: var(--gray-1000);
-  --bui-ink-2: var(--gray-600);
-  --bui-ink-3: var(--gray-500);
-  --bui-line: var(--gray-300);
-  --bui-line-strong: var(--gray-400);
-  --bui-field: var(--gray-100);
-  --bui-bubble: var(--gray-200);
-  --bui-accent: #3291ff;
-  --bui-accent-ink: #5ba2ff;
-  --bui-accent-tint: rgba(50, 145, 255, 0.14);
-  --bui-green: #45c4a0;
-  --bui-green-tint: rgba(69, 196, 160, 0.12);
-  --bui-orange: #f5b94a;
-  --bui-orange-tint: rgba(245, 185, 74, 0.12);
-  --bui-red: #ff5c5c;
-  --bui-red-tint: rgba(255, 92, 92, 0.12);
-  --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.2);
-
-  /* B11 aliases (same targets; --bui-* resolve to dark values above) */
-  --border: var(--bui-line);
-  --bg-panel: var(--bui-surface);
-  --bg-hover: var(--bui-hover);
-  --bg-selected: var(--bui-accent-tint);
-  --bg-subtle: var(--bui-hover);
-  --text: var(--bui-ink);
-  --text-muted: var(--bui-ink-2);
-  --text-dim: var(--bui-ink-3);
-  --accent: var(--bui-accent);
-  --accent-hover: var(--bui-accent-ink);
-  --accent-soft: var(--bui-accent-tint);
-  --accent-soft-border: color-mix(in srgb, var(--bui-accent) 30%, transparent);
-  --danger: var(--bui-red);
-  --success: var(--bui-green);
-  --warning: var(--bui-orange);
-  --thinking-bg: transparent;
-  --thinking-border: var(--bui-line);
-  --assistant-bg: transparent;
-  --user-bg: var(--bui-field);
-  --user-fg: var(--bui-ink);
-}
-
-.chat-history-item {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 120px;
-}
-
-/* ── Beautiful UI keyframe set ── */
-
-@keyframes chat-fade-up {
-  0% {
-    opacity: 0;
-    transform: translateY(var(--distance-base));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes chat-fade-in {
-  0% {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-@keyframes chat-pop-in {
-  0% {
-    opacity: 0;
-    transform: scale(var(--scale-small));
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-@keyframes chat-stream-in {
-  0% {
-    opacity: 0;
-    filter: blur(4px);
-  }
-  to {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-@keyframes chat-caret-blink {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
-@keyframes chat-shimmer-text {
-  0% {
-    background-position: 150%;
-  }
-  to {
-    background-position: -50%;
-  }
-}
-
-@keyframes chat-spin {
-  to {
-    transform: rotate(1turn);
-  }
-}
+/* messages — transcript rows: accordions, tool rows, failure lines, streaming, status morph, hover actions. */
 
 /* ── Accordion (transitions.dev 21-accordion: grid-rows 0fr↔1fr,
      no JS height measuring; padding belongs on the inner clip box) ── */
@@ -260,9 +31,11 @@ html.dark .chat-appearance-scope {
   transform-origin: center;
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
+
 .chat-acc-chevron path {
   vector-effect: non-scaling-stroke;
 }
+
 .chat-acc[data-open="true"] .chat-acc-chevron {
   transform: scaleY(1);
 }
@@ -297,6 +70,7 @@ html.dark .chat-appearance-scope {
   text-align: left;
   color: inherit;
 }
+
 .chat-quiet-head:hover {
   background: var(--bui-hover-2);
 }
@@ -309,23 +83,28 @@ html.dark .chat-appearance-scope {
   color: var(--bui-ink-2);
   min-width: 0;
 }
+
 .chat-failure-mark {
   flex-shrink: 0;
   color: var(--bui-red);
 }
+
 .chat-retry-mark {
   color: var(--bui-ink-3);
 }
+
 .chat-failure-body {
   min-width: 0;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
+
 .chat-failure-text[data-clamped] {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
 .chat-failure-meta {
   display: inline-flex;
   gap: 8px;
@@ -333,6 +112,7 @@ html.dark .chat-appearance-scope {
   color: var(--bui-ink-3);
   white-space: nowrap;
 }
+
 .chat-failure-action {
   appearance: none;
   border: none;
@@ -343,13 +123,16 @@ html.dark .chat-appearance-scope {
   cursor: pointer;
   transition: color var(--duration-quick) var(--ease-out);
 }
+
 .chat-failure-action:hover {
   color: var(--bui-ink-2);
 }
+
 .chat-failure-copy {
   opacity: 0;
   transition: opacity var(--duration-quick) var(--ease-out);
 }
+
 .chat-failure-line:hover .chat-failure-copy,
 .chat-failure-copy:focus-visible,
 .chat-failure-copy[data-copied] {
@@ -489,6 +272,7 @@ html.dark .chat-tool-chip {
   font-size: var(--chat-f-chip);
   color: var(--bui-accent);
 }
+
 .chat-tool-open-browser:hover {
   background: var(--bui-hover);
 }
@@ -614,17 +398,21 @@ html.dark .chat-tool-chip {
   filter: blur(1px);
   opacity: 0.4;
 }
+
 .chat-status-icon.is-crossing .chat-scmorph-fill {
   opacity: 1;
 }
+
 .chat-status-icon.is-done .chat-scmorph-ring,
 .chat-status-icon.is-done .chat-scmorph-spinring {
   opacity: 0;
   animation-play-state: paused;
 }
+
 .chat-status-icon.is-done .chat-scmorph-fill {
   opacity: 1;
 }
+
 .chat-status-icon.is-done .chat-scmorph-check {
   opacity: 1;
   stroke-dashoffset: 0;
@@ -647,20 +435,24 @@ html.dark .chat-tool-chip {
     opacity var(--duration-fast) var(--ease-smooth-out),
     filter var(--duration-fast) var(--ease-smooth-out);
 }
+
 .chat-status-icon .chat-scmorph-badge,
 .chat-status-icon .chat-scmorph-check,
 .chat-status-icon .chat-scmorph-fill {
   transition-delay: 0s;
 }
+
 .chat-status-icon.is-rest .chat-scmorph-badge {
   scale: 1;
   transition: none;
 }
+
 .chat-status-icon.is-rest .chat-scmorph-check,
 .chat-status-icon.is-rest .chat-scmorph-fill {
   opacity: 0;
   transition-duration: var(--duration-quick);
 }
+
 .chat-status-icon.is-rest .chat-scmorph-rest {
   opacity: 1;
   filter: blur(0);
@@ -694,35 +486,8 @@ html.dark .chat-tool-chip {
   }
 }
 
-/* ── Welcome entrance (transitions.dev 18-texts-reveal, CSS-only:
-     staggered blurred rise; lines are .chat-welcome-line with --line-i) ──
-     NOTE: the keyframes own the blur; putting it in the base rule made
-     `fill-mode: both` restore the blurred state after the run. */
-
-@keyframes chat-welcome-in {
-  from {
-    opacity: 0;
-    transform: translateY(var(--distance-medium));
-    filter: blur(var(--blur-medium));
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-    filter: blur(0);
-  }
-}
-
-.chat-welcome-line {
-  opacity: 0;
-  animation: chat-welcome-in var(--duration-very-slow) var(--ease-smooth-out) both;
-  animation-delay: calc(var(--line-i, 0) * var(--duration-stagger) * 2);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-welcome-line {
-    animation: none !important;
-    opacity: 1;
-    transform: none;
-    filter: none;
-  }
+.message-hover-actions:focus-within,
+.message-hover-action:focus-visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
 }

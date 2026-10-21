@@ -1,22 +1,4 @@
-/* interactive — session menus, hover actions, composer, chips, micro-motion — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
-
-.session-actions-summary::marker,
-.session-actions-summary::-webkit-details-marker {
-  display: none;
-  content: "";
-}
-
-.session-menu-item:hover,
-.session-menu-item:focus-visible {
-  background: var(--bg-hover) !important;
-  color: var(--text) !important;
-}
-
-.message-hover-actions:focus-within,
-.message-hover-action:focus-visible {
-  opacity: 1 !important;
-  pointer-events: auto !important;
-}
+/* composer — chat input shell, editor, attachment and skill chips, press feedback. */
 
 .chat-composer-shell:focus-within {
   border-color: color-mix(in srgb, var(--accent) 58%, var(--border)) !important;
@@ -221,42 +203,5 @@
   }
   .tap-scale:active {
     transform: none;
-  }
-}
-
-.chat-input-bottom-spacer {
-  flex: 1 1 0;
-  min-height: 0;
-  pointer-events: none;
-  transition: flex-grow 440ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.chat-input-bottom-spacer[data-expanded="false"] {
-  flex-grow: 0;
-}
-
-.chat-input-transition-dock {
-  transition:
-    filter 280ms ease,
-    opacity 220ms ease;
-}
-
-.chat-input-transition-dock[data-position="conversation"] {
-  filter: drop-shadow(0 -2px 8px color-mix(in srgb, #000 3%, transparent));
-}
-
-.chat-conversation-enter {
-  animation: chat-conversation-enter var(--duration-medium, 350ms)
-    var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
-}
-
-@keyframes chat-conversation-enter {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }

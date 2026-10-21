@@ -11,7 +11,7 @@ export interface UserBubbleStyle {
 const USER_BUBBLE_FOREGROUND = "#faf9f7";
 
 /* Channel bubbles keep their brand colors; the local bubble follows the
- * chat surface language (soft gray field + ink) defined in chat.css. */
+ * chat surface language (soft gray field + ink) defined in styles/chat-scope.css. */
 export const USER_BUBBLE_COLORS: Record<MessageTheme, Record<Exclude<MessageSource, "local">, string>> = {
   light: {
     weixin: "#08783e",

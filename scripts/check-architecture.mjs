@@ -89,8 +89,7 @@ const GROUPS = [
     extensionRe: /\.(?:ts|tsx)$/,
   },
   {
-    // 行数卫生（建议级）：样式表。chat.css 是遗留文件（>500 行）不计入预算，
-    // 忠实原 css-structure 测试的豁免注释。
+    // 行数卫生（建议级）：样式表。
     name: "样式表",
     dirs: ["src/renderer/styles"],
     files: ["src/renderer/globals.css"],
@@ -212,13 +211,18 @@ function checkGroup(group) {
 const EXPECTED_CSS_IMPORT_ORDER = [
   "globals.css",
   "styles/tokens.css",
+  "styles/motion-tokens.css",
   "styles/base.css",
-  "styles/interactive.css",
+  "styles/sidebar.css",
+  "styles/composer.css",
   "styles/markdown.css",
   "styles/motion.css",
   "styles/nav.css",
   "styles/panels.css",
-  "chat.css",
+  "styles/chat-scope.css",
+  "styles/chat-motion.css",
+  "styles/chat-window.css",
+  "styles/messages.css",
   "styles/tool-cards.css",
 ];
 
@@ -240,7 +244,7 @@ function checkCssWiring() {
     if (!imports.includes(`styles/${name}`)) failures.push(`孤儿样式分片未被 main.tsx 引用: styles/${name}`);
   }
 
-  // 渲染器树内只允许入口、chat.css 与已接线分片存在。
+  // 渲染器树内只允许入口与已接线分片存在。
   const onDisk = [];
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
