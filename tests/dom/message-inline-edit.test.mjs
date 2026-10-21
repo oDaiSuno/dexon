@@ -621,6 +621,9 @@ test("when the reader is composing a character with an input method, Enter does 
   await keyDown(editBox(view), "Enter");
   await settle();
   assert.equal(commandsOf(host, "edit_message").length, 0, "Enter that confirms a composition sends nothing");
+  await keyDown(editBox(view), "Escape");
+  await settle();
+  assert.equal(editorValue(editBox(view)), edited, "Escape that dismisses a composition keeps the editor open");
   await act(async () => editBox(view).dispatchEvent(new dom.window.Event("compositionend", { bubbles: true })));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
   await keyDown(editBox(view), "Enter");

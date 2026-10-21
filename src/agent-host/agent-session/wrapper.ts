@@ -255,7 +255,13 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   private shouldWaitForExtensions(type: string): boolean {
-    return type === "prompt" || type === "steer" || type === "follow_up" || type === "get_commands";
+    return (
+      type === "prompt" ||
+      type === "edit_message" ||
+      type === "steer" ||
+      type === "follow_up" ||
+      type === "get_commands"
+    );
   }
 
   private async withFinalRunningNotification<T>(operation: () => Promise<T>): Promise<T> {

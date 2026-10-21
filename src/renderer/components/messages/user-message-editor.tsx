@@ -157,6 +157,7 @@ export function UserMessageEditor({
               return;
             }
             if (event.key === "Escape") {
+              if (compositionEnterAction(event.nativeEvent, compositionRef.current, Date.now()) === "swallow") return;
               event.preventDefault();
               onCancel();
             }
