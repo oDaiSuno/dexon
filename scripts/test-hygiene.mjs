@@ -63,7 +63,7 @@ export function assertTestHygiene(root, fileSystem) {
     throw new Error(
       [
         "测试卫生违规：以下文件包含源码断言、内部替换、调用轨迹或内部状态窥探，",
-        "新套件宪法禁止此模式（见 tests/README.md 与 docs/test-spec-inventory.md）：",
+        "新套件宪法禁止此模式（见 tests/README.md）：",
         ...lines,
       ].join("\n"),
     );

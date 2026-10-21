@@ -94,7 +94,7 @@ npm run dev
 
 应用读取 `~/.pi/agent/` 中的会话与配置。如果你已经使用 Pi CLI，可以直接复用现有数据，无需迁移。Pi Desktop 会先发现并验证已安装的 Node.js/npm、Python、Git、Bash、uv、jq 和 Bun；内置的 `rg`/`fd` 保证离线搜索可用。
 
-> CI 门禁、最终安装包验收和新版本操作见 [CI 与桌面发布](./docs/ci-release.md)。macOS 和 Windows 固定使用明确标注的 Unsigned Beta；macOS 沿用第一版的未签名发布方式，无需 Apple 签名或公证凭证，不保证系统直接放行或自动更新安装。
+> macOS 和 Windows 固定使用明确标注的 Unsigned Beta；macOS 沿用第一版的未签名发布方式，无需 Apple 签名或公证凭证，不保证系统直接放行或自动更新安装。
 
 ### 构建
 
