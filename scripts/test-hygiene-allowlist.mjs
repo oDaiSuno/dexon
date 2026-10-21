@@ -1,7 +1,7 @@
 /**
  * 测试卫生豁免名单（存量结构类测试的迁移账本）。
  *
- * 来源：docs/test-spec-inventory.md（第 0 步挖矿）判定为「结构类」的测试文件。
+ * 来源：第 0 步挖矿判定为「结构类」的测试文件。
  * 已清账（第 2 步切片一批，2026-10-13）：session-sidebar-timer-contract、
  * skills-unsaved-changes-contract、skills-config-request-contract。
  * 已清账（切片二批 chat input，2026-10-13）：chat-window-visibility-contract、
@@ -21,7 +21,7 @@
  * user-message-skill-badge、process-flow、messages/assistant-message-usage、
  * message-view（盲区补获：stub 命名空间不含 "stub" 字样，规避了机器检测）。
  * 五个文件全部撤掉自家模块 stub，改用真实模块图：新共享装配工具
- * renderer-real-graph.mjs，五组突变验证，见 docs/test-spec-inventory.md 第十二节。
+ * renderer-real-graph.mjs，五组突变验证。
  * 已清账（切片六批主进程信任与组合根域，2026-10-13）：main-bootstrap（原判定
  * 「删除：已由 smoke 证明」不完整——smoke 当时只证明会启动，未覆盖单实例锁。
  * 本切片先在 smoke/main.ts 补齐真实引导同序（先取锁再注册监听），host-checks
