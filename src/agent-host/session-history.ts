@@ -5,6 +5,7 @@ import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCall
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
 import { projectDisplayMessages, withoutModelOnlyBlock, type ProjectedMessage } from "./session-display-projection";
+import { versionsByEntryId } from "./session-versions";
 
 const DEFAULT_MAX_TURNS = 20;
 const DEFAULT_MAX_BYTES = 1024 * 1024;
@@ -196,7 +197,7 @@ export function buildSessionHistoryPage(options: {
       : undefined;
 
   return {
-    messages: selected.map((item) => item.message),
+    messages: withVersions(entries, selected),
     entryIds: selected.map((item) => item.entryId),
     ...settings,
     totalMessages: allMessages.length,
@@ -205,6 +206,15 @@ export function buildSessionHistoryPage(options: {
     ...(previousCursor ? { previousCursor } : {}),
     historyRevision,
   };
+}
+
+function withVersions(entries: SessionEntry[], selected: ProjectedMessage[]): PagedContextInfo["messages"] {
+  const versions = versionsByEntryId(entries);
+  if (versions.size === 0) return selected.map((item) => item.message);
+  return selected.map((item) => {
+    const version = versions.get(item.entryId);
+    return version && item.message.role === "user" ? { ...item.message, versions: version } : item.message;
+  });
 }
 
 export function readSessionEntryContent(

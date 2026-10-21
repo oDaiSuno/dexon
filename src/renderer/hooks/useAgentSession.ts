@@ -14,6 +14,7 @@ import { useSessionModels } from "./agent-session/use-session-models";
 import { useSessionQueue } from "./agent-session/use-session-queue";
 import { useSessionScroll } from "./agent-session/use-session-scroll";
 import { useSessionState } from "./agent-session/use-session-state";
+import { useSessionVersions } from "./agent-session/use-session-versions";
 export type {
   AgentPhase,
   BuiltinSlashCommandResult,
@@ -39,6 +40,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
   const events = useSessionEvents({ ...state, ...history, ...connection, ...extensions, readingVisibleRef });
   const actions = useSessionActions({ ...state, ...history, ...connection, ...extensions, ...events });
+  const versions = useSessionVersions({ ...state, ...history, ...connection, ...extensions, ...events });
   const models = useSessionModels({ ...state, ...history, ...connection, ...extensions, ...events, ...actions });
   const commands = useSessionCommands({
     ...state,
@@ -60,6 +62,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...extensions,
     ...events,
     ...actions,
+    ...versions,
     ...models,
     ...commands,
     ...queue,
@@ -71,6 +74,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...extensions,
     ...events,
     ...actions,
+    ...versions,
     ...models,
     ...commands,
     ...queue,
@@ -87,6 +91,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...extensions,
     ...events,
     ...actions,
+    ...versions,
     ...models,
     ...commands,
     ...queue,
@@ -145,7 +150,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleSend,
     handleAbort,
     handleFork,
-    handleNavigate,
+    handleEditMessage,
+    handleSwitchVersion,
     handleModelChange,
     refreshModels,
     cancelModelRefresh,
@@ -175,6 +181,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...extensions,
     ...events,
     ...actions,
+    ...versions,
     ...models,
     ...commands,
     ...queue,
@@ -241,7 +248,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleSend,
     handleAbort,
     handleFork,
-    handleNavigate,
+    handleEditMessage,
+    handleSwitchVersion,
     handleModelChange,
     refreshModels,
     cancelModelRefresh,

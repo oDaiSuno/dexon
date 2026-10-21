@@ -22,6 +22,7 @@ import type {
 import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
+import { versionsByEntryId } from "./session-versions";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { sessionIndex } from "./session-index";
 import { withSessionOrigin } from "./session-origin-store";
@@ -251,6 +252,15 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
       messages.push(m);
       entryIds.push(e.id);
     }
+  }
+
+  const versions = versionsByEntryId(entries);
+  if (versions.size > 0) {
+    entryIds.forEach((entryId, index) => {
+      const message = messages[index];
+      const version = versions.get(entryId);
+      if (version && message.role === "user") messages[index] = { ...message, versions: version };
+    });
   }
 
   return {

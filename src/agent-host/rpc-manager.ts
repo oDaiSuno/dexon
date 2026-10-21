@@ -16,6 +16,7 @@ import { createManagedProcessToolDefinitions } from "./managed-process/tools";
 import { createSessionOrchestrationToolDefinitions } from "./session-orchestration/tools";
 import { cacheSessionPath } from "./session-reader";
 import { configuredSessionDir } from "./session-dir";
+import { applyStoredLeafChoice, rememberLeafChoice } from "./session-leaf-store";
 import { getDesktopSessionToolNames, setDesktopSessionToolNames } from "./session-tool-store";
 import { createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
@@ -166,6 +167,7 @@ export async function startRpcSession(
     // Desktop-owned session choices live outside Pi's shared JSONL so the CLI
     // remains unaffected. Read the old custom entry only for one-way migration.
     const managerSessionId = sessionManager.getSessionId();
+    applyStoredLeafChoice(managerSessionId, sessionManager);
     const desktopToolNames = getDesktopSessionToolNames(managerSessionId);
     const legacyToolNames = desktopToolNames === undefined ? getLegacySessionToolNames(sessionManager) : undefined;
     const persistedToolNames = desktopToolNames ?? legacyToolNames;
@@ -239,7 +241,10 @@ export async function startRpcSession(
     const realSessionFile = inner.sessionFile as string | undefined;
     if (realSessionFile) cacheSessionPath(realSessionId, realSessionFile);
 
-    wrapper.onDestroy(() => registry.delete(realSessionId));
+    wrapper.onDestroy(() => {
+      rememberLeafChoice(realSessionId, inner.sessionManager);
+      registry.delete(realSessionId);
+    });
     registry.set(realSessionId, wrapper);
     wrapper.beginExtensionBinding({ forceEmptySystemPrompt: sessionToolNames?.length === 0 });
 

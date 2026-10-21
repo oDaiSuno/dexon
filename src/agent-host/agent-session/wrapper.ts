@@ -444,6 +444,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       emit: this.emit.bind(this),
       withFinalRunningNotification: this.withFinalRunningNotification.bind(this),
       promptRunning: this.promptRunning,
+      isRunning: () => this.isRunning(),
       getExtensionStatuses: this.getExtensionStatuses.bind(this),
       getExtensionWidgets: this.getExtensionWidgets.bind(this),
       dispose: this.dispose.bind(this),

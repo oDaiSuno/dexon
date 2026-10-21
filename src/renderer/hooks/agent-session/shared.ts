@@ -208,7 +208,6 @@ export function readCompactResult(result: unknown, reason: string): CompactResul
 }
 export interface ChatInputHandle {
   insertText: (text: string) => void;
-  insertIfEmpty: (content: string) => void;
   prependText: (text: string) => void;
   addFiles: (files: File[]) => void;
 }

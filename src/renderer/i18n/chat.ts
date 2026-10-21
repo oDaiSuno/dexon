@@ -125,6 +125,15 @@ export const enUS: Record<string, string> = {
   waitingForModel: "Waiting for model…",
   sessionSourceFrom: "From session {title}",
   sessionTargetOpen: "Open session {title}",
+  editMessage: "Edit",
+  editMessageField: "Edit message",
+  previousVersion: "Previous version",
+  nextVersion: "Next version",
+  removeImage: "Remove image",
+  versionFilesNotUndone: "File changes made by the previous version were not undone.",
+  copyMessage: "Copy message",
+  nothingToCopy: "Nothing to copy",
+  messageEditFailed: "The message could not be edited.",
 };
 
 export const zhCN: Record<string, string> = {
@@ -250,4 +259,13 @@ export const zhCN: Record<string, string> = {
   waitingForModel: "正在等待模型…",
   sessionSourceFrom: "来自会话 {title}",
   sessionTargetOpen: "打开会话 {title}",
+  editMessage: "编辑",
+  editMessageField: "编辑消息",
+  previousVersion: "上一个版本",
+  nextVersion: "下一个版本",
+  removeImage: "移除图片",
+  versionFilesNotUndone: "上一个版本改动过的文件没有被撤销。",
+  copyMessage: "复制消息",
+  nothingToCopy: "没有可复制的内容",
+  messageEditFailed: "消息修改失败。",
 };

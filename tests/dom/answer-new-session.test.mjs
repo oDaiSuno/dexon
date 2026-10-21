@@ -263,12 +263,12 @@ test("when the host declines to start a new session, the app stays where it is",
   assert.equal(nameOf(control), "New session", "the control returns to its usual name");
 });
 
-test("when the reader points at a later question, it offers Edit from here and keeps no New session of its own", async (t) => {
+test("when the reader points at a later question, it offers Edit and keeps no New session of its own", async (t) => {
   const { view } = await mountConversation(t, twoAnsweredTurns());
   const root = messagesOf(view);
   await hover(onScreen(view, FOLLOW_UP_QUESTION));
-  const editing = controlsNamed(allByRole(root, "button"), /^Edit from here/);
-  assert.equal(editing.length, 1, "the later question still offers Edit from here");
+  const editing = controlsNamed(allByRole(root, "button"), /^Edit$/).filter(isShown);
+  assert.equal(editing.length, 1, "the later question offers the one revealed Edit control");
   assert.equal(newSessionControls(root).length, 2, "only the two answers carry a New session control");
 });
 

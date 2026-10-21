@@ -3,8 +3,17 @@ import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
 import type { ExtensionUiResponse, ExtensionWidgetItem } from "../../shared/types";
+import type { SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
+import { rememberLeafChoice } from "../session-leaf-store";
 import { cacheSessionPath } from "../session-reader";
+import {
+  isUserMessageEntry,
+  newestTipUnder,
+  subtreeChangesFiles,
+  versionEntryIdsOf,
+  versionOnPath,
+} from "../session-versions";
 import { setSessionOrigin } from "../session-origin-store";
 
 import type { AgentEvent } from "./types";
@@ -14,6 +23,7 @@ export interface SessionCommandContext {
   cancelInteractiveRequests(): void;
   sessionId: string;
   promptRunning: boolean;
+  isRunning(): boolean;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
   withFinalRunningNotification<T>(operation: () => Promise<T>): Promise<T>;
@@ -28,6 +38,78 @@ export interface SessionCommandContext {
   resolveExtensionUiResponse(response: ExtensionUiResponse): InteractiveReceipt;
   handleExtensionUiInput(id: string, data: string): void;
 }
+type PromptImage = { type: "image"; data: string; mimeType: string };
+
+interface PromptTurn {
+  message: string;
+  images?: PromptImage[];
+  streamingBehavior?: "steer" | "followUp";
+  beforePrompt?: () => Promise<void>;
+}
+
+function startPromptTurn(context: SessionCommandContext, turn: PromptTurn): void {
+  const { message, images, streamingBehavior, beforePrompt } = turn;
+  if (!streamingBehavior) browserAgentRuntime.beginTurn(context.sessionId, "local");
+  const invokePrompt = async () => {
+    if (beforePrompt) await beforePrompt();
+    return context.inner.prompt(message, {
+      ...(images?.length ? { images } : {}),
+      ...(streamingBehavior ? { streamingBehavior } : {}),
+      source: "rpc",
+    });
+  };
+  const operation = streamingBehavior ? invokePrompt() : context.enqueueTurn(invokePrompt);
+  operation
+    .then(() => {
+      if (streamingBehavior) return;
+      rememberLeafChoice(context.sessionId, context.inner.sessionManager);
+      context.emit({ type: "prompt_done" });
+    })
+    .catch((error) => {
+      context.emit({
+        type: "prompt_error",
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+      if (!streamingBehavior) context.emit({ type: "prompt_done" });
+    });
+}
+
+function createSettlement(): {
+  settled: Promise<{ ok: true } | { ok: false; error: unknown }>;
+  settle(outcome: { ok: true } | { ok: false; error: unknown }): void;
+} {
+  let settle!: (outcome: { ok: true } | { ok: false; error: unknown }) => void;
+  const settled = new Promise<{ ok: true } | { ok: false; error: unknown }>((resolve) => {
+    settle = resolve;
+  });
+  return { settled, settle };
+}
+
+function syncAgentMessages(context: SessionCommandContext): void {
+  const state = context.inner.agent.state;
+  if (state) state.messages = context.inner.sessionManager.buildSessionContext().messages;
+}
+
+async function moveBeforeEntry(context: SessionCommandContext, entryId: string): Promise<void> {
+  const sessionManager = context.inner.sessionManager;
+  if (sessionManager.getLeafId() === entryId) {
+    const parentId = sessionManager.getEntry(entryId)?.parentId ?? null;
+    if (parentId) sessionManager.branch(parentId);
+    else sessionManager.resetLeaf();
+    syncAgentMessages(context);
+    return;
+  }
+  const result = await context.inner.navigateTree(entryId, {});
+  if (result.cancelled) throw new Error("Editing this message was cancelled");
+}
+
+function commitLeaf(context: SessionCommandContext, tip: string): void {
+  const sessionManager = context.inner.sessionManager;
+  if (sessionManager.getLeafId() === tip) return;
+  sessionManager.branch(tip);
+  syncAgentMessages(context);
+}
+
 export async function sendSessionCommand(
   command: Record<string, unknown>,
   context: SessionCommandContext,
@@ -36,28 +118,56 @@ export async function sendSessionCommand(
   switch (type) {
     case "prompt": {
       // Fire and forget — events come via subscribe
-      const promptImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
-      const streamingBehavior = command.streamingBehavior as "steer" | "followUp" | undefined;
-      if (!streamingBehavior) browserAgentRuntime.beginTurn(context.sessionId, "local");
-      const invokePrompt = () =>
-        context.inner.prompt(command.message as string, {
-          ...(promptImages?.length ? { images: promptImages } : {}),
-          ...(streamingBehavior ? { streamingBehavior } : {}),
-          source: "rpc",
-        });
-      const operation = streamingBehavior ? invokePrompt() : context.enqueueTurn(invokePrompt);
-      operation
-        .then(() => {
-          if (!streamingBehavior) context.emit({ type: "prompt_done" });
-        })
-        .catch((error) => {
-          context.emit({
-            type: "prompt_error",
-            errorMessage: error instanceof Error ? error.message : String(error),
-          });
-          if (!streamingBehavior) context.emit({ type: "prompt_done" });
-        });
+      startPromptTurn(context, {
+        message: command.message as string,
+        images: command.images as PromptImage[] | undefined,
+        streamingBehavior: command.streamingBehavior as "steer" | "followUp" | undefined,
+      });
       return null;
+    }
+
+    case "edit_message": {
+      const entryId = command.entryId as string;
+      if (context.isRunning()) throw new Error("Wait for the current response to finish before editing a message.");
+      const entries = context.inner.sessionManager.getEntries() as unknown as SessionEntry[];
+      if (!isUserMessageEntry(entries.find((candidate) => candidate.id === entryId))) {
+        throw new Error("Only a question can be edited");
+      }
+      const navigation = createSettlement();
+      startPromptTurn(context, {
+        message: command.message as string,
+        images: command.images as PromptImage[] | undefined,
+        beforePrompt: async () => {
+          try {
+            await moveBeforeEntry(context, entryId);
+            navigation.settle({ ok: true });
+          } catch (error) {
+            navigation.settle({ ok: false, error });
+            throw error;
+          }
+        },
+      });
+      const outcome = await navigation.settled;
+      if (!outcome.ok) throw outcome.error instanceof Error ? outcome.error : new Error(String(outcome.error));
+      return { cancelled: false };
+    }
+
+    case "switch_version": {
+      if (context.isRunning()) throw new Error("Wait for the current response to finish before switching versions.");
+      const entryId = command.entryId as string;
+      const sessionManager = context.inner.sessionManager;
+      const entries = sessionManager.getEntries() as unknown as SessionEntry[];
+      if (!isUserMessageEntry(entries.find((candidate) => candidate.id === entryId))) {
+        throw new Error("Only a question can be switched to another version");
+      }
+      const versionEntryIds = versionEntryIdsOf(entries, entryId);
+      const leftVersionId = versionOnPath(entries, sessionManager.getLeafId(), versionEntryIds);
+      const leftVersionChangedFiles = leftVersionId ? subtreeChangesFiles(entries, leftVersionId) : false;
+      const tip = newestTipUnder(entries, entryId);
+      await context.inner.navigateTree(tip, {});
+      commitLeaf(context, tip);
+      rememberLeafChoice(context.sessionId, sessionManager);
+      return { cancelled: false, leafId: sessionManager.getLeafId(), leftVersionChangedFiles };
     }
 
     case "abort":
@@ -141,7 +251,8 @@ export async function sendSessionCommand(
 
     case "navigate_tree": {
       const result = await context.inner.navigateTree(command.targetId as string, {});
-      return { cancelled: result.cancelled };
+      rememberLeafChoice(context.sessionId, context.inner.sessionManager);
+      return { cancelled: result.cancelled, leafId: context.inner.sessionManager.getLeafId() };
     }
 
     case "set_thinking_level": {

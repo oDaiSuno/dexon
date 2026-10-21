@@ -148,7 +148,7 @@ test("hidden imperative insertions accumulate without replacing another page's s
   selection.removeAllRanges();
   selection.addRange(range);
   await act(async () => {
-    handle.current.insertIfEmpty("prefix");
+    handle.current.insertText("prefix");
     handle.current.insertToken("/tmp/first.txt");
     handle.current.insertToken("/tmp/second.txt");
     handle.current.insertText("tail");

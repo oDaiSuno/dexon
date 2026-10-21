@@ -295,7 +295,7 @@ test("fork reports the new session only when the host did not cancel", async (t)
   assert.deepEqual(onSessionForked, ["forked-9"], "cancelled fork does not report a session");
 });
 
-test("navigate walks the tree first and loads the target context only after success", async (t) => {
+test("switching versions asks the host first and loads the returned context only after success", async (t) => {
   const detail = createSessionDetail("s-1");
   const host = createSessionTestHost({
     getSession: async () => detail,
@@ -304,23 +304,25 @@ test("navigate walks the tree first and loads the target context only after succ
     }),
     agentState: async () => ({ running: false, state: {} }),
     sendAgentCommand: async (sid, payload) => {
-      if (payload.type === "navigate_tree") throw new Error("navigate refused");
+      if (payload.type === "switch_version") throw new Error("switch refused");
       return {};
     },
   });
-  const h = await createSessionHookHarness(t, { bundleName: "session-actions-nav", host });
+  const h = await createSessionHookHarness(t, { bundleName: "session-actions-switch", host });
   await h.mount({ session: detail.info, newSessionCwd: null });
   await h.flush();
 
-  await h.act(() => h.state.handleNavigate("leaf-x"));
+  await h.act(() => h.state.handleSwitchVersion("version-a"));
   await h.flush();
-  assert.notEqual(h.state.activeLeafId, "leaf-x", "failed navigation leaves the active leaf alone");
-  assert.equal(host.sendCommands.filter((c) => c.payload.type === "navigate_tree").length, 1);
+  assert.notEqual(h.state.activeLeafId, "version-leaf", "a refused switch leaves the active leaf alone");
+  assert.equal(host.sendCommands.filter((c) => c.payload.type === "switch_version").length, 1);
+  assert.ok(!host.getCommands.some((c) => c.rpc === "getSessionContext"), "a refused switch loads no context at all");
 
-  host.sendAgentCommand = async () => ({});
-  await h.act(() => h.state.handleNavigate("leaf-y"));
+  host.sendAgentCommand = async (sid, payload) =>
+    payload.type === "switch_version" ? { cancelled: false, leafId: "version-leaf" } : {};
+  await h.act(() => h.state.handleSwitchVersion("version-b"));
   await h.flush();
-  assert.equal(h.state.activeLeafId, "leaf-y", "successful navigation adopts the leaf");
+  assert.equal(h.state.activeLeafId, "version-leaf", "an accepted switch adopts the leaf the host reports");
   assert.ok(
     host.getCommands.some((c) => c.rpc === "getSessionContext"),
     "context reloaded for the adopted leaf",

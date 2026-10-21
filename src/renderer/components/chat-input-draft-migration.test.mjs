@@ -130,7 +130,7 @@ test("hidden plain-text insertion preserves attachment token separation", async 
   clearDraft(key);
   try {
     const handle = await mount({ draftKey: key, visible: false });
-    await act(async () => handle.current.insertIfEmpty("explain"));
+    await act(async () => handle.current.insertText("explain"));
     await act(async () => handle.current.insertText("@src/main.ts "));
     assert.equal(editor().querySelector("[data-attachment-token]")?.dataset.path, "src/main.ts");
     await unmount();

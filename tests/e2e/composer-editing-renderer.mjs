@@ -190,8 +190,8 @@ window.composerEditing = {
   addFiles(files) {
     return handle.current.addFiles(files);
   },
-  insertIfEmpty(text) {
-    handle.current.insertIfEmpty(text);
+  insertText(text) {
+    handle.current.insertText(text);
   },
   sendFails(enabled) {
     sendReply = enabled ? () => ({ ok: false }) : () => undefined;

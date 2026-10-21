@@ -71,6 +71,7 @@ export interface UserMessage {
   /** UI-only attachment metadata retained by channel source markers. */
   channelAttachments?: ChannelMessageAttachment[];
   sessionSource?: SessionSourceRef;
+  versions?: { entryIds: string[]; index: number };
   timestamp?: number;
 }
 

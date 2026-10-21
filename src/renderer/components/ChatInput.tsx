@@ -309,12 +309,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   useImperativeHandle(
     ref,
     () => ({
-      insertIfEmpty(text: string) {
-        if (draftValueRef.current.trim()) return;
-        if (visible) editableRef.current?.focus();
-        editableRef.current?.replaceAll(text);
-        suggestions.clearAtQuery();
-      },
       prependText(text: string) {
         if (!text.trim()) return;
         const combined = [text, draftValueRef.current].filter((item) => item.trim()).join("\n\n");

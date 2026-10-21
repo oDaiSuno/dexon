@@ -6,8 +6,15 @@ import { useObservedElementHeight } from "@/hooks/useObservedElementHeight";
 import { useI18n } from "@/i18n";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { ImageContent } from "@/lib/types";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "../ChatInput";
+import {
+  flatImageOf,
+  type EditDraft,
+  type EditDraftHandlers,
+  type OutgoingImage,
+} from "../messages/user-message-editor";
 import { Props, toMinimapMessage } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
@@ -102,7 +109,8 @@ export function useChatWindow({
     handleSend,
     handleAbort,
     handleFork,
-    handleNavigate,
+    handleEditMessage,
+    handleSwitchVersion,
     handleModelChange,
     refreshModels,
     cancelModelRefresh,
@@ -215,10 +223,51 @@ export function useChatWindow({
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
 
-  const insertEditedContent = useCallback(
-    (content: string) => chatInputRef?.current?.insertIfEmpty(content),
-    [chatInputRef],
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const editDraftRef = useRef<EditDraft | null>(null);
+  editDraftRef.current = editDraft;
+
+  const startEdit = useCallback((entryId: string, text: string, imageBlocks: ImageContent[]) => {
+    setEditDraft({
+      entryId,
+      text,
+      images: imageBlocks.map((block) => flatImageOf(block)).filter((image): image is OutgoingImage => image !== null),
+    });
+  }, []);
+  const changeEdit = useCallback((text: string) => {
+    setEditDraft((current) => (current ? { ...current, text } : current));
+  }, []);
+  const removeEditImage = useCallback((index: number) => {
+    setEditDraft((current) =>
+      current ? { ...current, images: current.images.filter((_image, position) => position !== index) } : current,
+    );
+  }, []);
+  const cancelEdit = useCallback(() => setEditDraft(null), []);
+  const sendEdit = useCallback(async () => {
+    const draft = editDraftRef.current;
+    if (!draft) return;
+    const accepted = await handleEditMessage(draft.entryId, draft.text, draft.images).then(
+      () => true,
+      () => false,
+    );
+    if (accepted) setEditDraft(null);
+  }, [handleEditMessage]);
+  const editHandlers = useMemo<EditDraftHandlers>(
+    () => ({
+      start: startEdit,
+      change: changeEdit,
+      removeImage: removeEditImage,
+      cancel: cancelEdit,
+      send: () => {
+        void sendEdit();
+      },
+    }),
+    [cancelEdit, changeEdit, removeEditImage, sendEdit, startEdit],
   );
+
+  useEffect(() => {
+    setEditDraft(null);
+  }, [session?.id]);
 
   const { olderHistorySentinelRef, loadOlderHistory, olderHistoryFailed } = useOlderHistory({
     visible,
@@ -327,8 +376,9 @@ export function useChatWindow({
     isNew,
     handleFork,
     forkingEntryId,
-    handleNavigate,
-    insertEditedContent,
+    editDraft,
+    editHandlers,
+    handleSwitchVersion,
     loadDeferredContent,
     thinkingExpansionStore,
     assistantBlockCache,
