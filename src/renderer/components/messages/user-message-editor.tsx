@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
+import { compositionEnterAction, type CompositionState } from "../chat-input/composition-guard";
 import type { ComposerEditableHandle } from "../chat-input/types";
 import type { ImageContent } from "@/lib/types";
 
@@ -42,7 +43,7 @@ const NO_PREVIEWS = new Map<string, string | null>();
 const NO_MISSING = new Map<string, boolean>();
 const NO_SKILL_DESCRIPTIONS = new Map<string, string>();
 const ignoreSelection = () => undefined;
-const ignoreComposing = () => undefined;
+
 const ignoreReveal = () => undefined;
 
 export function UserMessageEditor({
@@ -64,6 +65,7 @@ export function UserMessageEditor({
 }) {
   const { t } = useI18n();
   const handleRef = useRef<ComposerEditableHandle | null>(null);
+  const compositionRef = useRef<CompositionState>({ composing: false, endedAt: 0 });
   const canSend = text.trim() !== "" || images.length > 0;
 
   useEffect(() => {
@@ -145,6 +147,11 @@ export function UserMessageEditor({
           onSelectionChange={ignoreSelection}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
+              const action = compositionEnterAction(event.nativeEvent, compositionRef.current, Date.now());
+              if (action !== "send") {
+                if (action === "prevent") event.preventDefault();
+                return;
+              }
               event.preventDefault();
               submit();
               return;
@@ -160,8 +167,13 @@ export function UserMessageEditor({
             event.preventDefault();
             handleRef.current?.pasteTextAtCaret(pasted);
           }}
-          onCompositionStart={ignoreComposing}
-          onCompositionEnd={ignoreComposing}
+          onCompositionStart={() => {
+            compositionRef.current.composing = true;
+          }}
+          onCompositionEnd={() => {
+            compositionRef.current.composing = false;
+            compositionRef.current.endedAt = Date.now();
+          }}
           previewsByPath={NO_PREVIEWS}
           missingByPath={NO_MISSING}
           onRevealToken={ignoreReveal}

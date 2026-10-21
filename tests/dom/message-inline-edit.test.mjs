@@ -609,3 +609,55 @@ test("when a question's image is not loaded yet, Edit appears only after the ima
   await waitFor(() => assert.equal(shownEditControls(root).length, 1, "Edit appears once the image has arrived"));
   assert.equal(imagesWith(root, PNG_DATA).length, 1, "the loaded image is shown in the bubble");
 });
+
+test("when the reader is composing a character with an input method, Enter does not send the edit", async (t) => {
+  const { view, host } = await mountConversation(t, twoTurnDetail());
+  const root = messagesOf(view);
+  const edited = "那第六处问题呢？";
+  await openEditor(view, onScreen(root, FOLLOW_UP_QUESTION));
+  await setEditorText(editBox(view), edited);
+  const editor = editBox(view);
+  await act(async () => editor.dispatchEvent(new dom.window.Event("compositionstart", { bubbles: true })));
+  await keyDown(editBox(view), "Enter");
+  await settle();
+  assert.equal(commandsOf(host, "edit_message").length, 0, "Enter that confirms a composition sends nothing");
+  await act(async () => editBox(view).dispatchEvent(new dom.window.Event("compositionend", { bubbles: true })));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 150)));
+  await keyDown(editBox(view), "Enter");
+  await settle();
+  assert.deepEqual(commandsOf(host, "edit_message"), [
+    { type: "edit_message", entryId: `${TWO_TURNS}-entry-2`, message: edited },
+  ]);
+});
+
+test("when the reader empties the text but keeps the image, Send sends the edit with only that image", async (t) => {
+  const id = "inline-edit-image-only";
+  const detail = turnDetail(id, [
+    {
+      role: "user",
+      content: [
+        { type: "image", data: PNG_DATA, mimeType: "image/png" },
+        { type: "text", text: "what is in the picture" },
+      ],
+      timestamp: 1000,
+    },
+    assistantReply([textBlock(OPENING)], "stop", 1004),
+  ]);
+  const { view, host } = await mountConversation(t, detail);
+  const root = messagesOf(view);
+  await openEditor(view, nodeShowing(root, "what is in the picture"));
+  await setEditorText(editBox(view), "");
+  await settle();
+  const send = dialogControl(view, /^Send$/);
+  assert.equal(send.disabled, false, "Send stays available while an image is kept");
+  await click(send);
+  await settle();
+  assert.deepEqual(commandsOf(host, "edit_message"), [
+    {
+      type: "edit_message",
+      entryId: `${id}-entry-0`,
+      message: "",
+      images: [{ type: "image", data: PNG_DATA, mimeType: "image/png" }],
+    },
+  ]);
+});

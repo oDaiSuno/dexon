@@ -702,6 +702,124 @@ test("switching versions does not rewrite the session file", async () => {
   assert.equal(digestOf(filePath), before, "choosing a version writes nothing into the session file");
 });
 
+test("when a version's older branch was continued later, switching to it shows the newest ending of the whole subtree", async () => {
+  const sessionId = "versions-newest-leaf-in-subtree";
+  await writeSession(client, sessionId, [
+    userEntry("q1", null, 1, "Where do the tests of this project live?"),
+    assistantEntry("a1", "q1", 2, [textBlock("The tests live in the tests directory.")]),
+    userEntry("q2", "a1", 3, "What does a new session copy from this conversation?"),
+    assistantEntry("a2", "q2", 4, [textBlock("It copies the conversation up to the chosen answer.")]),
+    userEntry("q3old", "a2", 5, "Which files does a new session copy?"),
+    assistantEntry("a3old", "q3old", 6, [textBlock("It copies the files of the chosen answer.")]),
+    userEntry("q3new", "a2", 9, "Which branch does the conversation show?"),
+    assistantEntry("a3new", "q3new", 10, [textBlock("It shows the newest branch.")]),
+    userEntry("q4", "a3old", 20, "And what did we decide about the fixtures?"),
+    assistantEntry("a4", "q4", 21, [textBlock("We decided the fixtures stay in the tests directory.")]),
+    userEntry("q2b", "a1", 22, "Which other version exists here?"),
+    assistantEntry("a2b", "q2b", 23, [textBlock("The other version is shown.")]),
+  ]);
+  await openLive(client, sessionId);
+  const switched = await client.call("agent.command", {
+    sessionId,
+    command: { type: "switch_version", entryId: "q2" },
+  });
+  assert.equal(switched.cancelled, false, "the switch is accepted");
+  assert.equal(
+    switched.leafId,
+    "a4",
+    "the conversation stands at the ending written last anywhere under the chosen version",
+  );
+  const messages = await conversationOf(client, sessionId);
+  assert.deepEqual(shownConversation(messages), [
+    ["user", "Where do the tests of this project live?"],
+    ["assistant", "The tests live in the tests directory."],
+    ["user", "What does a new session copy from this conversation?"],
+    ["assistant", "It copies the conversation up to the chosen answer."],
+    ["user", "Which files does a new session copy?"],
+    ["assistant", "It copies the files of the chosen answer."],
+    ["user", "And what did we decide about the fixtures?"],
+    ["assistant", "We decided the fixtures stay in the tests directory."],
+  ]);
+});
+
+test("when an extension cancels the tree move, switching versions stays where the conversation was", async (t) => {
+  const sessionId = "versions-cancelled-switch";
+  const extensionDir = path.join(agent, "extensions");
+  mkdirSync(extensionDir, { recursive: true });
+  const extensionFile = path.join(extensionDir, "cancel-tree.js");
+  writeFileSync(
+    extensionFile,
+    'export default function (pi) {\n  pi.on("session_before_tree", () => ({ cancel: true }));\n}\n',
+    "utf8",
+  );
+  t.after(() => rmSync(extensionFile, { force: true }));
+  await writeSession(client, sessionId, [
+    userEntry("q1", null, 1, "Where do the tests of this project live?"),
+    assistantEntry("a1", "q1", 2, [textBlock("The tests live in the tests directory.")]),
+    userEntry("q2", "a1", 3, "What does a new session copy from this conversation?"),
+    assistantEntry("a2", "q2", 4, [textBlock("It copies the conversation up to the chosen answer.")]),
+    userEntry("q2b", "a1", 5, "Which files does a new session copy?"),
+    assistantEntry("a2b", "q2b", 6, [textBlock("It copies the files of the chosen answer.")]),
+  ]);
+  await openLive(client, sessionId);
+  const before = await client.call("sessions.get", { id: sessionId });
+  const switched = await client.call("agent.command", {
+    sessionId,
+    command: { type: "switch_version", entryId: "q2" },
+  });
+  assert.equal(switched.cancelled, true, "a refused tree move is reported as cancelled");
+  assert.equal(switched.leafId, before.leafId, "the position stays exactly where the conversation already stood");
+  assert.notEqual(switched.leafId, "a2", "the position does not hop to the older version's ending");
+  assert.equal(switched.leftVersionChangedFiles, false, "a cancelled switch reports no leftover file changes");
+  const messages = await conversationOf(client, sessionId);
+  assert.deepEqual(shownConversation(messages), [
+    ["user", "Where do the tests of this project live?"],
+    ["assistant", "The tests live in the tests directory."],
+    ["user", "Which files does a new session copy?"],
+    ["assistant", "It copies the files of the chosen answer."],
+  ]);
+});
+
+test("when a reader edits a question down to only its image, the new version stores that image", async (t) => {
+  const sessionId = "versions-edit-image-only";
+  await writeSession(client, sessionId, [
+    userEntry("q1", null, 1, "Where do the tests of this project live?"),
+    assistantEntry("a1", "q1", 2, [textBlock("The tests live in the tests directory.")]),
+    userEntry("q2", "a1", 3, "What does a new session copy from this conversation?"),
+    assistantEntry("a2", "q2", 4, [textBlock("It copies the conversation up to the chosen answer.")]),
+  ]);
+  await openLive(client, sessionId);
+  const events = eventsOf(client, sessionId);
+  t.after(() => events.off());
+  const finished = events.next(ended);
+  const answer = await client.call("agent.command", {
+    sessionId,
+    command: {
+      type: "edit_message",
+      entryId: "q2",
+      message: "",
+      images: [{ type: "image", data: PNG_DATA, mimeType: "image/png" }],
+    },
+  });
+  assert.equal(answer.cancelled, false, "an edit that keeps only the image is accepted");
+  await finished;
+  const messages = await conversationOf(client, sessionId);
+  assert.deepEqual(
+    shownConversation(messages),
+    [
+      ["user", "Where do the tests of this project live?"],
+      ["assistant", "The tests live in the tests directory."],
+      ["user", ""],
+      ["assistant", "Fixture reply."],
+    ],
+    "the new version holds the image and no text",
+  );
+  const images = (messages[2].content ?? []).filter((block) => block.type === "image");
+  assert.equal(images.length, 1, "the new version stores the image it was sent with");
+  assert.equal(images[0].data, PNG_DATA, "the stored image is the one the reader kept");
+  assert.equal(messages[2].versions?.entryIds?.length, 2, "the edit still counts as a second version");
+});
+
 test("after a restart, the conversation reopens on the version the reader chose and continues from it", async (t) => {
   const sessionId = "versions-restart-choice";
   await writeSession(client, sessionId, [

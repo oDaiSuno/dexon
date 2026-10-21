@@ -164,7 +164,10 @@ export async function sendSessionCommand(
       const leftVersionId = versionOnPath(entries, sessionManager.getLeafId(), versionEntryIds);
       const leftVersionChangedFiles = leftVersionId ? subtreeChangesFiles(entries, leftVersionId) : false;
       const tip = newestTipUnder(entries, entryId);
-      await context.inner.navigateTree(tip, {});
+      const navigation = await context.inner.navigateTree(tip, {});
+      if (navigation.cancelled) {
+        return { cancelled: true, leafId: sessionManager.getLeafId(), leftVersionChangedFiles: false };
+      }
       commitLeaf(context, tip);
       rememberLeafChoice(context.sessionId, sessionManager);
       return { cancelled: false, leafId: sessionManager.getLeafId(), leftVersionChangedFiles };

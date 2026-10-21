@@ -96,17 +96,23 @@ export function versionEntryIdsOf(entries: SessionEntry[], entryId: string): str
 }
 
 export function newestTipUnder(entries: SessionEntry[], entryId: string): string {
-  const { children, position } = indexEntries(entries);
-  let currentId = entryId;
-  for (;;) {
-    const candidates = children.get(currentId) ?? [];
-    if (candidates.length === 0) return currentId;
-    let newest = candidates[0];
-    for (const candidate of candidates) {
-      if (newerThan(candidate, newest, position)) newest = candidate;
+  const { byId, children, position } = indexEntries(entries);
+  const start = byId.get(entryId);
+  if (!start) return entryId;
+  const roots = children.get(start.id) ?? [];
+  if (roots.length === 0) return start.id;
+  let newest = roots[0];
+  const stack = [...roots];
+  while (stack.length > 0) {
+    const current = stack.pop()!;
+    const candidates = children.get(current.id) ?? [];
+    if (candidates.length > 0) {
+      stack.push(...candidates);
+      continue;
     }
-    currentId = newest.id;
+    if (newerThan(current, newest, position)) newest = current;
   }
+  return newest.id;
 }
 
 function changesFiles(entry: SessionEntry): boolean {

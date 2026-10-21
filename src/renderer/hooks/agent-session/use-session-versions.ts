@@ -67,9 +67,10 @@ export function useSessionVersions(context: Dependencies) {
   const handleEditMessage = useCallback(
     async (entryId: string, message: string, images: OutgoingImage[] = []) => {
       const trimmedMessage = message.trim();
-      if (!trimmedMessage || agentRunning) return;
+      if (agentRunning) throw new Error("Wait for the current response to finish before editing a message.");
       const sid = sessionIdRef.current;
-      if (!sid) return;
+      if (!sid) throw new Error("No conversation is open for this edit");
+      if (!trimmedMessage && images.length === 0) throw new Error("An edited message cannot be empty");
 
       const previousHistory = {
         messages: loadedMessagesRef.current,
@@ -77,7 +78,10 @@ export function useSessionVersions(context: Dependencies) {
       };
       const userMsg = {
         role: "user",
-        content: images.length > 0 ? [...images, { type: "text" as const, text: trimmedMessage }] : trimmedMessage,
+        content:
+          images.length > 0
+            ? [...images, ...(trimmedMessage ? [{ type: "text" as const, text: trimmedMessage }] : [])]
+            : trimmedMessage,
         timestamp: Date.now(),
       } as AgentMessage;
       updateHistory((current) => {
