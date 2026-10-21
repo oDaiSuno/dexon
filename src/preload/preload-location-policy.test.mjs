@@ -14,3 +14,10 @@ test("desktop bridge is exposed only to the packaged UI or exact dev origins", (
   assert.equal(isTrustedPreloadLocation("https://localhost:5173/"), false);
   assert.equal(isTrustedPreloadLocation("invalid"), false);
 });
+
+test("a dev copy on another port trusts only its own port", () => {
+  assert.equal(isTrustedPreloadLocation("http://localhost:5199/", 5199), true);
+  assert.equal(isTrustedPreloadLocation("http://localhost:5173/", 5199), false);
+  assert.equal(isTrustedPreloadLocation("http://localhost:5198/", 5199), false);
+  assert.equal(isTrustedPreloadLocation("http://evil.test:5199/", 5199), false);
+});

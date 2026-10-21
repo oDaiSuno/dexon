@@ -7,7 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { resolveElectronBinary, resolvePackageFile, terminateProcessTree } from "./process-utils.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const rendererUrl = "http://localhost:5173";
+const rendererPort = Number(process.env.DEXON_DEV_PORT ?? 5173);
+const rendererUrl = `http://localhost:${rendererPort}`;
 
 export async function waitForViteReady(url, options = {}) {
   const fetchImpl = options.fetch ?? globalThis.fetch;
@@ -102,6 +103,7 @@ export async function runDev(projectRoot = root) {
       allowCleanExit: true,
       env: {
         VITE_DEV_SERVER_URL: rendererUrl,
+        DEXON_DEV_PORT: String(rendererPort),
         ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
       },
     });

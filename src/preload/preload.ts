@@ -9,11 +9,15 @@ import type { DesktopMenuEvent, DesktopUpdateState, HostStatus, PiBridge } from 
 import type { BrowserEvent } from "../contract/browser";
 import { EarlyEventReplay } from "./early-event-replay";
 import { isTrustedPreloadLocation } from "./preload-location-policy";
+import { readDevRendererPortArgument } from "../shared/dev-renderer-origin";
 import { isValidDeepLinkSessionMessage, selectTransferredHostPort } from "./preload-message-policy";
 
 const preloadLocation = (globalThis as unknown as { location?: { href?: unknown } }).location?.href;
 
-if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocation)) {
+if (
+  typeof preloadLocation === "string" &&
+  isTrustedPreloadLocation(preloadLocation, readDevRendererPortArgument(process.argv))
+) {
   // Deliver MessagePort to the page via window.postMessage (transferable).
   ipcRenderer.on("desktop:host-port", (event) => {
     const port = selectTransferredHostPort(event.ports);

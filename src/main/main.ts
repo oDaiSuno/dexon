@@ -282,6 +282,8 @@ function handleDeepLink(url: string): void {
 }
 
 function startMainProcess(): void {
+  const devUserDataDirectory = isDev ? process.env.DEXON_DEV_USER_DATA_DIR : undefined;
+  if (devUserDataDirectory) app.setPath("userData", path.resolve(devUserDataDirectory));
   if (
     !acquireSingleInstanceLock(getMainWindow, (argv) => {
       const url = findDesktopDeepLink(argv);
