@@ -362,7 +362,7 @@ async function run() {
     await page(`scrollTo(${JSON.stringify(COMMAND_MARKER)})`);
     await paint();
     const layout = await page("page()");
-    assert.equal(layout.pageBackground, "rgb(10, 10, 10)", "the dark scene actually displays the dark page surface");
+    assert.equal(layout.pageBackground, "rgb(23, 23, 23)", "the dark scene actually displays the dark page surface");
     assert.ok(layout.documentScrollWidth <= layout.documentWidth + 1, "the bubbles do not overflow horizontally");
     const sentence = await page(`layout(${JSON.stringify(SENTENCE_MARKER)})`);
     const command = await page(`layout(${JSON.stringify(COMMAND_MARKER)})`);

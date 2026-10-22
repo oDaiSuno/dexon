@@ -318,11 +318,11 @@ export function ComposerView(props: ComposerViewProps) {
               display: "flex",
               flexDirection: "column",
               gap: 8,
-              background: "var(--assistant-bg)",
+              background: "var(--bg-panel)",
               border: `1px solid ${isStreaming && (hasSteering || onFollowUp) ? "var(--warning-border)" : "var(--border)"}`,
               borderRadius: "var(--radius-composer)",
               padding: "10px 12px",
-              boxShadow: "0 8px 24px color-mix(in srgb, #000 8%, transparent)",
+              boxShadow: "var(--shadow-composer)",
               transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
             }}
           >

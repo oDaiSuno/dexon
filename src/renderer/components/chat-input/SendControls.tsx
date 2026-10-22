@@ -16,8 +16,8 @@ function squareBase(): CSSProperties {
   };
 }
 
-/** 28×28 tactile send square. Ink-filled when armed (black/white inversion,
- *  per the design system), quiet gray when the draft is empty. */
+/** 28×28 tactile send square. Inverse-ink filled when armed, quiet gray
+ *  when the draft is empty. */
 export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => void }) {
   const { t } = useI18n();
   return (
@@ -31,15 +31,15 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
         width: 28,
         border: "none",
         borderRadius: "var(--radius-control)",
-        background: armed ? "var(--btn-bg)" : "var(--bg-hover)",
-        color: armed ? "var(--btn-fg)" : "var(--text-dim)",
+        background: armed ? "var(--inverse-bg)" : "var(--bg-neutral-selected)",
+        color: armed ? "var(--inverse-fg)" : "var(--text-dim)",
         cursor: armed ? "pointer" : "not-allowed",
       }}
       onMouseEnter={(e) => {
-        if (armed) e.currentTarget.style.background = "var(--btn-bg-hover)";
+        if (armed) e.currentTarget.style.background = "var(--inverse-bg-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = armed ? "var(--btn-bg)" : "var(--bg-hover)";
+        e.currentTarget.style.background = armed ? "var(--inverse-bg)" : "var(--bg-neutral-selected)";
       }}
       className="tap-scale"
     >
@@ -49,7 +49,7 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
 }
 
 /** While streaming with an empty draft, the send slot becomes a stop
- *  button — same 28×28 square, radius, and ink inversion as the send
+ *  button — same 28×28 square, radius, and inverse ink as the send
  *  square; only the glyph changes (white stop mark). */
 export function StopSquare({ onAbort }: { onAbort: () => void }) {
   const { t } = useI18n();
@@ -64,15 +64,15 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
         width: 28,
         border: "none",
         borderRadius: "var(--radius-control)",
-        background: "var(--btn-bg)",
-        color: "var(--btn-fg)",
+        background: "var(--inverse-bg)",
+        color: "var(--inverse-fg)",
         cursor: "pointer",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--btn-bg-hover)";
+        e.currentTarget.style.background = "var(--inverse-bg-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "var(--btn-bg)";
+        e.currentTarget.style.background = "var(--inverse-bg)";
       }}
       className="tap-scale"
     >

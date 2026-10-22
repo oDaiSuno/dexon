@@ -87,7 +87,7 @@
   }
   .sidebar-container.sidebar-open {
     transform: translateX(0);
-    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+    box-shadow: var(--shadow-popover);
   }
   .sidebar-container.sidebar-closed {
     transform: translateX(-100%);

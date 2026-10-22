@@ -213,6 +213,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/tokens.css",
   "styles/motion-tokens.css",
   "styles/base.css",
+  "styles/controls.css",
   "styles/sidebar.css",
   "styles/composer.css",
   "styles/markdown.css",
@@ -264,7 +265,7 @@ function checkCssWiring() {
     const entry = readFileSync(entryPath, "utf8");
     if (!/^@import "tailwindcss";/.test(entry)) failures.push("globals.css: tailwind 必须先于所有应用样式加载");
     if (!/@font-face/.test(entry)) failures.push("globals.css: @font-face 必须留在入口（相对字体路径）");
-    if (!/url\("\.\/fonts\/GeistSans\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 GeistSans 字体文件引用");
+    if (!/url\("\.\/fonts\/InterLatin\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 Inter 字体文件引用");
     if (!/url\("\.\/fonts\/GeistMono\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 GeistMono 字体文件引用");
     if (!/@theme\s*\{/.test(entry)) failures.push("globals.css: tailwind 主题映射必须留在入口");
     if (/@import\s+"\.\//.test(entry))

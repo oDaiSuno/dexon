@@ -137,7 +137,7 @@ async function run() {
   window.setContentSize(640, 900);
   await configure({ layout: "wide", theme: "dark" });
   const narrow = await measurement();
-  assert.equal(narrow.pageBackground, "rgb(10, 10, 10)", "the dark scene must actually display the dark page surface");
+  assert.equal(narrow.pageBackground, "rgb(23, 23, 23)", "the dark scene must actually display the dark page surface");
   assert.ok(narrow.documentScrollWidth <= narrow.documentWidth + 1, "narrow chat does not overflow horizontally");
   assert.equal(narrow.reachable, true);
   assert.ok(narrow.card.bottom <= narrow.composer.y + 1);

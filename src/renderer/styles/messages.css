@@ -368,7 +368,7 @@ html.dark .chat-tool-chip {
   position: absolute;
   inset: 1px;
   border-radius: 50%;
-  background: var(--bui-green);
+  background: var(--bui-green-fill);
   opacity: 0;
   transition:
     opacity var(--duration-fast) var(--ease-smooth-out),
@@ -376,12 +376,12 @@ html.dark .chat-tool-chip {
 }
 
 .chat-status-icon.is-error .chat-scmorph-fill {
-  background: var(--bui-red);
+  background: var(--bui-red-fill);
 }
 
 .chat-status-icon .chat-scmorph-check {
   fill: none;
-  stroke: #fff;
+  stroke: var(--on-accent);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;

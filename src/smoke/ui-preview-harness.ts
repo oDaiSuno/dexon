@@ -213,9 +213,9 @@ async function run(): Promise<void> {
   const typography = await js<{ body: string; button: string | null; fontFaces: string[] }>(
     "window.preview.probeTypography()",
   );
-  const facesOk = ["Geist/100 900", "Geist Mono/100 900"].every((expected) => typography.fontFaces.includes(expected));
+  const facesOk = ["Inter/100 900", "Geist Mono/100 900"].every((expected) => typography.fontFaces.includes(expected));
   const typographyPass = Boolean(
-    typography.button && typography.button === typography.body && typography.body.includes("Geist") && facesOk,
+    typography.button && typography.button === typography.body && typography.body.includes("Inter") && facesOk,
   );
   if (!typographyPass) {
     console.error(

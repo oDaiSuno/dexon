@@ -10,8 +10,8 @@ import { RendererCrashRecovery } from "./renderer-crash-recovery";
 import { installWindowShowFallback } from "./window-show-fallback";
 import { DEV_RENDERER_PORT_ARGUMENT, resolveDevRendererPort } from "../shared/dev-renderer-origin";
 
-const LIGHT_BACKGROUND = "#f7f6f3";
-const DARK_BACKGROUND = "#141210";
+const LIGHT_BACKGROUND = "#fafafa";
+const DARK_BACKGROUND = "#171717";
 
 function currentTheme(): "light" | "dark" {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";

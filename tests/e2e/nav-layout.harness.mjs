@@ -82,12 +82,12 @@ async function measure(config, name) {
   );
   assert.equal(
     measurement.pageBackground,
-    config.theme === "dark" ? "rgb(10, 10, 10)" : "rgb(250, 250, 250)",
+    config.theme === "dark" ? "rgb(23, 23, 23)" : "rgb(250, 250, 250)",
     `${name}: the requested theme is actually displayed`,
   );
-  assert.ok(measurement.bodyFont.includes("Geist"));
+  assert.ok(measurement.bodyFont.includes("Inter"));
   assert.equal(measurement.buttonFont, measurement.bodyFont, "real controls inherit the production font");
-  for (const family of ["Geist", "Geist Mono"])
+  for (const family of ["Inter", "Geist Mono"])
     assert.ok(
       measurement.fontFaces.some((face) => face.family.replaceAll('"', "") === family && face.status === "loaded"),
     );

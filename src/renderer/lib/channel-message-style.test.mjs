@@ -54,10 +54,10 @@ test("every channel bubble palette meets WCAG AA text contrast", () => {
 });
 
 test("the local bubble tokens meet WCAG AA text contrast in both themes", () => {
-  // bubble/ink pairs from styles/chat-scope.css (Vercel A palette: gray-200 bubble)
+  // bubble/ink pairs from the Framer design: Surface/Card bubble with Text/Primary ink
   const pairs = [
-    { background: "#eaeaea", foreground: "#0a0a0a" }, // light bubble / ink
-    { background: "#262626", foreground: "#ededed" }, // dark bubble / ink
+    { background: "#f7f7f7", foreground: "#171717" }, // light bubble / ink
+    { background: "#202020", foreground: "#ededed" }, // dark bubble / ink
   ];
   for (const { background, foreground } of pairs) {
     assert.ok(contrastRatio(background, foreground) >= 4.5, `${background}/${foreground}`);

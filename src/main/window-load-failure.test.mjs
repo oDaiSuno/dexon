@@ -33,9 +33,9 @@ test("failure pages use shared CJK fonts and native light or dark colors", () =>
     assert.ok(page.includes(`font-family:${APP_MONO_FONT_FAMILY}`));
   }
   assert.match(light, /name="color-scheme" content="light"/);
-  assert.match(light, /--bg:#f7f6f3/);
-  assert.match(light, /--text:#1c1a17/);
+  assert.match(light, /--bg:#fafafa/);
+  assert.match(light, /--text:#171717/);
   assert.match(dark, /name="color-scheme" content="dark"/);
-  assert.match(dark, /--bg:#141210/);
-  assert.match(dark, /--text:#faf9f7/);
+  assert.match(dark, /--bg:#171717/);
+  assert.match(dark, /--text:#ededed/);
 });

@@ -7,13 +7,14 @@ import { ResourcePage } from "../renderer/components/app-nav/resource-page.tsx";
 import { MessageView } from "../renderer/components/MessageView.tsx";
 import { ChatInput } from "../renderer/components/ChatInput.tsx";
 // Style cascade mirrors main.tsx exactly: the production entry first (its
-// Tailwind preflight reset and full Geist font declarations are part of the
+// Tailwind preflight reset and full Inter / Geist Mono font declarations are part of the
 // real typography), then the app partials and the chat surface. The capture
 // script compiles globals.css through the real Tailwind postcss pipeline.
 import "../renderer/globals.css";
 import "../renderer/styles/tokens.css";
 import "../renderer/styles/motion-tokens.css";
 import "../renderer/styles/base.css";
+import "../renderer/styles/controls.css";
 import "../renderer/styles/sidebar.css";
 import "../renderer/styles/composer.css";
 import "../renderer/styles/markdown.css";

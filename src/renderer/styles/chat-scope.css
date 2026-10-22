@@ -1,49 +1,56 @@
-/* chat-scope — chat surface palette and per-scope aliases. */
+/* chat-scope — chat surface palette and per-scope aliases.
+ *
+ * The --bui-* names are the chat's private vocabulary; every value points at
+ * the Framer-derived semantic layer in tokens.css, so light/dark switching
+ * happens once, at the source. Status inks use the "text" variants (readable
+ * on chat surfaces); solid status fills use the base status colors.
+ */
 
 .chat-appearance-scope {
-  /* Vercel A chat palette — light (aliases onto the app gray ramp) */
-  --bui-page: #fafafa; /* var(--gray-50) */
-  --bui-canvas: #ffffff; /* chat reads as a document on the page */
-  --bui-surface: #ffffff;
-  --bui-inset: #fafafa;
-  --bui-hover: var(--gray-100);
-  --bui-hover-2: var(--gray-200);
-  --bui-ink: var(--gray-1000);
-  --bui-ink-2: var(--gray-600);
-  --bui-ink-3: var(--gray-400);
-  --bui-line: var(--gray-200);
-  --bui-line-strong: var(--gray-300);
-  --bui-field: var(--gray-100); /* quiet boxes: thinking traces, insets */
-  --bui-bubble: var(--gray-200); /* local user bubble */
-  --bui-accent: #0060dd;
-  --bui-accent-ink: #0052c4;
-  --bui-accent-tint: rgba(0, 96, 221, 0.08);
-  --bui-green: #29a383;
-  --bui-green-tint: rgba(41, 163, 131, 0.1);
-  --bui-orange: #f5a623;
-  --bui-orange-tint: rgba(245, 166, 35, 0.12);
-  --bui-red: #e00000;
-  --bui-red-tint: rgba(224, 0, 0, 0.08);
+  --bui-page: var(--fx-surface-main);
+  --bui-canvas: var(--fx-surface-main);
+  --bui-surface: var(--fx-surface-raised);
+  --bui-inset: var(--fx-surface-inset);
+  --bui-hover: var(--fx-surface-hover-overlay);
+  --bui-hover-2: var(--fx-surface-hover-overlay-strong);
+  --bui-ink: var(--fx-text-primary);
+  --bui-ink-2: var(--fx-text-secondary);
+  --bui-ink-3: var(--fx-text-tertiary);
+  --bui-line: var(--fx-line-default);
+  --bui-line-strong: var(--fx-line-strong);
+  --bui-field: var(--fx-surface-inset);
+  --bui-bubble: var(--fx-surface-card);
+  --bui-accent: var(--fx-accent-blue-text);
+  --bui-accent-ink: var(--fx-accent-blue-hover);
+  --bui-accent-tint: var(--fx-accent-blue-soft);
+  --bui-green: var(--fx-status-success-text);
+  --bui-green-fill: var(--fx-status-success);
+  --bui-green-tint: var(--fx-status-success-soft);
+  --bui-orange: var(--fx-status-warning-text);
+  --bui-orange-tint: var(--fx-status-warning-soft);
+  --bui-red: var(--fx-status-danger-text);
+  --bui-red-fill: var(--fx-status-danger);
+  --bui-red-tint: var(--fx-status-danger-soft);
   --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.05);
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.04), 0 2px 6px rgba(0, 0, 0, 0.03);
+  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), var(--shadow-control);
+  --bui-shadow-card: 0 0 0 1px var(--bui-line), var(--shadow-control);
   /* concentric radii: chip 6 / control 8 / card 10 */
-  --bui-r-chip: 6px;
-  --bui-r-control: 8px;
-  --bui-r-card: 10px;
-  /* chat type scale (multiplied by --chat-font-scale) */
-  --chat-f-chip: 11.5px;
+  --bui-r-chip: var(--radius-chip);
+  --bui-r-control: var(--radius-control);
+  --bui-r-card: var(--radius-card);
+  /* chat type scale (multiplied by --chat-font-scale): Framer Mono/Label,
+     Meta/Default, Body/Medium, Label/Default, Chat/Body */
+  --chat-f-chip: 12px;
   --chat-f-micro: 11px;
-  --chat-f-name: 12.5px;
+  --chat-f-name: 13px;
   --chat-f-meta: 12px;
-  --chat-f-body: 13.5px;
-  /* chat canvas = flat surface; texture-free per Vercel personality */
+  --chat-f-body: 14px;
   background: var(--bui-canvas);
   color: var(--bui-ink);
 
-  /* B11: alias the app-level warm tokens to the chat palette so every
-     remaining reference inside the chat scope (composer, markdown, badges)
-     follows the Beautiful UI surface without logic changes. */
+  /* Alias the app-level tokens to the chat palette so every remaining
+     reference inside the chat scope (composer, markdown, badges) follows the
+     chat surface without logic changes. */
   --border: var(--bui-line);
   --bg-panel: var(--bui-surface);
   --bg-hover: var(--bui-hover);
@@ -52,68 +59,8 @@
   --text: var(--bui-ink);
   --text-muted: var(--bui-ink-2);
   --text-dim: var(--bui-ink-3);
-  --accent: var(--bui-accent);
-  --accent-hover: var(--bui-accent-ink);
-  --accent-soft: var(--bui-accent-tint);
-  --accent-soft-border: color-mix(in srgb, var(--bui-accent) 30%, transparent);
-  --danger: var(--bui-red);
-  --success: var(--bui-green);
-  --warning: var(--bui-orange);
-  --thinking-bg: transparent;
-  --thinking-border: var(--bui-line);
   --assistant-bg: transparent;
   --user-bg: var(--bui-bubble);
-  --user-fg: var(--bui-ink);
-}
-
-html.dark .chat-appearance-scope {
-  /* Vercel A chat palette — dark (true-black family) */
-  --bui-page: #0a0a0a;
-  --bui-canvas: #0a0a0a;
-  --bui-surface: #111111;
-  --bui-inset: #141414;
-  --bui-hover: var(--gray-100);
-  --bui-hover-2: var(--gray-200);
-  --bui-ink: var(--gray-1000);
-  --bui-ink-2: var(--gray-600);
-  --bui-ink-3: var(--gray-500);
-  --bui-line: var(--gray-300);
-  --bui-line-strong: var(--gray-400);
-  --bui-field: var(--gray-100);
-  --bui-bubble: var(--gray-200);
-  --bui-accent: #3291ff;
-  --bui-accent-ink: #5ba2ff;
-  --bui-accent-tint: rgba(50, 145, 255, 0.14);
-  --bui-green: #45c4a0;
-  --bui-green-tint: rgba(69, 196, 160, 0.12);
-  --bui-orange: #f5b94a;
-  --bui-orange-tint: rgba(245, 185, 74, 0.12);
-  --bui-red: #ff5c5c;
-  --bui-red-tint: rgba(255, 92, 92, 0.12);
-  --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.2);
-
-  /* B11 aliases (same targets; --bui-* resolve to dark values above) */
-  --border: var(--bui-line);
-  --bg-panel: var(--bui-surface);
-  --bg-hover: var(--bui-hover);
-  --bg-selected: var(--bui-accent-tint);
-  --bg-subtle: var(--bui-hover);
-  --text: var(--bui-ink);
-  --text-muted: var(--bui-ink-2);
-  --text-dim: var(--bui-ink-3);
-  --accent: var(--bui-accent);
-  --accent-hover: var(--bui-accent-ink);
-  --accent-soft: var(--bui-accent-tint);
-  --accent-soft-border: color-mix(in srgb, var(--bui-accent) 30%, transparent);
-  --danger: var(--bui-red);
-  --success: var(--bui-green);
-  --warning: var(--bui-orange);
-  --thinking-bg: transparent;
-  --thinking-border: var(--bui-line);
-  --assistant-bg: transparent;
-  --user-bg: var(--bui-field);
   --user-fg: var(--bui-ink);
 }
 

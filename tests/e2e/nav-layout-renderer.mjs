@@ -167,7 +167,7 @@ window.navLayout = {
         }),
       ),
     );
-    await document.fonts.load('14px "Geist"');
+    await document.fonts.load('14px "Inter"');
     await document.fonts.load('14px "Geist Mono"');
     await document.fonts.ready;
     await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
