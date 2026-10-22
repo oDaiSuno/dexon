@@ -66,7 +66,7 @@
   height: 18px;
   padding: 0 var(--space-1);
   border: 1px solid var(--fx-line-default);
-  border-radius: var(--radius-chip);
+  border-radius: var(--space-1);
   background: var(--fx-surface-inset);
   color: var(--fx-text-secondary);
 }

@@ -398,6 +398,7 @@ export function ComposerView(props: ComposerViewProps) {
             padding: isMobile ? 0 : "0 6px",
           }}
         >
+          {!isMobile && <div style={{ flex: "1 1 0", minWidth: 0 }} />}
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex" }}>
             <ModelPicker
               model={model}
