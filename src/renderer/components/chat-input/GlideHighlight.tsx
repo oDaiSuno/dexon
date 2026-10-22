@@ -44,7 +44,7 @@ export function GlideHighlight({
         left: insetX,
         right: insetX,
         borderRadius: "var(--radius-control)",
-        background: "var(--fx-surface-hover)",
+        background: "var(--fx-surface-raised-hover)",
         top: box?.top ?? 0,
         height: box?.height ?? 0,
         opacity: box && visible ? 1 : 0,
