@@ -1,4 +1,3 @@
-import { useI18n } from "@/i18n";
 import {
   setProviderBaseUrl,
   type ModelEntry,
@@ -52,7 +51,6 @@ export function SelectionDetail({
   updateModel: (providerName: string, index: number, model: ModelEntry) => void;
   removeModel: (providerName: string, index: number) => void;
 }) {
-  const { t } = useI18n();
   const detailContent = (() => {
     if (!selection) return null;
     if (selection.type === "oauth") {
@@ -122,24 +120,6 @@ export function SelectionDetail({
     );
   })();
 
-  return (
-    <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
-      {loading
-        ? null
-        : (detailContent ?? (
-            <div
-              style={{
-                height: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--fx-text-tertiary)",
-                fontSize: "var(--text-body)",
-              }}
-            >
-              {t("selectProviderOrModel", "Select a provider or model")}
-            </div>
-          ))}
-    </div>
-  );
+  if (loading || !detailContent) return null;
+  return <div style={{ padding: "var(--space-5)", background: "var(--fx-surface-raised)" }}>{detailContent}</div>;
 }

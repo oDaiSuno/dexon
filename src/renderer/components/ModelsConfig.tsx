@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
+import { Button } from "./form-controls";
 import { AddProviderPicker } from "./models/add-provider-picker";
 import { ModelsFooter } from "./models/models-footer";
 import { ProviderTree } from "./models/provider-tree";
@@ -34,7 +35,7 @@ export function ModelsConfig({
                 position: "fixed",
                 inset: 0,
                 zIndex: 1000,
-                background: "rgba(0,0,0,0.35)",
+                background: "var(--fx-surface-scrim)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -62,10 +63,10 @@ export function ModelsConfig({
                   maxHeight: "calc(100dvh - 16px)",
                   background: "var(--fx-surface-main)",
                   border: "1px solid var(--fx-line-default)",
-                  borderRadius: "var(--radius-card)",
+                  borderRadius: "var(--radius-dialog)",
                   display: "flex",
                   flexDirection: "column",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+                  boxShadow: "var(--shadow-dialog)",
                   overflow: "hidden",
                 }
           }
@@ -76,80 +77,100 @@ export function ModelsConfig({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                padding: "12px 20px",
-                borderBottom: "1px solid var(--fx-line-default)",
+                height: 56,
+                padding: "0 var(--space-6)",
+                borderBottom: "1px solid var(--fx-line-subtle)",
                 flexShrink: 0,
               }}
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
+                <span className="type-title-dialog" style={{ color: "var(--fx-text-primary)" }}>
                   {t("models", "Models")}
                 </span>
-                <code
-                  style={{
-                    fontSize: "var(--text-meta)",
-                    color: "var(--fx-text-secondary)",
-                    fontFamily: "var(--font-mono)",
-                  }}
-                >
+                <code className="type-mono-meta" style={{ color: "var(--fx-text-tertiary)" }}>
                   ~/.pi/agent/models.json
                 </code>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
                 onClick={onClose}
                 title={t("modelCloseModels", "Close models")}
                 aria-label={t("modelCloseModels", "Close models")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "var(--fx-text-secondary)",
-                  cursor: "pointer",
-                  fontSize: "var(--text-display)",
-                  lineHeight: 1,
-                  width: 36,
-                  height: 36,
-                  padding: 0,
-                  borderRadius: "var(--radius-card)",
-                }}
+                style={{ width: 32, padding: 0, marginRight: -6 }}
               >
-                ×
-              </button>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6 6 18" />
+                  <path d="m6 6 12 12" />
+                </svg>
+              </Button>
             </div>
           )}
 
-          <div style={{ flex: 1, display: "flex", flexDirection: isMobile ? "column" : "row", overflow: "hidden" }}>
-            <ProviderTree
-              isMobile={isMobile}
-              loading={loading}
-              providers={editor.providers}
-              activeOAuth={editor.activeOAuth}
-              activeApiKey={editor.activeApiKey}
-              selection={editor.selection}
-              setSelection={setSelection}
-              addModel={editor.addModel}
-              setPickerOpen={setPickerOpen}
-            />
-            <SelectionDetail
-              loading={loading}
-              config={editor.config}
-              selection={editor.selection}
-              setConfig={editor.setConfig}
-              oauthProviders={editor.oauthProviders}
-              apiKeyProviders={editor.apiKeyProviders}
-              modelPreferences={editor.modelPreferences}
-              modelPreferencesLoading={editor.modelPreferencesLoading}
-              modelPreferencesSaving={editor.modelPreferencesSaving}
-              modelPreferencesError={editor.modelPreferencesError}
-              updateModelPreferences={editor.updateModelPreferences}
-              refreshOAuthProviders={editor.refreshOAuthProviders}
-              refreshApiKeyProviders={editor.refreshApiKeyProviders}
-              updateProvider={editor.updateProvider}
-              renameProvider={editor.renameProvider}
-              deleteProvider={editor.deleteProvider}
-              updateModel={editor.updateModel}
-              removeModel={editor.removeModel}
-            />
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              overflowY: "auto",
+              padding: isMobile
+                ? "var(--space-5) var(--space-4) var(--space-8)"
+                : "var(--space-6) var(--space-6) var(--space-10)",
+            }}
+          >
+            <div style={{ maxWidth: 760, margin: "0 auto" }}>
+              <ProviderTree
+                loading={loading}
+                providers={editor.providers}
+                oauthProviders={editor.oauthProviders}
+                apiKeyProviders={editor.apiKeyProviders}
+                activeOAuth={editor.activeOAuth}
+                activeApiKey={editor.activeApiKey}
+                modelPreferences={editor.modelPreferences}
+                selection={editor.selection}
+                setSelection={setSelection}
+                addModel={editor.addModel}
+                setPickerOpen={setPickerOpen}
+                detail={
+                  <SelectionDetail
+                    loading={loading}
+                    config={editor.config}
+                    selection={editor.selection}
+                    setConfig={editor.setConfig}
+                    oauthProviders={editor.oauthProviders}
+                    apiKeyProviders={editor.apiKeyProviders}
+                    modelPreferences={editor.modelPreferences}
+                    modelPreferencesLoading={editor.modelPreferencesLoading}
+                    modelPreferencesSaving={editor.modelPreferencesSaving}
+                    modelPreferencesError={editor.modelPreferencesError}
+                    updateModelPreferences={editor.updateModelPreferences}
+                    refreshOAuthProviders={editor.refreshOAuthProviders}
+                    refreshApiKeyProviders={editor.refreshApiKeyProviders}
+                    updateProvider={editor.updateProvider}
+                    renameProvider={editor.renameProvider}
+                    deleteProvider={editor.deleteProvider}
+                    updateModel={editor.updateModel}
+                    removeModel={editor.removeModel}
+                  />
+                }
+              />
+              {!loading && !editor.selection && (
+                <p
+                  className="type-body-default"
+                  style={{ margin: "var(--space-6) 0 0", textAlign: "center", color: "var(--fx-text-tertiary)" }}
+                >
+                  {t("selectProviderOrModel", "Select a provider or model")}
+                </p>
+              )}
+            </div>
           </div>
           <ModelsFooter
             embedded={embedded}

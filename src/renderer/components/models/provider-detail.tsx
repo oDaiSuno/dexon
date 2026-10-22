@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Field, SecretTextInput, Select, SectionTitle, TextInput } from "../form-controls";
+import { Button, Field, SecretTextInput, Select, SectionTitle, TextInput } from "../form-controls";
 import { useI18n } from "@/i18n";
 import type { ProviderEntry } from "@/lib/models-config-state";
 import { API_OPTIONS } from "./types";
@@ -31,45 +31,21 @@ export function ProviderDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionTitle>{t("modelProvider", "Provider")}</SectionTitle>
-        <button
-          type="button"
-          onClick={onDelete}
-          style={{
-            minHeight: 32,
-            padding: "0 12px",
-            background: "none",
-            border: "1px solid var(--fx-status-danger-border)",
-            borderRadius: "var(--radius-chip)",
-            color: "var(--fx-status-danger)",
-            cursor: "pointer",
-            fontSize: "var(--text-label)",
-          }}
-        >
+        <Button variant="danger" onClick={onDelete}>
           {t("delete", "Delete")}
-        </button>
+        </Button>
       </div>
 
       <Field label={t("modelProviderName", "Provider name")}>
         <TextInput value={editingName} onChange={setEditingName} placeholder="provider-name" mono />
         {editingName !== name && editingName.trim() && (
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={() => onRename(editingName.trim())}
-            style={{
-              marginTop: 4,
-              minHeight: 32,
-              padding: "0 12px",
-              background: "var(--fx-accent-blue-fill)",
-              border: "none",
-              borderRadius: "var(--radius-chip)",
-              color: "var(--fx-text-on-accent)",
-              cursor: "pointer",
-              fontSize: "var(--text-label)",
-              alignSelf: "flex-start",
-            }}
+            style={{ marginTop: 4, alignSelf: "flex-start" }}
           >
             {t("rename", "Rename")}
-          </button>
+          </Button>
         )}
       </Field>
 
@@ -89,7 +65,7 @@ export function ProviderDetail({
           placeholder={t("modelApiKeySourcePlaceholder", "ENV_VAR_NAME, !shell-command, or literal key")}
           mono
         />
-        <span style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+        <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)", marginTop: 2 }}>
           {t("modelApiKeySourceHint", "Prefix with ! to run a shell command, or use an environment variable name.")}
         </span>
       </Field>

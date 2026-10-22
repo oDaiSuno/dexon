@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Field, SecretTextInput, SectionTitle, TextInput } from "../form-controls";
+import { Badge, Button, Field, SecretTextInput, SectionTitle, TextInput } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { ManagedModelsControl } from "./managed-models-control";
 import type { ApiKeyProvider, ModelSelectionControl } from "./types";
@@ -92,28 +92,12 @@ export function ApiKeyDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionTitle>{t("modelApiKey", "API Key")}</SectionTitle>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: provider.configured ? "var(--fx-status-success)" : "var(--fx-line-default)",
-              display: "inline-block",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "var(--text-meta)",
-              color: provider.configured ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
-            }}
-          >
-            {provider.configured ? t("configured", "configured") : t("notConfigured", "not configured")}
-          </span>
-        </div>
+        <Badge tone={provider.configured ? "success" : "muted"}>
+          {provider.configured ? t("configured", "configured") : t("notConfigured", "not configured")}
+        </Badge>
       </div>
 
-      <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+      <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
         {provider.configured
           ? t(
               "modelApiKeyStored",
@@ -131,7 +115,7 @@ export function ApiKeyDetail({
           placeholder={t("modelBaseUrlPlaceholder", "Leave empty to use the provider default")}
           mono
         />
-        <span style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+        <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)", marginTop: 2 }}>
           {t(
             "modelBaseUrlHint",
             "Overrides the endpoint for this provider. Use the Save button below to apply changes.",
@@ -153,30 +137,20 @@ export function ApiKeyDetail({
             spellCheck={false}
             mono
           />
-          <button
+          <Button
+            variant={apiKey.trim() && !savedOk ? "primary" : "secondary"}
             onClick={handleSave}
             disabled={saving || !apiKey.trim() || savedOk}
             style={{
-              padding: "8px 12px",
-              background: savedOk
-                ? "var(--fx-status-success-soft)"
-                : apiKey.trim()
-                  ? "var(--fx-accent-blue)"
-                  : "var(--fx-surface-raised)",
-              border: "none",
-              borderRadius: "var(--radius-control)",
-              color: savedOk
-                ? "var(--fx-status-success)"
-                : apiKey.trim()
-                  ? "var(--fx-text-on-accent)"
-                  : "var(--fx-text-tertiary)",
-              cursor: saving || !apiKey.trim() || savedOk ? "not-allowed" : "pointer",
-              fontSize: "var(--text-label)",
-              fontWeight: 600,
               flexShrink: 0,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
+              ...(savedOk
+                ? {
+                    opacity: 1,
+                    borderColor: "var(--fx-status-success-border)",
+                    background: "var(--fx-status-success-soft)",
+                    color: "var(--fx-status-success-text)",
+                  }
+                : {}),
             }}
           >
             {savedOk && (
@@ -189,39 +163,33 @@ export function ApiKeyDetail({
                 strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
+                style={{ color: "currentColor" }}
               >
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             )}
             {savedOk ? t("saved", "Saved") : saving ? t("saving", "Saving…") : t("save", "Save")}
-          </button>
+          </Button>
         </div>
       </Field>
 
-      {error && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-danger)" }}>{error}</p>}
+      {error && (
+        <p className="type-body-default" style={{ margin: 0, color: "var(--fx-status-danger)" }}>
+          {error}
+        </p>
+      )}
       {warning && (
-        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-warning)" }}>{warning}</p>
+        <p className="type-body-default" style={{ margin: 0, color: "var(--fx-status-warning)" }}>
+          {warning}
+        </p>
       )}
 
       {provider.configured && <ManagedModelsControl providerId={provider.id} {...modelSelection} />}
 
       {provider.configured && (
-        <button
-          onClick={handleRemove}
-          disabled={removing}
-          style={{
-            alignSelf: "flex-start",
-            padding: "4px 12px",
-            background: "none",
-            border: "1px solid var(--fx-status-danger-border)",
-            borderRadius: "var(--radius-control)",
-            color: "var(--fx-status-danger)",
-            cursor: removing ? "not-allowed" : "pointer",
-            fontSize: "var(--text-label)",
-          }}
-        >
+        <Button variant="danger" onClick={handleRemove} disabled={removing} style={{ alignSelf: "flex-start" }}>
           {removing ? t("modelRemoving", "Removing…") : t("modelDisconnect", "Disconnect")}
-        </button>
+        </Button>
       )}
     </div>
   );

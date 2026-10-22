@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SectionTitle } from "../form-controls";
+import { Button, SectionTitle } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { isModelEnabled, setProviderModelsEnabled, toggleModelEnabled } from "@/lib/model-selection";
 import type { ModelSelectionControl } from "./types";
@@ -42,7 +42,7 @@ export function ManagedModelsControl({
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <SectionTitle>{t("models", "Models")}</SectionTitle>
         {!loading && preferences && (
-          <span style={{ fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>
+          <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>
             {t("modelEnabledCount", "{enabled} of {total} enabled")
               .replace("{enabled}", String(enabledCount))
               .replace("{total}", String(providerModels.length))}
@@ -50,7 +50,7 @@ export function ManagedModelsControl({
         )}
       </div>
 
-      <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+      <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
         {t(
           "modelSelectionDescription",
           "Choose which models appear in the model picker. The active model in an existing session is not changed.",
@@ -58,12 +58,12 @@ export function ManagedModelsControl({
       </p>
 
       {loading && (
-        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+        <p className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
           {t("modelLoadingModels", "Loading models…")}
         </p>
       )}
       {!loading && preferences && providerModels.length === 0 && (
-        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+        <p className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
           {t("modelNoAvailableModels", "No models are currently available for this provider.")}
         </p>
       )}
@@ -71,44 +71,24 @@ export function ManagedModelsControl({
       {!loading && preferences && providerModels.length > 0 && (
         <>
           <div style={{ display: "flex", gap: 8 }}>
-            <button
-              type="button"
+            <Button
               disabled={saving || enabledCount === providerModels.length}
               onClick={() =>
                 void onChange(setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, true))
               }
-              style={{
-                padding: "4px 8px",
-                background: "none",
-                border: "1px solid var(--fx-line-default)",
-                borderRadius: "var(--radius-control)",
-                color: "var(--fx-text-secondary)",
-                cursor: saving || enabledCount === providerModels.length ? "not-allowed" : "pointer",
-                fontSize: "var(--text-meta)",
-              }}
             >
               {t("modelEnableAll", "Enable all")}
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
               disabled={saving || enabledCount === 0}
               onClick={() =>
                 void onChange(
                   setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, false),
                 )
               }
-              style={{
-                padding: "4px 8px",
-                background: "none",
-                border: "1px solid var(--fx-line-default)",
-                borderRadius: "var(--radius-control)",
-                color: "var(--fx-text-secondary)",
-                cursor: saving || enabledCount === 0 ? "not-allowed" : "pointer",
-                fontSize: "var(--text-meta)",
-              }}
             >
               {t("modelDisableAll", "Disable all")}
-            </button>
+            </Button>
           </div>
 
           {providerModels.length > 8 && (
@@ -118,17 +98,7 @@ export function ManagedModelsControl({
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("modelSearchModels", "Search models…")}
               aria-label={t("modelSearchProviderModels", "Search provider models")}
-              style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: "8px 8px",
-                background: "var(--fx-surface-main)",
-                border: "1px solid var(--fx-line-default)",
-                borderRadius: "var(--radius-control)",
-                color: "var(--fx-text-primary)",
-                fontSize: "var(--text-label)",
-                outline: "none",
-              }}
+              className="ui-input"
             />
           )}
 
@@ -139,7 +109,8 @@ export function ManagedModelsControl({
               maxHeight: 300,
               overflowY: "auto",
               border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-control)",
+              borderRadius: "var(--radius-card)",
+              background: "var(--fx-surface-raised)",
             }}
           >
             {visibleModels.map((model, index) => {
@@ -165,28 +136,22 @@ export function ManagedModelsControl({
                         toggleModelEnabled(preferences.models, preferences.enabledModels, model, event.target.checked),
                       )
                     }
-                    style={{ margin: "2px 0 0", accentColor: "var(--fx-accent-blue)", flexShrink: 0 }}
+                    style={{ margin: "2px 0 0", accentColor: "var(--fx-accent-blue-fill)", flexShrink: 0 }}
                   />
                   <span style={{ minWidth: 0 }}>
                     <span
-                      style={{
-                        display: "block",
-                        color: "var(--fx-text-primary)",
-                        fontSize: "var(--text-label)",
-                        lineHeight: 1.35,
-                        overflowWrap: "anywhere",
-                      }}
+                      className="type-body-default"
+                      style={{ display: "block", color: "var(--fx-text-primary)", overflowWrap: "anywhere" }}
                     >
                       {model.name}
                     </span>
                     {model.name !== model.id && (
                       <code
+                        className="type-mono-meta"
                         style={{
                           display: "block",
                           marginTop: 2,
                           color: "var(--fx-text-tertiary)",
-                          fontSize: "var(--text-micro)",
-                          fontFamily: "var(--font-mono)",
                           overflowWrap: "anywhere",
                         }}
                       >
@@ -198,7 +163,7 @@ export function ManagedModelsControl({
               );
             })}
             {visibleModels.length === 0 && (
-              <span style={{ padding: "12px", color: "var(--fx-text-secondary)", fontSize: "var(--text-label)" }}>
+              <span className="type-body-default" style={{ padding: "12px", color: "var(--fx-text-secondary)" }}>
                 {t("modelNoMatchingModels", "No matching models.")}
               </span>
             )}
@@ -207,12 +172,12 @@ export function ManagedModelsControl({
       )}
 
       {saving && (
-        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)" }}>
+        <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
           {t("modelSavingSelection", "Saving selection…")}
         </p>
       )}
       {error && (
-        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-status-danger)", lineHeight: 1.4 }}>
+        <p className="type-label-default" style={{ margin: 0, color: "var(--fx-status-danger)" }}>
           {error}
         </p>
       )}

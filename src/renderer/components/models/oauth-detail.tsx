@@ -1,4 +1,4 @@
-import { SectionTitle } from "../form-controls";
+import { Badge, Button, SectionTitle } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { ManagedModelsControl } from "./managed-models-control";
 import type { ModelSelectionControl, OAuthProvider } from "./types";
@@ -31,70 +31,45 @@ export function OAuthDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <SectionTitle>{t("modelSubscription", "Subscription")}</SectionTitle>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span
-            style={{
-              width: 7,
-              height: 7,
-              borderRadius: "50%",
-              background: provider.loggedIn ? "var(--fx-status-success)" : "var(--fx-line-default)",
-              display: "inline-block",
-            }}
-          />
-          <span
-            style={{
-              fontSize: "var(--text-meta)",
-              color: provider.loggedIn ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
-            }}
-          >
-            {provider.loggedIn ? t("modelConnected", "connected") : t("modelNotConnected", "not connected")}
-          </span>
-        </div>
+        <Badge tone={provider.loggedIn ? "success" : "muted"}>
+          {provider.loggedIn ? t("modelConnected", "connected") : t("modelNotConnected", "not connected")}
+        </Badge>
       </div>
 
       <div style={{ minHeight: 48 }}>
         {loginState.phase === "idle" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+          <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
             {provider.loggedIn
               ? t("modelAlreadyConnected", "Already connected. You can re-login or disconnect.")
               : t("modelConnectAccount", "Connect your {provider} account.").replace("{provider}", provider.name)}
           </p>
         )}
         {loginState.phase === "connecting" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+          <p className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
             {t("modelOpeningBrowser", "Opening browser…")}
           </p>
         )}
         {loginState.phase === "select" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+            <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
               {loginState.message}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {loginState.options.map((option) => (
-                <button
+                <Button
                   key={option.id}
                   onClick={() => submitSelection(loginState.token, option.id)}
-                  style={{
-                    padding: "8px 8px",
-                    background: "var(--fx-surface-main)",
-                    border: "1px solid var(--fx-line-default)",
-                    borderRadius: "var(--radius-control)",
-                    color: "var(--fx-text-primary)",
-                    cursor: "pointer",
-                    fontSize: "var(--text-label)",
-                    textAlign: "left",
-                  }}
+                  style={{ justifyContent: "flex-start" }}
                 >
                   {option.label}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
         )}
         {(loginState.phase === "auth" || loginState.phase === "prompt") && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+            <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
               {loginState.phase === "auth"
                 ? t(
                     "modelCompleteSignIn",
@@ -103,13 +78,13 @@ export function OAuthDetail({
                 : loginState.message}
             </p>
             {loginState.phase === "auth" && (
-              <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", lineHeight: 1.5 }}>
+              <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
                 {t("modelBrowserDidNotOpen", "If the browser window did not open,")}{" "}
                 <a
                   href={loginState.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "var(--fx-accent-blue)", wordBreak: "break-all" }}
+                  style={{ color: "var(--fx-accent-blue-text)", wordBreak: "break-all" }}
                 >
                   {t("modelOpenLoginPage", "click here to open the login page")}
                 </a>
@@ -129,65 +104,44 @@ export function OAuthDetail({
                     ? "http://localhost:1455/auth/callback?code=…"
                     : (loginState.placeholder ?? t("modelEnterValue", "Enter value…"))
                 }
-                style={{
-                  flex: 1,
-                  padding: "8px 8px",
-                  background: "var(--fx-surface-main)",
-                  border: "1px solid var(--fx-line-default)",
-                  borderRadius: "var(--radius-control)",
-                  color: "var(--fx-text-primary)",
-                  fontSize: "var(--text-label)",
-                  outline: "none",
-                  fontFamily: "var(--font-mono)",
-                  boxSizing: "border-box",
-                }}
+                className="ui-input"
+                data-mono="true"
+                style={{ flex: 1 }}
               />
-              <button
+              <Button
+                variant="primary"
                 onClick={() => submitCode(loginState.token, inputValue)}
                 disabled={!inputValue.trim()}
-                style={{
-                  padding: "8px 12px",
-                  background: inputValue.trim() ? "var(--fx-accent-blue-fill)" : "var(--fx-surface-raised)",
-                  border: "none",
-                  borderRadius: "var(--radius-control)",
-                  color: inputValue.trim() ? "var(--fx-text-on-accent)" : "var(--fx-text-tertiary)",
-                  cursor: inputValue.trim() ? "pointer" : "not-allowed",
-                  fontSize: "var(--text-label)",
-                  fontWeight: 600,
-                  flexShrink: 0,
-                }}
+                style={{ flexShrink: 0 }}
               >
                 {t("submit", "Submit")}
-              </button>
+              </Button>
             </div>
           </div>
         )}
         {loginState.phase === "device_code" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
+            <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
               {t("modelOpenVerificationPage", "Open the verification page and enter this code:")}
             </p>
             <div
+              className="type-mono-number-strong"
               style={{
-                padding: "8px 12px",
-                background: "var(--fx-surface-main)",
+                padding: "var(--space-2) var(--space-3)",
+                background: "var(--fx-surface-inset)",
                 border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
                 color: "var(--fx-text-primary)",
-                fontSize: "var(--text-title)",
-                fontWeight: 700,
-                fontFamily: "var(--font-mono)",
-                letterSpacing: 0,
               }}
             >
               {loginState.userCode}
             </div>
-            <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", lineHeight: 1.5 }}>
+            <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
               <a
                 href={loginState.verificationUri}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: "var(--fx-accent-blue)", wordBreak: "break-all" }}
+                style={{ color: "var(--fx-accent-blue-text)", wordBreak: "break-all" }}
               >
                 {loginState.verificationUri}
               </a>
@@ -201,15 +155,15 @@ export function OAuthDetail({
           </div>
         )}
         {loginState.phase === "progress" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+          <p className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
             {loginState.message}
           </p>
         )}
         {loginState.phase === "success" && (
           <p
+            className="type-body-default"
             style={{
               margin: 0,
-              fontSize: "var(--text-label)",
               color: loginState.warning ? "var(--fx-status-warning)" : "var(--fx-status-success)",
             }}
           >
@@ -217,7 +171,7 @@ export function OAuthDetail({
           </p>
         )}
         {loginState.phase === "error" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-danger)" }}>
+          <p className="type-body-default" style={{ margin: 0, color: "var(--fx-status-danger)" }}>
             {loginState.message}
           </p>
         )}
@@ -225,52 +179,16 @@ export function OAuthDetail({
 
       <div style={{ display: "flex", gap: 8 }}>
         {isWorking ? (
-          <button
-            onClick={handleCancelLogin}
-            style={{
-              padding: "4px 12px",
-              background: "none",
-              border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-control)",
-              color: "var(--fx-text-secondary)",
-              cursor: "pointer",
-              fontSize: "var(--text-label)",
-            }}
-          >
-            {t("cancel", "Cancel")}
-          </button>
+          <Button onClick={handleCancelLogin}>{t("cancel", "Cancel")}</Button>
         ) : (
           <>
-            <button
-              onClick={handleLogin}
-              style={{
-                padding: "4px 16px",
-                background: "var(--fx-accent-blue-fill)",
-                border: "none",
-                borderRadius: "var(--radius-control)",
-                color: "var(--fx-text-on-accent)",
-                cursor: "pointer",
-                fontSize: "var(--text-label)",
-                fontWeight: 600,
-              }}
-            >
+            <Button variant="primary" onClick={handleLogin}>
               {provider.loggedIn ? t("modelRelogin", "Re-login") : t("modelLogin", "Login")}
-            </button>
+            </Button>
             {provider.loggedIn && (
-              <button
-                onClick={handleLogout}
-                style={{
-                  padding: "4px 12px",
-                  background: "none",
-                  border: "1px solid var(--fx-status-danger-border)",
-                  borderRadius: "var(--radius-control)",
-                  color: "var(--fx-status-danger)",
-                  cursor: "pointer",
-                  fontSize: "var(--text-label)",
-                }}
-              >
+              <Button variant="danger" onClick={handleLogout}>
                 {t("modelDisconnect", "Disconnect")}
-              </button>
+              </Button>
             )}
           </>
         )}

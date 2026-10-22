@@ -1,306 +1,422 @@
+import type { ReactNode } from "react";
+import { Badge, Button } from "../form-controls";
 import { useI18n } from "@/i18n";
 import type { ProviderEntry } from "@/lib/models-config-state";
-import { ProviderIcon } from "./provider-icon";
+import type { ModelPreferencesResult } from "@contract/types";
+import { ProviderLogoTile } from "./provider-icon";
 import type { ApiKeyProvider, OAuthProvider, Selection } from "./types";
 
+export type ProviderRowTone = "success" | "warning" | "muted";
+
+const rowTransition = "background-color var(--duration-quick) var(--ease-smooth-out)";
+
+function hoverHandlers(active: boolean, rest: string) {
+  return {
+    onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
+      if (!active) e.currentTarget.style.background = "var(--fx-surface-card)";
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
+      if (!active) e.currentTarget.style.background = rest;
+    },
+  };
+}
+
+function StatusDot({ tone }: { tone: ProviderRowTone }) {
+  const fill =
+    tone === "success"
+      ? "var(--fx-status-success)"
+      : tone === "warning"
+        ? "var(--fx-status-warning)"
+        : "var(--fx-text-faint)";
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        flexShrink: 0,
+        background: fill,
+        boxShadow: tone === "warning" ? "0 0 0 3px var(--fx-status-warning-soft)" : undefined,
+      }}
+    />
+  );
+}
+
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{
+        flexShrink: 0,
+        color: "var(--fx-text-tertiary)",
+        transform: open ? "rotate(90deg)" : undefined,
+        transition: "transform var(--duration-quick) var(--ease-smooth-out)",
+      }}
+    >
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
+export function ProviderRow({
+  iconId,
+  name,
+  meta,
+  status,
+  tone = "success",
+  disabled = false,
+  action,
+  selected = false,
+  divider = false,
+  onSelect,
+}: {
+  iconId: string;
+  name: string;
+  meta?: string;
+  status?: string;
+  tone?: ProviderRowTone;
+  disabled?: boolean;
+  action?: ReactNode;
+  selected?: boolean;
+  divider?: boolean;
+  onSelect: () => void;
+}) {
+  const rest = selected ? "var(--fx-surface-card)" : "var(--fx-surface-raised)";
+  return (
+    <div
+      onClick={onSelect}
+      {...hoverHandlers(selected, rest)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 14,
+        padding: "14px var(--space-4) 14px var(--space-5)",
+        borderTop: divider ? "1px solid var(--fx-line-default)" : undefined,
+        background: rest,
+        cursor: "pointer",
+        transition: rowTransition,
+      }}
+    >
+      <ProviderLogoTile id={iconId} dimmed={disabled} />
+      <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
+        <span
+          className="type-body-large-medium"
+          style={{
+            color: disabled ? "var(--fx-text-secondary)" : "var(--fx-text-primary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {name}
+        </span>
+        {meta && (
+          <span
+            className="type-body-default"
+            style={{
+              color: "var(--fx-text-tertiary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {meta}
+          </span>
+        )}
+      </div>
+      {status && (
+        <div style={{ width: 96, flexShrink: 0, display: "flex", alignItems: "center", gap: 8 }}>
+          <StatusDot tone={disabled ? "muted" : tone} />
+          <span
+            className="type-body-default"
+            style={{
+              minWidth: 0,
+              color: "var(--fx-text-secondary)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {status}
+          </span>
+        </div>
+      )}
+      {action ?? <Chevron open={selected} />}
+    </div>
+  );
+}
+
+function ProviderGroup({ title, action, children }: { title: string; action?: ReactNode; children?: ReactNode }) {
+  return (
+    <section style={{ display: "grid", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 20 }}>
+        <h2 className="type-body-medium" style={{ flex: 1, margin: 0, color: "var(--fx-text-secondary)" }}>
+          {title}
+        </h2>
+        {action}
+      </div>
+      {children && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            border: "1px solid var(--fx-line-default)",
+            borderRadius: "var(--radius-dialog)",
+            background: "var(--fx-surface-raised)",
+            overflow: "hidden",
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function SubRow({
+  selected,
+  muted,
+  onClick,
+  children,
+}: {
+  selected?: boolean;
+  muted?: boolean;
+  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
+  children: ReactNode;
+}) {
+  const rest = selected ? "var(--fx-surface-selected)" : "transparent";
+  return (
+    <div
+      onClick={onClick}
+      {...hoverHandlers(Boolean(selected), rest)}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        minHeight: 30,
+        margin: "0 var(--space-3) 0 58px",
+        padding: "0 var(--space-2)",
+        borderRadius: "var(--radius-control)",
+        background: rest,
+        color: muted ? "var(--fx-text-tertiary)" : "var(--fx-text-secondary)",
+        cursor: "pointer",
+        transition: rowTransition,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function hostOf(baseUrl: string | undefined): string | null {
+  if (!baseUrl) return null;
+  try {
+    return new URL(baseUrl).host || baseUrl;
+  } catch {
+    return baseUrl;
+  }
+}
+
+function DetailSlot({ children }: { children: ReactNode }) {
+  return <div style={{ borderTop: "1px solid var(--fx-line-default)" }}>{children}</div>;
+}
+
 export function ProviderTree({
-  isMobile,
   loading,
   providers,
+  oauthProviders,
+  apiKeyProviders,
   activeOAuth,
   activeApiKey,
+  modelPreferences,
   selection,
   setSelection,
   addModel,
   setPickerOpen,
+  detail,
 }: {
-  isMobile: boolean;
   loading: boolean;
   providers: [string, ProviderEntry][];
+  oauthProviders: OAuthProvider[];
+  apiKeyProviders: ApiKeyProvider[];
   activeOAuth: OAuthProvider[];
   activeApiKey: ApiKeyProvider[];
+  modelPreferences: ModelPreferencesResult | null;
   selection: Selection | null;
   setSelection: (selection: Selection | null) => void;
   addModel: (providerName: string) => void;
   setPickerOpen: (open: boolean) => void;
+  detail: ReactNode;
 }) {
   const { t } = useI18n();
+  const countLabel = (count: number) => t("modelCount", "{count} models").replace("{count}", String(count));
+  const oauthMeta = (id: string) => {
+    if (!modelPreferences) return "OAuth";
+    return `OAuth · ${countLabel(modelPreferences.models.filter((model) => model.provider === id).length)}`;
+  };
+
+  const pendingOAuth =
+    selection?.type === "oauth" && !activeOAuth.some((p) => p.id === selection.providerId)
+      ? oauthProviders.find((p) => p.id === selection.providerId)
+      : undefined;
+  const pendingApiKey =
+    selection?.type === "apikey" && !activeApiKey.some((p) => p.id === selection.providerId)
+      ? apiKeyProviders.find((p) => p.id === selection.providerId)
+      : undefined;
+  const oauthRows = pendingOAuth ? [...activeOAuth, pendingOAuth] : activeOAuth;
+  const apiKeyRows = pendingApiKey ? [...activeApiKey, pendingApiKey] : activeApiKey;
+
   return (
-    <div
-      style={{
-        width: isMobile ? "100%" : 210,
-        maxHeight: isMobile ? "40vh" : undefined,
-        borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
-        borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
-        display: "flex",
-        flexDirection: "column",
-        flexShrink: 0,
-        background: "var(--fx-surface-raised)",
-      }}
-    >
-      <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
-        {activeOAuth.map((p) => {
-          const isSelected = selection?.type === "oauth" && selection.providerId === p.id;
-          return (
-            <div
-              key={p.id}
-              onClick={() => setSelection({ type: "oauth", providerId: p.id })}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 8px",
-                borderRadius: "var(--radius-control)",
-                cursor: "pointer",
-                background: isSelected ? "var(--bg-selected)" : "none",
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) e.currentTarget.style.background = "var(--bg-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) e.currentTarget.style.background = "none";
-              }}
+    <div style={{ display: "grid", gap: 28 }}>
+      {oauthRows.length > 0 && (
+        <ProviderGroup title={t("modelSubscription", "Subscription")}>
+          {oauthRows.map((p, index) => {
+            const isSelected = selection?.type === "oauth" && selection.providerId === p.id;
+            return (
+              <div key={p.id}>
+                <ProviderRow
+                  iconId={p.id}
+                  name={p.name}
+                  meta={oauthMeta(p.id)}
+                  status={p.loggedIn ? t("modelConnected", "connected") : undefined}
+                  action={
+                    p.loggedIn ? undefined : (
+                      <span aria-hidden="true" className="ui-button">
+                        {t("modelLogin", "Login")}
+                      </span>
+                    )
+                  }
+                  selected={isSelected}
+                  divider={index > 0}
+                  onSelect={() => setSelection({ type: "oauth", providerId: p.id })}
+                />
+                {isSelected && <DetailSlot>{detail}</DetailSlot>}
+              </div>
+            );
+          })}
+        </ProviderGroup>
+      )}
+
+      {apiKeyRows.length > 0 && (
+        <ProviderGroup title={t("modelApiKey", "API Key")}>
+          {apiKeyRows.map((p, index) => {
+            const isSelected = selection?.type === "apikey" && selection.providerId === p.id;
+            return (
+              <div key={p.id}>
+                <ProviderRow
+                  iconId={p.id}
+                  name={p.displayName}
+                  meta={`${t("modelApiKey", "API Key")} · ${countLabel(p.modelCount)}`}
+                  status={p.configured ? t("configured", "configured") : t("notConfigured", "not configured")}
+                  tone={p.configured ? "success" : "muted"}
+                  selected={isSelected}
+                  divider={index > 0}
+                  onSelect={() => setSelection({ type: "apikey", providerId: p.id })}
+                />
+                {isSelected && <DetailSlot>{detail}</DetailSlot>}
+              </div>
+            );
+          })}
+        </ProviderGroup>
+      )}
+
+      <ProviderGroup
+        title={t("modelCustom", "Custom")}
+        action={
+          <Button onClick={() => setPickerOpen(true)}>
+            <svg
+              aria-hidden="true"
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              <ProviderIcon id={p.id} size={16} />
-              <span
-                style={{
-                  fontSize: "var(--text-label)",
-                  color: "var(--fx-text-primary)",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {p.name}
-              </span>
-            </div>
-          );
-        })}
-
-        {activeApiKey.map((p) => {
-          const isSelected = selection?.type === "apikey" && selection.providerId === p.id;
-          return (
-            <div
-              key={p.id}
-              onClick={() => setSelection({ type: "apikey", providerId: p.id })}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "4px 8px",
-                borderRadius: "var(--radius-control)",
-                cursor: "pointer",
-                background: isSelected ? "var(--bg-selected)" : "none",
-              }}
-              onMouseEnter={(e) => {
-                if (!isSelected) e.currentTarget.style.background = "var(--bg-hover)";
-              }}
-              onMouseLeave={(e) => {
-                if (!isSelected) e.currentTarget.style.background = "none";
-              }}
-            >
-              <ProviderIcon id={p.id} size={16} />
-              <span
-                style={{
-                  fontSize: "var(--text-label)",
-                  color: "var(--fx-text-primary)",
-                  flex: 1,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {p.displayName}
-              </span>
-            </div>
-          );
-        })}
-
-        {(activeOAuth.length > 0 || activeApiKey.length > 0) && providers.length > 0 && (
-          <div style={{ margin: "4px 8px", borderTop: "1px solid var(--fx-line-default)" }} />
-        )}
-
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            {t("addProvider", "Add provider")}
+          </Button>
+        }
+      >
         {loading ? (
-          <div style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+          <div
+            className="type-body-default"
+            style={{ padding: "var(--space-4) var(--space-5)", color: "var(--fx-text-secondary)" }}
+          >
             {t("loading", "Loading…")}
           </div>
-        ) : (
-          providers.map(([pName, pData]) => {
+        ) : providers.length > 0 ? (
+          providers.map(([pName, pData], index) => {
             const isProviderSelected = selection?.type === "provider" && selection.name === pName;
+            const ownsSelection =
+              isProviderSelected || (selection?.type === "model" && selection.providerName === pName);
             const models = pData.models ?? [];
+            const host = hostOf(pData.baseUrl);
             return (
-              <div key={pName} style={{ marginBottom: 2 }}>
-                <div
-                  onClick={() => setSelection({ type: "provider", name: pName })}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                    padding: "8px 8px",
-                    borderRadius: "var(--radius-control)",
-                    cursor: "pointer",
-                    background: isProviderSelected ? "var(--bg-selected)" : "none",
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isProviderSelected) e.currentTarget.style.background = "var(--bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isProviderSelected) e.currentTarget.style.background = "none";
-                  }}
-                >
-                  <svg
-                    width="11"
-                    height="11"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}
-                  >
-                    <rect x="4" y="4" width="16" height="16" rx="2" />
-                    <rect x="9" y="9" width="6" height="6" />
-                    <line x1="9" y1="1" x2="9" y2="4" />
-                    <line x1="15" y1="1" x2="15" y2="4" />
-                    <line x1="9" y1="20" x2="9" y2="23" />
-                    <line x1="15" y1="20" x2="15" y2="23" />
-                    <line x1="20" y1="9" x2="23" y2="9" />
-                    <line x1="20" y1="14" x2="23" y2="14" />
-                    <line x1="1" y1="9" x2="4" y2="9" />
-                    <line x1="1" y1="14" x2="4" y2="14" />
-                  </svg>
-                  <span
-                    style={{
-                      fontSize: "var(--text-label)",
-                      fontWeight: isProviderSelected ? 600 : 400,
-                      color: "var(--fx-text-primary)",
-                      fontFamily: "var(--font-mono)",
-                      flex: 1,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {pName}
-                  </span>
-                </div>
-
-                {models.map((m, i) => {
-                  const isModelSelected =
-                    selection?.type === "model" && selection.providerName === pName && selection.index === i;
-                  return (
-                    <div
-                      key={i}
-                      onClick={() => setSelection({ type: "model", providerName: pName, index: i })}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "4px 8px 4px 28px",
-                        borderRadius: "var(--radius-control)",
-                        cursor: "pointer",
-                        background: isModelSelected ? "var(--bg-selected)" : "none",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isModelSelected) e.currentTarget.style.background = "var(--bg-hover)";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isModelSelected) e.currentTarget.style.background = "none";
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: "var(--text-meta)",
-                          fontFamily: "var(--font-mono)",
-                          color: m.id ? "var(--fx-text-secondary)" : "var(--fx-text-tertiary)",
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
+              <div key={pName} style={{ borderTop: index > 0 ? "1px solid var(--fx-line-default)" : undefined }}>
+                <ProviderRow
+                  iconId={pName}
+                  name={pName}
+                  meta={host ? `${host} · ${countLabel(models.length)}` : countLabel(models.length)}
+                  selected={ownsSelection}
+                  onSelect={() => setSelection({ type: "provider", name: pName })}
+                />
+                <div style={{ display: "grid", gap: 2, paddingBottom: "var(--space-2)" }}>
+                  {models.map((m, i) => {
+                    const isModelSelected =
+                      selection?.type === "model" && selection.providerName === pName && selection.index === i;
+                    return (
+                      <SubRow
+                        key={i}
+                        selected={isModelSelected}
+                        muted={!m.id}
+                        onClick={() => setSelection({ type: "model", providerName: pName, index: i })}
                       >
-                        {m.id || t("modelNewModel", "new model")}
-                      </span>
-                      {m.reasoning && (
                         <span
+                          className="type-mono-label"
                           style={{
-                            fontSize: "var(--text-micro)",
-                            padding: "1px 4px",
-                            background: "rgba(99,102,241,0.12)",
-                            color: "rgba(99,102,241,0.8)",
-                            borderRadius: "var(--radius-chip)",
-                            flexShrink: 0,
+                            flex: 1,
+                            minWidth: 0,
+                            color: isModelSelected ? "var(--fx-text-primary)" : undefined,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          T
+                          {m.id || t("modelNewModel", "new model")}
                         </span>
-                      )}
-                    </div>
-                  );
-                })}
-
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    addModel(pName);
-                  }}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 4,
-                    padding: "4px 8px 4px 28px",
-                    borderRadius: "var(--radius-control)",
-                    cursor: "pointer",
-                    color: "var(--fx-text-tertiary)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.color = "var(--fx-accent-blue)";
-                    e.currentTarget.style.background = "var(--bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.color = "var(--fx-text-tertiary)";
-                    e.currentTarget.style.background = "none";
-                  }}
-                >
-                  <span style={{ fontSize: "var(--text-meta)" }}>+ {t("modelAddModel", "model")}</span>
+                        {m.reasoning && <Badge tone="accent">T</Badge>}
+                      </SubRow>
+                    );
+                  })}
+                  <SubRow
+                    muted
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      addModel(pName);
+                    }}
+                  >
+                    <span className="type-label-default">+ {t("modelAddModel", "model")}</span>
+                  </SubRow>
                 </div>
+                {ownsSelection && <DetailSlot>{detail}</DetailSlot>}
               </div>
             );
           })
-        )}
-      </div>
-
-      <div style={{ borderTop: "1px solid var(--fx-line-default)", padding: "8px 8px" }}>
-        <button
-          onClick={() => setPickerOpen(true)}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            width: "100%",
-            padding: "8px 0",
-            background: "none",
-            border: "1px dashed var(--fx-line-default)",
-            borderRadius: "var(--radius-control)",
-            color: "var(--fx-text-secondary)",
-            cursor: "pointer",
-            fontSize: "var(--text-label)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
-            e.currentTarget.style.color = "var(--fx-accent-blue)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = "var(--fx-line-default)";
-            e.currentTarget.style.color = "var(--fx-text-secondary)";
-          }}
-        >
-          + {t("addProvider", "Add provider")}
-        </button>
-      </div>
+        ) : null}
+      </ProviderGroup>
     </div>
   );
 }

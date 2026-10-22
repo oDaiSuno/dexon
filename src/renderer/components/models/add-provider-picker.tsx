@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
-import { ProviderIcon } from "./provider-icon";
+import { ProviderLogoTile } from "./provider-icon";
 import type { ApiKeyProvider, OAuthProvider } from "./types";
 
 interface AddProviderPickerProps {
@@ -51,17 +51,40 @@ export function AddProviderPicker({
     display: "flex",
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    padding: "12px 12px",
+    gap: 12,
+    padding: "var(--space-3)",
     background: "var(--fx-surface-raised)",
     border: "1px solid var(--fx-line-default)",
     borderRadius: "var(--radius-card)",
     boxSizing: "border-box",
+    color: "inherit",
+    font: "inherit",
     cursor: "pointer",
     minWidth: 0,
     textAlign: "left",
-    transition: "border-color 0.12s, background 0.12s",
+    transition:
+      "border-color var(--duration-quick) var(--ease-out), background-color var(--duration-quick) var(--ease-out)",
     width: "100%",
+  };
+  const cardHover = {
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.borderColor = "var(--fx-line-strong)";
+      e.currentTarget.style.background = "var(--fx-surface-card)";
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+      e.currentTarget.style.borderColor = "var(--fx-line-default)";
+      e.currentTarget.style.background = "var(--fx-surface-raised)";
+    },
+  };
+  const groupLabelStyle: React.CSSProperties = {
+    gridColumn: "1 / -1",
+    color: "var(--fx-text-secondary)",
+  };
+  const nameStyle: React.CSSProperties = {
+    color: "var(--fx-text-primary)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   };
 
   return (
@@ -70,7 +93,7 @@ export function AddProviderPicker({
         position: "fixed",
         inset: 0,
         zIndex: 1100,
-        background: "rgba(0,0,0,0.4)",
+        background: "var(--fx-surface-scrim)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -84,28 +107,29 @@ export function AddProviderPicker({
           width: 820,
           maxWidth: "calc(100vw - 32px)",
           maxHeight: "min(72vh, calc(100vh - 32px))",
-          background: "var(--fx-surface-main)",
+          background: "var(--fx-surface-raised)",
           border: "1px solid var(--fx-line-default)",
-          borderRadius: "var(--radius-card)",
+          borderRadius: "var(--radius-dialog)",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.22)",
+          boxShadow: "var(--shadow-dialog)",
           overflow: "hidden",
         }}
       >
         <div
           style={{
-            padding: "12px 16px",
+            minHeight: 52,
+            padding: "0 var(--space-5)",
             borderBottom: "1px solid var(--fx-line-default)",
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 10,
           }}
         >
           <svg
-            width="13"
-            height="13"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -125,27 +149,23 @@ export function AddProviderPicker({
               if (e.key === "Escape") onClose();
             }}
             placeholder={t("modelSearchProviders", "Search providers…")}
+            className="type-body-large"
             style={{
               flex: 1,
               background: "none",
               border: "none",
               outline: "none",
               color: "var(--fx-text-primary)",
-              fontSize: "var(--text-body)",
               boxSizing: "border-box",
             }}
           />
         </div>
 
-        <div style={{ flex: 1, overflowY: "auto", padding: 16 }}>
+        <div style={{ flex: 1, overflowY: "auto", padding: "var(--space-4) var(--space-5) var(--space-5)" }}>
           {totalCount === 0 ? (
             <div
-              style={{
-                padding: "20px 0",
-                fontSize: "var(--text-label)",
-                color: "var(--fx-text-tertiary)",
-                textAlign: "center",
-              }}
+              className="type-body-default"
+              style={{ padding: "var(--space-5) 0", color: "var(--fx-text-tertiary)", textAlign: "center" }}
             >
               {t("modelNoProvidersMatch", "No providers match")}
             </div>
@@ -158,16 +178,7 @@ export function AddProviderPicker({
               }}
             >
               {showCustom && (
-                <div
-                  style={{
-                    gridColumn: "1 / -1",
-                    fontSize: "var(--text-micro)",
-                    fontWeight: 600,
-                    color: "var(--fx-text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                  }}
-                >
+                <div className="type-body-medium" style={groupLabelStyle}>
                   {t("modelCustom", "Custom")}
                 </div>
               )}
@@ -178,40 +189,16 @@ export function AddProviderPicker({
                     onClose();
                   }}
                   style={cardStyle}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
-                    e.currentTarget.style.background = "var(--bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
-                    e.currentTarget.style.background = "var(--fx-surface-raised)";
-                  }}
+                  {...cardHover}
                 >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "var(--text-label)",
-                        fontWeight: 600,
-                        color: "var(--fx-text-primary)",
-                        lineHeight: 1.3,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {t("modelCompatibleProvider", "OpenAI / Anthropic compatible")}
-                    </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
-                      {t("modelCustomEndpointFormat", "Custom endpoint format")}
-                    </div>
-                  </div>
                   <span
                     style={{
-                      width: 26,
-                      height: 26,
+                      width: 36,
+                      height: 36,
+                      boxSizing: "border-box",
                       borderRadius: "var(--radius-control)",
-                      background: "var(--bg-hover)",
-                      border: "1px dashed var(--fx-line-default)",
+                      background: "var(--fx-surface-card)",
+                      border: "1px dashed var(--fx-line-strong)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -219,8 +206,8 @@ export function AddProviderPicker({
                     }}
                   >
                     <svg
-                      width="13"
-                      height="13"
+                      width="16"
+                      height="16"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -233,20 +220,21 @@ export function AddProviderPicker({
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
                   </span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="type-body-large-medium" style={nameStyle}>
+                      {t("modelCompatibleProvider", "OpenAI / Anthropic compatible")}
+                    </div>
+                    <div className="type-body-default" style={{ color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+                      {t("modelCustomEndpointFormat", "Custom endpoint format")}
+                    </div>
+                  </div>
                 </button>
               )}
 
               {availableOAuth.length > 0 && (
                 <div
-                  style={{
-                    gridColumn: "1 / -1",
-                    paddingTop: showCustom ? 6 : 0,
-                    fontSize: "var(--text-micro)",
-                    fontWeight: 600,
-                    color: "var(--fx-text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
-                  }}
+                  className="type-body-medium"
+                  style={{ ...groupLabelStyle, paddingTop: showCustom ? "var(--space-3)" : 0 }}
                 >
                   {t("modelSubscriptions", "Subscriptions")}
                 </div>
@@ -259,47 +247,26 @@ export function AddProviderPicker({
                     onClose();
                   }}
                   style={cardStyle}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
-                    e.currentTarget.style.background = "var(--bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
-                    e.currentTarget.style.background = "var(--fx-surface-raised)";
-                  }}
+                  {...cardHover}
                 >
+                  <ProviderLogoTile id={p.id} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "var(--text-label)",
-                        fontWeight: 600,
-                        color: "var(--fx-text-primary)",
-                        lineHeight: 1.3,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div className="type-body-large-medium" style={nameStyle}>
                       {p.name}
                     </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+                    <div className="type-body-default" style={{ color: "var(--fx-text-tertiary)", marginTop: 2 }}>
                       OAuth
                     </div>
                   </div>
-                  <ProviderIcon id={p.id} size={28} />
                 </button>
               ))}
 
               {availableApiKey.length > 0 && (
                 <div
+                  className="type-body-medium"
                   style={{
-                    gridColumn: "1 / -1",
-                    paddingTop: availableOAuth.length > 0 ? 6 : 0,
-                    fontSize: "var(--text-micro)",
-                    fontWeight: 600,
-                    color: "var(--fx-text-tertiary)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.07em",
+                    ...groupLabelStyle,
+                    paddingTop: availableOAuth.length > 0 || showCustom ? "var(--space-3)" : 0,
                   }}
                 >
                   {t("modelApiKey", "API Key")}
@@ -313,34 +280,17 @@ export function AddProviderPicker({
                     onClose();
                   }}
                   style={cardStyle}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
-                    e.currentTarget.style.background = "var(--bg-hover)";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
-                    e.currentTarget.style.background = "var(--fx-surface-raised)";
-                  }}
+                  {...cardHover}
                 >
+                  <ProviderLogoTile id={p.id} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "var(--text-label)",
-                        fontWeight: 600,
-                        color: "var(--fx-text-primary)",
-                        lineHeight: 1.3,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
+                    <div className="type-body-large-medium" style={nameStyle}>
                       {p.displayName}
                     </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+                    <div className="type-body-default" style={{ color: "var(--fx-text-tertiary)", marginTop: 2 }}>
                       {t("modelCount", "{count} models").replace("{count}", String(p.modelCount))}
                     </div>
                   </div>
-                  <ProviderIcon id={p.id} size={28} />
                 </button>
               ))}
             </div>
