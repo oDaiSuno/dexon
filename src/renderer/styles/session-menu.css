@@ -1,5 +1,119 @@
+.session-menu-card {
+  position: absolute;
+  right: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-menu);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-popover);
+  transform-origin: top right;
+  cursor: default;
+}
+.session-menu-card--menu {
+  top: calc(100% + var(--space-2));
+  width: 216px;
+}
+.session-menu-card--confirm {
+  top: calc(100% + var(--space-1));
+  width: 264px;
+  max-width: 100%;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+
+.session-menu-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-1);
+}
+
+.session-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
 .session-menu-item:hover,
 .session-menu-item:focus-visible {
-  background: var(--bg-hover) !important;
-  color: var(--fx-text-primary) !important;
+  background: var(--fx-surface-raised-hover);
+}
+.session-menu-item-icon {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--fx-text-secondary);
+}
+.session-menu-item-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-menu-item--danger {
+  color: var(--fx-status-danger-text);
+}
+.session-menu-item--danger .session-menu-item-icon {
+  color: var(--fx-status-danger);
+}
+
+.session-menu-separator {
+  padding: var(--space-1) 6px;
+}
+.session-menu-separator > div {
+  height: 1px;
+  background: var(--fx-surface-selected);
+}
+
+.session-menu-pending-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fx-text-primary);
+}
+
+.session-menu-confirm-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 10px 6px;
+}
+.session-menu-confirm-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 20px;
+  flex-shrink: 0;
+  color: var(--fx-status-danger);
+}
+.session-menu-confirm-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--fx-text-primary);
+  overflow-wrap: anywhere;
+}
+.session-menu-confirm-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+}
+.session-menu-confirm-footer > .ui-button {
+  flex: 1;
+  min-width: 0;
 }
