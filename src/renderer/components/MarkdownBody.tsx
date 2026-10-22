@@ -137,7 +137,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
         {children}
       </a>
       {menuError && (
-        <span role="status" style={{ marginLeft: 4, color: "var(--fx-status-danger)", fontSize: "0.85em" }}>
+        <span role="status" className="type-label-default" style={{ marginLeft: 4, color: "var(--fx-status-danger)" }}>
           {t("fileContextMenuUnavailable", "The file menu could not be opened.")}
         </span>
       )}
@@ -408,6 +408,16 @@ function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?: boole
   );
 }
 
+const CODE_PRE_SELECTOR = 'pre[class*="language-"]';
+
+function withoutBoxStyles(theme: typeof vs): typeof vs {
+  const pre = theme[CODE_PRE_SELECTOR];
+  return { ...theme, [CODE_PRE_SELECTOR]: { color: pre?.color, tabSize: pre?.tabSize, whiteSpace: "pre" } };
+}
+
+const lightCodeTheme = withoutBoxStyles(vs);
+const darkCodeTheme = withoutBoxStyles(vscDarkPlus);
+
 function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
   const { isDark } = useTheme();
   const { copied, copy } = useCopyFeedback();
@@ -426,34 +436,16 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
       {shouldHighlightCode(code) ? (
         <SyntaxHighlighter
           language={lang || "text"}
-          style={isDark ? vscDarkPlus : vs}
+          style={isDark ? darkCodeTheme : lightCodeTheme}
+          className="markdown-code-body type-mono-chat-code"
           showLineNumbers
           lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
-          customStyle={{
-            margin: 0,
-            padding: "12px 12px",
-            fontSize: "calc(12.5px * var(--type-scale, 1))",
-            lineHeight: 1.62,
-            borderRadius: "0",
-            background: "color-mix(in srgb, var(--fx-surface-main) 92%, var(--fx-surface-raised))",
-          }}
           codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
         >
           {code}
         </SyntaxHighlighter>
       ) : (
-        <pre
-          style={{
-            margin: 0,
-            padding: "12px 12px",
-            fontSize: "calc(12.5px * var(--type-scale, 1))",
-            lineHeight: 1.62,
-            overflow: "auto",
-            whiteSpace: "pre",
-            fontFamily: "var(--font-mono)",
-            background: "color-mix(in srgb, var(--fx-surface-main) 92%, var(--fx-surface-raised))",
-          }}
-        >
+        <pre className="markdown-code-body type-mono-chat-code">
           <code>{code}</code>
         </pre>
       )}

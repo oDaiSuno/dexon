@@ -140,14 +140,13 @@ export function AssistantMessageView({
       {/* Streaming meta: token estimate + live t/s (quiet mono). */}
       {isStreaming && (
         <div
+          className="type-mono-label"
           style={{
-            fontSize: 12,
             color: "var(--fx-text-tertiary)",
             marginBottom: 6,
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontFamily: "var(--font-mono)",
           }}
         >
           {(() => {
@@ -294,14 +293,7 @@ function TextBlock({
   const text = block.text ?? "";
   if (!isStreaming) {
     return (
-      <div
-        className="chat-reading"
-        style={{
-          fontSize: "calc(13.5px * var(--type-scale, 1))",
-          lineHeight: 1.7,
-          minWidth: 0,
-        }}
-      >
+      <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
         <MarkdownBody cwd={cwd} onOpenFile={onOpenFile}>
           {text}
         </MarkdownBody>
@@ -318,14 +310,7 @@ function TextBlock({
   const tailOffset = lastBreak >= 0 ? lastBreak + 1 : 0;
   const tokens = tokenizeStreamTail(tail, tailOffset);
   return (
-    <div
-      className="chat-reading"
-      style={{
-        fontSize: "calc(13.5px * var(--type-scale, 1))",
-        lineHeight: 1.7,
-        minWidth: 0,
-      }}
-    >
+    <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
       {settled && (
         <MarkdownBody isStreaming cwd={cwd} onOpenFile={onOpenFile}>
           {settled}
