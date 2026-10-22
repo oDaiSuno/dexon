@@ -55,7 +55,7 @@ export function SessionList({
             gap: 8,
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-label)",
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             letterSpacing: "0.5px",
             textTransform: "uppercase",
           }}
@@ -80,7 +80,7 @@ export function SessionList({
               left: 10,
               top: "50%",
               transform: "translateY(-50%)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               pointerEvents: "none",
             }}
           >
@@ -97,10 +97,10 @@ export function SessionList({
               width: "100%",
               height: 34,
               padding: "0 32px 0 32px",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
-              background: "var(--bg-panel)",
-              color: "var(--text)",
+              background: "var(--fx-surface-raised)",
+              color: "var(--fx-text-primary)",
               fontSize: "var(--text-body)",
               outline: "none",
             }}
@@ -120,7 +120,7 @@ export function SessionList({
                 border: 0,
                 borderRadius: "var(--radius-card)",
                 background: "transparent",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 fontSize: "var(--text-heading-lg)",
                 lineHeight: 1,

@@ -318,8 +318,8 @@ export function ComposerView(props: ComposerViewProps) {
               display: "flex",
               flexDirection: "column",
               gap: 8,
-              background: "var(--bg-panel)",
-              border: `1px solid ${isStreaming && (hasSteering || onFollowUp) ? "var(--warning-border)" : "var(--border)"}`,
+              background: "var(--fx-surface-raised)",
+              border: `1px solid ${isStreaming && (hasSteering || onFollowUp) ? "var(--fx-status-warning-border)" : "var(--fx-line-default)"}`,
               borderRadius: "var(--radius-composer)",
               padding: "10px 12px",
               boxShadow: "var(--shadow-composer)",
@@ -346,24 +346,26 @@ export function ComposerView(props: ComposerViewProps) {
                   width: 28,
                   height: 28,
                   padding: 0,
-                  background: attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent",
+                  background: attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "transparent",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)",
+                  color: attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)",
                   cursor: "pointer",
                   transition: "background 0.12s, color 0.12s, transform 0.12s",
                 }}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background =
                     attachmentTokens.length > 0
-                      ? "color-mix(in srgb, var(--accent) 14%, transparent)"
+                      ? "color-mix(in srgb, var(--fx-accent-blue) 14%, transparent)"
                       : "var(--bg-hover)";
-                  event.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text)";
+                  event.currentTarget.style.color =
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-primary)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background =
-                    attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent";
-                  event.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)";
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "transparent";
+                  event.currentTarget.style.color =
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)";
                 }}
                 className="tap-scale"
               >

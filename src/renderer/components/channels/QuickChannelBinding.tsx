@@ -158,7 +158,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
         ? "#07c160"
         : singleChannel === "feishu"
           ? "#3370ff"
-          : "var(--accent)";
+          : "var(--fx-accent-blue)";
   const label = bound
     ? online
       ? singleChannel
@@ -189,10 +189,10 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
             display: "flex",
             alignItems: "center",
             gap: 8,
-            border: `1px solid ${bound ? `color-mix(in srgb, ${accent} 38%, var(--border))` : "var(--border)"}`,
+            border: `1px solid ${bound ? `color-mix(in srgb, ${accent} 38%, var(--fx-line-default))` : "var(--fx-line-default)"}`,
             borderRadius: "var(--radius-pill)",
-            background: bound ? `color-mix(in srgb, ${accent} 9%, var(--bg-panel))` : "var(--bg)",
-            color: "var(--text-muted)",
+            background: bound ? `color-mix(in srgb, ${accent} 9%, var(--fx-surface-raised))` : "var(--fx-surface-main)",
+            color: "var(--fx-text-secondary)",
             fontSize: "var(--text-meta)",
             whiteSpace: "nowrap",
             cursor: "pointer",
@@ -206,7 +206,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
               height: 7,
               flexShrink: 0,
               borderRadius: "50%",
-              background: bound ? (online ? accent : "var(--text-dim)") : "var(--accent)",
+              background: bound ? (online ? accent : "var(--fx-text-tertiary)") : "var(--fx-accent-blue)",
               boxShadow: bound && online ? `0 0 0 2px color-mix(in srgb, ${accent} 18%, transparent)` : "none",
             }}
           />
@@ -244,18 +244,20 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
               overflowX: "hidden",
               overflowY: "auto",
               overscrollBehavior: "contain",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
-              background: "var(--bg)",
+              background: "var(--fx-surface-main)",
               boxShadow: "0 12px 34px rgba(0,0,0,.22)",
               padding: 12,
               outline: "none",
             }}
           >
-            <div style={{ color: "var(--text)", fontSize: "var(--text-body)", fontWeight: 700 }}>
+            <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body)", fontWeight: 700 }}>
               {t("quickChannelBinding", "Quick messaging-channel binding")}
             </div>
-            <div style={{ marginTop: 4, color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
+            <div
+              style={{ marginTop: 4, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
+            >
               {t(
                 "quickChannelBindingDescription",
                 "Choose the messaging conversation that should share this active UI session.",
@@ -264,7 +266,12 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
 
             {error && (
               <div
-                style={{ marginTop: 8, color: "var(--danger)", fontSize: "var(--text-meta)", overflowWrap: "anywhere" }}
+                style={{
+                  marginTop: 8,
+                  color: "var(--fx-status-danger)",
+                  fontSize: "var(--text-meta)",
+                  overflowWrap: "anywhere",
+                }}
               >
                 {error}
               </div>
@@ -274,10 +281,10 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
               {snapshot.bindings.length === 0 ? (
                 <div
                   style={{
-                    border: "1px dashed var(--border)",
+                    border: "1px dashed var(--fx-line-default)",
                     borderRadius: "var(--radius-card)",
                     padding: 12,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     fontSize: "var(--text-meta)",
                     lineHeight: 1.6,
                   }}
@@ -301,18 +308,18 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         gridTemplateColumns: "minmax(0,1fr) auto",
                         alignItems: "center",
                         gap: 12,
-                        border: `1px solid ${boundHere ? "color-mix(in srgb, var(--accent) 35%, var(--border))" : "var(--border)"}`,
+                        border: `1px solid ${boundHere ? "color-mix(in srgb, var(--fx-accent-blue) 35%, var(--fx-line-default))" : "var(--fx-line-default)"}`,
                         borderRadius: "var(--radius-card)",
                         background: boundHere
-                          ? "color-mix(in srgb, var(--accent) 7%, var(--bg-panel))"
-                          : "var(--bg-panel)",
+                          ? "color-mix(in srgb, var(--fx-accent-blue) 7%, var(--fx-surface-raised))"
+                          : "var(--fx-surface-raised)",
                         padding: "8px 12px",
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
                         <div
                           style={{
-                            color: "var(--text)",
+                            color: "var(--fx-text-primary)",
                             fontSize: "var(--text-meta)",
                             fontWeight: 650,
                             overflow: "hidden",
@@ -329,7 +336,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                           title={binding.peerId}
                           style={{
                             marginTop: 4,
-                            color: "var(--text-dim)",
+                            color: "var(--fx-text-tertiary)",
                             fontFamily: "var(--font-mono)",
                             fontSize: "var(--text-micro)",
                             overflow: "hidden",
@@ -343,7 +350,7 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                           <div
                             style={{
                               marginTop: 4,
-                              color: boundHere ? "var(--accent)" : "var(--text-dim)",
+                              color: boundHere ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
                               fontSize: "var(--text-micro)",
                             }}
                           >
@@ -358,10 +365,10 @@ export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotC
                         disabled={busyBindingId !== null}
                         onClick={() => void updateBinding(binding, !boundHere)}
                         style={{
-                          border: `1px solid ${boundHere ? "color-mix(in srgb, var(--danger) 40%, transparent)" : "var(--accent)"}`,
+                          border: `1px solid ${boundHere ? "color-mix(in srgb, var(--fx-status-danger) 40%, transparent)" : "var(--fx-accent-blue)"}`,
                           borderRadius: "var(--radius-control)",
-                          background: boundHere ? "var(--bg)" : "var(--btn-bg)",
-                          color: boundHere ? "var(--danger)" : "var(--btn-fg)",
+                          background: boundHere ? "var(--fx-surface-main)" : "var(--fx-accent-blue-fill)",
+                          color: boundHere ? "var(--fx-status-danger)" : "var(--fx-text-on-accent)",
                           padding: "8px 8px",
                           fontSize: "var(--text-micro)",
                           whiteSpace: "nowrap",

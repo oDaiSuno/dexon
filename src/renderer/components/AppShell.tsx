@@ -246,7 +246,7 @@ export function AppShell({
         }
       }
     `}</style>
-      <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" }}>
+      <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--fx-surface-main)" }}>
         <NavigationSidebar
           isMobile={isMobile}
           open={sidebarOpen}

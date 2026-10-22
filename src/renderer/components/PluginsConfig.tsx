@@ -83,8 +83,8 @@ export function PluginsConfig({
           maxWidth: embedded ? undefined : "calc(100vw - 16px)",
           height: embedded ? "100%" : isMobile ? "calc(100dvh - 16px)" : "76vh",
           maxHeight: embedded ? undefined : "calc(100dvh - 16px)",
-          background: "var(--bg)",
-          border: embedded ? "none" : "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: embedded ? "none" : "1px solid var(--fx-line-default)",
           borderRadius: embedded ? 0 : 8,
           display: "flex",
           flexDirection: "column",
@@ -99,18 +99,18 @@ export function PluginsConfig({
               alignItems: "center",
               justifyContent: "space-between",
               padding: "12px 20px",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: "1px solid var(--fx-line-default)",
               flexShrink: 0,
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0 }}>
-              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
                 {t("plugins", "Plugins")}
               </span>
               <code
                 style={{
                   fontSize: "var(--text-meta)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontFamily: "var(--font-mono)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -125,7 +125,7 @@ export function PluginsConfig({
               style={{
                 background: "none",
                 border: "none",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 cursor: "pointer",
                 fontSize: "var(--text-display)",
                 lineHeight: 1,
@@ -190,7 +190,7 @@ export function PluginsConfig({
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--text-dim)",
+                  color: "var(--fx-text-tertiary)",
                   fontSize: "var(--text-body)",
                 }}
               >
@@ -207,19 +207,29 @@ export function PluginsConfig({
             justifyContent: "space-between",
             gap: 12,
             padding: "12px 20px",
-            borderTop: "1px solid var(--border)",
+            borderTop: "1px solid var(--fx-line-default)",
             flexShrink: 0,
           }}
         >
           <div
-            style={{ minWidth: 0, flex: 1, fontSize: "var(--text-meta)", color: "var(--text-dim)", overflow: "hidden" }}
+            style={{
+              minWidth: 0,
+              flex: 1,
+              fontSize: "var(--text-meta)",
+              color: "var(--fx-text-tertiary)",
+              overflow: "hidden",
+            }}
           >
             {data?.diagnostics.length ? (
               <span
                 title={data.diagnostics
                   .map((d) => `${d.type}: ${d.source ? `${d.source}: ` : ""}${d.message}`)
                   .join("\n")}
-                style={{ color: data.diagnostics.some((d) => d.type === "error") ? "var(--danger)" : "var(--warning)" }}
+                style={{
+                  color: data.diagnostics.some((d) => d.type === "error")
+                    ? "var(--fx-status-danger)"
+                    : "var(--fx-status-warning)",
+                }}
               >
                 {t("pluginDiagnosticCount", "{count} diagnostics").replace(
                   "{count}",

@@ -27,7 +27,7 @@ export const USER_BUBBLE_COLORS: Record<MessageTheme, Record<Exclude<MessageSour
 
 export function getUserBubbleStyle(source: UserMessage["channelSource"] | undefined, isDark: boolean): UserBubbleStyle {
   if (!source) {
-    return { background: "var(--bui-bubble)", foreground: "var(--bui-ink)" };
+    return { background: "var(--fx-surface-card)", foreground: "var(--fx-text-primary)" };
   }
   return {
     background: USER_BUBBLE_COLORS[isDark ? "dark" : "light"][source],

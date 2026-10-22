@@ -48,7 +48,7 @@ export function SessionTreeItem({
               top: 0,
               bottom: 0,
               width: 1,
-              background: "var(--border)",
+              background: "var(--fx-line-default)",
               pointerEvents: "none",
             }}
           />

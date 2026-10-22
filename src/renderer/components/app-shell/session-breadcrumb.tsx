@@ -26,8 +26,8 @@ export function SessionBreadcrumb({ session }: { session: SessionInfo }) {
         padding: "0 12px",
         height: 28,
         fontSize: "var(--text-meta)",
-        color: "var(--text-dim)",
-        background: "var(--bg)",
+        color: "var(--fx-text-tertiary)",
+        background: "var(--fx-surface-main)",
         overflow: "hidden",
         whiteSpace: "nowrap",
       }}
@@ -54,7 +54,7 @@ function CurrentSegment({ session }: { session: SessionInfo }) {
       aria-current="page"
       title={getSessionDisplayTitle(session, 240)}
       style={{
-        color: "var(--text)",
+        color: "var(--fx-text-primary)",
         fontWeight: 500,
         overflow: "hidden",
         textOverflow: "ellipsis",
@@ -76,7 +76,7 @@ function PathSegment({ session }: { session: SessionInfo }) {
         border: 0,
         padding: 0,
         background: "transparent",
-        color: "var(--text-dim)",
+        color: "var(--fx-text-tertiary)",
         cursor: "pointer",
         font: "inherit",
         overflow: "hidden",
@@ -86,10 +86,10 @@ function PathSegment({ session }: { session: SessionInfo }) {
         transition: "color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(event) => {
-        event.currentTarget.style.color = "var(--text)";
+        event.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(event) => {
-        event.currentTarget.style.color = "var(--text-dim)";
+        event.currentTarget.style.color = "var(--fx-text-tertiary)";
       }}
     >
       {getSessionDisplayTitle(session)}
@@ -99,7 +99,7 @@ function PathSegment({ session }: { session: SessionInfo }) {
 
 function Separator() {
   return (
-    <span aria-hidden="true" style={{ color: "var(--text-dim)", opacity: 0.55, padding: "0 4px" }}>
+    <span aria-hidden="true" style={{ color: "var(--fx-text-tertiary)", opacity: 0.55, padding: "0 4px" }}>
       ›
     </span>
   );

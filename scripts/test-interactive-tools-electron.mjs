@@ -41,7 +41,7 @@ try {
     path.join(directory, "index.html"),
     `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'"><link rel="stylesheet" href="renderer.css"><style>
  @font-face{font-family:Inter;src:url(InterLatin.woff2)}@font-face{font-family:'Geist Mono';src:url(GeistMono.woff2)}
- #canvas{margin:0 auto;padding:24px;max-width:100%;height:100vh;display:flex;flex-direction:column}.history{flex:1;min-height:80px;overflow:auto;color:var(--text-muted);padding:16px 0}.composer{padding:16px;border:1px solid var(--border);border-radius:var(--radius-composer);background:var(--bg-panel);color:var(--text-muted)}
+ #canvas{margin:0 auto;padding:24px;max-width:100%;height:100vh;display:flex;flex-direction:column}.history{flex:1;min-height:80px;overflow:auto;color:var(--fx-text-secondary);padding:16px 0}.composer{padding:16px;border:1px solid var(--fx-line-default);border-radius:var(--radius-composer);background:var(--fx-surface-raised);color:var(--fx-text-secondary)}
  </style></head><body><main id="canvas" class="chat-appearance-scope"><div class="history" id="context">Conversation context remains readable and selectable while answering.<p>Review the earlier discussion, then return to the same request.</p></div><div id="cards"></div><div class="composer">Message composer</div></main><script src="renderer.js"></script></body></html>`,
   );
   await runElectronCheck({

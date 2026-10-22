@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { readSessionToolTarget, isSessionToolName, type SessionToolTargetDetails } from "@shared/session-orchestration";
 import { SessionTargetLink } from "./session-links";
@@ -53,24 +52,26 @@ export function ToolCallBlock({
           <span className="chat-tool-icon">
             <ToolStatusIcon done={!isRunning} error={isError} toolName={block.toolName} />
           </span>
-          <span className="chat-tool-name" style={isError ? { color: "var(--bui-red)" } : undefined}>
+          <span className="chat-tool-name" style={isError ? { color: "var(--fx-status-danger-text)" } : undefined}>
             {label}
           </span>
-          <span className="chat-tool-chip" style={isError ? { color: "var(--bui-red)" } : undefined}>
+          <span className="chat-tool-chip" style={isError ? { color: "var(--fx-status-danger-text)" } : undefined}>
             {preview}
           </span>
           <span className="chat-tool-meta">
             {isRunning && <span className="chat-shimmer-text">{t("toolRunning", "running")}</span>}
             {diffCounts && !isRunning && (
               <>
-                <span style={{ color: "var(--bui-green)" }}>+{diffCounts.added}</span>
-                {diffCounts.removed > 0 && <span style={{ color: "var(--bui-red)" }}>−{diffCounts.removed}</span>}
+                <span style={{ color: "var(--fx-status-success-text)" }}>+{diffCounts.added}</span>
+                {diffCounts.removed > 0 && (
+                  <span style={{ color: "var(--fx-status-danger-text)" }}>−{diffCounts.removed}</span>
+                )}
               </>
             )}
             {!isRunning && !diffCounts && !isError && duration !== undefined && (
               <span>{formatToolDuration(duration)}</span>
             )}
-            {isError && <span style={{ color: "var(--bui-red)" }}>{t("toolFailed", "failed")}</span>}
+            {isError && <span style={{ color: "var(--fx-status-danger-text)" }}>{t("toolFailed", "failed")}</span>}
           </span>
         </button>
       </div>
@@ -85,9 +86,9 @@ export function ToolCallBlock({
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
           {detailMounted && (
-            <div className="chat-tool-detail" style={{ fontSize: scaledChatFont(11.5) }}>
+            <div className="chat-tool-detail" style={{ fontSize: 11.5 }}>
               {!isEditTool && (
-                <pre className="chat-tool-input" style={{ fontSize: scaledChatFont(11) }}>
+                <pre className="chat-tool-input" style={{ fontSize: 11 }}>
                   {inputStr}
                 </pre>
               )}
@@ -208,7 +209,11 @@ function PairedResult({ text, isEmpty, isError }: { text: string; isEmpty: boole
     <pre
       className="chat-tool-result"
       style={{
-        color: isError ? "var(--bui-red)" : isEmpty ? "var(--bui-ink-3)" : "var(--bui-ink-2)",
+        color: isError
+          ? "var(--fx-status-danger-text)"
+          : isEmpty
+            ? "var(--fx-text-tertiary)"
+            : "var(--fx-text-secondary)",
         fontStyle: isEmpty ? "italic" : "normal",
       }}
     >

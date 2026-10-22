@@ -54,10 +54,10 @@ function DownloadLink({ filePath, sourceSessionId }: { filePath: string; sourceS
         width: 32,
         height: 32,
         padding: 0,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-raised)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-chip)",
-        color: "var(--text-muted)",
+        color: "var(--fx-text-secondary)",
         cursor: busy ? "wait" : "pointer",
         flexShrink: 0,
       }}
@@ -129,7 +129,7 @@ function HtmlPreview({
           display: "grid",
           placeItems: "center",
           padding: 20,
-          color: "var(--danger)",
+          color: "var(--fx-status-danger)",
           fontSize: "var(--text-body)",
           textAlign: "center",
         }}
@@ -147,7 +147,7 @@ function HtmlPreview({
       src={previewUrl}
       sandbox="allow-scripts"
       referrerPolicy="no-referrer"
-      style={{ display: "block", width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
+      style={{ display: "block", width: "100%", height: "100%", border: "none", background: "var(--fx-surface-main)" }}
       title={t("htmlPreview", "HTML preview")}
     />
   );
@@ -160,7 +160,7 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
     return (
       <div
         role="status"
-        style={{ padding: 16, color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}
+        style={{ padding: 16, color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}
       >
         {t(
           "diffTooLarge",
@@ -180,7 +180,7 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
         style={{
           padding: "12px 16px",
           fontSize: "var(--text-label)",
-          color: "var(--text-dim)",
+          color: "var(--fx-text-tertiary)",
           fontFamily: "var(--font-mono)",
         }}
       >
@@ -241,11 +241,11 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
               key={si}
               style={{
                 padding: "2px 16px",
-                color: "var(--text-dim)",
-                background: "var(--bg-panel)",
+                color: "var(--fx-text-tertiary)",
+                background: "var(--fx-surface-raised)",
                 fontSize: "var(--text-meta)",
-                borderTop: "1px solid var(--border)",
-                borderBottom: "1px solid var(--border)",
+                borderTop: "1px solid var(--fx-line-default)",
+                borderBottom: "1px solid var(--fx-line-default)",
               }}
             >
               {t("unchangedLines", "… {count} unchanged lines …").replace("{count}", formatNumber(seg.count, language))}
@@ -265,7 +265,11 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
                 : "transparent";
           const prefix = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
           const prefixColor =
-            line.type === "added" ? "var(--success)" : line.type === "removed" ? "var(--danger)" : "var(--text-dim)";
+            line.type === "added"
+              ? "var(--fx-status-success)"
+              : line.type === "removed"
+                ? "var(--fx-status-danger)"
+                : "var(--fx-text-tertiary)";
 
           return (
             <div
@@ -275,9 +279,9 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
                 background: bg,
                 borderLeft:
                   line.type === "added"
-                    ? "3px solid var(--success)"
+                    ? "3px solid var(--fx-status-success)"
                     : line.type === "removed"
-                      ? "3px solid var(--danger)"
+                      ? "3px solid var(--fx-status-danger)"
                       : "3px solid transparent",
               }}
             >
@@ -286,12 +290,12 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
                   minWidth: 44,
                   padding: "0 8px 0 16px",
                   textAlign: "right",
-                  color: "var(--text-dim)",
+                  color: "var(--fx-text-tertiary)",
                   userSelect: "none",
                   fontSize: "var(--text-meta)",
                   lineHeight: 1.6,
-                  borderRight: "1px solid var(--border)",
-                  background: "var(--bg-panel)",
+                  borderRight: "1px solid var(--fx-line-default)",
+                  background: "var(--fx-surface-raised)",
                   flexShrink: 0,
                 }}
               >
@@ -314,7 +318,7 @@ function DiffView({ oldContent, newContent }: { oldContent: string; newContent: 
                   flex: 1,
                   padding: "0 8px 0 0",
                   whiteSpace: "pre",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   overflowX: "auto",
                 }}
               >
@@ -416,10 +420,10 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           minHeight: 40,
           padding: "4px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           fontSize: "var(--text-label)",
-          color: "var(--text-dim)",
-          background: "var(--bg)",
+          color: "var(--fx-text-tertiary)",
+          background: "var(--fx-surface-main)",
           flexShrink: 0,
           overflowX: "auto",
           whiteSpace: "nowrap",
@@ -441,7 +445,7 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            color: watching ? "var(--success)" : "var(--text-dim)",
+            color: watching ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
           }}
         >
           <span
@@ -449,9 +453,9 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "var(--success)" : "var(--border)",
+              background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px var(--success)" : "none",
+              boxShadow: watching ? "0 0 4px var(--fx-status-success)" : "none",
             }}
           />
           {watching ? t("live", "live") : t("static", "static")}
@@ -462,21 +466,23 @@ function ImageViewer({ filePath, cwd, sourceSessionId }: Props) {
         style={{
           flex: 1,
           overflow: "auto",
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           padding: 16,
           backgroundImage:
-            "linear-gradient(45deg, var(--bg) 25%, transparent 25%), linear-gradient(-45deg, var(--bg) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--bg) 75%), linear-gradient(-45deg, transparent 75%, var(--bg) 75%)",
+            "linear-gradient(45deg, var(--fx-surface-main) 25%, transparent 25%), linear-gradient(-45deg, var(--fx-surface-main) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--fx-surface-main) 75%), linear-gradient(-45deg, transparent 75%, var(--fx-surface-main) 75%)",
           backgroundSize: "16px 16px",
           backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
         }}
       >
         {error ? (
-          <div style={{ color: "var(--danger)", fontSize: "var(--text-body)" }}>{error}</div>
+          <div style={{ color: "var(--fx-status-danger)", fontSize: "var(--text-body)" }}>{error}</div>
         ) : !src ? (
-          <div style={{ color: "var(--text-muted)", fontSize: "var(--text-body)" }}>{t("loading", "Loading…")}</div>
+          <div style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-body)" }}>
+            {t("loading", "Loading…")}
+          </div>
         ) : (
           <img
             src={src}
@@ -534,10 +540,10 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           minHeight: 40,
           padding: "4px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           fontSize: "var(--text-label)",
-          color: "var(--text-dim)",
-          background: "var(--bg)",
+          color: "var(--fx-text-tertiary)",
+          background: "var(--fx-surface-main)",
           flexShrink: 0,
           overflowX: "auto",
           whiteSpace: "nowrap",
@@ -555,7 +561,7 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            color: watching ? "var(--success)" : "var(--text-dim)",
+            color: watching ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
           }}
         >
           <span
@@ -563,9 +569,9 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "var(--success)" : "var(--border)",
+              background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px var(--success)" : "none",
+              boxShadow: watching ? "0 0 4px var(--fx-status-success)" : "none",
             }}
           />
           {watching ? t("live", "live") : t("static", "static")}
@@ -579,13 +585,18 @@ function AudioViewer({ filePath, cwd, sourceSessionId }: Props) {
           alignItems: "center",
           justifyContent: "center",
           padding: 24,
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
         }}
       >
         <div style={{ width: "min(680px, 100%)" }}>
           {error && (
             <div
-              style={{ color: "var(--danger)", fontSize: "var(--text-body)", marginBottom: 12, textAlign: "center" }}
+              style={{
+                color: "var(--fx-status-danger)",
+                fontSize: "var(--text-body)",
+                marginBottom: 12,
+                textAlign: "center",
+              }}
             >
               {error}
             </div>
@@ -705,10 +716,10 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           minHeight: 40,
           padding: "4px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           fontSize: "var(--text-label)",
-          color: "var(--text-dim)",
-          background: "var(--bg)",
+          color: "var(--fx-text-tertiary)",
+          background: "var(--fx-surface-main)",
           flexShrink: 0,
           overflowX: "auto",
           whiteSpace: "nowrap",
@@ -729,7 +740,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            color: watching ? "var(--success)" : "var(--text-dim)",
+            color: watching ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
             flexShrink: 0,
           }}
         >
@@ -738,15 +749,15 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "var(--success)" : "var(--border)",
+              background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px var(--success)" : "none",
+              boxShadow: watching ? "0 0 4px var(--fx-status-success)" : "none",
             }}
           />
           {watching ? t("live", "live") : t("static", "static")}
         </span>
       </div>
-      <div style={{ flex: 1, minHeight: 0, background: "var(--bg-panel)" }}>
+      <div style={{ flex: 1, minHeight: 0, background: "var(--fx-surface-raised)" }}>
         {error ? (
           <div
             style={{
@@ -755,7 +766,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
               alignItems: "center",
               justifyContent: "center",
               padding: 24,
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
               fontSize: "var(--text-body)",
               textAlign: "center",
             }}
@@ -769,7 +780,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               fontSize: "var(--text-body)",
             }}
           >
@@ -781,7 +792,7 @@ function DocumentViewer({ filePath, cwd, sourceSessionId }: Props) {
             src={previewUrl}
             sandbox={isPdf ? undefined : ""}
             title={t("filePreviewTitle", "Preview {name}").replace("{name}", getFileName(filePath))}
-            style={{ width: "100%", height: "100%", border: "none", background: "var(--bg)" }}
+            style={{ width: "100%", height: "100%", border: "none", background: "var(--fx-surface-main)" }}
           />
         )}
       </div>
@@ -904,7 +915,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           fontSize: "var(--text-body)",
         }}
       >
@@ -921,7 +932,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--danger)",
+          color: "var(--fx-status-danger)",
           fontSize: "var(--text-body)",
         }}
       >
@@ -947,10 +958,10 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
           gap: 12,
           minHeight: 40,
           padding: "4px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           fontSize: "var(--text-label)",
-          color: "var(--text-dim)",
-          background: "var(--bg)",
+          color: "var(--fx-text-tertiary)",
+          background: "var(--fx-surface-main)",
           flexShrink: 0,
           overflowX: "auto",
           whiteSpace: "nowrap",
@@ -972,7 +983,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
             display: "flex",
             alignItems: "center",
             gap: 4,
-            color: watching ? "var(--success)" : "var(--text-dim)",
+            color: watching ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
           }}
         >
           <span
@@ -980,9 +991,9 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: watching ? "var(--success)" : "var(--border)",
+              background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
-              boxShadow: watching ? "0 0 4px var(--success)" : "none",
+              boxShadow: watching ? "0 0 4px var(--fx-status-success)" : "none",
             }}
           />
           {watching ? t("live", "live") : t("static", "static")}
@@ -995,7 +1006,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
               display: "flex",
               borderRadius: "var(--radius-control)",
               overflow: "hidden",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
             }}
           >
             <button
@@ -1008,7 +1019,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 border: "none",
                 cursor: "pointer",
                 background: viewMode === "source" ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: viewMode === "source" ? "var(--text)" : "var(--text-muted)",
+                color: viewMode === "source" ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: viewMode === "source" ? 600 : 400,
               }}
             >
@@ -1022,16 +1033,18 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 padding: "0 12px",
                 fontSize: "var(--text-label)",
                 border: "none",
-                borderLeft: "1px solid var(--border)",
+                borderLeft: "1px solid var(--fx-line-default)",
                 cursor: "pointer",
                 background: viewMode === "diff" ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: viewMode === "diff" ? "var(--text)" : "var(--text-muted)",
+                color: viewMode === "diff" ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: viewMode === "diff" ? 600 : 400,
               }}
             >
               {t("diff", "Diff")}{" "}
               {changeCount > 0 && (
-                <span style={{ color: "var(--success)", marginLeft: 2 }}>+{formatNumber(changeCount, language)}</span>
+                <span style={{ color: "var(--fx-status-success)", marginLeft: 2 }}>
+                  +{formatNumber(changeCount, language)}
+                </span>
               )}
             </button>
           </div>
@@ -1049,8 +1062,8 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
               fontSize: "var(--text-label)",
               cursor: "pointer",
               background: wrapLines ? "var(--bg-selected)" : "var(--bg-hover)",
-              color: wrapLines ? "var(--text)" : "var(--text-muted)",
-              border: "1px solid var(--border)",
+              color: wrapLines ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
               fontWeight: wrapLines ? 600 : 400,
             }}
@@ -1066,7 +1079,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
               display: "flex",
               borderRadius: "var(--radius-control)",
               overflow: "hidden",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
             }}
           >
             <button
@@ -1079,7 +1092,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 border: "none",
                 cursor: "pointer",
                 background: !previewMode ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: !previewMode ? "var(--text)" : "var(--text-muted)",
+                color: !previewMode ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: !previewMode ? 600 : 400,
               }}
             >
@@ -1093,10 +1106,10 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 padding: "0 12px",
                 fontSize: "var(--text-label)",
                 border: "none",
-                borderLeft: "1px solid var(--border)",
+                borderLeft: "1px solid var(--fx-line-default)",
                 cursor: "pointer",
                 background: previewMode ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: previewMode ? "var(--text)" : "var(--text-muted)",
+                color: previewMode ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: previewMode ? 600 : 400,
               }}
             >
@@ -1112,7 +1125,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
               display: "flex",
               borderRadius: "var(--radius-control)",
               overflow: "hidden",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
             }}
           >
             <button
@@ -1125,7 +1138,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 border: "none",
                 cursor: "pointer",
                 background: previewMode ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: previewMode ? "var(--text)" : "var(--text-muted)",
+                color: previewMode ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: previewMode ? 600 : 400,
               }}
             >
@@ -1139,10 +1152,10 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
                 padding: "0 12px",
                 fontSize: "var(--text-label)",
                 border: "none",
-                borderLeft: "1px solid var(--border)",
+                borderLeft: "1px solid var(--fx-line-default)",
                 cursor: "pointer",
                 background: !previewMode ? "var(--bg-selected)" : "var(--bg-hover)",
-                color: !previewMode ? "var(--text)" : "var(--text-muted)",
+                color: !previewMode ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 fontWeight: !previewMode ? 600 : 400,
               }}
             >
@@ -1154,7 +1167,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
       </div>
 
       {/* Content area */}
-      <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--bg)" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--fx-surface-main)" }}>
         {viewMode === "diff" && hasDiff ? (
           <DiffView oldContent={prevContent!} newContent={data.content} />
         ) : isHtml && previewMode ? (
@@ -1171,7 +1184,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
             style={isDark ? vscDarkPlus : vs}
             showLineNumbers
             lineNumberStyle={{
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               fontStyle: "normal",
               minWidth: "3em",
               paddingRight: "1em",
@@ -1179,7 +1192,7 @@ function TextFileViewer({ filePath, cwd, sourceSessionId }: Props) {
             customStyle={{
               margin: 0,
               padding: "12px 0",
-              background: "var(--bg)",
+              background: "var(--fx-surface-main)",
               fontSize: "var(--text-body)",
               lineHeight: 1.6,
               fontFamily: "var(--font-mono)",

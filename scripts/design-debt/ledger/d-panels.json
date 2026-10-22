@@ -1,0 +1,273 @@
+{
+  "lane": "D 右侧面板",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--text-label",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-meta",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-micro",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "name": "--text-meta",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "name": "--bg-hover",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "name": "--bg-selected",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "name": "--text-body",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "name": "--text-label",
+      "count": 13
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-label",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-meta",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-micro",
+      "count": 9
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "name": "--text-label",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "property": "fontSize",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "property": "fontWeight",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "property": "fontSize",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "property": "fontSize",
+      "count": 8
+    },
+    {
+      "file": "src/renderer/components/FileExplorer.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "property": "fontSize",
+      "count": 25
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "property": "fontWeight",
+      "count": 8
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "property": "lineHeight",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "fontSize",
+      "count": 20
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(0,200,80,0.12)",
+      "count": 1,
+      "hint": "改用 var(--fx-status-success-soft)"
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(240,60,60,0.14)",
+      "count": 1,
+      "hint": "改用 var(--fx-status-danger-soft)；悬停加深用 var(--fx-status-danger-soft-strong)"
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(0,0,0,0.15)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#fcfbf9",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#1c1a17",
+      "count": 2,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#57534a",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#e4e1da",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#f0eeea",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#9a3412",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#faf9f7",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#a19d92",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#4a453c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#0f0e0c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#fb923c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    }
+  ]
+}

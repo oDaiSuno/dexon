@@ -69,8 +69,8 @@ export function RightPanelDock({
   const panelStyle: CSSProperties = {
     display: suspended ? "none" : "flex",
     flexDirection: "column",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--bg)",
+    borderLeft: "1px solid var(--fx-line-default)",
+    background: "var(--fx-surface-main)",
     "--right-panel-width": `${rightPanelWidth}px`,
     "--right-panel-min-width": `${rightPanelBounds.minWidth}px`,
   } as CSSProperties;
@@ -105,8 +105,8 @@ export function RightPanelDock({
           display: "flex",
           alignItems: "center",
           flexShrink: 0,
-          background: "var(--bg-panel)",
-          borderBottom: "1px solid var(--border)",
+          background: "var(--fx-surface-raised)",
+          borderBottom: "1px solid var(--fx-line-default)",
           height: 36,
           paddingRight: 36,
           boxSizing: "border-box",
@@ -123,10 +123,10 @@ export function RightPanelDock({
             height: 36,
             padding: "0 12px",
             flexShrink: 0,
-            background: activeFileTabId === EXPLORER_TAB_ID ? "var(--bg)" : "var(--bg-panel)",
+            background: activeFileTabId === EXPLORER_TAB_ID ? "var(--fx-surface-main)" : "var(--fx-surface-raised)",
             border: "none",
-            borderRight: "1px solid var(--border)",
-            color: activeFileTabId === EXPLORER_TAB_ID ? "var(--text)" : "var(--text-muted)",
+            borderRight: "1px solid var(--fx-line-default)",
+            color: activeFileTabId === EXPLORER_TAB_ID ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
             fontWeight: activeFileTabId === EXPLORER_TAB_ID ? 500 : 400,
@@ -158,10 +158,10 @@ export function RightPanelDock({
             height: 36,
             padding: "0 12px",
             flexShrink: 0,
-            background: activeFileTabId === BROWSER_TAB_ID ? "var(--bg)" : "var(--bg-panel)",
+            background: activeFileTabId === BROWSER_TAB_ID ? "var(--fx-surface-main)" : "var(--fx-surface-raised)",
             border: "none",
-            borderRight: "1px solid var(--border)",
-            color: activeFileTabId === BROWSER_TAB_ID ? "var(--text)" : "var(--text-muted)",
+            borderRight: "1px solid var(--fx-line-default)",
+            color: activeFileTabId === BROWSER_TAB_ID ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
             fontWeight: activeFileTabId === BROWSER_TAB_ID ? 500 : 400,
@@ -194,10 +194,10 @@ export function RightPanelDock({
             height: 36,
             padding: "0 12px",
             flexShrink: 0,
-            background: activeFileTabId === PROCESSES_TAB_ID ? "var(--bg)" : "var(--bg-panel)",
+            background: activeFileTabId === PROCESSES_TAB_ID ? "var(--fx-surface-main)" : "var(--fx-surface-raised)",
             border: "none",
-            borderRight: "1px solid var(--border)",
-            color: activeFileTabId === PROCESSES_TAB_ID ? "var(--text)" : "var(--text-muted)",
+            borderRight: "1px solid var(--fx-line-default)",
+            color: activeFileTabId === PROCESSES_TAB_ID ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
             fontWeight: activeFileTabId === PROCESSES_TAB_ID ? 500 : 400,
@@ -227,8 +227,8 @@ export function RightPanelDock({
                 display: "inline-grid",
                 placeItems: "center",
                 borderRadius: "var(--radius-card)",
-                background: managedProcessAttention ? "var(--danger)" : "var(--accent)",
-                color: "var(--on-danger)",
+                background: managedProcessAttention ? "var(--fx-status-danger)" : "var(--fx-accent-blue)",
+                color: "var(--fx-text-on-danger)",
                 fontSize: "var(--text-micro)",
                 fontWeight: 700,
               }}
@@ -262,16 +262,16 @@ export function RightPanelDock({
               flexShrink: 0,
               background: "none",
               border: "none",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               cursor: "pointer",
               borderRadius: "var(--radius-control)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--text)";
+              e.currentTarget.style.color = "var(--fx-text-primary)";
               e.currentTarget.style.background = "var(--bg-hover)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--text-dim)";
+              e.currentTarget.style.color = "var(--fx-text-tertiary)";
               e.currentTarget.style.background = "none";
             }}
           >
@@ -322,7 +322,7 @@ export function RightPanelDock({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 fontSize: "var(--text-label)",
               }}
             >
@@ -343,7 +343,7 @@ export function RightPanelDock({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               fontSize: "var(--text-label)",
             }}
           >

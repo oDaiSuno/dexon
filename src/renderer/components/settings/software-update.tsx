@@ -67,18 +67,23 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
 
   return (
     <section aria-labelledby={headingId} style={{ marginTop: 28 }}>
-      <h2 id={headingId} style={{ margin: "0 0 8px", fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+      <h2
+        id={headingId}
+        style={{ margin: "0 0 8px", fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}
+      >
         {t("softwareUpdate", "Software update")}
       </h2>
-      <p style={{ margin: "0 0 12px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+      <p
+        style={{ margin: "0 0 12px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--fx-text-tertiary)" }}
+      >
         {t("softwareUpdateDescription", "Check stable releases and choose when a downloaded update is installed.")}
       </p>
 
       <div
         style={{
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
           overflow: "hidden",
         }}
       >
@@ -101,9 +106,11 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
               }}
             />
             <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "var(--text-body)", fontWeight: 650, color: "var(--text)" }}>{statusTitle}</div>
+              <div style={{ fontSize: "var(--text-body)", fontWeight: 650, color: "var(--fx-text-primary)" }}>
+                {statusTitle}
+              </div>
               {state && (
-                <div style={{ marginTop: 4, fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+                <div style={{ marginTop: 4, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
                   {t("currentVersion", "Current version")}: {displayVersion(state.currentVersion)}
                 </div>
               )}
@@ -147,10 +154,19 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
 
           {state?.phase === "error" && state.error && (
             <div role="alert" aria-atomic="true" style={{ marginTop: 12 }}>
-              <p style={{ margin: 0, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}>
+              <p
+                style={{ margin: 0, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--fx-status-danger)" }}
+              >
                 {getUpdateErrorMessage(state.error, t)}
               </p>
-              <code style={{ display: "block", marginTop: 4, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
+              <code
+                style={{
+                  display: "block",
+                  marginTop: 4,
+                  fontSize: "var(--text-micro)",
+                  color: "var(--fx-text-tertiary)",
+                }}
+              >
                 {state.error.code}
               </code>
             </div>
@@ -159,7 +175,12 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
           {actionFailed && (
             <p
               role="alert"
-              style={{ margin: "12px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+              style={{
+                margin: "12px 0 0",
+                fontSize: "var(--text-label)",
+                lineHeight: 1.55,
+                color: "var(--fx-status-danger)",
+              }}
             >
               {t("updateActionFailed", "The update action could not be completed. Try again or open the logs.")}
             </p>
@@ -242,7 +263,7 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
           style={{
             minHeight: 56,
             padding: "12px 16px",
-            borderTop: "1px solid var(--border)",
+            borderTop: "1px solid var(--fx-line-default)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
@@ -250,12 +271,20 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
           }}
         >
           <div>
-            <label htmlFor={automaticChecksControlId} style={{ fontSize: "var(--text-label)", color: "var(--text)" }}>
+            <label
+              htmlFor={automaticChecksControlId}
+              style={{ fontSize: "var(--text-label)", color: "var(--fx-text-primary)" }}
+            >
               {t("automaticUpdateChecks", "Automatically check for updates")}
             </label>
             <div
               id={automaticChecksDescriptionId}
-              style={{ marginTop: 4, fontSize: "var(--text-micro)", lineHeight: 1.45, color: "var(--text-dim)" }}
+              style={{
+                marginTop: 4,
+                fontSize: "var(--text-micro)",
+                lineHeight: 1.45,
+                color: "var(--fx-text-tertiary)",
+              }}
             >
               {t("automaticUpdateChecksDescription", "Checks periodically without downloading updates automatically.")}
             </div>
@@ -302,10 +331,10 @@ function UpdateButton({
       style={{
         minHeight: 34,
         padding: "8px 12px",
-        border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
+        border: `1px solid ${primary ? "var(--fx-accent-blue)" : "var(--fx-line-default)"}`,
         borderRadius: "var(--radius-control)",
-        background: primary ? "var(--accent)" : "var(--bg)",
-        color: primary ? "white" : "var(--text)",
+        background: primary ? "var(--fx-accent-blue)" : "var(--fx-surface-main)",
+        color: primary ? "white" : "var(--fx-text-primary)",
         fontSize: "var(--text-label)",
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : "pointer",

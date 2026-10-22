@@ -21,6 +21,10 @@
       "light": "rgb(29, 78, 216)",
       "dark": "rgb(47, 116, 230)"
     },
+    "/Accent/Blue Selection": {
+      "light": "rgba(37, 99, 235, 0.18)",
+      "dark": "rgba(59, 130, 246, 0.18)"
+    },
     "/Accent/Blue Soft": {
       "light": "rgb(232, 240, 254)",
       "dark": "rgb(31, 45, 68)"
@@ -265,6 +269,10 @@
       "light": "rgb(23, 23, 23)",
       "dark": "rgb(237, 237, 237)"
     },
+    "/Surface/Inverse Hover": {
+      "light": "rgb(55, 55, 55)",
+      "dark": "rgb(207, 207, 207)"
+    },
     "/Surface/Main": {
       "light": "rgb(250, 250, 250)",
       "dark": "rgb(23, 23, 23)"
@@ -312,6 +320,10 @@
     "/Text/On Accent": {
       "light": "rgb(255, 255, 255)",
       "dark": "rgb(255, 255, 255)"
+    },
+    "/Text/On Danger": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(23, 23, 23)"
     },
     "/Text/Primary": {
       "light": "rgb(23, 23, 23)",
@@ -449,6 +461,13 @@
     "/Mono/Label": {
       "family": "Geist Mono",
       "weight": 400,
+      "size": "12px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Label Strong": {
+      "family": "Geist Mono",
+      "weight": 500,
       "size": "12px",
       "lineHeight": "1.4em",
       "letterSpacing": "0px"

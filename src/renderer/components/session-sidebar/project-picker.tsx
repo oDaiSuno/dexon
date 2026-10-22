@@ -130,12 +130,12 @@ export function ProjectPicker({
           display: "flex",
           alignItems: "center",
           padding: "8px 12px",
-          background: selectedCwd ? "var(--bg-hover)" : "var(--accent-soft)",
-          border: selectedCwd ? "1px solid var(--border)" : "1px solid var(--accent-soft-border)",
+          background: selectedCwd ? "var(--bg-hover)" : "var(--fx-accent-blue-soft)",
+          border: selectedCwd ? "1px solid var(--fx-line-default)" : "1px solid var(--fx-accent-blue-border)",
           borderRadius: "var(--radius-card)",
           cursor: "pointer",
           fontSize: "var(--text-label)",
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           textAlign: "left",
           transition:
             "border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
@@ -148,7 +148,7 @@ export function ProjectPicker({
               flex: 1,
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-meta)",
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
             }}
           />
         ) : (
@@ -160,7 +160,7 @@ export function ProjectPicker({
               whiteSpace: "nowrap",
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
             }}
           >
             {suppressPlaceholder ? "" : t("selectProjectEllipsis", "Select project…")}
@@ -176,15 +176,15 @@ export function ProjectPicker({
           left: 0,
           right: 0,
           zIndex: 100,
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
           boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
           overflow: "hidden",
         }}
       >
         {showProjectFilter && (
-          <div style={{ padding: "8px 8px", borderBottom: "1px solid var(--border)" }}>
+          <div style={{ padding: "8px 8px", borderBottom: "1px solid var(--fx-line-default)" }}>
             <input
               value={projectFilter}
               onChange={(e) => setProjectFilter(e.target.value)}
@@ -201,11 +201,11 @@ export function ProjectPicker({
                 fontSize: "var(--text-meta)",
                 fontFamily: "var(--font-mono)",
                 padding: "4px 8px",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
                 outline: "none",
-                background: "var(--bg)",
-                color: "var(--text)",
+                background: "var(--fx-surface-main)",
+                color: "var(--fx-text-primary)",
                 boxSizing: "border-box",
               }}
             />
@@ -222,10 +222,10 @@ export function ProjectPicker({
                 gap: 8,
                 width: "100%",
                 padding: "8px 12px",
-                background: "var(--bg)",
+                background: "var(--fx-surface-main)",
                 border: "none",
-                borderBottom: "1px solid var(--border)",
-                color: project === selectedProject ? "var(--text)" : "var(--text-muted)",
+                borderBottom: "1px solid var(--fx-line-default)",
+                color: project === selectedProject ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 cursor: "pointer",
                 textAlign: "left",
                 fontSize: "var(--text-meta)",
@@ -242,7 +242,7 @@ export function ProjectPicker({
                   height="10"
                   viewBox="0 0 10 10"
                   fill="none"
-                  stroke="var(--accent)"
+                  stroke="var(--fx-accent-blue)"
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -256,7 +256,7 @@ export function ProjectPicker({
             </button>
           ))}
           {visibleProjects.length === 0 && projectFilter.trim() && (
-            <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+            <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
               {t("noMatchingProjects", "No matching projects")}
             </div>
           )}
@@ -277,8 +277,8 @@ export function ProjectPicker({
               padding: "8px 12px",
               background: "none",
               border: "none",
-              borderTop: visibleProjects.length > 0 ? "1px solid var(--border)" : "none",
-              color: "var(--text-muted)",
+              borderTop: visibleProjects.length > 0 ? "1px solid var(--fx-line-default)" : "none",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               textAlign: "left",
               fontSize: "var(--text-meta)",
@@ -316,7 +316,7 @@ export function ProjectPicker({
               padding: "8px 12px",
               background: "none",
               border: "none",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               textAlign: "left",
               fontSize: "var(--text-meta)",
@@ -356,7 +356,7 @@ export function ProjectPicker({
               padding: "8px 12px",
               background: "none",
               border: "none",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               textAlign: "left",
               fontSize: "var(--text-meta)",
@@ -403,11 +403,11 @@ export function ProjectPicker({
                 fontSize: "var(--text-meta)",
                 fontFamily: "var(--font-mono)",
                 padding: "4px 8px",
-                border: "1px solid var(--accent)",
+                border: "1px solid var(--fx-accent-blue)",
                 borderRadius: "var(--radius-control)",
                 outline: "none",
-                background: "var(--bg)",
-                color: "var(--text)",
+                background: "var(--fx-surface-main)",
+                color: "var(--fx-text-primary)",
                 boxSizing: "border-box",
               }}
             />
@@ -415,7 +415,7 @@ export function ProjectPicker({
               <div
                 style={{
                   marginTop: 4,
-                  color: "var(--danger)",
+                  color: "var(--fx-status-danger)",
                   fontSize: "var(--text-meta)",
                   lineHeight: 1.35,
                   overflowWrap: "anywhere",
@@ -431,10 +431,10 @@ export function ProjectPicker({
                 style={{
                   flex: 1,
                   padding: "4px 0",
-                  background: "var(--btn-bg)",
+                  background: "var(--fx-accent-blue-fill)",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--btn-fg)",
+                  color: "var(--fx-text-on-accent)",
                   fontSize: "var(--text-meta)",
                   fontWeight: 600,
                   cursor: customPathValidating || !customPathValue.trim() ? "not-allowed" : "pointer",
@@ -453,9 +453,9 @@ export function ProjectPicker({
                   flex: 1,
                   padding: "4px 0",
                   background: "var(--bg-hover)",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontSize: "var(--text-meta)",
                   cursor: "pointer",
                 }}

@@ -1,6 +1,5 @@
 import { type NoticeItem } from "@/hooks/useAgentSession";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import appIconUrl from "../../../../build/icon.png";
 import { NoticeShelf } from "./status";
 export function Welcome({ notices }: { notices: NoticeItem[] }) {
@@ -25,7 +24,7 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               style={{
                 width: 36,
                 height: 36,
-                borderRadius: "var(--bui-r-card)",
+                borderRadius: "var(--radius-card)",
                 objectFit: "contain",
                 flexShrink: 0,
                 display: "block",
@@ -33,8 +32,8 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
             />
             <span
               style={{
-                fontSize: scaledChatFont(20),
-                color: "var(--bui-ink)",
+                fontSize: 20,
+                color: "var(--fx-text-primary)",
                 fontWeight: 600,
                 letterSpacing: "-0.2px",
                 flexShrink: 0,
@@ -52,9 +51,9 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               "--line-i": 1,
               marginTop: 16,
               marginBottom: 12,
-              fontSize: scaledChatFont(13),
+              fontSize: 13,
               lineHeight: 1.6,
-              color: "var(--bui-ink-2)",
+              color: "var(--fx-text-secondary)",
               textAlign: "center",
             } as React.CSSProperties
           }

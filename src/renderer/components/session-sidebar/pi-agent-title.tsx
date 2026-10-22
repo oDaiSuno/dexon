@@ -107,7 +107,7 @@ export function PiAgentTitle() {
         display: "flex",
         alignItems: "center",
         gap: 8,
-        color: showVersion ? "var(--accent)" : "var(--text)",
+        color: showVersion ? "var(--fx-accent-blue)" : "var(--fx-text-primary)",
         minWidth: "6ch",
       }}
     >

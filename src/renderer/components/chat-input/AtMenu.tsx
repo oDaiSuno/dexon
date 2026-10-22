@@ -1,5 +1,4 @@
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 import type { FileSuggestionDegradedReason } from "@/lib/file-suggestion-client";
 import { FolderIcon, getFileIcon } from "../FileIcons";
@@ -51,8 +50,8 @@ export function AtMenu({
         bottom: "calc(100% + 8px)",
         zIndex: 120,
         transformOrigin: "bottom center",
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-main)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
         overflow: "hidden",
@@ -63,13 +62,13 @@ export function AtMenu({
         aria-live="polite"
         style={{
           padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: scaledChatFont(11),
-          color: "var(--text-dim)",
+          fontSize: 11,
+          color: "var(--fx-text-tertiary)",
         }}
       >
         <span>
@@ -81,7 +80,7 @@ export function AtMenu({
       </div>
       <div style={{ maxHeight: "calc(300px - 34px)", overflowY: "auto", padding: 4 }}>
         {matches.length === 0 ? (
-          <div style={{ padding: "8px 8px", fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>
+          <div style={{ padding: "8px 8px", fontSize: 12, color: "var(--fx-text-tertiary)" }}>
             {loading
               ? t("searching", "Searching…")
               : suggestionState?.status === "error"
@@ -115,10 +114,10 @@ export function AtMenu({
                   borderRadius: "var(--radius-control)",
                   background: active ? "var(--bg-selected)" : "none",
                   transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   cursor: "pointer",
                   textAlign: "left",
-                  fontSize: scaledChatFont(12.5),
+                  fontSize: 12.5,
                   fontFamily: "var(--font-mono)",
                 }}
               >
@@ -133,9 +132,9 @@ export function AtMenu({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {dirPrefix && <span style={{ color: "var(--text-dim)" }}>{dirPrefix}</span>}
+                  {dirPrefix && <span style={{ color: "var(--fx-text-tertiary)" }}>{dirPrefix}</span>}
                   {name}
-                  {entry.isDir && <span style={{ color: "var(--text-dim)" }}>/</span>}
+                  {entry.isDir && <span style={{ color: "var(--fx-text-tertiary)" }}>/</span>}
                 </span>
               </button>
             );

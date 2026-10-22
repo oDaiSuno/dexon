@@ -21,7 +21,7 @@ export function WorktreeRemoveConfirm({
         alignItems: "center",
         gap: 8,
         padding: "8px 12px",
-        borderBottom: "1px solid var(--border)",
+        borderBottom: "1px solid var(--fx-line-default)",
         background: "rgba(239,68,68,0.06)",
       }}
     >
@@ -29,7 +29,7 @@ export function WorktreeRemoveConfirm({
         style={{
           flex: 1,
           fontSize: "var(--text-meta)",
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -42,10 +42,10 @@ export function WorktreeRemoveConfirm({
         disabled={busy}
         style={{
           padding: "4px 8px",
-          background: "var(--danger)",
+          background: "var(--fx-status-danger)",
           border: "none",
           borderRadius: "var(--radius-control)",
-          color: "var(--on-danger)",
+          color: "var(--fx-text-on-danger)",
           fontSize: "var(--text-meta)",
           fontWeight: 600,
           cursor: "pointer",
@@ -59,9 +59,9 @@ export function WorktreeRemoveConfirm({
         style={{
           padding: "4px 8px",
           background: "var(--bg-hover)",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-control)",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           fontSize: "var(--text-meta)",
           cursor: "pointer",
           flexShrink: 0,

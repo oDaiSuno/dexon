@@ -9,5 +9,5 @@
 .session-menu-item:hover,
 .session-menu-item:focus-visible {
   background: var(--bg-hover) !important;
-  color: var(--text) !important;
+  color: var(--fx-text-primary) !important;
 }

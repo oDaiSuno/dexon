@@ -101,7 +101,7 @@ async function run() {
   ]) {
     await configure({ font });
     const value = await measurement();
-    near(value.editorFont, 14 * scale, `${font} editor size`, 0.1);
+    near(value.editorFont, standard.editorFont, `${font} editor keeps its size`, 0.1);
     // The independent preference specification defines these four ratios.
     // Verify scaling precisely, without claiming to validate the transcript's
     // separate underlying typography baseline.
@@ -129,9 +129,11 @@ async function run() {
       pass: true,
     });
   }
+  await configure({ welcome: true, font: "standard" });
+  const welcomeStandard = await measurement();
   await configure({ welcome: true, font: "large" });
   const welcome = await measurement();
-  near(welcome.titleFont, 23, "welcome title follows the selected size");
+  near(welcome.titleFont, welcomeStandard.titleFont, "welcome title keeps its size under a larger reading size", 0.1);
   assert.equal(welcome.reachable, true);
   records.push({ name: "welcome", measurement: welcome, screenshot: await capture("welcome"), pass: true });
   window.setContentSize(640, 900);

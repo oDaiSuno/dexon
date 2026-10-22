@@ -180,7 +180,7 @@ export function SessionItem({
 
   const ITEM_HEIGHT = 28;
   const rowBackground = confirmDelete
-    ? "color-mix(in srgb, var(--danger) 8%, transparent)"
+    ? "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)"
     : isSelected
       ? "var(--bg-selected)"
       : hovered
@@ -206,7 +206,7 @@ export function SessionItem({
         cursor: "default",
         background: rowBackground,
         border: confirmDelete
-          ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
+          ? "1px solid color-mix(in srgb, var(--fx-status-danger) 40%, transparent)"
           : "1px solid transparent",
         borderRadius: "999px",
         transition:
@@ -235,11 +235,11 @@ export function SessionItem({
             flex: 1,
             fontSize: "var(--text-body)",
             padding: "0 8px",
-            border: "1px solid var(--accent)",
+            border: "1px solid var(--fx-accent-blue)",
             borderRadius: "var(--radius-control)",
             outline: "none",
-            background: "var(--bg)",
-            color: "var(--text)",
+            background: "var(--fx-surface-main)",
+            color: "var(--fx-text-primary)",
             height: 24,
           }}
         />
@@ -280,7 +280,7 @@ export function SessionItem({
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
               }}
             >
               <SessionRowStatusSlot activity={activity} relation={relation} isSelected={isSelected} />
@@ -296,7 +296,7 @@ export function SessionItem({
                 fontSize: "var(--text-body)",
                 fontWeight: 400,
                 lineHeight: 1.4,
-                color: "var(--text)",
+                color: "var(--fx-text-primary)",
               }}
             >
               {title}
@@ -308,7 +308,7 @@ export function SessionItem({
                 style={{
                   flexShrink: 0,
                   fontSize: "var(--text-meta)",
-                  color: "var(--text-dim)",
+                  color: "var(--fx-text-tertiary)",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -339,7 +339,7 @@ export function SessionItem({
                 background: hovered ? "var(--bg-hover)" : "none",
                 border: "none",
                 borderRadius: "var(--radius-card)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 transition:
                   "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
@@ -398,9 +398,9 @@ export function SessionItem({
                 height: 24,
                 padding: 0,
                 background: actionsOpen || hovered ? rowBackground : "transparent",
-                border: actionsOpen ? "1px solid var(--border)" : "1px solid transparent",
+                border: actionsOpen ? "1px solid var(--fx-line-default)" : "1px solid transparent",
                 borderRadius: "var(--radius-card)",
-                color: actionsOpen ? "var(--text)" : "var(--text-dim)",
+                color: actionsOpen ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 opacity: actionsOpen || hovered ? 1 : 0,
                 pointerEvents: actionsOpen || hovered ? "auto" : "none",

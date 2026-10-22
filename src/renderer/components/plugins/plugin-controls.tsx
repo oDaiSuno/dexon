@@ -11,7 +11,7 @@ export function ScopeTag({ scope }: { scope: PluginScope }) {
         borderRadius: "var(--radius-chip)",
         flexShrink: 0,
         background: scope === "project" ? "rgba(99,102,241,0.12)" : "rgba(120,120,120,0.12)",
-        color: scope === "project" ? "rgba(99,102,241,0.85)" : "var(--text-dim)",
+        color: scope === "project" ? "rgba(99,102,241,0.85)" : "var(--fx-text-tertiary)",
       }}
     >
       {pluginScopeLabel(scope, t)}
@@ -46,7 +46,7 @@ export function PluginToggle({
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
-        background: enabled ? "var(--accent)" : "var(--border)",
+        background: enabled ? "var(--fx-accent-blue)" : "var(--fx-line-default)",
         position: "relative",
         transition: "background 0.18s",
         outline: "none",
@@ -61,7 +61,7 @@ export function PluginToggle({
           width: 16,
           height: 16,
           borderRadius: "50%",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
           transition: "left 0.18s cubic-bezier(.4,0,.2,1)",
         }}
@@ -76,7 +76,7 @@ export function SegmentedScope({ value, onChange }: { value: PluginScope; onChan
     <div
       style={{
         display: "inline-flex",
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         overflow: "hidden",
         height: 30,
@@ -91,9 +91,9 @@ export function SegmentedScope({ value, onChange }: { value: PluginScope; onChan
             style={{
               width: 76,
               border: "none",
-              borderRight: scope === "global" ? "1px solid var(--border)" : "none",
+              borderRight: scope === "global" ? "1px solid var(--fx-line-default)" : "none",
               background: active ? "var(--bg-selected)" : "none",
-              color: active ? "var(--text)" : "var(--text-muted)",
+              color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
               cursor: "pointer",
               fontSize: "var(--text-label)",
             }}

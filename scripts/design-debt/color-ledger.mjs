@@ -1,13 +1,12 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { scanColorLiterals } from "./scan.mjs";
+import { scanColorLiterals } from "./color-scan.mjs";
+import { readDebtLedgers } from "./ledger.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const LEDGER_DIR = path.join(root, "scripts/design-colors/ledger");
-const EXEMPTIONS_FILE = "exemptions.json";
 const SCAN_ROOTS = ["src/renderer", "src/main", "src/shared"];
-const TOKEN_SOURCE = "src/renderer/styles/tokens.css";
+const GENERATED = new Set(["src/renderer/styles/tokens.css", "src/renderer/styles/typography.css"]);
 const SCANNED_FILE = /\.(?:ts|tsx|css|html)$/;
 const SKIPPED_FILE = /\.(?:test|harness)\.|\.d\.ts$/;
 
@@ -24,29 +23,22 @@ function collectFiles(directory, files = []) {
 
 export function scanInterfaceColors() {
   return SCAN_ROOTS.flatMap((directory) => collectFiles(path.join(root, directory)))
-    .filter((relative) => relative !== TOKEN_SOURCE)
+    .filter((relative) => !GENERATED.has(relative))
     .sort()
     .flatMap((relative) => scanColorLiterals(relative, readFileSync(path.join(root, relative), "utf8")));
-}
-
-export function readLedgers() {
-  return readdirSync(LEDGER_DIR)
-    .filter((name) => name.endsWith(".json"))
-    .sort()
-    .map((name) => ({ name, ...JSON.parse(readFileSync(path.join(LEDGER_DIR, name), "utf8")) }));
 }
 
 function registeredAllowance(ledgers, failures) {
   const allowance = new Map();
   for (const ledger of ledgers) {
-    const owner = ledger.name === EXEMPTIONS_FILE ? "永久豁免" : ledger.lane;
-    for (const entry of ledger.entries) {
+    const owner = ledger.lane;
+    for (const entry of ledger.colors ?? []) {
       const key = keyOf(entry.file, entry.color);
       if (allowance.has(key)) {
         failures.push(`${entry.file} 的 ${entry.color} 在 ${allowance.get(key).owner} 和 ${owner} 重复登记`);
         continue;
       }
-      if (ledger.name === EXEMPTIONS_FILE && !entry.reason?.trim()) {
+      if (ledger.permanent && !entry.reason?.trim()) {
         failures.push(`${entry.file} 的 ${entry.color} 是永久豁免，必须写明 reason`);
       }
       allowance.set(key, { ...entry, owner, ledger: ledger.name });
@@ -57,7 +49,7 @@ function registeredAllowance(ledgers, failures) {
 
 export function checkColorLedger() {
   const failures = [];
-  const allowance = registeredAllowance(readLedgers(), failures);
+  const allowance = registeredAllowance(readDebtLedgers(), failures);
   const found = new Map();
   for (const finding of scanInterfaceColors()) {
     const key = keyOf(finding.file, finding.color);

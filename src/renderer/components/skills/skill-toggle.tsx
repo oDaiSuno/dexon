@@ -35,7 +35,7 @@ export function SkillToggle({
         border: "none",
         padding: 0,
         cursor: loading ? "wait" : "pointer",
-        background: enabled ? "var(--accent)" : "var(--border)",
+        background: enabled ? "var(--fx-accent-blue)" : "var(--fx-line-default)",
         position: "relative",
         transition: "background 0.18s",
         outline: "none",
@@ -49,7 +49,7 @@ export function SkillToggle({
           width: 20,
           height: 20,
           borderRadius: "50%",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
           transition: "left 0.18s cubic-bezier(.4,0,.2,1)",
         }}

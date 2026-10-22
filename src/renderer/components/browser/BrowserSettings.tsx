@@ -483,7 +483,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
                       {t("browserRemoveCredentials", "Remove stored credentials")}
                     </button>
                   )}
-                  <span style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
+                  <span style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)" }}>
                     {settings.proxy.credentialSecretRef
                       ? t("browserCredentialsStored", "Credentials are stored with Electron safeStorage.")
                       : t("browserNoCredentials", "No credentials stored.")}
@@ -641,7 +641,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
           />
 
           <Section title={t("browserDiagnosticsReset", "Diagnostics and reset")}>
-            <div style={{ ...gridStyle, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+            <div style={{ ...gridStyle, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
               <span>Electron {state.diagnostics.electronVersion}</span>
               <span>Chromium {state.diagnostics.chromiumVersion}</span>
               <span>
@@ -714,7 +714,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
                 {t("browserCloseAllTabs", "Close all tabs")}
               </button>
               <button
-                style={{ ...buttonStyle, color: "var(--danger)" }}
+                style={{ ...buttonStyle, color: "var(--fx-status-danger)" }}
                 onClick={() => {
                   if (
                     window.confirm(
@@ -870,7 +870,7 @@ function HeaderRulesSection({
               alignItems: "center",
               gap: 8,
               padding: 8,
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
             }}
           >
@@ -887,8 +887,8 @@ function HeaderRulesSection({
               }
               aria-label={formatMessage(t("browserEnableRule", "Enable {header} rule"), { header: rule.header })}
             />
-            <div style={{ flex: 1, minWidth: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)" }}>
-              <div style={{ color: "var(--text)" }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)" }}>
+              <div style={{ color: "var(--fx-text-primary)" }}>
                 {headerOperationLabel(t, rule.operation)} {rule.header}{" "}
                 {rule.secretRef ? t("browserSecureValue", "(secure value)") : (rule.value ?? "")}
               </div>
@@ -988,7 +988,7 @@ function SnippetSection({
         )}
       </div>
       {snippets.length === 0 ? (
-        <div style={{ color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
+        <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
           {t("browserNoJavascriptExperience", "No saved JavaScript experiences.")}
         </div>
       ) : (
@@ -1001,21 +1001,21 @@ function SnippetSection({
                 gap: 8,
                 alignItems: "center",
                 padding: 12,
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-card)",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
-                    color: snippet.enabled ? "var(--text)" : "var(--text-dim)",
+                    color: snippet.enabled ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                     fontSize: "var(--text-label)",
                     fontWeight: 650,
                   }}
                 >
                   {snippet.label}
                 </div>
-                <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
+                <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)" }}>
                   {snippet.host}
                   {formatMessage(t("browserJavascriptExperienceUsage", "{path} · {size} · used {count} times"), {
                     path: snippet.pathPattern,
@@ -1130,15 +1130,15 @@ function ProfileSection({
                 gap: 8,
                 alignItems: "center",
                 padding: 12,
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-card)",
               }}
             >
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: "var(--text)", fontSize: "var(--text-label)", fontWeight: 650 }}>
+                <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-label)", fontWeight: 650 }}>
                   {profile.name}
                 </div>
-                <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
+                <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)" }}>
                   {profileModeLabel(t, profile.mode)} · {t("browserProxyMode", "Proxy mode")}{" "}
                   {proxyModeLabel(t, profile.proxyMode)}
                 </div>
@@ -1296,11 +1296,11 @@ function TextPromptDialog({
       >
         <div
           id="browser-text-prompt-title"
-          style={{ color: "var(--text)", fontSize: "var(--text-body-lg)", fontWeight: 650 }}
+          style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body-lg)", fontWeight: 650 }}
         >
           {prompt.title}
         </div>
-        <div style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+        <div style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
           {prompt.message}
         </div>
         {prompt.requiredValue && <code style={confirmationPhraseStyle}>{prompt.requiredValue}</code>}
@@ -1387,13 +1387,13 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       style={{
         display: "grid",
         gap: 12,
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         padding: 16,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
       }}
     >
-      <h3 style={{ margin: 0, fontSize: "var(--text-body)", color: "var(--text)" }}>{title}</h3>
+      <h3 style={{ margin: 0, fontSize: "var(--text-body)", color: "var(--fx-text-primary)" }}>{title}</h3>
       {children}
     </section>
   );
@@ -1421,7 +1421,7 @@ function Toggle({
         alignItems: "center",
         justifyContent: "space-between",
         gap: 12,
-        color: danger ? "var(--danger)" : warning ? "var(--warning)" : "var(--text-muted)",
+        color: danger ? "var(--fx-status-danger)" : warning ? "var(--fx-status-warning)" : "var(--fx-text-secondary)",
         fontSize: "var(--text-label)",
       }}
     >
@@ -1438,7 +1438,7 @@ function Toggle({
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label style={{ display: "grid", gap: 8, color: "var(--text-muted)", fontSize: "var(--text-meta)" }}>
+    <label style={{ display: "grid", gap: 8, color: "var(--fx-text-secondary)", fontSize: "var(--text-meta)" }}>
       <span>{label}</span>
       {children}
     </label>
@@ -1520,40 +1520,40 @@ function formatBytes(value: number): string {
   return `${(value / (1_024 * 1_024)).toFixed(1)} MiB`;
 }
 
-const headingStyle = { margin: 0, color: "var(--text)", fontSize: "var(--text-heading-lg)" };
+const headingStyle = { margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-heading-lg)" };
 const descriptionStyle = {
   margin: "8px 0 0",
-  color: "var(--text-dim)",
+  color: "var(--fx-text-tertiary)",
   fontSize: "var(--text-label)",
   lineHeight: 1.6,
 };
-const emptyStyle = { margin: "auto", color: "var(--text-muted)", fontSize: "var(--text-label)" };
+const emptyStyle = { margin: "auto", color: "var(--fx-text-secondary)", fontSize: "var(--text-label)" };
 const inputStyle = {
   width: "100%",
   minHeight: 34,
   boxSizing: "border-box" as const,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
   padding: "8px 8px",
-  background: "var(--bg)",
-  color: "var(--text)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-primary)",
   fontSize: "var(--text-label)",
 };
 const buttonStyle = {
   minHeight: 32,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
   padding: "0 12px",
-  background: "var(--bg)",
-  color: "var(--text-muted)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-secondary)",
   cursor: "pointer",
   fontSize: "var(--text-meta)",
 };
 const primaryButtonStyle = {
   ...buttonStyle,
   borderColor: "transparent",
-  background: "var(--btn-bg)",
-  color: "var(--btn-fg)",
+  background: "var(--fx-accent-blue-fill)",
+  color: "var(--fx-text-on-accent)",
 };
 const smallButtonStyle = { ...buttonStyle, minHeight: 27, padding: "0 8px" };
 const promptBackdropStyle = {
@@ -1571,9 +1571,9 @@ const promptDialogStyle = {
   display: "grid",
   gap: 12,
   padding: 20,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-card)",
-  background: "var(--bg-panel)",
+  background: "var(--fx-surface-raised)",
   boxShadow: "0 20px 60px rgba(0,0,0,0.28)",
 };
 const confirmationPhraseStyle = {
@@ -1581,8 +1581,8 @@ const confirmationPhraseStyle = {
   width: "fit-content",
   padding: "4px 8px",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-primary)",
   fontSize: "var(--text-meta)",
   userSelect: "all" as const,
 };
@@ -1590,15 +1590,23 @@ const gridStyle = { display: "grid", gridTemplateColumns: "repeat(auto-fit, minm
 const noticeStyle = {
   padding: 8,
   borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text-dim)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-tertiary)",
   fontSize: "var(--text-meta)",
   lineHeight: 1.5,
 };
 const warningStyle = {
   ...noticeStyle,
-  color: "var(--warning)",
-  border: "1px solid var(--warning-border)",
+  color: "var(--fx-status-warning)",
+  border: "1px solid var(--fx-status-warning-border)",
 };
-const dangerStyle = { ...noticeStyle, color: "var(--danger)", border: "1px solid var(--danger-border)" };
-const errorStyle = { ...noticeStyle, color: "var(--danger)", border: "1px solid var(--danger-border)" };
+const dangerStyle = {
+  ...noticeStyle,
+  color: "var(--fx-status-danger)",
+  border: "1px solid var(--fx-status-danger-border)",
+};
+const errorStyle = {
+  ...noticeStyle,
+  color: "var(--fx-status-danger)",
+  border: "1px solid var(--fx-status-danger-border)",
+};

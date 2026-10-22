@@ -1,4 +1,3 @@
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import type { AssistantUsage, TurnFooter } from "../chat-window/turn-layout";
 import { NewSessionAction } from "./new-session-action";
@@ -34,8 +33,8 @@ export function TurnFooterView({
       {footer.usage && (
         <div
           style={{
-            fontSize: scaledChatFont(11),
-            color: "var(--bui-ink-3)",
+            fontSize: 11,
+            color: "var(--fx-text-tertiary)",
             fontFamily: "var(--font-mono)",
             fontVariantNumeric: "tabular-nums",
             marginRight: 2,
@@ -61,8 +60,8 @@ export function TurnFooterView({
                 height: 24,
                 background: "none",
                 border: "none",
-                borderRadius: "var(--bui-r-chip)",
-                color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
+                borderRadius: "var(--radius-chip)",
+                color: copied ? "var(--fx-status-success-text)" : "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 opacity: hovered ? 1 : 0,
                 pointerEvents: hovered ? "auto" : "none",
@@ -70,10 +69,10 @@ export function TurnFooterView({
                   "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
               }}
               onMouseEnter={(e) => {
-                if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
+                if (!copied) e.currentTarget.style.color = "var(--fx-text-secondary)";
               }}
               onMouseLeave={(e) => {
-                if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
+                if (!copied) e.currentTarget.style.color = "var(--fx-text-tertiary)";
               }}
             >
               {copied ? (
@@ -112,8 +111,8 @@ export function TurnFooterView({
           {time && (
             <span
               style={{
-                fontSize: scaledChatFont(11),
-                color: "var(--bui-ink-3)",
+                fontSize: 11,
+                color: "var(--fx-text-tertiary)",
                 fontFamily: "var(--font-mono)",
               }}
             >

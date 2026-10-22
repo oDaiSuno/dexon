@@ -33,10 +33,12 @@ export function AddPluginPanel({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20, maxWidth: 660, minHeight: "100%" }}>
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
           {t("addPlugin", "Add plugin")}
         </div>
-        <div style={{ fontSize: "var(--text-label)", color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+        <div
+          style={{ fontSize: "var(--text-label)", color: "var(--fx-text-tertiary)", fontFamily: "var(--font-mono)" }}
+        >
           {installLocation(scope, cwd)}
         </div>
       </div>
@@ -44,7 +46,7 @@ export function AddPluginPanel({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         <label
           htmlFor="plugin-source"
-          style={{ fontSize: "var(--text-label)", fontWeight: 600, color: "var(--text-muted)" }}
+          style={{ fontSize: "var(--text-label)", fontWeight: 600, color: "var(--fx-text-secondary)" }}
         >
           {t("pluginSource", "Source")}
         </label>
@@ -58,10 +60,10 @@ export function AddPluginPanel({
             width: "100%",
             height: 36,
             padding: "0 12px",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-control)",
-            background: "var(--bg-panel)",
-            color: "var(--text)",
+            background: "var(--fx-surface-raised)",
+            color: "var(--fx-text-primary)",
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-body)",
             outline: "none",
@@ -80,8 +82,8 @@ export function AddPluginPanel({
           disabled={busy || !source.trim()}
           style={{
             ...buttonStyle(busy || !source.trim()),
-            background: "var(--btn-bg)",
-            color: "var(--btn-fg)",
+            background: "var(--fx-accent-blue-fill)",
+            color: "var(--fx-text-on-accent)",
             borderColor: "transparent",
           }}
         >
@@ -90,7 +92,7 @@ export function AddPluginPanel({
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: "var(--text-label)", fontWeight: 600, color: "var(--text-muted)" }}>
+        <div style={{ fontSize: "var(--text-label)", fontWeight: 600, color: "var(--fx-text-secondary)" }}>
           {t("pluginExamples", "Examples")}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -104,21 +106,21 @@ export function AddPluginPanel({
                 minHeight: 30,
                 textAlign: "left",
                 padding: "8px 8px",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                background: "var(--bg-panel)",
-                color: "var(--text-dim)",
+                background: "var(--fx-surface-raised)",
+                color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 fontFamily: "var(--font-mono)",
                 fontSize: "var(--text-meta)",
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = "var(--bg-hover)";
-                e.currentTarget.style.color = "var(--text-muted)";
+                e.currentTarget.style.color = "var(--fx-text-secondary)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "var(--bg-panel)";
-                e.currentTarget.style.color = "var(--text-dim)";
+                e.currentTarget.style.background = "var(--fx-surface-raised)";
+                e.currentTarget.style.color = "var(--fx-text-tertiary)";
               }}
             >
               {example}
@@ -128,7 +130,7 @@ export function AddPluginPanel({
       </div>
 
       {actionError && (
-        <div style={{ fontSize: "var(--text-label)", color: "var(--danger)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}

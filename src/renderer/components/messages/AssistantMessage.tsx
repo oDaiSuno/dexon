@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownBody } from "../MarkdownBody";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import {
   getAssistantFailureDetail,
   hasRenderableAssistantMessage,
@@ -142,8 +141,8 @@ export function AssistantMessageView({
       {isStreaming && (
         <div
           style={{
-            fontSize: scaledChatFont(12),
-            color: "var(--bui-ink-3)",
+            fontSize: 12,
+            color: "var(--fx-text-tertiary)",
             marginBottom: 6,
             display: "flex",
             alignItems: "center",
@@ -167,7 +166,7 @@ export function AssistantMessageView({
                       display: "flex",
                       alignItems: "center",
                       gap: 5,
-                      color: "var(--bui-ink-3)",
+                      color: "var(--fx-text-tertiary)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                     title="Estimated token count while streaming"
@@ -183,7 +182,11 @@ export function AssistantMessageView({
                             height: 6,
                             borderRadius: "50%",
                             background:
-                              tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
+                              tps >= 50
+                                ? "var(--fx-status-success-text)"
+                                : tps >= 15
+                                  ? "var(--fx-status-warning-text)"
+                                  : "var(--fx-status-danger-text)",
                           }}
                         />
                         <span>{tps.toFixed(1)} t/s</span>
@@ -292,8 +295,9 @@ function TextBlock({
   if (!isStreaming) {
     return (
       <div
+        className="chat-reading"
         style={{
-          fontSize: scaledChatFont(13.5),
+          fontSize: "calc(13.5px * var(--type-scale, 1))",
           lineHeight: 1.7,
           minWidth: 0,
         }}
@@ -315,8 +319,9 @@ function TextBlock({
   const tokens = tokenizeStreamTail(tail, tailOffset);
   return (
     <div
+      className="chat-reading"
       style={{
-        fontSize: scaledChatFont(13.5),
+        fontSize: "calc(13.5px * var(--type-scale, 1))",
         lineHeight: 1.7,
         minWidth: 0,
       }}

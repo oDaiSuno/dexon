@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { CompactIcon, LightbulbIcon, SpeakerOffIcon, SpeakerOnIcon } from "./icons";
 
 const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
@@ -21,7 +20,7 @@ function compactUrgencyOf(percent: number | null): number {
 
 function mixWarning(urgency: number, strength: number, base: string): string {
   const pct = Math.round(urgency * strength);
-  return pct > 0 ? `color-mix(in srgb, var(--warning) ${pct}%, ${base})` : base;
+  return pct > 0 ? `color-mix(in srgb, var(--fx-status-warning) ${pct}%, ${base})` : base;
 }
 
 export interface SessionControlsProps {
@@ -59,7 +58,7 @@ function ghostChip(open: boolean): CSSProperties {
     background: open ? "var(--bg-selected)" : "transparent",
     border: "none",
     borderRadius: "var(--radius-control)",
-    color: "var(--text-muted)",
+    color: "var(--fx-text-secondary)",
     transition:
       "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
   };
@@ -68,7 +67,7 @@ function ghostChip(open: boolean): CSSProperties {
 function ghostHover(e: MouseEvent<HTMLButtonElement>, { open, disabled }: { open: boolean; disabled?: boolean }) {
   if (disabled) return;
   e.currentTarget.style.background = open ? "var(--bg-selected)" : "var(--bg-hover)";
-  e.currentTarget.style.color = "var(--text)";
+  e.currentTarget.style.color = "var(--fx-text-primary)";
 }
 
 function ghostLeave(e: MouseEvent<HTMLButtonElement>, { open, color }: { open: boolean; color: string }) {
@@ -189,11 +188,11 @@ export function SessionControls(props: SessionControlsProps) {
               ...ghostChip(thinkingDropdownOpen),
               padding: isMobile ? 0 : "0 9px",
               cursor: isStreaming ? "not-allowed" : "pointer",
-              fontSize: scaledChatFont(12),
+              fontSize: 12,
               opacity: isStreaming ? 0.5 : 1,
             }}
             onMouseEnter={(e) => ghostHover(e, { open: thinkingDropdownOpen, disabled: isStreaming })}
-            onMouseLeave={(e) => ghostLeave(e, { open: thinkingDropdownOpen, color: "var(--text-muted)" })}
+            onMouseLeave={(e) => ghostLeave(e, { open: thinkingDropdownOpen, color: "var(--fx-text-secondary)" })}
           >
             <LightbulbIcon size={11} />
             {!isMobile && <span style={{ whiteSpace: "nowrap" }}>{thinkingDisplayLabel}</span>}
@@ -209,8 +208,8 @@ export function SessionControls(props: SessionControlsProps) {
                 right: 0,
                 zIndex: 100,
                 transformOrigin: "bottom right",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
+                background: "var(--fx-surface-main)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-card)",
                 boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
                 overflow: "hidden",
@@ -247,9 +246,9 @@ export function SessionControls(props: SessionControlsProps) {
                       padding: "8px 12px",
                       background: isActive ? "var(--bg-selected)" : "none",
                       border: "none",
-                      color: isActive ? "var(--text)" : "var(--text-muted)",
+                      color: isActive ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                       cursor: "pointer",
-                      fontSize: scaledChatFont(12),
+                      fontSize: 12,
                       textAlign: "left",
                       fontWeight: isActive ? 600 : 400,
                       whiteSpace: "nowrap",
@@ -268,8 +267,8 @@ export function SessionControls(props: SessionControlsProps) {
                       {showOriginal && (
                         <span
                           style={{
-                            fontSize: scaledChatFont(10),
-                            color: "var(--text-dim)",
+                            fontSize: 10,
+                            color: "var(--fx-text-tertiary)",
                             fontFamily: "var(--font-mono)",
                             marginLeft: 4,
                           }}
@@ -278,9 +277,7 @@ export function SessionControls(props: SessionControlsProps) {
                         </span>
                       )}
                     </span>
-                    <span style={{ fontSize: scaledChatFont(11), color: "var(--text-dim)", marginLeft: 8 }}>
-                      {desc}
-                    </span>
+                    <span style={{ fontSize: 11, color: "var(--fx-text-tertiary)", marginLeft: 8 }}>{desc}</span>
                   </button>
                 );
               })}
@@ -297,9 +294,9 @@ export function SessionControls(props: SessionControlsProps) {
                 position: "absolute",
                 bottom: "calc(100% + 6px)",
                 right: 0,
-                background: "var(--danger-soft)",
-                color: "var(--danger)",
-                fontSize: scaledChatFont(11),
+                background: "var(--fx-status-danger-soft)",
+                color: "var(--fx-status-danger)",
+                fontSize: 11,
                 padding: "4px 8px",
                 borderRadius: "var(--radius-control)",
                 whiteSpace: "nowrap",
@@ -330,12 +327,14 @@ export function SessionControls(props: SessionControlsProps) {
               minWidth: 32,
               minHeight: 32,
               padding: isMobile ? 0 : "0 9px",
-              background: isCompacting ? "color-mix(in srgb, var(--danger) 8%, transparent)" : "transparent",
+              background: isCompacting ? "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)" : "transparent",
               border: "none",
               borderRadius: "var(--radius-control)",
-              color: isCompacting ? "var(--danger)" : mixWarning(compactUrgency, 100, "var(--text-muted)"),
+              color: isCompacting
+                ? "var(--fx-status-danger)"
+                : mixWarning(compactUrgency, 100, "var(--fx-text-secondary)"),
               cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
-              fontSize: scaledChatFont(12),
+              fontSize: 12,
               opacity: isStreaming && !isCompacting ? 0.5 : 1,
               transition:
                 "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
@@ -343,19 +342,19 @@ export function SessionControls(props: SessionControlsProps) {
             onMouseEnter={(e) => {
               if (isStreaming && !isCompacting) return;
               e.currentTarget.style.background = isCompacting
-                ? "color-mix(in srgb, var(--danger) 16%, transparent)"
+                ? "color-mix(in srgb, var(--fx-status-danger) 16%, transparent)"
                 : mixWarning(compactUrgency, 24, "var(--bg-hover)");
               e.currentTarget.style.color = isCompacting
-                ? "var(--danger)"
-                : mixWarning(compactUrgency, 100, "var(--text)");
+                ? "var(--fx-status-danger)"
+                : mixWarning(compactUrgency, 100, "var(--fx-text-primary)");
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = isCompacting
-                ? "color-mix(in srgb, var(--danger) 8%, transparent)"
+                ? "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)"
                 : "transparent";
               e.currentTarget.style.color = isCompacting
-                ? "var(--danger)"
-                : mixWarning(compactUrgency, 100, "var(--text-muted)");
+                ? "var(--fx-status-danger)"
+                : mixWarning(compactUrgency, 100, "var(--fx-text-secondary)");
             }}
           >
             {isCompacting ? (
@@ -416,7 +415,7 @@ export function SessionControls(props: SessionControlsProps) {
             background: "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
-            color: soundEnabled ? "var(--text-muted)" : "var(--text-dim)",
+            color: soundEnabled ? "var(--fx-text-secondary)" : "var(--fx-text-tertiary)",
             cursor: "pointer",
             opacity: soundEnabled ? 1 : 0.55,
             transition:
@@ -424,12 +423,12 @@ export function SessionControls(props: SessionControlsProps) {
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text)";
+            e.currentTarget.style.color = "var(--fx-text-primary)";
             e.currentTarget.style.opacity = "1";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = soundEnabled ? "var(--text-muted)" : "var(--text-dim)";
+            e.currentTarget.style.color = soundEnabled ? "var(--fx-text-secondary)" : "var(--fx-text-tertiary)";
             e.currentTarget.style.opacity = soundEnabled ? "1" : "0.55";
           }}
         >
@@ -447,7 +446,7 @@ function CheckDot() {
       height="10"
       viewBox="0 0 10 10"
       fill="none"
-      stroke="var(--accent)"
+      stroke="var(--fx-accent-blue)"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"

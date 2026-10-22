@@ -221,12 +221,12 @@ export function ToolchainStateView({
         style={{
           width: isMobile ? "100%" : 210,
           maxHeight: isMobile ? "40vh" : undefined,
-          borderRight: isMobile ? "none" : "1px solid var(--border)",
-          borderBottom: isMobile ? "1px solid var(--border)" : "none",
+          borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
+          borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
           display: "flex",
           flexDirection: "column",
           flexShrink: 0,
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
         }}
       >
         <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
@@ -245,7 +245,7 @@ export function ToolchainStateView({
                     padding: "4px 8px 4px",
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.06em",
                   }}
@@ -276,7 +276,7 @@ export function ToolchainStateView({
                         borderRadius: "var(--radius-control)",
                         cursor: "pointer",
                         background: selectedItem ? "var(--bg-selected)" : "transparent",
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         textAlign: "left",
                       }}
                       onMouseEnter={(event) => {
@@ -318,7 +318,7 @@ export function ToolchainStateView({
           })}
         </div>
 
-        <div style={{ padding: "8px 8px 8px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+        <div style={{ padding: "8px 8px 8px", borderTop: "1px solid var(--fx-line-default)", flexShrink: 0 }}>
           <div
             role="status"
             aria-live="polite"
@@ -330,7 +330,11 @@ export function ToolchainStateView({
                 width: 7,
                 height: 7,
                 borderRadius: "50%",
-                background: !state ? "var(--warning)" : state.coreReady ? "var(--success)" : "var(--warning)",
+                background: !state
+                  ? "var(--fx-status-warning)"
+                  : state.coreReady
+                    ? "var(--fx-status-success)"
+                    : "var(--fx-status-warning)",
                 flexShrink: 0,
               }}
             />
@@ -348,7 +352,7 @@ export function ToolchainStateView({
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 fontSize: "var(--text-micro)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
               }}
             >
               {!state
@@ -445,7 +449,7 @@ function ToolDetail({
             borderRadius: "var(--radius-chip)",
             flexShrink: 0,
             background: "rgba(120,120,120,0.12)",
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             fontSize: "var(--text-micro)",
           }}
         >
@@ -459,7 +463,7 @@ function ToolDetail({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-meta)",
           }}
@@ -490,12 +494,14 @@ function ToolDetail({
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-heading-lg)",
             fontWeight: 700,
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
           }}
         >
           {CAPABILITY_LABELS[capability]}
         </div>
-        <div style={{ marginTop: 4, fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-muted)" }}>
+        <div
+          style={{ marginTop: 4, fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--fx-text-secondary)" }}
+        >
           {t(
             "toolDetailDescription",
             "Choose which verified provider Pi Desktop should use for Skills, Plugins, Agent commands, and project operations.",
@@ -504,13 +510,13 @@ function ToolDetail({
       </div>
 
       {(failed || actionError) && (
-        <div role="alert" style={{ color: "var(--danger)", fontSize: "var(--text-label)" }}>
+        <div role="alert" style={{ color: "var(--fx-status-danger)", fontSize: "var(--text-label)" }}>
           {actionError ??
             t("toolDiscoveryFailed", "Tool discovery failed. Existing selections were not changed; try rescanning.")}
         </div>
       )}
       {stateReadOnly && (
-        <div role="alert" style={{ color: "var(--warning)", fontSize: "var(--text-label)" }}>
+        <div role="alert" style={{ color: "var(--fx-status-warning)", fontSize: "var(--text-label)" }}>
           {t(
             "toolStateReadOnly",
             "These tool settings were written by a newer Pi Desktop. This version will not modify or delete them.",
@@ -538,7 +544,7 @@ function ToolDetail({
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <label
             htmlFor={`tool-preference-${capability}`}
-            style={{ fontSize: "var(--text-label)", color: "var(--text-dim)" }}
+            style={{ fontSize: "var(--text-label)", color: "var(--fx-text-tertiary)" }}
           >
             {t("toolPreference", "Preference")}
           </label>
@@ -553,10 +559,10 @@ function ToolDetail({
             style={{
               minHeight: 32,
               padding: "4px 8px",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
-              background: "var(--bg-panel)",
-              color: "var(--text)",
+              background: "var(--fx-surface-raised)",
+              color: "var(--fx-text-primary)",
               fontSize: "var(--text-meta)",
             }}
           >
@@ -580,7 +586,13 @@ function ToolDetail({
 
       {state?.candidates.length ? (
         <DetailSection title={t("toolCandidatesTitle", "Detected providers")}>
-          <div style={{ border: "1px solid var(--border)", borderRadius: "var(--radius-card)", overflow: "hidden" }}>
+          <div
+            style={{
+              border: "1px solid var(--fx-line-default)",
+              borderRadius: "var(--radius-card)",
+              overflow: "hidden",
+            }}
+          >
             {state.candidates.map((candidate, index) => (
               <div
                 key={candidate.id}
@@ -589,8 +601,8 @@ function ToolDetail({
                   alignItems: "center",
                   gap: 8,
                   padding: "8px 12px",
-                  borderBottom: index === state.candidates.length - 1 ? "none" : "1px solid var(--border)",
-                  background: "var(--bg-panel)",
+                  borderBottom: index === state.candidates.length - 1 ? "none" : "1px solid var(--fx-line-default)",
+                  background: "var(--fx-surface-raised)",
                 }}
               >
                 <span
@@ -603,7 +615,7 @@ function ToolDetail({
                     flexShrink: 0,
                   }}
                 />
-                <span style={{ fontSize: "var(--text-meta)", color: "var(--text-muted)", flexShrink: 0 }}>
+                <span style={{ fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)", flexShrink: 0 }}>
                   {providerLabel(candidate.provider, t)}
                 </span>
                 <code
@@ -614,12 +626,12 @@ function ToolDetail({
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                     fontSize: "var(--text-micro)",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                   }}
                 >
                   {candidate.pathLabel}
                 </code>
-                <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", flexShrink: 0 }}>
+                <span style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", flexShrink: 0 }}>
                   {candidate.version ? `v${candidate.version}` : healthLabel(candidate.health, t)}
                 </span>
               </div>
@@ -698,7 +710,10 @@ function ToolDetail({
           {operationVisible && operation && (
             <div style={{ marginTop: 4 }}>
               <div
-                style={{ fontSize: "var(--text-meta)", color: operation.error ? "var(--danger)" : "var(--text-muted)" }}
+                style={{
+                  fontSize: "var(--text-meta)",
+                  color: operation.error ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
+                }}
               >
                 {operationPhase(operation.phase, t)}
               </div>
@@ -737,7 +752,7 @@ function ToolDetail({
 
       {projectSummary?.length ? (
         <DetailSection title={t("toolProjectRequirements", "Current project")}>
-          <div style={{ fontSize: "var(--text-meta)", lineHeight: 1.65, color: "var(--text-muted)" }}>
+          <div style={{ fontSize: "var(--text-meta)", lineHeight: 1.65, color: "var(--fx-text-secondary)" }}>
             {projectSummary.map((line) => (
               <div key={line}>{line}</div>
             ))}
@@ -746,7 +761,13 @@ function ToolDetail({
       ) : null}
 
       <p
-        style={{ margin: 0, paddingTop: 2, fontSize: "var(--text-micro)", lineHeight: 1.65, color: "var(--text-dim)" }}
+        style={{
+          margin: 0,
+          paddingTop: 2,
+          fontSize: "var(--text-micro)",
+          lineHeight: 1.65,
+          color: "var(--fx-text-tertiary)",
+        }}
       >
         {t(
           "toolDiscoveryPrivacy",
@@ -764,7 +785,9 @@ function ToolDetail({
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <h3 style={{ margin: 0, fontSize: "var(--text-label)", fontWeight: 700, color: "var(--text)" }}>{title}</h3>
+      <h3 style={{ margin: 0, fontSize: "var(--text-label)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
+        {title}
+      </h3>
       {children}
     </section>
   );
@@ -790,7 +813,7 @@ function DetailPair({
   label,
   value,
   mono = false,
-  valueColor = "var(--text-muted)",
+  valueColor = "var(--fx-text-secondary)",
 }: {
   label: string;
   value: string;
@@ -799,7 +822,7 @@ function DetailPair({
 }) {
   return (
     <>
-      <div style={{ color: "var(--text-dim)" }}>{label}</div>
+      <div style={{ color: "var(--fx-text-tertiary)" }}>{label}</div>
       <div
         style={{
           minWidth: 0,
@@ -837,16 +860,16 @@ function CacheDetail({
         justifyContent: "space-between",
         gap: 12,
         padding: "8px 12px",
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
       }}
     >
       <div>
-        <div style={{ fontSize: "var(--text-meta)", fontWeight: 600, color: "var(--text-muted)" }}>
+        <div style={{ fontSize: "var(--text-meta)", fontWeight: 600, color: "var(--fx-text-secondary)" }}>
           {CACHE_LABELS[cacheId]} {t("toolCache", "cache")}
         </div>
-        <div style={{ marginTop: 2, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 2, fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)" }}>
           {formatBytes(cache.diskBytes, t)}
         </div>
       </div>
@@ -874,18 +897,23 @@ function OperationProgress({ operation, t }: { operation: PublicToolchainOperati
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(percent)}
-          style={{ height: 4, borderRadius: "var(--radius-pill)", overflow: "hidden", background: "var(--border)" }}
+          style={{
+            height: 4,
+            borderRadius: "var(--radius-pill)",
+            overflow: "hidden",
+            background: "var(--fx-line-default)",
+          }}
         >
-          <div style={{ width: `${percent}%`, height: "100%", background: "var(--accent)" }} />
+          <div style={{ width: `${percent}%`, height: "100%", background: "var(--fx-accent-blue)" }} />
         </div>
       )}
       {operation.totalBytes !== undefined && (
-        <div style={{ marginTop: 4, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 4, fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)" }}>
           {formatBytes(operation.downloadedBytes, t)} / {formatBytes(operation.totalBytes, t)}
         </div>
       )}
       {operation.error && (
-        <div role="alert" style={{ marginTop: 4, fontSize: "var(--text-micro)", color: "var(--danger)" }}>
+        <div role="alert" style={{ marginTop: 4, fontSize: "var(--text-micro)", color: "var(--fx-status-danger)" }}>
           {friendlyErrorCode(operation.error.code, t)}
         </div>
       )}
@@ -922,10 +950,10 @@ function ActionButton({
         width: fullWidth ? "100%" : undefined,
         minHeight: 32,
         padding: "8px 12px",
-        border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
+        border: `1px solid ${primary ? "var(--fx-accent-blue)" : "var(--fx-line-default)"}`,
         borderRadius: "var(--radius-control)",
-        background: primary ? "var(--accent)" : "var(--bg)",
-        color: primary ? "var(--on-accent)" : "var(--text)",
+        background: primary ? "var(--fx-accent-blue)" : "var(--fx-surface-main)",
+        color: primary ? "var(--fx-text-on-accent)" : "var(--fx-text-primary)",
         fontSize: "var(--text-meta)",
         fontWeight: 600,
         cursor: disabled ? "not-allowed" : busy ? "wait" : "pointer",
@@ -1087,8 +1115,8 @@ function healthLabel(health: ToolHealth, t: Translate): string {
 }
 
 function healthColor(health: ToolHealth): string {
-  if (health === "healthy") return "var(--success)";
-  if (health === "missing") return "var(--text-dim)";
-  if (health === "unverified" || health === "incomplete") return "var(--warning)";
-  return "var(--danger)";
+  if (health === "healthy") return "var(--fx-status-success)";
+  if (health === "missing") return "var(--fx-text-tertiary)";
+  if (health === "unverified" || health === "incomplete") return "var(--fx-status-warning)";
+  return "var(--fx-status-danger)";
 }

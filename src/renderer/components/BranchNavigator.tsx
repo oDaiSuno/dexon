@@ -79,7 +79,7 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
                 top: 0,
                 bottom: 0,
                 width: 1,
-                background: "var(--border)",
+                background: "var(--fx-line-default)",
               }}
             />
           )}
@@ -92,7 +92,7 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
           style={{
             width: 16,
             flexShrink: 0,
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             fontSize: "var(--text-micro)",
             textAlign: "center",
           }}
@@ -111,7 +111,7 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
             top: 0,
             bottom: row.isLast ? "50%" : 0,
             width: 1,
-            background: "var(--border)",
+            background: "var(--fx-line-default)",
           }}
         />
         {/* horizontal line to node */}
@@ -122,7 +122,7 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
             top: "50%",
             width: 9,
             height: 1,
-            background: "var(--border)",
+            background: "var(--fx-line-default)",
           }}
         />
       </div>
@@ -134,8 +134,12 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
           height: 7,
           borderRadius: "50%",
           flexShrink: 0,
-          background: isActive ? "var(--accent)" : isOnPath ? "var(--text-muted)" : "var(--border)",
-          border: isActive ? "none" : "1px solid var(--text-dim)",
+          background: isActive
+            ? "var(--fx-accent-blue)"
+            : isOnPath
+              ? "var(--fx-text-secondary)"
+              : "var(--fx-line-default)",
+          border: isActive ? "none" : "1px solid var(--fx-text-tertiary)",
           marginRight: 8,
           transition: "background 0.12s",
         }}
@@ -147,9 +151,9 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
           style={{
             fontSize: "var(--text-micro)",
             fontFamily: "var(--font-mono)",
-            color: role === "user" ? "var(--accent)" : "var(--text-dim)",
-            background: role === "user" ? "var(--accent-soft)" : "var(--bg-hover)",
-            border: `1px solid ${role === "user" ? "var(--accent-soft-border)" : "var(--border)"}`,
+            color: role === "user" ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
+            background: role === "user" ? "var(--fx-accent-blue-soft)" : "var(--bg-hover)",
+            border: `1px solid ${role === "user" ? "var(--fx-accent-blue-border)" : "var(--fx-line-default)"}`,
             borderRadius: "var(--radius-chip)",
             padding: "0 4px",
             marginRight: 4,
@@ -163,7 +167,9 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
 
       {/* Skipped indicator */}
       {row.skipped > 0 && (
-        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginRight: 4, flexShrink: 0 }}>
+        <span
+          style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginRight: 4, flexShrink: 0 }}
+        >
           +{row.skipped}
         </span>
       )}
@@ -172,7 +178,11 @@ function BranchTreeRowView({ row, activePathIds, onSelect }: BranchTreeRowProps)
       <span
         style={{
           fontSize: "var(--text-meta)",
-          color: isActive ? "var(--text)" : isOnPath ? "var(--text-muted)" : "var(--text-dim)",
+          color: isActive
+            ? "var(--fx-text-primary)"
+            : isOnPath
+              ? "var(--fx-text-secondary)"
+              : "var(--fx-text-tertiary)",
           fontWeight: isActive ? 500 : 400,
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -294,7 +304,7 @@ export function BranchNavigator({
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
-      style={{ color: hasContent ? "var(--accent)" : "var(--text-dim)", flexShrink: 0 }}
+      style={{ color: hasContent ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)", flexShrink: 0 }}
     >
       <line x1="6" y1="3" x2="6" y2="15" />
       <circle cx="18" cy="6" r="3" />
@@ -309,7 +319,7 @@ export function BranchNavigator({
       height="10"
       viewBox="0 0 10 10"
       fill="none"
-      stroke="var(--text-dim)"
+      stroke="var(--fx-text-tertiary)"
       strokeWidth="1.6"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -333,19 +343,19 @@ export function BranchNavigator({
             padding: "0 12px",
             background: open ? "var(--bg-selected)" : "none",
             border: "none",
-            borderTop: open ? "2px solid var(--accent)" : "2px solid transparent",
-            borderRight: "1px solid var(--border)",
+            borderTop: open ? "2px solid var(--fx-accent-blue)" : "2px solid transparent",
+            borderRight: "1px solid var(--fx-line-default)",
             cursor: "pointer",
-            color: open ? "var(--text)" : "var(--text-muted)",
+            color: open ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
             fontSize: "var(--text-meta)",
             whiteSpace: "nowrap",
             transition: "color 0.1s, background 0.1s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--text)";
+            e.currentTarget.style.color = "var(--fx-text-primary)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
+            e.currentTarget.style.color = open ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
           }}
           title={t("branches", "Branches")}
           aria-label={t("branches", "Branches")}
@@ -361,8 +371,8 @@ export function BranchNavigator({
               top: dropdownPos.top,
               left: dropdownPos.left,
               width: dropdownPos.width,
-              background: "var(--bg-panel)",
-              borderBottom: "1px solid var(--border)",
+              background: "var(--fx-surface-raised)",
+              borderBottom: "1px solid var(--fx-line-default)",
               zIndex: 500,
             }}
           >
@@ -375,7 +385,7 @@ export function BranchNavigator({
                 style={{
                   padding: "12px 16px",
                   fontSize: "var(--text-label)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontStyle: "italic",
                 }}
               >
@@ -390,7 +400,12 @@ export function BranchNavigator({
 
   return (
     <div
-      style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)", flexShrink: 0, position: "relative" }}
+      style={{
+        borderBottom: "1px solid var(--fx-line-default)",
+        background: "var(--fx-surface-main)",
+        flexShrink: 0,
+        position: "relative",
+      }}
     >
       {/* Header toggle */}
       <button
@@ -404,13 +419,13 @@ export function BranchNavigator({
           background: "none",
           border: "none",
           cursor: "pointer",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           fontSize: "var(--text-meta)",
           textAlign: "left",
         }}
       >
         {branchIcon}
-        <span style={{ color: "var(--text-muted)" }}>{t("branches", "Branches")}</span>
+        <span style={{ color: "var(--fx-text-secondary)" }}>{t("branches", "Branches")}</span>
         {chevron}
       </button>
 
@@ -422,8 +437,8 @@ export function BranchNavigator({
             top: "100%",
             left: 0,
             right: 0,
-            background: "var(--bg)",
-            borderBottom: "1px solid var(--border)",
+            background: "var(--fx-surface-main)",
+            borderBottom: "1px solid var(--fx-line-default)",
             boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
             zIndex: 100,
           }}
@@ -437,7 +452,7 @@ export function BranchNavigator({
               style={{
                 padding: "12px 16px",
                 fontSize: "var(--text-label)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 fontStyle: "italic",
               }}
             >

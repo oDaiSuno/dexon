@@ -31,15 +31,15 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
         width: 28,
         border: "none",
         borderRadius: "var(--radius-control)",
-        background: armed ? "var(--inverse-bg)" : "var(--bg-neutral-selected)",
-        color: armed ? "var(--inverse-fg)" : "var(--text-dim)",
+        background: armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)",
+        color: armed ? "var(--fx-text-inverse)" : "var(--fx-text-tertiary)",
         cursor: armed ? "pointer" : "not-allowed",
       }}
       onMouseEnter={(e) => {
-        if (armed) e.currentTarget.style.background = "var(--inverse-bg-hover)";
+        if (armed) e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = armed ? "var(--inverse-bg)" : "var(--bg-neutral-selected)";
+        e.currentTarget.style.background = armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)";
       }}
       className="tap-scale"
     >
@@ -64,15 +64,15 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
         width: 28,
         border: "none",
         borderRadius: "var(--radius-control)",
-        background: "var(--inverse-bg)",
-        color: "var(--inverse-fg)",
+        background: "var(--fx-surface-inverse)",
+        color: "var(--fx-text-inverse)",
         cursor: "pointer",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--inverse-bg-hover)";
+        e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "var(--inverse-bg)";
+        e.currentTarget.style.background = "var(--fx-surface-inverse)";
       }}
       className="tap-scale"
     >

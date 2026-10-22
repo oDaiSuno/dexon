@@ -61,7 +61,7 @@ export function SessionInfoPopover({
         style={{
           fontSize: "var(--text-label)",
           fontWeight: 700,
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           marginBottom: 8,
         }}
       >
@@ -78,10 +78,10 @@ export function SessionInfoPopover({
       >
         {sectionRows.map(([label, value]) => (
           <div key={`${title}:${label}`} style={{ display: "contents" }}>
-            <div style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{label}</div>
+            <div style={{ color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>{label}</div>
             <div
               style={{
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 minWidth: 0,
                 overflowWrap: compact ? "normal" : "anywhere",
                 textAlign: valueAlign,

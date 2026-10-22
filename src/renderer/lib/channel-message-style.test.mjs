@@ -37,10 +37,10 @@ test("channel bubbles keep distinct light/dark brand palettes; local follows the
   // local bubble: theme-aware through styles/chat-scope.css tokens (bubble bg + ink text)
   const localLight = getUserBubbleStyle(undefined, false);
   const localDark = getUserBubbleStyle(undefined, true);
-  assert.equal(localLight.background, "var(--bui-bubble)");
-  assert.equal(localLight.foreground, "var(--bui-ink)");
-  assert.equal(localDark.background, "var(--bui-bubble)");
-  assert.equal(localDark.foreground, "var(--bui-ink)");
+  assert.equal(localLight.background, "var(--fx-surface-card)");
+  assert.equal(localLight.foreground, "var(--fx-text-primary)");
+  assert.equal(localDark.background, "var(--fx-surface-card)");
+  assert.equal(localDark.foreground, "var(--fx-text-primary)");
   assert.deepEqual(localLight, localDark);
 });
 

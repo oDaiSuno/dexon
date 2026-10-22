@@ -136,8 +136,8 @@ export function SettingsConfig({
           maxWidth: "calc(100vw - 16px)",
           height: isMobile ? "calc(100dvh - 16px)" : "82vh",
           maxHeight: "calc(100dvh - 16px)",
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
           display: "flex",
           flexDirection: "column",
@@ -152,16 +152,16 @@ export function SettingsConfig({
             justifyContent: "space-between",
             gap: 12,
             padding: "12px 20px",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: "1px solid var(--fx-line-default)",
             flexShrink: 0,
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+            <div style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
               {t("settings", "Settings")}
             </div>
             {!isMobile && (
-              <div style={{ marginTop: 2, fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+              <div style={{ marginTop: 2, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
                 {t("settingsDescription", "Manage app preferences, models, channels, and app information.")}
               </div>
             )}
@@ -174,7 +174,7 @@ export function SettingsConfig({
             style={{
               background: "none",
               border: "none",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               fontSize: "var(--text-display)",
               lineHeight: 1,
@@ -202,10 +202,10 @@ export function SettingsConfig({
               flexDirection: "column",
               gap: 4,
               padding: isMobile ? "10px 8px" : "12px 10px",
-              borderRight: "1px solid var(--border)",
+              borderRight: "1px solid var(--fx-line-default)",
               overflowY: "auto",
               flexShrink: 0,
-              background: "var(--bg-panel)",
+              background: "var(--fx-surface-raised)",
             }}
           >
             {tabs.map((tab) => {
@@ -240,10 +240,10 @@ export function SettingsConfig({
                     width: "100%",
                     minHeight: 40,
                     padding: isMobile ? "8px 10px" : "8px 12px",
-                    border: `1px solid ${active ? "var(--accent)" : "transparent"}`,
+                    border: `1px solid ${active ? "var(--fx-accent-blue)" : "transparent"}`,
                     borderRadius: "var(--radius-card)",
-                    background: active ? "var(--accent-soft)" : "transparent",
-                    color: active ? "var(--accent)" : "var(--text-muted)",
+                    background: active ? "var(--fx-accent-blue-soft)" : "transparent",
+                    color: active ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)",
                     fontSize: "var(--text-label)",
                     lineHeight: 1.35,
                     fontWeight: active ? 650 : 500,

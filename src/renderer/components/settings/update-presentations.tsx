@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 export function UpdateReleaseDetails({ state, language }: { state: DesktopUpdateState; language: AppLanguage }) {
   const { t } = useI18n();
   return (
-    <div style={{ marginTop: 12, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-muted)" }}>
+    <div style={{ marginTop: 12, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--fx-text-secondary)" }}>
       {state.availableVersion && (
         <div>
           {t("availableVersion", "Available version")}: {displayVersion(state.availableVersion)}
@@ -19,7 +19,7 @@ export function UpdateReleaseDetails({ state, language }: { state: DesktopUpdate
       )}
       {state.releaseNotes && (
         <div style={{ marginTop: 12 }}>
-          <div style={{ marginBottom: 4, fontWeight: 650, color: "var(--text)" }}>
+          <div style={{ marginBottom: 4, fontWeight: 650, color: "var(--fx-text-primary)" }}>
             {t("releaseNotes", "Release notes")}
           </div>
           <pre
@@ -30,10 +30,10 @@ export function UpdateReleaseDetails({ state, language }: { state: DesktopUpdate
               maxHeight: 180,
               overflowY: "auto",
               padding: 12,
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
-              background: "var(--bg)",
-              color: "var(--text-muted)",
+              background: "var(--fx-surface-main)",
+              color: "var(--fx-text-secondary)",
               fontFamily: "inherit",
               fontSize: "var(--text-meta)",
               lineHeight: 1.55,
@@ -60,7 +60,7 @@ export function UpdateDownloadProgress({ state, language }: { state: DesktopUpda
         value={percent}
         aria-label={t("updateDownloadProgress", "Update download progress")}
         aria-valuetext={progressText}
-        style={{ width: "100%", height: 8, accentColor: "var(--accent)" }}
+        style={{ width: "100%", height: 8, accentColor: "var(--fx-accent-blue)" }}
       />
       <div
         style={{
@@ -70,7 +70,7 @@ export function UpdateDownloadProgress({ state, language }: { state: DesktopUpda
           justifyContent: "space-between",
           gap: 8,
           fontSize: "var(--text-micro)",
-          color: "var(--text-dim)",
+          color: "var(--fx-text-tertiary)",
         }}
       >
         <span>{progressText}</span>
@@ -144,10 +144,10 @@ export function getUpdateErrorMessage(
 }
 
 export function updateStatusColor(phase: DesktopUpdateState["phase"] | undefined): string {
-  if (phase === "error") return "var(--danger)";
-  if (phase === "available" || phase === "downloaded") return "var(--accent)";
-  if (phase === "up-to-date") return "var(--success)";
-  return "var(--text-dim)";
+  if (phase === "error") return "var(--fx-status-danger)";
+  if (phase === "available" || phase === "downloaded") return "var(--fx-accent-blue)";
+  if (phase === "up-to-date") return "var(--fx-status-success)";
+  return "var(--fx-text-tertiary)";
 }
 
 export function displayVersion(version: string): string {
@@ -172,5 +172,5 @@ export const updateDetailStyle: React.CSSProperties = {
   margin: "12px 0 0",
   fontSize: "var(--text-label)",
   lineHeight: 1.55,
-  color: "var(--text-muted)",
+  color: "var(--fx-text-secondary)",
 };

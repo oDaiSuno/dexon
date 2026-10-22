@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
 import { compositionEnterAction, type CompositionState } from "../chat-input/composition-guard";
@@ -86,11 +85,11 @@ export function UserMessageEditor({
           background: bubbleStyle.background,
           borderRadius: "12px 12px 4px 12px",
           padding: "8px 13px",
-          fontSize: scaledChatFont(13),
+          fontSize: 13,
           lineHeight: 1.55,
           color: bubbleStyle.foreground,
           wordBreak: "break-word",
-          boxShadow: "var(--bui-shadow-btn)",
+          boxShadow: "var(--shadow-hairline-button)",
         }}
       >
         {images.length > 0 && (
@@ -123,10 +122,10 @@ export function UserMessageEditor({
                     justifyContent: "center",
                     width: 18,
                     height: 18,
-                    background: "var(--bui-surface)",
+                    background: "var(--fx-surface-raised)",
                     border: "1px solid color-mix(in srgb, currentColor 22%, transparent)",
                     borderRadius: "50%",
-                    color: "var(--bui-ink-2)",
+                    color: "var(--fx-text-secondary)",
                     cursor: "pointer",
                     fontSize: 11,
                     lineHeight: 1,
@@ -192,11 +191,11 @@ export function UserMessageEditor({
             padding: "3px 10px",
             height: 26,
             background: "none",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--bui-r-chip)",
-            color: "var(--bui-ink-2)",
+            border: "1px solid var(--fx-line-default)",
+            borderRadius: "var(--radius-chip)",
+            color: "var(--fx-text-secondary)",
             cursor: "pointer",
-            fontSize: scaledChatFont(12),
+            fontSize: 12,
           }}
         >
           {t("cancel", "Cancel")}
@@ -208,12 +207,12 @@ export function UserMessageEditor({
           style={{
             padding: "3px 10px",
             height: 26,
-            background: canSend ? "var(--accent)" : "var(--border)",
+            background: canSend ? "var(--fx-accent-blue)" : "var(--fx-line-default)",
             border: "none",
-            borderRadius: "var(--bui-r-chip)",
-            color: canSend ? "#fff" : "var(--bui-ink-3)",
+            borderRadius: "var(--radius-chip)",
+            color: canSend ? "#fff" : "var(--fx-text-tertiary)",
             cursor: canSend ? "pointer" : "not-allowed",
-            fontSize: scaledChatFont(12),
+            fontSize: 12,
           }}
         >
           {t("send", "Send")}

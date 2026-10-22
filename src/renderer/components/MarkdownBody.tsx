@@ -30,7 +30,6 @@ import { mermaidCacheKey, renderMermaidSvg } from "@/lib/mermaid-renderer";
 import { remarkLeadingSkill } from "@shared/markdown-attachment-tokens";
 import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 interface MarkdownBodyProps {
   children: string;
@@ -138,7 +137,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
         {children}
       </a>
       {menuError && (
-        <span role="status" style={{ marginLeft: 4, color: "var(--danger)", fontSize: "0.85em" }}>
+        <span role="status" style={{ marginLeft: 4, color: "var(--fx-status-danger)", fontSize: "0.85em" }}>
           {t("fileContextMenuUnavailable", "The file menu could not be opened.")}
         </span>
       )}
@@ -429,14 +428,14 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
           language={lang || "text"}
           style={isDark ? vscDarkPlus : vs}
           showLineNumbers
-          lineNumberStyle={{ color: "var(--text-dim)", fontStyle: "normal" }}
+          lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
           customStyle={{
             margin: 0,
             padding: "12px 12px",
-            fontSize: scaledChatFont(12.5),
+            fontSize: "calc(12.5px * var(--type-scale, 1))",
             lineHeight: 1.62,
             borderRadius: "0",
-            background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
+            background: "color-mix(in srgb, var(--fx-surface-main) 92%, var(--fx-surface-raised))",
           }}
           codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
         >
@@ -447,12 +446,12 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
           style={{
             margin: 0,
             padding: "12px 12px",
-            fontSize: scaledChatFont(12.5),
+            fontSize: "calc(12.5px * var(--type-scale, 1))",
             lineHeight: 1.62,
             overflow: "auto",
             whiteSpace: "pre",
             fontFamily: "var(--font-mono)",
-            background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
+            background: "color-mix(in srgb, var(--fx-surface-main) 92%, var(--fx-surface-raised))",
           }}
         >
           <code>{code}</code>

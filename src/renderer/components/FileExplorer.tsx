@@ -178,7 +178,7 @@ function TreeNode({
               height="10"
               viewBox="0 0 10 10"
               fill="none"
-              stroke="var(--text-dim)"
+              stroke="var(--fx-text-tertiary)"
               strokeWidth="1.8"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -194,7 +194,7 @@ function TreeNode({
           <span
             style={{
               fontSize: "var(--text-body)",
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -209,7 +209,7 @@ function TreeNode({
               height="10"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="var(--text-dim)"
+              stroke="var(--fx-text-tertiary)"
               strokeWidth="2"
               strokeLinecap="round"
             >
@@ -236,10 +236,10 @@ function TreeNode({
               gap: 4,
               padding: "0 8px",
               height: 30,
-              background: "var(--bg-panel)",
-              border: "1px solid var(--border)",
+              background: "var(--fx-surface-raised)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-chip)",
-              color: "var(--accent)",
+              color: "var(--fx-accent-blue)",
               cursor: "pointer",
               fontSize: "var(--text-label)",
               fontWeight: 600,
@@ -287,10 +287,10 @@ function TreeNode({
               padding: "0 4px",
               width: 30,
               height: 30,
-              background: "var(--bg-panel)",
-              border: "1px solid var(--border)",
+              background: "var(--fx-surface-raised)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-chip)",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: downloading ? "wait" : "pointer",
               fontSize: "var(--text-label)",
               fontWeight: 600,
@@ -334,7 +334,7 @@ function TreeNode({
               style={{
                 paddingLeft: 8 + (depth + 1) * 14,
                 fontSize: "var(--text-label)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 height: 32,
                 display: "flex",
                 alignItems: "center",
@@ -428,14 +428,16 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
 
   if (loading) {
     return (
-      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
         {t("loadingFiles", "Loading files…")}
       </div>
     );
   }
 
   if (error) {
-    return <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--danger)" }}>{error}</div>;
+    return (
+      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-status-danger)" }}>{error}</div>
+    );
   }
 
   return (
@@ -447,8 +449,8 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
           gap: 8,
           padding: "4px 8px 8px",
           fontSize: "var(--text-micro)",
-          color: "var(--text-dim)",
-          borderBottom: "1px solid var(--border)",
+          color: "var(--fx-text-tertiary)",
+          borderBottom: "1px solid var(--fx-line-default)",
           marginBottom: 4,
         }}
       >
@@ -462,7 +464,7 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
             width: 7,
             height: 7,
             borderRadius: "50%",
-            background: watching ? "var(--success)" : "var(--border)",
+            background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
             flexShrink: 0,
           }}
         />
@@ -471,7 +473,7 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
             <span
               style={{
                 fontFamily: "var(--font-mono)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -480,7 +482,7 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
               {gitStatus.branch ?? "detached"}
             </span>
             {gitStatus.clean ? (
-              <span style={{ color: "var(--success)" }}>{t("gitClean", "clean")}</span>
+              <span style={{ color: "var(--fx-status-success)" }}>{t("gitClean", "clean")}</span>
             ) : (
               <span
                 title={t("changedPathCount", "{count} changed paths").replace(
@@ -530,7 +532,7 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
         />
       ))}
       {roots.length === 0 && (
-        <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+        <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
           {t("noFilesFound", "No files found")}
         </div>
       )}

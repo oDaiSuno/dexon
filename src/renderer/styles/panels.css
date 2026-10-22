@@ -51,8 +51,8 @@
     background: linear-gradient(
       90deg,
       transparent 4px,
-      color-mix(in srgb, var(--border) 78%, transparent) 4px,
-      color-mix(in srgb, var(--border) 78%, transparent) 6px,
+      color-mix(in srgb, var(--fx-line-default) 78%, transparent) 4px,
+      color-mix(in srgb, var(--fx-line-default) 78%, transparent) 6px,
       transparent 6px
     );
     transition: background 0.12s ease;
@@ -62,8 +62,8 @@
     background: linear-gradient(
       90deg,
       transparent 3px,
-      color-mix(in srgb, var(--accent) 72%, transparent) 3px,
-      color-mix(in srgb, var(--accent) 72%, transparent) 7px,
+      color-mix(in srgb, var(--fx-accent-blue) 72%, transparent) 3px,
+      color-mix(in srgb, var(--fx-accent-blue) 72%, transparent) 7px,
       transparent 7px
     );
   }

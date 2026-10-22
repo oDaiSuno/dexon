@@ -38,22 +38,31 @@ export function AboutSettings({ onClose }: { onClose: () => void }) {
             }}
           />
           <div>
-            <h2 style={{ margin: 0, fontSize: "var(--text-heading-lg)", color: "var(--text)" }}>{APP_DISPLAY_NAME}</h2>
-            <p style={{ margin: "4px 0 0", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+            <h2 style={{ margin: 0, fontSize: "var(--text-heading-lg)", color: "var(--fx-text-primary)" }}>
+              {APP_DISPLAY_NAME}
+            </h2>
+            <p
+              style={{
+                margin: "4px 0 0",
+                fontSize: "var(--text-label)",
+                lineHeight: 1.6,
+                color: "var(--fx-text-tertiary)",
+              }}
+            >
               {t("aboutDescription", "App, Pi, and project information.")}
             </p>
           </div>
         </section>
 
         <section>
-          <h2 style={{ margin: "0 0 12px", fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+          <h2 style={{ margin: "0 0 12px", fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
             {t("applicationInformation", "Application information")}
           </h2>
           <div
             style={{
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
-              background: "var(--bg-panel)",
+              background: "var(--fx-surface-raised)",
               overflow: "hidden",
             }}
           >
@@ -72,7 +81,7 @@ export function AboutSettings({ onClose }: { onClose: () => void }) {
                     padding: 0,
                     border: 0,
                     background: "none",
-                    color: "var(--accent)",
+                    color: "var(--fx-accent-blue)",
                     fontFamily: "var(--font-mono)",
                     fontSize: "var(--text-label)",
                     cursor: "pointer",
@@ -96,7 +105,7 @@ export function AboutSettings({ onClose }: { onClose: () => void }) {
                     padding: 0,
                     border: 0,
                     background: "none",
-                    color: "var(--accent)",
+                    color: "var(--fx-accent-blue)",
                     fontFamily: "var(--font-mono)",
                     fontSize: "var(--text-label)",
                     cursor: "pointer",
@@ -128,14 +137,14 @@ function AboutRow({ label, value, last = false }: { label: string; value: React.
         alignItems: "center",
         justifyContent: "space-between",
         gap: 20,
-        borderBottom: last ? "none" : "1px solid var(--border)",
+        borderBottom: last ? "none" : "1px solid var(--fx-line-default)",
       }}
     >
-      <span style={{ flexShrink: 0, fontSize: "var(--text-body)", color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ flexShrink: 0, fontSize: "var(--text-body)", color: "var(--fx-text-secondary)" }}>{label}</span>
       <span
         style={{
           minWidth: 0,
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           fontFamily: "var(--font-mono)",
           fontSize: "var(--text-label)",
           textAlign: "right",

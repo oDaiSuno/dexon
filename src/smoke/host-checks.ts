@@ -292,28 +292,26 @@ export async function runSmokeHostChecks(
                 if (JSON.stringify(Array.from(chatLayoutSelect.options, (option) => option.value)) !== JSON.stringify(expectedLayoutOptions)) {
                   throw new Error("Chat layout options do not match the public contract");
                 }
-                let chatFixture;
-                let chatScope = document.querySelector(".chat-appearance-scope");
-                let chatColumn = document.querySelector(".chat-content-column");
-                let chatInput = document.querySelector("textarea");
-                if (!(chatScope instanceof HTMLElement) || !(chatColumn instanceof HTMLElement) || !(chatInput instanceof HTMLElement)) {
-                  chatFixture = document.createElement("div");
-                  chatFixture.className = "chat-appearance-scope";
-                  Object.assign(chatFixture.style, {
-                    position: "absolute",
-                    visibility: "hidden",
-                    width: "100%",
-                    pointerEvents: "none",
-                  });
-                  chatColumn = document.createElement("div");
-                  chatColumn.className = "chat-content-column";
-                  chatInput = document.createElement("textarea");
-                  chatInput.style.fontSize = "calc(14px * var(--chat-font-scale))";
-                  chatColumn.appendChild(chatInput);
-                  chatFixture.appendChild(chatColumn);
-                  document.body.appendChild(chatFixture);
-                  chatScope = chatFixture;
-                }
+                const chatFixture = document.createElement("div");
+                chatFixture.className = "chat-appearance-scope";
+                Object.assign(chatFixture.style, {
+                  position: "absolute",
+                  visibility: "hidden",
+                  width: "100%",
+                  pointerEvents: "none",
+                });
+                const chatColumn = document.createElement("div");
+                chatColumn.className = "chat-content-column";
+                const readingText = document.createElement("div");
+                readingText.className = "chat-reading";
+                readingText.style.fontSize = "calc(14px * var(--type-scale, 1))";
+                readingText.textContent = "message";
+                const composerText = document.createElement("textarea");
+                composerText.className = "type-chat-input";
+                chatColumn.append(readingText, composerText);
+                chatFixture.appendChild(chatColumn);
+                document.body.appendChild(chatFixture);
+                const chatScope = chatFixture;
                 const changeSelect = (select, value) => {
                   const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
                   valueSetter?.call(select, value);
@@ -341,16 +339,17 @@ export async function runSmokeHostChecks(
                 await waitForAppearance("standard", chatLayoutSelect.value);
                 changeSelect(chatLayoutSelect, "fixed");
                 await waitForAppearance("standard", "fixed");
-                const standardInputFontSize = Number.parseFloat(getComputedStyle(chatInput).fontSize);
+                const standardReadingFontSize = Number.parseFloat(getComputedStyle(readingText).fontSize);
+                const standardComposerFontSize = Number.parseFloat(getComputedStyle(composerText).fontSize);
                 const settingsFontSize = getComputedStyle(chatFontSizeSelect).fontSize;
                 const fixedColumnWidth = chatColumn.getBoundingClientRect().width;
                 changeSelect(chatFontSizeSelect, "extra-large");
                 await waitForAppearance("extra-large", "fixed");
                 changeSelect(chatLayoutSelect, "wide");
                 await waitForAppearance("extra-large", "wide");
-                const extraLargeInputFontSize = Number.parseFloat(getComputedStyle(chatInput).fontSize);
+                const extraLargeReadingFontSize = Number.parseFloat(getComputedStyle(readingText).fontSize);
+                const extraLargeComposerFontSize = Number.parseFloat(getComputedStyle(composerText).fontSize);
                 const wideColumnWidth = chatColumn.getBoundingClientRect().width;
-                const chatScopeStyle = getComputedStyle(chatScope);
                 window.resizeTo(900, 700);
                 await new Promise((wait) => setTimeout(wait, 50));
                 const narrowLayout =
@@ -360,18 +359,16 @@ export async function runSmokeHostChecks(
                 window.resizeTo(1440, 900);
                 await new Promise((wait) => setTimeout(wait, 50));
                 const chatAppearance =
-                  Math.abs(extraLargeInputFontSize / standardInputFontSize - 1.3) < 0.01 &&
-                  chatScopeStyle.getPropertyValue("--chat-font-scale").trim() === "1.3" &&
+                  Math.abs(extraLargeReadingFontSize / standardReadingFontSize - 1.3) < 0.01 &&
+                  extraLargeComposerFontSize === standardComposerFontSize &&
                   fixedColumnWidth <= 760.5 &&
                   wideColumnWidth > 760.5 &&
                   wideColumnWidth <= 960.5 &&
                   wideColumnWidth > fixedColumnWidth &&
                   narrowLayout &&
                   getComputedStyle(chatFontSizeSelect).fontSize === settingsFontSize &&
-                  document.documentElement.scrollWidth <= document.documentElement.clientWidth &&
-                  (chatFixture ? chatFixture : document.querySelector(".chat-appearance-scope")) === chatScope &&
-                  (chatFixture ? chatFixture.querySelector("textarea") : document.querySelector("textarea")) === chatInput;
-                chatFixture?.remove();
+                  document.documentElement.scrollWidth <= document.documentElement.clientWidth;
+                chatFixture.remove();
                 changeSelect(chatFontSizeSelect, "standard");
                 await waitForAppearance("standard", "wide");
                 changeSelect(chatLayoutSelect, "fixed");

@@ -46,8 +46,8 @@ export function NavSpacePicker({
           aria-label={t("switchSpaceList", "Switch space")}
           className="composer-pop-in"
           style={{
-            background: "var(--bg-panel)",
-            border: "1px solid var(--border)",
+            background: "var(--fx-surface-raised)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-card)",
             boxShadow: "var(--shadow-popover)",
             padding: 4,
@@ -56,7 +56,7 @@ export function NavSpacePicker({
           }}
         >
           {spaces.length === 0 ? (
-            <div style={{ padding: "6px 8px", fontSize: "var(--text-label)", color: "var(--text-dim)" }}>
+            <div style={{ padding: "6px 8px", fontSize: "var(--text-label)", color: "var(--fx-text-tertiary)" }}>
               {t("noOtherSpaces", "No other spaces yet")}
             </div>
           ) : (
@@ -77,7 +77,7 @@ export function NavSpacePicker({
                   background: "transparent",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   cursor: "pointer",
                   textAlign: "left",
                 }}
@@ -103,7 +103,7 @@ export function NavSpacePicker({
                   style={{
                     fontFamily: "var(--font-mono)",
                     fontSize: "var(--text-meta)",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     maxWidth: "100%",
                     overflow: "hidden",
                     textOverflow: "ellipsis",

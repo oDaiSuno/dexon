@@ -55,9 +55,9 @@ export function TopBar({
         display: "flex",
         alignItems: "center",
         flexShrink: 0,
-        borderBottom: "1px solid var(--border)",
+        borderBottom: "1px solid var(--fx-line-default)",
         height: 44,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         position: "relative",
         zIndex: 2,
       }}
@@ -76,17 +76,17 @@ export function TopBar({
             padding: 0,
             background: "none",
             border: "none",
-            borderRight: "1px solid var(--border)",
-            color: "var(--text-muted)",
+            borderRight: "1px solid var(--fx-line-default)",
+            color: "var(--fx-text-secondary)",
             cursor: "pointer",
             flexShrink: 0,
             transition: "color 0.12s",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--text)";
+            e.currentTarget.style.color = "var(--fx-text-primary)";
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.color = "var(--fx-text-secondary)";
           }}
         >
           {sidebarOpen ? (
@@ -137,17 +137,17 @@ export function TopBar({
           padding: 0,
           background: "none",
           border: "none",
-          borderRight: "1px solid var(--border)",
-          color: "var(--text-muted)",
+          borderRight: "1px solid var(--fx-line-default)",
+          color: "var(--fx-text-secondary)",
           cursor: "pointer",
           flexShrink: 0,
           transition: "color 0.12s",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--text)";
+          e.currentTarget.style.color = "var(--fx-text-primary)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.color = "var(--text-muted)";
+          e.currentTarget.style.color = "var(--fx-text-secondary)";
         }}
       >
         {isDark ? (
@@ -198,7 +198,7 @@ export function TopBar({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
             fontSize: "var(--text-body)",
             fontWeight: 650,
           }}
@@ -221,12 +221,12 @@ export function TopBar({
           const c = sessionStats?.cost ?? 0;
           const fmt = (n: number) =>
             n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
-          let ctxColor = "var(--text-muted)";
+          let ctxColor = "var(--fx-text-secondary)";
           let ctxStr: string | null = null;
           if (contextUsage?.contextWindow) {
             const pct = contextUsage.percent;
-            if (pct !== null && pct > 90) ctxColor = "var(--danger)";
-            else if (pct !== null && pct > 70) ctxColor = "var(--warning)";
+            if (pct !== null && pct > 90) ctxColor = "var(--fx-status-danger)";
+            else if (pct !== null && pct > 70) ctxColor = "var(--fx-status-warning)";
             ctxStr =
               pct !== null
                 ? `${pct.toFixed(0)}% / ${fmt(contextUsage.contextWindow)}`
@@ -273,19 +273,20 @@ export function TopBar({
                 height: "100%",
                 background: activeTopPanel === "session" ? "var(--bg-selected)" : "none",
                 border: "none",
-                borderTop: activeTopPanel === "session" ? "2px solid var(--accent)" : "2px solid transparent",
+                borderTop: activeTopPanel === "session" ? "2px solid var(--fx-accent-blue)" : "2px solid transparent",
                 fontSize: "var(--text-label)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 whiteSpace: "nowrap",
                 cursor: "pointer",
                 fontVariantNumeric: "tabular-nums",
                 transition: "color 0.1s, background 0.1s",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.color = "var(--text)";
+                e.currentTarget.style.color = "var(--fx-text-primary)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.color = activeTopPanel === "session" ? "var(--text)" : "var(--text-muted)";
+                e.currentTarget.style.color =
+                  activeTopPanel === "session" ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
               }}
             >
               <svg
@@ -347,8 +348,8 @@ export function TopBar({
             <div
               className="session-info-popover composer-pop-in"
               style={{
-                background: "var(--bg-panel)",
-                borderBottom: "1px solid var(--border)",
+                background: "var(--fx-surface-raised)",
+                borderBottom: "1px solid var(--fx-line-default)",
                 boxShadow: "0 10px 28px rgba(0,0,0,0.10)",
                 padding: "12px 16px",
               }}
@@ -370,7 +371,7 @@ export function TopBar({
                   onCopyField={onCopyField}
                 />
               ) : (
-                <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontStyle: "italic" }}>
+                <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", fontStyle: "italic" }}>
                   {t("loadSessionInfoHint", "Send a message or run /session to load session info")}
                 </div>
               )}

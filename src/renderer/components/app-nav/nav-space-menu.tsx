@@ -162,18 +162,18 @@ export function NavSpaceMenu({
             background: "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
             cursor: "pointer",
             transition:
               "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text)";
+            e.currentTarget.style.color = "var(--fx-text-primary)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.color = "var(--fx-text-secondary)";
           }}
         >
           <PanelLeftIcon />
@@ -204,7 +204,7 @@ export function NavSpaceMenu({
             background: menuOpen ? "var(--bg-hover)" : "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
             cursor: "pointer",
             transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
@@ -242,7 +242,7 @@ export function NavSpaceMenu({
             aria-hidden="true"
             style={{
               flexShrink: 0,
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               transform: menuOpen ? "rotate(180deg)" : "none",
               transition: "transform var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
             }}
@@ -267,8 +267,8 @@ export function NavSpaceMenu({
           aria-label={spaceName}
           className="composer-pop-in"
           style={{
-            background: "var(--bg-panel)",
-            border: "1px solid var(--border)",
+            background: "var(--fx-surface-raised)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-card)",
             boxShadow: "var(--shadow-popover)",
             padding: 4,
@@ -279,11 +279,11 @@ export function NavSpaceMenu({
               padding: "6px 8px 8px",
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: "1px solid var(--fx-line-default)",
               marginBottom: 4,
             }}
           >
@@ -311,7 +311,7 @@ export function NavSpaceMenu({
                   background: "transparent",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   cursor: "pointer",
                   fontSize: "var(--text-label)",
                   textAlign: "left",
@@ -321,7 +321,13 @@ export function NavSpaceMenu({
               >
                 <span
                   aria-hidden="true"
-                  style={{ display: "inline-flex", width: 14, height: 14, flexShrink: 0, color: "var(--text-dim)" }}
+                  style={{
+                    display: "inline-flex",
+                    width: 14,
+                    height: 14,
+                    flexShrink: 0,
+                    color: "var(--fx-text-tertiary)",
+                  }}
                 >
                   {action.icon}
                 </span>

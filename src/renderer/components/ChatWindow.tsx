@@ -1,4 +1,3 @@
-import { scaledChatFont } from "@/lib/chat-appearance";
 import type { AgentMessage } from "@/lib/types";
 import { DragOverlay } from "./chat-window/drag-overlay";
 import { ChatMessages } from "./chat-window/messages";
@@ -86,7 +85,9 @@ export function ChatWindow(props: Props) {
   if (loading) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
-        <div className="flex h-full items-center justify-center text-text-muted">Loading session...</div>
+        <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-text-secondary)" }}>
+          Loading session...
+        </div>
       </div>
     );
   }
@@ -203,7 +204,7 @@ export function ChatWindow(props: Props) {
                   )}
 
                   {agentRunning && !retryInfo?.waiting && !streamState.streamingMessage && (
-                    <div className="py-2" style={{ fontSize: scaledChatFont(13) }}>
+                    <div className="py-2" style={{ fontSize: 13 }}>
                       <span className="chat-shimmer-text" style={{ fontWeight: 500 }}>
                         {phaseLabel(agentPhase, t)}
                       </span>
@@ -273,7 +274,7 @@ export function ChatWindow(props: Props) {
                       width: 6,
                       height: 6,
                       borderRadius: "50%",
-                      background: "var(--accent)",
+                      background: "var(--fx-accent-blue)",
                     }}
                   />
                 )}

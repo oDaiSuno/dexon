@@ -95,12 +95,12 @@ export function WorktreeSwitcher({
           gap: 8,
           padding: "0 12px",
           background: "var(--bg-hover)",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
           cursor: "pointer",
           fontSize: "var(--text-meta)",
           lineHeight: 1.35,
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           textAlign: "left",
         }}
       >
@@ -115,7 +115,7 @@ export function WorktreeSwitcher({
           strokeLinejoin="round"
           style={{
             flexShrink: 0,
-            color: currentWt && !currentWt.isMain ? "var(--accent)" : "var(--text-dim)",
+            color: currentWt && !currentWt.isMain ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
           }}
         >
           <line x1="6" y1="3" x2="6" y2="15" />
@@ -125,15 +125,15 @@ export function WorktreeSwitcher({
         </svg>
         <PathLabel
           text={currentWt ? (currentWt.branch ?? abbreviateHomePath(currentWt.path, homeDir)) : "…"}
-          style={{ flex: 1, fontFamily: "var(--font-mono)", color: "var(--text)" }}
+          style={{ flex: 1, fontFamily: "var(--font-mono)", color: "var(--fx-text-primary)" }}
         />
         {currentWt?.isMain && (
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
+          <span style={{ flexShrink: 0, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
             {t("mainBranch", "main")}
           </span>
         )}
         {worktreeState.worktrees.length > 1 && (
-          <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
+          <span style={{ flexShrink: 0, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
             {worktreeState.worktrees.length}
           </span>
         )}
@@ -160,8 +160,8 @@ export function WorktreeSwitcher({
           left: 0,
           right: 0,
           zIndex: 100,
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
           boxShadow: "0 6px 20px rgba(0,0,0,0.10)",
           overflow: "hidden",
@@ -185,7 +185,7 @@ export function WorktreeSwitcher({
               <div
                 key={wt.path}
                 className="wt-row"
-                style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--border)" }}
+                style={{ display: "flex", alignItems: "center", borderBottom: "1px solid var(--fx-line-default)" }}
               >
                 <button
                   onClick={() => onSelectWorktree(wt.path)}
@@ -197,9 +197,9 @@ export function WorktreeSwitcher({
                     alignItems: "center",
                     gap: 8,
                     padding: "8px 12px",
-                    background: "var(--bg)",
+                    background: "var(--fx-surface-main)",
                     border: "none",
-                    color: isCurrent ? "var(--text)" : "var(--text-muted)",
+                    color: isCurrent ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                     cursor: "pointer",
                     textAlign: "left",
                     fontSize: "var(--text-meta)",
@@ -212,7 +212,7 @@ export function WorktreeSwitcher({
                       height="10"
                       viewBox="0 0 10 10"
                       fill="none"
-                      stroke="var(--accent)"
+                      stroke="var(--fx-accent-blue)"
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
@@ -225,7 +225,7 @@ export function WorktreeSwitcher({
                   )}
                   <PathLabel text={wt.branch ?? abbreviateHomePath(wt.path, homeDir)} style={{ flex: 1 }} />
                   {wt.isMain && (
-                    <span style={{ flexShrink: 0, color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
+                    <span style={{ flexShrink: 0, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
                       {t("mainBranch", "main")}
                     </span>
                   )}
@@ -248,7 +248,7 @@ export function WorktreeSwitcher({
                       marginRight: 4,
                       background: "none",
                       border: "none",
-                      color: "var(--text-dim)",
+                      color: "var(--fx-text-tertiary)",
                       cursor: "pointer",
                       borderRadius: "var(--radius-control)",
                       flexShrink: 0,
@@ -256,11 +256,11 @@ export function WorktreeSwitcher({
                         "color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = "var(--danger)";
+                      e.currentTarget.style.color = "var(--fx-status-danger)";
                       e.currentTarget.style.background = "rgba(239,68,68,0.08)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = "var(--text-dim)";
+                      e.currentTarget.style.color = "var(--fx-text-tertiary)";
                       e.currentTarget.style.background = "none";
                     }}
                   >
@@ -301,7 +301,7 @@ export function WorktreeSwitcher({
               padding: "8px 12px",
               background: "none",
               border: "none",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               textAlign: "left",
               fontSize: "var(--text-meta)",
@@ -343,11 +343,11 @@ export function WorktreeSwitcher({
                 fontSize: "var(--text-meta)",
                 fontFamily: "var(--font-mono)",
                 padding: "4px 8px",
-                border: "1px solid var(--accent)",
+                border: "1px solid var(--fx-accent-blue)",
                 borderRadius: "var(--radius-control)",
                 outline: "none",
-                background: "var(--bg)",
-                color: "var(--text)",
+                background: "var(--fx-surface-main)",
+                color: "var(--fx-text-primary)",
                 boxSizing: "border-box",
               }}
             />
@@ -358,10 +358,10 @@ export function WorktreeSwitcher({
                 style={{
                   flex: 1,
                   padding: "4px 0",
-                  background: "var(--btn-bg)",
+                  background: "var(--fx-accent-blue-fill)",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--btn-fg)",
+                  color: "var(--fx-text-on-accent)",
                   fontSize: "var(--text-meta)",
                   fontWeight: 600,
                   cursor: busy || !newBranch.trim() ? "not-allowed" : "pointer",
@@ -376,9 +376,9 @@ export function WorktreeSwitcher({
                   flex: 1,
                   padding: "4px 0",
                   background: "var(--bg-hover)",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontSize: "var(--text-meta)",
                   cursor: "pointer",
                 }}
@@ -392,7 +392,7 @@ export function WorktreeSwitcher({
           <div
             style={{
               padding: "4px 12px 8px",
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
               fontSize: "var(--text-meta)",
               lineHeight: 1.35,
               overflowWrap: "anywhere",

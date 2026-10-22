@@ -42,10 +42,10 @@ const TOOL_PRESETS = {
 
 function buttonStyle(primary = false): React.CSSProperties {
   return {
-    border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
+    border: `1px solid ${primary ? "var(--fx-accent-blue)" : "var(--fx-line-default)"}`,
     borderRadius: "var(--radius-control)",
-    background: primary ? "var(--accent)" : "var(--bg)",
-    color: primary ? "var(--on-accent)" : "var(--text-muted)",
+    background: primary ? "var(--fx-accent-blue)" : "var(--fx-surface-main)",
+    color: primary ? "var(--fx-text-on-accent)" : "var(--fx-text-secondary)",
     minHeight: 36,
     fontSize: "var(--text-body)",
     padding: "0 12px",
@@ -55,10 +55,10 @@ function buttonStyle(primary = false): React.CSSProperties {
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-primary)",
   minHeight: 36,
   fontSize: "var(--text-body)",
   padding: "8px 8px",
@@ -69,10 +69,10 @@ function statusFor(snapshot: ChannelsSnapshot, accountId: string): ChannelStatus
 }
 
 function statusColor(status?: ChannelStatus): string {
-  if (status?.state === "running") return "var(--success)";
-  if (status?.state === "starting" || status?.state === "reconnecting") return "var(--warning)";
-  if (status?.state === "error") return "var(--danger)";
-  return "var(--text-dim)";
+  if (status?.state === "running") return "var(--fx-status-success)";
+  if (status?.state === "starting" || status?.state === "reconnecting") return "var(--fx-status-warning)";
+  if (status?.state === "error") return "var(--fx-status-danger)";
+  return "var(--fx-text-tertiary)";
 }
 
 type Translate = (key: string, fallback: string) => string;
@@ -352,10 +352,17 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
       <div style={{ maxWidth: 820, margin: "0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
           <div>
-            <h2 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+            <h2 style={{ margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-title)" }}>
               {t("messagingChannels", "Messaging channels")}
             </h2>
-            <p style={{ margin: "8px 0 0", color: "var(--text-dim)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+            <p
+              style={{
+                margin: "8px 0 0",
+                color: "var(--fx-text-tertiary)",
+                fontSize: "var(--text-label)",
+                lineHeight: 1.6,
+              }}
+            >
               {t("channelsDescription", "Connect IM accounts, control access, and bind conversations to Pi sessions.")}
             </p>
           </div>
@@ -392,9 +399,9 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
           <div
             style={{
               marginTop: 16,
-              border: "1px solid var(--danger-border)",
-              background: "var(--danger-soft)",
-              color: "var(--danger)",
+              border: "1px solid var(--fx-status-danger-border)",
+              background: "var(--fx-status-danger-soft)",
+              color: "var(--fx-status-danger)",
               borderRadius: "var(--radius-card)",
               padding: 12,
               fontSize: "var(--text-label)",
@@ -408,7 +415,7 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
           <div
             style={{
               fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               textTransform: "uppercase",
               letterSpacing: ".08em",
               marginBottom: 8,
@@ -417,15 +424,17 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
             {t("channelOverview", "Overview")} · {configuredCount} {t("configuredAccounts", "accounts configured")}
           </div>
           {loading ? (
-            <div style={{ color: "var(--text-dim)", fontSize: "var(--text-label)" }}>{t("loading", "Loading…")}</div>
+            <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
+              {t("loading", "Loading…")}
+            </div>
           ) : snapshot.accounts.length === 0 ? (
             <div
               style={{
-                border: "1px dashed var(--border)",
+                border: "1px dashed var(--fx-line-default)",
                 borderRadius: "var(--radius-card)",
                 padding: 28,
                 textAlign: "center",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 fontSize: "var(--text-label)",
               }}
             >
@@ -706,9 +715,9 @@ export function AccountCard({
   return (
     <div
       style={{
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         padding: 16,
       }}
     >
@@ -735,12 +744,14 @@ export function AccountCard({
                 : "微"}
           </div>
           <div>
-            <div style={{ color: "var(--text)", fontSize: "var(--text-body)", fontWeight: 700 }}>{account.name}</div>
+            <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body)", fontWeight: 700 }}>
+              {account.name}
+            </div>
             <div style={{ color: statusColor(status), fontSize: "var(--text-meta)", marginTop: 2 }}>
               {channelStatusLabel(status?.state ?? "stopped", t)} ·{" "}
               {account.credentialFingerprint ?? t("notConfigured", "not configured")}
             </div>
-            <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)", marginTop: 2 }}>
+            <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", marginTop: 2 }}>
               {label}
               {account.providerUsername ? ` · ${account.providerUsername}` : ""}
               {account.providerAccountId ? ` · ${account.providerAccountId}` : ""}
@@ -750,7 +761,7 @@ export function AccountCard({
         <label
           style={{
             fontSize: "var(--text-meta)",
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
             display: "flex",
             alignItems: "center",
             gap: 8,
@@ -760,14 +771,16 @@ export function AccountCard({
             type="checkbox"
             checked={draft.enabled}
             onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
+            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
           />{" "}
           {t("enabled", "Enabled")}
         </label>
       </div>
 
       {status?.lastError && (
-        <div style={{ color: "var(--danger)", fontSize: "var(--text-meta)", marginTop: 12 }}>{status.lastError}</div>
+        <div style={{ color: "var(--fx-status-danger)", fontSize: "var(--text-meta)", marginTop: 12 }}>
+          {status.lastError}
+        </div>
       )}
 
       <div
@@ -858,23 +871,27 @@ export function AccountCard({
           />
         </Field>
         <Field label={t("groupMentionRequired", "Group mention required")}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--text-muted)" }}>
+          <label
+            style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--fx-text-secondary)" }}
+          >
             <input
               type="checkbox"
               checked={draft.requireMention}
               onChange={(event) => setDraft({ ...draft, requireMention: event.target.checked })}
-              style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
+              style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
             />
             {t("requireMention", "Require @mention")}
           </label>
         </Field>
         <Field label={t("imCommands", "IM commands")}>
-          <label style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--text-muted)" }}>
+          <label
+            style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--fx-text-secondary)" }}
+          >
             <input
               type="checkbox"
               checked={draft.commandsEnabled === true}
               onChange={(event) => setDraft({ ...draft, commandsEnabled: event.target.checked })}
-              style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
+              style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
             />
             {t("enableImCommands", "Enable /help, /status, /new, /compact, and /reload")}
           </label>
@@ -892,7 +909,7 @@ export function AccountCard({
             <option value="read">{t("toolPresetRead", "Read-only tools")}</option>
             <option value="full">{t("toolPresetFull", "Full coding tools")}</option>
           </select>
-          <span style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
+          <span style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
             {t(
               "defaultToolsHint",
               "Used for new channel sessions and synchronized to sessions currently bound to this account when saved.",
@@ -946,7 +963,9 @@ export function AccountCard({
               {updatingToken ? t("saving", "Saving…") : t("updateTelegramToken", "Update token")}
             </button>
           </div>
-          <div style={{ marginTop: 8, color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
+          <div
+            style={{ marginTop: 8, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
+          >
             {t(
               "telegramGroupSetupHint",
               "Basic groups and supergroups are supported; topics require a forum supergroup. Send /status@bot_username first, then copy the chat ID from Recent activity into Allowed group IDs.",
@@ -996,7 +1015,12 @@ export function AccountCard({
             {updatingToken ? t("saving", "Saving…") : t("updateFeishuCredential", "Update credentials")}
           </button>
           <div
-            style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
+            style={{
+              gridColumn: "1 / -1",
+              color: "var(--fx-text-tertiary)",
+              fontSize: "var(--text-micro)",
+              lineHeight: 1.5,
+            }}
           >
             {t(
               "feishuCredentialHint",
@@ -1005,7 +1029,12 @@ export function AccountCard({
           </div>
           <div
             data-testid="feishu-rich-card-hint"
-            style={{ gridColumn: "1 / -1", color: "var(--text-dim)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
+            style={{
+              gridColumn: "1 / -1",
+              color: "var(--fx-text-tertiary)",
+              fontSize: "var(--text-micro)",
+              lineHeight: 1.5,
+            }}
           >
             {t(
               "feishuRichCardHint",
@@ -1063,7 +1092,12 @@ export function AccountCard({
         >
           {probing ? t("testingConnection", "Testing…") : t("testConnection", "Test connection")}
         </button>
-        <button type="button" disabled={busy} style={{ ...buttonStyle(), color: "var(--danger)" }} onClick={onDelete}>
+        <button
+          type="button"
+          disabled={busy}
+          style={{ ...buttonStyle(), color: "var(--fx-status-danger)" }}
+          onClick={onDelete}
+        >
           {t("delete", "Delete")}
         </button>
       </div>
@@ -1075,10 +1109,10 @@ export function AccountCard({
           style={{
             marginTop: 8,
             padding: "8px 8px",
-            border: `1px solid ${probeFeedback.ok ? "var(--success-border)" : "var(--danger-border)"}`,
+            border: `1px solid ${probeFeedback.ok ? "var(--fx-status-success-border)" : "var(--fx-status-danger-border)"}`,
             borderRadius: "var(--radius-control)",
-            background: probeFeedback.ok ? "var(--success-soft)" : "var(--danger-soft)",
-            color: probeFeedback.ok ? "var(--success)" : "var(--danger)",
+            background: probeFeedback.ok ? "var(--fx-status-success-soft)" : "var(--fx-status-danger-soft)",
+            color: probeFeedback.ok ? "var(--fx-status-success)" : "var(--fx-status-danger)",
             fontSize: "var(--text-meta)",
           }}
         >
@@ -1145,10 +1179,10 @@ function PairingSection({
               alignItems: "center",
               gap: 12,
               padding: "8px 0",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: "1px solid var(--fx-line-default)",
             }}
           >
-            <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
               <div>
                 {channelLabel(
                   pairing.channel,
@@ -1157,7 +1191,7 @@ function PairingSection({
                 )}{" "}
                 · {pairing.peerId}
               </div>
-              <div style={{ color: "var(--text-dim)", marginTop: 4 }}>
+              <div style={{ color: "var(--fx-text-tertiary)", marginTop: 4 }}>
                 {t("pairingCode", "Code")} {pairing.code} · {t("expiresAt", "expires")}{" "}
                 {new Date(pairing.expiresAt).toLocaleTimeString(language)}
               </div>
@@ -1234,13 +1268,13 @@ function BindingRow({
         alignItems: "center",
         gap: 8,
         padding: "8px 0",
-        borderBottom: "1px solid var(--border)",
+        borderBottom: "1px solid var(--fx-line-default)",
       }}
     >
       <div
         style={{
           fontSize: "var(--text-meta)",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           overflow: "hidden",
           textOverflow: "ellipsis",
         }}
@@ -1272,7 +1306,7 @@ function BindingRow({
         </button>
         <button
           disabled={busy}
-          style={{ ...buttonStyle(), color: "var(--danger)" }}
+          style={{ ...buttonStyle(), color: "var(--fx-status-danger)" }}
           onClick={() => void run(() => call("channels.bindingDelete", { bindingId: binding.id }))}
           title={t("deleteBinding", "Delete binding")}
           aria-label={t("deleteBinding", "Delete binding")}
@@ -1293,9 +1327,9 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
     <section
       style={{
         marginTop: 24,
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         padding: "4px 16px",
       }}
     >
@@ -1314,7 +1348,7 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
           padding: 0,
           border: 0,
           background: "none",
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           cursor: "pointer",
           textAlign: "left",
         }}
@@ -1323,14 +1357,16 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
           <span style={{ display: "block", fontSize: "var(--text-label)", fontWeight: 700 }}>
             {t("recentActivity", "Recent activity")} ({snapshot.activities.length})
           </span>
-          <span style={{ display: "block", marginTop: 4, fontSize: "var(--text-micro)", color: "var(--text-dim)" }}>
+          <span
+            style={{ display: "block", marginTop: 4, fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)" }}
+          >
             {t("recentActivityDescription", "Message content is never logged; the latest 100 records are retained.")}
           </span>
         </span>
         <span
           aria-hidden="true"
           style={{
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             fontSize: "var(--text-title)",
             transform: expanded ? "rotate(180deg)" : "none",
             transition: "transform .15s ease",
@@ -1341,7 +1377,7 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
       </button>
 
       {expanded && (
-        <div style={{ borderTop: "1px solid var(--border)", paddingBottom: 8 }}>
+        <div style={{ borderTop: "1px solid var(--fx-line-default)", paddingBottom: 8 }}>
           {snapshot.activities.length === 0 ? (
             <EmptyLine>{t("noChannelActivity", "No channel activity yet.")}</EmptyLine>
           ) : (
@@ -1353,17 +1389,21 @@ function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
                   justifyContent: "space-between",
                   gap: 12,
                   padding: "8px 0",
-                  borderBottom: "1px solid var(--border)",
+                  borderBottom: "1px solid var(--fx-line-default)",
                   fontSize: "var(--text-meta)",
                 }}
               >
-                <span style={{ color: activity.outcome === "failed" ? "var(--danger)" : "var(--text-muted)" }}>
+                <span
+                  style={{
+                    color: activity.outcome === "failed" ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
+                  }}
+                >
                   {channelLabel(activity.channel, t)} · {activityDirectionLabel(activity.direction, t)} ·{" "}
                   {activityOutcomeLabel(activity.outcome, t)}
                   {activity.peerId ? ` · ${activity.peerId}` : ""}
                   {activity.detail ? ` · ${activity.detail}` : ""}
                 </span>
-                <span style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+                <span style={{ color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>
                   {new Date(activity.at).toLocaleString(language)}
                 </span>
               </div>
@@ -1414,17 +1454,17 @@ export function TelegramTokenDialog({
         style={{
           width: 430,
           maxWidth: "calc(100vw - 28px)",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           padding: 24,
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+        <h3 style={{ margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-title)" }}>
           {t("connectTelegram", "Connect Telegram")}
         </h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+        <p style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
           {t(
             "telegramTokenDescription",
             "Create a bot with @BotFather, paste its token here, then Pi Desktop will verify it with getMe and store it using OS encryption.",
@@ -1445,7 +1485,7 @@ export function TelegramTokenDialog({
             data-testid="telegram-connect-error"
             style={{
               marginTop: 12,
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
               fontSize: "var(--text-meta)",
               lineHeight: 1.5,
               overflowWrap: "anywhere",
@@ -1508,17 +1548,17 @@ export function FeishuCredentialDialog({
           maxWidth: "calc(100vw - 28px)",
           maxHeight: "calc(100dvh - 32px)",
           overflowY: "auto",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           padding: 24,
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+        <h3 style={{ margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-title)" }}>
           {t("connectFeishu", "Connect Feishu / Lark")}
         </h3>
-        <p style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+        <p style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
           {mode === "scan"
             ? t(
                 "feishuScanDescription",
@@ -1559,7 +1599,7 @@ export function FeishuCredentialDialog({
 
         {mode === "scan" ? (
           <div data-testid="feishu-scan-create" style={{ marginTop: 16 }}>
-            <label style={{ display: "grid", gap: 8, color: "var(--text-muted)", fontSize: "var(--text-meta)" }}>
+            <label style={{ display: "grid", gap: 8, color: "var(--fx-text-secondary)", fontSize: "var(--text-meta)" }}>
               {t("feishuTenantRegion", "Account region")}
               <select
                 autoFocus
@@ -1574,16 +1614,18 @@ export function FeishuCredentialDialog({
             <div
               style={{
                 marginTop: 12,
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-card)",
-                background: "var(--bg-panel)",
+                background: "var(--fx-surface-raised)",
                 padding: "12px 12px",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 fontSize: "var(--text-meta)",
                 lineHeight: 1.65,
               }}
             >
-              <strong style={{ color: "var(--text)" }}>{t("feishuScanCreatesNew", "Creates a new bot")}</strong>
+              <strong style={{ color: "var(--fx-text-primary)" }}>
+                {t("feishuScanCreatesNew", "Creates a new bot")}
+              </strong>
               <div>
                 {t(
                   "feishuScanSecurityDefaults",
@@ -1636,7 +1678,7 @@ function FeishuDialogError({ error }: { error: string }) {
       data-testid="feishu-connect-error"
       style={{
         marginTop: 12,
-        color: "var(--danger)",
+        color: "var(--fx-status-danger)",
         fontSize: "var(--text-meta)",
         lineHeight: 1.5,
         overflowWrap: "anywhere",
@@ -1703,16 +1745,18 @@ function FeishuManualForm({
       <div
         style={{
           marginTop: 16,
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
           padding: "12px 12px",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           fontSize: "var(--text-meta)",
           lineHeight: 1.6,
         }}
       >
-        <div style={{ color: "var(--text)", fontWeight: 700 }}>{t("feishuSetupChecklist", "Quick setup")}</div>
+        <div style={{ color: "var(--fx-text-primary)", fontWeight: 700 }}>
+          {t("feishuSetupChecklist", "Quick setup")}
+        </div>
         <ol style={{ margin: "8px 0 0", paddingLeft: 20 }}>
           <li>{t("feishuSetupBot", "Create an enterprise self-built app and enable Bot capability.")}</li>
           <li>
@@ -1746,10 +1790,10 @@ function FeishuManualForm({
             margin: "8px 0 0",
             maxHeight: 176,
             overflow: "auto",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-control)",
-            background: "var(--bg)",
-            color: "var(--text-muted)",
+            background: "var(--fx-surface-main)",
+            color: "var(--fx-text-secondary)",
             padding: "8px 12px",
             fontSize: "var(--text-micro)",
             lineHeight: 1.45,
@@ -1760,7 +1804,7 @@ function FeishuManualForm({
           {FEISHU_PERMISSION_IMPORT_JSON}
         </pre>
         {permissionCopyState === "error" && (
-          <div role="alert" style={{ marginTop: 8, color: "var(--danger)" }}>
+          <div role="alert" style={{ marginTop: 8, color: "var(--fx-status-danger)" }}>
             {t("feishuPermissionCopyFailed", "Copy failed. Select and copy the JSON above manually.")}
           </div>
         )}
@@ -1846,15 +1890,15 @@ export function LoginDialog({
         style={{
           width: 390,
           maxWidth: "calc(100vw - 28px)",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           padding: 24,
           textAlign: "center",
           boxShadow: "0 14px 45px rgba(0,0,0,.25)",
         }}
       >
-        <h3 style={{ margin: 0, color: "var(--text)", fontSize: "var(--text-title)" }}>
+        <h3 style={{ margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-title)" }}>
           {isFeishu
             ? t("feishuScanCreateTitle", "Scan to create Feishu / Lark bot")
             : t("connectWeixin", "Connect WeChat")}
@@ -1884,13 +1928,13 @@ export function LoginDialog({
           </div>
         )}
         {remainingSeconds !== undefined && !terminal && (
-          <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)", marginTop: 8 }}>
+          <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)", marginTop: 8 }}>
             {t("qrCodeExpiresIn", "QR code expires in")} {remainingSeconds}s
           </div>
         )}
         <p
           style={{
-            color: event.phase === "error" ? "var(--danger)" : "var(--text-muted)",
+            color: event.phase === "error" ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
             fontSize: "var(--text-label)",
             lineHeight: 1.6,
           }}
@@ -1912,7 +1956,7 @@ export function LoginDialog({
           </div>
         )}
         {(event.phase === "waiting" || event.phase === "scanned") && (
-          <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)" }}>
+          <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)" }}>
             {isFeishu
               ? t("waitingForFeishuAuthorization", "Waiting securely for Feishu / Lark authorization…")
               : t("pollingSecurely", "Polling securely…")}
@@ -1935,7 +1979,7 @@ export function LoginDialog({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gap: 4, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
+    <div style={{ display: "grid", gap: 4, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
       <span>{label}</span>
       {children}
     </div>
@@ -1947,13 +1991,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     <section
       style={{
         marginTop: 24,
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         padding: "12px 16px",
       }}
     >
-      <div style={{ fontSize: "var(--text-label)", fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
+      <div style={{ fontSize: "var(--text-label)", fontWeight: 700, color: "var(--fx-text-primary)", marginBottom: 4 }}>
         {title}
       </div>
       {children}
@@ -1962,5 +2006,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <div style={{ color: "var(--text-dim)", fontSize: "var(--text-meta)", padding: "8px 0" }}>{children}</div>;
+  return (
+    <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-meta)", padding: "8px 0" }}>{children}</div>
+  );
 }

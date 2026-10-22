@@ -48,22 +48,26 @@ export function SessionIdentity({
           width: 22,
           height: 22,
           marginTop: -2,
-          color: failed ? "var(--danger)" : copied ? "var(--accent)" : "var(--text-dim)",
+          color: failed ? "var(--fx-status-danger)" : copied ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
           background: "transparent",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-chip)",
           cursor: "pointer",
           flex: "0 0 auto",
           transition: "color 0.12s, border-color 0.12s, background 0.12s",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--accent)";
-          e.currentTarget.style.borderColor = "var(--accent)";
+          e.currentTarget.style.color = "var(--fx-accent-blue)";
+          e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
           e.currentTarget.style.background = "var(--bg-hover)";
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.color = failed ? "var(--danger)" : copied ? "var(--accent)" : "var(--text-dim)";
-          e.currentTarget.style.borderColor = "var(--border)";
+          e.currentTarget.style.color = failed
+            ? "var(--fx-status-danger)"
+            : copied
+              ? "var(--fx-accent-blue)"
+              : "var(--fx-text-tertiary)";
+          e.currentTarget.style.borderColor = "var(--fx-line-default)";
           e.currentTarget.style.background = "transparent";
         }}
       >
@@ -122,7 +126,7 @@ export function SessionIdentity({
         style={{
           fontSize: "var(--text-label)",
           fontWeight: 700,
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           marginBottom: 8,
         }}
       >
@@ -139,10 +143,10 @@ export function SessionIdentity({
       >
         {rows.map((row) => (
           <div key={`session-info:${row.label}`} style={{ display: "contents" }}>
-            <div style={{ color: "var(--text-dim)", whiteSpace: "nowrap" }}>{row.label}</div>
+            <div style={{ color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>{row.label}</div>
             <div
               style={{
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 minWidth: 0,
                 overflowWrap: "anywhere",
                 wordBreak: "break-word",
@@ -156,7 +160,7 @@ export function SessionIdentity({
         ))}
       </div>
       {copyFeedback?.status === "error" && (
-        <div role="alert" style={{ marginTop: 8, color: "var(--danger)" }}>
+        <div role="alert" style={{ marginTop: 8, color: "var(--fx-status-danger)" }}>
           {t("copyFailed", "Copy failed")}. {t("checkClipboardPermission", "Check clipboard permission and retry.")}
         </div>
       )}

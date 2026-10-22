@@ -6,26 +6,9 @@ import { NavSidebar } from "../renderer/components/app-nav/nav-sidebar.tsx";
 import { ResourcePage } from "../renderer/components/app-nav/resource-page.tsx";
 import { MessageView } from "../renderer/components/MessageView.tsx";
 import { ChatInput } from "../renderer/components/ChatInput.tsx";
-// Style cascade mirrors main.tsx exactly: the production entry first (its
-// Tailwind preflight reset and full Inter / Geist Mono font declarations are part of the
-// real typography), then the app partials and the chat surface. The capture
-// script compiles globals.css through the real Tailwind postcss pipeline.
-import "../renderer/globals.css";
-import "../renderer/styles/tokens.css";
-import "../renderer/styles/motion-tokens.css";
-import "../renderer/styles/base.css";
-import "../renderer/styles/controls.css";
-import "../renderer/styles/sidebar.css";
-import "../renderer/styles/composer.css";
-import "../renderer/styles/markdown.css";
-import "../renderer/styles/motion.css";
-import "../renderer/styles/nav.css";
-import "../renderer/styles/panels.css";
-import "../renderer/styles/chat-scope.css";
-import "../renderer/styles/chat-motion.css";
-import "../renderer/styles/chat-window.css";
-import "../renderer/styles/messages.css";
-import "../renderer/styles/tool-cards.css";
+// The same style entry as main.tsx; the capture script compiles globals.css
+// through the real Tailwind postcss pipeline.
+import "../renderer/styles/index.ts";
 import { buildPreviewData } from "./ui-preview-data.mjs";
 
 // The preview runs in a real browser window (Electron); alias the globals the
@@ -194,7 +177,7 @@ function renderCurrent() {
     root.render(
       createElement(
         "div",
-        { style: { display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" } },
+        { style: { display: "flex", height: "100dvh", overflow: "hidden", background: "var(--fx-surface-main)" } },
         createElement(NavSidebar, {
           key: renderEpoch,
           expanded: layout.expanded,

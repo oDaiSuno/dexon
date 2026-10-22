@@ -1,67 +1,11 @@
-/* chat-scope — chat surface palette and per-scope aliases.
- *
- * The --bui-* names are the chat's private vocabulary; every value points at
- * the Framer-derived semantic layer in tokens.css, so light/dark switching
- * happens once, at the source. Status inks use the "text" variants (readable
- * on chat surfaces); solid status fills use the base status colors.
- */
+/* chat-scope — chat surface base and the legacy names whose meaning differs inside the chat. */
 
 .chat-appearance-scope {
-  --bui-page: var(--fx-surface-main);
-  --bui-canvas: var(--fx-surface-main);
-  --bui-surface: var(--fx-surface-raised);
-  --bui-inset: var(--fx-surface-inset);
-  --bui-hover: var(--fx-surface-hover-overlay);
-  --bui-hover-2: var(--fx-surface-hover-overlay-strong);
-  --bui-ink: var(--fx-text-primary);
-  --bui-ink-2: var(--fx-text-secondary);
-  --bui-ink-3: var(--fx-text-tertiary);
-  --bui-line: var(--fx-line-default);
-  --bui-line-strong: var(--fx-line-strong);
-  --bui-field: var(--fx-surface-inset);
-  --bui-bubble: var(--fx-surface-card);
-  --bui-accent: var(--fx-accent-blue-text);
-  --bui-accent-ink: var(--fx-accent-blue-hover);
-  --bui-accent-tint: var(--fx-accent-blue-soft);
-  --bui-green: var(--fx-status-success-text);
-  --bui-green-fill: var(--fx-status-success);
-  --bui-green-tint: var(--fx-status-success-soft);
-  --bui-orange: var(--fx-status-warning-text);
-  --bui-orange-tint: var(--fx-status-warning-soft);
-  --bui-red: var(--fx-status-danger-text);
-  --bui-red-fill: var(--fx-status-danger);
-  --bui-red-tint: var(--fx-status-danger-soft);
-  --bui-shadow-hairline: 0 0 0 1px var(--bui-line);
-  --bui-shadow-btn: 0 0 0 1px var(--bui-line-strong), var(--shadow-control);
-  --bui-shadow-card: 0 0 0 1px var(--bui-line), var(--shadow-control);
-  /* concentric radii: chip 6 / control 8 / card 10 */
-  --bui-r-chip: var(--radius-chip);
-  --bui-r-control: var(--radius-control);
-  --bui-r-card: var(--radius-card);
-  /* chat type scale (multiplied by --chat-font-scale): Framer Mono/Label,
-     Meta/Default, Body/Medium, Label/Default, Chat/Body */
-  --chat-f-chip: 12px;
-  --chat-f-micro: 11px;
-  --chat-f-name: 13px;
-  --chat-f-meta: 12px;
-  --chat-f-body: 14px;
-  background: var(--bui-canvas);
-  color: var(--bui-ink);
-
-  /* Alias the app-level tokens to the chat palette so every remaining
-     reference inside the chat scope (composer, markdown, badges) follows the
-     chat surface without logic changes. */
-  --border: var(--bui-line);
-  --bg-panel: var(--bui-surface);
-  --bg-hover: var(--bui-hover);
-  --bg-selected: var(--bui-accent-tint);
-  --bg-subtle: var(--bui-hover);
-  --text: var(--bui-ink);
-  --text-muted: var(--bui-ink-2);
-  --text-dim: var(--bui-ink-3);
-  --assistant-bg: transparent;
-  --user-bg: var(--bui-bubble);
-  --user-fg: var(--bui-ink);
+  background: var(--fx-surface-main);
+  color: var(--fx-text-primary);
+  --bg-hover: var(--fx-surface-hover-overlay);
+  --bg-selected: var(--fx-accent-blue-soft);
+  --bg-subtle: var(--fx-surface-hover-overlay);
 }
 
 .chat-history-item {

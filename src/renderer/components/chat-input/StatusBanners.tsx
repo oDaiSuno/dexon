@@ -1,6 +1,5 @@
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { splitLocalFileReferenceMarkdown } from "@/lib/file-url";
 import { RecallIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
@@ -16,22 +15,22 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
         alignItems: "center",
         gap: 8,
         padding: "4px 12px",
-        fontSize: scaledChatFont(12),
-        color: "var(--text-muted)",
+        fontSize: 12,
+        color: "var(--fx-text-secondary)",
         minWidth: 0,
       }}
     >
       <span
         style={{
           flexShrink: 0,
-          fontSize: scaledChatFont(10),
+          fontSize: 10,
           fontFamily: "var(--font-mono)",
           padding: "1px 8px",
           borderRadius: "var(--radius-pill)",
           border: `1px solid ${
-            kind === "steer" ? "color-mix(in srgb, var(--accent) 45%, transparent)" : "var(--border)"
+            kind === "steer" ? "color-mix(in srgb, var(--fx-accent-blue) 45%, transparent)" : "var(--fx-line-default)"
           }`,
-          color: kind === "steer" ? "var(--accent)" : "var(--text-dim)",
+          color: kind === "steer" ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
         }}
       >
         {kind === "steer" ? t("steer", "Steer") : t("followUp", "Follow-up")}
@@ -49,10 +48,10 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
                 padding: "0 8px",
                 margin: "0 2px",
                 borderRadius: "var(--radius-chip)",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 background: "var(--bg-subtle)",
-                color: "var(--text)",
-                fontSize: scaledChatFont(11),
+                color: "var(--fx-text-primary)",
+                fontSize: 11,
                 verticalAlign: "baseline",
               }}
             >
@@ -78,9 +77,9 @@ export function QueuedMessagesPanel({
     <div
       style={{
         marginBottom: 8,
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-control)",
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         padding: "4px 0",
       }}
     >
@@ -95,9 +94,9 @@ export function QueuedMessagesPanel({
       >
         <span
           style={{
-            fontSize: scaledChatFont(10),
+            fontSize: 10,
             fontFamily: "var(--font-mono)",
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             textTransform: "uppercase",
             letterSpacing: 0.4,
           }}
@@ -116,10 +115,10 @@ export function QueuedMessagesPanel({
               alignItems: "center",
               gap: 8,
               padding: "4px 12px",
-              fontSize: scaledChatFont(12),
-              color: "var(--text)",
+              fontSize: 12,
+              color: "var(--fx-text-primary)",
               background: "transparent",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
               cursor: "pointer",
               transition:
@@ -128,11 +127,12 @@ export function QueuedMessagesPanel({
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.background = "var(--bg-hover)";
-              e.currentTarget.style.borderColor = "color-mix(in srgb, var(--accent) 45%, var(--border))";
+              e.currentTarget.style.borderColor =
+                "color-mix(in srgb, var(--fx-accent-blue) 45%, var(--fx-line-default))";
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.borderColor = "var(--border)";
+              e.currentTarget.style.borderColor = "var(--fx-line-default)";
             }}
           >
             <RecallIcon size={13} />
@@ -168,11 +168,11 @@ export function NoticeBanner({
       style={{
         marginBottom: 8,
         padding: "4px 12px",
-        background: "color-mix(in srgb, var(--danger) 8%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--danger) 28%, var(--border))",
+        background: "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)",
+        border: "1px solid color-mix(in srgb, var(--fx-status-danger) 28%, var(--fx-line-default))",
         borderRadius: "var(--radius-control)",
-        fontSize: scaledChatFont(12),
-        color: "var(--danger)",
+        fontSize: 12,
+        color: "var(--fx-status-danger)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
@@ -212,11 +212,11 @@ export function CompactResultBanner({ result }: { result?: CompactResultInfo | n
       style={{
         marginBottom: 8,
         padding: "4px 12px",
-        background: "var(--success-soft)",
-        border: "1px solid var(--success-border)",
+        background: "var(--fx-status-success-soft)",
+        border: "1px solid var(--fx-status-success-border)",
         borderRadius: "var(--radius-control)",
-        fontSize: scaledChatFont(12),
-        color: "var(--success)",
+        fontSize: 12,
+        color: "var(--fx-status-success)",
         display: "flex",
         alignItems: "center",
         gap: 8,

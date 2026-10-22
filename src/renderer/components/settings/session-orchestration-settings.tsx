@@ -98,10 +98,17 @@ export function SessionOrchestrationSettings() {
 
   return (
     <section style={{ maxWidth: 620 }}>
-      <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+      <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
         {t("sessionCollaboration", "Session collaboration")}
       </h2>
-      <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+      <p
+        style={{
+          margin: "8px 0 16px",
+          fontSize: "var(--text-label)",
+          lineHeight: 1.6,
+          color: "var(--fx-text-tertiary)",
+        }}
+      >
         {t(
           "sessionCollaborationDescription",
           "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
@@ -153,10 +160,10 @@ export function SessionOrchestrationSettings() {
                 width: 88,
                 minHeight: 36,
                 padding: "8px 12px",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                background: "var(--bg)",
-                color: "var(--text)",
+                background: "var(--fx-surface-main)",
+                color: "var(--fx-text-primary)",
                 fontSize: "var(--text-body)",
                 fontVariantNumeric: "tabular-nums",
                 textAlign: "right",
@@ -221,7 +228,12 @@ export function SessionOrchestrationSettings() {
       {loadFailed && (
         <p
           role="alert"
-          style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+          style={{
+            margin: "8px 0 0",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.55,
+            color: "var(--fx-status-danger)",
+          }}
         >
           {t(
             "sessionCollaborationLoadFailed",
@@ -232,7 +244,12 @@ export function SessionOrchestrationSettings() {
       {saveFailed && (
         <p
           role="alert"
-          style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+          style={{
+            margin: "8px 0 0",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.55,
+            color: "var(--fx-status-danger)",
+          }}
         >
           {t(
             "sessionCollaborationSaveFailed",

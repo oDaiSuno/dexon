@@ -50,18 +50,18 @@ function RailButton({
         background: active ? "var(--bg-selected)" : "transparent",
         border: "none",
         borderRadius: "var(--radius-control)",
-        color: active ? "var(--text)" : "var(--text-muted)",
+        color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
         cursor: "pointer",
         transition:
           "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "var(--bg-hover)";
-        e.currentTarget.style.color = "var(--text)";
+        e.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = active ? "var(--bg-selected)" : "transparent";
-        e.currentTarget.style.color = active ? "var(--text)" : "var(--text-muted)";
+        e.currentTarget.style.color = active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
       }}
     >
       {children}
@@ -146,8 +146,8 @@ export function NavSidebar({
         className="app-nav"
         style={{
           width: NAV_RAIL_WIDTH,
-          background: "var(--bg-panel)",
-          borderRight: "1px solid var(--border)",
+          background: "var(--fx-surface-raised)",
+          borderRight: "1px solid var(--fx-line-default)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
@@ -209,8 +209,8 @@ export function NavSidebar({
       className="app-nav"
       style={{
         width: NAV_EXPANDED_WIDTH,
-        background: "var(--bg-panel)",
-        borderRight: "1px solid var(--border)",
+        background: "var(--fx-surface-raised)",
+        borderRight: "1px solid var(--fx-line-default)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
@@ -263,7 +263,7 @@ export function NavSidebar({
                 background: current ? "var(--bg-selected)" : "transparent",
                 border: "none",
                 borderRadius: "var(--radius-control)",
-                color: current ? "var(--text)" : "var(--text-muted)",
+                color: current ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 cursor: "pointer",
                 fontSize: "var(--text-body)",
                 fontWeight: current ? 500 : 400,
@@ -276,7 +276,13 @@ export function NavSidebar({
             >
               <span
                 aria-hidden="true"
-                style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--text-dim)" }}
+                style={{
+                  display: "inline-flex",
+                  width: 15,
+                  height: 15,
+                  flexShrink: 0,
+                  color: "var(--fx-text-tertiary)",
+                }}
               >
                 {entry.icon}
               </span>
@@ -298,7 +304,7 @@ export function NavSidebar({
 
       <div
         style={{
-          borderTop: "1px solid var(--border)",
+          borderTop: "1px solid var(--fx-line-default)",
           flex: "1 1 auto",
           minHeight: 0,
           display: "flex",
@@ -339,7 +345,7 @@ export function NavSidebar({
             background: "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
             cursor: "pointer",
             fontSize: "var(--text-body)",
             textAlign: "left",
@@ -348,16 +354,16 @@ export function NavSidebar({
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text)";
+            e.currentTarget.style.color = "var(--fx-text-primary)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.color = "var(--fx-text-secondary)";
           }}
         >
           <span
             aria-hidden="true"
-            style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--text-dim)" }}
+            style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--fx-text-tertiary)" }}
           >
             <SettingsIcon size={15} />
           </span>

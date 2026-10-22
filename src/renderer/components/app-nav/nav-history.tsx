@@ -40,18 +40,18 @@ function IconButton({
         background: "transparent",
         border: "none",
         borderRadius: "var(--radius-control)",
-        color: "var(--text-dim)",
+        color: "var(--fx-text-tertiary)",
         cursor: "pointer",
         transition:
           "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "var(--bg-hover)";
-        e.currentTarget.style.color = "var(--text)";
+        e.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = "transparent";
-        e.currentTarget.style.color = "var(--text-dim)";
+        e.currentTarget.style.color = "var(--fx-text-tertiary)";
       }}
     >
       {children}
@@ -131,7 +131,7 @@ export function NavHistory({
                 left: 9,
                 top: "50%",
                 transform: "translateY(-50%)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 pointerEvents: "none",
               }}
             >
@@ -155,10 +155,10 @@ export function NavHistory({
                 width: "100%",
                 height: 28,
                 padding: "0 28px 0 28px",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                background: "var(--bg-panel)",
-                color: "var(--text)",
+                background: "var(--fx-surface-raised)",
+                color: "var(--fx-text-primary)",
                 fontSize: "var(--text-body)",
                 outline: "none",
               }}
@@ -177,7 +177,7 @@ export function NavHistory({
                 border: 0,
                 borderRadius: "var(--radius-control)",
                 background: "transparent",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 fontSize: "var(--text-heading-lg)",
                 lineHeight: 1,
@@ -192,7 +192,7 @@ export function NavHistory({
               style={{
                 fontSize: "var(--text-label)",
                 fontWeight: 500,
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 flexShrink: 0,
               }}
             >
@@ -200,7 +200,7 @@ export function NavHistory({
             </span>
             <span
               aria-label={t("sessionCount", "{count} sessions").replace("{count}", String(filteredSessions.length))}
-              style={{ fontSize: "var(--text-meta)", color: "var(--text-dim)", flexShrink: 0 }}
+              style={{ fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", flexShrink: 0 }}
             >
               {filteredSessions.length}
             </span>

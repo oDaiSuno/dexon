@@ -1,9 +1,8 @@
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 const controlStyle = {
   borderRadius: "var(--radius-card)",
-  fontSize: scaledChatFont(11),
+  fontSize: 11,
   padding: "4px 12px",
 } as const;
 
@@ -36,8 +35,8 @@ export function OlderHistoryZone({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontSize: scaledChatFont(11),
-            color: "var(--danger)",
+            fontSize: 11,
+            color: "var(--fx-status-danger)",
           }}
         >
           <span>{t("earlierMessagesLoadFailed", "Earlier messages could not be loaded.")}</span>
@@ -46,9 +45,9 @@ export function OlderHistoryZone({
             onClick={onLoad}
             style={{
               ...controlStyle,
-              border: "1px solid var(--danger-border)",
-              background: "var(--bg-panel)",
-              color: "var(--danger)",
+              border: "1px solid var(--fx-status-danger-border)",
+              background: "var(--fx-surface-raised)",
+              color: "var(--fx-status-danger)",
               cursor: "pointer",
             }}
           >
@@ -62,9 +61,9 @@ export function OlderHistoryZone({
           onClick={onLoad}
           style={{
             ...controlStyle,
-            border: "1px solid var(--border)",
-            background: "var(--bg-panel)",
-            color: "var(--text-muted)",
+            border: "1px solid var(--fx-line-default)",
+            background: "var(--fx-surface-raised)",
+            color: "var(--fx-text-secondary)",
             cursor: loadingOlder ? "default" : "pointer",
           }}
         >

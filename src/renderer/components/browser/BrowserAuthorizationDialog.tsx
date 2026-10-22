@@ -102,9 +102,9 @@ export function BrowserAuthorizationDialog({
           display: "grid",
           gap: 16,
           padding: "24px",
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
           boxShadow: "0 24px 80px rgba(0,0,0,0.35)",
         }}
       >
@@ -114,7 +114,12 @@ export function BrowserAuthorizationDialog({
           </h2>
           <p
             id="browser-agent-authorization-description"
-            style={{ margin: "8px 0 0", color: "var(--text-muted)", fontSize: "var(--text-body)", lineHeight: 1.55 }}
+            style={{
+              margin: "8px 0 0",
+              color: "var(--fx-text-secondary)",
+              fontSize: "var(--text-body)",
+              lineHeight: 1.55,
+            }}
           >
             {t(
               "browserAuthorizationDescription",
@@ -131,29 +136,29 @@ export function BrowserAuthorizationDialog({
             fontSize: "var(--text-body)",
           }}
         >
-          <dt style={{ color: "var(--text-muted)" }}>{t("browserAuthorizationSession", "Session")}</dt>
+          <dt style={{ color: "var(--fx-text-secondary)" }}>{t("browserAuthorizationSession", "Session")}</dt>
           <dd style={{ margin: 0, overflowWrap: "anywhere" }}>{sessionTitle}</dd>
-          <dt style={{ color: "var(--text-muted)" }}>{t("browserAuthorizationSource", "Source")}</dt>
+          <dt style={{ color: "var(--fx-text-secondary)" }}>{t("browserAuthorizationSource", "Source")}</dt>
           <dd style={{ margin: 0 }}>
             {request.source === "channel"
               ? t("browserAuthorizationSourceChannel", "Approved messaging channel")
               : t("browserAuthorizationSourceLocal", "Local desktop session")}
           </dd>
-          <dt style={{ color: "var(--text-muted)" }}>{t("browserAuthorizationPermission", "Permission")}</dt>
+          <dt style={{ color: "var(--fx-text-secondary)" }}>{t("browserAuthorizationPermission", "Permission")}</dt>
           <dd style={{ margin: 0 }}>{permissionLabel}</dd>
         </dl>
         <div
           style={{
             padding: 12,
             borderRadius: "var(--radius-card)",
-            background: "color-mix(in srgb, var(--accent) 8%, var(--bg))",
+            background: "color-mix(in srgb, var(--fx-accent-blue) 8%, var(--fx-surface-main))",
             fontSize: "var(--text-body)",
             lineHeight: 1.55,
           }}
         >
           {capability}
         </div>
-        <div style={{ color: "var(--text-muted)", fontSize: "var(--text-label)", lineHeight: 1.55 }}>
+        <div style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.55 }}>
           {t(
             "browserAuthorizationSessionOnly",
             "Allowing here lasts only for this running Agent session. Permanent permissions can only be saved in Browser settings.",
@@ -178,16 +183,16 @@ export function BrowserAuthorizationDialog({
 const buttonStyle: CSSProperties = {
   minHeight: 34,
   padding: "0 12px",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-primary)",
   cursor: "pointer",
 };
 
 const primaryButtonStyle: CSSProperties = {
   ...buttonStyle,
   borderColor: "transparent",
-  background: "var(--btn-bg)",
-  color: "var(--btn-fg)",
+  background: "var(--fx-accent-blue-fill)",
+  color: "var(--fx-text-on-accent)",
 };

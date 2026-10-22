@@ -39,19 +39,19 @@ export function findInstalledPackage(
 }
 
 export function statusColor(status: PluginPackageInfo["status"]): string {
-  if (status === "loaded") return "var(--accent)";
-  if (status === "installed") return "var(--warning)";
-  if (status === "disabled") return "var(--text-dim)";
-  return "var(--danger)";
+  if (status === "loaded") return "var(--fx-accent-blue)";
+  if (status === "installed") return "var(--fx-status-warning)";
+  if (status === "disabled") return "var(--fx-text-tertiary)";
+  return "var(--fx-status-danger)";
 }
 
 export function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties {
   return {
     padding: "8px 12px",
     background: danger ? "rgba(239,68,68,0.08)" : "none",
-    border: "1px solid var(--border)",
+    border: "1px solid var(--fx-line-default)",
     borderRadius: "var(--radius-control)",
-    color: danger ? "var(--danger)" : "var(--text-muted)",
+    color: danger ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
     cursor: disabled ? "not-allowed" : "pointer",
     fontSize: "var(--text-label)",
     opacity: disabled ? 0.5 : 1,

@@ -2,7 +2,6 @@ import { useI18n } from "@/i18n";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { requestOpenSession } from "@/lib/session-open-request";
 import type { SessionSourceRef, SessionToolTargetDetails } from "@shared/session-orchestration";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 function HandoffGlyph({ color }: { color: string }) {
   return (
@@ -43,11 +42,11 @@ export function SessionSourceChip({ source }: { source: SessionSourceRef }) {
         marginBottom: 6,
         padding: "1px 7px 1px 6px",
         border: "1px solid color-mix(in srgb, currentColor 22%, transparent)",
-        borderRadius: "var(--bui-r-chip)",
+        borderRadius: "var(--radius-chip)",
         background: "color-mix(in srgb, currentColor 8%, transparent)",
         color: "inherit",
         cursor: "pointer",
-        fontSize: scaledChatFont(11),
+        fontSize: 11,
         lineHeight: 1.6,
         opacity: 0.85,
         transition: "opacity var(--duration-quick) var(--ease-out)",
@@ -83,22 +82,22 @@ export function SessionTargetLink({ target }: { target: SessionToolTargetDetails
         maxWidth: "100%",
         marginTop: 2,
         padding: "1px 7px 1px 6px",
-        border: "1px solid var(--bui-line)",
-        borderRadius: "var(--bui-r-chip)",
+        border: "1px solid var(--fx-line-default)",
+        borderRadius: "var(--radius-chip)",
         background: "transparent",
-        color: "var(--bui-ink-2)",
+        color: "var(--fx-text-secondary)",
         cursor: "pointer",
-        fontSize: scaledChatFont(11),
+        fontSize: 11,
         lineHeight: 1.7,
         transition: "background var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
       }}
       onMouseEnter={(event) => {
-        event.currentTarget.style.background = "var(--bui-hover-2)";
-        event.currentTarget.style.color = "var(--bui-ink)";
+        event.currentTarget.style.background = "var(--fx-surface-hover-overlay-strong)";
+        event.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(event) => {
         event.currentTarget.style.background = "transparent";
-        event.currentTarget.style.color = "var(--bui-ink-2)";
+        event.currentTarget.style.color = "var(--fx-text-secondary)";
       }}
     >
       <HandoffGlyph color="currentColor" />

@@ -24,19 +24,19 @@ function formatDuration(startedAt: number | undefined, stoppedAt: number | undef
 }
 
 function stateColor(process: ManagedProcessPublicInfo): string {
-  if (process.state === "ready") return "var(--success)";
-  if (isManagedProcessActiveState(process.state)) return "var(--info)";
-  if (process.state === "exited" && process.exit?.code === 0) return "var(--text-dim)";
-  if (process.state === "killed" || process.state === "reaped") return "var(--warning)";
-  return "var(--danger)";
+  if (process.state === "ready") return "var(--fx-status-success)";
+  if (isManagedProcessActiveState(process.state)) return "var(--fx-accent-blue)";
+  if (process.state === "exited" && process.exit?.code === 0) return "var(--fx-text-tertiary)";
+  if (process.state === "killed" || process.state === "reaped") return "var(--fx-status-warning)";
+  return "var(--fx-status-danger)";
 }
 
 const buttonStyle = {
   height: 28,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg-panel)",
-  color: "var(--text-muted)",
+  background: "var(--fx-surface-raised)",
+  color: "var(--fx-text-secondary)",
   padding: "0 8px",
   fontSize: "var(--text-meta)",
   cursor: "pointer",
@@ -218,22 +218,30 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
           role="alert"
           style={{
             padding: "8px 12px",
-            color: "var(--danger)",
+            color: "var(--fx-status-danger)",
             fontSize: "var(--text-meta)",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: "1px solid var(--fx-line-default)",
           }}
         >
           {error}
         </div>
       )}
       <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 32%) minmax(0, 1fr)", flex: 1, minHeight: 0 }}>
-        <div style={{ borderRight: "1px solid var(--border)", overflowY: "auto", background: "var(--bg-panel)" }}>
+        <div
+          style={{
+            borderRight: "1px solid var(--fx-line-default)",
+            overflowY: "auto",
+            background: "var(--fx-surface-raised)",
+          }}
+        >
           {loading ? (
-            <div style={{ padding: 16, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
+            <div style={{ padding: 16, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
               {t("loading", "Loading…")}
             </div>
           ) : processes.length === 0 ? (
-            <div style={{ padding: 16, color: "var(--text-dim)", fontSize: "var(--text-label)", lineHeight: 1.6 }}>
+            <div
+              style={{ padding: 16, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}
+            >
               {t("noManagedProcesses", "No managed processes")}
             </div>
           ) : (
@@ -245,9 +253,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 style={{
                   width: "100%",
                   border: "none",
-                  borderBottom: "1px solid var(--border)",
-                  background: selectedId === process.processId ? "var(--bg)" : "transparent",
-                  color: "var(--text)",
+                  borderBottom: "1px solid var(--fx-line-default)",
+                  background: selectedId === process.processId ? "var(--fx-surface-main)" : "transparent",
+                  color: "var(--fx-text-primary)",
                   padding: "12px",
                   textAlign: "left",
                   cursor: "pointer",
@@ -273,7 +281,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   style={{
                     marginTop: 4,
                     fontSize: "var(--text-micro)",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     display: "flex",
                     justifyContent: "space-between",
                   }}
@@ -286,7 +294,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     style={{
                       marginTop: 8,
                       fontSize: "var(--text-micro)",
-                      color: "var(--text-dim)",
+                      color: "var(--fx-text-tertiary)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
                       whiteSpace: "nowrap",
@@ -302,7 +310,14 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
 
         {selected ? (
           <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
-            <div style={{ padding: "12px 12px", borderBottom: "1px solid var(--border)", display: "grid", gap: 8 }}>
+            <div
+              style={{
+                padding: "12px 12px",
+                borderBottom: "1px solid var(--fx-line-default)",
+                display: "grid",
+                gap: 8,
+              }}
+            >
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <strong
                   style={{
@@ -315,14 +330,14 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   {selected.label}
                 </strong>
                 <span style={{ color: stateColor(selected), fontSize: "var(--text-meta)" }}>{selected.state}</span>
-                <span style={{ marginLeft: "auto", color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
+                <span style={{ marginLeft: "auto", color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
                   run {selected.generation}
                 </span>
               </div>
               <div
                 title={selected.commandDisplay}
                 style={{
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontFamily: "var(--font-mono)",
                   fontSize: "var(--text-micro)",
                   overflow: "hidden",
@@ -332,15 +347,18 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
               >
                 {selected.commandDisplay}
               </div>
-              <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)" }}>
+              <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
                 {selected.cwdDisplay} · {selected.kind} · {selected.readiness}
                 {selected.exit ? ` · exit ${selected.exit.code ?? selected.exit.signal ?? "unknown"}` : ""}
               </div>
-              <div style={{ color: "var(--text-dim)", fontSize: "var(--text-micro)" }} title={selected.ownerSessionId}>
+              <div
+                style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}
+                title={selected.ownerSessionId}
+              >
                 {t("ownerTask", "Owner task")}: {selected.ownerSessionId.slice(-12)}
               </div>
               {selected.networkWarnings.map((warning) => (
-                <div key={warning} style={{ color: "var(--warning)", fontSize: "var(--text-micro)" }}>
+                <div key={warning} style={{ color: "var(--fx-status-warning)", fontSize: "var(--text-micro)" }}>
                   {warning === "Process may be reachable from the local network"
                     ? t("managedProcessLanWarning", "Process may be reachable from the local network")
                     : warning}
@@ -351,9 +369,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   role="alert"
                   style={{
                     padding: 8,
-                    border: "1px solid var(--danger-border)",
+                    border: "1px solid var(--fx-status-danger-border)",
                     borderRadius: "var(--radius-control)",
-                    color: "var(--danger)",
+                    color: "var(--fx-status-danger)",
                     fontSize: "var(--text-meta)",
                   }}
                 >
@@ -493,7 +511,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 padding: "8px 8px",
                 display: "flex",
                 gap: 8,
-                borderBottom: "1px solid var(--border)",
+                borderBottom: "1px solid var(--fx-line-default)",
                 alignItems: "center",
                 flexWrap: "wrap",
               }}
@@ -506,10 +524,10 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   flex: 1,
                   minWidth: 100,
                   height: 26,
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  background: "var(--bg)",
-                  color: "var(--text)",
+                  background: "var(--fx-surface-main)",
+                  color: "var(--fx-text-primary)",
                   padding: "0 8px",
                   fontSize: "var(--text-meta)",
                 }}
@@ -519,7 +537,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   key={stream}
                   style={{
                     fontSize: "var(--text-micro)",
-                    color: "var(--text-muted)",
+                    color: "var(--fx-text-secondary)",
                     display: "flex",
                     gap: 4,
                     alignItems: "center",
@@ -573,13 +591,13 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                   style={{
                     color:
                       record.stream === "stderr"
-                        ? "var(--danger)"
+                        ? "var(--fx-status-danger)"
                         : record.stream === "system"
-                          ? "var(--warning)"
-                          : "var(--text-muted)",
+                          ? "var(--fx-status-warning)"
+                          : "var(--fx-text-secondary)",
                   }}
                 >
-                  <span style={{ color: "var(--text-dim)" }}>[{record.stream}] </span>
+                  <span style={{ color: "var(--fx-text-tertiary)" }}>[{record.stream}] </span>
                   {record.text}
                 </div>
               ))}
@@ -609,7 +627,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     setStdin("");
                   });
                 }}
-                style={{ padding: 8, borderTop: "1px solid var(--border)", display: "flex", gap: 8 }}
+                style={{ padding: 8, borderTop: "1px solid var(--fx-line-default)", display: "flex", gap: 8 }}
               >
                 <input
                   value={stdin}
@@ -619,10 +637,10 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     flex: 1,
                     minWidth: 0,
                     height: 28,
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "var(--radius-control)",
-                    background: "var(--bg)",
-                    color: "var(--text)",
+                    background: "var(--fx-surface-main)",
+                    color: "var(--fx-text-primary)",
                     padding: "0 8px",
                     fontSize: "var(--text-meta)",
                   }}
@@ -654,7 +672,12 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
           </div>
         ) : (
           <div
-            style={{ display: "grid", placeItems: "center", color: "var(--text-dim)", fontSize: "var(--text-label)" }}
+            style={{
+              display: "grid",
+              placeItems: "center",
+              color: "var(--fx-text-tertiary)",
+              fontSize: "var(--text-label)",
+            }}
           >
             {t("noManagedProcesses", "No managed processes")}
           </div>

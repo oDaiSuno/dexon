@@ -117,8 +117,10 @@ export function App() {
     return (
       <div style={centerStyle}>
         <div style={{ ...cardStyle, textAlign: "center" }}>
-          <div style={{ fontSize: "var(--text-body)", color: "var(--text-muted)", marginBottom: 8 }}>{status}</div>
-          <div style={{ fontSize: "var(--text-label)", color: "var(--text-dim)" }}>Dexon</div>
+          <div style={{ fontSize: "var(--text-body)", color: "var(--fx-text-secondary)", marginBottom: 8 }}>
+            {status}
+          </div>
+          <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-tertiary)" }}>Dexon</div>
         </div>
       </div>
     );
@@ -141,15 +143,15 @@ const centerStyle: CSSProperties = {
   alignItems: "center",
   justifyContent: "center",
   padding: 32,
-  background: "var(--bg)",
-  color: "var(--text)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-primary)",
   fontFamily: "var(--font-sans)",
 };
 
 const cardStyle: CSSProperties = {
   maxWidth: 520,
-  background: "var(--bg-panel)",
-  border: "1px solid var(--border)",
+  background: "var(--fx-surface-raised)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: 12,
   padding: "28px 32px",
 };
@@ -163,7 +165,7 @@ const titleStyle: CSSProperties = {
 const bodyStyle: CSSProperties = {
   fontSize: "var(--text-body)",
   lineHeight: 1.55,
-  color: "var(--text-muted)",
+  color: "var(--fx-text-secondary)",
   margin: "0 0 8px",
 };
 
@@ -171,9 +173,9 @@ const preStyle: CSSProperties = {
   fontSize: "var(--text-meta)",
   overflow: "auto",
   maxHeight: 200,
-  background: "var(--tool-bg)",
-  color: "var(--tool-fg)",
-  border: "1px solid var(--tool-border)",
+  background: "var(--fx-surface-inset)",
+  color: "var(--fx-text-body)",
+  border: "1px solid var(--fx-line-default)",
   fontFamily: "var(--font-mono)",
   padding: 12,
   borderRadius: "var(--radius-card)",
@@ -183,15 +185,15 @@ const btnPrimary: CSSProperties = {
   marginTop: 16,
   padding: "8px 16px",
   borderRadius: "var(--radius-card)",
-  border: "1px solid var(--border)",
-  background: "var(--user-bg)",
-  color: "var(--user-fg)",
+  border: "1px solid var(--fx-line-default)",
+  background: "var(--fx-surface-card)",
+  color: "var(--fx-text-primary)",
   cursor: "pointer",
 };
 
 const btnSecondary: CSSProperties = {
   ...btnPrimary,
   marginLeft: 8,
-  background: "var(--bg-panel)",
-  color: "var(--text)",
+  background: "var(--fx-surface-raised)",
+  color: "var(--fx-text-primary)",
 };

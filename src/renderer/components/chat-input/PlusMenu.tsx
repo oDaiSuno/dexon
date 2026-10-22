@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { GlideHighlight } from "./GlideHighlight";
 
 /**
@@ -35,8 +34,8 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-raised)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: 10,
         boxShadow:
           "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
@@ -90,7 +89,7 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
             }}
           >
             {row.icon}
@@ -98,9 +97,9 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
           <span
             style={{
               flexShrink: 0,
-              fontSize: scaledChatFont(12.5),
+              fontSize: 12.5,
               fontWeight: 500,
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
             }}
           >
             {row.name}
@@ -109,8 +108,8 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
             style={{
               minWidth: 0,
               flex: 1,
-              fontSize: scaledChatFont(12),
-              color: "var(--text-dim)",
+              fontSize: 12,
+              color: "var(--fx-text-tertiary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",

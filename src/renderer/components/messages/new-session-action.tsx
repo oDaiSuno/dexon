@@ -1,5 +1,3 @@
-import { scaledChatFont } from "@/lib/chat-appearance";
-
 export function NewSessionAction({
   entryId,
   onFork,
@@ -26,10 +24,10 @@ export function NewSessionAction({
         height: 24,
         background: "none",
         border: "none",
-        borderRadius: "var(--bui-r-chip)",
-        color: forking ? "var(--bui-accent)" : "var(--bui-ink-3)",
+        borderRadius: "var(--radius-chip)",
+        color: forking ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)",
         cursor: forking ? "not-allowed" : "pointer",
-        fontSize: scaledChatFont(11),
+        fontSize: 11,
         fontWeight: 400,
         whiteSpace: "nowrap",
         opacity: hovered || forking ? 1 : 0,
@@ -37,10 +35,10 @@ export function NewSessionAction({
         transition: "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
       }}
       onMouseEnter={(e) => {
-        if (!forking) e.currentTarget.style.color = "var(--bui-accent)";
+        if (!forking) e.currentTarget.style.color = "var(--fx-accent-blue-text)";
       }}
       onMouseLeave={(e) => {
-        if (!forking) e.currentTarget.style.color = "var(--bui-ink-3)";
+        if (!forking) e.currentTarget.style.color = "var(--fx-text-tertiary)";
       }}
     >
       <svg

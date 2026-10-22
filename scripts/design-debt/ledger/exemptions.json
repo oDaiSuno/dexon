@@ -1,6 +1,40 @@
 {
   "lane": "永久豁免",
-  "entries": [
+  "permanent": true,
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "property": "font-size",
+      "count": 19,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "property": "font-weight",
+      "count": 8,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "property": "letter-spacing",
+      "count": 1,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "property": "line-height",
+      "count": 9,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/base.css",
+      "property": "font-size",
+      "count": 1,
+      "reason": "页面根节点的默认字号，只作为浏览器兜底，可见文字都应套 .type-* 类"
+    }
+  ],
+  "colors": [
     {
       "file": "src/main/browser/browser-tab-manager.ts",
       "color": "#f59e0b",

@@ -9,10 +9,10 @@
   gap: 6px;
   min-height: 32px;
   padding: 0 var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--fx-line-default);
   border-radius: var(--radius-control);
-  background: var(--bg-card);
-  color: var(--text);
+  background: var(--fx-surface-card);
+  color: var(--fx-text-primary);
   font: inherit;
   font-size: var(--text-body);
   font-weight: var(--weight-medium);
@@ -26,32 +26,32 @@
 }
 .ui-button > svg {
   flex-shrink: 0;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
 }
 .ui-button:hover:not(:disabled) {
-  background: var(--bg-neutral-selected);
+  background: var(--fx-surface-selected);
 }
 .ui-button[data-variant="primary"] {
-  border-color: var(--border-translucent);
-  background: var(--btn-bg);
-  color: var(--btn-fg);
+  border-color: var(--fx-line-translucent);
+  background: var(--fx-accent-blue-fill);
+  color: var(--fx-text-on-accent);
 }
 .ui-button[data-variant="primary"] > svg {
   color: currentColor;
 }
 .ui-button[data-variant="primary"]:hover:not(:disabled) {
-  background: var(--btn-bg-hover);
+  background: var(--fx-accent-blue-fill-hover);
 }
 .ui-button[data-variant="danger"] {
-  border-color: var(--danger-border);
-  background: var(--danger-soft);
-  color: var(--danger-text);
+  border-color: var(--fx-status-danger-border);
+  background: var(--fx-status-danger-soft);
+  color: var(--fx-status-danger-text);
 }
 .ui-button[data-variant="danger"] > svg {
   color: currentColor;
 }
 .ui-button[data-variant="danger"]:hover:not(:disabled) {
-  background: var(--danger-soft-strong);
+  background: var(--fx-status-danger-soft-strong);
 }
 .ui-button[data-variant="ghost"] {
   border-color: transparent;
@@ -73,10 +73,10 @@
   width: 100%;
   min-height: 32px;
   padding: 0 var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--fx-line-default);
   border-radius: var(--radius-control);
-  background: var(--bg-inset);
-  color: var(--text);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-primary);
   font: inherit;
   font-size: var(--text-body);
   line-height: var(--leading-normal);
@@ -91,12 +91,12 @@
   font-size: var(--text-label);
 }
 .ui-input::placeholder {
-  color: var(--text-dim);
+  color: var(--fx-text-tertiary);
 }
 .ui-input:focus-visible,
 .ui-select:focus-visible {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  border-color: var(--fx-accent-blue);
+  box-shadow: 0 0 0 3px var(--fx-accent-blue-soft);
   outline: none !important;
 }
 .ui-input:disabled,
@@ -109,8 +109,8 @@
   appearance: none;
   padding-right: 32px;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--text-dim) 50%),
-    linear-gradient(135deg, var(--text-dim) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--fx-text-tertiary) 50%),
+    linear-gradient(135deg, var(--fx-text-tertiary) 50%, transparent 50%);
   background-position:
     calc(100% - 15px) 50%,
     calc(100% - 11px) 50%;
@@ -122,7 +122,7 @@
   background-color: var(--bg-hover);
 }
 .ui-select[data-empty="true"] {
-  color: var(--text-dim);
+  color: var(--fx-text-tertiary);
 }
 
 .ui-toggle {
@@ -135,7 +135,7 @@
   padding: 2px;
   border: none;
   border-radius: 10px;
-  background: var(--bg-track);
+  background: var(--fx-surface-track);
   cursor: pointer;
   appearance: none;
   transition: background-color var(--duration-quick) var(--ease-out);
@@ -145,18 +145,18 @@
   width: 16px;
   height: 16px;
   border-radius: 8px;
-  background: var(--control-thumb-off);
+  background: var(--fx-control-thumb-off);
   box-shadow: 0 1px 2px 0 var(--fx-shadow-strong);
   transition:
     transform var(--duration-quick) var(--ease-smooth-out),
     background-color var(--duration-quick) var(--ease-out);
 }
 .ui-toggle:checked {
-  background: var(--accent-fill);
+  background: var(--fx-accent-blue-fill);
 }
 .ui-toggle:checked::before {
   transform: translateX(16px);
-  background: var(--control-thumb);
+  background: var(--fx-control-thumb);
 }
 .ui-toggle:disabled {
   opacity: 0.5;
@@ -171,7 +171,7 @@
   align-items: center;
   gap: 7px;
   min-height: 20px;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   font-size: var(--text-label);
   font-weight: var(--weight-medium);
   line-height: var(--leading-normal);
@@ -183,29 +183,29 @@
   width: 6px;
   height: 6px;
   border-radius: 3px;
-  background: var(--text-dim);
+  background: var(--fx-text-tertiary);
 }
 .ui-badge[data-tone="success"]::before {
-  background: var(--success);
-  box-shadow: 0 0 0 3px var(--success-soft);
+  background: var(--fx-status-success);
+  box-shadow: 0 0 0 3px var(--fx-status-success-soft);
 }
 .ui-badge[data-tone="warning"]::before {
-  background: var(--warning);
-  box-shadow: 0 0 0 3px var(--warning-soft);
+  background: var(--fx-status-warning);
+  box-shadow: 0 0 0 3px var(--fx-status-warning-soft);
 }
 .ui-badge[data-tone="danger"]::before {
-  background: var(--danger);
-  box-shadow: 0 0 0 3px var(--danger-soft);
+  background: var(--fx-status-danger);
+  box-shadow: 0 0 0 3px var(--fx-status-danger-soft);
 }
 .ui-badge[data-tone="running"]::before {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
+  background: var(--fx-accent-blue);
+  box-shadow: 0 0 0 3px var(--fx-accent-blue-soft);
 }
 .ui-badge:is([data-tone="neutral"], [data-tone="accent"]) {
   gap: 0;
   padding: 0 6px;
   border-radius: 5px;
-  background: var(--bg-card);
+  background: var(--fx-surface-card);
   font-family: var(--font-mono);
   font-size: var(--text-meta);
   font-weight: var(--weight-regular);
@@ -214,8 +214,8 @@
   display: none;
 }
 .ui-badge[data-tone="accent"] {
-  background: var(--accent-soft);
-  color: var(--accent-text);
+  background: var(--fx-accent-blue-soft);
+  color: var(--fx-accent-blue-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

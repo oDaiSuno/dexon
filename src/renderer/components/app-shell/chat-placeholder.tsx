@@ -14,7 +14,7 @@ export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           fontSize: "var(--text-title)",
         }}
       >
@@ -41,7 +41,7 @@ export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
         height="44"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="var(--accent)"
+        stroke="var(--fx-accent-blue)"
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -55,17 +55,17 @@ export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
           style={{
             fontSize: "var(--text-heading-lg)",
             fontWeight: 600,
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
             marginBottom: 8,
           }}
         >
           {t("getStarted", "Get Started")}
         </div>
-        <div style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.8 }}>
-          <span style={{ color: "var(--text-dim)", marginRight: 8 }}>1.</span>
+        <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.8 }}>
+          <span style={{ color: "var(--fx-text-tertiary)", marginRight: 8 }}>1.</span>
           {t("selectProject", "Select a project directory from the sidebar")}
           <br />
-          <span style={{ color: "var(--text-dim)", marginRight: 8 }}>2.</span>
+          <span style={{ color: "var(--fx-text-tertiary)", marginRight: 8 }}>2.</span>
           {t("addModelsFromSettings", "Open Settings at the bottom, then add models")}
         </div>
       </div>

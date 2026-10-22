@@ -13,7 +13,7 @@ export const sessionMenuItemStyle: CSSProperties = {
   border: 0,
   borderRadius: "var(--radius-control)",
   background: "transparent",
-  color: "var(--text-muted)",
+  color: "var(--fx-text-secondary)",
   cursor: "pointer",
   fontSize: "var(--text-body)",
   textAlign: "left",
@@ -24,11 +24,11 @@ export const sessionMenuItemStyle: CSSProperties = {
 export const sessionMenuItemHandlers = {
   onMouseEnter: (e: ReactMouseEvent<HTMLElement>) => {
     e.currentTarget.style.background = "var(--bg-hover)";
-    e.currentTarget.style.color = "var(--text)";
+    e.currentTarget.style.color = "var(--fx-text-primary)";
   },
   onMouseLeave: (e: ReactMouseEvent<HTMLElement>) => {
     e.currentTarget.style.background = "transparent";
-    e.currentTarget.style.color = "var(--text-muted)";
+    e.currentTarget.style.color = "var(--fx-text-secondary)";
   },
 };
 
@@ -63,9 +63,9 @@ export function SessionItemActionsMenu({
         transformOrigin: "top right",
         minWidth: 132,
         padding: 4,
-        border: "1px solid var(--border)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
-        background: "var(--bg)",
+        background: "var(--fx-surface-main)",
         boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
       }}
     >
@@ -98,7 +98,7 @@ export function SessionItemActionsMenu({
         className="session-menu-item"
         onClick={onDelete}
         {...dangerMenuItemHandlers}
-        style={{ ...sessionMenuItemStyle, color: "var(--danger)" }}
+        style={{ ...sessionMenuItemStyle, color: "var(--fx-status-danger)" }}
       >
         <svg
           width="14"
@@ -140,7 +140,7 @@ export function SessionItemDeleteConfirm({
           flex: 1,
           minWidth: 0,
           fontSize: "var(--text-label)",
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           overflow: "hidden",
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -161,10 +161,10 @@ export function SessionItemDeleteConfirm({
             gap: 4,
             height: 24,
             padding: "0 10px",
-            background: "var(--danger)",
+            background: "var(--fx-status-danger)",
             border: "none",
             borderRadius: "var(--radius-control)",
-            color: "var(--on-danger)",
+            color: "var(--fx-text-on-danger)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
             fontWeight: 600,
@@ -196,10 +196,10 @@ export function SessionItemDeleteConfirm({
             justifyContent: "center",
             height: 24,
             padding: "0 10px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
+            background: "var(--fx-surface-main)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-control)",
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
             fontWeight: 500,

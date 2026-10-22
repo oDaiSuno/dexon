@@ -1,5 +1,4 @@
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { SLASH_SOURCE_GROUP_LABEL, type SlashCommandPaletteItem, type SlashCommandSource } from "./slash-commands";
 
 export interface SlashCommandGroup {
@@ -39,8 +38,8 @@ export function SlashMenu({
         bottom: "calc(100% + 8px)",
         zIndex: 120,
         transformOrigin: "bottom center",
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-main)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
         overflow: "hidden",
@@ -50,13 +49,13 @@ export function SlashMenu({
       <div
         style={{
           padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 8,
-          fontSize: scaledChatFont(11),
-          color: "var(--text-dim)",
+          fontSize: 11,
+          color: "var(--fx-text-tertiary)",
         }}
       >
         <span>
@@ -68,7 +67,7 @@ export function SlashMenu({
       </div>
       <div style={{ maxHeight: "calc(300px - 34px)", overflowY: "auto", padding: 12 }}>
         {isEmpty ? (
-          <div style={{ padding: "2px 2px 4px", fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>
+          <div style={{ padding: "2px 2px 4px", fontSize: 12, color: "var(--fx-text-tertiary)" }}>
             {t("noSlashCommandsFound", "No extension, prompt, or skill commands found")}
           </div>
         ) : (
@@ -84,9 +83,9 @@ export function SlashMenu({
                   justifyContent: "space-between",
                   gap: 8,
                   padding: "4px 0 8px",
-                  background: "var(--bg)",
-                  color: "var(--text-dim)",
-                  fontSize: scaledChatFont(10),
+                  background: "var(--fx-surface-main)",
+                  color: "var(--fx-text-tertiary)",
+                  fontSize: 10,
                   fontWeight: 600,
                   textTransform: "uppercase",
                 }}
@@ -127,7 +126,7 @@ export function SlashMenu({
                         border: "none",
                         borderRadius: "var(--radius-control)",
                         background: active ? "var(--bg-selected)" : "transparent",
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         cursor: "pointer",
                         textAlign: "left",
                         transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
@@ -135,7 +134,7 @@ export function SlashMenu({
                     >
                       <span
                         style={{
-                          fontSize: scaledChatFont(13),
+                          fontSize: 13,
                           fontFamily: "var(--font-mono)",
                           overflowWrap: "anywhere",
                           wordBreak: "break-word",
@@ -150,9 +149,9 @@ export function SlashMenu({
                             WebkitBoxOrient: "vertical",
                             WebkitLineClamp: 2,
                             overflow: "hidden",
-                            fontSize: scaledChatFont(11),
+                            fontSize: 11,
                             lineHeight: 1.35,
-                            color: "var(--text-dim)",
+                            color: "var(--fx-text-tertiary)",
                           }}
                         >
                           {command.description}

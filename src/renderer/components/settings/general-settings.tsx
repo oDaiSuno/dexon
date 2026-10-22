@@ -139,10 +139,17 @@ export function GeneralSettings({
   return (
     <div style={{ width: "100%", overflowY: "auto", padding: "28px clamp(20px, 5vw, 52px)" }}>
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
           {t("interfaceLanguage", "Interface language")}
         </h2>
-        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p
+          style={{
+            margin: "8px 0 16px",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.6,
+            color: "var(--fx-text-tertiary)",
+          }}
+        >
           {t("interfaceLanguageDescription", "Choose the language used by the app. Changes take effect immediately.")}
         </p>
         <SettingRow label={t("language", "Language")} controlId={languageControlId}>
@@ -159,13 +166,20 @@ export function GeneralSettings({
         </SettingRow>
       </section>
 
-      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+      <div style={{ height: 1, background: "var(--fx-line-default)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
           {t("managedProcesses", "Managed processes")}
         </h2>
-        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p
+          style={{
+            margin: "8px 0 16px",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.6,
+            color: "var(--fx-text-tertiary)",
+          }}
+        >
           {t(
             "managedProcessesDescription",
             "Let Agents run development servers and watchers under app-owned lifecycle control. Processes have the same local access as Bash and are not a sandbox.",
@@ -195,21 +209,40 @@ export function GeneralSettings({
           </label>
         </SettingRow>
         {managedProcessCapabilityMessage && (
-          <p style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-dim)" }}>
+          <p
+            style={{
+              margin: "8px 0 0",
+              fontSize: "var(--text-label)",
+              lineHeight: 1.55,
+              color: "var(--fx-text-tertiary)",
+            }}
+          >
             {managedProcessCapabilityMessage}
           </p>
         )}
         {managedProcessCapability?.ready &&
           managedProcessCapability.backend === "windows-job" &&
           managedProcessCapability.helperProvenance === "windows-native-dev" && (
-            <p style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--text-dim)" }}>
+            <p
+              style={{
+                margin: "8px 0 0",
+                fontSize: "var(--text-label)",
+                lineHeight: 1.55,
+                color: "var(--fx-text-tertiary)",
+              }}
+            >
               {t("managedProcessesDeveloperBuild", "Developer build — not a release-validated Windows helper.")}
             </p>
           )}
         {managedProcessesError && (
           <p
             role="alert"
-            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+            style={{
+              margin: "8px 0 0",
+              fontSize: "var(--text-label)",
+              lineHeight: 1.55,
+              color: "var(--fx-status-danger)",
+            }}
           >
             {managedProcessesError === "save"
               ? t(
@@ -224,17 +257,24 @@ export function GeneralSettings({
         )}
       </section>
 
-      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+      <div style={{ height: 1, background: "var(--fx-line-default)", maxWidth: 620, margin: "28px 0" }} />
 
       <SessionOrchestrationSettings />
 
-      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+      <div style={{ height: 1, background: "var(--fx-line-default)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
           {t("backgroundMode", "Background mode")}
         </h2>
-        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p
+          style={{
+            margin: "8px 0 16px",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.6,
+            color: "var(--fx-text-tertiary)",
+          }}
+        >
           {t("backgroundModeDescription", "Keep messaging channels connected when the window is closed.")}
         </p>
         <SettingRow label={t("closeToTray", "Close window to tray")} controlId={backgroundModeControlId}>
@@ -262,7 +302,12 @@ export function GeneralSettings({
         {backgroundModeError && (
           <p
             role="alert"
-            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+            style={{
+              margin: "8px 0 0",
+              fontSize: "var(--text-label)",
+              lineHeight: 1.55,
+              color: "var(--fx-status-danger)",
+            }}
           >
             {backgroundModeError === "save"
               ? t("backgroundModeSaveFailed", "Background mode could not be saved. The previous setting was restored.")
@@ -271,13 +316,20 @@ export function GeneralSettings({
         )}
       </section>
 
-      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+      <div style={{ height: 1, background: "var(--fx-line-default)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
           {t("conversationSettings", "Conversation")}
         </h2>
-        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p
+          style={{
+            margin: "8px 0 16px",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.6,
+            color: "var(--fx-text-tertiary)",
+          }}
+        >
           {t(
             "conversationSettingsDescription",
             "Control automatic titles, chat text size, and the conversation reading width.",
@@ -349,20 +401,32 @@ export function GeneralSettings({
         {chatAppearanceError && (
           <p
             role="alert"
-            style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
+            style={{
+              margin: "8px 0 0",
+              fontSize: "var(--text-label)",
+              lineHeight: 1.55,
+              color: "var(--fx-status-danger)",
+            }}
           >
             {t("chatAppearanceSaveFailed", "Chat appearance could not be saved. The previous settings were restored.")}
           </p>
         )}
       </section>
 
-      <div style={{ height: 1, background: "var(--border)", maxWidth: 620, margin: "28px 0" }} />
+      <div style={{ height: 1, background: "var(--fx-line-default)", maxWidth: 620, margin: "28px 0" }} />
 
       <section style={{ maxWidth: 620 }}>
-        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
           {t("appearance", "Appearance")}
         </h2>
-        <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
+        <p
+          style={{
+            margin: "8px 0 16px",
+            fontSize: "var(--text-label)",
+            lineHeight: 1.6,
+            color: "var(--fx-text-tertiary)",
+          }}
+        >
           {t("appearanceDescription", "Choose the color mode used by the app.")}
         </p>
         <SettingRow label={t("theme", "Theme")} controlId={themeControlId}>

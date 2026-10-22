@@ -139,7 +139,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
     return (
       <div style={emptyStyle}>
         <div>{t("browserDisabled", "Built-in Browser is disabled.")}</div>
-        <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)" }}>
           {t("browserEnableInSettings", "Enable it in Settings → Browser.")}
         </div>
       </div>
@@ -147,7 +147,15 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
   }
 
   return (
-    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)" }}>
+    <div
+      style={{
+        height: "100%",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        background: "var(--fx-surface-main)",
+      }}
+    >
       <div
         style={{
           display: "flex",
@@ -155,9 +163,9 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           gap: 4,
           minHeight: 34,
           padding: "4px 4px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           overflowX: "auto",
-          background: "var(--bg-panel)",
+          background: "var(--fx-surface-raised)",
         }}
       >
         {visibleTabs.map((tab) => (
@@ -174,9 +182,9 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
               alignItems: "center",
               gap: 4,
               padding: "0 8px",
-              background: tab.id === state.activeTabId ? "var(--bg)" : "transparent",
-              color: tab.crashed ? "var(--danger)" : "var(--text-muted)",
-              border: `1px solid ${tab.id === state.activeTabId ? "var(--border)" : "transparent"}`,
+              background: tab.id === state.activeTabId ? "var(--fx-surface-main)" : "transparent",
+              color: tab.crashed ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
+              border: `1px solid ${tab.id === state.activeTabId ? "var(--fx-line-default)" : "transparent"}`,
               borderRadius: "var(--radius-control)",
               cursor: "pointer",
               fontSize: "var(--text-micro)",
@@ -228,8 +236,8 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           alignItems: "center",
           gap: 4,
           padding: 4,
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-panel)",
+          borderBottom: "1px solid var(--fx-line-default)",
+          background: "var(--fx-surface-raised)",
         }}
       >
         <button
@@ -278,10 +286,10 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
               height: 29,
               boxSizing: "border-box",
               padding: "0 8px",
-              border: `1px solid ${activeTab?.url.startsWith("http:") ? "var(--warning-border)" : "var(--border)"}`,
+              border: `1px solid ${activeTab?.url.startsWith("http:") ? "var(--fx-status-warning-border)" : "var(--fx-line-default)"}`,
               borderRadius: "var(--radius-control)",
-              background: "var(--bg)",
-              color: "var(--text)",
+              background: "var(--fx-surface-main)",
+              color: "var(--fx-text-primary)",
               fontSize: "var(--text-meta)",
               outline: "none",
             }}
@@ -326,12 +334,12 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
             display: "grid",
             gap: 4,
             padding: "4px 8px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-panel)",
+            borderBottom: "1px solid var(--fx-line-default)",
+            background: "var(--fx-surface-raised)",
             fontSize: "var(--text-micro)",
           }}
         >
-          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
+          {error && <div style={{ color: "var(--fx-status-danger)" }}>{error}</div>}
           {state.permissionRequests.map((request) => (
             <PermissionPrompt key={request.id} request={request} onRespond={refresh} />
           ))}
@@ -344,7 +352,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
           <button style={primaryButtonStyle} onClick={() => void createTab()}>
             {t("browserOpenNewTab", "Open a new tab")}
           </button>
-          <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
+          <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)" }}>
             {t("browserRemotePageSecurity", "Remote pages receive no Pi Desktop preload or Node access.")}
           </div>
         </div>
@@ -374,10 +382,10 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
             alignItems: "center",
             gap: 8,
             padding: "0 8px",
-            borderTop: "1px solid var(--border)",
-            color: "var(--text-dim)",
+            borderTop: "1px solid var(--fx-line-default)",
+            color: "var(--fx-text-tertiary)",
             fontSize: "var(--text-micro)",
-            background: "var(--bg-panel)",
+            background: "var(--fx-surface-raised)",
           }}
         >
           <span>
@@ -411,7 +419,7 @@ function PermissionPrompt({
   const respond = (decision: "allow-once" | "allow-session" | "deny") =>
     void window.piBridge.browserRespondPermission(request.id, decision).then(onRespond);
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)" }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--fx-text-secondary)" }}>
       <span style={{ flex: 1 }}>
         {formatMessage(t("browserPermissionRequest", "{origin} requests {permission}"), {
           origin: request.origin,
@@ -436,7 +444,7 @@ function DownloadStatus({ download }: { download: BrowserDownloadInfo }) {
   const percent = download.totalBytes > 0 ? Math.round((download.receivedBytes / download.totalBytes) * 100) : null;
   const stateLabel = downloadStateLabel(t, download.state);
   return (
-    <div style={{ color: download.state === "interrupted" ? "var(--danger)" : "var(--text-dim)" }}>
+    <div style={{ color: download.state === "interrupted" ? "var(--fx-status-danger)" : "var(--fx-text-tertiary)" }}>
       {formatMessage(t("browserDownloadStatus", "Download {filename}: {state}{percent}"), {
         filename: download.filename,
         state: stateLabel,
@@ -452,8 +460,8 @@ function Badge({ children, danger }: { children: string; danger?: boolean }) {
       style={{
         padding: "1px 4px",
         borderRadius: "var(--radius-chip)",
-        color: danger ? "var(--danger)" : "var(--warning)",
-        border: `1px solid ${danger ? "var(--danger)" : "var(--warning)"}`,
+        color: danger ? "var(--fx-status-danger)" : "var(--fx-status-warning)",
+        border: `1px solid ${danger ? "var(--fx-status-danger)" : "var(--fx-status-warning)"}`,
         fontSize: "var(--text-micro)",
         fontWeight: 700,
       }}
@@ -544,7 +552,7 @@ const emptyStyle = {
   justifyContent: "center",
   padding: 20,
   textAlign: "center" as const,
-  color: "var(--text-muted)",
+  color: "var(--fx-text-secondary)",
   fontSize: "var(--text-meta)",
 };
 const iconButtonStyle = {
@@ -558,35 +566,35 @@ const iconButtonStyle = {
   border: "1px solid transparent",
   borderRadius: "var(--radius-control)",
   background: "transparent",
-  color: "var(--text-muted)",
+  color: "var(--fx-text-secondary)",
   cursor: "pointer",
   fontSize: "var(--text-body-lg)",
 };
 const selectStyle = {
   height: 29,
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text-muted)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-secondary)",
   fontSize: "var(--text-micro)",
 };
 const primaryButtonStyle = {
   minHeight: 32,
   padding: "0 12px",
-  border: "1px solid var(--accent)",
+  border: "1px solid var(--fx-accent-blue)",
   borderRadius: "var(--radius-control)",
-  background: "var(--accent-soft)",
-  color: "var(--accent)",
+  background: "var(--fx-accent-blue-soft)",
+  color: "var(--fx-accent-blue)",
   cursor: "pointer",
   fontSize: "var(--text-meta)",
 };
 const tinyButtonStyle = {
   minHeight: 22,
   padding: "0 8px",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-chip)",
-  background: "var(--bg)",
-  color: "var(--text-muted)",
+  background: "var(--fx-surface-main)",
+  color: "var(--fx-text-secondary)",
   cursor: "pointer",
   fontSize: "var(--text-micro)",
 };

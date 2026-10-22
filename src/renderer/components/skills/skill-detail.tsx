@@ -110,7 +110,7 @@ export const SkillDetail = forwardRef<
             borderRadius: "var(--radius-chip)",
             flexShrink: 0,
             background: label === "project" ? "rgba(99,102,241,0.12)" : "rgba(120,120,120,0.12)",
-            color: label === "project" ? "rgba(99,102,241,0.8)" : "var(--text-dim)",
+            color: label === "project" ? "rgba(99,102,241,0.8)" : "var(--fx-text-tertiary)",
           }}
         >
           {sourceLabelText(label, t)}
@@ -119,7 +119,7 @@ export const SkillDetail = forwardRef<
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-meta)",
-            color: "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             flex: 1,
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -130,19 +130,21 @@ export const SkillDetail = forwardRef<
         </span>
         <SkillToggle enabled={enabled} loading={toggling} onToggle={() => onToggle(skill)} />
         {saveError && (
-          <span style={{ fontSize: "var(--text-label)", color: "var(--danger)", flexShrink: 0 }}>{saveError}</span>
+          <span style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)", flexShrink: 0 }}>
+            {saveError}
+          </span>
         )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
+        <span style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", fontWeight: 500 }}>
           {t("name", "Name")}
         </span>
         <span
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: "var(--text-body-lg)",
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
           }}
         >
           {skill.name}
@@ -151,7 +153,7 @@ export const SkillDetail = forwardRef<
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8, minHeight: 260 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
+          <span style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", fontWeight: 500 }}>
             {t("skillFileName", "SKILL.md")}
           </span>
           <button
@@ -162,9 +164,9 @@ export const SkillDetail = forwardRef<
               minHeight: 32,
               padding: "0 12px",
               borderRadius: "var(--radius-control)",
-              border: "1px solid var(--border)",
-              background: content !== savedContent ? "var(--accent)" : "var(--bg-panel)",
-              color: content !== savedContent ? "var(--on-accent)" : "var(--text-dim)",
+              border: "1px solid var(--fx-line-default)",
+              background: content !== savedContent ? "var(--fx-accent-blue)" : "var(--fx-surface-raised)",
+              color: content !== savedContent ? "var(--fx-text-on-accent)" : "var(--fx-text-tertiary)",
               cursor: contentLoading || contentSaving || content === savedContent ? "default" : "pointer",
               fontSize: "var(--text-label)",
             }}
@@ -173,7 +175,7 @@ export const SkillDetail = forwardRef<
           </button>
         </div>
         {contentLoading ? (
-          <div style={{ padding: 12, color: "var(--text-dim)", fontSize: "var(--text-label)" }}>
+          <div style={{ padding: 12, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
             {t("loadingSkillFile", "Loading skill file…")}
           </div>
         ) : (
@@ -188,10 +190,10 @@ export const SkillDetail = forwardRef<
               flex: 1,
               minHeight: 240,
               resize: "vertical",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
-              background: "var(--bg-panel)",
-              color: "var(--text)",
+              background: "var(--fx-surface-raised)",
+              color: "var(--fx-text-primary)",
               padding: 12,
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-label)",
@@ -200,14 +202,16 @@ export const SkillDetail = forwardRef<
             }}
           />
         )}
-        {contentError && <span style={{ fontSize: "var(--text-meta)", color: "var(--danger)" }}>{contentError}</span>}
+        {contentError && (
+          <span style={{ fontSize: "var(--text-meta)", color: "var(--fx-status-danger)" }}>{contentError}</span>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <span style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}>
+        <span style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", fontWeight: 500 }}>
           {t("description", "Description")}
         </span>
-        <span style={{ fontSize: "var(--text-body-lg)", color: "var(--text-muted)", lineHeight: 1.6 }}>
+        <span style={{ fontSize: "var(--text-body-lg)", color: "var(--fx-text-secondary)", lineHeight: 1.6 }}>
           {skill.description}
         </span>
       </div>

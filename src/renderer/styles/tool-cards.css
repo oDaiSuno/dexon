@@ -8,20 +8,20 @@
   --tool-body-max: min(42vh, 420px, max(calc(var(--space-10) * 2), calc(100dvh - var(--tool-layout-reserve))));
   min-width: 0;
   margin-bottom: var(--space-3);
-  font-size: calc(var(--text-body) * var(--chat-font-scale, 1));
+  font-size: var(--text-body);
   line-height: 1.5;
-  color: var(--text);
+  color: var(--fx-text-primary);
 }
 .tool-card {
   min-width: 0;
-  background: var(--bg-panel);
+  background: var(--fx-surface-raised);
   border-radius: var(--radius-composer);
-  box-shadow: var(--bui-shadow-card);
+  box-shadow: var(--shadow-hairline-card);
   overflow: hidden;
 }
 .tool-card :is(button, input, textarea, summary, pre):focus-visible,
 .tool-card:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--fx-accent-blue);
   outline-offset: -2px;
 }
 .tool-card-header,
@@ -34,8 +34,8 @@
   padding: var(--space-3) var(--space-4);
 }
 .tool-card-header {
-  font-size: calc(var(--text-label) * var(--chat-font-scale, 1));
-  border-bottom: 1px solid var(--border);
+  font-size: var(--text-label);
+  border-bottom: 1px solid var(--fx-line-default);
 }
 .tool-card-status {
   flex: 1;
@@ -44,13 +44,13 @@
 }
 .tool-card[data-state="failed"] .tool-card-status,
 .tool-card[data-state="expired"] .tool-card-status {
-  color: var(--danger);
+  color: var(--fx-status-danger);
 }
 .tool-card[data-state="submitted"] .tool-card-status {
-  color: var(--success);
+  color: var(--fx-status-success);
 }
 .tool-subtle {
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   margin: 0;
 }
 .tool-nav-actions {
@@ -65,10 +65,10 @@
   gap: var(--space-1);
   min-height: var(--space-8);
   padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--border);
+  border: 1px solid var(--fx-line-default);
   border-radius: var(--radius-pill);
   background: transparent;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   cursor: pointer;
   font: inherit;
   transition:
@@ -77,20 +77,20 @@
 }
 .tool-pill:hover:not(:disabled) {
   background: var(--bg-hover);
-  color: var(--text);
+  color: var(--fx-text-primary);
 }
 .tool-pill:disabled {
   opacity: 0.45;
   cursor: default;
 }
 .tool-primary {
-  background: var(--btn-bg);
-  border-color: var(--btn-bg);
-  color: var(--btn-fg);
+  background: var(--fx-accent-blue-fill);
+  border-color: var(--fx-accent-blue-fill);
+  color: var(--fx-text-on-accent);
 }
 .tool-primary:hover:not(:disabled) {
-  background: var(--btn-bg-hover);
-  color: var(--btn-fg);
+  background: var(--fx-accent-blue-fill-hover);
+  color: var(--fx-text-on-accent);
 }
 .tool-icon {
   padding: var(--space-1);
@@ -99,7 +99,7 @@
 }
 .tool-question-title {
   margin: 0 0 var(--space-3);
-  font-size: calc(var(--text-title) * var(--chat-font-scale, 1));
+  font-size: var(--text-title);
   font-weight: var(--weight-semibold);
   line-height: 1.5;
   white-space: pre-wrap;
@@ -175,15 +175,15 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border-radius: var(--radius-card);
-  background: var(--bg);
+  background: var(--fx-surface-main);
   cursor: pointer;
 }
 .tool-option:hover {
   background: var(--bg-hover);
 }
 .tool-option[data-selected="true"] {
-  background: var(--accent-soft);
-  box-shadow: inset 0 0 0 1px var(--accent-soft-border);
+  background: var(--fx-accent-blue-soft);
+  box-shadow: inset 0 0 0 1px var(--fx-accent-blue-border);
 }
 .tool-option > span {
   min-width: 0;
@@ -193,13 +193,13 @@
   font-weight: var(--weight-medium);
 }
 .tool-option input {
-  accent-color: var(--accent);
+  accent-color: var(--fx-accent-blue);
   margin-top: var(--space-1);
   flex-shrink: 0;
 }
 .tool-option-description {
   display: block;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   margin-top: var(--space-1);
   white-space: pre-wrap;
 }
@@ -215,17 +215,17 @@
   width: 100%;
   min-width: 0;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--border-strong);
+  border: 1px solid var(--fx-line-strong);
   border-radius: var(--radius-control);
-  background: var(--bg-panel);
-  color: var(--text);
+  background: var(--fx-surface-raised);
+  color: var(--fx-text-primary);
   font: inherit;
   resize: vertical;
   max-height: var(--tool-body-max);
 }
 .tool-question-footer {
   justify-content: space-between;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--fx-line-default);
 }
 .tool-footer-end {
   justify-content: flex-end;
@@ -238,7 +238,7 @@
 }
 .tool-preview {
   padding: var(--space-2) var(--space-3);
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
 }
 .tool-preview summary {
   cursor: pointer;
@@ -255,9 +255,9 @@
   white-space: pre;
   margin: var(--space-2) 0 0;
   padding: var(--space-3);
-  background: var(--bg);
+  background: var(--fx-surface-main);
   border-radius: var(--radius-control);
-  color: var(--text);
+  color: var(--fx-text-primary);
 }
 .tool-description {
   white-space: pre-wrap;
@@ -275,7 +275,7 @@
   background: transparent;
   text-align: left;
   font: inherit;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   cursor: pointer;
 }
 .tool-resume > span {
@@ -286,7 +286,7 @@
   text-overflow: ellipsis;
 }
 .tool-resume strong {
-  color: var(--text);
+  color: var(--fx-text-primary);
   font-weight: var(--weight-medium);
 }
 .tool-resume:hover {
@@ -299,7 +299,7 @@
   border: 0;
   background: transparent;
   padding: var(--space-1) 0;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   font: inherit;
   cursor: pointer;
 }
@@ -315,12 +315,12 @@
 }
 .tool-abandon-confirm p {
   margin: 0 0 var(--space-4);
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
 }
 .tool-receipt {
   padding: var(--space-3) var(--space-4);
   margin: 0;
-  color: var(--text-muted);
+  color: var(--fx-text-secondary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

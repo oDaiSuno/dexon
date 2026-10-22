@@ -12,9 +12,9 @@ import { SessionRelationGlyph } from "./session-relation-glyphs";
 type Translate = (key: string, fallback: string) => string;
 
 const COUNT_COLORS: Record<CountedActivity, string> = {
-  awaiting_input: "var(--warning)",
-  error: "var(--danger)",
-  running: "var(--accent)",
+  awaiting_input: "var(--fx-status-warning)",
+  error: "var(--fx-status-danger)",
+  running: "var(--fx-accent-blue)",
 };
 
 export function sessionStatusPhrase(status: SessionActivityStatus, t: Translate): string | null {
@@ -87,7 +87,9 @@ export function SessionRowStatusSlot({
   if (activity === "unread") return <UnreadSessionIndicator />;
   if (relation) return <SessionRelationGlyph relation={relation} />;
   if (isSelected)
-    return <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: "var(--text)" }} />;
+    return (
+      <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: "var(--fx-text-primary)" }} />
+    );
   return null;
 }
 
@@ -144,7 +146,7 @@ export function SessionRowCounts({ counts }: { counts: SessionActivityCounts }) 
     >
       {present.map((activity, index) => (
         <span key={activity} style={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
-          {index > 0 && <span style={{ color: "var(--text-dim)" }}>·</span>}
+          {index > 0 && <span style={{ color: "var(--fx-text-tertiary)" }}>·</span>}
           <CountGlyph activity={activity} />
           <span style={{ color: COUNT_COLORS[activity] }}>{counts[activity]}</span>
         </span>

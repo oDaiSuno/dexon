@@ -26,12 +26,12 @@ export function SkillList({
       style={{
         width: isMobile ? "100%" : 210,
         maxHeight: isMobile ? "40vh" : undefined,
-        borderRight: isMobile ? "none" : "1px solid var(--border)",
-        borderBottom: isMobile ? "1px solid var(--border)" : "none",
+        borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
+        borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
       }}
     >
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
@@ -40,7 +40,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-label)",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
             }}
           >
             {t("loading", "Loading…")}
@@ -50,7 +50,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-meta)",
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
             }}
           >
             {error}
@@ -60,7 +60,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
             }}
           >
             {t("noSkillsFound", "No skills found")}
@@ -79,7 +79,7 @@ export function SkillList({
                     padding: "4px 8px 4px",
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.06em",
                   }}
@@ -118,8 +118,8 @@ export function SkillList({
                           width: 7,
                           height: 7,
                           borderRadius: "50%",
-                          background: disabled ? "var(--border)" : "var(--accent)",
-                          boxShadow: disabled ? "none" : "0 0 4px var(--accent)",
+                          background: disabled ? "var(--fx-line-default)" : "var(--fx-accent-blue)",
+                          boxShadow: disabled ? "none" : "0 0 4px var(--fx-accent-blue)",
                           transition: "background 0.15s, box-shadow 0.15s",
                         }}
                       />
@@ -127,7 +127,7 @@ export function SkillList({
                         style={{
                           fontSize: "var(--text-label)",
                           fontWeight: isSelected ? 600 : 400,
-                          color: disabled ? "var(--text-dim)" : "var(--text)",
+                          color: disabled ? "var(--fx-text-tertiary)" : "var(--fx-text-primary)",
                           fontFamily: "var(--font-mono)",
                           flex: 1,
                           overflow: "hidden",
@@ -149,7 +149,7 @@ export function SkillList({
       <div
         style={{
           padding: "8px 8px",
-          borderTop: "1px solid var(--border)",
+          borderTop: "1px solid var(--fx-line-default)",
           flexShrink: 0,
         }}
       >
@@ -163,7 +163,7 @@ export function SkillList({
             borderRadius: "var(--radius-control)",
             cursor: "pointer",
             background: addMode ? "var(--bg-selected)" : "none",
-            color: addMode ? "var(--accent)" : "var(--text-dim)",
+            color: addMode ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
             fontSize: "var(--text-label)",
           }}
           onMouseEnter={(e) => {

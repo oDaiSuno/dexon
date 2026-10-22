@@ -43,7 +43,12 @@
 /* ── Shimmer label (transitions.dev 15-shimmer-text) — "thinking" hold state ── */
 
 .chat-shimmer-text {
-  background-image: linear-gradient(90deg, var(--bui-ink-3) 35%, var(--bui-ink) 50%, var(--bui-ink-3) 65%);
+  background-image: linear-gradient(
+    90deg,
+    var(--fx-text-tertiary) 35%,
+    var(--fx-text-primary) 50%,
+    var(--fx-text-tertiary) 65%
+  );
   background-size: 200% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -64,7 +69,7 @@
   gap: 8px;
   margin: 0 -6px;
   padding: 4px 6px;
-  border-radius: var(--bui-r-control);
+  border-radius: var(--radius-control);
   transition: background-color var(--duration-quick) var(--ease-out);
   font-family: inherit;
   text-align: left;
@@ -72,7 +77,7 @@
 }
 
 .chat-quiet-head:hover {
-  background: var(--bui-hover-2);
+  background: var(--fx-surface-hover-overlay-strong);
 }
 
 .chat-failure-line {
@@ -80,17 +85,17 @@
   align-items: baseline;
   gap: 8px;
   line-height: 1.6;
-  color: var(--bui-ink-2);
+  color: var(--fx-text-secondary);
   min-width: 0;
 }
 
 .chat-failure-mark {
   flex-shrink: 0;
-  color: var(--bui-red);
+  color: var(--fx-status-danger-text);
 }
 
 .chat-retry-mark {
-  color: var(--bui-ink-3);
+  color: var(--fx-text-tertiary);
 }
 
 .chat-failure-body {
@@ -109,7 +114,7 @@
   display: inline-flex;
   gap: 8px;
   margin-left: 8px;
-  color: var(--bui-ink-3);
+  color: var(--fx-text-tertiary);
   white-space: nowrap;
 }
 
@@ -125,7 +130,7 @@
 }
 
 .chat-failure-action:hover {
-  color: var(--bui-ink-2);
+  color: var(--fx-text-secondary);
 }
 
 .chat-failure-copy {
@@ -142,7 +147,7 @@
 .chat-think-spark {
   display: flex;
   flex-shrink: 0;
-  color: var(--bui-ink-3);
+  color: var(--fx-text-tertiary);
 }
 
 /* Deep-thinking row inside process details — isomorphic with tool rows:
@@ -159,9 +164,9 @@
 .chat-tool-detail {
   margin: 0 0 2px 24px;
   padding: 8px 11px;
-  border-radius: var(--bui-r-card);
-  background: var(--bui-field);
-  color: var(--bui-ink-2);
+  border-radius: var(--radius-card);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
   line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -189,7 +194,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--bui-ink-3);
+  color: var(--fx-text-tertiary);
 }
 
 .chat-tool-icon .chat-status-icon {
@@ -198,15 +203,15 @@
 
 .chat-tool-name {
   flex-shrink: 0;
-  font-size: var(--chat-f-name);
+  font-size: 13px;
   font-weight: 500;
-  color: var(--bui-ink);
+  color: var(--fx-text-primary);
   white-space: nowrap;
 }
 
 html.dark .chat-tool-chip {
-  background: var(--bui-field);
-  color: var(--bui-ink-2);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
 }
 
 .chat-tool-chip {
@@ -215,12 +220,12 @@ html.dark .chat-tool-chip {
   min-width: 0;
   flex: 1;
   height: 22px;
-  border-radius: var(--bui-r-chip);
-  background: var(--bui-hover-2);
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-hover-overlay-strong);
   padding: 0 6px;
-  font-size: var(--chat-f-chip);
-  color: var(--bui-ink-2);
-  box-shadow: var(--bui-shadow-hairline);
+  font-size: 12px;
+  color: var(--fx-text-secondary);
+  box-shadow: var(--shadow-hairline);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -234,8 +239,8 @@ html.dark .chat-tool-chip {
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: var(--chat-f-micro);
-  color: var(--bui-ink-3);
+  font-size: 11px;
+  color: var(--fx-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 
@@ -253,7 +258,7 @@ html.dark .chat-tool-chip {
   margin: 0;
   font-family: var(--font-mono);
   line-height: 1.6;
-  color: var(--bui-ink-2);
+  color: var(--fx-text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: anywhere;
@@ -267,21 +272,21 @@ html.dark .chat-tool-chip {
   background: none;
   cursor: pointer;
   padding: 2px 4px;
-  border-radius: var(--bui-r-chip);
+  border-radius: var(--radius-chip);
   font-family: inherit;
-  font-size: var(--chat-f-chip);
-  color: var(--bui-accent);
+  font-size: 12px;
+  color: var(--fx-accent-blue-text);
 }
 
 .chat-tool-open-browser:hover {
-  background: var(--bui-hover);
+  background: var(--fx-surface-hover-overlay);
 }
 
 /* Diff card: white surface + hairline shadow, line numbers dimmed */
 .chat-diff-card {
-  border-radius: var(--bui-r-card);
-  background: var(--bui-surface);
-  box-shadow: var(--bui-shadow-card);
+  border-radius: var(--radius-card);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-hairline-card);
   overflow: hidden;
   min-width: 0;
 }
@@ -292,8 +297,8 @@ html.dark .chat-tool-chip {
   width: 13px;
   height: 13px;
   border-radius: 50%;
-  border: 1.5px solid var(--bui-line-strong);
-  border-top-color: var(--bui-ink-2);
+  border: 1.5px solid var(--fx-line-strong);
+  border-top-color: var(--fx-text-secondary);
   animation: chat-spin 700ms var(--ease-linear) infinite;
 }
 
@@ -312,14 +317,14 @@ html.dark .chat-tool-chip {
   height: 12px;
   margin-left: 2px;
   border-radius: 999px;
-  background: var(--bui-ink);
+  background: var(--fx-text-primary);
   vertical-align: -1px;
   animation: chat-caret-blink 0.9s var(--ease-in-out) infinite;
 }
 
 /* ── Tool status morph (transitions.dev 41-spinner-check-morph, adapted:
      idle ring → running spinner → done check (draw + pop) → resting icon,
-     error variant uses --bui-red. No auto-revert: a finished tool call is
+     error variant uses the Framer danger fill. No auto-revert: a finished tool call is
      a persistent fact. ── */
 
 .chat-status-icon {
@@ -348,7 +353,7 @@ html.dark .chat-tool-chip {
   position: absolute;
   inset: 1px;
   border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--bui-ink-3) 45%, transparent);
+  border: 1.5px solid color-mix(in srgb, var(--fx-text-tertiary) 45%, transparent);
   transition:
     opacity var(--duration-fast) var(--ease-out),
     filter var(--duration-fast) var(--ease-smooth-out);
@@ -359,7 +364,7 @@ html.dark .chat-tool-chip {
   inset: 1px;
   border-radius: 50%;
   border: 1.5px solid transparent;
-  border-top-color: var(--bui-ink-2);
+  border-top-color: var(--fx-text-secondary);
   animation: chat-spin 700ms var(--ease-linear) infinite;
   transition: opacity var(--duration-fast) var(--ease-out);
 }
@@ -368,7 +373,7 @@ html.dark .chat-tool-chip {
   position: absolute;
   inset: 1px;
   border-radius: 50%;
-  background: var(--bui-green-fill);
+  background: var(--fx-status-success);
   opacity: 0;
   transition:
     opacity var(--duration-fast) var(--ease-smooth-out),
@@ -376,12 +381,12 @@ html.dark .chat-tool-chip {
 }
 
 .chat-status-icon.is-error .chat-scmorph-fill {
-  background: var(--bui-red-fill);
+  background: var(--fx-status-danger);
 }
 
 .chat-status-icon .chat-scmorph-check {
   fill: none;
-  stroke: var(--on-accent);
+  stroke: var(--fx-text-on-accent);
   stroke-width: 2.4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -428,7 +433,7 @@ html.dark .chat-tool-chip {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--bui-ink-3);
+  color: var(--fx-text-tertiary);
   opacity: 0;
   filter: blur(2px);
   transition:
@@ -476,7 +481,7 @@ html.dark .chat-tool-chip {
   .chat-shimmer-text {
     animation: none !important;
     background: none;
-    -webkit-text-fill-color: var(--bui-ink-2);
+    -webkit-text-fill-color: var(--fx-text-secondary);
   }
   .chat-scmorph-spinring {
     animation: none !important;

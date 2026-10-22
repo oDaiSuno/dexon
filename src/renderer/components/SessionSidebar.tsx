@@ -125,7 +125,7 @@ export function SessionSidebar({
       <div
         style={{
           padding: "16px 16px 12px",
-          borderBottom: "1px solid var(--border)",
+          borderBottom: "1px solid var(--fx-line-default)",
           flexShrink: 0,
           display: "flex",
           flexDirection: "column",

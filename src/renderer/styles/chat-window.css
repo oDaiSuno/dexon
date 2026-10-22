@@ -47,9 +47,9 @@
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  color: var(--text-muted);
+  border: 1px solid var(--fx-line-default);
+  background: var(--fx-surface-raised);
+  color: var(--fx-text-secondary);
   box-shadow: var(--shadow-composer);
   cursor: pointer;
   opacity: 0.96;
@@ -63,8 +63,8 @@
 }
 
 .chat-scroll-to-bottom:hover {
-  color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+  color: var(--fx-accent-blue);
+  border-color: color-mix(in srgb, var(--fx-accent-blue) 55%, var(--fx-line-default));
   transform: translateY(-1px);
   box-shadow: var(--shadow-popover);
 }

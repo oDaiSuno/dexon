@@ -1,7 +1,6 @@
 import type { CSSProperties, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import type { ModelCatalogStatus } from "@contract/types";
 import { CheckIcon, ChevronDownIcon, CpuIcon } from "./icons";
 
@@ -90,9 +89,9 @@ export function ModelPicker({
           background: dropdownOpen ? "var(--bg-selected)" : "transparent",
           border: "none",
           borderRadius: "var(--radius-control)",
-          color: "var(--text-muted)",
+          color: "var(--fx-text-secondary)",
           cursor: isStreaming ? "not-allowed" : "pointer",
-          fontSize: scaledChatFont(12),
+          fontSize: 12,
           opacity: isStreaming ? 0.5 : 1,
           transition:
             "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
@@ -100,18 +99,18 @@ export function ModelPicker({
         onMouseEnter={(e) => {
           if (isStreaming) return;
           e.currentTarget.style.background = "var(--bg-hover)";
-          e.currentTarget.style.color = "var(--text)";
+          e.currentTarget.style.color = "var(--fx-text-primary)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = dropdownOpen ? "var(--bg-selected)" : "transparent";
-          e.currentTarget.style.color = "var(--text-muted)";
+          e.currentTarget.style.color = "var(--fx-text-secondary)";
         }}
       >
         <CpuIcon size={11} />
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
           {currentName ?? t("models", "Models")}
         </span>
-        <span style={{ color: "var(--text-dim)", display: "flex" }}>
+        <span style={{ color: "var(--fx-text-tertiary)", display: "flex" }}>
           <ChevronDownIcon size={11} />
         </span>
       </button>
@@ -127,8 +126,8 @@ export function ModelPicker({
               transformOrigin: "bottom center",
               ...panelPos,
               zIndex: 500,
-              background: "var(--bg)",
-              border: "1px solid var(--border)",
+              background: "var(--fx-surface-main)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-card)",
               boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
               overflow: "hidden",
@@ -140,7 +139,7 @@ export function ModelPicker({
               <div
                 style={{
                   padding: "8px 8px",
-                  borderBottom: "1px solid var(--border)",
+                  borderBottom: "1px solid var(--fx-line-default)",
                   minWidth: 240,
                 }}
               >
@@ -151,12 +150,12 @@ export function ModelPicker({
                   style={{
                     width: "100%",
                     padding: "8px 8px",
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "var(--radius-control)",
-                    background: "var(--bg-panel)",
-                    color: "var(--text)",
+                    background: "var(--fx-surface-raised)",
+                    color: "var(--fx-text-primary)",
                     cursor: modelRefreshing ? "wait" : "pointer",
-                    fontSize: scaledChatFont(12),
+                    fontSize: 12,
                     textAlign: "left",
                   }}
                 >
@@ -165,7 +164,7 @@ export function ModelPicker({
                     : t("refreshModels", "Refresh model directory")}
                 </button>
                 {modelCatalog?.source === "offline" && (
-                  <div style={{ marginTop: 8, color: "var(--text-dim)", fontSize: scaledChatFont(11) }}>
+                  <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)", fontSize: 11 }}>
                     {t("modelsOfflineCache", "Offline: using the cached model directory.")}
                   </div>
                 )}
@@ -175,8 +174,8 @@ export function ModelPicker({
                     role="alert"
                     style={{
                       marginTop: 8,
-                      color: "var(--warning)",
-                      fontSize: scaledChatFont(11),
+                      color: "var(--fx-status-warning)",
+                      fontSize: 11,
                       whiteSpace: "normal",
                     }}
                   >
@@ -191,12 +190,12 @@ export function ModelPicker({
                   <div
                     style={{
                       padding: "8px 12px 4px",
-                      fontSize: scaledChatFont(10),
+                      fontSize: 10,
                       fontWeight: 600,
-                      color: "var(--text-dim)",
+                      color: "var(--fx-text-tertiary)",
                       textTransform: "uppercase",
                       letterSpacing: "0.07em",
-                      borderTop: gi > 0 ? "1px solid var(--border)" : "none",
+                      borderTop: gi > 0 ? "1px solid var(--fx-line-default)" : "none",
                     }}
                   >
                     {group.provider}
@@ -216,9 +215,9 @@ export function ModelPicker({
                         padding: "8px 12px",
                         background: isActive ? "var(--bg-selected)" : "none",
                         border: "none",
-                        color: isActive ? "var(--text)" : "var(--text-muted)",
+                        color: isActive ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                         cursor: "pointer",
-                        fontSize: scaledChatFont(12),
+                        fontSize: 12,
                         textAlign: "left",
                         fontWeight: isActive ? 600 : 400,
                         whiteSpace: "nowrap",

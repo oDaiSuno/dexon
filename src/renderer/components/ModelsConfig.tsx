@@ -180,9 +180,9 @@ function ProviderDetail({
             minHeight: 32,
             padding: "0 12px",
             background: "none",
-            border: "1px solid var(--danger-border)",
+            border: "1px solid var(--fx-status-danger-border)",
             borderRadius: "var(--radius-chip)",
-            color: "var(--danger)",
+            color: "var(--fx-status-danger)",
             cursor: "pointer",
             fontSize: "var(--text-label)",
           }}
@@ -201,10 +201,10 @@ function ProviderDetail({
               marginTop: 4,
               minHeight: 32,
               padding: "0 12px",
-              background: "var(--btn-bg)",
+              background: "var(--fx-accent-blue-fill)",
               border: "none",
               borderRadius: "var(--radius-chip)",
-              color: "var(--btn-fg)",
+              color: "var(--fx-text-on-accent)",
               cursor: "pointer",
               fontSize: "var(--text-label)",
               alignSelf: "flex-start",
@@ -231,7 +231,7 @@ function ProviderDetail({
           placeholder={t("modelApiKeySourcePlaceholder", "ENV_VAR_NAME, !shell-command, or literal key")}
           mono
         />
-        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
+        <span style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
           {t("modelApiKeySourceHint", "Prefix with ! to run a shell command, or use an environment variable name.")}
         </span>
       </Field>
@@ -289,9 +289,9 @@ function modelCostLabel(
 }
 
 const LEVEL_COLORS: Record<ThinkingLevel, string> = {
-  off: "var(--text-dim)",
+  off: "var(--fx-text-tertiary)",
   minimal: "var(--heat-1)",
-  low: "var(--warning)",
+  low: "var(--fx-status-warning)",
   medium: "var(--heat-3)",
   high: "var(--heat-4)",
   xhigh: "var(--heat-5)",
@@ -335,18 +335,18 @@ function ThinkingLevelMapEditor({
           fontWeight: 400,
           transition: "background 0.1s, color 0.1s",
           whiteSpace: "nowrap",
-          background: "var(--bg-panel)",
-          color: "var(--text-dim)",
+          background: "var(--fx-surface-raised)",
+          color: "var(--fx-text-tertiary)",
         };
         const btnActive: React.CSSProperties = {
-          background: "var(--accent)",
-          color: "var(--on-accent)",
+          background: "var(--fx-accent-blue)",
+          color: "var(--fx-text-on-accent)",
           fontWeight: 600,
         };
         const btnActiveDisabled: React.CSSProperties = {
-          background: "var(--danger-soft)",
-          color: "var(--danger)",
-          boxShadow: "inset 0 0 0 1px var(--danger-border)",
+          background: "var(--fx-status-danger-soft)",
+          color: "var(--fx-status-danger)",
+          boxShadow: "inset 0 0 0 1px var(--fx-status-danger-border)",
           fontWeight: 600,
         };
 
@@ -379,7 +379,7 @@ function ThinkingLevelMapEditor({
                 style={{
                   fontSize: "var(--text-meta)",
                   fontFamily: "var(--font-mono)",
-                  color: state === "null" ? "var(--text-dim)" : "var(--text-muted)",
+                  color: state === "null" ? "var(--fx-text-tertiary)" : "var(--fx-text-secondary)",
                   textDecoration: state === "null" ? "line-through" : "none",
                 }}
               >
@@ -392,7 +392,7 @@ function ThinkingLevelMapEditor({
               style={{
                 display: "flex",
                 borderRadius: "var(--radius-control)",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 overflow: "hidden",
                 flexShrink: 0,
               }}
@@ -407,7 +407,7 @@ function ThinkingLevelMapEditor({
                 onClick={() => setLevel(level, null)}
                 style={{
                   ...btnBase,
-                  borderLeft: "1px solid var(--border)",
+                  borderLeft: "1px solid var(--fx-line-default)",
                   ...(state === "null" ? btnActiveDisabled : {}),
                 }}
               >
@@ -420,7 +420,7 @@ function ThinkingLevelMapEditor({
               style={{
                 display: "flex",
                 borderRadius: "var(--radius-control)",
-                border: `1px solid ${state === "string" ? "var(--accent)" : "var(--border)"}`,
+                border: `1px solid ${state === "string" ? "var(--fx-accent-blue)" : "var(--fx-line-default)"}`,
                 overflow: "hidden",
                 transition: "border-color 0.1s",
               }}
@@ -430,7 +430,7 @@ function ThinkingLevelMapEditor({
                 style={{
                   ...btnBase,
                   ...(state === "string" ? btnActive : {}),
-                  borderRight: "1px solid var(--border)",
+                  borderRight: "1px solid var(--fx-line-default)",
                   flexShrink: 0,
                 }}
               >
@@ -446,10 +446,10 @@ function ThinkingLevelMapEditor({
                 maxLength={10}
                 style={{
                   width: "12ch",
-                  background: state === "string" ? "var(--bg)" : "var(--bg-panel)",
+                  background: state === "string" ? "var(--fx-surface-main)" : "var(--fx-surface-raised)",
                   border: "none",
                   outline: "none",
-                  color: state === "string" ? "var(--text)" : "var(--text-dim)",
+                  color: state === "string" ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                   fontFamily: "var(--font-mono)",
                   fontSize: "var(--text-meta)",
                   padding: "4px 8px",
@@ -575,20 +575,20 @@ function ModelDetail({
                 maxWidth: 260,
                 height: 24,
                 padding: "0 8px",
-                border: `1px solid ${testState.phase === "error" ? "var(--danger-border)" : testState.phase === "success" ? "var(--success-border)" : "var(--border)"}`,
+                border: `1px solid ${testState.phase === "error" ? "var(--fx-status-danger-border)" : testState.phase === "success" ? "var(--fx-status-success-border)" : "var(--fx-line-default)"}`,
                 borderRadius: "var(--radius-chip)",
                 background:
                   testState.phase === "error"
-                    ? "var(--danger-soft)"
+                    ? "var(--fx-status-danger-soft)"
                     : testState.phase === "success"
-                      ? "var(--success-soft)"
+                      ? "var(--fx-status-success-soft)"
                       : "var(--bg-hover)",
                 color:
                   testState.phase === "error"
-                    ? "var(--danger)"
+                    ? "var(--fx-status-danger)"
                     : testState.phase === "success"
-                      ? "var(--success)"
-                      : "var(--text-muted)",
+                      ? "var(--fx-status-success)"
+                      : "var(--fx-text-secondary)",
                 fontSize: "var(--text-meta)",
                 display: "inline-flex",
                 alignItems: "center",
@@ -609,15 +609,15 @@ function ModelDetail({
             style={{
               height: 32,
               padding: "0 12px",
-              background: testState.phase === "success" ? "var(--success)" : "none",
-              border: `1px solid ${testState.phase === "success" ? "var(--success)" : "var(--border)"}`,
+              background: testState.phase === "success" ? "var(--fx-status-success)" : "none",
+              border: `1px solid ${testState.phase === "success" ? "var(--fx-status-success)" : "var(--fx-line-default)"}`,
               borderRadius: "var(--radius-chip)",
               color:
                 testState.phase === "success"
-                  ? "var(--on-accent)"
+                  ? "var(--fx-text-on-accent)"
                   : !model.id.trim() || testState.phase === "testing"
-                    ? "var(--text-dim)"
-                    : "var(--text-muted)",
+                    ? "var(--fx-text-tertiary)"
+                    : "var(--fx-text-secondary)",
               cursor: !model.id.trim() || testState.phase === "testing" ? "not-allowed" : "pointer",
               fontSize: "var(--text-label)",
               display: "inline-flex",
@@ -654,9 +654,9 @@ function ModelDetail({
               height: 32,
               padding: "0 12px",
               background: "none",
-              border: "1px solid var(--danger-border)",
+              border: "1px solid var(--fx-status-danger-border)",
               borderRadius: "var(--radius-chip)",
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
               cursor: "pointer",
               fontSize: "var(--text-label)",
               boxSizing: "border-box",
@@ -716,9 +716,9 @@ function ModelDetail({
                     fontSize: "var(--text-label)",
                     padding: "0 8px",
                     background: "none",
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "var(--radius-chip)",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     cursor: "pointer",
                   }}
                 >
@@ -804,13 +804,13 @@ function ManagedModelsControl({
         flexDirection: "column",
         gap: 12,
         paddingTop: 16,
-        borderTop: "1px solid var(--border)",
+        borderTop: "1px solid var(--fx-line-default)",
       }}
     >
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <SectionTitle>{t("models", "Models")}</SectionTitle>
         {!loading && preferences && (
-          <span style={{ fontSize: "var(--text-meta)", color: "var(--text-dim)", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>
             {t("modelEnabledCount", "{enabled} of {total} enabled")
               .replace("{enabled}", String(enabledCount))
               .replace("{total}", String(providerModels.length))}
@@ -818,7 +818,7 @@ function ManagedModelsControl({
         )}
       </div>
 
-      <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
         {t(
           "modelSelectionDescription",
           "Choose which models appear in the model picker. The active model in an existing session is not changed.",
@@ -826,12 +826,12 @@ function ManagedModelsControl({
       </p>
 
       {loading && (
-        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
           {t("modelLoadingModels", "Loading models…")}
         </p>
       )}
       {!loading && preferences && providerModels.length === 0 && (
-        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
           {t("modelNoAvailableModels", "No models are currently available for this provider.")}
         </p>
       )}
@@ -848,9 +848,9 @@ function ManagedModelsControl({
               style={{
                 padding: "4px 8px",
                 background: "none",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 cursor: saving || enabledCount === providerModels.length ? "not-allowed" : "pointer",
                 fontSize: "var(--text-meta)",
               }}
@@ -868,9 +868,9 @@ function ManagedModelsControl({
               style={{
                 padding: "4px 8px",
                 background: "none",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 cursor: saving || enabledCount === 0 ? "not-allowed" : "pointer",
                 fontSize: "var(--text-meta)",
               }}
@@ -890,10 +890,10 @@ function ManagedModelsControl({
                 width: "100%",
                 boxSizing: "border-box",
                 padding: "8px 8px",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
+                background: "var(--fx-surface-main)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text)",
+                color: "var(--fx-text-primary)",
                 fontSize: "var(--text-label)",
                 outline: "none",
               }}
@@ -906,7 +906,7 @@ function ManagedModelsControl({
               flexDirection: "column",
               maxHeight: 300,
               overflowY: "auto",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
             }}
           >
@@ -920,7 +920,7 @@ function ManagedModelsControl({
                     alignItems: "flex-start",
                     gap: 8,
                     padding: "8px 12px",
-                    borderTop: index > 0 ? "1px solid var(--border)" : undefined,
+                    borderTop: index > 0 ? "1px solid var(--fx-line-default)" : undefined,
                     cursor: saving ? "not-allowed" : "pointer",
                   }}
                 >
@@ -933,13 +933,13 @@ function ManagedModelsControl({
                         toggleModelEnabled(preferences.models, preferences.enabledModels, model, event.target.checked),
                       )
                     }
-                    style={{ margin: "2px 0 0", accentColor: "var(--accent)", flexShrink: 0 }}
+                    style={{ margin: "2px 0 0", accentColor: "var(--fx-accent-blue)", flexShrink: 0 }}
                   />
                   <span style={{ minWidth: 0 }}>
                     <span
                       style={{
                         display: "block",
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         fontSize: "var(--text-label)",
                         lineHeight: 1.35,
                         overflowWrap: "anywhere",
@@ -952,7 +952,7 @@ function ManagedModelsControl({
                         style={{
                           display: "block",
                           marginTop: 2,
-                          color: "var(--text-dim)",
+                          color: "var(--fx-text-tertiary)",
                           fontSize: "var(--text-micro)",
                           fontFamily: "var(--font-mono)",
                           overflowWrap: "anywhere",
@@ -966,7 +966,7 @@ function ManagedModelsControl({
               );
             })}
             {visibleModels.length === 0 && (
-              <span style={{ padding: "12px", color: "var(--text-muted)", fontSize: "var(--text-label)" }}>
+              <span style={{ padding: "12px", color: "var(--fx-text-secondary)", fontSize: "var(--text-label)" }}>
                 {t("modelNoMatchingModels", "No matching models.")}
               </span>
             )}
@@ -975,12 +975,14 @@ function ManagedModelsControl({
       )}
 
       {saving && (
-        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-muted)" }}>
+        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-secondary)" }}>
           {t("modelSavingSelection", "Saving selection…")}
         </p>
       )}
       {error && (
-        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--danger)", lineHeight: 1.4 }}>{error}</p>
+        <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-status-danger)", lineHeight: 1.4 }}>
+          {error}
+        </p>
       )}
     </div>
   );
@@ -1235,12 +1237,15 @@ function OAuthDetail({
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: provider.loggedIn ? "var(--success)" : "var(--border)",
+              background: provider.loggedIn ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
             }}
           />
           <span
-            style={{ fontSize: "var(--text-meta)", color: provider.loggedIn ? "var(--success)" : "var(--text-dim)" }}
+            style={{
+              fontSize: "var(--text-meta)",
+              color: provider.loggedIn ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
+            }}
           >
             {provider.loggedIn ? t("modelConnected", "connected") : t("modelNotConnected", "not connected")}
           </span>
@@ -1250,20 +1255,20 @@ function OAuthDetail({
       {/* Status */}
       <div style={{ minHeight: 48 }}>
         {loginState.phase === "idle" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
             {provider.loggedIn
               ? t("modelAlreadyConnected", "Already connected. You can re-login or disconnect.")
               : t("modelConnectAccount", "Connect your {provider} account.").replace("{provider}", provider.name)}
           </p>
         )}
         {loginState.phase === "connecting" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
             {t("modelOpeningBrowser", "Opening browser…")}
           </p>
         )}
         {loginState.phase === "select" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
               {loginState.message}
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -1273,10 +1278,10 @@ function OAuthDetail({
                   onClick={() => submitSelection(loginState.token, option.id)}
                   style={{
                     padding: "8px 8px",
-                    background: "var(--bg)",
-                    border: "1px solid var(--border)",
+                    background: "var(--fx-surface-main)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "var(--radius-control)",
-                    color: "var(--text)",
+                    color: "var(--fx-text-primary)",
                     cursor: "pointer",
                     fontSize: "var(--text-label)",
                     textAlign: "left",
@@ -1290,7 +1295,7 @@ function OAuthDetail({
         )}
         {(loginState.phase === "auth" || loginState.phase === "prompt") && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
               {loginState.phase === "auth"
                 ? t(
                     "modelCompleteSignIn",
@@ -1299,13 +1304,13 @@ function OAuthDetail({
                 : loginState.message}
             </p>
             {loginState.phase === "auth" && (
-              <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-dim)", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", lineHeight: 1.5 }}>
                 {t("modelBrowserDidNotOpen", "If the browser window did not open,")}{" "}
                 <a
                   href={loginState.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ color: "var(--accent)", wordBreak: "break-all" }}
+                  style={{ color: "var(--fx-accent-blue)", wordBreak: "break-all" }}
                 >
                   {t("modelOpenLoginPage", "click here to open the login page")}
                 </a>
@@ -1328,10 +1333,10 @@ function OAuthDetail({
                 style={{
                   flex: 1,
                   padding: "8px 8px",
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
+                  background: "var(--fx-surface-main)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   fontSize: "var(--text-label)",
                   outline: "none",
                   fontFamily: "var(--font-mono)",
@@ -1343,10 +1348,10 @@ function OAuthDetail({
                 disabled={!inputValue.trim()}
                 style={{
                   padding: "8px 12px",
-                  background: inputValue.trim() ? "var(--btn-bg)" : "var(--bg-panel)",
+                  background: inputValue.trim() ? "var(--fx-accent-blue-fill)" : "var(--fx-surface-raised)",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: inputValue.trim() ? "var(--btn-fg)" : "var(--text-dim)",
+                  color: inputValue.trim() ? "var(--fx-text-on-accent)" : "var(--fx-text-tertiary)",
                   cursor: inputValue.trim() ? "pointer" : "not-allowed",
                   fontSize: "var(--text-label)",
                   fontWeight: 600,
@@ -1360,16 +1365,16 @@ function OAuthDetail({
         )}
         {loginState.phase === "device_code" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
               {t("modelOpenVerificationPage", "Open the verification page and enter this code:")}
             </p>
             <div
               style={{
                 padding: "8px 12px",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
+                background: "var(--fx-surface-main)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text)",
+                color: "var(--fx-text-primary)",
                 fontSize: "var(--text-title)",
                 fontWeight: 700,
                 fontFamily: "var(--font-mono)",
@@ -1378,12 +1383,12 @@ function OAuthDetail({
             >
               {loginState.userCode}
             </div>
-            <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--text-dim)", lineHeight: 1.5 }}>
+            <p style={{ margin: 0, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", lineHeight: 1.5 }}>
               <a
                 href={loginState.verificationUri}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: "var(--accent)", wordBreak: "break-all" }}
+                style={{ color: "var(--fx-accent-blue)", wordBreak: "break-all" }}
               >
                 {loginState.verificationUri}
               </a>
@@ -1397,21 +1402,25 @@ function OAuthDetail({
           </div>
         )}
         {loginState.phase === "progress" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
+            {loginState.message}
+          </p>
         )}
         {loginState.phase === "success" && (
           <p
             style={{
               margin: 0,
               fontSize: "var(--text-label)",
-              color: loginState.warning ? "var(--warning)" : "var(--success)",
+              color: loginState.warning ? "var(--fx-status-warning)" : "var(--fx-status-success)",
             }}
           >
             {loginState.message ?? t("modelConnectedSuccessfully", "Connected successfully.")}
           </p>
         )}
         {loginState.phase === "error" && (
-          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--danger)" }}>{loginState.message}</p>
+          <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-danger)" }}>
+            {loginState.message}
+          </p>
         )}
       </div>
 
@@ -1423,9 +1432,9 @@ function OAuthDetail({
             style={{
               padding: "4px 12px",
               background: "none",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
               cursor: "pointer",
               fontSize: "var(--text-label)",
             }}
@@ -1438,10 +1447,10 @@ function OAuthDetail({
               onClick={handleLogin}
               style={{
                 padding: "4px 16px",
-                background: "var(--btn-bg)",
+                background: "var(--fx-accent-blue-fill)",
                 border: "none",
                 borderRadius: "var(--radius-control)",
-                color: "var(--btn-fg)",
+                color: "var(--fx-text-on-accent)",
                 cursor: "pointer",
                 fontSize: "var(--text-label)",
                 fontWeight: 600,
@@ -1455,9 +1464,9 @@ function OAuthDetail({
                 style={{
                   padding: "4px 12px",
                   background: "none",
-                  border: "1px solid var(--danger-border)",
+                  border: "1px solid var(--fx-status-danger-border)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--danger)",
+                  color: "var(--fx-status-danger)",
                   cursor: "pointer",
                   fontSize: "var(--text-label)",
                 }}
@@ -1571,19 +1580,22 @@ function ApiKeyDetail({
               width: 7,
               height: 7,
               borderRadius: "50%",
-              background: provider.configured ? "var(--success)" : "var(--border)",
+              background: provider.configured ? "var(--fx-status-success)" : "var(--fx-line-default)",
               display: "inline-block",
             }}
           />
           <span
-            style={{ fontSize: "var(--text-meta)", color: provider.configured ? "var(--success)" : "var(--text-dim)" }}
+            style={{
+              fontSize: "var(--text-meta)",
+              color: provider.configured ? "var(--fx-status-success)" : "var(--fx-text-tertiary)",
+            }}
           >
             {provider.configured ? t("configured", "configured") : t("notConfigured", "not configured")}
           </span>
         </div>
       </div>
 
-      <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--text-muted)", lineHeight: 1.5 }}>
+      <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", lineHeight: 1.5 }}>
         {provider.configured
           ? t(
               "modelApiKeyStored",
@@ -1601,7 +1613,7 @@ function ApiKeyDetail({
           placeholder={t("modelBaseUrlPlaceholder", "Leave empty to use the provider default")}
           mono
         />
-        <span style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
+        <span style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
           {t(
             "modelBaseUrlHint",
             "Overrides the endpoint for this provider. Use the Save button below to apply changes.",
@@ -1628,10 +1640,18 @@ function ApiKeyDetail({
             disabled={saving || !apiKey.trim() || savedOk}
             style={{
               padding: "8px 12px",
-              background: savedOk ? "var(--success-soft)" : apiKey.trim() ? "var(--accent)" : "var(--bg-panel)",
+              background: savedOk
+                ? "var(--fx-status-success-soft)"
+                : apiKey.trim()
+                  ? "var(--fx-accent-blue)"
+                  : "var(--fx-surface-raised)",
               border: "none",
               borderRadius: "var(--radius-control)",
-              color: savedOk ? "var(--success)" : apiKey.trim() ? "var(--on-accent)" : "var(--text-dim)",
+              color: savedOk
+                ? "var(--fx-status-success)"
+                : apiKey.trim()
+                  ? "var(--fx-text-on-accent)"
+                  : "var(--fx-text-tertiary)",
               cursor: saving || !apiKey.trim() || savedOk ? "not-allowed" : "pointer",
               fontSize: "var(--text-label)",
               fontWeight: 600,
@@ -1660,8 +1680,10 @@ function ApiKeyDetail({
         </div>
       </Field>
 
-      {error && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--danger)" }}>{error}</p>}
-      {warning && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--warning)" }}>{warning}</p>}
+      {error && <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-danger)" }}>{error}</p>}
+      {warning && (
+        <p style={{ margin: 0, fontSize: "var(--text-label)", color: "var(--fx-status-warning)" }}>{warning}</p>
+      )}
 
       {provider.configured && <ManagedModelsControl providerId={provider.id} {...modelSelection} />}
 
@@ -1673,9 +1695,9 @@ function ApiKeyDetail({
             alignSelf: "flex-start",
             padding: "4px 12px",
             background: "none",
-            border: "1px solid var(--danger-border)",
+            border: "1px solid var(--fx-status-danger-border)",
             borderRadius: "var(--radius-control)",
-            color: "var(--danger)",
+            color: "var(--fx-status-danger)",
             cursor: removing ? "not-allowed" : "pointer",
             fontSize: "var(--text-label)",
           }}
@@ -1706,9 +1728,9 @@ function ProviderIcon({ id, size }: { id: string; size: number }) {
         style={{
           width: size,
           height: size,
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-chip)",
-          color: "var(--text-dim)",
+          color: "var(--fx-text-tertiary)",
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
@@ -1725,7 +1747,7 @@ function ProviderIcon({ id, size }: { id: string; size: number }) {
   // Color icons: self-colored SVG, no wrapper needed
   if (pi.hasColor) return <pi.Icon size={size} />;
   // Mono icons: use currentColor so they adapt to light/dark theme
-  return <pi.Icon size={size} style={{ color: "var(--text-muted)" }} />;
+  return <pi.Icon size={size} style={{ color: "var(--fx-text-secondary)" }} />;
 }
 
 // ── Add provider picker ───────────────────────────────────────────────────────
@@ -1780,8 +1802,8 @@ function AddProviderPicker({
     alignItems: "center",
     gap: 8,
     padding: "12px 12px",
-    background: "var(--bg-panel)",
-    border: "1px solid var(--border)",
+    background: "var(--fx-surface-raised)",
+    border: "1px solid var(--fx-line-default)",
     borderRadius: "var(--radius-card)",
     boxSizing: "border-box",
     cursor: "pointer",
@@ -1811,8 +1833,8 @@ function AddProviderPicker({
           width: 820,
           maxWidth: "calc(100vw - 32px)",
           maxHeight: "min(72vh, calc(100vh - 32px))",
-          background: "var(--bg)",
-          border: "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
           display: "flex",
           flexDirection: "column",
@@ -1824,7 +1846,7 @@ function AddProviderPicker({
         <div
           style={{
             padding: "12px 16px",
-            borderBottom: "1px solid var(--border)",
+            borderBottom: "1px solid var(--fx-line-default)",
             flexShrink: 0,
             display: "flex",
             alignItems: "center",
@@ -1840,7 +1862,7 @@ function AddProviderPicker({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ color: "var(--text-dim)", flexShrink: 0 }}
+            style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}
           >
             <circle cx="11" cy="11" r="8" />
             <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -1858,7 +1880,7 @@ function AddProviderPicker({
               background: "none",
               border: "none",
               outline: "none",
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
               fontSize: "var(--text-body)",
               boxSizing: "border-box",
             }}
@@ -1872,7 +1894,7 @@ function AddProviderPicker({
               style={{
                 padding: "20px 0",
                 fontSize: "var(--text-label)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 textAlign: "center",
               }}
             >
@@ -1892,7 +1914,7 @@ function AddProviderPicker({
                     gridColumn: "1 / -1",
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
                   }}
@@ -1908,12 +1930,12 @@ function AddProviderPicker({
                   }}
                   style={cardStyle}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
+                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
                     e.currentTarget.style.background = "var(--bg-hover)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.background = "var(--bg-panel)";
+                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
+                    e.currentTarget.style.background = "var(--fx-surface-raised)";
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -1921,7 +1943,7 @@ function AddProviderPicker({
                       style={{
                         fontSize: "var(--text-label)",
                         fontWeight: 600,
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         lineHeight: 1.3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1930,7 +1952,7 @@ function AddProviderPicker({
                     >
                       {t("modelCompatibleProvider", "OpenAI / Anthropic compatible")}
                     </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
                       {t("modelCustomEndpointFormat", "Custom endpoint format")}
                     </div>
                   </div>
@@ -1940,7 +1962,7 @@ function AddProviderPicker({
                       height: 26,
                       borderRadius: "var(--radius-control)",
                       background: "var(--bg-hover)",
-                      border: "1px dashed var(--border)",
+                      border: "1px dashed var(--fx-line-default)",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -1956,7 +1978,7 @@ function AddProviderPicker({
                       strokeWidth="2"
                       strokeLinecap="round"
                       strokeLinejoin="round"
-                      style={{ color: "var(--text-dim)" }}
+                      style={{ color: "var(--fx-text-tertiary)" }}
                     >
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
@@ -1972,7 +1994,7 @@ function AddProviderPicker({
                     paddingTop: showCustom ? 6 : 0,
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
                   }}
@@ -1989,12 +2011,12 @@ function AddProviderPicker({
                   }}
                   style={cardStyle}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
+                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
                     e.currentTarget.style.background = "var(--bg-hover)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.background = "var(--bg-panel)";
+                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
+                    e.currentTarget.style.background = "var(--fx-surface-raised)";
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -2002,7 +2024,7 @@ function AddProviderPicker({
                       style={{
                         fontSize: "var(--text-label)",
                         fontWeight: 600,
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         lineHeight: 1.3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -2011,7 +2033,9 @@ function AddProviderPicker({
                     >
                       {p.name}
                     </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>OAuth</div>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
+                      OAuth
+                    </div>
                   </div>
                   <ProviderIcon id={p.id} size={28} />
                 </button>
@@ -2024,7 +2048,7 @@ function AddProviderPicker({
                     paddingTop: availableOAuth.length > 0 ? 6 : 0,
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.07em",
                   }}
@@ -2041,12 +2065,12 @@ function AddProviderPicker({
                   }}
                   style={cardStyle}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
+                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
                     e.currentTarget.style.background = "var(--bg-hover)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.background = "var(--bg-panel)";
+                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
+                    e.currentTarget.style.background = "var(--fx-surface-raised)";
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -2054,7 +2078,7 @@ function AddProviderPicker({
                       style={{
                         fontSize: "var(--text-label)",
                         fontWeight: 600,
-                        color: "var(--text)",
+                        color: "var(--fx-text-primary)",
                         lineHeight: 1.3,
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -2063,7 +2087,7 @@ function AddProviderPicker({
                     >
                       {p.displayName}
                     </div>
-                    <div style={{ fontSize: "var(--text-micro)", color: "var(--text-dim)", marginTop: 2 }}>
+                    <div style={{ fontSize: "var(--text-micro)", color: "var(--fx-text-tertiary)", marginTop: 2 }}>
                       {t("modelCount", "{count} models").replace("{count}", String(p.modelCount))}
                     </div>
                   </div>
@@ -2424,7 +2448,7 @@ export function ModelsConfig({
               ? {
                   width: "100%",
                   height: "100%",
-                  background: "var(--bg)",
+                  background: "var(--fx-surface-main)",
                   display: "flex",
                   flexDirection: "column",
                   overflow: "hidden",
@@ -2434,8 +2458,8 @@ export function ModelsConfig({
                   maxWidth: "calc(100vw - 16px)",
                   height: isMobile ? "calc(100dvh - 16px)" : "78vh",
                   maxHeight: "calc(100dvh - 16px)",
-                  background: "var(--bg)",
-                  border: "1px solid var(--border)",
+                  background: "var(--fx-surface-main)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-card)",
                   display: "flex",
                   flexDirection: "column",
@@ -2452,16 +2476,20 @@ export function ModelsConfig({
                 alignItems: "center",
                 justifyContent: "space-between",
                 padding: "12px 20px",
-                borderBottom: "1px solid var(--border)",
+                borderBottom: "1px solid var(--fx-line-default)",
                 flexShrink: 0,
               }}
             >
               <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-                <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+                <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
                   {t("models", "Models")}
                 </span>
                 <code
-                  style={{ fontSize: "var(--text-meta)", color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}
+                  style={{
+                    fontSize: "var(--text-meta)",
+                    color: "var(--fx-text-secondary)",
+                    fontFamily: "var(--font-mono)",
+                  }}
                 >
                   ~/.pi/agent/models.json
                 </code>
@@ -2474,7 +2502,7 @@ export function ModelsConfig({
                 style={{
                   background: "none",
                   border: "none",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   cursor: "pointer",
                   fontSize: "var(--text-display)",
                   lineHeight: 1,
@@ -2496,12 +2524,12 @@ export function ModelsConfig({
               style={{
                 width: isMobile ? "100%" : 210,
                 maxHeight: isMobile ? "40vh" : undefined,
-                borderRight: isMobile ? "none" : "1px solid var(--border)",
-                borderBottom: isMobile ? "1px solid var(--border)" : "none",
+                borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
+                borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
                 display: "flex",
                 flexDirection: "column",
                 flexShrink: 0,
-                background: "var(--bg-panel)",
+                background: "var(--fx-surface-raised)",
               }}
             >
               <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
@@ -2532,7 +2560,7 @@ export function ModelsConfig({
                       <span
                         style={{
                           fontSize: "var(--text-label)",
-                          color: "var(--text)",
+                          color: "var(--fx-text-primary)",
                           flex: 1,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -2572,7 +2600,7 @@ export function ModelsConfig({
                       <span
                         style={{
                           fontSize: "var(--text-label)",
-                          color: "var(--text)",
+                          color: "var(--fx-text-primary)",
                           flex: 1,
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -2587,12 +2615,14 @@ export function ModelsConfig({
 
                 {/* Divider before custom providers, only when there are active managed providers */}
                 {(activeOAuth.length > 0 || activeApiKey.length > 0) && providers.length > 0 && (
-                  <div style={{ margin: "4px 8px", borderTop: "1px solid var(--border)" }} />
+                  <div style={{ margin: "4px 8px", borderTop: "1px solid var(--fx-line-default)" }} />
                 )}
 
                 {/* Custom providers */}
                 {loading ? (
-                  <div style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+                  <div
+                    style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}
+                  >
                     {t("loading", "Loading…")}
                   </div>
                 ) : (
@@ -2629,7 +2659,7 @@ export function ModelsConfig({
                             strokeWidth="2"
                             strokeLinecap="round"
                             strokeLinejoin="round"
-                            style={{ color: "var(--text-dim)", flexShrink: 0 }}
+                            style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}
                           >
                             <rect x="4" y="4" width="16" height="16" rx="2" />
                             <rect x="9" y="9" width="6" height="6" />
@@ -2646,7 +2676,7 @@ export function ModelsConfig({
                             style={{
                               fontSize: "var(--text-label)",
                               fontWeight: isProviderSelected ? 600 : 400,
-                              color: "var(--text)",
+                              color: "var(--fx-text-primary)",
                               fontFamily: "var(--font-mono)",
                               flex: 1,
                               overflow: "hidden",
@@ -2686,7 +2716,7 @@ export function ModelsConfig({
                                 style={{
                                   fontSize: "var(--text-meta)",
                                   fontFamily: "var(--font-mono)",
-                                  color: m.id ? "var(--text-muted)" : "var(--text-dim)",
+                                  color: m.id ? "var(--fx-text-secondary)" : "var(--fx-text-tertiary)",
                                   flex: 1,
                                   overflow: "hidden",
                                   textOverflow: "ellipsis",
@@ -2726,14 +2756,14 @@ export function ModelsConfig({
                             padding: "4px 8px 4px 28px",
                             borderRadius: "var(--radius-control)",
                             cursor: "pointer",
-                            color: "var(--text-dim)",
+                            color: "var(--fx-text-tertiary)",
                           }}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.color = "var(--accent)";
+                            e.currentTarget.style.color = "var(--fx-accent-blue)";
                             e.currentTarget.style.background = "var(--bg-hover)";
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.color = "var(--text-dim)";
+                            e.currentTarget.style.color = "var(--fx-text-tertiary)";
                             e.currentTarget.style.background = "none";
                           }}
                         >
@@ -2746,7 +2776,7 @@ export function ModelsConfig({
               </div>
 
               {/* Add provider */}
-              <div style={{ borderTop: "1px solid var(--border)", padding: "8px 8px" }}>
+              <div style={{ borderTop: "1px solid var(--fx-line-default)", padding: "8px 8px" }}>
                 <button
                   onClick={() => setPickerOpen(true)}
                   style={{
@@ -2757,19 +2787,19 @@ export function ModelsConfig({
                     width: "100%",
                     padding: "8px 0",
                     background: "none",
-                    border: "1px dashed var(--border)",
+                    border: "1px dashed var(--fx-line-default)",
                     borderRadius: "var(--radius-control)",
-                    color: "var(--text-muted)",
+                    color: "var(--fx-text-secondary)",
                     cursor: "pointer",
                     fontSize: "var(--text-label)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = "var(--accent)";
-                    e.currentTarget.style.color = "var(--accent)";
+                    e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
+                    e.currentTarget.style.color = "var(--fx-accent-blue)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = "var(--border)";
-                    e.currentTarget.style.color = "var(--text-muted)";
+                    e.currentTarget.style.borderColor = "var(--fx-line-default)";
+                    e.currentTarget.style.color = "var(--fx-text-secondary)";
                   }}
                 >
                   + {t("addProvider", "Add provider")}
@@ -2788,7 +2818,7 @@ export function ModelsConfig({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        color: "var(--text-dim)",
+                        color: "var(--fx-text-tertiary)",
                         fontSize: "var(--text-body)",
                       }}
                     >
@@ -2806,12 +2836,14 @@ export function ModelsConfig({
               justifyContent: "flex-end",
               gap: 12,
               padding: "12px 20px",
-              borderTop: "1px solid var(--border)",
+              borderTop: "1px solid var(--fx-line-default)",
               flexShrink: 0,
             }}
           >
             {saveError && (
-              <span style={{ fontSize: "var(--text-label)", color: "var(--danger)", flex: 1 }}>{saveError}</span>
+              <span style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)", flex: 1 }}>
+                {saveError}
+              </span>
             )}
             {saveConflict && (
               <button
@@ -2822,9 +2854,9 @@ export function ModelsConfig({
                 style={{
                   padding: "8px 12px",
                   background: "none",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text)",
+                  color: "var(--fx-text-primary)",
                   cursor: loading || saving ? "default" : "pointer",
                   fontSize: "var(--text-label)",
                 }}
@@ -2838,9 +2870,9 @@ export function ModelsConfig({
                 style={{
                   padding: "8px 16px",
                   background: "none",
-                  border: "1px solid var(--border)",
+                  border: "1px solid var(--fx-line-default)",
                   borderRadius: "var(--radius-control)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   cursor: "pointer",
                   fontSize: "var(--text-body)",
                 }}
@@ -2859,17 +2891,17 @@ export function ModelsConfig({
                 padding: "8px 16px",
                 minWidth: 92,
                 background: savedOk
-                  ? "var(--success-soft)"
+                  ? "var(--fx-status-success-soft)"
                   : saving || loadFailed || saveConflict || !configLoaded || !configVersion
-                    ? "var(--bg-panel)"
-                    : "var(--accent)",
+                    ? "var(--fx-surface-raised)"
+                    : "var(--fx-accent-blue)",
                 border: "none",
                 borderRadius: "var(--radius-control)",
                 color: savedOk
-                  ? "var(--success)"
+                  ? "var(--fx-status-success)"
                   : !(saving || loadFailed || saveConflict || !configLoaded || !configVersion)
-                    ? "var(--on-accent)"
-                    : "var(--text-muted)",
+                    ? "var(--fx-text-on-accent)"
+                    : "var(--fx-text-secondary)",
                 cursor:
                   saving || savedOk || loading || loadFailed || saveConflict || !configLoaded || !configVersion
                     ? "default"

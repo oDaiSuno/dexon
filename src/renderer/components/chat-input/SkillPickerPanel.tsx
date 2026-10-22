@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { SkillRecord } from "@/lib/api-types";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { GlideHighlight } from "./GlideHighlight";
 import { PackageIcon } from "./icons";
 
@@ -78,8 +77,8 @@ export function SkillPickerPanel({
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-raised)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: 10,
         boxShadow:
           "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
@@ -136,12 +135,12 @@ export function SkillPickerPanel({
           margin: "0 0 4px",
           padding: "0 10px",
           borderRadius: 6,
-          border: "1px solid var(--border)",
-          background: "var(--bg)",
-          color: "var(--text)",
+          border: "1px solid var(--fx-line-default)",
+          background: "var(--fx-surface-main)",
+          color: "var(--fx-text-primary)",
           outline: "none",
           font: "inherit",
-          fontSize: scaledChatFont(12.5),
+          fontSize: 12.5,
         }}
       />
       {statusLine && (
@@ -152,8 +151,8 @@ export function SkillPickerPanel({
             display: "flex",
             alignItems: "center",
             padding: "0 8px",
-            fontSize: scaledChatFont(12),
-            color: "var(--text-muted)",
+            fontSize: 12,
+            color: "var(--fx-text-secondary)",
           }}
         >
           {statusLine.text}
@@ -215,7 +214,7 @@ export function SkillPickerPanel({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                color: "var(--accent)",
+                color: "var(--fx-accent-blue)",
               }}
             >
               <PackageIcon size={15} />
@@ -223,9 +222,9 @@ export function SkillPickerPanel({
             <span
               style={{
                 flexShrink: 0,
-                fontSize: scaledChatFont(12.5),
+                fontSize: 12.5,
                 fontWeight: 500,
-                color: "var(--accent)",
+                color: "var(--fx-accent-blue)",
               }}
             >
               {skill.name}
@@ -234,8 +233,8 @@ export function SkillPickerPanel({
               style={{
                 minWidth: 0,
                 flex: 1,
-                fontSize: scaledChatFont(12),
-                color: "var(--text-dim)",
+                fontSize: 12,
+                color: "var(--fx-text-tertiary)",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -246,8 +245,8 @@ export function SkillPickerPanel({
             <span
               style={{
                 flexShrink: 0,
-                fontSize: scaledChatFont(10.5),
-                color: "var(--text-muted)",
+                fontSize: 10.5,
+                color: "var(--fx-text-secondary)",
                 textTransform: "uppercase",
                 letterSpacing: 0.4,
               }}
@@ -289,8 +288,8 @@ export function SkillRevealCard({
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
+        background: "var(--fx-surface-raised)",
+        border: "1px solid var(--fx-line-default)",
         borderRadius: 10,
         boxShadow:
           "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
@@ -306,13 +305,13 @@ export function SkillRevealCard({
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ color: "var(--accent)", display: "flex" }}>
+        <span style={{ color: "var(--fx-accent-blue)", display: "flex" }}>
           <PackageIcon size={15} />
         </span>
-        <span style={{ fontSize: scaledChatFont(13), fontWeight: 600, color: "var(--accent)" }}>{name}</span>
+        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--fx-accent-blue)" }}>{name}</span>
       </div>
       {description && (
-        <div style={{ marginTop: 6, fontSize: scaledChatFont(12), lineHeight: 1.55, color: "var(--text-dim)" }}>
+        <div style={{ marginTop: 6, fontSize: 12, lineHeight: 1.55, color: "var(--fx-text-tertiary)" }}>
           {description}
         </div>
       )}
@@ -320,9 +319,9 @@ export function SkillRevealCard({
         <div
           style={{
             marginTop: 8,
-            fontSize: scaledChatFont(11),
+            fontSize: 11,
             fontFamily: "var(--font-mono, monospace)",
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
             wordBreak: "break-all",
           }}
         >

@@ -23,7 +23,7 @@ export function SettingRow({
         gap: 20,
         minHeight: 56,
         padding: "12px 4px",
-        borderTop: "1px solid var(--border)",
+        borderTop: "1px solid var(--fx-line-default)",
       }}
     >
       <label
@@ -31,7 +31,7 @@ export function SettingRow({
         style={{
           fontSize: "var(--text-body-lg)",
           fontWeight: "var(--weight-medium)",
-          color: "var(--text)",
+          color: "var(--fx-text-primary)",
           cursor: "pointer",
         }}
       >

@@ -28,23 +28,25 @@ export function PluginList({
       style={{
         width: isMobile ? "100%" : 245,
         maxHeight: isMobile ? "40vh" : undefined,
-        borderRight: isMobile ? "none" : "1px solid var(--border)",
-        borderBottom: isMobile ? "1px solid var(--border)" : "none",
+        borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
+        borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
       }}
     >
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
         {loading ? (
-          <div style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+          <div style={{ padding: "12px 8px", fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
             {t("loading", "Loading…")}
           </div>
         ) : error ? (
-          <div style={{ padding: "12px 8px", fontSize: "var(--text-meta)", color: "var(--danger)" }}>{error}</div>
+          <div style={{ padding: "12px 8px", fontSize: "var(--text-meta)", color: "var(--fx-status-danger)" }}>
+            {error}
+          </div>
         ) : groupedPackages.length === 0 ? (
-          <div style={{ padding: "12px 8px", fontSize: "var(--text-meta)", color: "var(--text-dim)" }}>
+          <div style={{ padding: "12px 8px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
             {t("pluginNoPackagesConfigured", "No plugins configured")}
           </div>
         ) : (
@@ -55,7 +57,7 @@ export function PluginList({
                   padding: "4px 8px 4px",
                   fontSize: "var(--text-micro)",
                   fontWeight: 600,
-                  color: "var(--text-dim)",
+                  color: "var(--fx-text-tertiary)",
                   textTransform: "uppercase",
                 }}
               >
@@ -100,7 +102,7 @@ export function PluginList({
                         style={{
                           fontSize: "var(--text-label)",
                           fontWeight: isSelected ? 600 : 400,
-                          color: "var(--text)",
+                          color: "var(--fx-text-primary)",
                           fontFamily: "var(--font-mono)",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -112,7 +114,7 @@ export function PluginList({
                       <div
                         style={{
                           fontSize: "var(--text-micro)",
-                          color: "var(--text-dim)",
+                          color: "var(--fx-text-tertiary)",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap",
@@ -125,7 +127,7 @@ export function PluginList({
                         <div
                           style={{
                             fontSize: "var(--text-micro)",
-                            color: "var(--text-dim)",
+                            color: "var(--fx-text-tertiary)",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -143,7 +145,7 @@ export function PluginList({
           ))
         )}
       </div>
-      <div style={{ padding: "8px 8px", borderTop: "1px solid var(--border)", flexShrink: 0 }}>
+      <div style={{ padding: "8px 8px", borderTop: "1px solid var(--fx-line-default)", flexShrink: 0 }}>
         <button
           type="button"
           onClick={onAddPlugin}
@@ -157,7 +159,7 @@ export function PluginList({
             width: "100%",
             cursor: "pointer",
             background: addMode ? "var(--bg-selected)" : "none",
-            color: addMode ? "var(--accent)" : "var(--text-dim)",
+            color: addMode ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
             fontSize: "var(--text-label)",
           }}
           onMouseEnter={(e) => {

@@ -1,5 +1,4 @@
 import { useMemo, useRef, useSyncExternalStore } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { useDelayedUnmount } from "./shared";
@@ -56,7 +55,7 @@ export function ThinkingBlock({
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
           {traceMounted && (
-            <div className="chat-think-box" style={{ fontSize: scaledChatFont(12.5) }}>
+            <div className="chat-think-box" style={{ fontSize: 12.5 }}>
               {block.thinking}
             </div>
           )}

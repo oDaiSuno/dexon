@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 const COLLAPSED_LINES = 3;
 
@@ -26,7 +25,7 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
       role="alert"
       data-testid="assistant-error-message"
       className="chat-failure-line"
-      style={{ fontSize: scaledChatFont(13), marginBottom: 8 }}
+      style={{ fontSize: 13, marginBottom: 8 }}
     >
       <span aria-hidden="true" className="chat-failure-mark">
         ✕
@@ -79,7 +78,7 @@ export function RetryCountdownLine({ retryAt, onCancel }: { retryAt: number; onC
       : t("retryingNow", "Retrying…");
 
   return (
-    <div role="status" className="chat-failure-line chat-retry-line" style={{ fontSize: scaledChatFont(13) }}>
+    <div role="status" className="chat-failure-line chat-retry-line" style={{ fontSize: 13 }}>
       <span aria-hidden="true" className="chat-failure-mark chat-retry-mark">
         ↻
       </span>

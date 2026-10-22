@@ -27,7 +27,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   return (
     <FieldControlIdContext.Provider value={controlId}>
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label htmlFor={controlId} style={{ fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
+        <label htmlFor={controlId} style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)" }}>
           {label}
         </label>
         {children}
@@ -154,7 +154,7 @@ export function SecretTextInput({
           padding: 0,
           border: "none",
           background: "transparent",
-          color: "var(--text-dim)",
+          color: "var(--fx-text-tertiary)",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
@@ -269,7 +269,7 @@ export function Check({
         minHeight: 32,
         cursor: "pointer",
         fontSize: "var(--text-body)",
-        color: "var(--text)",
+        color: "var(--fx-text-primary)",
       }}
     >
       <Toggle checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -284,7 +284,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
       style={{
         fontSize: "var(--text-meta)",
         fontWeight: "var(--weight-medium)",
-        color: "var(--text-dim)",
+        color: "var(--fx-text-tertiary)",
         textTransform: "uppercase",
         letterSpacing: "0.06em",
         marginBottom: 2,

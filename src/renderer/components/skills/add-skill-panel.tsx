@@ -118,7 +118,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
           marginBottom: 20,
         }}
       >
-        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 600, color: "var(--text)" }}>
+        <div style={{ fontSize: "var(--text-body-lg)", fontWeight: 600, color: "var(--fx-text-primary)" }}>
           {t("addSkill", "Add skill")}
         </div>
 
@@ -139,10 +139,10 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
               minHeight: 36,
               padding: "8px 12px",
               fontSize: "var(--text-body)",
-              background: "var(--bg-panel)",
-              border: "1px solid var(--border)",
+              background: "var(--fx-surface-raised)",
+              border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-control)",
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
               outline: "none",
             }}
           />
@@ -156,8 +156,8 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
               fontSize: "var(--text-body)",
               borderRadius: "var(--radius-control)",
               border: "none",
-              background: "var(--btn-bg)",
-              color: "var(--btn-fg)",
+              background: "var(--fx-accent-blue-fill)",
+              color: "var(--fx-text-on-accent)",
               cursor: searching || !query.trim() ? "not-allowed" : "pointer",
               opacity: searching || !query.trim() ? 0.5 : 1,
               flexShrink: 0,
@@ -173,7 +173,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
             style={{
               display: "flex",
               borderRadius: "var(--radius-control)",
-              border: "1px solid var(--border)",
+              border: "1px solid var(--fx-line-default)",
               overflow: "hidden",
               fontSize: "var(--text-label)",
               flexShrink: 0,
@@ -188,9 +188,9 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                   border: "none",
                   cursor: "pointer",
                   background: scope === s ? "var(--bg-selected)" : "none",
-                  color: scope === s ? "var(--text)" : "var(--text-dim)",
+                  color: scope === s ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                   fontWeight: scope === s ? 600 : 400,
-                  borderRight: s === "global" ? "1px solid var(--border)" : "none",
+                  borderRight: s === "global" ? "1px solid var(--fx-line-default)" : "none",
                 }}
               >
                 {sourceLabelText(s, t)}
@@ -200,7 +200,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
           <span
             style={{
               fontSize: "var(--text-label)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               fontFamily: "var(--font-mono)",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -212,7 +212,9 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
         </div>
 
         {/* Errors */}
-        {searchError && <div style={{ fontSize: "var(--text-label)", color: "var(--danger)" }}>{searchError}</div>}
+        {searchError && (
+          <div style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)" }}>{searchError}</div>
+        )}
         {capabilityIssue && pendingInstallPackage && (
           <CapabilityRequired
             issue={capabilityIssue}
@@ -225,7 +227,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
           />
         )}
         {installError && (
-          <div style={{ fontSize: "var(--text-label)", color: "var(--danger)", wordBreak: "break-word" }}>
+          <div style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)", wordBreak: "break-word" }}>
             {installError}
           </div>
         )}
@@ -249,7 +251,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                   alignItems: "center",
                   gap: 16,
                   padding: "12px 0",
-                  borderBottom: "1px solid var(--border)",
+                  borderBottom: "1px solid var(--fx-line-default)",
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -258,7 +260,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                     style={{
                       fontSize: "var(--text-body)",
                       fontWeight: 600,
-                      color: "var(--text)",
+                      color: "var(--fx-text-primary)",
                       marginBottom: 4,
                     }}
                   >
@@ -277,7 +279,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                       style={{
                         fontFamily: "var(--font-mono)",
                         fontSize: "var(--text-meta)",
-                        color: "var(--text-dim)",
+                        color: "var(--fx-text-tertiary)",
                       }}
                     >
                       {repopart}
@@ -286,7 +288,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                       <span
                         style={{
                           fontSize: "var(--text-label)",
-                          color: "var(--text-muted)",
+                          color: "var(--fx-text-secondary)",
                           fontWeight: 500,
                         }}
                       >
@@ -303,7 +305,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                         rel="noreferrer"
                         style={{
                           fontSize: "var(--text-label)",
-                          color: "var(--accent)",
+                          color: "var(--fx-accent-blue)",
                           textDecoration: "none",
                         }}
                       >
@@ -321,10 +323,14 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
                     fontSize: "var(--text-label)",
                     fontWeight: 500,
                     borderRadius: "var(--radius-control)",
-                    border: "1px solid var(--border)",
+                    border: "1px solid var(--fx-line-default)",
                     cursor: isInstalled || isInstalling || installing !== null ? "not-allowed" : "pointer",
                     background: isInstalled ? "rgba(34,197,94,0.1)" : "none",
-                    color: isInstalled ? "var(--success)" : isInstalling ? "var(--accent)" : "var(--text-muted)",
+                    color: isInstalled
+                      ? "var(--fx-status-success)"
+                      : isInstalling
+                        ? "var(--fx-accent-blue)"
+                        : "var(--fx-text-secondary)",
                     transition: "color 0.12s",
                   }}
                 >
@@ -341,13 +347,13 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
       ) : (
         !searchError &&
         !searching && (
-          <div style={{ fontSize: "var(--text-body)", color: "var(--text-dim)", lineHeight: 1.8 }}>
+          <div style={{ fontSize: "var(--text-body)", color: "var(--fx-text-tertiary)", lineHeight: 1.8 }}>
             {t("searchSkillsCatalogPrefix", "Search")}{" "}
             <a
               href="https://skills.sh"
               target="_blank"
               rel="noreferrer"
-              style={{ color: "var(--accent)", textDecoration: "none" }}
+              style={{ color: "var(--fx-accent-blue)", textDecoration: "none" }}
             >
               {t("skillsCatalogName", "skills.sh")}
             </a>{" "}

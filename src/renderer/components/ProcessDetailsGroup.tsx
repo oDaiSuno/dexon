@@ -2,7 +2,6 @@ import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { formatTurnDuration } from "@/lib/process-flow";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useDelayedUnmount } from "./messages/shared";
 
 export function ProcessDetailsGroup({
@@ -49,11 +48,11 @@ export function ProcessDetailsGroup({
             ? t("collapseProcessDetails", "Collapse process details")
             : t("expandProcessDetails", "Expand process details")
         }
-        style={{ fontSize: scaledChatFont(12.5) }}
+        style={{ fontSize: 12.5 }}
       >
         <span
           className="chat-acc-chevron"
-          style={{ color: "var(--bui-ink-3)", display: "flex", flexShrink: 0 }}
+          style={{ color: "var(--fx-text-tertiary)", display: "flex", flexShrink: 0 }}
           aria-hidden="true"
         >
           <svg
@@ -75,7 +74,7 @@ export function ProcessDetailsGroup({
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
-            color: "var(--bui-ink-2)",
+            color: "var(--fx-text-secondary)",
             fontVariantNumeric: "tabular-nums",
           }}
         >

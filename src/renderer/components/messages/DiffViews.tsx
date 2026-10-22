@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { parseUnifiedPatch, type SplitDiffCell } from "@/lib/patch";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { isRecord } from "./shared";
 import type { ToolResultMessage } from "@/lib/types";
 
@@ -22,15 +21,15 @@ function SplitPatchView({ text }: { text: string }) {
   const showFileHeaders = files.length > 1;
 
   return (
-    <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--bui-inset)" }}>
+    <div style={{ maxHeight: 560, overflowY: "auto", overflowX: "hidden", background: "var(--fx-surface-inset)" }}>
       {files.map((file, fileIndex) => (
         <div
           key={fileIndex}
           style={{
             minWidth: 0,
-            borderTop: fileIndex === 0 ? "none" : "1px solid var(--bui-line)",
+            borderTop: fileIndex === 0 ? "none" : "1px solid var(--fx-line-default)",
             fontFamily: "var(--font-mono)",
-            fontSize: scaledChatFont(11.5),
+            fontSize: 11.5,
             lineHeight: 1.65,
           }}
         >
@@ -42,8 +41,8 @@ function SplitPatchView({ text }: { text: string }) {
                 position: "sticky",
                 top: 0,
                 zIndex: 1,
-                background: "var(--bui-surface)",
-                borderBottom: "1px solid var(--bui-line)",
+                background: "var(--fx-surface-raised)",
+                borderBottom: "1px solid var(--fx-line-default)",
               }}
             >
               <SplitDiffHeader title={file.oldPath || "Before"} side="left" />
@@ -77,8 +76,8 @@ function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right
       title={title}
       style={{
         padding: "5px 10px",
-        color: "var(--bui-ink-3)",
-        borderRight: side === "left" ? "1px solid var(--bui-line)" : "none",
+        color: "var(--fx-text-tertiary)",
+        borderRight: side === "left" ? "1px solid var(--fx-line-default)" : "none",
         overflow: "hidden",
         textOverflow: "ellipsis",
         whiteSpace: "nowrap",
@@ -92,15 +91,19 @@ function SplitDiffHeader({ title, side }: { title: string; side: "left" | "right
 function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" | "right" }) {
   const bg =
     cell.type === "added"
-      ? "var(--bui-green-tint)"
+      ? "var(--fx-status-success-soft)"
       : cell.type === "removed"
-        ? "var(--bui-red-tint)"
+        ? "var(--fx-status-danger-soft)"
         : cell.type === "empty"
-          ? "var(--bui-hover)"
+          ? "var(--fx-surface-hover-overlay)"
           : "transparent";
   const marker = cell.type === "added" ? "+" : cell.type === "removed" ? "−" : " ";
   const markerColor =
-    cell.type === "added" ? "var(--bui-green)" : cell.type === "removed" ? "var(--bui-red)" : "var(--bui-ink-3)";
+    cell.type === "added"
+      ? "var(--fx-status-success-text)"
+      : cell.type === "removed"
+        ? "var(--fx-status-danger-text)"
+        : "var(--fx-text-tertiary)";
 
   return (
     <div
@@ -108,7 +111,7 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
         display: "flex",
         minWidth: 0,
         background: bg,
-        borderRight: side === "left" ? "1px solid var(--bui-line)" : "none",
+        borderRight: side === "left" ? "1px solid var(--fx-line-default)" : "none",
       }}
     >
       <span
@@ -116,11 +119,11 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
           width: 42,
           padding: "0 6px",
           textAlign: "right",
-          color: "var(--bui-ink-3)",
+          color: "var(--fx-text-tertiary)",
           opacity: 0.65,
           userSelect: "none",
-          background: "var(--bui-surface)",
-          borderRight: "1px solid var(--bui-line)",
+          background: "var(--fx-surface-raised)",
+          borderRight: "1px solid var(--fx-line-default)",
           flexShrink: 0,
         }}
       >
@@ -144,7 +147,11 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
           minWidth: 0,
           padding: "0 10px 0 0",
           color:
-            cell.type === "empty" ? "var(--bui-ink-3)" : cell.type === "context" ? "var(--bui-ink-2)" : markerColor,
+            cell.type === "empty"
+              ? "var(--fx-text-tertiary)"
+              : cell.type === "context"
+                ? "var(--fx-text-secondary)"
+                : markerColor,
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
         }}
@@ -165,7 +172,7 @@ function PatchTextView({ text }: { text: string }) {
         overflowY: "auto",
         overflowX: "hidden",
         fontFamily: "var(--font-mono)",
-        fontSize: scaledChatFont(11.5),
+        fontSize: 11.5,
         lineHeight: 1.65,
         minWidth: 0,
       }}
@@ -180,20 +187,20 @@ function PatchTextView({ text }: { text: string }) {
               : "context";
         const bg =
           kind === "added"
-            ? "var(--bui-green-tint)"
+            ? "var(--fx-status-success-soft)"
             : kind === "removed"
-              ? "var(--bui-red-tint)"
+              ? "var(--fx-status-danger-soft)"
               : kind === "hunk"
-                ? "var(--bui-hover)"
+                ? "var(--fx-surface-hover-overlay)"
                 : "transparent";
         const color =
           kind === "added"
-            ? "var(--bui-green)"
+            ? "var(--fx-status-success-text)"
             : kind === "removed"
-              ? "var(--bui-red)"
+              ? "var(--fx-status-danger-text)"
               : kind === "hunk"
-                ? "var(--bui-ink-3)"
-                : "var(--bui-ink-2)";
+                ? "var(--fx-text-tertiary)"
+                : "var(--fx-text-secondary)";
 
         return (
           <div
@@ -203,11 +210,11 @@ function PatchTextView({ text }: { text: string }) {
               background: bg,
               borderLeft:
                 kind === "added"
-                  ? "3px solid var(--bui-green)"
+                  ? "3px solid var(--fx-status-success-text)"
                   : kind === "removed"
-                    ? "3px solid var(--bui-red)"
+                    ? "3px solid var(--fx-status-danger-text)"
                     : kind === "hunk"
-                      ? "3px solid var(--bui-line-strong)"
+                      ? "3px solid var(--fx-line-strong)"
                       : "3px solid transparent",
             }}
           >
@@ -215,10 +222,10 @@ function PatchTextView({ text }: { text: string }) {
               style={{
                 width: 48,
                 padding: "0 8px",
-                color: "var(--bui-ink-3)",
+                color: "var(--fx-text-tertiary)",
                 opacity: 0.65,
-                background: "var(--bui-surface)",
-                borderRight: "1px solid var(--bui-line)",
+                background: "var(--fx-surface-raised)",
+                borderRight: "1px solid var(--fx-line-default)",
                 textAlign: "right",
                 userSelect: "none",
                 flexShrink: 0,

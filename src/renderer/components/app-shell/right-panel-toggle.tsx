@@ -19,19 +19,19 @@ export function RightPanelToggle({ open, onToggle }: { open: boolean; onToggle: 
         width: 36,
         height: 36,
         padding: 0,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
         border: "none",
-        borderLeft: "1px solid var(--border)",
-        borderBottom: "1px solid var(--border)",
-        color: open ? "var(--text)" : "var(--text-muted)",
+        borderLeft: "1px solid var(--fx-line-default)",
+        borderBottom: "1px solid var(--fx-line-default)",
+        color: open ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
         cursor: "pointer",
         transition: "color 0.12s",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.color = "var(--text)";
+        e.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
+        e.currentTarget.style.color = open ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
       }}
     >
       <svg

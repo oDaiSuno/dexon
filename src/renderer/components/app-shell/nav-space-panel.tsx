@@ -43,16 +43,16 @@ export function NavSpacePanel({
             flexDirection: "column",
             gap: 6,
             padding: "8px 10px",
-            border: "1px solid color-mix(in srgb, var(--danger) 40%, transparent)",
+            border: "1px solid color-mix(in srgb, var(--fx-status-danger) 40%, transparent)",
             borderRadius: "var(--radius-card)",
-            background: "color-mix(in srgb, var(--danger) 8%, transparent)",
+            background: "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)",
             fontSize: "var(--text-label)",
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
           }}
         >
           <span>{notice.message}</span>
           {notice.reason && (
-            <span style={{ color: "var(--text-muted)", fontSize: "var(--text-meta)", overflowWrap: "anywhere" }}>
+            <span style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-meta)", overflowWrap: "anywhere" }}>
               {notice.reason}
             </span>
           )}
@@ -64,10 +64,10 @@ export function NavSpacePanel({
                 alignSelf: "flex-start",
                 height: 24,
                 padding: "0 10px",
-                background: "var(--bg-panel)",
-                border: "1px solid var(--border)",
+                background: "var(--fx-surface-raised)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text)",
+                color: "var(--fx-text-primary)",
                 cursor: "pointer",
                 fontSize: "var(--text-label)",
               }}

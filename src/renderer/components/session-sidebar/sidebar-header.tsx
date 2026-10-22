@@ -28,9 +28,11 @@ export function SidebarHeader({
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            background: sessionRefreshDone ? "color-mix(in srgb, var(--success) 18%, transparent)" : "var(--bg-hover)",
-            border: `1px solid ${sessionRefreshDone ? "color-mix(in srgb, var(--success) 40%, transparent)" : "var(--border)"}`,
-            color: sessionRefreshDone ? "var(--success)" : "var(--text-muted)",
+            background: sessionRefreshDone
+              ? "color-mix(in srgb, var(--fx-status-success) 18%, transparent)"
+              : "var(--bg-hover)",
+            border: `1px solid ${sessionRefreshDone ? "color-mix(in srgb, var(--fx-status-success) 40%, transparent)" : "var(--fx-line-default)"}`,
+            color: sessionRefreshDone ? "var(--fx-status-success)" : "var(--fx-text-secondary)",
             cursor: "pointer",
             width: 32,
             height: 32,
@@ -42,14 +44,14 @@ export function SidebarHeader({
           onMouseEnter={(e) => {
             if (sessionRefreshDone) return;
             e.currentTarget.style.background = "var(--bg-selected)";
-            e.currentTarget.style.color = "var(--accent)";
-            e.currentTarget.style.borderColor = "var(--accent-soft-border)";
+            e.currentTarget.style.color = "var(--fx-accent-blue)";
+            e.currentTarget.style.borderColor = "var(--fx-accent-blue-border)";
           }}
           onMouseLeave={(e) => {
             if (sessionRefreshDone) return;
             e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text-muted)";
-            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.color = "var(--fx-text-secondary)";
+            e.currentTarget.style.borderColor = "var(--fx-line-default)";
           }}
           title={t("refresh", "Refresh")}
         >
@@ -59,7 +61,7 @@ export function SidebarHeader({
               height="15"
               viewBox="0 0 24 24"
               fill="none"
-              stroke="var(--success)"
+              stroke="var(--fx-status-success)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -94,9 +96,9 @@ export function SidebarHeader({
           gap: 8,
           width: "100%",
           padding: "8px 12px",
-          background: selectedCwd ? "var(--text)" : "var(--bg-hover)",
+          background: selectedCwd ? "var(--fx-text-primary)" : "var(--bg-hover)",
           border: "none",
-          color: selectedCwd ? "var(--bg)" : "var(--text-dim)",
+          color: selectedCwd ? "var(--fx-surface-main)" : "var(--fx-text-tertiary)",
           cursor: selectedCwd ? "pointer" : "not-allowed",
           borderRadius: "var(--radius-card)",
           fontSize: "var(--text-label)",

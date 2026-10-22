@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
- * Blocking design contracts: Framer token mirror, contrast, shared fonts, motion
- * policy and theme boot ordering. UI behavior belongs at its public boundary;
- * equivalent JSX spelling, component extraction and DOM wrappers are allowed.
+ * Blocking design contracts: Framer is the only source of colors and text
+ * styles, the generated CSS matches its export, retired names and direct
+ * typography only shrink, contrast, shared fonts, motion policy and theme boot
+ * ordering. UI behavior belongs at its public boundary.
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -11,8 +12,9 @@ import postcss from "postcss";
 import { readRendererCssSources, readStylePartial, rendererCssImportOrder } from "./css-sources.mjs";
 import { APP_MONO_FONT_FAMILY, APP_SANS_FONT_FAMILY } from "../src/shared/font-stack.ts";
 import { parseColor, readFramerTokens } from "./framer-tokens.mjs";
-import { renderTokens } from "./sync-framer-tokens.mjs";
-import { checkColorLedger, readLedgers } from "./design-colors/ledger.mjs";
+import { staleFramerOutputs } from "./sync-framer-tokens.mjs";
+import { checkColorLedger } from "./design-debt/color-ledger.mjs";
+import { checkDesignDebt, readDebtLedgers, remainingDebt } from "./design-debt/ledger.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -29,62 +31,31 @@ function checkColorLiterals() {
 }
 
 // ---------------------------------------------------------------------------
-// D. tokens.css 的 Framer 镜像区与 framer-tokens.json 一致；语义层只指向镜像
+// D. 生成物与 Framer 导出一致；tokens.css 手写区不出现裸色值
 // ---------------------------------------------------------------------------
-const SEMANTIC_TOKENS = [
-  "--bg",
-  "--bg-panel",
-  "--border",
-  "--text",
-  "--text-muted",
-  "--text-dim",
-  "--accent",
-  "--accent-fill",
-  "--accent-contrast",
-  "--on-accent",
-  "--btn-bg",
-  "--btn-fg",
-  "--success",
-  "--success-text",
-  "--success-soft",
-  "--success-border",
-  "--danger",
-  "--danger-text",
-  "--danger-soft",
-  "--danger-border",
-  "--warning",
-  "--warning-text",
-  "--warning-soft",
-  "--warning-border",
-  "--info",
-  "--info-soft",
-  "--info-border",
-];
-
-function themeBlocks(css) {
-  return {
-    light: css.slice(css.indexOf(":root {"), css.indexOf("html.dark {")),
-    dark: css.slice(css.indexOf("html.dark {"), css.indexOf(".chat-appearance-scope {")),
-  };
-}
-
-function declaredValue(block, token) {
-  const match = block.match(new RegExp(`(?:^|\\n)\\s*${token}:\\s*([^;]+);`));
-  return match ? match[1].trim() : null;
-}
-
 function checkFramerMirror() {
-  const css = readStylePartial("tokens.css");
-  if (renderTokens(css) !== css)
-    failures.push("tokens.css 的 Framer 镜像区已过期：运行 node scripts/sync-framer-tokens.mjs");
-  const { light } = themeBlocks(css);
-  for (const token of SEMANTIC_TOKENS) {
-    if (declaredValue(light, token) === null) failures.push(`tokens.css 缺少语义令牌: ${token}`);
+  for (const stale of staleFramerOutputs()) {
+    failures.push(
+      `${stale} 与 framer-tokens.json 不一致：运行 node --experimental-strip-types scripts/sync-framer-tokens.mjs`,
+    );
   }
-  const semanticPart = light.slice(light.indexOf("/* FRAMER-MIRROR:light:end */"));
-  for (const [, token, value] of semanticPart.matchAll(/\n\s*(--[a-z0-9-]+):\s*([^;]+);/g)) {
-    if (/#[0-9a-f]{3,8}\b|rgba?\(/i.test(value) && !/^#ffffff$/i.test(value.trim()) && !token.startsWith("--shadow")) {
-      failures.push(`tokens.css 语义令牌 ${token} 写了裸色值 ${value}，必须指向 Framer 镜像 (--fx-*)`);
+  const css = readStylePartial("tokens.css");
+  const handWritten = css.replace(
+    /\/\* FRAMER-MIRROR:(light|dark):start \*\/[\s\S]*?\/\* FRAMER-MIRROR:\1:end \*\//g,
+    "",
+  );
+  for (const [, token, value] of handWritten.matchAll(/\n\s*(--[a-z0-9-]+):\s*([^;]+);/g)) {
+    if (/#[0-9a-f]{3,8}\b|rgba?\(/i.test(value)) {
+      failures.push(`tokens.css ${token} 写了裸色值 ${value.trim()}：颜色只能来自 Framer（var(--fx-*)）`);
+    }
+  }
+}
+
+function checkDebt() {
+  failures.push(...checkDesignDebt());
+  for (const ledger of readDebtLedgers().filter((entry) => entry.permanent)) {
+    for (const entry of ledger.typography ?? []) {
+      if (!entry.reason?.trim()) failures.push(`${entry.file} 的 ${entry.property} 是永久豁免，必须写明 reason`);
     }
   }
 }
@@ -106,6 +77,8 @@ const CONTRAST_PAIRS = [
   ["/Status/Warning Text", "/Surface/Raised"],
   ["/Status/Danger Text", "/Surface/Raised"],
   ["/Text/Inverse", "/Surface/Inverse"],
+  ["/Text/Inverse", "/Surface/Inverse Hover"],
+  ["/Text/On Danger", "/Status/Danger"],
 ];
 
 function relativeLuminance({ r, g, b }) {
@@ -133,12 +106,6 @@ function checkContrast() {
         failures.push(`${theme} 主题 ${foreground} 在 ${background} 上对比度 ${ratio.toFixed(2)} 低于 WCAG AA (4.5)`);
       }
     }
-  }
-  if (!/--on-accent:\s*var\(--accent-contrast\)/.test(readStylePartial("tokens.css"))) {
-    failures.push("tokens.css --on-accent 必须引用 --accent-contrast");
-  }
-  if (!/--btn-bg:\s*var\(--accent-fill\)/.test(readStylePartial("tokens.css"))) {
-    failures.push("tokens.css 主按钮底色必须用 --accent-fill（深色主题下保证白字可读）");
   }
 }
 
@@ -260,6 +227,7 @@ function checkThemeBootOrder() {
 function main() {
   checkColorLiterals();
   checkFramerMirror();
+  checkDebt();
   checkContrast();
   checkRemovedTokens();
   checkFontStack();
@@ -274,14 +242,13 @@ function main() {
     return;
   }
   console.log(
-    "Design constraints OK: 8 组设计契约满足（写死颜色/Framer 镜像/对比度/字体栈/动效降级/令牌不重名/启动顺序）",
+    "Design constraints OK: 9 组设计契约满足（写死颜色/Framer 生成物/旧名字与直写字体只减不增/对比度/字体栈/动效降级/令牌不重名/启动顺序）",
   );
-  const remaining = readLedgers()
-    .filter((ledger) => ledger.name !== "exemptions.json")
-    .map((ledger) => [ledger.lane, ledger.entries.reduce((sum, entry) => sum + entry.count, 0)])
-    .filter(([, count]) => count > 0);
+  const remaining = remainingDebt();
   if (remaining.length > 0) {
-    console.log(`待清理的写死颜色：${remaining.map(([lane, count]) => `${lane} ${count} 处`).join("，")}`);
+    console.log(
+      `待迁移：${remaining.map((row) => `${row.lane} 旧名字 ${row.legacy} 处、直写字体 ${row.typography} 处`).join("；")}`,
+    );
   }
 }
 

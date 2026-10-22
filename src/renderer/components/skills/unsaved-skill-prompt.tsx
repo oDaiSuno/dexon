@@ -3,10 +3,10 @@ import { useI18n } from "@/i18n";
 const leavePromptButtonStyle: React.CSSProperties = {
   minHeight: 34,
   padding: "8px 12px",
-  border: "1px solid var(--border)",
+  border: "1px solid var(--fx-line-default)",
   borderRadius: "var(--radius-control)",
-  background: "var(--bg-panel)",
-  color: "var(--text-muted)",
+  background: "var(--fx-surface-raised)",
+  color: "var(--fx-text-secondary)",
   cursor: "pointer",
   fontSize: "var(--text-label)",
 };
@@ -54,13 +54,16 @@ export function UnsavedSkillPrompt({
           width: 420,
           maxWidth: "100%",
           padding: 20,
-          border: "1px solid var(--border)",
+          border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-card)",
-          background: "var(--bg)",
+          background: "var(--fx-surface-main)",
           boxShadow: "0 16px 48px rgba(0,0,0,0.3)",
         }}
       >
-        <h3 id="unsaved-skill-title" style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
+        <h3
+          id="unsaved-skill-title"
+          style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}
+        >
           {t("unsavedSkillChanges", "Unsaved skill changes")}
         </h3>
         <p
@@ -68,7 +71,7 @@ export function UnsavedSkillPrompt({
             margin: "8px 0 16px",
             fontSize: "var(--text-label)",
             lineHeight: 1.55,
-            color: "var(--text-muted)",
+            color: "var(--fx-text-secondary)",
           }}
         >
           {t("unsavedSkillChangesDescription", "Save your SKILL.md changes before leaving this editor?")}
@@ -89,8 +92,8 @@ export function UnsavedSkillPrompt({
             style={{
               ...leavePromptButtonStyle,
               borderColor: "transparent",
-              background: "var(--btn-bg)",
-              color: "var(--btn-fg)",
+              background: "var(--fx-accent-blue-fill)",
+              color: "var(--fx-text-on-accent)",
             }}
           >
             {saving ? t("saving", "Saving…") : t("save", "Save")}

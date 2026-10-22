@@ -32,10 +32,6 @@ export function applyChatAppearance(
   target.dataset.chatLayout = normalized.layout;
 }
 
-export function scaledChatFont(px: number): string {
-  return `calc(${px}px * var(--chat-font-scale, 1))`;
-}
-
 export class ChatAppearanceController {
   readonly subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);

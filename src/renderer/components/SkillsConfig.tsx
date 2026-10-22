@@ -76,8 +76,8 @@ export const SkillsConfig = forwardRef<
           maxWidth: embedded ? undefined : "calc(100vw - 16px)",
           height: embedded ? "100%" : isMobile ? "calc(100dvh - 16px)" : "78vh",
           maxHeight: embedded ? undefined : "calc(100dvh - 16px)",
-          background: "var(--bg)",
-          border: embedded ? "none" : "1px solid var(--border)",
+          background: "var(--fx-surface-main)",
+          border: embedded ? "none" : "1px solid var(--fx-line-default)",
           borderRadius: embedded ? 0 : 10,
           display: "flex",
           flexDirection: "column",
@@ -93,18 +93,18 @@ export const SkillsConfig = forwardRef<
               alignItems: "center",
               justifyContent: "space-between",
               padding: "12px 20px",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: "1px solid var(--fx-line-default)",
               flexShrink: 0,
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline", gap: 12 }}>
-              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--text)" }}>
+              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
                 {t("skills", "Skills")}
               </span>
               <code
                 style={{
                   fontSize: "var(--text-meta)",
-                  color: "var(--text-muted)",
+                  color: "var(--fx-text-secondary)",
                   fontFamily: "var(--font-mono)",
                   maxWidth: 320,
                   overflow: "hidden",
@@ -120,7 +120,7 @@ export const SkillsConfig = forwardRef<
               style={{
                 background: "none",
                 border: "none",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 cursor: "pointer",
                 fontSize: "var(--text-display)",
                 lineHeight: 1,
@@ -173,7 +173,7 @@ export const SkillsConfig = forwardRef<
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "var(--text-dim)",
+                  color: "var(--fx-text-tertiary)",
                   fontSize: "var(--text-body)",
                 }}
               >
@@ -191,7 +191,7 @@ export const SkillsConfig = forwardRef<
               alignItems: "center",
               justifyContent: "flex-end",
               padding: "12px 20px",
-              borderTop: "1px solid var(--border)",
+              borderTop: "1px solid var(--fx-line-default)",
               flexShrink: 0,
             }}
           >
@@ -200,9 +200,9 @@ export const SkillsConfig = forwardRef<
               style={{
                 padding: "8px 16px",
                 background: "none",
-                border: "1px solid var(--border)",
+                border: "1px solid var(--fx-line-default)",
                 borderRadius: "var(--radius-control)",
-                color: "var(--text-muted)",
+                color: "var(--fx-text-secondary)",
                 cursor: "pointer",
                 fontSize: "var(--text-body)",
               }}

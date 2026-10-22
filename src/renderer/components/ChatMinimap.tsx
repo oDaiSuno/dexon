@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback, useMemo, RefObject } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 
 export interface ChatMinimapMessage {
@@ -26,13 +25,13 @@ function getMessagePreview(msg: ChatMinimapMessage): string {
 function getNodeColor(msg: ChatMinimapMessage): { bg: string; border: string } {
   if (msg.role === "user") {
     return {
-      bg: "color-mix(in srgb, var(--accent) 18%, transparent)",
-      border: "color-mix(in srgb, var(--accent) 70%, transparent)",
+      bg: "color-mix(in srgb, var(--fx-accent-blue) 18%, transparent)",
+      border: "color-mix(in srgb, var(--fx-accent-blue) 70%, transparent)",
     };
   }
   return {
-    bg: "color-mix(in srgb, var(--text-dim) 18%, transparent)",
-    border: "color-mix(in srgb, var(--text-dim) 50%, transparent)",
+    bg: "color-mix(in srgb, var(--fx-text-tertiary) 18%, transparent)",
+    border: "color-mix(in srgb, var(--fx-text-tertiary) 50%, transparent)",
   };
 }
 
@@ -265,8 +264,8 @@ export function ChatMinimap({
         position: "relative",
         cursor: "default",
         userSelect: "none",
-        borderLeft: "1px solid var(--border)",
-        background: "var(--bg-panel)",
+        borderLeft: "1px solid var(--fx-line-default)",
+        background: "var(--fx-surface-raised)",
         overflow: "visible",
       }}
     >
@@ -280,7 +279,7 @@ export function ChatMinimap({
             right: 9,
             height: 2,
             borderRadius: "var(--radius-pill)",
-            background: "var(--accent)",
+            background: "var(--fx-accent-blue)",
             opacity: 0.7,
             zIndex: 3,
           }}
@@ -352,7 +351,7 @@ export function ChatMinimap({
           top: 0,
           bottom: 0,
           width: 1,
-          background: "var(--border)",
+          background: "var(--fx-line-default)",
           transform: "translateX(-50%)",
           zIndex: 0,
         }}
@@ -373,10 +372,10 @@ export function ChatMinimap({
                 top: tooltipPositions[i],
                 right: "100%",
                 marginRight: 8,
-                background: "var(--bg)",
-                borderTop: `1px solid ${isNearest ? color.border : "var(--border)"}`,
-                borderRight: `1px solid ${isNearest ? color.border : "var(--border)"}`,
-                borderBottom: `1px solid ${isNearest ? color.border : "var(--border)"}`,
+                background: "var(--fx-surface-main)",
+                borderTop: `1px solid ${isNearest ? color.border : "var(--fx-line-default)"}`,
+                borderRight: `1px solid ${isNearest ? color.border : "var(--fx-line-default)"}`,
+                borderBottom: `1px solid ${isNearest ? color.border : "var(--fx-line-default)"}`,
                 borderLeft: `2px solid ${color.border}`,
                 borderRadius: "var(--radius-chip)",
                 padding: "2px 8px",
@@ -389,8 +388,8 @@ export function ChatMinimap({
             >
               <div
                 style={{
-                  fontSize: scaledChatFont(11),
-                  color: isNearest ? "var(--text)" : "var(--text-muted)",
+                  fontSize: 11,
+                  color: isNearest ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                   lineHeight: 1.4,
                   whiteSpace: "nowrap",
                   overflow: "hidden",

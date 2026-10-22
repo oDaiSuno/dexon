@@ -53,15 +53,17 @@ export function SessionGroupsSection({
   return (
     <>
       {loading && (
-        <div style={{ padding: "16px 16px", color: "var(--text-muted)", fontSize: "var(--text-label)" }}>
+        <div style={{ padding: "16px 16px", color: "var(--fx-text-secondary)", fontSize: "var(--text-label)" }}>
           {t("loading", "Loading…")}
         </div>
       )}
       {error && (
-        <div style={{ padding: "12px 16px", color: "var(--danger)", fontSize: "var(--text-label)" }}>{error}</div>
+        <div style={{ padding: "12px 16px", color: "var(--fx-status-danger)", fontSize: "var(--text-label)" }}>
+          {error}
+        </div>
       )}
       {!loading && !error && sessions.length === 0 && (
-        <div style={{ padding: "16px 16px", color: "var(--text-muted)", fontSize: "var(--text-body)" }}>
+        <div style={{ padding: "16px 16px", color: "var(--fx-text-secondary)", fontSize: "var(--text-body)" }}>
           {hasActiveFilter
             ? t("noMatchingSessions", "No matching sessions")
             : t("noSessionsFound", "No sessions found")}
@@ -76,7 +78,7 @@ export function SessionGroupsSection({
                   id={`session-group-${group.id}`}
                   style={{
                     padding: "8px 8px 4px",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     fontSize: "var(--text-label)",
                     fontWeight: 650,
                   }}

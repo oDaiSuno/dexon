@@ -1,5 +1,4 @@
 import { type NoticeItem } from "@/hooks/useAgentSession";
-import { scaledChatFont } from "@/lib/chat-appearance";
 export function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text: string }> }) {
   if (statuses.length === 0) return null;
   return (
@@ -13,14 +12,14 @@ export function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string
             gap: 8,
             maxWidth: "100%",
             padding: "4px 8px",
-            border: "1px solid color-mix(in srgb, var(--accent) 24%, var(--border))",
+            border: "1px solid color-mix(in srgb, var(--fx-accent-blue) 24%, var(--fx-line-default))",
             borderRadius: "var(--radius-control)",
-            background: "color-mix(in srgb, var(--accent) 7%, var(--bg))",
-            color: "var(--text-muted)",
-            fontSize: scaledChatFont(12),
+            background: "color-mix(in srgb, var(--fx-accent-blue) 7%, var(--fx-surface-main))",
+            color: "var(--fx-text-secondary)",
+            fontSize: 12,
           }}
         >
-          <span style={{ color: "var(--accent)", fontFamily: "var(--font-mono)", fontSize: scaledChatFont(11) }}>
+          <span style={{ color: "var(--fx-accent-blue)", fontFamily: "var(--font-mono)", fontSize: 11 }}>
             {status.key}
           </span>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -39,18 +38,18 @@ export function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; li
         <div
           key={widget.key}
           style={{
-            border: "1px solid var(--border)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-card)",
-            background: "var(--bg-panel)",
+            background: "var(--fx-surface-raised)",
             overflow: "hidden",
           }}
         >
           <div
             style={{
               padding: "4px 8px",
-              borderBottom: "1px solid var(--border)",
-              color: "var(--text-dim)",
-              fontSize: scaledChatFont(11),
+              borderBottom: "1px solid var(--fx-line-default)",
+              color: "var(--fx-text-tertiary)",
+              fontSize: 11,
               fontFamily: "var(--font-mono)",
             }}
           >
@@ -60,8 +59,8 @@ export function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; li
             style={{
               margin: 0,
               padding: "8px 8px",
-              color: "var(--text-muted)",
-              fontSize: scaledChatFont(12),
+              color: "var(--fx-text-secondary)",
+              fontSize: 12,
               lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
@@ -98,12 +97,12 @@ export function NoticeShelf({
       {notices.map((notice, index) => {
         const color =
           notice.type === "error"
-            ? "var(--bui-red)"
+            ? "var(--fx-status-danger-text)"
             : notice.type === "warning"
-              ? "var(--bui-orange)"
+              ? "var(--fx-status-warning-text)"
               : notice.type === "success"
-                ? "var(--bui-green)"
-                : "var(--bui-accent)";
+                ? "var(--fx-status-success-text)"
+                : "var(--fx-accent-blue-text)";
         return (
           <div
             key={notice.id}
@@ -117,13 +116,13 @@ export function NoticeShelf({
               maxHeight: 60,
               marginBottom: index === notices.length - 1 ? 0 : 6,
               overflow: "hidden",
-              borderRadius: "var(--bui-r-card)",
-              border: "1px solid var(--bui-line)",
-              background: "var(--bui-surface)",
-              color: "var(--bui-ink-2)",
+              borderRadius: "var(--radius-card)",
+              border: "1px solid var(--fx-line-default)",
+              background: "var(--fx-surface-raised)",
+              color: "var(--fx-text-secondary)",
               width: "fit-content",
               maxWidth: "min(100%, 620px)",
-              boxShadow: floating ? "var(--bui-shadow-card)" : "var(--bui-shadow-btn)",
+              boxShadow: floating ? "var(--shadow-hairline-card)" : "var(--shadow-hairline-button)",
               fontSize: "var(--text-heading-lg)",
               lineHeight: 1.45,
               transformOrigin: "top center",

@@ -64,7 +64,7 @@ export function ResourcePage({
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
-        background: "var(--bg)",
+        background: "var(--fx-surface-main)",
       }}
     >
       <header
@@ -82,7 +82,7 @@ export function ResourcePage({
             margin: 0,
             fontSize: "var(--text-title)",
             fontWeight: 600,
-            color: "var(--text)",
+            color: "var(--fx-text-primary)",
             letterSpacing: "-0.01em",
           }}
         >
@@ -93,7 +93,7 @@ export function ResourcePage({
           aria-label={t("navPluginsSkills", "Plugins & Skills")}
           style={{
             display: "inline-flex",
-            border: "1px solid var(--border)",
+            border: "1px solid var(--fx-line-default)",
             borderRadius: "var(--radius-card)",
             overflow: "hidden",
           }}
@@ -125,8 +125,8 @@ export function ResourcePage({
                 padding: "0 14px",
                 background: activeTab === tab.id ? "var(--bg-selected)" : "transparent",
                 border: tab.id === "plugins" ? "none" : "none",
-                borderLeft: tab.id === "skills" ? "1px solid var(--border)" : "none",
-                color: activeTab === tab.id ? "var(--text)" : "var(--text-muted)",
+                borderLeft: tab.id === "skills" ? "1px solid var(--fx-line-default)" : "none",
+                color: activeTab === tab.id ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 cursor: "pointer",
                 fontSize: "var(--text-label)",
                 fontWeight: activeTab === tab.id ? 500 : 400,

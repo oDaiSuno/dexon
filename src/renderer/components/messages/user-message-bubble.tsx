@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownBody, type InlineChips } from "../MarkdownBody";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
 import { AttachmentChip, SkillChip } from "./message-chips";
@@ -92,17 +91,18 @@ export function UserMessageBubble({
     >
       <div
         data-message-source={message.channelSource ?? "local"}
+        className="chat-reading"
         style={{
           minWidth: 0,
           maxWidth: "100%",
           background: bubbleStyle.background,
           borderRadius: "12px 12px 4px 12px",
           padding: "8px 13px",
-          fontSize: scaledChatFont(13),
+          fontSize: "calc(13px * var(--type-scale, 1))",
           lineHeight: 1.55,
           color: bubbleStyle.foreground,
           wordBreak: "break-word",
-          boxShadow: message.channelSource ? "none" : "var(--bui-shadow-btn)",
+          boxShadow: message.channelSource ? "none" : "var(--shadow-hairline-button)",
         }}
       >
         {message.sessionSource && (
