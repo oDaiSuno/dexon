@@ -209,7 +209,7 @@
   background: var(--fx-surface-main);
 }
 .markdown-code-header {
-  min-height: 34px;
+  min-height: 35px;
   padding: var(--space-1) var(--space-3);
   background: var(--fx-surface-main);
   border-bottom: 1px solid var(--fx-line-default);
@@ -254,6 +254,26 @@
 .markdown-code-action.is-active {
   background: var(--fx-surface-selected);
   color: var(--fx-text-primary);
+}
+.markdown-code-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: none;
+  color: var(--fx-text-tertiary);
+  cursor: pointer;
+}
+.markdown-code-copy:hover {
+  background: var(--fx-surface-hover);
+  color: var(--fx-text-secondary);
+}
+.markdown-code-copy.is-copied {
+  color: var(--fx-status-success-text);
 }
 .markdown-code-body {
   margin: 0;

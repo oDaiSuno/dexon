@@ -428,8 +428,41 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
         <span className="markdown-code-lang">{lang || "text"}</span>
         <div className="markdown-code-actions">
           {headerAction}
-          <button onClick={() => void copy(code)} className="markdown-code-action">
-            {copied ? "copied" : "copy"}
+          <button
+            onClick={() => void copy(code)}
+            className={["markdown-code-copy", copied ? "is-copied" : ""].filter(Boolean).join(" ")}
+            aria-label={copied ? "copied" : "copy"}
+          >
+            {copied ? (
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            ) : (
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="12" height="12" rx="2.5" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
