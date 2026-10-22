@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { GlideHighlight } from "./GlideHighlight";
+import { Icon } from "./icons";
 
 /**
  * "＋" expand menu above the composer, styled after the PromptBar reference:
@@ -34,12 +35,14 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
         background: "var(--fx-surface-raised)",
         border: "1px solid var(--fx-line-default)",
-        borderRadius: 10,
-        boxShadow:
-          "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
-        padding: 4,
+        borderRadius: "var(--radius-composer)",
+        boxShadow: "var(--shadow-popover)",
+        padding: 6,
         transformOrigin: "bottom center",
       }}
     >
@@ -49,76 +52,79 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
         rowSelector='[role="menuitem"]'
         activeIndex={active}
         visible={engaged && rows.length > 0}
+        insetX={6}
       />
-      {rows.map((row, index) => (
-        <button
-          key={row.key}
-          type="button"
-          role="menuitem"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            row.onSelect();
-          }}
-          onMouseEnter={() => {
-            setActive(index);
-            setEngaged(true);
-          }}
-          style={{
-            position: "relative",
-            zIndex: 1,
-            width: "100%",
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "0 8px",
-            border: "none",
-            borderRadius: 6,
-            background: "none",
-            cursor: "pointer",
-            textAlign: "left",
-            font: "inherit",
-            color: "inherit",
-          }}
-        >
-          <span
+      {rows.map((row, index) => {
+        const lit = engaged && index === active;
+        return (
+          <button
+            key={row.key}
+            type="button"
+            role="menuitem"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              row.onSelect();
+            }}
+            onMouseEnter={() => {
+              setActive(index);
+              setEngaged(true);
+            }}
             style={{
-              flexShrink: 0,
-              width: 22,
-              height: 22,
+              position: "relative",
+              zIndex: 1,
+              width: "100%",
+              height: 40,
               display: "flex",
               alignItems: "center",
-              justifyContent: "center",
-              color: "var(--fx-text-secondary)",
+              gap: "var(--space-3)",
+              padding: "0 var(--space-3) 0 10px",
+              border: "none",
+              borderRadius: "var(--radius-control)",
+              background: "none",
+              cursor: "pointer",
+              textAlign: "left",
+              color: "inherit",
             }}
           >
-            {row.icon}
-          </span>
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: 12.5,
-              fontWeight: 500,
-              color: "var(--fx-text-primary)",
-            }}
-          >
-            {row.name}
-          </span>
-          <span
-            style={{
-              minWidth: 0,
-              flex: 1,
-              fontSize: 12,
-              color: "var(--fx-text-tertiary)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {row.desc}
-          </span>
-        </button>
-      ))}
+            <span
+              style={{
+                flexShrink: 0,
+                width: 20,
+                height: 20,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: lit ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+              }}
+            >
+              {row.icon}
+            </span>
+            <span className="type-body-medium" style={{ flexShrink: 0, color: "var(--fx-text-primary)" }}>
+              {row.name}
+            </span>
+            <span
+              className="type-label-default"
+              style={{
+                minWidth: 0,
+                flex: 1,
+                color: "var(--fx-text-tertiary)",
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {row.desc}
+            </span>
+            {row.key === "skill" && (
+              <span style={{ flexShrink: 0, display: "flex", color: "var(--fx-text-tertiary)" }}>
+                <Icon size={14} strokeWidth={2}>
+                  <path d="m9 18 6-6-6-6" />
+                </Icon>
+              </span>
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
