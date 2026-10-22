@@ -7,7 +7,7 @@ export function desktopSecurityChecks(read) {
   const globals = read("src/renderer/global.d.ts");
   const diagnostics = read("src/main/diagnostics.ts");
   const diagnosticsRedaction = read("src/main/diagnostics-redaction.ts");
-  const fileViewer = read("src/renderer/components/FileViewer.tsx");
+  const fileViewer = read("src/renderer/components/file-viewer/html-preview.tsx");
   const credentialVault = read("src/main/credential-vault.ts");
   const weixinChannelApi = read("src/agent-host/channels/adapters/weixin/api.ts");
   const telegramChannelApi = read("src/agent-host/channels/adapters/telegram/api.ts");
