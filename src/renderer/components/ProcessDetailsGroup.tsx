@@ -40,7 +40,7 @@ export function ProcessDetailsGroup({
     <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 16 }}>
       <button
         type="button"
-        className="chat-quiet-head"
+        className="chat-quiet-head chat-process-head type-body-default"
         aria-expanded={expanded}
         onClick={() => expansionStore.toggle(stateKey)}
         title={
@@ -48,38 +48,22 @@ export function ProcessDetailsGroup({
             ? t("collapseProcessDetails", "Collapse process details")
             : t("expandProcessDetails", "Expand process details")
         }
-        style={{ fontSize: 12.5 }}
       >
-        <span
-          className="chat-acc-chevron"
-          style={{ color: "var(--fx-text-tertiary)", display: "flex", flexShrink: 0 }}
-          aria-hidden="true"
-        >
+        <span className="chat-acc-chevron chat-process-chevron" aria-hidden="true">
           <svg
-            width="13"
-            height="13"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.2"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
         </span>
-        <span
-          style={{
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "var(--fx-text-secondary)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {parts.join(" · ")}
-        </span>
+        <span className="chat-process-label">{parts.join(" · ")}</span>
       </button>
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">

@@ -25,12 +25,10 @@ function SplitPatchView({ text }: { text: string }) {
       {files.map((file, fileIndex) => (
         <div
           key={fileIndex}
+          className="type-mono-code"
           style={{
             minWidth: 0,
             borderTop: fileIndex === 0 ? "none" : "1px solid var(--fx-line-default)",
-            fontFamily: "var(--font-mono)",
-            fontSize: 11.5,
-            lineHeight: 1.65,
           }}
         >
           {showFileHeaders && (
@@ -130,12 +128,12 @@ function SplitDiffCellView({ cell, side }: { cell: SplitDiffCell; side: "left" |
         {cell.lineNo ?? ""}
       </span>
       <span
+        className={cell.type === "context" || cell.type === "empty" ? undefined : "type-mono-label-strong"}
         style={{
           width: 18,
           padding: "0 5px",
           color: markerColor,
           userSelect: "none",
-          fontWeight: cell.type === "context" || cell.type === "empty" ? 400 : 700,
           flexShrink: 0,
         }}
       >
@@ -167,13 +165,11 @@ function PatchTextView({ text }: { text: string }) {
 
   return (
     <div
+      className="type-mono-code"
       style={{
         maxHeight: 520,
         overflowY: "auto",
         overflowX: "hidden",
-        fontFamily: "var(--font-mono)",
-        fontSize: 11.5,
-        lineHeight: 1.65,
         minWidth: 0,
       }}
     >

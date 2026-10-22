@@ -20,12 +20,9 @@
   min-height: 0;
 }
 
-/* Chevron: symmetric path flips vertically (works in every browser,
-   unlike CSS `d:` path morphing which is Chromium-only).
-   Convention (user-confirmed): collapsed = up ˄, expanded = down ˅. */
 .chat-acc-chevron {
   display: inline-flex;
-  transform: scaleY(-1);
+  transform: rotate(-90deg);
   transform-origin: center;
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
@@ -35,65 +32,75 @@
 }
 
 .chat-acc[data-open="true"] .chat-acc-chevron {
-  transform: scaleY(1);
+  transform: rotate(0deg);
 }
 
-/* Quiet disclosure header shared by thinking / tool / process rows.
-   The negative margins give the hover pill room without shifting content. */
 .chat-quiet-head {
   -webkit-appearance: none;
   appearance: none;
   border: none;
-  background: none;
+  background: var(--fx-surface-hover-clear);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0 -6px;
-  padding: 4px 6px;
+  padding: 0 var(--space-2) 0 6px;
   border-radius: var(--radius-control);
-  transition: background-color var(--duration-quick) var(--ease-out);
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
   font-family: inherit;
   text-align: left;
   color: inherit;
 }
 
 .chat-quiet-head:hover {
-  background: var(--fx-surface-hover-overlay-strong);
+  background: var(--fx-surface-hover-overlay);
 }
 
-.chat-think-spark {
+.chat-process-head {
+  width: fit-content;
+  max-width: calc(100% + 12px);
+  height: 26px;
+  gap: 6px;
+}
+
+.chat-process-chevron {
   display: flex;
   flex-shrink: 0;
   color: var(--fx-text-tertiary);
 }
 
-/* Deep-thinking row inside process details — isomorphic with tool rows:
-   spark icon + label + gray summary chip + duration. No disclosure arrow. */
-.chat-think-row {
-  width: calc(100% + 8px);
-  min-height: 28px;
+.chat-process-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fx-text-secondary);
+  font-variant-numeric: tabular-nums;
 }
 
-/* Expanded traces share one quiet gray content box — the full thinking trace
-   and tool call input/result details use an identical container form (live
-   tail, final message and process-details group alike). */
+.chat-tool-icon.chat-think-spark {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--fx-data-indigo);
+}
+
+.chat-think-row {
+  width: calc(100% + 8px);
+  height: 28px;
+}
+
 .chat-think-box,
 .chat-tool-detail {
   margin: 0 0 2px 24px;
-  padding: 8px 11px;
+  padding: var(--space-2) 11px;
   border-radius: var(--radius-card);
   background: var(--fx-surface-inset);
   color: var(--fx-text-secondary);
-  line-height: 1.65;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   animation: chat-fade-in var(--duration-medium) var(--ease-out) both;
 }
-
-/* ── Tool call rows (Beautiful UI ToolChips): status/tool glyph + verb label
-     + mono argument chip + meta. No disclosure arrow; the row's hover pill
-     and pointer cursor signal that details expand on click. ── */
 
 .chat-tool-row-wrap {
   min-width: 0;
@@ -101,7 +108,7 @@
 
 .chat-tool-row {
   width: calc(100% + 8px);
-  min-height: 28px;
+  height: 28px;
 }
 
 .chat-tool-icon {
@@ -121,33 +128,42 @@
 
 .chat-tool-name {
   flex-shrink: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--fx-text-primary);
+  color: var(--fx-text-secondary);
   white-space: nowrap;
 }
 
-html.dark .chat-tool-chip {
-  background: var(--fx-surface-inset);
-  color: var(--fx-text-secondary);
+.chat-tool-row.is-running .chat-tool-name {
+  color: var(--fx-text-primary);
+}
+
+.chat-tool-row.is-error .chat-tool-name {
+  color: var(--fx-status-danger);
 }
 
 .chat-tool-chip {
   display: inline-flex;
   align-items: center;
+  flex: 0 1 auto;
   min-width: 0;
-  flex: 1;
+  max-width: 520px;
   height: 22px;
   border-radius: var(--radius-chip);
-  background: var(--fx-surface-hover-overlay-strong);
-  padding: 0 6px;
-  font-size: 12px;
+  background: var(--fx-surface-card);
+  padding: 0 7px;
   color: var(--fx-text-secondary);
-  box-shadow: var(--shadow-hairline);
+  overflow: hidden;
+}
+
+.chat-tool-chip-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-family: var(--font-mono);
+}
+
+.chat-tool-row.is-error .chat-tool-chip {
+  background: var(--fx-status-danger-soft);
+  color: var(--fx-status-danger-text);
 }
 
 .chat-tool-meta {
@@ -155,31 +171,55 @@ html.dark .chat-tool-chip {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-family: var(--font-mono);
-  font-size: 11px;
+  gap: var(--space-2);
   color: var(--fx-text-tertiary);
   font-variant-numeric: tabular-nums;
 }
 
-/* Box visuals come from the shared .chat-think-box rule above; only the
-   stacked input/result layout is tool-specific. */
+.chat-tool-meta-added {
+  color: var(--fx-status-success);
+}
+
+.chat-tool-meta-removed,
+.chat-tool-meta-failed {
+  color: var(--fx-status-danger);
+}
+
+.chat-tool-meta-running {
+  color: var(--fx-accent-blue-text);
+  animation: chat-tool-meta-breathe 900ms var(--ease-in-out) infinite alternate;
+}
+
+@keyframes chat-tool-meta-breathe {
+  to {
+    opacity: 0.35;
+  }
+}
+
 .chat-tool-detail {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-1);
   min-width: 0;
 }
 
 .chat-tool-input,
 .chat-tool-result {
   margin: 0;
-  font-family: var(--font-mono);
-  line-height: 1.6;
+  font: inherit;
   color: var(--fx-text-secondary);
   white-space: pre-wrap;
   word-break: break-all;
   overflow-wrap: anywhere;
+}
+
+.chat-tool-result.is-error {
+  color: var(--fx-status-danger-text);
+}
+
+.chat-tool-result.is-empty {
+  color: var(--fx-text-tertiary);
+  font-style: italic;
 }
 
 .chat-tool-open-browser {
@@ -189,10 +229,9 @@ html.dark .chat-tool-chip {
   border: none;
   background: none;
   cursor: pointer;
-  padding: 2px 4px;
+  padding: 2px var(--space-1);
   border-radius: var(--radius-chip);
   font-family: inherit;
-  font-size: 12px;
   color: var(--fx-accent-blue-text);
 }
 
@@ -200,7 +239,6 @@ html.dark .chat-tool-chip {
   background: var(--fx-surface-hover-overlay);
 }
 
-/* Diff card: white surface + hairline shadow, line numbers dimmed */
 .chat-diff-card {
   border-radius: var(--radius-card);
   background: var(--fx-surface-raised);
@@ -259,11 +297,12 @@ html.dark .chat-tool-chip {
 
 .chat-status-icon .chat-scmorph-spinring {
   position: absolute;
-  inset: 1px;
+  inset: 2px;
   border-radius: 50%;
-  border: 1.5px solid transparent;
-  border-top-color: var(--fx-text-secondary);
-  animation: chat-spin 700ms var(--ease-linear) infinite;
+  border: 1.5px solid var(--fx-accent-blue-text);
+  -webkit-mask: conic-gradient(transparent, var(--fx-text-primary));
+  mask: conic-gradient(transparent, var(--fx-text-primary));
+  animation: chat-spin 800ms var(--ease-linear) infinite;
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
@@ -361,6 +400,10 @@ html.dark .chat-tool-chip {
   filter: blur(0);
 }
 
+.chat-status-icon.is-error .chat-scmorph-rest {
+  color: var(--fx-status-danger);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chat-acc-panel,
   .chat-acc-chevron,
@@ -369,7 +412,9 @@ html.dark .chat-tool-chip {
   .chat-status-icon .chat-scmorph-spinring,
   .chat-status-icon .chat-scmorph-fill,
   .chat-status-icon .chat-scmorph-check,
-  .chat-status-icon .chat-scmorph-rest {
+  .chat-status-icon .chat-scmorph-rest,
+  .chat-tool-meta-running,
+  .chat-quiet-head {
     transition: none !important;
     animation: none !important;
   }

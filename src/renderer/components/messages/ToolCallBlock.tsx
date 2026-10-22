@@ -45,33 +45,29 @@ export function ToolCallBlock({
       <div className="chat-tool-row-wrap">
         <button
           type="button"
-          className="chat-tool-row chat-quiet-head"
+          className={`chat-tool-row chat-quiet-head${isRunning ? " is-running" : ""}${isError ? " is-error" : ""}`}
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
           <span className="chat-tool-icon">
             <ToolStatusIcon done={!isRunning} error={isError} toolName={block.toolName} />
           </span>
-          <span className="chat-tool-name" style={isError ? { color: "var(--fx-status-danger-text)" } : undefined}>
-            {label}
+          <span className="chat-tool-name type-body-medium">{label}</span>
+          <span className="chat-tool-chip type-mono-label">
+            <span className="chat-tool-chip-text">{preview}</span>
           </span>
-          <span className="chat-tool-chip" style={isError ? { color: "var(--fx-status-danger-text)" } : undefined}>
-            {preview}
-          </span>
-          <span className="chat-tool-meta">
-            {isRunning && <span className="chat-shimmer-text">{t("toolRunning", "running")}</span>}
+          <span className="chat-tool-meta type-mono-label">
+            {isRunning && <span className="chat-tool-meta-running">{t("toolRunning", "running")}</span>}
             {diffCounts && !isRunning && (
               <>
-                <span style={{ color: "var(--fx-status-success-text)" }}>+{diffCounts.added}</span>
-                {diffCounts.removed > 0 && (
-                  <span style={{ color: "var(--fx-status-danger-text)" }}>−{diffCounts.removed}</span>
-                )}
+                <span className="chat-tool-meta-added">+{diffCounts.added}</span>
+                {diffCounts.removed > 0 && <span className="chat-tool-meta-removed">−{diffCounts.removed}</span>}
               </>
             )}
             {!isRunning && !diffCounts && !isError && duration !== undefined && (
               <span>{formatToolDuration(duration)}</span>
             )}
-            {isError && <span style={{ color: "var(--fx-status-danger-text)" }}>{t("toolFailed", "failed")}</span>}
+            {isError && <span className="chat-tool-meta-failed">{t("toolFailed", "failed")}</span>}
           </span>
         </button>
       </div>
@@ -86,12 +82,8 @@ export function ToolCallBlock({
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
           {detailMounted && (
-            <div className="chat-tool-detail" style={{ fontSize: 11.5 }}>
-              {!isEditTool && (
-                <pre className="chat-tool-input" style={{ fontSize: 11 }}>
-                  {inputStr}
-                </pre>
-              )}
+            <div className="chat-tool-detail type-mono-code">
+              {!isEditTool && <pre className="chat-tool-input">{inputStr}</pre>}
               {resultDiff && <PairedDiffResult diff={resultDiff} />}
               {!resultDiff && result && (
                 <PairedResult text={resultText ?? ""} isEmpty={resultIsEmpty} isError={isError} />
@@ -99,7 +91,7 @@ export function ToolCallBlock({
               {browserTabId && (
                 <button
                   type="button"
-                  className="chat-tool-open-browser"
+                  className="chat-tool-open-browser type-label-default"
                   onClick={() =>
                     window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }))
                   }
@@ -206,17 +198,7 @@ function browserTabIdFromResult(value: string | null): string | null {
 
 function PairedResult({ text, isEmpty, isError }: { text: string; isEmpty: boolean; isError: boolean }) {
   return (
-    <pre
-      className="chat-tool-result"
-      style={{
-        color: isError
-          ? "var(--fx-status-danger-text)"
-          : isEmpty
-            ? "var(--fx-text-tertiary)"
-            : "var(--fx-text-secondary)",
-        fontStyle: isEmpty ? "italic" : "normal",
-      }}
-    >
+    <pre className={`chat-tool-result${isError ? " is-error" : isEmpty ? " is-empty" : ""}`}>
       {isEmpty ? "(no output)" : text}
     </pre>
   );
