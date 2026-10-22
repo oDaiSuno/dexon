@@ -9,7 +9,7 @@ import {
   type SessionOrchestrationSettings as Settings,
   type SessionThinkingLevel,
 } from "@shared/session-orchestration";
-import { SettingRow, selectClassName, selectStyle } from "./setting-row";
+import { SettingGroup, SettingNote, SettingRow, selectClassName, selectStyle, toggleHitAreaStyle } from "./setting-row";
 import { Toggle } from "../form-controls";
 
 interface ModelOption {
@@ -97,35 +97,35 @@ export function SessionOrchestrationSettings() {
   const enabled = settings.enabled;
 
   return (
-    <section style={{ maxWidth: 620 }}>
-      <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--fx-text-primary)" }}>
-        {t("sessionCollaboration", "Session collaboration")}
-      </h2>
-      <p
-        style={{
-          margin: "8px 0 16px",
-          fontSize: "var(--text-label)",
-          lineHeight: 1.6,
-          color: "var(--fx-text-tertiary)",
-        }}
-      >
-        {t(
-          "sessionCollaborationDescription",
-          "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
-        )}
-      </p>
+    <SettingGroup
+      title={t("sessionCollaboration", "Session collaboration")}
+      description={t(
+        "sessionCollaborationDescription",
+        "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
+      )}
+      notes={
+        <>
+          {loadFailed && (
+            <SettingNote alert>
+              {t(
+                "sessionCollaborationLoadFailed",
+                "Session collaboration settings could not be loaded. The feature stays off.",
+              )}
+            </SettingNote>
+          )}
+          {saveFailed && (
+            <SettingNote alert>
+              {t(
+                "sessionCollaborationSaveFailed",
+                "Session collaboration settings could not be saved. The previous setting was restored.",
+              )}
+            </SettingNote>
+          )}
+        </>
+      }
+    >
       <SettingRow label={t("sessionCollaborationEnable", "Enable session collaboration")} controlId={enableControlId}>
-        <label
-          htmlFor={enableControlId}
-          style={{
-            width: 36,
-            height: 36,
-            display: "grid",
-            placeItems: "center",
-            flexShrink: 0,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
+        <label htmlFor={enableControlId} style={{ ...toggleHitAreaStyle, cursor: loading ? "not-allowed" : "pointer" }}>
           <Toggle
             id={enableControlId}
             checked={enabled}
@@ -136,7 +136,7 @@ export function SessionOrchestrationSettings() {
       </SettingRow>
 
       {enabled && (
-        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        <>
           <SettingRow
             label={t("sessionCollaborationMaxRunning", "Maximum running sessions")}
             controlId={limitControlId}
@@ -156,18 +156,9 @@ export function SessionOrchestrationSettings() {
                 event.preventDefault();
                 commitLimit();
               }}
-              style={{
-                width: 88,
-                minHeight: 36,
-                padding: "8px 12px",
-                border: "1px solid var(--fx-line-default)",
-                borderRadius: "var(--radius-control)",
-                background: "var(--fx-surface-main)",
-                color: "var(--fx-text-primary)",
-                fontSize: "var(--text-body)",
-                fontVariantNumeric: "tabular-nums",
-                textAlign: "right",
-              }}
+              className="ui-input"
+              data-mono
+              style={{ width: 88, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
             />
           </SettingRow>
           <SettingRow label={t("sessionCollaborationModel", "Session model")} controlId={modelControlId}>
@@ -211,10 +202,7 @@ export function SessionOrchestrationSettings() {
             label={t("sessionCollaborationAllowUserSessions", "Allow messaging any session")}
             controlId={allowUserSessionsControlId}
           >
-            <label
-              htmlFor={allowUserSessionsControlId}
-              style={{ width: 36, height: 36, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer" }}
-            >
+            <label htmlFor={allowUserSessionsControlId} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
               <Toggle
                 id={allowUserSessionsControlId}
                 checked={settings.allowUserSessions}
@@ -222,42 +210,9 @@ export function SessionOrchestrationSettings() {
               />
             </label>
           </SettingRow>
-        </div>
+        </>
       )}
-
-      {loadFailed && (
-        <p
-          role="alert"
-          style={{
-            margin: "8px 0 0",
-            fontSize: "var(--text-label)",
-            lineHeight: 1.55,
-            color: "var(--fx-status-danger)",
-          }}
-        >
-          {t(
-            "sessionCollaborationLoadFailed",
-            "Session collaboration settings could not be loaded. The feature stays off.",
-          )}
-        </p>
-      )}
-      {saveFailed && (
-        <p
-          role="alert"
-          style={{
-            margin: "8px 0 0",
-            fontSize: "var(--text-label)",
-            lineHeight: 1.55,
-            color: "var(--fx-status-danger)",
-          }}
-        >
-          {t(
-            "sessionCollaborationSaveFailed",
-            "Session collaboration settings could not be saved. The previous setting was restored.",
-          )}
-        </p>
-      )}
-    </section>
+    </SettingGroup>
   );
 }
 

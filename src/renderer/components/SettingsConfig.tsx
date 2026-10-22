@@ -85,7 +85,7 @@ export function SettingsConfig({
         position: "fixed",
         inset: 0,
         zIndex: 1000,
-        background: "rgba(0,0,0,0.35)",
+        background: "var(--fx-surface-scrim)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -138,10 +138,10 @@ export function SettingsConfig({
           maxHeight: "calc(100dvh - 16px)",
           background: "var(--fx-surface-main)",
           border: "1px solid var(--fx-line-default)",
-          borderRadius: "var(--radius-card)",
+          borderRadius: "var(--radius-dialog)",
           display: "flex",
           flexDirection: "column",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.18)",
+          boxShadow: "var(--shadow-dialog)",
           overflow: "hidden",
         }}
       >
@@ -149,115 +149,152 @@ export function SettingsConfig({
           style={{
             display: "flex",
             alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            padding: "12px 20px",
-            borderBottom: "1px solid var(--fx-line-default)",
+            gap: 10,
+            height: 56,
+            padding: isMobile ? "0 var(--space-4)" : "0 var(--space-6)",
+            borderBottom: "1px solid var(--fx-line-subtle)",
+            background: "var(--fx-surface-main)",
             flexShrink: 0,
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
-              {t("settings", "Settings")}
-            </div>
-            {!isMobile && (
-              <div style={{ marginTop: 2, fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
-                {t("settingsDescription", "Manage app preferences, models, channels, and app information.")}
-              </div>
-            )}
-          </div>
+          <span className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
+            {t("settings", "Settings")}
+          </span>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+            style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+          >
+            <path d="m9 18 6-6-6-6" />
+          </svg>
+          <span
+            className="type-body-large-medium"
+            style={{
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: "var(--fx-text-primary)",
+            }}
+          >
+            {tabs.find((tab) => tab.id === activeTab)?.label}
+          </span>
+          <div style={{ flex: 1 }} />
           <button
             ref={closeButtonRef}
             type="button"
+            className="ui-button"
+            data-variant="ghost"
             onClick={onClose}
             aria-label={t("close", "Close")}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--fx-text-secondary)",
-              cursor: "pointer",
-              fontSize: "var(--text-display)",
-              lineHeight: 1,
-              width: 36,
-              height: 36,
-              padding: 0,
-              borderRadius: "var(--radius-card)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
+            style={{ width: 32, padding: 0, marginRight: -6 }}
           >
-            ×
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
           </button>
         </div>
 
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", overflow: "hidden" }}>
-          <div
-            role="tablist"
-            aria-label={t("settings", "Settings")}
-            aria-orientation="vertical"
-            style={{
-              width: isMobile ? 112 : 168,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              padding: isMobile ? "10px 8px" : "12px 10px",
-              borderRight: "1px solid var(--fx-line-default)",
-              overflowY: "auto",
-              flexShrink: 0,
-              background: "var(--fx-surface-raised)",
-            }}
-          >
-            {tabs.map((tab) => {
-              const active = tab.id === activeTab;
-              return (
-                <button
-                  key={tab.id}
-                  id={`settings-tab-${tab.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  aria-controls="settings-tabpanel"
-                  tabIndex={active ? 0 : -1}
-                  onClick={() => {
-                    if (!active) setActiveTab(tab.id);
-                  }}
-                  onKeyDown={(event) => {
-                    const currentIndex = tabs.findIndex((item) => item.id === tab.id);
-                    let nextIndex: number | undefined;
-                    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
-                    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-                    if (event.key === "Home") nextIndex = 0;
-                    if (event.key === "End") nextIndex = tabs.length - 1;
-                    if (nextIndex === undefined) return;
-                    event.preventDefault();
-                    const nextTab = tabs[nextIndex];
-                    setActiveTab(nextTab.id);
-                    document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
-                  }}
-                  style={{
-                    position: "relative",
-                    width: "100%",
-                    minHeight: 40,
-                    padding: isMobile ? "8px 10px" : "8px 12px",
-                    border: `1px solid ${active ? "var(--fx-accent-blue)" : "transparent"}`,
-                    borderRadius: "var(--radius-card)",
-                    background: active ? "var(--fx-accent-blue-soft)" : "transparent",
-                    color: active ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)",
-                    fontSize: "var(--text-label)",
-                    lineHeight: 1.35,
-                    fontWeight: active ? 650 : 500,
-                    textAlign: "left",
-                    cursor: "pointer",
-                    overflowWrap: "anywhere",
-                  }}
-                >
-                  {tab.label}
-                </button>
-              );
-            })}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: isMobile ? "var(--space-5) var(--space-4) 0" : "var(--space-8) var(--space-6) 0",
+          }}
+        >
+          <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
+            <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
+              <div className="type-title-page" style={{ color: "var(--fx-text-primary)" }}>
+                {t("settings", "Settings")}
+              </div>
+              {!isMobile && (
+                <div className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
+                  {t("settingsDescription", "Manage app preferences, models, channels, and app information.")}
+                </div>
+              )}
+            </div>
+            <div
+              role="tablist"
+              aria-label={t("settings", "Settings")}
+              aria-orientation="vertical"
+              style={{
+                display: "flex",
+                alignItems: "flex-end",
+                gap: isMobile ? "var(--space-4)" : "var(--space-6)",
+                borderBottom: "1px solid var(--fx-line-subtle)",
+                overflowX: "auto",
+                scrollbarWidth: "none",
+              }}
+            >
+              {tabs.map((tab) => {
+                const active = tab.id === activeTab;
+                return (
+                  <button
+                    key={tab.id}
+                    id={`settings-tab-${tab.id}`}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    aria-controls="settings-tabpanel"
+                    tabIndex={active ? 0 : -1}
+                    onClick={() => {
+                      if (!active) setActiveTab(tab.id);
+                    }}
+                    onKeyDown={(event) => {
+                      const currentIndex = tabs.findIndex((item) => item.id === tab.id);
+                      let nextIndex: number | undefined;
+                      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
+                      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+                      if (event.key === "Home") nextIndex = 0;
+                      if (event.key === "End") nextIndex = tabs.length - 1;
+                      if (nextIndex === undefined) return;
+                      event.preventDefault();
+                      const nextTab = tabs[nextIndex];
+                      setActiveTab(nextTab.id);
+                      document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
+                    }}
+                    className={active ? "type-body-large-medium" : "type-body-large"}
+                    style={{
+                      flexShrink: 0,
+                      height: 36,
+                      marginBottom: -1,
+                      padding: 0,
+                      border: "none",
+                      borderBottom: `2px solid ${active ? "var(--fx-text-primary)" : "transparent"}`,
+                      background: "transparent",
+                      color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                      whiteSpace: "nowrap",
+                      cursor: "pointer",
+                      transition:
+                        "color var(--duration-quick) var(--ease-out), border-color var(--duration-quick) var(--ease-out)",
+                    }}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
+        </div>
 
+        <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", overflow: "hidden" }}>
           <div
             id="settings-tabpanel"
             role="tabpanel"
