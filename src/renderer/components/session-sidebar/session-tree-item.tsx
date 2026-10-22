@@ -39,7 +39,6 @@ export function SessionTreeItem({
   return (
     <div>
       <div style={{ position: "relative" }}>
-        {/* Indent line for child sessions */}
         {depth > 0 && (
           <div
             style={{

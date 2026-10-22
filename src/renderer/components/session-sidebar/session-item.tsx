@@ -7,7 +7,15 @@ import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
 import { MAX_TREE_INDENT_DEPTH } from "@/lib/session-tree";
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import { COUNTED_ACTIVITIES, type SubtreeActivity } from "@/lib/session-tree-status";
-import { SessionRowCounts, SessionRowStatusSlot, sessionRowLabel } from "./session-row-status";
+import {
+  SessionRowCounts,
+  SessionRowLead,
+  SessionRowStatusSlot,
+  sessionRowLabel,
+  sessionRowShowsTime,
+  sessionRowTitleClass,
+} from "./session-row-status";
+import { RowIcon } from "./session-relation-glyphs";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
 
 // Moved verbatim from SessionSidebar.tsx in Phase 2 (session row split). The
@@ -178,14 +186,23 @@ export function SessionItem({
     setConfirmDelete(false);
   }, []);
 
-  const ITEM_HEIGHT = 28;
+  const ITEM_HEIGHT = 30;
   const rowBackground = confirmDelete
-    ? "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)"
-    : isSelected
-      ? "var(--bg-selected)"
-      : hovered
-        ? "var(--bg-hover)"
-        : "transparent";
+    ? "var(--fx-status-danger-soft)"
+    : renaming
+      ? "var(--fx-surface-raised)"
+      : isSelected || actionsOpen
+        ? "var(--fx-surface-selected)"
+        : hovered
+          ? "var(--fx-surface-hover)"
+          : "transparent";
+  const rowBorder = confirmDelete
+    ? "var(--fx-status-danger-border)"
+    : renaming
+      ? "var(--fx-accent-blue)"
+      : "transparent";
+  const titleTone = sessionRowTitleClass({ activity, relation, isSelected });
+  const showTime = !showCounts && depth < MAX_TREE_INDENT_DEPTH && sessionRowShowsTime(activity);
 
   return (
     <div
@@ -200,51 +217,50 @@ export function SessionItem({
         zIndex: actionsOpen ? 20 : undefined,
         display: "flex",
         alignItems: "center",
-        margin: "0 4px 4px",
-        paddingLeft: Math.min(depth, MAX_TREE_INDENT_DEPTH) * 12 + 10,
-        paddingRight: 8,
-        cursor: "default",
+        margin: "0 4px 1px",
+        paddingLeft: Math.min(depth, MAX_TREE_INDENT_DEPTH) * 12 + 7,
+        paddingRight: 7,
+        cursor: renaming ? "text" : "pointer",
         background: rowBackground,
-        border: confirmDelete
-          ? "1px solid color-mix(in srgb, var(--fx-status-danger) 40%, transparent)"
-          : "1px solid transparent",
-        borderRadius: "999px",
+        border: `1px solid ${rowBorder}`,
+        boxShadow: renaming ? "0 0 0 3px var(--fx-accent-blue-soft)" : undefined,
+        borderRadius: "var(--radius-control)",
         transition:
-          "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+          "background var(--duration-quick) var(--ease-smooth-out), border-color var(--duration-quick) var(--ease-smooth-out)",
         opacity: deleting ? 0.5 : 1,
         gap: 8,
         overflow: "visible",
       }}
     >
       {confirmDelete ? (
-        /* ── Delete confirmation: same height, two flat buttons ── */
         <SessionItemDeleteConfirm title={title} onConfirm={handleDeleteConfirm} onCancel={handleDeleteCancel} />
       ) : renaming ? (
-        /* ── Rename: input fills the same row ── */
-        <input
-          ref={inputRef}
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void commitRename();
-            if (e.key === "Escape") setRenaming(false);
-          }}
-          autoFocus
-          style={{
-            flex: 1,
-            fontSize: "var(--text-body)",
-            padding: "0 8px",
-            border: "1px solid var(--fx-accent-blue)",
-            borderRadius: "var(--radius-control)",
-            outline: "none",
-            background: "var(--fx-surface-main)",
-            color: "var(--fx-text-primary)",
-            height: 24,
-          }}
-        />
+        <>
+          <SessionRowLead activity={activity} relation={relation} />
+          <input
+            ref={inputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void commitRename();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            autoFocus
+            className="session-rename-input type-body-large"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: "100%",
+              padding: 0,
+              border: 0,
+              outline: "none",
+              background: "transparent",
+              color: "var(--fx-text-primary)",
+            }}
+          />
+        </>
       ) : (
-        /* ── Normal view ── */
         <>
           <button
             type="button"
@@ -271,44 +287,30 @@ export function SessionItem({
               textAlign: "left",
             }}
           >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 18,
-                height: 18,
-                flexShrink: 0,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--fx-text-tertiary)",
-              }}
-            >
-              <SessionRowStatusSlot activity={activity} relation={relation} isSelected={isSelected} />
-            </span>
+            <SessionRowLead activity={activity} relation={relation} />
             <span
               data-session-row-title
+              className={titleTone.className}
               style={{
                 flex: 1,
                 minWidth: 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                fontSize: "var(--text-body)",
-                fontWeight: 400,
-                lineHeight: 1.4,
-                color: "var(--fx-text-primary)",
+                color: titleTone.color,
               }}
             >
               {title}
             </span>
             {showCounts && foldedDescendants && <SessionRowCounts counts={foldedDescendants.counts} />}
-            {!showCounts && depth < MAX_TREE_INDENT_DEPTH && (
+            <SessionRowStatusSlot activity={activity} />
+            {showTime && (
               <span
                 data-session-row-time
+                className="type-label-default"
                 style={{
                   flexShrink: 0,
-                  fontSize: "var(--text-meta)",
-                  color: "var(--fx-text-tertiary)",
+                  color: activity === "unread" ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)",
                   whiteSpace: "nowrap",
                 }}
               >
@@ -317,7 +319,6 @@ export function SessionItem({
             )}
           </button>
 
-          {/* Collapse toggle — always visible when has children */}
           {hasChildren && (
             <button
               type="button"
@@ -332,36 +333,28 @@ export function SessionItem({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                width: 24,
-                height: 24,
+                width: 20,
+                height: 20,
                 padding: 0,
                 flexShrink: 0,
-                background: hovered ? "var(--bg-hover)" : "none",
+                background: "transparent",
                 border: "none",
-                borderRadius: "var(--radius-card)",
+                borderRadius: "var(--radius-chip)",
                 color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
-                transition:
-                  "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               }}
             >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
+              <span
                 style={{
+                  display: "inline-flex",
                   transform: collapsed ? "rotate(-90deg)" : "none",
-                  transition: "transform 0.15s",
+                  transition: "transform var(--duration-quick) var(--ease-smooth-out)",
                 }}
               >
-                <polyline points="2 3.5 5 6.5 8 3.5" />
-              </svg>
+                <RowIcon size={14} strokeWidth={2}>
+                  <path d="m6 9 6 6 6-6" />
+                </RowIcon>
+              </span>
             </button>
           )}
 
@@ -376,7 +369,7 @@ export function SessionItem({
               event.preventDefault();
               closeActionsMenu(true);
             }}
-            style={{ position: "absolute", top: 2, right: hasChildren ? 36 : 4, flexShrink: 0 }}
+            style={{ position: "absolute", top: 2, right: hasChildren ? 30 : 4, flexShrink: 0 }}
           >
             <button
               type="button"
@@ -398,13 +391,13 @@ export function SessionItem({
                 height: 24,
                 padding: 0,
                 background: actionsOpen || hovered ? rowBackground : "transparent",
-                border: actionsOpen ? "1px solid var(--fx-line-default)" : "1px solid transparent",
-                borderRadius: "var(--radius-card)",
+                border: "1px solid transparent",
+                borderRadius: "var(--radius-chip)",
                 color: actionsOpen ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                 cursor: "pointer",
                 opacity: actionsOpen || hovered ? 1 : 0,
                 pointerEvents: actionsOpen || hovered ? "auto" : "none",
-                transition: "opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+                transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">

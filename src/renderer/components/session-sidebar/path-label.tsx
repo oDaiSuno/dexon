@@ -18,7 +18,6 @@ export function PathLabel({ text, style }: { text: string; style?: CSSProperties
         whiteSpace: "nowrap",
         display: "block",
         minWidth: 0,
-        lineHeight: 1.35,
         direction: "rtl",
         textAlign: "left",
         ...style,

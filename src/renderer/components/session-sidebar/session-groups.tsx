@@ -53,34 +53,36 @@ export function SessionGroupsSection({
   return (
     <>
       {loading && (
-        <div style={{ padding: "16px 16px", color: "var(--fx-text-secondary)", fontSize: "var(--text-label)" }}>
+        <div className="type-label-default" style={{ padding: "16px 16px", color: "var(--fx-text-secondary)" }}>
           {t("loading", "Loading…")}
         </div>
       )}
       {error && (
-        <div style={{ padding: "12px 16px", color: "var(--fx-status-danger)", fontSize: "var(--text-label)" }}>
+        <div className="type-label-default" style={{ padding: "12px 16px", color: "var(--fx-status-danger-text)" }}>
           {error}
         </div>
       )}
       {!loading && !error && sessions.length === 0 && (
-        <div style={{ padding: "16px 16px", color: "var(--fx-text-secondary)", fontSize: "var(--text-body)" }}>
+        <div className="type-body-default" style={{ padding: "16px 16px", color: "var(--fx-text-secondary)" }}>
           {hasActiveFilter
             ? t("noMatchingSessions", "No matching sessions")
             : t("noSessionsFound", "No sessions found")}
         </div>
       )}
-      <div style={{ padding: "0 8px 12px", display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ padding: "0 8px 12px", display: "flex", flexDirection: "column", gap: 2 }}>
         {sessionGroups.map(
           (group) =>
             group.nodes.length > 0 && (
               <section key={group.id} aria-labelledby={`session-group-${group.id}`}>
                 <div
                   id={`session-group-${group.id}`}
+                  className="type-label-medium"
                   style={{
-                    padding: "8px 8px 4px",
+                    display: "flex",
+                    alignItems: "center",
+                    height: 28,
+                    padding: "0 14px",
                     color: "var(--fx-text-tertiary)",
-                    fontSize: "var(--text-label)",
-                    fontWeight: 650,
                   }}
                 >
                   {group.label}

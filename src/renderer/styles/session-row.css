@@ -3,3 +3,10 @@
   display: none;
   content: "";
 }
+
+.session-rename-input:focus-visible {
+  outline: none !important;
+}
+.session-rename-input::selection {
+  background: var(--fx-accent-blue-soft);
+}

@@ -2,19 +2,22 @@ import type { SessionActivityStatus, SessionRelation } from "@shared/session-orc
 import type { CountedActivity, SessionActivityCounts, SubtreeActivity } from "@/lib/session-tree-status";
 import { COUNTED_ACTIVITIES } from "@/lib/session-tree-status";
 import {
+  AlertGlyph,
   AwaitingInputSessionIndicator,
   FailedTurnSessionIndicator,
+  LoaderGlyph,
+  QuestionGlyph,
   RunningSessionIndicator,
   UnreadSessionIndicator,
 } from "./session-status-indicators";
-import { SessionRelationGlyph } from "./session-relation-glyphs";
+import { SessionMessageGlyph, SessionRelationGlyph } from "./session-relation-glyphs";
 
 type Translate = (key: string, fallback: string) => string;
 
 const COUNT_COLORS: Record<CountedActivity, string> = {
   awaiting_input: "var(--fx-status-warning)",
   error: "var(--fx-status-danger)",
-  running: "var(--fx-accent-blue)",
+  running: "var(--fx-accent-blue-text)",
 };
 
 export function sessionStatusPhrase(status: SessionActivityStatus, t: Translate): string | null {
@@ -72,7 +75,38 @@ export function sessionRowLabel({
   return parts.join(" · ");
 }
 
-export function SessionRowStatusSlot({
+function leadTone(relation: SessionRelation | null, activity: SessionActivityStatus): string {
+  if (relation === "delegate") return activity === "running" ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)";
+  if (relation === "fork") return "var(--fx-text-secondary)";
+  return "var(--fx-text-tertiary)";
+}
+
+export function SessionRowLead({
+  activity,
+  relation,
+}: {
+  activity: SessionActivityStatus;
+  relation: SessionRelation | null;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      style={{
+        width: 14,
+        height: 14,
+        flexShrink: 0,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: leadTone(relation, activity),
+      }}
+    >
+      {relation ? <SessionRelationGlyph relation={relation} /> : <SessionMessageGlyph />}
+    </span>
+  );
+}
+
+export function sessionRowTitleClass({
   activity,
   relation,
   isSelected,
@@ -80,50 +114,42 @@ export function SessionRowStatusSlot({
   activity: SessionActivityStatus;
   relation: SessionRelation | null;
   isSelected: boolean;
-}) {
+}): { className: string; color: string } {
+  if (isSelected || activity === "awaiting_input" || activity === "unread")
+    return { className: "type-body-large-medium", color: "var(--fx-text-primary)" };
+  if (relation === "delegate")
+    return {
+      className: "type-body-default",
+      color: activity === "running" ? "var(--fx-text-body)" : "var(--fx-text-secondary)",
+    };
+  if (relation === "fork") return { className: "type-body-default", color: "var(--fx-text-body)" };
+  return { className: "type-body-large", color: "var(--fx-text-body)" };
+}
+
+export function sessionRowShowsTime(activity: SessionActivityStatus): boolean {
+  return activity !== "running" && activity !== "awaiting_input" && activity !== "error";
+}
+
+export function SessionRowStatusSlot({ activity }: { activity: SessionActivityStatus }) {
   if (activity === "awaiting_input") return <AwaitingInputSessionIndicator />;
   if (activity === "error") return <FailedTurnSessionIndicator />;
   if (activity === "running") return <RunningSessionIndicator />;
   if (activity === "unread") return <UnreadSessionIndicator />;
-  if (relation) return <SessionRelationGlyph relation={relation} />;
-  if (isSelected)
-    return (
-      <span style={{ width: 6, height: 6, borderRadius: "50%", flexShrink: 0, background: "var(--fx-text-primary)" }} />
-    );
   return null;
 }
 
 function CountGlyph({ activity }: { activity: CountedActivity }) {
   const color = COUNT_COLORS[activity];
-  const shared = {
-    width: 9,
-    height: 9,
-    viewBox: "0 0 12 12",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.6,
-    strokeLinecap: "round" as const,
-    "aria-hidden": true,
-    style: { display: "block", color },
-  };
-  if (activity === "awaiting_input")
-    return (
-      <svg {...shared}>
-        <path d="M4.2 4.4a1.9 1.9 0 1 1 3.5 1.1c-.4.6-1.7 1.1-1.7 2.2" />
-        <circle cx="6" cy="9.9" r="0.6" fill="currentColor" stroke="none" />
-      </svg>
-    );
-  if (activity === "error")
-    return (
-      <svg {...shared}>
-        <line x1="6" y1="2.6" x2="6" y2="7" />
-        <circle cx="6" cy="9.4" r="0.6" fill="currentColor" stroke="none" />
-      </svg>
-    );
   return (
-    <svg {...shared}>
-      <circle cx="6" cy="6" r="4.2" strokeDasharray="19.8 6.6" transform="rotate(-90 6 6)" />
-    </svg>
+    <span style={{ display: "inline-flex", color }}>
+      {activity === "awaiting_input" ? (
+        <QuestionGlyph size={11} />
+      ) : activity === "error" ? (
+        <AlertGlyph size={11} />
+      ) : (
+        <LoaderGlyph size={11} />
+      )}
+    </span>
   );
 }
 
@@ -134,21 +160,24 @@ export function SessionRowCounts({ counts }: { counts: SessionActivityCounts }) 
     <span
       data-session-row-counts
       aria-hidden="true"
+      className="type-mono-meta"
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 5,
+        gap: 6,
         flexShrink: 0,
-        fontSize: "var(--text-meta)",
+        padding: "0 6px",
+        borderRadius: "var(--radius-pill)",
+        background: "var(--fx-surface-card)",
+        color: "var(--fx-text-secondary)",
         fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
       }}
     >
-      {present.map((activity, index) => (
-        <span key={activity} style={{ display: "inline-flex", alignItems: "center", gap: 1 }}>
-          {index > 0 && <span style={{ color: "var(--fx-text-tertiary)" }}>·</span>}
+      {present.map((activity) => (
+        <span key={activity} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
           <CountGlyph activity={activity} />
-          <span style={{ color: COUNT_COLORS[activity] }}>{counts[activity]}</span>
+          <span>{counts[activity]}</span>
         </span>
       ))}
     </span>
