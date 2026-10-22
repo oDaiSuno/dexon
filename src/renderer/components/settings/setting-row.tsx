@@ -16,25 +16,18 @@ export const toggleHitAreaStyle: React.CSSProperties = {
 
 export function SettingGroup({
   title,
-  description,
   notes,
   children,
 }: {
   title: string;
-  description: string;
   notes?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <section style={{ display: "grid", gap: 10 }}>
-      <div style={{ display: "grid", gap: "var(--space-1)" }}>
-        <h2 className="type-body-medium" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
-          {title}
-        </h2>
-        <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
-          {description}
-        </p>
-      </div>
+      <h2 className="type-body-medium" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
+        {title}
+      </h2>
       <div
         style={{
           display: "grid",
@@ -66,10 +59,12 @@ export function SettingNote({ alert = false, children }: { alert?: boolean; chil
 
 export function SettingRow({
   label,
+  description,
   controlId,
   children,
 }: {
   label: string;
+  description?: string;
   controlId: string;
   children: React.ReactNode;
 }) {
@@ -84,13 +79,20 @@ export function SettingRow({
         background: "var(--fx-surface-raised)",
       }}
     >
-      <label
-        htmlFor={controlId}
-        className="type-body-large-medium"
-        style={{ flex: 1, minWidth: 0, color: "var(--fx-text-primary)", cursor: "pointer" }}
-      >
-        {label}
-      </label>
+      <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 3 }}>
+        <label
+          htmlFor={controlId}
+          className="type-body-large-medium"
+          style={{ color: "var(--fx-text-primary)", cursor: "pointer" }}
+        >
+          {label}
+        </label>
+        {description && (
+          <p className="type-body-relaxed" style={{ margin: 0, color: "var(--fx-text-tertiary)", textWrap: "pretty" }}>
+            {description}
+          </p>
+        )}
+      </div>
       {children}
     </div>
   );

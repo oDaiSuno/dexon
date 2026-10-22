@@ -99,10 +99,6 @@ export function SessionOrchestrationSettings() {
   return (
     <SettingGroup
       title={t("sessionCollaboration", "Session collaboration")}
-      description={t(
-        "sessionCollaborationDescription",
-        "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
-      )}
       notes={
         <>
           {loadFailed && (
@@ -124,7 +120,14 @@ export function SessionOrchestrationSettings() {
         </>
       }
     >
-      <SettingRow label={t("sessionCollaborationEnable", "Enable session collaboration")} controlId={enableControlId}>
+      <SettingRow
+        label={t("sessionCollaborationEnable", "Enable session collaboration")}
+        description={t(
+          "sessionCollaborationDescription",
+          "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
+        )}
+        controlId={enableControlId}
+      >
         <label htmlFor={enableControlId} style={{ ...toggleHitAreaStyle, cursor: loading ? "not-allowed" : "pointer" }}>
           <Toggle
             id={enableControlId}

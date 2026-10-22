@@ -273,6 +273,8 @@ export function SettingsConfig({
                     className={active ? "type-body-large-medium" : "type-body-large"}
                     style={{
                       flexShrink: 0,
+                      display: "flex",
+                      alignItems: "flex-start",
                       height: 36,
                       marginBottom: -1,
                       padding: 0,

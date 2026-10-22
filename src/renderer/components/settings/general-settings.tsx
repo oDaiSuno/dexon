@@ -139,14 +139,15 @@ export function GeneralSettings({
   return (
     <div style={{ width: "100%", overflowY: "auto", padding: "var(--space-6) var(--space-6) var(--space-10)" }}>
       <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
-        <SettingGroup
-          title={t("interfaceLanguage", "Interface language")}
-          description={t(
-            "interfaceLanguageDescription",
-            "Choose the language used by the app. Changes take effect immediately.",
-          )}
-        >
-          <SettingRow label={t("language", "Language")} controlId={languageControlId}>
+        <SettingGroup title={t("interfaceLanguage", "Interface language")}>
+          <SettingRow
+            label={t("language", "Language")}
+            description={t(
+              "interfaceLanguageDescription",
+              "Choose the language used by the app. Changes take effect immediately.",
+            )}
+            controlId={languageControlId}
+          >
             <select
               id={languageControlId}
               value={language}
@@ -162,10 +163,6 @@ export function GeneralSettings({
 
         <SettingGroup
           title={t("managedProcesses", "Managed processes")}
-          description={t(
-            "managedProcessesDescription",
-            "Let Agents run development servers and watchers under app-owned lifecycle control. Processes have the same local access as Bash and are not a sandbox.",
-          )}
           notes={
             <>
               {managedProcessCapabilityMessage && <SettingNote>{managedProcessCapabilityMessage}</SettingNote>}
@@ -194,6 +191,10 @@ export function GeneralSettings({
         >
           <SettingRow
             label={t("managedProcessesEnable", "Enable managed background processes")}
+            description={t(
+              "managedProcessesDescription",
+              "Let Agents run development servers and watchers under app-owned lifecycle control. Processes have the same local access as Bash and are not a sandbox.",
+            )}
             controlId={managedProcessesControlId}
           >
             <label
@@ -214,7 +215,6 @@ export function GeneralSettings({
 
         <SettingGroup
           title={t("backgroundMode", "Background mode")}
-          description={t("backgroundModeDescription", "Keep messaging channels connected when the window is closed.")}
           notes={
             backgroundModeError && (
               <SettingNote alert>
@@ -228,7 +228,11 @@ export function GeneralSettings({
             )
           }
         >
-          <SettingRow label={t("closeToTray", "Close window to tray")} controlId={backgroundModeControlId}>
+          <SettingRow
+            label={t("closeToTray", "Close window to tray")}
+            description={t("backgroundModeDescription", "Keep messaging channels connected when the window is closed.")}
+            controlId={backgroundModeControlId}
+          >
             <label htmlFor={backgroundModeControlId} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
               <Toggle
                 id={backgroundModeControlId}
@@ -244,10 +248,6 @@ export function GeneralSettings({
 
         <SettingGroup
           title={t("conversationSettings", "Conversation")}
-          description={t(
-            "conversationSettingsDescription",
-            "Control automatic titles, chat text size, and the conversation reading width.",
-          )}
           notes={
             chatAppearanceError && (
               <SettingNote alert>
@@ -259,7 +259,14 @@ export function GeneralSettings({
             )
           }
         >
-          <SettingRow label={t("autoSessionTitle", "Auto-title new sessions")} controlId={autoSessionTitleControlId}>
+          <SettingRow
+            label={t("autoSessionTitle", "Auto-title new sessions")}
+            description={t(
+              "conversationSettingsDescription",
+              "Control automatic titles, chat text size, and the conversation reading width.",
+            )}
+            controlId={autoSessionTitleControlId}
+          >
             <label htmlFor={autoSessionTitleControlId} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
               <Toggle
                 id={autoSessionTitleControlId}
@@ -310,11 +317,12 @@ export function GeneralSettings({
           </SettingRow>
         </SettingGroup>
 
-        <SettingGroup
-          title={t("appearance", "Appearance")}
-          description={t("appearanceDescription", "Choose the color mode used by the app.")}
-        >
-          <SettingRow label={t("theme", "Theme")} controlId={themeControlId}>
+        <SettingGroup title={t("appearance", "Appearance")}>
+          <SettingRow
+            label={t("theme", "Theme")}
+            description={t("appearanceDescription", "Choose the color mode used by the app.")}
+            controlId={themeControlId}
+          >
             <select
               id={themeControlId}
               value={isDark ? "dark" : "light"}
