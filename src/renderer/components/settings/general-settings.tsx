@@ -3,8 +3,9 @@ import { useI18n, type AppLanguage } from "@/i18n";
 import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@shared/chat-appearance";
 import type { ManagedProcessCapability } from "../../../contract/processes";
 import { isAutoSessionTitleEnabled, setAutoSessionTitleEnabled } from "../../lib/auto-session-title";
-import { SettingRow, selectStyle } from "./setting-row";
+import { SettingRow, selectClassName, selectStyle } from "./setting-row";
 import { SessionOrchestrationSettings } from "./session-orchestration-settings";
+import { Toggle } from "../form-controls";
 
 export function GeneralSettings({
   language,
@@ -149,6 +150,7 @@ export function GeneralSettings({
             id={languageControlId}
             value={language}
             onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}
+            className={selectClassName}
             style={selectStyle}
           >
             <option value="en-US">English</option>
@@ -184,18 +186,11 @@ export function GeneralSettings({
               cursor: managedProcessesUnavailable ? "not-allowed" : "pointer",
             }}
           >
-            <input
+            <Toggle
               id={managedProcessesControlId}
-              type="checkbox"
               checked={managedProcessesEnabled}
               disabled={managedProcessesUnavailable || managedProcessesLoading || managedProcessesSaving}
               onChange={(event) => void saveManagedProcesses(event.target.checked)}
-              style={{
-                width: 18,
-                height: 18,
-                margin: 0,
-                accentColor: "var(--accent)",
-              }}
             />
           </label>
         </SettingRow>
@@ -254,20 +249,12 @@ export function GeneralSettings({
               cursor: "pointer",
             }}
           >
-            <input
+            <Toggle
               id={backgroundModeControlId}
-              type="checkbox"
               checked={backgroundMode}
               disabled={backgroundModeLoading || backgroundModeSaving}
               onChange={(event) => {
                 void saveBackgroundMode(event.target.checked);
-              }}
-              style={{
-                width: 18,
-                height: 18,
-                margin: 0,
-                accentColor: "var(--accent)",
-                cursor: backgroundModeLoading || backgroundModeSaving ? "not-allowed" : "pointer",
               }}
             />
           </label>
@@ -309,21 +296,13 @@ export function GeneralSettings({
                 cursor: "pointer",
               }}
             >
-              <input
+              <Toggle
                 id={autoSessionTitleControlId}
-                type="checkbox"
                 checked={autoSessionTitle}
                 onChange={(event) => {
                   const next = event.target.checked;
                   setAutoSessionTitle(next);
                   setAutoSessionTitleEnabled(next);
-                }}
-                style={{
-                  width: 18,
-                  height: 18,
-                  margin: 0,
-                  accentColor: "var(--accent)",
-                  cursor: "pointer",
                 }}
               />
             </label>
@@ -339,6 +318,7 @@ export function GeneralSettings({
                   fontSize: event.target.value as ChatFontSize,
                 });
               }}
+              className={selectClassName}
               style={{ ...selectStyle, cursor: chatAppearanceSaving ? "wait" : "pointer" }}
             >
               <option value="small">{t("chatFontSizeSmall", "Small")}</option>
@@ -358,6 +338,7 @@ export function GeneralSettings({
                   layout: event.target.value as ChatLayout,
                 });
               }}
+              className={selectClassName}
               style={{ ...selectStyle, cursor: chatAppearanceSaving ? "wait" : "pointer" }}
             >
               <option value="fixed">{t("chatLayoutFixed", "Comfortable width")}</option>
@@ -389,6 +370,7 @@ export function GeneralSettings({
             id={themeControlId}
             value={isDark ? "dark" : "light"}
             onChange={(event) => onThemeChange(event.target.value === "dark")}
+            className={selectClassName}
             style={selectStyle}
           >
             <option value="light">{t("light", "Light")}</option>

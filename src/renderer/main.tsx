@@ -8,6 +8,7 @@ import "./globals.css";
 import "./styles/tokens.css";
 import "./styles/motion-tokens.css";
 import "./styles/base.css";
+import "./styles/controls.css";
 import "./styles/sidebar.css";
 import "./styles/composer.css";
 import "./styles/markdown.css";

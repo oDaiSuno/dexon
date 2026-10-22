@@ -1,6 +1,6 @@
 /**
- * Shared form controls for settings-style panels (fields, inputs, selects).
- * Extracted from ModelsConfig so detail panes can stay focused on domain logic.
+ * Shared form controls for settings-style panels, styled by styles/controls.css
+ * after the Framer "Controls/*" components.
  */
 import {
   createContext,
@@ -8,7 +8,9 @@ import {
   useEffect,
   useId,
   useState,
+  type ButtonHTMLAttributes,
   type CSSProperties,
+  type InputHTMLAttributes,
   type KeyboardEventHandler,
   type ReactNode,
 } from "react";
@@ -24,11 +26,8 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 
   return (
     <FieldControlIdContext.Provider value={controlId}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label
-          htmlFor={controlId}
-          style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}
-        >
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label htmlFor={controlId} style={{ fontSize: "var(--text-label)", color: "var(--text-muted)" }}>
           {label}
         </label>
         {children}
@@ -37,18 +36,41 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-export const inputStyle = {
-  minHeight: 36,
-  padding: "8px 12px",
-  background: "var(--bg-panel)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-control)",
-  color: "var(--text)",
-  fontSize: "var(--text-body)",
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box" as const,
-};
+export type ButtonVariant = "secondary" | "primary" | "danger" | "ghost";
+
+export function Button({
+  variant = "secondary",
+  busy,
+  type = "button",
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; busy?: boolean }) {
+  return (
+    <button
+      {...props}
+      type={type}
+      className={className ? `ui-button ${className}` : "ui-button"}
+      data-variant={variant === "secondary" ? undefined : variant}
+      aria-busy={busy || undefined}
+    />
+  );
+}
+
+export function Toggle({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "role">) {
+  return (
+    <input {...props} type="checkbox" role="switch" className={className ? `ui-toggle ${className}` : "ui-toggle"} />
+  );
+}
+
+export type BadgeTone = "success" | "warning" | "danger" | "running" | "muted" | "neutral" | "accent";
+
+export function Badge({ tone = "muted", children }: { tone?: BadgeTone; children: ReactNode }) {
+  return (
+    <span className="ui-badge" data-tone={tone}>
+      {children}
+    </span>
+  );
+}
 
 export function TextInput({
   value,
@@ -69,7 +91,8 @@ export function TextInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{ ...inputStyle, fontFamily: mono ? "var(--font-mono)" : "inherit" }}
+      className="ui-input"
+      data-mono={mono || undefined}
     />
   );
 }
@@ -109,7 +132,9 @@ export function SecretTextInput({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        style={{ ...inputStyle, paddingRight: 40, fontFamily: mono ? "var(--font-mono)" : "inherit" }}
+        className="ui-input"
+        data-mono={mono || undefined}
+        style={{ paddingRight: 40 }}
         autoComplete={autoComplete}
         spellCheck={spellCheck}
       />
@@ -125,6 +150,7 @@ export function SecretTextInput({
           transform: "translateY(-50%)",
           width: 32,
           height: 32,
+          borderRadius: "var(--radius-control)",
           padding: 0,
           border: "none",
           background: "transparent",
@@ -189,7 +215,7 @@ export function NumInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={inputStyle}
+      className="ui-input"
     />
   );
 }
@@ -212,7 +238,8 @@ export function Select({
       id={controlId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      style={{ ...inputStyle, color: value ? "var(--text)" : "var(--text-dim)" }}
+      className="ui-select"
+      data-empty={!value || undefined}
     >
       {!required && <option value="">— inherit / none —</option>}
       {options.map((o) => (
@@ -238,20 +265,14 @@ export function Check({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        minHeight: 36,
-        padding: "4px 0",
+        gap: 10,
+        minHeight: 32,
         cursor: "pointer",
         fontSize: "var(--text-body)",
-        color: "var(--text-muted)",
+        color: "var(--text)",
       }}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
-      />
+      <Toggle checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   );
@@ -262,7 +283,7 @@ export function SectionTitle({ children }: { children: ReactNode }) {
     <div
       style={{
         fontSize: "var(--text-meta)",
-        fontWeight: 600,
+        fontWeight: "var(--weight-medium)",
         color: "var(--text-dim)",
         textTransform: "uppercase",
         letterSpacing: "0.06em",

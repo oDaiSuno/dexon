@@ -4,6 +4,7 @@ import "../../src/renderer/globals.css";
 import "../../src/renderer/styles/tokens.css";
 import "../../src/renderer/styles/motion-tokens.css";
 import "../../src/renderer/styles/base.css";
+import "../../src/renderer/styles/controls.css";
 import "../../src/renderer/styles/sidebar.css";
 import "../../src/renderer/styles/composer.css";
 import "../../src/renderer/styles/markdown.css";

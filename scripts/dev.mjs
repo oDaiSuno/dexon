@@ -99,7 +99,10 @@ export async function runDev(projectRoot = root) {
     await waitForViteReady(rendererUrl);
 
     console.log("[dev] Vite ready; starting Electron…");
-    runtime.run("Electron", resolveElectronBinary(projectRoot), ["."], {
+    const electronArgs = process.env.DEXON_DEV_DEBUG_PORT
+      ? [".", `--remote-debugging-port=${Number(process.env.DEXON_DEV_DEBUG_PORT)}`]
+      : ["."];
+    runtime.run("Electron", resolveElectronBinary(projectRoot), electronArgs, {
       allowCleanExit: true,
       env: {
         VITE_DEV_SERVER_URL: rendererUrl,

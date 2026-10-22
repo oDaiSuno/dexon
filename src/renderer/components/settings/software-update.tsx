@@ -11,6 +11,7 @@ import {
   updateDetailStyle,
   updateStatusColor,
 } from "./update-presentations";
+import { Toggle } from "../form-controls";
 
 type UpdateAction = "status" | "check" | "download" | "install" | "automatic" | "logs";
 
@@ -259,9 +260,8 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
               {t("automaticUpdateChecksDescription", "Checks periodically without downloading updates automatically.")}
             </div>
           </div>
-          <input
+          <Toggle
             id={automaticChecksControlId}
-            type="checkbox"
             aria-describedby={automaticChecksDescriptionId}
             checked={state?.automaticChecksEnabled ?? false}
             disabled={!state || phase === "disabled" || isBusy}
@@ -272,7 +272,6 @@ export function SoftwareUpdate({ onClose }: { onClose: () => void }) {
                 setState(nextState);
               });
             }}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
           />
         </div>
       </div>

@@ -9,7 +9,8 @@ import {
   type SessionOrchestrationSettings as Settings,
   type SessionThinkingLevel,
 } from "@shared/session-orchestration";
-import { SettingRow, selectStyle } from "./setting-row";
+import { SettingRow, selectClassName, selectStyle } from "./setting-row";
+import { Toggle } from "../form-controls";
 
 interface ModelOption {
   provider: string;
@@ -118,13 +119,11 @@ export function SessionOrchestrationSettings() {
             cursor: loading ? "not-allowed" : "pointer",
           }}
         >
-          <input
+          <Toggle
             id={enableControlId}
-            type="checkbox"
             checked={enabled}
             disabled={loading}
             onChange={(event) => save({ ...settings, enabled: event.target.checked })}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)" }}
           />
         </label>
       </SettingRow>
@@ -172,6 +171,7 @@ export function SessionOrchestrationSettings() {
                 const chosen = models.find((model) => modelValue(model) === event.target.value);
                 save({ ...settings, model: chosen ? { provider: chosen.provider, modelId: chosen.id } : null });
               }}
+              className={selectClassName}
               style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
@@ -189,6 +189,7 @@ export function SessionOrchestrationSettings() {
               onChange={(event) =>
                 save({ ...settings, thinkingLevel: (event.target.value || null) as SessionThinkingLevel | null })
               }
+              className={selectClassName}
               style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
@@ -207,12 +208,10 @@ export function SessionOrchestrationSettings() {
               htmlFor={allowUserSessionsControlId}
               style={{ width: 36, height: 36, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer" }}
             >
-              <input
+              <Toggle
                 id={allowUserSessionsControlId}
-                type="checkbox"
                 checked={settings.allowUserSessions}
                 onChange={(event) => save({ ...settings, allowUserSessions: event.target.checked })}
-                style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)" }}
               />
             </label>
           </SettingRow>
