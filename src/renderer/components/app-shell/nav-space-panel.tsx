@@ -38,21 +38,21 @@ export function NavSpacePanel({
       {notice && (
         <div
           role="alert"
+          className="type-label-default"
           style={{
             display: "flex",
             flexDirection: "column",
             gap: 6,
             padding: "8px 10px",
-            border: "1px solid color-mix(in srgb, var(--fx-status-danger) 40%, transparent)",
+            border: "1px solid var(--fx-status-danger-border)",
             borderRadius: "var(--radius-card)",
-            background: "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)",
-            fontSize: "var(--text-label)",
+            background: "var(--fx-status-danger-soft)",
             color: "var(--fx-text-primary)",
           }}
         >
           <span>{notice.message}</span>
           {notice.reason && (
-            <span style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-meta)", overflowWrap: "anywhere" }}>
+            <span className="type-meta-default" style={{ color: "var(--fx-text-secondary)", overflowWrap: "anywhere" }}>
               {notice.reason}
             </span>
           )}
@@ -60,6 +60,7 @@ export function NavSpacePanel({
             <button
               type="button"
               onClick={notice.onRetry}
+              className="type-label-default"
               style={{
                 alignSelf: "flex-start",
                 height: 24,
@@ -69,7 +70,6 @@ export function NavSpacePanel({
                 borderRadius: "var(--radius-control)",
                 color: "var(--fx-text-primary)",
                 cursor: "pointer",
-                fontSize: "var(--text-label)",
               }}
             >
               {t("retry", "Retry")}

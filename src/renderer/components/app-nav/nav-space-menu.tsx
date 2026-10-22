@@ -3,6 +3,7 @@ import appIconUrl from "../../../../build/icon.png";
 import { useI18n } from "@/i18n";
 import { AnimatedDropdown } from "../session-sidebar/animated-dropdown";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
+import { SPACE_CARD_STYLE, SPACE_ROW_STYLE, SpaceIdentity } from "./nav-space-picker";
 
 // Phase 4: top area of the new navigation — collapse toggle, app icon,
 // friendly space name, and the space menu holding the abbreviated path plus
@@ -16,7 +17,7 @@ interface SpaceActions {
   onBackToPersonalSpace: () => void;
 }
 
-const MENU_ROW_HEIGHT = 28;
+const MENU_ROW_HEIGHT = 36;
 
 export function NavSpaceMenu({
   spaceName,
@@ -59,8 +60,8 @@ export function NavSpaceMenu({
       label: t("openCurrentFolder", "Open current folder"),
       icon: (
         <svg
-          width="14"
-          height="14"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -78,8 +79,8 @@ export function NavSpaceMenu({
       label: t("chooseOtherFolder", "Choose another folder…"),
       icon: (
         <svg
-          width="14"
-          height="14"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -99,8 +100,8 @@ export function NavSpaceMenu({
       label: t("switchSpace", "Switch space…"),
       icon: (
         <svg
-          width="14"
-          height="14"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -121,8 +122,8 @@ export function NavSpaceMenu({
       label: t("backToPersonalSpace", "Back to personal space"),
       icon: (
         <svg
-          width="14"
-          height="14"
+          width="16"
+          height="16"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -168,7 +169,7 @@ export function NavSpaceMenu({
               "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--bg-hover)";
+            e.currentTarget.style.background = "var(--fx-surface-hover)";
             e.currentTarget.style.color = "var(--fx-text-primary)";
           }}
           onMouseLeave={(e) => {
@@ -201,7 +202,7 @@ export function NavSpaceMenu({
             alignItems: "center",
             gap: 6,
             padding: "0 6px",
-            background: menuOpen ? "var(--bg-hover)" : "transparent",
+            background: menuOpen ? "var(--fx-surface-hover)" : "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
             color: "var(--fx-text-primary)",
@@ -209,7 +210,7 @@ export function NavSpaceMenu({
             transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
           onMouseEnter={(e) => {
-            if (!menuOpen) e.currentTarget.style.background = "var(--bg-hover)";
+            if (!menuOpen) e.currentTarget.style.background = "var(--fx-surface-hover)";
           }}
           onMouseLeave={(e) => {
             if (!menuOpen) e.currentTarget.style.background = "transparent";
@@ -217,14 +218,13 @@ export function NavSpaceMenu({
         >
           <span
             id={spaceNameId}
+            className="type-body-medium"
             style={{
               flex: 1,
               minWidth: 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              fontSize: "var(--text-body)",
-              fontWeight: 500,
               textAlign: "left",
             }}
           >
@@ -262,39 +262,20 @@ export function NavSpaceMenu({
           zIndex: 40,
         }}
       >
-        <div
-          role="menu"
-          aria-label={spaceName}
-          className="composer-pop-in"
-          style={{
-            background: "var(--fx-surface-raised)",
-            border: "1px solid var(--fx-line-default)",
-            borderRadius: "var(--radius-card)",
-            boxShadow: "var(--shadow-popover)",
-            padding: 4,
-          }}
-        >
-          <div
-            style={{
-              padding: "6px 8px 8px",
-              fontFamily: "var(--font-mono)",
-              fontSize: "var(--text-meta)",
-              color: "var(--fx-text-tertiary)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              borderBottom: "1px solid var(--fx-line-default)",
-              marginBottom: 4,
-            }}
-          >
-            {spacePath}
+        <div role="menu" aria-label={spaceName} className="composer-pop-in" style={SPACE_CARD_STYLE}>
+          <div style={{ ...SPACE_ROW_STYLE, height: 46 }}>
+            <SpaceIdentity name={spaceName} detail={spacePath} current />
           </div>
-          <div ref={listRef} style={{ position: "relative" }}>
+          <div aria-hidden="true" style={{ padding: "5px 4px", flexShrink: 0 }}>
+            <div style={{ height: 1, background: "var(--fx-line-default)" }} />
+          </div>
+          <div ref={listRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2 }}>
             {actions.map((action, index) => (
               <button
                 key={action.label}
                 type="button"
                 role="menuitem"
+                className="type-body-default"
                 onMouseEnter={() => setActiveIndex(index)}
                 onFocus={() => setActiveIndex(index)}
                 onClick={() => {
@@ -302,19 +283,10 @@ export function NavSpaceMenu({
                   action.run();
                 }}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
+                  ...SPACE_ROW_STYLE,
                   height: MENU_ROW_HEIGHT,
-                  padding: "0 8px",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: "var(--radius-control)",
-                  color: "var(--fx-text-primary)",
+                  color: "var(--fx-text-body)",
                   cursor: "pointer",
-                  fontSize: "var(--text-label)",
-                  textAlign: "left",
                   position: "relative",
                   zIndex: 1,
                 }}
@@ -322,11 +294,13 @@ export function NavSpaceMenu({
                 <span
                   aria-hidden="true"
                   style={{
-                    display: "inline-flex",
-                    width: 14,
-                    height: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 24,
+                    height: 24,
                     flexShrink: 0,
-                    color: "var(--fx-text-tertiary)",
+                    color: "var(--fx-text-secondary)",
                   }}
                 >
                   {action.icon}
@@ -343,6 +317,7 @@ export function NavSpaceMenu({
               rowSelector='[role="menuitem"]'
               activeIndex={activeIndex}
               visible={activeIndex >= 0}
+              insetX={0}
             />
           </div>
         </div>
