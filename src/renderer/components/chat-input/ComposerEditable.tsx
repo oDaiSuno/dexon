@@ -293,7 +293,7 @@ export function ComposerEditable({
   return (
     <div
       ref={editorRef}
-      className="composer-editor"
+      className="composer-editor type-chat-input"
       contentEditable={visible}
       suppressContentEditableWarning
       spellCheck={false}
@@ -302,7 +302,6 @@ export function ComposerEditable({
       aria-multiline="true"
       data-placeholder={placeholder}
       data-empty={value === "" ? "" : undefined}
-      style={{ flex: 1, minWidth: 0, fontSize: 14, lineHeight: 1.6 }}
       onInput={(e) => {
         if (!visible) return;
         emit();

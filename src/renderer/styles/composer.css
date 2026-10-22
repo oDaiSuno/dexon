@@ -1,6 +1,26 @@
+.chat-composer-shell {
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-composer);
+  padding: var(--space-2);
+  box-shadow: var(--shadow-composer);
+  transition:
+    border-color var(--duration-quick) var(--ease-smooth-out),
+    box-shadow var(--duration-quick) var(--ease-smooth-out);
+}
+
 .chat-composer-shell:focus-within {
-  border-color: color-mix(in srgb, var(--fx-accent-blue) 58%, var(--fx-line-default)) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-accent-blue) 12%, transparent) !important;
+  border-color: var(--fx-accent-blue);
+  box-shadow:
+    var(--shadow-composer),
+    0 0 0 3px var(--fx-accent-blue-soft);
+}
+
+.chat-composer-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  min-width: 0;
 }
 
 .chat-composer-shell .composer-editor:focus-visible {
@@ -19,15 +39,36 @@
 }
 
 .composer-editor {
-  min-height: 28px;
+  flex: 1;
+  min-width: 0;
+  min-height: 32px;
   max-height: 200px;
   overflow-y: auto;
   white-space: pre-wrap;
   overflow-wrap: break-word;
   caret-color: var(--fx-text-primary);
   color: var(--fx-text-primary);
-  font-family: inherit;
-  padding: 3px 2px;
+  padding: 5px var(--space-1);
+}
+
+.composer-key-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fx-text-tertiary);
+}
+
+.composer-key-hint kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
 }
 
 /* tactile press feedback for the composer's square buttons */

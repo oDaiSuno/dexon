@@ -9,14 +9,17 @@ function squareBase(): CSSProperties {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    height: 28,
+    width: 32,
+    height: 32,
     padding: 0,
+    border: "none",
+    borderRadius: "var(--radius-control)",
     transition:
       "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), transform var(--duration-micro, 80ms)",
   };
 }
 
-/** 28×28 tactile send square. Inverse-ink filled when armed, quiet gray
+/** 32×32 tactile send square. Inverse-ink filled when armed, quiet gray
  *  when the draft is empty. */
 export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => void }) {
   const { t } = useI18n();
@@ -28,9 +31,6 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
       onClick={onSend}
       style={{
         ...squareBase(),
-        width: 28,
-        border: "none",
-        borderRadius: "var(--radius-control)",
         background: armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)",
         color: armed ? "var(--fx-text-inverse)" : "var(--fx-text-tertiary)",
         cursor: armed ? "pointer" : "not-allowed",
@@ -49,7 +49,7 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
 }
 
 /** While streaming with an empty draft, the send slot becomes a stop
- *  button — same 28×28 square, radius, and inverse ink as the send
+ *  button — same 32×32 square, radius, and inverse ink as the send
  *  square; only the glyph changes (white stop mark). */
 export function StopSquare({ onAbort }: { onAbort: () => void }) {
   const { t } = useI18n();
@@ -61,9 +61,6 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
       onClick={onAbort}
       style={{
         ...squareBase(),
-        width: 28,
-        border: "none",
-        borderRadius: "var(--radius-control)",
         background: "var(--fx-surface-inverse)",
         color: "var(--fx-text-inverse)",
         cursor: "pointer",
@@ -76,7 +73,16 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
       }}
       className="tap-scale"
     >
-      <StopIcon size={11} />
+      <StopIcon size={12} />
     </button>
+  );
+}
+
+export function KeyHint({ keyLabel, label }: { keyLabel: string; label: string }) {
+  return (
+    <span className="composer-key-hint type-meta-default">
+      <kbd className="type-mono-meta">{keyLabel}</kbd>
+      {label}
+    </span>
   );
 }

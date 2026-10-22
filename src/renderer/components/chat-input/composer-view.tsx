@@ -120,7 +120,6 @@ export function ComposerView(props: ComposerViewProps) {
     visible,
     isMobile,
     isStreaming,
-    hasSteering,
     onFollowUp,
     value,
     editableRef,
@@ -310,23 +309,8 @@ export function ComposerView(props: ComposerViewProps) {
             />
           )}
 
-          <div
-            role="group"
-            aria-label={t("messageComposer", "Message input")}
-            className="chat-composer-shell"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              background: "var(--fx-surface-raised)",
-              border: `1px solid ${isStreaming && (hasSteering || onFollowUp) ? "var(--fx-status-warning-border)" : "var(--fx-line-default)"}`,
-              borderRadius: "var(--radius-composer)",
-              padding: "10px 12px",
-              boxShadow: "var(--shadow-composer)",
-              transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, minWidth: 0 }}>
+          <div role="group" aria-label={t("messageComposer", "Message input")} className="chat-composer-shell">
+            <div className="chat-composer-row">
               <button
                 type="button"
                 aria-haspopup="menu"
@@ -339,37 +323,33 @@ export function ComposerView(props: ComposerViewProps) {
                 aria-label={t("attachLocalFiles", "Add images or local file references")}
                 style={{
                   flexShrink: 0,
-                  alignSelf: "flex-end",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: 28,
-                  height: 28,
+                  width: 30,
+                  height: 30,
+                  marginBottom: 1,
                   padding: 0,
-                  background: attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "transparent",
+                  background:
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "var(--fx-surface-hover-clear)",
                   border: "none",
                   borderRadius: "var(--radius-control)",
                   color: attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)",
                   cursor: "pointer",
-                  transition: "background 0.12s, color 0.12s, transform 0.12s",
+                  transition:
+                    "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out), transform var(--duration-micro)",
                 }}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background =
-                    attachmentTokens.length > 0
-                      ? "color-mix(in srgb, var(--fx-accent-blue) 14%, transparent)"
-                      : "var(--bg-hover)";
-                  event.currentTarget.style.color =
-                    attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-primary)";
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-selection)" : "var(--fx-surface-hover-overlay)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background =
-                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "transparent";
-                  event.currentTarget.style.color =
-                    attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)";
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "var(--fx-surface-hover-clear)";
                 }}
                 className="tap-scale"
               >
-                <PlusIcon size={16} />
+                <PlusIcon size={17} />
               </button>
               <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
                 <ComposerEditable
@@ -409,7 +389,15 @@ export function ComposerView(props: ComposerViewProps) {
           </div>
         </div>
 
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: isMobile ? 2 : 6 }}>
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? 2 : "var(--space-3)",
+            padding: isMobile ? 0 : "0 6px",
+          }}
+        >
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex" }}>
             <ModelPicker
               model={model}

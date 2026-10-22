@@ -1,23 +1,6 @@
 {
   "lane": "C1 输入框主体",
-  "legacy": [
-    {
-      "file": "src/renderer/components/chat-input/composer-view.tsx",
-      "name": "--bg-hover",
-      "count": 1
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/chat-input/ComposerEditable.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/chat-input/ComposerEditable.tsx",
-      "property": "lineHeight",
-      "count": 1
-    }
-  ],
+  "legacy": [],
+  "typography": [],
   "colors": []
 }
