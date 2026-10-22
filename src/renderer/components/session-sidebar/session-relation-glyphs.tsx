@@ -28,7 +28,7 @@ export function RowIcon({
   );
 }
 
-export function SessionMessageGlyph({ size = 18 }: { size?: number }) {
+export function SessionMessageGlyph({ size = 14 }: { size?: number }) {
   return (
     <RowIcon size={size}>
       <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
