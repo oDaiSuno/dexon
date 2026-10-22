@@ -84,7 +84,7 @@
       "reason": "内置浏览器网页区域的底色，与浏览器默认白底一致；Framer Panel/Browser 中网页区同样是 #ffffff"
     },
     {
-      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
       "color": "white",
       "count": 1,
       "reason": "二维码底板必须是纯白，否则手机扫码识别率下降"
