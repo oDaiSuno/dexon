@@ -1,0 +1,73 @@
+{
+  "lane": "E4 配置模型对话框",
+  "legacy": [
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--heat-1",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--heat-3",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--heat-4",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--heat-5",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--heat-6",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "name": "--text-meta",
+      "count": 2
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/models/thinking-level-map-editor.tsx",
+      "property": "fontWeight",
+      "count": 3
+    }
+  ],
+  "colors": []
+}
