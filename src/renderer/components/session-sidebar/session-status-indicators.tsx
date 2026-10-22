@@ -94,15 +94,7 @@ const PILL_TONES = {
   },
 };
 
-function StatusPill({
-  tone,
-  label,
-  icon,
-}: {
-  tone: keyof typeof PILL_TONES;
-  label: string;
-  icon: ReactNode;
-}) {
+function StatusPill({ tone, label, icon }: { tone: keyof typeof PILL_TONES; label: string; icon: ReactNode }) {
   const colors = PILL_TONES[tone];
   return (
     <span
