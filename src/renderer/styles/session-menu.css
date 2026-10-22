@@ -109,6 +109,7 @@
 }
 .session-menu-confirm-footer {
   display: flex;
+  flex-direction: row-reverse;
   align-items: center;
   gap: var(--space-1);
   padding: var(--space-1);
@@ -116,4 +117,8 @@
 .session-menu-confirm-footer > .ui-button {
   flex: 1;
   min-width: 0;
+}
+
+[role="listitem"]:has(.session-actions-summary[aria-expanded="true"]) [data-session-row-time] {
+  margin-right: var(--space-6);
 }
