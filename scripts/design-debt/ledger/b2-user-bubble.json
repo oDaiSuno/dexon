@@ -1,17 +1,6 @@
 {
   "lane": "B2 提问气泡与引用标签",
   "legacy": [],
-  "typography": [
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "property": "font-size",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "property": "font-weight",
-      "count": 1
-    }
-  ],
+  "typography": [],
   "colors": []
 }
