@@ -43,6 +43,21 @@ const getComputedStyle = globalThis.getComputedStyle.bind(globalThis);
  * real Agent Host, session file or configuration.
  */
 
+const PREVIEW_NOW = (() => {
+  const anchor = new Date();
+  anchor.setHours(12, 0, 0, 0);
+  return anchor.getTime();
+})();
+const RealDate = globalThis.Date;
+globalThis.Date = class PreviewDate extends RealDate {
+  constructor(...args) {
+    super(...(args.length === 0 ? [PREVIEW_NOW] : args));
+  }
+  static now() {
+    return PREVIEW_NOW;
+  }
+};
+
 const data = buildPreviewData({ now: new Date() });
 
 // ---------------------------------------------------------------------------
@@ -225,6 +240,37 @@ async function settleAnimations() {
   await raf2();
 }
 
+const FREEZE_STYLE_ID = "ui-preview-freeze";
+
+function freezeMotion(enabled) {
+  const existing = document.getElementById(FREEZE_STYLE_ID);
+  if (!enabled) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const style = document.createElement("style");
+  style.id = FREEZE_STYLE_ID;
+  style.textContent =
+    "*,*::before,*::after{transition:none!important;animation-play-state:paused!important;animation-delay:0s!important;caret-color:transparent!important}";
+  document.head.appendChild(style);
+}
+
+function freezeLoopingMotion() {
+  for (const animation of document.getAnimations()) {
+    if (animation.effect?.getTiming().iterations !== Infinity) {
+      animation.finish();
+      continue;
+    }
+    animation.pause();
+    animation.currentTime = 0;
+  }
+  for (const svg of document.querySelectorAll("svg")) {
+    svg.pauseAnimations();
+    svg.setCurrentTime(0);
+  }
+}
+
 function applyState(state) {
   if (!state) return;
   if (state.search) clickRequired("[data-nav-search-toggle]", "search toggle");
@@ -238,7 +284,8 @@ function clickRequired(selector, what) {
 }
 
 window.preview = {
-  async configure({ screen, theme, lang, state }) {
+  async configure({ screen, theme, lang, state, freeze }) {
+    freezeMotion(Boolean(freeze));
     renderEpoch += 1;
     if (screen) currentScreen = screen;
     if (lang) setAppLanguage(lang === "en" ? "en-US" : "zh-CN");
@@ -248,6 +295,10 @@ window.preview = {
     await settleAnimations();
     applyState(state);
     await settleAnimations();
+    if (freeze) {
+      freezeLoopingMotion();
+      await raf2();
+    }
     return { ok: true, screen: currentScreen };
   },
   /**

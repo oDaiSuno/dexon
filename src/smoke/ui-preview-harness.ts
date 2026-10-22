@@ -107,7 +107,7 @@ const js = <T = unknown>(code: string): Promise<T> => window!.webContents.execut
 async function capture(shot: Shot): Promise<{ file: string }> {
   window!.setContentSize(shot.width, shot.height);
   const result = await js<{ ok: boolean }>(
-    `window.preview.configure(${JSON.stringify({ screen: shot.screen, theme: shot.theme, lang: shot.lang, state: shot.state })})`,
+    `window.preview.configure(${JSON.stringify({ screen: shot.screen, theme: shot.theme, lang: shot.lang, state: shot.state, freeze: true })})`,
   );
   if (!result?.ok) throw new Error(`configure failed for ${shot.name}`);
   if (shot.state?.search) {
