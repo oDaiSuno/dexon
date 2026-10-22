@@ -7,6 +7,7 @@ import { NavHistory } from "./nav-history";
 import { NewSessionIcon, PluginsIcon, SettingsIcon } from "./nav-icons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
+import { APP_VERSION } from "@/lib/app-version";
 
 // Phase 4 composition root of the new app navigation sidebar. Two states:
 // the expanded 224px navigation (top space, main functions, history, bottom
@@ -65,6 +66,40 @@ function RailButton({
       }}
     >
       {children}
+    </button>
+  );
+}
+
+function SettingsButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: 32,
+        height: 32,
+        padding: 0,
+        flexShrink: 0,
+        background: "var(--fx-surface-hover-clear)",
+        border: "none",
+        borderRadius: "var(--radius-control)",
+        color: "var(--fx-text-secondary)",
+        cursor: "pointer",
+        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "var(--fx-surface-hover-clear)";
+      }}
+    >
+      <SettingsIcon size={NAV_ICON_SIZE} />
     </button>
   );
 }
@@ -137,6 +172,7 @@ export function NavSidebar({
   // space coordination (Phase 6) passes an explicit name when one exists.
   const spaceName = spaceNameProp ?? t("personalSpace", "Personal space");
   const [activeEntry, setActiveEntry] = useState(-1);
+  const onNewSessionPage = page === "chat" && selectedSessionId === null;
 
   if (!expanded) {
     return (
@@ -179,9 +215,18 @@ export function NavSidebar({
           <PluginsIcon size={NAV_ICON_SIZE} />
         </RailButton>
         <span style={{ flex: 1 }} />
-        <RailButton label={t("settings", "Settings")} onClick={onOpenSettings}>
-          <SettingsIcon size={NAV_ICON_SIZE} />
-        </RailButton>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignSelf: "stretch",
+            margin: "0 var(--space-2)",
+            paddingTop: "var(--space-3)",
+            borderTop: "1px solid var(--fx-line-subtle)",
+          }}
+        >
+          <SettingsButton label={t("settings", "Settings")} onClick={onOpenSettings} />
+        </div>
       </nav>
     );
   }
@@ -239,7 +284,8 @@ export function NavSidebar({
       >
         {entries.map((entry, index) => {
           const current = entry.page === page;
-          const hovered = !current && activeEntry === index;
+          const selected = current || (entry.id === "new-session" && onNewSessionPage);
+          const hovered = !selected && activeEntry === index;
           return (
             <button
               key={entry.id}
@@ -247,7 +293,7 @@ export function NavSidebar({
               data-nav-entry
               aria-label={entry.label}
               aria-current={current ? "page" : undefined}
-              className={current ? "type-body-large-medium" : "type-body-large"}
+              className={selected ? "type-body-large-medium" : "type-body-large"}
               onMouseEnter={() => setActiveEntry(index)}
               onMouseLeave={() => setActiveEntry(-1)}
               onClick={entry.onClick}
@@ -258,14 +304,14 @@ export function NavSidebar({
                 width: "100%",
                 height: ENTRY_ROW_HEIGHT,
                 padding: "0 10px",
-                background: current
+                background: selected
                   ? "var(--fx-surface-selected)"
                   : hovered
                     ? "var(--fx-surface-hover)"
                     : "transparent",
-                border: `1px solid ${current ? "var(--fx-line-strong)" : "transparent"}`,
+                border: `1px solid ${selected ? "var(--fx-line-strong)" : "transparent"}`,
                 borderRadius: "var(--radius-control)",
-                color: current ? "var(--fx-text-primary)" : "var(--fx-text-body)",
+                color: selected ? "var(--fx-text-primary)" : "var(--fx-text-body)",
                 cursor: "pointer",
                 textAlign: "left",
                 transition:
@@ -279,7 +325,7 @@ export function NavSidebar({
                   width: NAV_ICON_SIZE,
                   height: NAV_ICON_SIZE,
                   flexShrink: 0,
-                  color: current ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                  color: selected ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 }}
               >
                 {entry.icon}
@@ -323,56 +369,30 @@ export function NavSidebar({
       <div
         style={{
           margin: "0 var(--space-3)",
-          padding: "var(--space-3) 0 var(--space-4)",
+          padding: "var(--space-3) var(--space-1) var(--space-4)",
           borderTop: "1px solid var(--fx-line-subtle)",
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
           flexShrink: 0,
         }}
       >
-        <button
-          type="button"
-          onClick={onOpenSettings}
-          title={t("settings", "Settings")}
-          aria-label={t("settings", "Settings")}
-          className="type-body-large"
+        <SettingsButton label={t("settings", "Settings")} onClick={onOpenSettings} />
+        <span
+          className="type-mono-meta"
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-3)",
-            width: "100%",
-            height: ENTRY_ROW_HEIGHT,
-            padding: "0 10px",
-            background: "transparent",
-            border: "1px solid transparent",
-            borderRadius: "var(--radius-control)",
-            color: "var(--fx-text-body)",
-            cursor: "pointer",
-            textAlign: "left",
-            transition:
-              "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--fx-surface-hover)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
+            flex: 1,
+            minWidth: 0,
+            textAlign: "right",
+            color: "var(--fx-text-tertiary)",
+            userSelect: "none",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-flex",
-              width: NAV_ICON_SIZE,
-              height: NAV_ICON_SIZE,
-              flexShrink: 0,
-              color: "var(--fx-text-secondary)",
-            }}
-          >
-            <SettingsIcon size={NAV_ICON_SIZE} />
-          </span>
-          <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {t("settings", "Settings")}
-          </span>
-        </button>
+          {`v${APP_VERSION}`}
+        </span>
       </div>
     </nav>
   );
