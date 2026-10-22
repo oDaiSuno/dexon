@@ -1,0 +1,76 @@
+{
+  "lane": "B7 轮次导航、回到底部与欢迎页",
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/components/chat-window/older-history-zone.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/chat-window/welcome.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/chat-window/welcome.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-window/welcome.tsx",
+      "property": "letterSpacing",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-window/welcome.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/ChatMinimap.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ChatMinimap.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ChatWindow.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ChatWindow.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/messages/turn-footer.tsx",
+      "property": "fontSize",
+      "count": 2
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/ChatMinimap.tsx",
+      "color": "rgba(100,100,100,0.1)",
+      "count": 1,
+      "hint": "小地图视口框底色改用 var(--fx-surface-hover-overlay)，上下边线改用 var(--fx-line-default)"
+    },
+    {
+      "file": "src/renderer/components/ChatMinimap.tsx",
+      "color": "rgba(100,100,100,0.2)",
+      "count": 2,
+      "hint": "小地图视口框底色改用 var(--fx-surface-hover-overlay)，上下边线改用 var(--fx-line-default)"
+    },
+    {
+      "file": "src/renderer/components/ChatWindow.tsx",
+      "color": "text-red-400",
+      "count": 1,
+      "hint": "改用 var(--fx-status-danger-text)"
+    }
+  ]
+}

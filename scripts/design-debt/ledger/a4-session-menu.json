@@ -1,0 +1,45 @@
+{
+  "lane": "A4 会话菜单",
+  "legacy": [
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "name": "--bg-hover",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/styles/session-menu.css",
+      "name": "--bg-hover",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "property": "fontWeight",
+      "count": 2
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/session-sidebar/session-item-actions.tsx",
+      "color": "rgba(0,0,0,0.14)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    }
+  ]
+}

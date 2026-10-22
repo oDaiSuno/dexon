@@ -1,0 +1,52 @@
+{
+  "lane": "B3 工具调用行与过程折叠",
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/components/messages/DiffViews.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/DiffViews.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/messages/DiffViews.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/ThinkingBlock.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/messages/ToolCallBlock.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/ProcessDetailsGroup.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/messages-process.css",
+      "property": "font-size",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/styles/messages-process.css",
+      "property": "font-weight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/messages-process.css",
+      "property": "line-height",
+      "count": 2
+    }
+  ],
+  "colors": []
+}

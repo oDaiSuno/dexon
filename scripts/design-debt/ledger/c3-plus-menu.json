@@ -1,0 +1,50 @@
+{
+  "lane": "C3 加号菜单与选技能",
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/components/chat-input/PlusMenu.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/chat-input/PlusMenu.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "property": "fontSize",
+      "count": 8
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "property": "letterSpacing",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "property": "lineHeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/chat-input/PlusMenu.tsx",
+      "color": "#000",
+      "count": 2,
+      "hint": "阴影改用 var(--shadow-popover) / var(--shadow-card)"
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "color": "#000",
+      "count": 4,
+      "hint": "阴影改用 var(--shadow-popover) / var(--shadow-card)"
+    }
+  ]
+}

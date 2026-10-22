@@ -1,0 +1,78 @@
+{
+  "lane": "A3 项目行与会话行",
+  "legacy": [
+    {
+      "file": "src/renderer/components/session-sidebar/session-groups.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-groups.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "name": "--bg-hover",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "name": "--text-body",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-row-status.tsx",
+      "name": "--text-meta",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/session-sidebar/path-label.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-groups.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-groups.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-item.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/session-sidebar/session-row-status.tsx",
+      "property": "fontSize",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

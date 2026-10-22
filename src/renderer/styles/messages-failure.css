@@ -1,0 +1,71 @@
+.chat-failure-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  line-height: 1.6;
+  color: var(--fx-text-secondary);
+  min-width: 0;
+}
+
+.chat-failure-mark {
+  flex-shrink: 0;
+  color: var(--fx-status-danger-text);
+}
+
+.chat-retry-mark {
+  color: var(--fx-text-tertiary);
+}
+
+.chat-failure-body {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.chat-failure-text[data-clamped] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chat-failure-meta {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 8px;
+  color: var(--fx-text-tertiary);
+  white-space: nowrap;
+}
+
+.chat-failure-action {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--duration-quick) var(--ease-out);
+}
+
+.chat-failure-action:hover {
+  color: var(--fx-text-secondary);
+}
+
+.chat-failure-copy {
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-out);
+}
+
+.chat-failure-line:hover .chat-failure-copy,
+.chat-failure-copy:focus-visible,
+.chat-failure-copy[data-copied] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-failure-action,
+  .chat-failure-copy {
+    transition: none !important;
+    animation: none !important;
+  }
+}

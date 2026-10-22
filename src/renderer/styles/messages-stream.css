@@ -1,0 +1,26 @@
+/* ── Streaming word reveal (transitions.dev 30-streaming-text):
+     each resolved token animates once on mount via its stable key. ── */
+
+.chat-stream-token {
+  display: inline;
+  will-change: filter, opacity;
+  animation: chat-stream-in 420ms cubic-bezier(0.22, 0.61, 0.25, 1) both;
+}
+
+.chat-stream-caret {
+  display: inline-block;
+  width: 2px;
+  height: 12px;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: var(--fx-text-primary);
+  vertical-align: -1px;
+  animation: chat-caret-blink 0.9s var(--ease-in-out) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-stream-token {
+    transition: none !important;
+    animation: none !important;
+  }
+}

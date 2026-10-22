@@ -1,0 +1,53 @@
+{
+  "lane": "B6 向你提问的卡片",
+  "legacy": [
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--bg-hover",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--text-title",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--weight-medium",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "name": "--weight-semibold",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "property": "font-size",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "property": "font-weight",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/styles/tool-cards.css",
+      "property": "line-height",
+      "count": 3
+    }
+  ],
+  "colors": []
+}

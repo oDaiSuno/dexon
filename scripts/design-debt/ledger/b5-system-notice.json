@@ -1,0 +1,53 @@
+{
+  "lane": "B5 系统消息、报错与提示",
+  "legacy": [
+    {
+      "file": "src/renderer/components/chat-window/status.tsx",
+      "name": "--text-heading-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/messages/SystemMessages.tsx",
+      "name": "--bg-subtle",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/chat-window/status.tsx",
+      "property": "fontSize",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/chat-window/status.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/FailureLine.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/SystemMessages.tsx",
+      "property": "fontSize",
+      "count": 14
+    },
+    {
+      "file": "src/renderer/components/messages/SystemMessages.tsx",
+      "property": "fontWeight",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/messages/SystemMessages.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/styles/messages-failure.css",
+      "property": "line-height",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

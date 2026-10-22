@@ -1,0 +1,38 @@
+{
+  "lane": "B1 回答正文与代码块",
+  "legacy": [
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/styles/markdown.css",
+      "name": "--bg-subtle",
+      "count": 4
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/MarkdownBody.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/MarkdownBody.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/AssistantMessage.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/messages/AssistantMessage.tsx",
+      "property": "lineHeight",
+      "count": 2
+    }
+  ],
+  "colors": []
+}

@@ -1,5 +1,3 @@
-/* messages — transcript rows: accordions, tool rows, failure lines, streaming, status morph, hover actions. */
-
 /* ── Accordion (transitions.dev 21-accordion: grid-rows 0fr↔1fr,
      no JS height measuring; padding belongs on the inner clip box) ── */
 
@@ -40,22 +38,6 @@
   transform: scaleY(1);
 }
 
-/* ── Shimmer label (transitions.dev 15-shimmer-text) — "thinking" hold state ── */
-
-.chat-shimmer-text {
-  background-image: linear-gradient(
-    90deg,
-    var(--fx-text-tertiary) 35%,
-    var(--fx-text-primary) 50%,
-    var(--fx-text-tertiary) 65%
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: chat-shimmer-text 1.4s var(--ease-linear) infinite;
-}
-
 /* Quiet disclosure header shared by thinking / tool / process rows.
    The negative margins give the hover pill room without shifting content. */
 .chat-quiet-head {
@@ -78,70 +60,6 @@
 
 .chat-quiet-head:hover {
   background: var(--fx-surface-hover-overlay-strong);
-}
-
-.chat-failure-line {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  line-height: 1.6;
-  color: var(--fx-text-secondary);
-  min-width: 0;
-}
-
-.chat-failure-mark {
-  flex-shrink: 0;
-  color: var(--fx-status-danger-text);
-}
-
-.chat-retry-mark {
-  color: var(--fx-text-tertiary);
-}
-
-.chat-failure-body {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  white-space: pre-wrap;
-}
-
-.chat-failure-text[data-clamped] {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.chat-failure-meta {
-  display: inline-flex;
-  gap: 8px;
-  margin-left: 8px;
-  color: var(--fx-text-tertiary);
-  white-space: nowrap;
-}
-
-.chat-failure-action {
-  appearance: none;
-  border: none;
-  background: none;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
-  transition: color var(--duration-quick) var(--ease-out);
-}
-
-.chat-failure-action:hover {
-  color: var(--fx-text-secondary);
-}
-
-.chat-failure-copy {
-  opacity: 0;
-  transition: opacity var(--duration-quick) var(--ease-out);
-}
-
-.chat-failure-line:hover .chat-failure-copy,
-.chat-failure-copy:focus-visible,
-.chat-failure-copy[data-copied] {
-  opacity: 1;
 }
 
 .chat-think-spark {
@@ -302,26 +220,6 @@ html.dark .chat-tool-chip {
   animation: chat-spin 700ms var(--ease-linear) infinite;
 }
 
-/* ── Streaming word reveal (transitions.dev 30-streaming-text):
-     each resolved token animates once on mount via its stable key. ── */
-
-.chat-stream-token {
-  display: inline;
-  will-change: filter, opacity;
-  animation: chat-stream-in 420ms cubic-bezier(0.22, 0.61, 0.25, 1) both;
-}
-
-.chat-stream-caret {
-  display: inline-block;
-  width: 2px;
-  height: 12px;
-  margin-left: 2px;
-  border-radius: 999px;
-  background: var(--fx-text-primary);
-  vertical-align: -1px;
-  animation: chat-caret-blink 0.9s var(--ease-in-out) infinite;
-}
-
 /* ── Tool status morph (transitions.dev 41-spinner-check-morph, adapted:
      idle ring → running spinner → done check (draw + pop) → resting icon,
      error variant uses the Framer danger fill. No auto-revert: a finished tool call is
@@ -466,9 +364,6 @@ html.dark .chat-tool-chip {
 @media (prefers-reduced-motion: reduce) {
   .chat-acc-panel,
   .chat-acc-chevron,
-  .chat-failure-action,
-  .chat-failure-copy,
-  .chat-stream-token,
   .chat-status-icon,
   .chat-status-icon .chat-scmorph-ring,
   .chat-status-icon .chat-scmorph-spinring,
@@ -478,21 +373,10 @@ html.dark .chat-tool-chip {
     transition: none !important;
     animation: none !important;
   }
-  .chat-shimmer-text {
-    animation: none !important;
-    background: none;
-    -webkit-text-fill-color: var(--fx-text-secondary);
-  }
   .chat-scmorph-spinring {
     animation: none !important;
   }
   .chat-status-icon.is-done .chat-scmorph-check {
     stroke-dashoffset: 0;
   }
-}
-
-.message-hover-actions:focus-within,
-.message-hover-action:focus-visible {
-  opacity: 1 !important;
-  pointer-events: auto !important;
 }

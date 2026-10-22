@@ -1,0 +1,5 @@
+.session-actions-summary::marker,
+.session-actions-summary::-webkit-details-marker {
+  display: none;
+  content: "";
+}

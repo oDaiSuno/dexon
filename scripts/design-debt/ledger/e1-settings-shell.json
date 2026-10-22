@@ -1,0 +1,121 @@
+{
+  "lane": "E1 设置页外框与通用设置",
+  "legacy": [
+    {
+      "file": "src/renderer/components/settings/general-settings.tsx",
+      "name": "--text-body-lg",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/settings/general-settings.tsx",
+      "name": "--text-label",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/settings/session-orchestration-settings.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/settings/session-orchestration-settings.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/settings/session-orchestration-settings.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/settings/setting-row.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/settings/setting-row.tsx",
+      "name": "--weight-medium",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "name": "--text-display",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "name": "--text-title",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/settings/general-settings.tsx",
+      "property": "fontSize",
+      "count": 16
+    },
+    {
+      "file": "src/renderer/components/settings/general-settings.tsx",
+      "property": "lineHeight",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/settings/session-orchestration-settings.tsx",
+      "property": "fontSize",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/settings/session-orchestration-settings.tsx",
+      "property": "lineHeight",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/settings/setting-row.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/settings/setting-row.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "property": "lineHeight",
+      "count": 2
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    }
+  ]
+}

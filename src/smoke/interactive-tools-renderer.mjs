@@ -9,7 +9,10 @@ import "../renderer/styles/base.css";
 import "../renderer/styles/motion-tokens.css";
 import "../renderer/styles/chat-scope.css";
 import "../renderer/styles/chat-motion.css";
-import "../renderer/styles/messages.css";
+import "../renderer/styles/chat-shared.css";
+import "../renderer/styles/messages-process.css";
+import "../renderer/styles/messages-failure.css";
+import "../renderer/styles/messages-stream.css";
 import "../renderer/styles/tool-cards.css";
 
 const document = globalThis.document;

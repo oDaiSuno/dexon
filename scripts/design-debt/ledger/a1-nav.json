@@ -1,0 +1,110 @@
+{
+  "lane": "A1 侧栏骨架与导航项",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "name": "--text-heading-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-sidebar.tsx",
+      "name": "--bg-hover",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-sidebar.tsx",
+      "name": "--bg-selected",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-sidebar.tsx",
+      "name": "--text-body",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "name": "--text-title",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-history.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-sidebar.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-nav/nav-sidebar.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-nav/resource-page.tsx",
+      "property": "letterSpacing",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/app-shell/navigation-sidebar.tsx",
+      "color": "rgba(0,0,0,0.4)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    }
+  ]
+}

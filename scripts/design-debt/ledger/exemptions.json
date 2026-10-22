@@ -4,15 +4,51 @@
   "legacy": [],
   "typography": [
     {
+      "file": "src/renderer/styles/base.css",
+      "property": "font-size",
+      "count": 1,
+      "reason": "页面根节点的默认字号，只作为浏览器兜底，可见文字都应套 .type-* 类"
+    },
+    {
+      "file": "src/renderer/styles/markdown-file-preview.css",
+      "property": "font-size",
+      "count": 5,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown-system.css",
+      "property": "font-size",
+      "count": 3,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown-system.css",
+      "property": "font-weight",
+      "count": 2,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown-system.css",
+      "property": "line-height",
+      "count": 6,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
+      "file": "src/renderer/styles/markdown-user.css",
+      "property": "font-weight",
+      "count": 1,
+      "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
+    },
+    {
       "file": "src/renderer/styles/markdown.css",
       "property": "font-size",
-      "count": 19,
+      "count": 11,
       "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
     },
     {
       "file": "src/renderer/styles/markdown.css",
       "property": "font-weight",
-      "count": 8,
+      "count": 5,
       "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
     },
     {
@@ -24,14 +60,8 @@
     {
       "file": "src/renderer/styles/markdown.css",
       "property": "line-height",
-      "count": 9,
+      "count": 3,
       "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
-    },
-    {
-      "file": "src/renderer/styles/base.css",
-      "property": "font-size",
-      "count": 1,
-      "reason": "页面根节点的默认字号，只作为浏览器兜底，可见文字都应套 .type-* 类"
     }
   ],
   "colors": [

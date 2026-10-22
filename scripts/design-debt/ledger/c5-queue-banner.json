@@ -1,0 +1,33 @@
+{
+  "lane": "C5 排队消息与输入框提示条",
+  "legacy": [
+    {
+      "file": "src/renderer/components/chat-input/StatusBanners.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-input/StatusBanners.tsx",
+      "name": "--bg-subtle",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/chat-input/StatusBanners.tsx",
+      "property": "fontSize",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/chat-input/StatusBanners.tsx",
+      "property": "letterSpacing",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/chat-input/StatusBanners.tsx",
+      "property": "lineHeight",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

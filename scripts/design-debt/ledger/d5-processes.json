@@ -1,0 +1,43 @@
+{
+  "lane": "D5 进程面板",
+  "legacy": [
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-label",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-meta",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "name": "--text-micro",
+      "count": 9
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "fontSize",
+      "count": 20
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ProcessPanel.tsx",
+      "property": "lineHeight",
+      "count": 2
+    }
+  ],
+  "colors": []
+}

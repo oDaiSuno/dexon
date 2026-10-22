@@ -1,0 +1,130 @@
+{
+  "lane": "E3/E4 模型设置（E0a 拆分后再分给 E3 列表与 E4 对话框）",
+  "legacy": [
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--bg-hover",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--bg-selected",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--heat-1",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--heat-3",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--heat-4",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--heat-5",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--heat-6",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-body",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-display",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-label",
+      "count": 41
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-meta",
+      "count": 16
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-micro",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "name": "--text-title",
+      "count": 2
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "property": "fontSize",
+      "count": 75
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "property": "fontWeight",
+      "count": 17
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "property": "letterSpacing",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "property": "lineHeight",
+      "count": 15
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.4)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(99,102,241,0.8)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    }
+  ]
+}

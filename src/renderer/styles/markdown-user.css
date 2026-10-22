@@ -1,0 +1,35 @@
+.markdown-body.markdown-user-message {
+  color: inherit;
+}
+.markdown-user-message p {
+  white-space: pre-wrap;
+  color: inherit;
+}
+.markdown-user-message a {
+  color: var(--fx-accent-blue-text);
+}
+.markdown-user-message strong {
+  color: inherit;
+  font-weight: 700;
+}
+.markdown-user-message .markdown-inline-code {
+  background: color-mix(in srgb, currentColor 8%, transparent);
+  color: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 16%, transparent);
+}
+.markdown-user-message h1,
+.markdown-user-message h2,
+.markdown-user-message h3,
+.markdown-user-message h4,
+.markdown-user-message h5,
+.markdown-user-message h6 {
+  color: inherit;
+}
+
+/* Channel bubbles keep white-on-brand text */
+[data-message-source]:not([data-message-source="local"]) .markdown-user-message a {
+  color: color-mix(in srgb, #fff 82%, currentColor);
+}
+[data-message-source]:not([data-message-source="local"]) .markdown-user-message strong {
+  color: #fff;
+}

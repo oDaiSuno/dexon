@@ -1,0 +1,33 @@
+{
+  "lane": "D1 右侧面板外框",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--text-label",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "name": "--text-micro",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "property": "fontSize",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/components/app-shell/right-panel-dock.tsx",
+      "property": "fontWeight",
+      "count": 4
+    }
+  ],
+  "colors": []
+}

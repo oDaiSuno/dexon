@@ -1,0 +1,33 @@
+{
+  "lane": "D4 内置浏览器",
+  "legacy": [
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-meta",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "name": "--text-micro",
+      "count": 6
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "property": "fontSize",
+      "count": 10
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

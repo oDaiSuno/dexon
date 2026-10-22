@@ -1,0 +1,113 @@
+.markdown-custom-message {
+  line-height: 1.32;
+}
+.markdown-custom-message p {
+  margin: 0;
+}
+.markdown-custom-message h1,
+.markdown-custom-message h2,
+.markdown-custom-message h3,
+.markdown-custom-message h4,
+.markdown-custom-message h5,
+.markdown-custom-message h6 {
+  margin: 4px 0 2px;
+  line-height: 1.18;
+}
+.markdown-custom-message ul,
+.markdown-custom-message ol {
+  margin: 2px 0 3px;
+}
+.markdown-custom-message li {
+  margin: 0;
+}
+.markdown-custom-message blockquote {
+  margin: 3px 0;
+  padding: 4px 8px;
+}
+.markdown-custom-message .markdown-table-wrap,
+.markdown-custom-message .markdown-code-block {
+  margin: 4px 0;
+}
+
+.markdown-compaction-message {
+  line-height: 1.5;
+}
+.markdown-compaction-message p {
+  margin: 0 0 7px;
+}
+.markdown-compaction-message h1,
+.markdown-compaction-message h2,
+.markdown-compaction-message h3,
+.markdown-compaction-message h4,
+.markdown-compaction-message h5,
+.markdown-compaction-message h6 {
+  margin: 8px 0 3px;
+  line-height: 1.25;
+}
+.markdown-compaction-message ul,
+.markdown-compaction-message ol {
+  margin: 4px 0 8px;
+}
+.markdown-compaction-message li {
+  margin: 2px 0;
+}
+.markdown-compaction-message .markdown-table-wrap,
+.markdown-compaction-message .markdown-code-block {
+  margin: 6px 0;
+}
+
+.compaction-summary-toggle {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.compaction-summary-toggle:hover {
+  filter: brightness(0.98);
+}
+.compaction-summary-toggle:focus-visible {
+  outline: 2px solid var(--fx-accent-blue);
+  outline-offset: -2px;
+}
+
+.compaction-file-details {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--fx-line-default);
+  color: var(--fx-text-secondary);
+  font-size: calc(12px * var(--type-scale, 1));
+}
+.compaction-file-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.compaction-file-section {
+  margin-top: 8px;
+}
+.compaction-file-title {
+  margin-bottom: 4px;
+  color: var(--fx-text-primary);
+  font-size: calc(11px * var(--type-scale, 1));
+  font-weight: 650;
+}
+.compaction-file-list {
+  max-height: 180px;
+  margin: 0;
+  padding: 7px 8px;
+  overflow: auto;
+  border: 1px solid var(--fx-line-default);
+  border-radius: 6px;
+  background: var(--fx-surface-raised);
+  font-family: var(--font-mono);
+  font-size: calc(11px * var(--type-scale, 1));
+  line-height: 1.45;
+  list-style: none;
+}
+.compaction-file-list li {
+  overflow-wrap: anywhere;
+}
+.compaction-file-list li + li {
+  margin-top: 3px;
+}

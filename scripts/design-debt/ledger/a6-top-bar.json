@@ -1,0 +1,125 @@
+{
+  "lane": "A6 会话顶栏与用量卡",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "name": "--text-heading-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "name": "--text-title",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--text-label",
+      "count": 2
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/chat-placeholder.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "color": "rgba(0,0,0,0.10)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    }
+  ]
+}
