@@ -31,8 +31,8 @@ const GROUPS = [
   {
     name: "shell 组合根与侧栏模块",
     dirs: ["src/renderer/components/app-shell", "src/renderer/components/session-sidebar"],
-    files: ["src/renderer/components/AppShell.tsx", "src/renderer/components/SessionSidebar.tsx"],
-    requiredRoots: ["src/renderer/components/AppShell.tsx", "src/renderer/components/SessionSidebar.tsx"],
+    files: ["src/renderer/components/AppShell.tsx"],
+    requiredRoots: ["src/renderer/components/AppShell.tsx"],
     extensionRe: /\.(?:ts|tsx|mjs)$/,
   },
   {
@@ -150,10 +150,7 @@ const PATTERN_BANS = [
   },
   {
     name: "焦点延迟属主（侧栏）",
-    files: [
-      "src/renderer/components/session-sidebar/project-picker.tsx",
-      "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-    ],
+    files: ["src/renderer/components/session-sidebar/worktree-switcher.tsx"],
     forbidden: /setTimeout\([^;]*\.focus\(/,
     message: "焦点请求必须经侧栏属主的 deferFocus，不得自建 setTimeout 焦点",
   },

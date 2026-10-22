@@ -3,18 +3,12 @@ import path from "node:path";
 import ts from "typescript";
 
 const LOCALIZED_OWNER_SUFFIXES = [
-  "components/SessionSidebar.tsx",
-  "components/session-sidebar/sidebar-header.tsx",
-  "components/session-sidebar/project-picker.tsx",
   "components/session-sidebar/worktree-switcher.tsx",
-  "components/session-sidebar/worktree-inactive-hint.tsx",
   "components/session-sidebar/worktree-remove-confirm.tsx",
-  "components/session-sidebar/session-list.tsx",
   "components/session-sidebar/session-tree-item.tsx",
   "components/session-sidebar/session-item.tsx",
   "components/session-sidebar/session-item-actions.tsx",
   "components/session-sidebar/session-status-indicators.tsx",
-  "components/session-sidebar/pi-agent-title.tsx",
   "components/session-sidebar/path-label.tsx",
   "components/session-sidebar/animated-dropdown.tsx",
   "components/session-sidebar/session-groups.tsx",
@@ -28,7 +22,6 @@ const LOCALIZED_OWNER_SUFFIXES = [
   "components/app-nav/resource-page.tsx",
   "components/FileViewer.tsx",
   "components/FileExplorer.tsx",
-  "components/BranchNavigator.tsx",
   "components/AppShell.tsx",
   "components/app-shell/top-bar.tsx",
   "components/app-shell/session-info-popover.tsx",

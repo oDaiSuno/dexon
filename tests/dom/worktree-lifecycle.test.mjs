@@ -5,11 +5,10 @@ import { act, click, createElement, dom, loadRenderer, mount, restoreGlobals } f
 import { installApiHostBridge } from "../support/api-host.mjs";
 
 after(restoreGlobals);
-const { resetRpc, useProjectWorkspace, WorktreeSwitcher, WorktreeInactiveHint } = await loadRenderer(
+const { resetRpc, useProjectWorkspace, WorktreeSwitcher } = await loadRenderer(
   "worktree-lifecycle-dom",
   'export {useProjectWorkspace} from "./src/renderer/components/session-sidebar/project-workspace.ts";\n' +
-    'export {WorktreeSwitcher} from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
-    'export {WorktreeInactiveHint} from "./src/renderer/components/session-sidebar/worktree-inactive-hint.tsx";',
+    'export {WorktreeSwitcher} from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";',
   { define: { setTimeout: "window.setTimeout", clearTimeout: "window.clearTimeout" } },
 );
 
@@ -23,9 +22,8 @@ const git = {
   ],
 };
 
-function WorkspaceScene({ cwd, hintOnly = false }) {
+function WorkspaceScene({ cwd }) {
   const workspace = useProjectWorkspace({ sessions: [], selectedCwdProp: cwd, onCwdChange: () => {}, refreshKey: 0 });
-  if (hintOnly) return createElement(WorktreeInactiveHint, { hint: workspace.inactiveWorktreeSelector });
   if (!workspace.showWorktreeSwitcher || !workspace.worktreeState) return null;
   return createElement(WorktreeSwitcher, {
     worktreeState: workspace.worktreeState,
@@ -88,29 +86,10 @@ async function workspace(t, props, remove = async () => ({})) {
   return { ...view, clock, removals };
 }
 
-const hintText = "Worktrees are available in Git repository roots.";
 const removalButton = (view) =>
   [...view.container.querySelectorAll("button")].find((control) => control.title.includes("Remove worktree checkout"));
 const trigger = (view) =>
   [...view.container.querySelectorAll("button")].find((control) => control.title.startsWith("Switch worktree"));
-
-test("an opened worktree hint survives project switches and closes after its original delay", async (t) => {
-  const view = await workspace(t, { cwd: "/plain", hintOnly: true });
-  await click(view.container.querySelector("button"));
-  assert.match(view.container.textContent, /Worktrees are available in Git repository roots\./);
-  await act(async () => view.clock.advanceBy(1000));
-  await view.update({ cwd: "/other", hintOnly: true });
-  assert.ok(view.container.textContent.includes(hintText));
-  await view.update({ cwd: "/repo", hintOnly: true });
-  assert.equal(view.container.textContent.includes(hintText), false);
-  await act(async () => view.clock.advanceBy(1000));
-  await view.update({ cwd: "/plain", hintOnly: true });
-  assert.ok(view.container.textContent.includes(hintText));
-  await act(async () => view.clock.advanceBy(1999));
-  assert.ok(view.container.textContent.includes(hintText), "the original four-second window has not expired");
-  await act(async () => view.clock.advanceBy(1));
-  assert.equal(view.container.textContent.includes(hintText), false);
-});
 
 test("an in-flight removal stays protected when the switcher disappears and returns", async (t) => {
   const response = createDeferred();

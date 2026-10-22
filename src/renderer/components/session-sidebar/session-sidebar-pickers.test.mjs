@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import {
   act,
-  button,
   click,
   createElement,
   dom,
@@ -16,118 +15,17 @@ import {
 import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 
 after(restoreGlobals);
-const { resetRpc, ProjectPicker, WorktreeSwitcher, useProjectWorkspace } = await loadRenderer(
+const { resetRpc, WorktreeSwitcher, useProjectWorkspace } = await loadRenderer(
   "session-sidebar-pickers",
-  'export { ProjectPicker } from "./src/renderer/components/session-sidebar/project-picker.tsx";\n' +
-    'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
+  'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
     'export { useProjectWorkspace } from "./src/renderer/components/session-sidebar/project-workspace.ts";',
 );
-
-function createPickerProps(overrides = {}) {
-  const calls = { selectedProjects: [], customPaths: [], defaultCwd: 0 };
-  return {
-    props: {
-      selectedCwd: "/repo",
-      selectedProject: "/repo",
-      homeDir: "/Users/tester",
-      recentProjects: ["/repo", "/other-1", "/other-2"],
-      suppressPlaceholder: false,
-      onSelectProject: (project) => calls.selectedProjects.push(project),
-      selectCustomCwd: async (value) => {
-        calls.customPaths.push(value);
-        return { status: "selected" };
-      },
-      selectDefaultCwd: async () => {
-        calls.defaultCwd += 1;
-        return true;
-      },
-      selectDirectoryFromPicker: async () => ({ status: "selected" }),
-      deferFocus: (focus) => setTimeout(focus, 0),
-      ...overrides,
-    },
-    calls,
-  };
-}
-
-function projectRows(container, projects) {
-  const trigger = container.querySelector("button");
-  return [...container.querySelectorAll("button")].filter(
-    (control) => control !== trigger && projects.includes(control.title),
-  );
-}
 
 async function outsideMousedown() {
   await act(async () =>
     dom.window.document.body.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true })),
   );
 }
-
-test("lists projects, selects one, and closes the dropdown", async (t) => {
-  const { props, calls } = createPickerProps();
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  const rows = projectRows(view.container, props.recentProjects);
-  assert.deepEqual(
-    rows.map((row) => row.title),
-    ["/repo", "/other-1", "/other-2"],
-  );
-  await click(rows[1]);
-  assert.deepEqual(calls.selectedProjects, ["/other-1"]);
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-});
-
-test("an outside click closes the dropdown and resets the custom path entry", async (t) => {
-  const { props } = createPickerProps();
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  await click(
-    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
-  );
-  assert.ok(view.container.querySelector("input"), "the custom path entry is open");
-  await outsideMousedown();
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-  assert.equal(view.container.querySelector("input"), null, "the custom path entry is reset");
-});
-
-test("escape in the project filter clears it and closes the dropdown", async (t) => {
-  const projects = Array.from({ length: 10 }, (_, index) => `/project-${index}`);
-  const { props } = createPickerProps({ recentProjects: projects });
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  const filter = view.container.querySelector("input");
-  await input(filter, "project-3");
-  assert.deepEqual(
-    projectRows(view.container, projects).map((row) => row.title),
-    ["/project-3"],
-  );
-  await keyDown(filter, "Escape");
-  await waitFor(() => assert.equal(view.container.querySelector("input") === null, true, "the filter closes"));
-  await click(view.container.querySelector("button"));
-  assert.equal(view.container.querySelector("input").value, "");
-  assert.equal(projectRows(view.container, projects).length, 10);
-});
-
-test("custom path validation failures stay visible until the path is fixed", async (t) => {
-  const { props, calls } = createPickerProps({
-    selectCustomCwd: async (value) => {
-      calls.customPaths.push(value);
-      return value === "/good" ? { status: "selected" } : { status: "invalid", error: "Nope" };
-    },
-  });
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  await click(
-    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
-  );
-  await input(view.container.querySelector("input"), "/bad");
-  await click(button(view.container, "Open"));
-  assert.deepEqual(calls.customPaths, ["/bad"]);
-  assert.match(view.container.textContent, /Nope/);
-  await input(view.container.querySelector("input"), "/good");
-  await click(button(view.container, "Open"));
-  assert.deepEqual(calls.customPaths, ["/bad", "/good"]);
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-});
 
 const GIT_REPO_LIST = {
   projectRoot: "/repo",
