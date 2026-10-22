@@ -113,7 +113,7 @@
 
   /* ink */
   --text: var(--fx-text-primary);
-  --text-body: var(--fx-text-body);
+  --text-body-color: var(--fx-text-body);
   --text-muted: var(--fx-text-secondary);
   --text-dim: var(--fx-text-tertiary);
   --text-faint: var(--fx-text-faint);

@@ -7,7 +7,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readRendererCssSources, readStylePartial } from "./css-sources.mjs";
+import postcss from "postcss";
+import { readRendererCssSources, readStylePartial, rendererCssImportOrder } from "./css-sources.mjs";
 import { APP_MONO_FONT_FAMILY, APP_SANS_FONT_FAMILY } from "../src/shared/font-stack.ts";
 import { parseColor, readFramerTokens } from "./framer-tokens.mjs";
 import { renderTokens } from "./sync-framer-tokens.mjs";
@@ -221,6 +222,24 @@ function checkNavMotion() {
 // GeneralSettings behavior and the real Chromium chat-layout check. Source
 // spelling and occurrence counts are not design contracts.
 
+function checkDuplicateCustomProperties() {
+  for (const file of rendererCssImportOrder()) {
+    const relative = `src/renderer/${file}`;
+    postcss.parse(read(relative), { from: relative }).walkRules((rule) => {
+      const firstLine = new Map();
+      rule.each((node) => {
+        if (node.type !== "decl" || !node.prop.startsWith("--")) return;
+        const line = node.source?.start?.line ?? 0;
+        if (firstLine.has(node.prop)) {
+          failures.push(
+            `${relative}:${firstLine.get(node.prop)},${line} 的 ${rule.selector} 里 ${node.prop} 定义了两次，后一次会覆盖前一次：给其中一个改名`,
+          );
+        } else firstLine.set(node.prop, line);
+      });
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // M. 主题启动顺序（原 theme-init.test.mjs 第 4 条的构建顺序部分；
 //    colorScheme 同步为行为规则，已转写为 theme-init / use-theme 行为测试）
@@ -245,6 +264,7 @@ function main() {
   checkRemovedTokens();
   checkFontStack();
   checkNavMotion();
+  checkDuplicateCustomProperties();
   checkThemeBootOrder();
 
   if (failures.length > 0) {
@@ -253,7 +273,9 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("Design constraints OK: 7 组设计契约满足（写死颜色/Framer 镜像/对比度/字体栈/动效降级/启动顺序）");
+  console.log(
+    "Design constraints OK: 8 组设计契约满足（写死颜色/Framer 镜像/对比度/字体栈/动效降级/令牌不重名/启动顺序）",
+  );
   const remaining = readLedgers()
     .filter((ledger) => ledger.name !== "exemptions.json")
     .map((ledger) => [ledger.lane, ledger.entries.reduce((sum, entry) => sum + entry.count, 0)])
