@@ -1,13 +1,45 @@
-import type { CSSProperties, RefObject } from "react";
+import type { CSSProperties, MouseEvent, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
 import type { ModelCatalogStatus } from "@contract/types";
-import { CheckIcon, ChevronDownIcon, CpuIcon } from "./icons";
+import { ChevronDownIcon, Icon } from "./icons";
 
 export interface ModelOption {
   provider: string;
   modelId: string;
   name: string;
+}
+
+const HOVER = "var(--fx-surface-hover-overlay)";
+const CLEAR = "var(--fx-surface-hover-clear)";
+const QUICK = "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)";
+const paint = (e: MouseEvent<HTMLElement>, background: string) => (e.currentTarget.style.background = background);
+
+const ROW: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 10,
+  width: "100%",
+  height: 34,
+  flexShrink: 0,
+  border: "none",
+  borderRadius: "var(--radius-control)",
+  cursor: "pointer",
+  textAlign: "left",
+  whiteSpace: "nowrap",
+  transition: QUICK,
+};
+
+function PlugsIcon() {
+  return (
+    <svg width={14} height={14} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true" style={{ flexShrink: 0 }}>
+      <path
+        opacity={0.3}
+        d="M185,127,127,185a24,24,0,0,1-33.94,0L71,162.91A24,24,0,0,1,71,129L129,71a24,24,0,0,1,33.94,0L185,93.09A24,24,0,0,1,185,127Z"
+      />
+      <path d="M237.66,18.34a8,8,0,0,0-11.32,0l-52.4,52.41-5.37-5.38a32.05,32.05,0,0,0-45.26,0L100,88.69l-6.34-6.35A8,8,0,0,0,82.34,93.66L88.69,100,65.37,123.31a32,32,0,0,0,0,45.26l5.38,5.37-52.41,52.4a8,8,0,0,0,11.32,11.32l52.4-52.41,5.37,5.38a32,32,0,0,0,45.26,0L156,167.31l6.34,6.35a8,8,0,0,0,11.32-11.32L167.31,156l23.32-23.31a32,32,0,0,0,0-45.26l-5.38-5.37,52.41-52.4A8,8,0,0,0,237.66,18.34Zm-116.29,161a16,16,0,0,1-22.62,0L76.69,157.25a16,16,0,0,1,0-22.62L100,111.31,144.69,156Zm57.94-57.94L156,144.69,111.31,100l23.32-23.31a16,16,0,0,1,22.62,0l22.06,22A16,16,0,0,1,179.31,121.37ZM88.57,35A8,8,0,0,1,103.43,29l8,20A8,8,0,0,1,96.57,55ZM24.57,93A8,8,0,0,1,35,88.57l20,8A8,8,0,0,1,49,111.43l-20-8A8,8,0,0,1,24.57,93ZM231.43,163a8,8,0,0,1-10.4,4.46l-20-8A8,8,0,1,1,207,144.57l20,8A8,8,0,0,1,231.43,163Zm-64,58.06A8,8,0,0,1,152.57,227l-8-20A8,8,0,0,1,159.43,201Z" />
+    </svg>
+  );
 }
 
 const MODEL_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
@@ -65,7 +97,7 @@ export function ModelPicker({
   const maxH = Math.max(120, Math.min((dropdownRect?.top ?? 0) - 8, viewportHeight * 0.6));
   const panelPos: CSSProperties = isMobile
     ? { left: 8, right: 8, maxWidth: "calc(100vw - 16px)" }
-    : { left: dropdownRect?.left ?? 0, width: "max-content", minWidth: dropdownRect?.width };
+    : { left: dropdownRect?.left ?? 0, width: "max-content", minWidth: Math.max(dropdownRect?.width ?? 0, 320) };
 
   return (
     <div ref={containerRef} style={{ position: "relative", minWidth: 0 }}>
@@ -76,42 +108,36 @@ export function ModelPicker({
         disabled={isStreaming}
         aria-haspopup="listbox"
         aria-expanded={dropdownOpen}
+        className="type-mono-label"
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          gap: 6,
           justifyContent: isMobile ? "flex-start" : undefined,
-          padding: isMobile ? "8px 10px" : "0 10px",
-          minHeight: 32,
+          padding: isMobile ? "var(--space-2) 10px" : "0 var(--space-2)",
+          minHeight: 30,
           width: isMobile ? "100%" : undefined,
           maxWidth: isMobile ? "100%" : 220,
           overflow: "hidden",
-          background: dropdownOpen ? "var(--bg-selected)" : "transparent",
+          background: dropdownOpen ? HOVER : CLEAR,
           border: "none",
           borderRadius: "var(--radius-control)",
-          color: "var(--fx-text-secondary)",
+          color: "var(--fx-text-primary)",
           cursor: isStreaming ? "not-allowed" : "pointer",
-          fontSize: 12,
           opacity: isStreaming ? 0.5 : 1,
-          transition:
-            "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+          transition: QUICK,
         }}
-        onMouseEnter={(e) => {
-          if (isStreaming) return;
-          e.currentTarget.style.background = "var(--bg-hover)";
-          e.currentTarget.style.color = "var(--fx-text-primary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = dropdownOpen ? "var(--bg-selected)" : "transparent";
-          e.currentTarget.style.color = "var(--fx-text-secondary)";
-        }}
+        onMouseEnter={(e) => !isStreaming && paint(e, HOVER)}
+        onMouseLeave={(e) => paint(e, dropdownOpen ? HOVER : CLEAR)}
       >
-        <CpuIcon size={11} />
+        <span style={{ display: "flex", color: "var(--fx-text-secondary)" }}>
+          <PlugsIcon />
+        </span>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
           {currentName ?? t("models", "Models")}
         </span>
-        <span style={{ color: "var(--fx-text-tertiary)", display: "flex" }}>
-          <ChevronDownIcon size={11} />
+        <span style={{ color: "var(--fx-text-tertiary)", display: "flex", flexShrink: 0 }}>
+          <ChevronDownIcon size={12} />
         </span>
       </button>
       {dropdownOpen &&
@@ -126,10 +152,11 @@ export function ModelPicker({
               transformOrigin: "bottom center",
               ...panelPos,
               zIndex: 500,
-              background: "var(--fx-surface-main)",
+              boxSizing: "border-box",
+              background: "var(--fx-surface-raised)",
               border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-card)",
-              boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
+              borderRadius: "var(--radius-composer)",
+              boxShadow: "var(--shadow-popover)",
               overflow: "hidden",
               maxHeight: maxH,
               overflowY: "auto",
@@ -138,7 +165,7 @@ export function ModelPicker({
             {onModelsRefresh && (
               <div
                 style={{
-                  padding: "8px 8px",
+                  padding: "var(--space-1) var(--space-2)",
                   borderBottom: "1px solid var(--fx-line-default)",
                   minWidth: 240,
                 }}
@@ -147,24 +174,34 @@ export function ModelPicker({
                   type="button"
                   disabled={modelRefreshing}
                   onClick={() => void onModelsRefresh?.()}
+                  className="type-label-default"
                   style={{
-                    width: "100%",
-                    padding: "8px 8px",
-                    border: "1px solid var(--fx-line-default)",
-                    borderRadius: "var(--radius-control)",
-                    background: "var(--fx-surface-raised)",
-                    color: "var(--fx-text-primary)",
+                    ...ROW,
+                    height: 30,
+                    gap: 6,
+                    padding: "0 var(--space-2)",
+                    background: CLEAR,
+                    color: "var(--fx-text-tertiary)",
                     cursor: modelRefreshing ? "wait" : "pointer",
-                    fontSize: 12,
-                    textAlign: "left",
                   }}
+                  onMouseEnter={(e) => !modelRefreshing && paint(e, HOVER)}
+                  onMouseLeave={(e) => paint(e, CLEAR)}
                 >
+                  <Icon size={13} strokeWidth={1.75}>
+                    <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+                    <path d="M21 3v5h-5" />
+                    <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+                    <path d="M8 16H3v5" />
+                  </Icon>
                   {modelRefreshing
                     ? t("refreshingModels", "Refreshing model directory…")
                     : t("refreshModels", "Refresh model directory")}
                 </button>
                 {modelCatalog?.source === "offline" && (
-                  <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)", fontSize: 11 }}>
+                  <div
+                    className="type-meta-default"
+                    style={{ padding: "var(--space-1) var(--space-2)", color: "var(--fx-text-tertiary)" }}
+                  >
                     {t("modelsOfflineCache", "Offline: using the cached model directory.")}
                   </div>
                 )}
@@ -172,10 +209,10 @@ export function ModelPicker({
                   <div
                     key={`${warning.provider}:${warning.code}`}
                     role="alert"
+                    className="type-meta-default"
                     style={{
-                      marginTop: 8,
-                      color: "var(--fx-status-warning)",
-                      fontSize: 11,
+                      padding: "var(--space-1) var(--space-2)",
+                      color: "var(--fx-status-warning-text)",
                       whiteSpace: "normal",
                     }}
                   >
@@ -184,59 +221,61 @@ export function ModelPicker({
                 ))}
               </div>
             )}
-            {modelsByProvider.map((group, gi) => (
-              <div key={group.provider}>
-                {modelsByProvider.length > 1 && (
-                  <div
-                    style={{
-                      padding: "8px 12px 4px",
-                      fontSize: 10,
-                      fontWeight: 600,
-                      color: "var(--fx-text-tertiary)",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.07em",
-                      borderTop: gi > 0 ? "1px solid var(--fx-line-default)" : "none",
-                    }}
-                  >
-                    {group.provider}
-                  </div>
-                )}
-                {group.options.map((opt) => {
-                  const isActive = opt.modelId === model?.modelId && opt.provider === model?.provider;
-                  return (
-                    <button
-                      key={`${opt.provider}:${opt.modelId}`}
-                      onClick={() => onModelPick(opt.provider, opt.modelId, isActive)}
+            <div style={{ display: "flex", flexDirection: "column", gap: 1, padding: 6 }}>
+              {modelsByProvider.map((group, gi) => (
+                <div key={group.provider} style={{ display: "contents" }}>
+                  {gi > 0 && <div style={{ height: 1, flexShrink: 0, background: "var(--fx-surface-selected)" }} />}
+                  {modelsByProvider.length > 1 && (
+                    <div
+                      className="type-label-medium"
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: 8,
-                        width: "100%",
-                        padding: "8px 12px",
-                        background: isActive ? "var(--bg-selected)" : "none",
-                        border: "none",
-                        color: isActive ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-                        cursor: "pointer",
-                        fontSize: 12,
-                        textAlign: "left",
-                        fontWeight: isActive ? 600 : 400,
-                        whiteSpace: "nowrap",
-                        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) e.currentTarget.style.background = "none";
+                        height: 28,
+                        flexShrink: 0,
+                        boxSizing: "border-box",
+                        padding: "var(--space-1) var(--space-2) 0",
+                        color: "var(--fx-text-tertiary)",
                       }}
                     >
-                      {isActive ? <CheckIcon size={10} /> : <span style={{ width: 10, flexShrink: 0 }} />}
-                      {opt.name}
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+                      {group.provider}
+                    </div>
+                  )}
+                  {group.options.map((opt) => {
+                    const isActive = opt.modelId === model?.modelId && opt.provider === model?.provider;
+                    const rest = isActive ? "var(--fx-surface-selected)" : CLEAR;
+                    return (
+                      <button
+                        key={`${opt.provider}:${opt.modelId}`}
+                        onClick={() => onModelPick(opt.provider, opt.modelId, isActive)}
+                        className="type-body-default"
+                        style={{
+                          ...ROW,
+                          padding: `0 10px 0 ${modelsByProvider.length > 1 ? 29 : 10}px`,
+                          background: rest,
+                          color: isActive ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                        }}
+                        onMouseEnter={(e) => !isActive && paint(e, HOVER)}
+                        onMouseLeave={(e) => paint(e, rest)}
+                      >
+                        <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+                          {opt.name}
+                        </span>
+                        <span
+                          style={{ display: "flex", width: 14, flexShrink: 0, color: "var(--fx-accent-blue-text)" }}
+                        >
+                          {isActive && (
+                            <Icon size={14} strokeWidth={2.25}>
+                              <path d="M20 6 9 17l-5-5" />
+                            </Icon>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
           </div>,
           document.body,
         )}
