@@ -46,7 +46,7 @@ function IconButton({
           "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--bg-hover)";
+        e.currentTarget.style.background = "var(--fx-surface-hover)";
         e.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(e) => {
@@ -108,10 +108,12 @@ export function NavHistory({
     >
       <div
         style={{
-          padding: "4px 10px 8px",
+          minHeight: 28,
+          padding: "0 var(--space-3) 0 22px",
+          marginBottom: "var(--space-1)",
           display: "flex",
           alignItems: "center",
-          gap: 4,
+          gap: "var(--space-1)",
           flexShrink: 0,
         }}
       >
@@ -151,15 +153,15 @@ export function NavHistory({
               }}
               placeholder={t("searchSessions", "Search sessions")}
               aria-label={t("searchSessions", "Search sessions")}
+              className="type-body-large"
               style={{
                 width: "100%",
                 height: 28,
                 padding: "0 28px 0 28px",
-                border: "1px solid var(--fx-line-default)",
+                border: "1px solid var(--fx-line-subtle)",
                 borderRadius: "var(--radius-control)",
                 background: "var(--fx-surface-raised)",
                 color: "var(--fx-text-primary)",
-                fontSize: "var(--text-body)",
                 outline: "none",
               }}
             />
@@ -168,19 +170,22 @@ export function NavHistory({
               onClick={closeSearch}
               title={t("clearSessionSearch", "Clear session search")}
               aria-label={t("clearSessionSearch", "Clear session search")}
+              className="type-title-section"
               style={{
                 position: "absolute",
-                top: 0,
-                right: 0,
+                top: 1,
+                right: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 width: 26,
                 height: 26,
+                padding: 0,
                 border: 0,
                 borderRadius: "var(--radius-control)",
                 background: "transparent",
                 color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
-                fontSize: "var(--text-heading-lg)",
-                lineHeight: 1,
               }}
             >
               ×
@@ -188,19 +193,13 @@ export function NavHistory({
           </div>
         ) : (
           <>
-            <span
-              style={{
-                fontSize: "var(--text-label)",
-                fontWeight: 500,
-                color: "var(--fx-text-tertiary)",
-                flexShrink: 0,
-              }}
-            >
+            <span className="type-label-medium" style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}>
               {t("navHistory", "History")}
             </span>
             <span
               aria-label={t("sessionCount", "{count} sessions").replace("{count}", String(filteredSessions.length))}
-              style={{ fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)", flexShrink: 0 }}
+              className="type-mono-meta"
+              style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}
             >
               {filteredSessions.length}
             </span>

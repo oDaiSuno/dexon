@@ -77,15 +77,7 @@ export function ResourcePage({
           flexShrink: 0,
         }}
       >
-        <h1
-          style={{
-            margin: 0,
-            fontSize: "var(--text-title)",
-            fontWeight: 600,
-            color: "var(--fx-text-primary)",
-            letterSpacing: "-0.01em",
-          }}
-        >
+        <h1 className="type-title-dialog" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
           {t("navPluginsSkills", "Plugins & Skills")}
         </h1>
         <div
@@ -109,6 +101,7 @@ export function ResourcePage({
               }}
               aria-selected={activeTab === tab.id}
               tabIndex={activeTab === tab.id ? 0 : -1}
+              className={activeTab === tab.id ? "type-label-medium" : "type-label-default"}
               onClick={() => onTabChange(tab.id)}
               onKeyDown={(event) => {
                 if (event.key === "ArrowLeft") {
@@ -123,13 +116,11 @@ export function ResourcePage({
               style={{
                 height: 28,
                 padding: "0 14px",
-                background: activeTab === tab.id ? "var(--bg-selected)" : "transparent",
+                background: activeTab === tab.id ? "var(--fx-surface-selected)" : "transparent",
                 border: tab.id === "plugins" ? "none" : "none",
                 borderLeft: tab.id === "skills" ? "1px solid var(--fx-line-default)" : "none",
                 color: activeTab === tab.id ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 cursor: "pointer",
-                fontSize: "var(--text-label)",
-                fontWeight: activeTab === tab.id ? 500 : 400,
                 transition:
                   "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               }}

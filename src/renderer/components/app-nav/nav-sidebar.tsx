@@ -1,10 +1,9 @@
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory } from "./nav-history";
-import { GlideHighlight } from "../chat-input/GlideHighlight";
 import { NewSessionIcon, PluginsIcon, SettingsIcon } from "./nav-icons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
@@ -19,7 +18,8 @@ export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
 export type NavPage = "chat" | "resources";
 
-const ENTRY_ROW_HEIGHT = 30;
+const ENTRY_ROW_HEIGHT = 36;
+const NAV_ICON_SIZE = 18;
 
 function RailButton({
   label,
@@ -47,8 +47,8 @@ function RailButton({
         height: 36,
         padding: 0,
         flexShrink: 0,
-        background: active ? "var(--bg-selected)" : "transparent",
-        border: "none",
+        background: active ? "var(--fx-surface-selected)" : "transparent",
+        border: `1px solid ${active ? "var(--fx-line-strong)" : "transparent"}`,
         borderRadius: "var(--radius-control)",
         color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
         cursor: "pointer",
@@ -56,11 +56,11 @@ function RailButton({
           "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--bg-hover)";
+        if (!active) e.currentTarget.style.background = "var(--fx-surface-hover)";
         e.currentTarget.style.color = "var(--fx-text-primary)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = active ? "var(--bg-selected)" : "transparent";
+        e.currentTarget.style.background = active ? "var(--fx-surface-selected)" : "transparent";
         e.currentTarget.style.color = active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
       }}
     >
@@ -137,7 +137,6 @@ export function NavSidebar({
   // space coordination (Phase 6) passes an explicit name when one exists.
   const spaceName = spaceNameProp ?? t("personalSpace", "Personal space");
   const [activeEntry, setActiveEntry] = useState(-1);
-  const entryListRef = useRef<HTMLDivElement>(null);
 
   if (!expanded) {
     return (
@@ -146,20 +145,20 @@ export function NavSidebar({
         className="app-nav"
         style={{
           width: NAV_RAIL_WIDTH,
-          background: "var(--fx-surface-raised)",
-          borderRight: "1px solid var(--fx-line-default)",
+          background: "var(--fx-surface-sidebar)",
+          borderRight: "1px solid var(--fx-line-subtle)",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           height: "100%",
           overflow: "hidden",
           flexShrink: 0,
-          padding: "8px 0",
+          padding: "var(--space-2) 0",
           gap: 6,
         }}
       >
         <RailButton label={t("showSidebar", "Show sidebar")} onClick={onToggleExpanded}>
-          <PanelLeftIcon size={18} />
+          <PanelLeftIcon size={NAV_ICON_SIZE} />
         </RailButton>
         <img
           src={appIconUrl}
@@ -170,18 +169,18 @@ export function NavSidebar({
           style={{ borderRadius: "var(--radius-chip)", flexShrink: 0 }}
         />
         <RailButton label={t("newSession", "New session")} onClick={onNewSession}>
-          <NewSessionIcon size={18} />
+          <NewSessionIcon size={NAV_ICON_SIZE} />
         </RailButton>
         <RailButton
           label={t("navPluginsSkills", "Plugins & Skills")}
           onClick={() => onNavigate("resources")}
           active={page === "resources"}
         >
-          <PluginsIcon size={18} />
+          <PluginsIcon size={NAV_ICON_SIZE} />
         </RailButton>
         <span style={{ flex: 1 }} />
         <RailButton label={t("settings", "Settings")} onClick={onOpenSettings}>
-          <SettingsIcon size={18} />
+          <SettingsIcon size={NAV_ICON_SIZE} />
         </RailButton>
       </nav>
     );
@@ -191,13 +190,13 @@ export function NavSidebar({
     {
       id: "new-session",
       label: t("newSession", "New session"),
-      icon: <NewSessionIcon size={15} />,
+      icon: <NewSessionIcon size={NAV_ICON_SIZE} />,
       onClick: onNewSession,
     },
     {
       id: "resources",
       label: t("navPluginsSkills", "Plugins & Skills"),
-      icon: <PluginsIcon size={15} />,
+      icon: <PluginsIcon size={NAV_ICON_SIZE} />,
       page: "resources",
       onClick: () => onNavigate("resources"),
     },
@@ -209,8 +208,8 @@ export function NavSidebar({
       className="app-nav"
       style={{
         width: NAV_EXPANDED_WIDTH,
-        background: "var(--fx-surface-raised)",
-        borderRight: "1px solid var(--fx-line-default)",
+        background: "var(--fx-surface-sidebar)",
+        borderRight: "1px solid var(--fx-line-subtle)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
@@ -229,12 +228,9 @@ export function NavSidebar({
       />
       {spacePanel}
 
-      {/* Main entries */}
       <div
-        ref={entryListRef}
         style={{
-          position: "relative",
-          padding: "2px 8px 10px",
+          padding: "var(--space-1) var(--space-3) var(--space-4)",
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -243,6 +239,7 @@ export function NavSidebar({
       >
         {entries.map((entry, index) => {
           const current = entry.page === page;
+          const hovered = !current && activeEntry === index;
           return (
             <button
               key={entry.id}
@@ -250,26 +247,27 @@ export function NavSidebar({
               data-nav-entry
               aria-label={entry.label}
               aria-current={current ? "page" : undefined}
+              className={current ? "type-body-large-medium" : "type-body-large"}
               onMouseEnter={() => setActiveEntry(index)}
               onMouseLeave={() => setActiveEntry(-1)}
               onClick={entry.onClick}
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 10,
+                gap: "var(--space-3)",
                 width: "100%",
                 height: ENTRY_ROW_HEIGHT,
                 padding: "0 10px",
-                background: current ? "var(--bg-selected)" : "transparent",
-                border: "none",
+                background: current
+                  ? "var(--fx-surface-selected)"
+                  : hovered
+                    ? "var(--fx-surface-hover)"
+                    : "transparent",
+                border: `1px solid ${current ? "var(--fx-line-strong)" : "transparent"}`,
                 borderRadius: "var(--radius-control)",
-                color: current ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                color: current ? "var(--fx-text-primary)" : "var(--fx-text-body)",
                 cursor: "pointer",
-                fontSize: "var(--text-body)",
-                fontWeight: current ? 500 : 400,
                 textAlign: "left",
-                position: "relative",
-                zIndex: 1,
                 transition:
                   "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
               }}
@@ -278,10 +276,10 @@ export function NavSidebar({
                 aria-hidden="true"
                 style={{
                   display: "inline-flex",
-                  width: 15,
-                  height: 15,
+                  width: NAV_ICON_SIZE,
+                  height: NAV_ICON_SIZE,
                   flexShrink: 0,
-                  color: "var(--fx-text-tertiary)",
+                  color: current ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
                 }}
               >
                 {entry.icon}
@@ -294,17 +292,10 @@ export function NavSidebar({
             </button>
           );
         })}
-        <GlideHighlight
-          containerRef={entryListRef}
-          rowSelector="[data-nav-entry]"
-          activeIndex={activeEntry}
-          visible={activeEntry >= 0}
-        />
       </div>
 
       <div
         style={{
-          borderTop: "1px solid var(--fx-line-default)",
           flex: "1 1 auto",
           minHeight: 0,
           display: "flex",
@@ -329,43 +320,54 @@ export function NavSidebar({
         />
       </div>
 
-      <div style={{ padding: "6px 8px 8px", flexShrink: 0 }}>
+      <div
+        style={{
+          margin: "0 var(--space-3)",
+          padding: "var(--space-3) 0 var(--space-4)",
+          borderTop: "1px solid var(--fx-line-subtle)",
+          flexShrink: 0,
+        }}
+      >
         <button
           type="button"
           onClick={onOpenSettings}
           title={t("settings", "Settings")}
           aria-label={t("settings", "Settings")}
+          className="type-body-large"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
+            gap: "var(--space-3)",
             width: "100%",
             height: ENTRY_ROW_HEIGHT,
             padding: "0 10px",
             background: "transparent",
-            border: "none",
+            border: "1px solid transparent",
             borderRadius: "var(--radius-control)",
-            color: "var(--fx-text-secondary)",
+            color: "var(--fx-text-body)",
             cursor: "pointer",
-            fontSize: "var(--text-body)",
             textAlign: "left",
             transition:
               "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--fx-text-primary)";
+            e.currentTarget.style.background = "var(--fx-surface-hover)";
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--fx-text-secondary)";
           }}
         >
           <span
             aria-hidden="true"
-            style={{ display: "inline-flex", width: 15, height: 15, flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+            style={{
+              display: "inline-flex",
+              width: NAV_ICON_SIZE,
+              height: NAV_ICON_SIZE,
+              flexShrink: 0,
+              color: "var(--fx-text-secondary)",
+            }}
           >
-            <SettingsIcon size={15} />
+            <SettingsIcon size={NAV_ICON_SIZE} />
           </span>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
             {t("settings", "Settings")}
