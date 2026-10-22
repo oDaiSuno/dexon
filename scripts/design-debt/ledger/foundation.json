@@ -22,11 +22,6 @@
       "count": 1
     },
     {
-      "file": "src/renderer/components/chat-input/GlideHighlight.tsx",
-      "name": "--bg-hover",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/form-controls.tsx",
       "name": "--text-body",
       "count": 1
