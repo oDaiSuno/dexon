@@ -143,6 +143,7 @@ export function UserMessageFooter({
             type="button"
             onClick={onEdit}
             title={t("editMessage", "Edit")}
+            className="type-meta-default"
             style={{
               display: "flex",
               alignItems: "center",
@@ -154,8 +155,6 @@ export function UserMessageFooter({
               borderRadius: "var(--radius-chip)",
               color: "var(--fx-text-tertiary)",
               cursor: "pointer",
-              fontSize: 11,
-              fontWeight: 400,
               whiteSpace: "nowrap",
               transition: "color var(--duration-quick) var(--ease-out)",
             }}
@@ -185,10 +184,9 @@ export function UserMessageFooter({
             <Chevron direction="previous" />
           </button>
           <span
+            className="type-mono-meta"
             style={{
-              fontSize: 11,
               color: "var(--fx-text-tertiary)",
-              fontFamily: "var(--font-mono)",
               minWidth: 28,
               textAlign: "center",
             }}
@@ -211,10 +209,9 @@ export function UserMessageFooter({
       )}
       {time && (
         <span
+          className="type-mono-meta"
           style={{
-            fontSize: 11,
             color: "var(--fx-text-tertiary)",
-            fontFamily: "var(--font-mono)",
             opacity: hovered ? 1 : 0,
             transition: "opacity var(--duration-quick) var(--ease-out)",
           }}

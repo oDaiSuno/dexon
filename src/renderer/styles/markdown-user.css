@@ -26,10 +26,9 @@
   color: inherit;
 }
 
-/* Channel bubbles keep white-on-brand text */
 [data-message-source]:not([data-message-source="local"]) .markdown-user-message a {
-  color: color-mix(in srgb, #fff 82%, currentColor);
+  color: var(--fx-channel-on-brand-muted);
 }
 [data-message-source]:not([data-message-source="local"]) .markdown-user-message strong {
-  color: #fff;
+  color: var(--fx-channel-on-brand);
 }

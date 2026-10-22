@@ -1,49 +1,45 @@
-/* Attachment chips: shared visual for composer + transcript. Atomic inside
-   the composer (contenteditable=false), hover reveals the remove button. */
 .token-chip,
 .skill-chip {
-  display: inline-block;
-  height: 19px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
   max-width: 236px;
-  padding: 0 3px 0 4px;
-  border-radius: 6px;
+  padding: 0 6px 0 var(--space-1);
+  border-radius: var(--radius-chip);
   font-size: 0.82em;
-  line-height: 17px;
   white-space: nowrap;
-  /* Middle-align on the box's geometric midpoint: length-based values
-     synthesize the inline baseline from the first flex item, which differs
-     between img thumbnails and svg glyphs and staggered chips on one line. */
   vertical-align: middle;
   position: relative;
   top: -0.05em;
   cursor: pointer;
 }
 
-.token-chip > *,
-.skill-chip > * {
-  display: inline-block;
-  vertical-align: middle;
+.token-chip > * + *,
+.skill-chip > * + * {
+  margin-left: var(--space-1);
 }
 
 .token-chip svg,
 .skill-chip svg {
-  display: inline;
+  display: block;
 }
 
-.token-chip > * + *,
-.skill-chip > * + * {
-  margin-left: 4px;
+.token-chip-glyph svg,
+.skill-chip-glyph svg {
+  width: 11px;
+  height: 11px;
 }
 
 .token-chip {
-  border: 1px solid var(--fx-line-default);
-  background: var(--fx-surface-raised);
-  color: var(--fx-text-tertiary);
-  transition: border-color 0.12s ease;
+  border: 1px solid var(--fx-line-translucent);
+  background: var(--fx-surface-subtle);
+  color: var(--fx-text-primary);
+  font-family: var(--font-mono);
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
 }
 
 .token-chip:hover {
-  border-color: color-mix(in srgb, var(--fx-accent-blue) 45%, var(--fx-line-default));
+  background: var(--fx-surface-hover-overlay-strong);
 }
 
 .token-chip-missing {
@@ -53,34 +49,49 @@
 .token-chip-static,
 .token-chip-static:hover {
   cursor: default;
-  border-color: var(--fx-line-default);
+  background: var(--fx-surface-subtle);
 }
 
 .token-chip-thumb {
+  flex-shrink: 0;
   width: 14px;
   height: 14px;
   object-fit: cover;
   border-radius: 3px;
-  border: 1px solid var(--fx-line-default);
+  border: 1px solid var(--fx-line-translucent);
   background: var(--fx-surface-raised);
+}
+
+.token-chip-glyph,
+.skill-chip-glyph {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
 }
 
 .token-chip-glyph {
   color: var(--fx-text-secondary);
-  line-height: 0;
 }
 
-.token-chip-name {
+.token-chip-name,
+.skill-chip-name {
+  min-width: 0;
   max-width: 190px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .token-chip-remove {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
   width: 0;
   height: 13px;
-  line-height: 0;
-  text-align: center;
+  margin-left: 0;
   border-radius: 50%;
   color: var(--fx-text-secondary);
   opacity: 0;
@@ -93,10 +104,6 @@
     background 0.12s ease;
 }
 
-.token-chip-remove svg {
-  margin-top: 3.5px;
-}
-
 .token-chip:hover .token-chip-remove,
 .skill-chip:hover .token-chip-remove {
   width: 13px;
@@ -106,35 +113,22 @@
 }
 
 .token-chip-remove:hover {
-  background: var(--bg-hover);
+  background: var(--fx-surface-hover-overlay-strong);
   opacity: 1;
 }
 
-/* Skill chips: `/skill:name` command references. Accent-blue per the
-   reference design; shares the attachment chip's hover-remove mechanism. */
 .skill-chip {
-  border: 1px solid color-mix(in srgb, var(--fx-accent-blue) 30%, transparent);
+  border: 1px solid var(--fx-accent-blue-border);
   background: var(--fx-accent-blue-soft);
-  color: var(--fx-accent-blue);
-  transition:
-    border-color 0.12s ease,
-    background 0.12s ease;
-}
-
-.skill-chip:hover {
-  background: color-mix(in srgb, var(--fx-accent-blue) 14%, transparent);
+  color: var(--fx-accent-blue-text);
 }
 
 .skill-chip-glyph {
-  color: var(--fx-accent-blue);
-  line-height: 0;
+  color: var(--fx-accent-blue-text);
 }
 
 .skill-chip-name {
-  max-width: 190px;
   font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .skill-chip .token-chip-remove:hover {

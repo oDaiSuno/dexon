@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
+import { Button } from "../form-controls";
 import { compositionEnterAction, type CompositionState } from "../chat-input/composition-guard";
 import type { ComposerEditableHandle } from "../chat-input/types";
 import type { ImageContent } from "@/lib/types";
@@ -79,17 +80,16 @@ export function UserMessageEditor({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: "68ch", width: "100%" }}>
       <div
+        className="chat-reading type-chat-body"
         style={{
           minWidth: 0,
           maxWidth: "100%",
           background: bubbleStyle.background,
-          borderRadius: "12px 12px 4px 12px",
-          padding: "8px 13px",
-          fontSize: 13,
-          lineHeight: 1.55,
+          border: "1px solid var(--fx-line-default)",
+          borderRadius: "var(--radius-composer)",
+          padding: "var(--space-3) var(--space-4)",
           color: bubbleStyle.foreground,
           wordBreak: "break-word",
-          boxShadow: "var(--shadow-hairline-button)",
         }}
       >
         {images.length > 0 && (
@@ -105,11 +105,12 @@ export function UserMessageEditor({
                     borderRadius: "var(--radius-control)",
                     objectFit: "contain",
                     display: "block",
-                    border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
+                    border: "1px solid var(--fx-line-translucent)",
                   }}
                 />
                 <button
                   type="button"
+                  className="type-meta-default"
                   aria-label={t("removeImage", "Remove image")}
                   title={t("removeImage", "Remove image")}
                   onClick={() => onRemoveImage(index)}
@@ -123,12 +124,10 @@ export function UserMessageEditor({
                     width: 18,
                     height: 18,
                     background: "var(--fx-surface-raised)",
-                    border: "1px solid color-mix(in srgb, currentColor 22%, transparent)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "50%",
                     color: "var(--fx-text-secondary)",
                     cursor: "pointer",
-                    fontSize: 11,
-                    lineHeight: 1,
                   }}
                 >
                   ×
@@ -183,40 +182,11 @@ export function UserMessageEditor({
           skillRemoveLabel={t("removeSkill", "Remove skill")}
         />
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            padding: "3px 10px",
-            height: 26,
-            background: "none",
-            border: "1px solid var(--fx-line-default)",
-            borderRadius: "var(--radius-chip)",
-            color: "var(--fx-text-secondary)",
-            cursor: "pointer",
-            fontSize: 12,
-          }}
-        >
-          {t("cancel", "Cancel")}
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSend}
-          style={{
-            padding: "3px 10px",
-            height: 26,
-            background: canSend ? "var(--fx-accent-blue)" : "var(--fx-line-default)",
-            border: "none",
-            borderRadius: "var(--radius-chip)",
-            color: canSend ? "#fff" : "var(--fx-text-tertiary)",
-            cursor: canSend ? "pointer" : "not-allowed",
-            fontSize: 12,
-          }}
-        >
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+        <Button onClick={onCancel}>{t("cancel", "Cancel")}</Button>
+        <Button variant="primary" onClick={submit} disabled={!canSend}>
           {t("send", "Send")}
-        </button>
+        </Button>
       </div>
     </div>
   );

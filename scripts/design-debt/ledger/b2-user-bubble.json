@@ -1,43 +1,7 @@
 {
   "lane": "B2 提问气泡与引用标签",
-  "legacy": [
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "name": "--bg-hover",
-      "count": 1
-    }
-  ],
+  "legacy": [],
   "typography": [
-    {
-      "file": "src/renderer/components/messages/user-message-bubble.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/messages/user-message-bubble.tsx",
-      "property": "lineHeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/messages/user-message-editor.tsx",
-      "property": "fontSize",
-      "count": 4
-    },
-    {
-      "file": "src/renderer/components/messages/user-message-editor.tsx",
-      "property": "lineHeight",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/messages/user-message-footer.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/messages/user-message-footer.tsx",
-      "property": "fontWeight",
-      "count": 1
-    },
     {
       "file": "src/renderer/styles/ref-chips.css",
       "property": "font-size",
@@ -47,67 +11,7 @@
       "file": "src/renderer/styles/ref-chips.css",
       "property": "font-weight",
       "count": 1
-    },
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "property": "line-height",
-      "count": 4
     }
   ],
-  "colors": [
-    {
-      "file": "src/renderer/components/messages/user-message-editor.tsx",
-      "color": "#fff",
-      "count": 1,
-      "hint": "主按钮上的白字改用 var(--fx-text-on-accent)"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#08783e",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#0f6840",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#1677a8",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#176689",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#a13d13",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#c2410c",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/lib/channel-message-style.ts",
-      "color": "#faf9f7",
-      "count": 1,
-      "hint": "渠道气泡白字改用 var(--fx-channel-on-brand)"
-    },
-    {
-      "file": "src/renderer/styles/markdown-user.css",
-      "color": "#fff",
-      "count": 2,
-      "hint": "主按钮上的白字改用 var(--fx-text-on-accent)"
-    }
-  ]
+  "colors": []
 }
