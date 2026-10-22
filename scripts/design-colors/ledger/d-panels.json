@@ -1,0 +1,89 @@
+{
+  "lane": "D 右侧面板",
+  "entries": [
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(0,200,80,0.12)",
+      "count": 1,
+      "hint": "改用 var(--success-soft)"
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(240,60,60,0.14)",
+      "count": 1,
+      "hint": "改用 var(--danger-soft)；悬停加深用 var(--danger-soft-strong)"
+    },
+    {
+      "file": "src/renderer/components/FileViewer.tsx",
+      "color": "rgba(0,0,0,0.15)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#fcfbf9",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#1c1a17",
+      "count": 2,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#57534a",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#e4e1da",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#f0eeea",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#9a3412",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#faf9f7",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#a19d92",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#4a453c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#0f0e0c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    },
+    {
+      "file": "src/renderer/lib/docx-preview-html.ts",
+      "color": "#fb923c",
+      "count": 1,
+      "hint": "独立页面读不到 CSS 变量：从 framer-tokens.json 取 Surface/Text/Line/Accent 的浅色、深色值"
+    }
+  ]
+}

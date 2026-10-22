@@ -1,0 +1,71 @@
+{
+  "lane": "基座（主窗口）",
+  "entries": [
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#fafafa",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#ffffff",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#171717",
+      "count": 2,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#5c5c5c",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#1d5fd6",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#1c1c1c",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#ededed",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#a1a1a1",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#7fb0f9",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window.ts",
+      "color": "#fafafa",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window.ts",
+      "color": "#171717",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    }
+  ]
+}

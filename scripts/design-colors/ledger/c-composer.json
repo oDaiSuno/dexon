@@ -1,0 +1,47 @@
+{
+  "lane": "C 输入框",
+  "entries": [
+    {
+      "file": "src/renderer/components/chat-input/AtMenu.tsx",
+      "color": "rgba(0,0,0,0.12)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/chat-input/ModelPicker.tsx",
+      "color": "rgba(0,0,0,0.10)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/chat-input/PlusMenu.tsx",
+      "color": "#000",
+      "count": 2,
+      "hint": "阴影改用 var(--shadow-popover) / var(--shadow-card)"
+    },
+    {
+      "file": "src/renderer/components/chat-input/SessionControls.tsx",
+      "color": "rgba(0,0,0,0.10)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/chat-input/SessionControls.tsx",
+      "color": "rgba(0,0,0,0.2)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/chat-input/SkillPickerPanel.tsx",
+      "color": "#000",
+      "count": 4,
+      "hint": "阴影改用 var(--shadow-popover) / var(--shadow-card)"
+    },
+    {
+      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
+      "color": "rgba(0,0,0,0.12)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    }
+  ]
+}

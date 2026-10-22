@@ -1,0 +1,173 @@
+{
+  "lane": "F 插件与远程",
+  "entries": [
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "color": "white",
+      "count": 1,
+      "hint": "主按钮上的白字改用 var(--on-accent)"
+    },
+    {
+      "file": "src/renderer/components/PluginsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/PluginsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/SkillsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/SkillsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "#229ed9",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "#3370ff",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "#07c160",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "rgba(0,0,0,.45)",
+      "count": 3,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "rgba(0,0,0,.25)",
+      "count": 3,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/channels/QuickChannelBinding.tsx",
+      "color": "#229ed9",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/QuickChannelBinding.tsx",
+      "color": "#07c160",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/QuickChannelBinding.tsx",
+      "color": "#3370ff",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/QuickChannelBinding.tsx",
+      "color": "rgba(0,0,0,.22)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--bg-subtle) / var(--bg-hover)，边线用 var(--border)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "color": "rgba(245,158,11,0.12)",
+      "count": 1,
+      "hint": "改用 var(--warning-soft)"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--bg-subtle) / var(--bg-hover)，边线用 var(--border)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(99,102,241,0.85)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-shared.ts",
+      "color": "rgba(239,68,68,0.08)",
+      "count": 1,
+      "hint": "改用 var(--danger-soft)；悬停加深用 var(--danger-soft-strong)"
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "color": "rgba(34,197,94,0.1)",
+      "count": 1,
+      "hint": "改用 var(--success-soft)"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--bg-subtle) / var(--bg-hover)，边线用 var(--border)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(99,102,241,0.8)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-toggle.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
+    },
+    {
+      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
+      "color": "rgba(0,0,0,0.3)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import { readRendererCssSources, readStylePartial } from "./css-sources.mjs";
 import { APP_MONO_FONT_FAMILY, APP_SANS_FONT_FAMILY } from "../src/shared/font-stack.ts";
 import { parseColor, readFramerTokens } from "./framer-tokens.mjs";
 import { renderTokens } from "./sync-framer-tokens.mjs";
+import { checkColorLedger, readLedgers } from "./design-colors/ledger.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -22,24 +23,8 @@ function requireFile(relative) {
   return exists(relative);
 }
 
-const FORBIDDEN_STATUS_HEX = ["#f87171", "#ef4444", "#4ade80", "#22c55e", "#f59e0b", "#d97706", "#16a34a", "#1f2937"];
-
-function checkComponentStatusColors() {
-  const componentFiles = [
-    "src/renderer/components/FileViewer.tsx",
-    "src/renderer/components/channels/ChannelsConfig.tsx",
-    "src/renderer/components/ChatInput.tsx",
-    "src/renderer/components/PluginsConfig.tsx",
-    "src/renderer/components/ToolchainsConfig.tsx",
-    "src/renderer/components/MessageView.tsx",
-  ];
-  for (const relative of componentFiles) {
-    if (!requireFile(relative)) continue;
-    const source = read(relative);
-    for (const hex of FORBIDDEN_STATUS_HEX) {
-      if (new RegExp(hex, "i").test(source)) failures.push(`${relative} 使用裸状态色 ${hex}，必须走语义令牌`);
-    }
-  }
+function checkColorLiterals() {
+  failures.push(...checkColorLedger());
 }
 
 // ---------------------------------------------------------------------------
@@ -254,7 +239,7 @@ function checkThemeBootOrder() {
 }
 
 function main() {
-  checkComponentStatusColors();
+  checkColorLiterals();
   checkFramerMirror();
   checkContrast();
   checkRemovedTokens();
@@ -268,7 +253,14 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("Design constraints OK: 7 组设计契约满足（Framer 镜像/对比度/字体栈/动效降级/启动顺序）");
+  console.log("Design constraints OK: 7 组设计契约满足（写死颜色/Framer 镜像/对比度/字体栈/动效降级/启动顺序）");
+  const remaining = readLedgers()
+    .filter((ledger) => ledger.name !== "exemptions.json")
+    .map((ledger) => [ledger.lane, ledger.entries.reduce((sum, entry) => sum + entry.count, 0)])
+    .filter(([, count]) => count > 0);
+  if (remaining.length > 0) {
+    console.log(`待清理的写死颜色：${remaining.map(([lane, count]) => `${lane} ${count} 处`).join("，")}`);
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

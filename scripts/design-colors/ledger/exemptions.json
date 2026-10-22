@@ -1,0 +1,131 @@
+{
+  "lane": "永久豁免",
+  "entries": [
+    {
+      "file": "src/main/browser/browser-tab-manager.ts",
+      "color": "#f59e0b",
+      "count": 1,
+      "reason": "注入到外部网页里的元素高亮框，运行在别人的页面中，读不到 Dexon 的颜色令牌"
+    },
+    {
+      "file": "src/main/browser/browser-tab-manager.ts",
+      "color": "rgba(245,158,11,0.12)",
+      "count": 1,
+      "reason": "同上：注入外部网页的高亮框底色"
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserDock.tsx",
+      "color": "#fff",
+      "count": 1,
+      "reason": "内置浏览器网页区域的底色，与浏览器默认白底一致；Framer Panel/Browser 中网页区同样是 #ffffff"
+    },
+    {
+      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
+      "color": "white",
+      "count": 1,
+      "reason": "二维码底板必须是纯白，否则手机扫码识别率下降"
+    },
+    {
+      "file": "src/renderer/lib/image-file-processing.ts",
+      "color": "#000000",
+      "count": 1,
+      "reason": "把透明图片压成 JPEG 前铺的底色，属于图片数据处理，不是界面颜色"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#1f2937",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#dc2626",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#16a34a",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#d97706",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#2563eb",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#9333ea",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#0891b2",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#6b7280",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#9ca3af",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#ef4444",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#22c55e",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#f59e0b",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#3b82f6",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#a855f7",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#06b6d4",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    },
+    {
+      "file": "src/shared/ansi.ts",
+      "color": "#e5e7eb",
+      "count": 1,
+      "reason": "终端 ANSI 标准 16 色调色板，用于还原命令输出原本的颜色，不随 Dexon 设计变化"
+    }
+  ]
+}

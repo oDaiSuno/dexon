@@ -1,0 +1,95 @@
+{
+  "lane": "E 设置",
+  "entries": [
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.4)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/ModelsConfig.tsx",
+      "color": "rgba(99,102,241,0.8)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--accent-soft) / var(--accent-text)"
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/SettingsConfig.tsx",
+      "color": "rgba(0,0,0,0.18)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/ToolchainsConfig.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--bg-subtle) / var(--bg-hover)，边线用 var(--border)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
+      "color": "rgba(0,0,0,0.5)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
+      "color": "rgba(0,0,0,0.35)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserSettings.tsx",
+      "color": "rgba(0,0,0,0.38)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--bg-scrim)"
+    },
+    {
+      "file": "src/renderer/components/browser/BrowserSettings.tsx",
+      "color": "rgba(0,0,0,0.28)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/settings/about-settings.tsx",
+      "color": "#000",
+      "count": 1,
+      "hint": "图标投影改用 var(--fx-shadow-soft) 拼 drop-shadow"
+    },
+    {
+      "file": "src/renderer/components/settings/software-update.tsx",
+      "color": "white",
+      "count": 1,
+      "hint": "主按钮上的白字改用 var(--on-accent)"
+    }
+  ]
+}
