@@ -283,6 +283,12 @@
   color: var(--fx-text-faint);
   font-variant-numeric: tabular-nums;
 }
+.panel-width-readout-bound {
+  transition: color var(--duration-quick) var(--ease-smooth-out);
+}
+.panel-width-readout-bound-reached {
+  color: var(--fx-text-inverse);
+}
 .panel-width-readout-separator {
   width: 1px;
   height: 12px;
@@ -337,6 +343,7 @@
   .dock-switcher-tab,
   .dock-switcher-tab > svg,
   .panel-width-readout,
+  .panel-width-readout-bound,
   .right-panel-toggle {
     transition: none;
     animation: none;

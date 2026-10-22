@@ -332,13 +332,22 @@ function PanelWidthReadout({
   bounds: { minWidth: number; maxWidth: number };
   language: AppLanguage;
 }) {
+  const rounded = Math.round(width);
+  const limit = rounded <= bounds.minWidth ? "min" : rounded >= bounds.maxWidth ? "max" : null;
+  const boundClass = (edge: "min" | "max") => (limit === edge ? " panel-width-readout-bound-reached" : "");
   return (
     <div className="panel-width-readout" aria-hidden="true">
-      <span className="panel-width-readout-value type-mono-label">{formatNumber(Math.round(width), language)}</span>
+      <span className="panel-width-readout-value type-mono-label">{formatNumber(rounded, language)}</span>
       <span className="panel-width-readout-meta type-mono-meta">{PIXEL_UNIT}</span>
       <span className="panel-width-readout-separator" />
       <span className="panel-width-readout-meta type-mono-meta">
-        {`${formatNumber(bounds.minWidth, language)} – ${formatNumber(bounds.maxWidth, language)}`}
+        <span className={`panel-width-readout-bound${boundClass("min")}`}>
+          {formatNumber(bounds.minWidth, language)}
+        </span>
+        {" – "}
+        <span className={`panel-width-readout-bound${boundClass("max")}`}>
+          {formatNumber(bounds.maxWidth, language)}
+        </span>
       </span>
     </div>
   );
