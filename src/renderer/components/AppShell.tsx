@@ -23,7 +23,7 @@ import { SessionBreadcrumb } from "./app-shell/session-breadcrumb";
 import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
-import { RightPanelToggle } from "./app-shell/right-panel-toggle";
+import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab } from "./app-nav/resource-page";
 import { useDepartureGuard } from "./app-shell/use-departure-guard";
 
@@ -170,6 +170,8 @@ export function AppShell({
     suspended: onResources,
   });
 
+  const panelToggle = useRightPanelToggleFocus(dock.handleRightPanelToggle);
+
   const authorization = useBrowserAuthorization({
     onResolved: useCallback(() => setAuthorizationSettingsSessionId(null), []),
   });
@@ -293,7 +295,16 @@ export function AppShell({
             contextUsage={info.contextUsage}
             copyFeedback={info.sessionCopyFeedback}
             onCopyField={info.handleCopySessionField}
-            rightPanelOpen={dock.rightPanelOpen}
+            trailing={
+              !onResources && !dock.rightPanelOpen ? (
+                <RightPanelToggle
+                  placement="top-bar"
+                  onToggle={() => panelToggle.toggleFrom("top-bar")}
+                  focusRequested={panelToggle.focusTarget === "top-bar"}
+                  onFocusHandled={panelToggle.clearFocusTarget}
+                />
+              ) : null
+            }
             showChat={showChat && !onResources}
           />
 
@@ -364,10 +375,17 @@ export function AppShell({
           onOpenFile={handleOpenFile}
           onAtMention={handleAtMention}
           activeCwd={activeCwd}
+          headerAction={
+            <RightPanelToggle
+              placement="panel"
+              onToggle={() => panelToggle.toggleFrom("panel")}
+              focusRequested={panelToggle.focusTarget === "panel" && dock.rightPanelOpen}
+              onFocusHandled={panelToggle.clearFocusTarget}
+            />
+          }
           suspended={onResources}
         />
       </div>
-      {!onResources && <RightPanelToggle open={dock.rightPanelOpen} onToggle={dock.handleRightPanelToggle} />}
       {settingsOpen && (
         <SettingsConfig
           cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}

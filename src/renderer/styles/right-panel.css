@@ -139,8 +139,11 @@
   gap: var(--space-2);
   box-sizing: border-box;
   height: 48px;
-  padding: 0 calc(var(--space-3) + 28px + var(--space-2)) 0 var(--space-3);
+  padding: 0 var(--space-3);
   background: var(--fx-surface-sidebar);
+}
+.right-panel-header-explorer {
+  height: 56px;
 }
 .right-panel-header-ruled {
   border-bottom: 1px solid var(--fx-line-default);
@@ -297,44 +300,41 @@
 }
 
 .right-panel-toggle {
-  position: fixed;
-  top: 6px;
-  right: var(--space-3);
-  z-index: 300;
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
   padding: 0;
   border: none;
-  border-radius: var(--radius-control);
   background: var(--fx-surface-hover-clear);
-  color: var(--fx-text-secondary);
   cursor: pointer;
   transition:
     background-color var(--duration-quick) var(--ease-smooth-out),
     color var(--duration-quick) var(--ease-smooth-out);
 }
-.right-panel-toggle > svg {
+.right-panel-toggle:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+.right-panel-toggle-top-bar {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  color: var(--fx-text-secondary);
+}
+.right-panel-toggle-top-bar > svg {
   width: 17px;
   height: 17px;
 }
-.right-panel-toggle[data-open="true"] {
-  top: 10px;
+.right-panel-toggle-panel {
   width: 28px;
   height: 28px;
   border-radius: var(--radius-chip);
   color: var(--fx-text-tertiary);
 }
-.right-panel-toggle[data-open="true"] > svg {
+.right-panel-toggle-panel > svg {
   width: 14px;
   height: 14px;
 }
-.right-panel-toggle:hover {
-  background: var(--fx-surface-hover-overlay);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .right-panel-resizer::before,
   .right-panel-resizer::after,

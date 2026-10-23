@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type ReactNode,
 } from "react";
 import type { AppLanguage } from "@/i18n";
 import { BrowserDock } from "../browser/BrowserDock";
@@ -43,6 +44,7 @@ export function RightPanelDock({
   onOpenFile,
   onAtMention,
   activeCwd,
+  headerAction,
   suspended = false,
 }: {
   activeFileTabId: string;
@@ -69,6 +71,7 @@ export function RightPanelDock({
   onOpenFile: (filePath: string, fileName: string, sourceSessionId?: string | null) => void;
   onAtMention: (relativePath: string, isDir: boolean) => void;
   activeCwd: string | null;
+  headerAction?: ReactNode;
   suspended?: boolean;
 }) {
   const { language, t } = useI18n();
@@ -114,7 +117,9 @@ export function RightPanelDock({
       {rightPanelResizing && rightPanelOpen && (
         <PanelWidthReadout width={rightPanelWidth} bounds={rightPanelBounds} language={language} />
       )}
-      <div className={`right-panel-header${fileTabs.length > 0 ? "" : " right-panel-header-ruled"}`}>
+      <div
+        className={`right-panel-header${activeFileTabId === EXPLORER_TAB_ID ? " right-panel-header-explorer" : ""}${activeFileTabId === EXPLORER_TAB_ID && fileTabs.length === 0 ? " right-panel-header-ruled" : ""}`}
+      >
         <DockSwitcher
           activeFileTabId={activeFileTabId}
           onSelect={(tabId) => dispatchFileTab({ type: "select", tabId })}
@@ -138,6 +143,7 @@ export function RightPanelDock({
             <DockIcon kind="refresh" size={14} />
           </button>
         )}
+        {headerAction}
       </div>
       {fileTabs.length > 0 && (
         <div className="right-panel-tab-strip">

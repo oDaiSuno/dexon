@@ -1,6 +1,7 @@
 import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
+import type { ReactNode } from "react";
 import { QuickChannelBinding } from "../channels/QuickChannelBinding";
 import { SessionIdentity } from "./session-identity";
 import { SessionInfoPopover } from "./session-info-popover";
@@ -27,7 +28,7 @@ export function TopBar({
   contextUsage,
   copyFeedback,
   onCopyField,
-  rightPanelOpen,
+  trailing,
   showChat,
 }: {
   sidebarOpen: boolean;
@@ -43,7 +44,7 @@ export function TopBar({
   contextUsage: ContextUsageState | null;
   copyFeedback: SessionCopyFeedback | null;
   onCopyField: (field: SessionCopyField, value: string) => void;
-  rightPanelOpen: boolean;
+  trailing?: ReactNode;
   showChat: boolean;
 }) {
   const { isDark, toggleTheme } = useTheme();
@@ -269,7 +270,7 @@ export function TopBar({
                 alignItems: "center",
                 gap: 8,
                 paddingLeft: 12,
-                paddingRight: rightPanelOpen ? 12 : 48,
+                paddingRight: 12,
                 height: "100%",
                 background: activeTopPanel === "session" ? "var(--bg-selected)" : "none",
                 border: "none",
@@ -331,6 +332,26 @@ export function TopBar({
             </button>
           );
         })()}
+      {trailing && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            flexShrink: 0,
+            marginLeft: showChat ? undefined : "auto",
+            paddingRight: 16,
+          }}
+        >
+          {showChat && (
+            <span
+              aria-hidden="true"
+              style={{ width: 1, height: 16, background: "var(--fx-surface-selected)", flexShrink: 0 }}
+            />
+          )}
+          {trailing}
+        </div>
+      )}
       {/* Top panel dropdown — shared, only one active at a time */}
       {activeTopPanel && (
         <div
