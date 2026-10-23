@@ -8,12 +8,7 @@ import {
 } from "@/lib/file-suggestion-client";
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
 import type { SlashCommandInfo } from "@/hooks/useAgentSession";
-import {
-  BUILTIN_SLASH_COMMANDS,
-  SLASH_SOURCES,
-  compareSlashCommands,
-  type SlashCommandPaletteItem,
-} from "./slash-commands";
+import { builtinSlashCommands, compareSlashCommands, type SlashCommandPaletteItem } from "./slash-commands";
 import type { ComposerEditableHandle } from "./types";
 import { compositionEnterAction } from "./composition-guard";
 import type { AtSuggestionState } from "./AtMenu";
@@ -62,10 +57,12 @@ export function useComposerSuggestions({
   const isComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
 
-  const slashQuery = value.startsWith("/") && !/\s/.test(value.slice(1)) ? value.slice(1).toLowerCase() : null;
+  const slashQueryText = value.startsWith("/") && !/\s/.test(value.slice(1)) ? value.slice(1) : null;
+  const slashQuery = slashQueryText?.toLowerCase() ?? null;
+  const builtinCommands = useMemo(() => builtinSlashCommands(t), [t]);
   const filteredSlashCommands = useMemo(() => {
     if (slashQuery === null) return [];
-    const commands = [...(isStreaming ? [] : BUILTIN_SLASH_COMMANDS), ...(slashCommands ?? [])];
+    const commands = [...(isStreaming ? [] : builtinCommands), ...(slashCommands ?? [])];
     return commands
       .filter((command) => {
         const name = command.name.toLowerCase();
@@ -73,29 +70,7 @@ export function useComposerSuggestions({
         return name.includes(slashQuery) || description.includes(slashQuery);
       })
       .sort((a, b) => compareSlashCommands(a, b, slashQuery));
-  }, [isStreaming, slashCommands, slashQuery]);
-
-  const groupedSlashCommands = useMemo(() => {
-    const groups = new Map<
-      (typeof SLASH_SOURCES)[number],
-      { source: (typeof SLASH_SOURCES)[number]; items: { command: SlashCommandPaletteItem; index: number }[] }
-    >();
-    for (const source of SLASH_SOURCES) groups.set(source, { source, items: [] });
-    filteredSlashCommands.forEach((command, index) => {
-      groups.get(command.source as (typeof SLASH_SOURCES)[number])?.items.push({ command, index });
-    });
-    return SLASH_SOURCES.map((source) => groups.get(source)!).filter((group) => group.items.length > 0);
-  }, [filteredSlashCommands]);
-
-  const slashCommandCountLabel =
-    filteredSlashCommands.length === 1
-      ? slashQuery
-        ? t("oneMatch", "1 match")
-        : t("oneCommand", "1 command")
-      : slashQuery
-        ? t("matchCount", "{count} matches").replace("{count}", String(filteredSlashCommands.length))
-        : t("commandCount", "{count} commands").replace("{count}", String(filteredSlashCommands.length));
-
+  }, [builtinCommands, isStreaming, slashCommands, slashQuery]);
   const updateAtQuery = useCallback(
     (text: string) => {
       setAtQuery(cwd ? extractAtQuery(text) : null);
@@ -292,6 +267,10 @@ export function useComposerSuggestions({
           setSlashMenuOpen(false);
           return;
         }
+        if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && slashCommandsLoading === true) {
+          event.preventDefault();
+          return;
+        }
         if (
           (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) &&
           filteredSlashCommands[slashActiveIndex]
@@ -348,6 +327,7 @@ export function useComposerSuggestions({
       onFollowUp,
       sendQueued,
       slashActiveIndex,
+      slashCommandsLoading,
       slashMenuOpen,
       slashQuery,
       onAtEscape,
@@ -396,10 +376,9 @@ export function useComposerSuggestions({
     slashActiveIndex,
     setSlashActiveIndex,
     slashItemRefs,
-    slashQuery,
-    groupedSlashCommands,
+    slashQuery: slashQueryText,
+    filteredSlashCommands,
     slashCommandsLoading,
-    slashCommandCountLabel,
     applySlashCommand,
     atQuery,
     atMenuOpen: visible && atMenuOpen,

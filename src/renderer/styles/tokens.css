@@ -111,6 +111,8 @@
   --radius-row: 7px;
   --radius-control: 8px;
   --radius-send: 9px;
+  --radius-icon-box: 9px;
+  --radius-skeleton: 3px;
   --radius-card: 10px;
   --radius-menu: 12px;
   --radius-composer: 14px;

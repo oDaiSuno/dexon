@@ -11,7 +11,7 @@ import { PlusMenu, type PlusMenuRow } from "./PlusMenu";
 import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
-import { SlashMenu, type SlashCommandGroup } from "./SlashMenu";
+import { SlashMenu } from "./SlashMenu";
 import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashCommandPaletteItem } from "./slash-commands";
@@ -58,9 +58,9 @@ export interface ComposerViewProps {
   onCloseSkillPicker: () => void;
   onCloseSkillReveal: () => void;
   slashMenuOpen: boolean;
-  slashGroups: SlashCommandGroup[];
+  slashCommands: SlashCommandPaletteItem[];
+  slashQuery: string;
   slashLoading?: boolean;
-  slashCountLabel: string;
   slashActiveIndex: number;
   slashItemRefs: MutableRefObject<(HTMLButtonElement | null)[]>;
   onApplySlash: (command: SlashCommandPaletteItem) => void;
@@ -157,9 +157,9 @@ export function ComposerView(props: ComposerViewProps) {
     onCloseSkillPicker,
     onCloseSkillReveal,
     slashMenuOpen,
-    slashGroups,
+    slashCommands,
+    slashQuery,
     slashLoading,
-    slashCountLabel,
     slashActiveIndex,
     slashItemRefs,
     onApplySlash,
@@ -299,9 +299,9 @@ export function ComposerView(props: ComposerViewProps) {
           )}
           {slashMenuOpen && (
             <SlashMenu
-              groups={slashGroups}
+              commands={slashCommands}
+              query={slashQuery}
               loading={slashLoading}
-              countLabel={slashCountLabel}
               activeIndex={slashActiveIndex}
               itemRefs={slashItemRefs}
               onApply={onApplySlash}

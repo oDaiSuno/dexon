@@ -1,35 +1,6 @@
 {
   "lane": "对齐 v-slash-menu 斜杠命令菜单：带查询词的头部、三列网格、底栏、骨架与无匹配状态",
-  "legacy": [
-    {
-      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
-      "name": "--bg-selected",
-      "count": 1
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
-      "property": "fontSize",
-      "count": 5
-    },
-    {
-      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
-      "property": "fontWeight",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
-      "property": "lineHeight",
-      "count": 1
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/chat-input/SlashMenu.tsx",
-      "color": "rgba(0,0,0,0.12)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }

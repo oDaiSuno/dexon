@@ -378,9 +378,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onCloseSkillPicker={skills.closeTransientMenus}
       onCloseSkillReveal={() => skills.setSkillRevealName(null)}
       slashMenuOpen={suggestions.slashMenuOpen}
-      slashGroups={suggestions.groupedSlashCommands}
+      slashCommands={suggestions.filteredSlashCommands}
+      slashQuery={suggestions.slashQuery ?? ""}
       slashLoading={suggestions.slashCommandsLoading}
-      slashCountLabel={suggestions.slashCommandCountLabel}
       slashActiveIndex={suggestions.slashActiveIndex}
       slashItemRefs={suggestions.slashItemRefs}
       onApplySlash={suggestions.applySlashCommand}

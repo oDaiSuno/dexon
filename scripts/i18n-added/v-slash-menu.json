@@ -1,0 +1,20 @@
+[
+  "slashMenuTitle",
+  "slashOneMatch",
+  "slashMatchCount",
+  "slashGroupBuiltin",
+  "slashGroupExtensions",
+  "slashGroupPrompts",
+  "slashFromSources",
+  "slashNoMatchHint",
+  "slashSkillsHint",
+  "slashNoCommands",
+  "slashCompactDescription",
+  "slashReloadDescription",
+  "slashNameDescription",
+  "slashSessionDescription",
+  "slashCopyDescription",
+  "menuKeySelect",
+  "menuKeyComplete",
+  "menuKeyClose"
+]
