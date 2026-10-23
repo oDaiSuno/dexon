@@ -23,10 +23,10 @@ async function sendApiKey(providerId: string, init: RequestInit): Promise<Creden
   return d;
 }
 
-function HeaderStatus({ label, tone }: { label?: string; tone: "success" | "muted" }) {
+function HeaderStatus({ label, tone, hint }: { label?: string; tone: "success" | "muted"; hint?: string }) {
   if (!label) return null;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+    <span title={hint} style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
       <StatusDot tone={tone} />
       <span className="type-body-default" style={{ color: "var(--fx-text-secondary)" }}>
         {label}
@@ -166,6 +166,7 @@ export function OAuthProviderDialog({
         <HeaderStatus
           label={labels.oauthStatus(provider) ?? t("modelNotConnected", "not connected")}
           tone={provider.loggedIn ? "success" : "muted"}
+          hint={provider.loggedIn ? t("modelConnected", "connected") : undefined}
         />
       }
       onClose={onClose}
