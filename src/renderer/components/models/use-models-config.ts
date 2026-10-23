@@ -3,7 +3,7 @@ import { useI18n } from "@/i18n";
 import type { ModelsJson } from "@/lib/models-config-state";
 import { getModelPreferences, setModelPreferences } from "@/lib/api-client";
 import type { ModelPreferencesResult } from "@contract/types";
-import type { ApiKeyProvider, OAuthProvider } from "./types";
+import type { ApiKeyProvider, ModelSelectionControl, OAuthProvider } from "./types";
 
 export type PersistResult = { ok: true } | { ok: false; error: string; conflict: boolean };
 
@@ -179,3 +179,13 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
 }
 
 export type ModelsConfigEditor = ReturnType<typeof useModelsConfig>;
+
+export function modelSelectionOf(editor: ModelsConfigEditor): ModelSelectionControl {
+  return {
+    preferences: editor.modelPreferences,
+    loading: editor.modelPreferencesLoading,
+    saving: editor.modelPreferencesSaving,
+    error: editor.modelPreferencesError,
+    onChange: editor.updateModelPreferences,
+  };
+}

@@ -5,10 +5,10 @@ import { ApiKeyDetail } from "./api-key-detail";
 import { ModelDialogShell, useSaveNotice } from "./model-dialog-shell";
 import { DialogFooter } from "./models-footer";
 import { OAuthDetail } from "./oauth-detail";
-import { ProviderLogoTile } from "./provider-icon";
+import { DialogLogoTile } from "./provider-dialog-parts";
 import { StatusDot, useProviderLabels } from "./provider-tree";
-import type { ApiKeyProvider, ModelSelectionControl, OAuthProvider } from "./types";
-import type { ModelsConfigEditor } from "./use-models-config";
+import type { ApiKeyProvider, OAuthProvider } from "./types";
+import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
 
 type CredentialResponse = {
   ok?: boolean;
@@ -21,16 +21,6 @@ async function sendApiKey(providerId: string, init: RequestInit): Promise<Creden
   const d = (await res.json()) as CredentialResponse;
   if (!res.ok || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
   return d;
-}
-
-function modelSelectionOf(editor: ModelsConfigEditor): ModelSelectionControl {
-  return {
-    preferences: editor.modelPreferences,
-    loading: editor.modelPreferencesLoading,
-    saving: editor.modelPreferencesSaving,
-    error: editor.modelPreferencesError,
-    onChange: editor.updateModelPreferences,
-  };
 }
 
 function HeaderStatus({ label, tone }: { label?: string; tone: "success" | "muted" }) {
@@ -117,8 +107,11 @@ export function ApiKeyProviderDialog({
       divided
       dirty={dirty}
       title={provider.displayName}
-      subtitle={labels.apiKeyMeta(provider)}
-      leading={<ProviderLogoTile id={provider.id} />}
+      subtitle={`${t("modelApiProviderKind", "API provider")} · ${t("modelCount", "{count} models").replace(
+        "{count}",
+        String(provider.modelCount),
+      )}`}
+      leading={<DialogLogoTile id={provider.id} />}
       trailing={<HeaderStatus label={labels.apiKeyStatus(provider)} tone={provider.configured ? "success" : "muted"} />}
       notice={notice}
       onClose={onClose}
@@ -135,7 +128,7 @@ export function ApiKeyProviderDialog({
         />
       }
     >
-      <div style={{ padding: "var(--space-5) var(--space-5) var(--space-2)" }}>
+      <div style={{ padding: "20px 20px 8px" }}>
         <ApiKeyDetail
           provider={provider}
           baseUrl={baseUrl}
@@ -168,8 +161,13 @@ export function OAuthProviderDialog({
       dirty={false}
       title={provider.name}
       subtitle={labels.oauthMeta(provider)}
-      leading={<ProviderLogoTile id={provider.id} />}
-      trailing={<HeaderStatus label={labels.oauthStatus(provider)} tone="success" />}
+      leading={<DialogLogoTile id={provider.id} />}
+      trailing={
+        <HeaderStatus
+          label={labels.oauthStatus(provider) ?? t("modelNotConnected", "not connected")}
+          tone={provider.loggedIn ? "success" : "muted"}
+        />
+      }
       onClose={onClose}
       footer={
         <DialogFooter
@@ -180,7 +178,7 @@ export function OAuthProviderDialog({
         />
       }
     >
-      <div style={{ padding: "var(--space-5) var(--space-5) var(--space-2)" }}>
+      <div style={{ padding: "20px 20px 8px" }}>
         <OAuthDetail
           provider={provider}
           onRefresh={editor.refreshOAuthProviders}

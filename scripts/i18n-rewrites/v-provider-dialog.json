@@ -1,0 +1,22 @@
+{
+  "modelProvider": {
+    "enUS": "Provider",
+    "zhCN": "服务商"
+  },
+  "modelApi": {
+    "enUS": "API",
+    "zhCN": "API"
+  },
+  "modelApiKeySourceHint": {
+    "enUS": "Prefix with ! to run a shell command, or use an environment variable name.",
+    "zhCN": "以 ! 开头可运行 shell 命令，也可以填写环境变量名。"
+  },
+  "modelApiKeySourcePlaceholder": {
+    "enUS": "ENV_VAR_NAME, !shell-command, or literal key",
+    "zhCN": "环境变量名、!shell 命令或直接填写密钥"
+  },
+  "modelEnabledCount": {
+    "enUS": "{enabled} of {total} enabled",
+    "zhCN": "已启用 {enabled}/{total} 个"
+  }
+}

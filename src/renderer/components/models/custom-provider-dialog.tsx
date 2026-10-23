@@ -7,129 +7,15 @@ import {
   nextCustomProviderName,
   saveModelEntry,
   saveProviderEntry,
-  type ModelEntry,
   type ProviderEntry,
 } from "@/lib/models-config-state";
-import { ModelDialog, useModelMeta } from "./model-dialog";
+import { ModelDialog } from "./model-dialog";
 import { ModelDialogShell, useSaveNotice } from "./model-dialog-shell";
 import { DialogFooter } from "./models-footer";
 import { ProviderDetail } from "./provider-detail";
-import { ProviderLogoTile } from "./provider-icon";
+import { DialogLogoTile } from "./provider-dialog-parts";
 import { useProviderLabels } from "./provider-tree";
-import type { ModelsConfigEditor } from "./use-models-config";
-
-const rowHover = {
-  onMouseEnter: (e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
-  },
-  onMouseLeave: (e: React.MouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "var(--fx-surface-hover-clear)";
-  },
-};
-
-const rowStyle: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 12,
-  width: "100%",
-  border: "none",
-  borderRadius: "var(--radius-control)",
-  background: "var(--fx-surface-hover-clear)",
-  color: "inherit",
-  font: "inherit",
-  textAlign: "left",
-  cursor: "pointer",
-  transition: "background-color var(--duration-quick) var(--ease-smooth-out)",
-};
-
-function ProviderModelList({
-  models,
-  onOpen,
-  onAdd,
-}: {
-  models: ModelEntry[];
-  onOpen: (index: number) => void;
-  onAdd: () => void;
-}) {
-  const { t } = useI18n();
-  const metaOf = useModelMeta();
-  return (
-    <section style={{ display: "grid", gap: 8 }}>
-      <h3 className="type-body-large-medium" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
-        {t("models", "Models")}
-      </h3>
-      <div style={{ display: "grid" }}>
-        {models.map((model, index) => (
-          <button
-            key={index}
-            type="button"
-            onClick={() => onOpen(index)}
-            {...rowHover}
-            style={{
-              ...rowStyle,
-              height: 44,
-              padding: "0 var(--space-2) 0 var(--space-1)",
-              boxShadow: index > 0 ? "inset 0 1px 0 var(--fx-line-default)" : undefined,
-            }}
-          >
-            <span
-              className="type-mono-body"
-              style={{
-                flex: 1,
-                minWidth: 0,
-                color: model.id ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {model.id || t("modelNewModel", "new model")}
-            </span>
-            <span className="type-body-default" style={{ color: "var(--fx-text-tertiary)", whiteSpace: "nowrap" }}>
-              {metaOf(model)}
-            </span>
-            <svg
-              aria-hidden="true"
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
-            >
-              <path d="m9 18 6-6-6-6" />
-            </svg>
-          </button>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={onAdd}
-        {...rowHover}
-        style={{ ...rowStyle, gap: 8, height: 40, padding: "0 var(--space-1)", color: "var(--fx-text-secondary)" }}
-      >
-        <svg
-          aria-hidden="true"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{ flexShrink: 0 }}
-        >
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        <span className="type-body-default">{t("modelAddModel", "Add model")}</span>
-      </button>
-    </section>
-  );
-}
+import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
 
 export function CustomProviderDialog({
   editor,
@@ -206,7 +92,7 @@ export function CustomProviderDialog({
         dirty={dirty}
         title={name.trim() || initial.name}
         subtitle={labels.customMeta(entry)}
-        leading={<ProviderLogoTile id={name} />}
+        leading={<DialogLogoTile id={name} />}
         notice={notice}
         onClose={onClose}
         footer={
@@ -222,18 +108,16 @@ export function CustomProviderDialog({
           />
         }
       >
-        <div
-          style={{
-            display: "grid",
-            gap: "var(--space-6)",
-            padding: "var(--space-5) var(--space-5) var(--space-2)",
-          }}
-        >
-          <ProviderDetail name={name} provider={entry} onNameChange={setName} onChange={setEntry} />
-          <ProviderModelList
-            models={models}
-            onOpen={(index) => setModelTarget({ index })}
-            onAdd={() => setModelTarget({ index: null })}
+        <div style={{ padding: "20px 20px 8px" }}>
+          <ProviderDetail
+            name={name}
+            savedName={originalName}
+            provider={entry}
+            onNameChange={setName}
+            onChange={setEntry}
+            modelSelection={modelSelectionOf(editor)}
+            onOpenModel={(index) => setModelTarget({ index })}
+            onAddModel={() => setModelTarget({ index: null })}
           />
         </div>
       </ModelDialogShell>
