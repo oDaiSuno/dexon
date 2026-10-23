@@ -1,49 +1,84 @@
 import type { DiffLine } from "@/lib/text-diff";
 
 const CONTEXT = 3;
+const DECLARATION =
+  /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(function\*?|class|interface|enum|type|def|fn|func|struct|impl|const|let|var)\s+([A-Za-z_$][\w$]*)/;
+
+export type DiffBlock =
+  { kind: "lines"; start: number; lines: DiffLine[] } | { kind: "fold"; start: number; count: number };
 
 export type DiffSegment = { hidden: true; count: number } | { hidden: false; lines: DiffLine[] };
 
-export function collapseDiff(diff: DiffLine[]): DiffSegment[] {
-  const changed = new Set(diff.flatMap((l, i) => (l.type !== "unchanged" ? [i] : [])));
-  const visible = new Set<number>();
-  for (const ci of changed) {
-    for (let j = Math.max(0, ci - CONTEXT); j <= Math.min(diff.length - 1, ci + CONTEXT); j++) {
-      visible.add(j);
-    }
-  }
-
-  const segments: DiffSegment[] = [];
-  let i = 0;
-  while (i < diff.length) {
-    if (visible.has(i)) {
-      const block: DiffLine[] = [];
-      while (i < diff.length && visible.has(i)) {
-        block.push(diff[i]);
-        i++;
-      }
-      segments.push({ hidden: false, lines: block });
-    } else {
-      let count = 0;
-      while (i < diff.length && !visible.has(i)) {
-        count++;
-        i++;
-      }
-      segments.push({ hidden: true, count });
-    }
-  }
-  return segments;
+export interface DiffLayout {
+  header: string | null;
+  blocks: DiffBlock[];
 }
 
-export function newSideLineNumbers(diff: DiffLine[]): number[] {
-  const newLineNos: number[] = [];
-  let nlo = 1;
-  for (const line of diff) {
-    if (line.type === "removed") {
-      newLineNos.push(0);
-    } else {
-      newLineNos.push(nlo++);
+function visibleMask(diff: DiffLine[], expandedFolds: ReadonlySet<number>): boolean[] {
+  const visible = diff.map(() => false);
+  diff.forEach((line, index) => {
+    if (line.type === "unchanged") return;
+    const last = Math.min(diff.length - 1, index + CONTEXT);
+    for (let j = Math.max(0, index - CONTEXT); j <= last; j++) visible[j] = true;
+  });
+  let index = 0;
+  while (index < diff.length) {
+    if (visible[index]) {
+      index++;
+      continue;
     }
+    const start = index;
+    while (index < diff.length && !visible[index]) index++;
+    if (start > 0 && index < diff.length && expandedFolds.has(start)) visible.fill(true, start, index);
   }
-  return newLineNos;
+  return visible;
+}
+
+function range(start: number, count: number): string {
+  return count === 1 ? String(start) : `${start},${count}`;
+}
+
+function enclosingDeclaration(diff: DiffLine[], before: number): string {
+  for (let index = before - 1; index >= 0; index--) {
+    const line = diff[index];
+    if (line.type === "added") continue;
+    const match = DECLARATION.exec(line.text);
+    if (match) return `${match[1]} ${match[2]}`;
+  }
+  return "";
+}
+
+function hunkHeader(diff: DiffLine[], start: number, lines: DiffLine[]): string {
+  const oldNumbers = lines.flatMap((line) => (line.type === "added" ? [] : [line.oldLineNo]));
+  const newNumbers = lines.flatMap((line) => (line.type === "removed" ? [] : [line.newLineNo]));
+  const header = `@@ \u2212${range(oldNumbers[0] ?? 0, oldNumbers.length)} +${range(newNumbers[0] ?? 0, newNumbers.length)} @@`;
+  const context = enclosingDeclaration(diff, start);
+  return context ? `${header}  ${context}` : header;
+}
+
+function runs(visible: boolean[]): { shown: boolean; start: number; end: number }[] {
+  const result: { shown: boolean; start: number; end: number }[] = [];
+  let index = 0;
+  while (index < visible.length) {
+    const start = index;
+    const shown = visible[index];
+    while (index < visible.length && visible[index] === shown) index++;
+    result.push({ shown, start, end: index });
+  }
+  return result;
+}
+
+export function layoutDiff(diff: DiffLine[], expandedFolds: ReadonlySet<number>): DiffLayout {
+  const blocks = runs(visibleMask(diff, expandedFolds)).flatMap<DiffBlock>(({ shown, start, end }) => {
+    if (shown) return [{ kind: "lines", start, lines: diff.slice(start, end) }];
+    return start > 0 && end < diff.length ? [{ kind: "fold", start, count: end - start }] : [];
+  });
+  const first = blocks.find((block) => block.kind === "lines");
+  return { header: first ? hunkHeader(diff, first.start, first.lines) : null, blocks };
+}
+
+export function collapseDiff(diff: DiffLine[]): DiffSegment[] {
+  return runs(visibleMask(diff, new Set())).map(({ shown, start, end }) =>
+    shown ? { hidden: false, lines: diff.slice(start, end) } : { hidden: true, count: end - start },
+  );
 }

@@ -1,9 +1,9 @@
-import { SyntaxHighlighter } from "@/lib/syntax-highlight";
 import { getParentFilePath } from "@/lib/file-paths";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { MarkdownBody } from "../MarkdownBody";
 import { DiffView } from "./diff-view";
 import { HtmlPreview } from "./html-preview";
+import { SourceView } from "./source-view";
 import type { TextViewMode } from "./use-text-file";
 
 const JSX_FLAVORS: Readonly<Record<string, string>> = { javascript: "jsx", typescript: "tsx" };
@@ -41,14 +41,20 @@ export function TextFileContent({
   const isMarkdown = data.language === "markdown";
 
   return (
-    <div style={{ flex: 1, minHeight: 0, overflow: "auto", background: "var(--fx-surface-main)" }}>
+    <div className="file-viewer-scroll">
       {viewMode === "diff" && hasDiff ? (
-        <DiffView oldContent={prevContent!} newContent={data.content} />
+        <DiffView
+          oldContent={prevContent!}
+          newContent={data.content}
+          language={sourceLanguage(data.language, filePath)}
+          wrapLines={wrapLines}
+        />
       ) : isHtml && previewMode ? (
         <HtmlPreview content={data.content} filePath={filePath} sourceSessionId={sourceSessionId} />
       ) : isMarkdown && previewMode ? (
-        <div className="markdown-body markdown-file-preview" style={{ padding: "24px 32px", maxWidth: 800 }}>
+        <div className="file-markdown-preview type-body-relaxed">
           <MarkdownBody
+            className="markdown-file-preview"
             cwd={cwd}
             imageBasePath={getParentFilePath(filePath)}
             sourceSessionId={sourceSessionId}
@@ -58,29 +64,7 @@ export function TextFileContent({
           </MarkdownBody>
         </div>
       ) : (
-        <SyntaxHighlighter
-          language={sourceLanguage(data.language, filePath)}
-          showLineNumbers
-          lineNumberStyle={{
-            color: "var(--fx-text-tertiary)",
-            fontStyle: "normal",
-            minWidth: "3em",
-            paddingRight: "1em",
-          }}
-          customStyle={{
-            margin: 0,
-            padding: "12px 0",
-            background: "var(--fx-surface-main)",
-            fontSize: "var(--text-body)",
-            lineHeight: 1.6,
-            fontFamily: "var(--font-mono)",
-            minHeight: "100%",
-          }}
-          codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
-          wrapLongLines={wrapLines}
-        >
-          {data.content}
-        </SyntaxHighlighter>
+        <SourceView code={data.content} language={sourceLanguage(data.language, filePath)} wrapLines={wrapLines} />
       )}
     </div>
   );

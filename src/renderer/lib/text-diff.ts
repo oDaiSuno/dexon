@@ -5,9 +5,9 @@ export const MAX_DIFF_EDIT_DISTANCE = 1_200;
 export const MAX_DIFF_TRACE_CELLS = 2_000_000;
 
 export type DiffLine =
-  | { type: "unchanged"; text: string; lineNo: number }
-  | { type: "removed"; text: string; lineNo: number }
-  | { type: "added"; text: string; lineNo: number };
+  | { type: "unchanged"; text: string; oldLineNo: number; newLineNo: number }
+  | { type: "removed"; text: string; oldLineNo: number }
+  | { type: "added"; text: string; newLineNo: number };
 
 export type TextDiffResult =
   | { kind: "lines"; lines: DiffLine[] }
@@ -35,7 +35,9 @@ export function createBoundedTextDiff(oldContent: string, newContent: string): T
   if (oldContent === newContent) {
     return {
       kind: "lines",
-      lines: oldContent.split("\n").map((text, index) => ({ type: "unchanged", text, lineNo: index + 1 })),
+      lines: oldContent
+        .split("\n")
+        .map((text, index) => ({ type: "unchanged", text, oldLineNo: index + 1, newLineNo: index + 1 })),
     };
   }
 
@@ -80,11 +82,12 @@ export function createBoundedTextDiff(oldContent: string, newContent: string): T
 
   const lines: DiffLine[] = [];
   for (let i = 0; i < prefix; i += 1) {
-    lines.push({ type: "unchanged", text: oldLines[i], lineNo: i + 1 });
+    lines.push({ type: "unchanged", text: oldLines[i], oldLineNo: i + 1, newLineNo: i + 1 });
   }
   lines.push(...normalizeReplacementOrder(myersDiff(oldCore, newCore, prefix)));
+  const shift = newLines.length - oldLines.length;
   for (let i = oldLines.length - suffix; i < oldLines.length; i += 1) {
-    lines.push({ type: "unchanged", text: oldLines[i], lineNo: i + 1 });
+    lines.push({ type: "unchanged", text: oldLines[i], oldLineNo: i + 1, newLineNo: i + shift + 1 });
   }
   return { kind: "lines", lines };
 }
@@ -107,7 +110,7 @@ function normalizeReplacementOrder(lines: DiffLine[]): DiffLine[] {
   return normalized;
 }
 
-function myersDiff(oldLines: string[], newLines: string[], oldLineOffset: number): DiffLine[] {
+function myersDiff(oldLines: string[], newLines: string[], lineOffset: number): DiffLine[] {
   const m = oldLines.length;
   const n = newLines.length;
   const max = m + n;
@@ -128,10 +131,14 @@ function myersDiff(oldLines: string[], newLines: string[], oldLineOffset: number
         y += 1;
       }
       v[k + offset] = x;
-      if (x >= m && y >= n) return backtrack(trace, oldLines, newLines, d, offset, oldLineOffset);
+      if (x >= m && y >= n) return backtrack(trace, oldLines, newLines, d, offset, lineOffset);
     }
   }
   return [];
+}
+
+function unchanged(text: string, lineOffset: number, x: number, y: number): DiffLine {
+  return { type: "unchanged", text, oldLineNo: lineOffset + x + 1, newLineNo: lineOffset + y + 1 };
 }
 
 function backtrack(
@@ -140,7 +147,7 @@ function backtrack(
   newLines: string[],
   distance: number,
   offset: number,
-  oldLineOffset: number,
+  lineOffset: number,
 ): DiffLine[] {
   const reversed: DiffLine[] = [];
   let x = oldLines.length;
@@ -156,20 +163,20 @@ function backtrack(
     while (x > previousX && y > previousY) {
       x -= 1;
       y -= 1;
-      reversed.push({ type: "unchanged", text: oldLines[x], lineNo: oldLineOffset + x + 1 });
+      reversed.push(unchanged(oldLines[x], lineOffset, x, y));
     }
     if (x > previousX) {
       x -= 1;
-      reversed.push({ type: "removed", text: oldLines[x], lineNo: oldLineOffset + x + 1 });
+      reversed.push({ type: "removed", text: oldLines[x], oldLineNo: lineOffset + x + 1 });
     } else {
       y -= 1;
-      reversed.push({ type: "added", text: newLines[y], lineNo: y + 1 });
+      reversed.push({ type: "added", text: newLines[y], newLineNo: lineOffset + y + 1 });
     }
   }
   while (x > 0 && y > 0) {
     x -= 1;
     y -= 1;
-    reversed.push({ type: "unchanged", text: oldLines[x], lineNo: oldLineOffset + x + 1 });
+    reversed.push(unchanged(oldLines[x], lineOffset, x, y));
   }
   return reversed.reverse();
 }

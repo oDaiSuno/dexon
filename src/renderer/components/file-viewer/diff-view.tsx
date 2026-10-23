@@ -1,148 +1,114 @@
-import { useMemo } from "react";
-import { createBoundedTextDiff } from "@/lib/text-diff";
+import { useMemo, useState } from "react";
+import { createBoundedTextDiff, type DiffLine, type TextDiffResult } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
 import { formatNumber } from "@/lib/locale-format";
-import { collapseDiff, newSideLineNumbers } from "./diff-segments";
+import { CodeLineText } from "./code-line";
+import { layoutDiff } from "./diff-segments";
+import { useHighlightedLines, type CodeLineTokens } from "./highlighted-lines";
 
-export function DiffView({ oldContent, newContent }: { oldContent: string; newContent: string }) {
-  const { language, t } = useI18n();
+const NO_FOLDS: ReadonlySet<number> = new Set();
+const SIGN: Record<DiffLine["type"], string> = { added: "+", removed: "\u2212", unchanged: "" };
+
+function DiffRow({ line, tokens }: { line: DiffLine; tokens: CodeLineTokens | undefined }) {
+  return (
+    <div className={`file-diff-row is-${line.type}`}>
+      <span className="file-diff-no" aria-hidden="true">
+        {line.type === "added" ? "" : line.oldLineNo}
+      </span>
+      <span className="file-diff-no" aria-hidden="true">
+        {line.type === "removed" ? "" : line.newLineNo}
+      </span>
+      <span className="file-diff-sign" aria-hidden="true">
+        {SIGN[line.type]}
+      </span>
+      <span className="file-diff-code">
+        <CodeLineText tokens={tokens} />
+      </span>
+    </div>
+  );
+}
+
+function FoldIcon() {
+  return (
+    <svg
+      width={12}
+      height={12}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m7 15 5 5 5-5" />
+      <path d="m7 9 5-5 5 5" />
+    </svg>
+  );
+}
+
+export function DiffView({
+  oldContent,
+  newContent,
+  language,
+  wrapLines,
+}: {
+  oldContent: string;
+  newContent: string;
+  language: string;
+  wrapLines: boolean;
+}) {
+  const { language: locale, t } = useI18n();
   const result = useMemo(() => createBoundedTextDiff(oldContent, newContent), [oldContent, newContent]);
+  const [expansion, setExpansion] = useState<{ result: TextDiffResult; folds: ReadonlySet<number> } | null>(null);
+  const expandedFolds = expansion?.result === result ? expansion.folds : NO_FOLDS;
+  const diff = result.kind === "lines" ? result.lines : null;
+  const oldTokens = useHighlightedLines(oldContent, language, diff !== null);
+  const newTokens = useHighlightedLines(newContent, language, diff !== null);
+  const layout = useMemo(() => (diff ? layoutDiff(diff, expandedFolds) : null), [diff, expandedFolds]);
+  const expandFold = (start: number) => setExpansion({ result, folds: new Set(expandedFolds).add(start) });
+
   if (result.kind === "fallback") {
     return (
-      <div
-        role="status"
-        style={{ padding: 16, color: "var(--fx-text-secondary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}
-      >
+      <div role="status" className="file-diff-note type-body-relaxed">
         {t(
           "diffTooLarge",
           "Diff is too large to render safely. The file changed from {oldLines} to {newLines} lines; showing the current source avoids freezing the app.",
         )
-          .replace("{oldLines}", formatNumber(result.oldLines, language))
-          .replace("{newLines}", formatNumber(result.newLines, language))}
-      </div>
-    );
-  }
-  const diff = result.lines;
-
-  const hasChanges = diff.some((l) => l.type !== "unchanged");
-  if (!hasChanges) {
-    return (
-      <div
-        style={{
-          padding: "12px 16px",
-          fontSize: "var(--text-label)",
-          color: "var(--fx-text-tertiary)",
-          fontFamily: "var(--font-mono)",
-        }}
-      >
-        {t("noChanges", "No changes")}
+          .replace("{oldLines}", formatNumber(result.oldLines, locale))
+          .replace("{newLines}", formatNumber(result.newLines, locale))}
       </div>
     );
   }
 
-  const segments = collapseDiff(diff);
-  const newLineNos = newSideLineNumbers(diff);
+  if (!layout?.header) {
+    return <div className="file-diff-note type-mono-code">{t("noChanges", "No changes")}</div>;
+  }
 
-  let diffIdx = 0;
+  const tokensOf = (line: DiffLine) =>
+    line.type === "removed" ? oldTokens[line.oldLineNo - 1] : newTokens[line.newLineNo - 1];
 
   return (
-    <div style={{ fontFamily: "var(--font-mono)", fontSize: "var(--text-body)", lineHeight: 1.6 }}>
-      {segments.map((seg, si) => {
-        if (seg.hidden) {
-          const result = (
-            <div
-              key={si}
-              style={{
-                padding: "2px 16px",
-                color: "var(--fx-text-tertiary)",
-                background: "var(--fx-surface-raised)",
-                fontSize: "var(--text-meta)",
-                borderTop: "1px solid var(--fx-line-default)",
-                borderBottom: "1px solid var(--fx-line-default)",
-              }}
-            >
-              {t("unchangedLines", "… {count} unchanged lines …").replace("{count}", formatNumber(seg.count, language))}
-            </div>
-          );
-          diffIdx += seg.count;
-          return result;
-        }
-        const lines = seg.lines.map((line, li) => {
-          const idx = diffIdx + li;
-          const newLno = newLineNos[idx];
-          const bg =
-            line.type === "added"
-              ? "rgba(0,200,80,0.12)"
-              : line.type === "removed"
-                ? "rgba(240,60,60,0.14)"
-                : "transparent";
-          const prefix = line.type === "added" ? "+" : line.type === "removed" ? "-" : " ";
-          const prefixColor =
-            line.type === "added"
-              ? "var(--fx-status-success)"
-              : line.type === "removed"
-                ? "var(--fx-status-danger)"
-                : "var(--fx-text-tertiary)";
-
-          return (
-            <div
-              key={li}
-              style={{
-                display: "flex",
-                background: bg,
-                borderLeft:
-                  line.type === "added"
-                    ? "3px solid var(--fx-status-success)"
-                    : line.type === "removed"
-                      ? "3px solid var(--fx-status-danger)"
-                      : "3px solid transparent",
-              }}
-            >
-              <span
-                style={{
-                  minWidth: 44,
-                  padding: "0 8px 0 16px",
-                  textAlign: "right",
-                  color: "var(--fx-text-tertiary)",
-                  userSelect: "none",
-                  fontSize: "var(--text-meta)",
-                  lineHeight: 1.6,
-                  borderRight: "1px solid var(--fx-line-default)",
-                  background: "var(--fx-surface-raised)",
-                  flexShrink: 0,
-                }}
-              >
-                {line.type === "removed" ? line.lineNo : newLno || ""}
-              </span>
-              <span
-                style={{
-                  minWidth: 16,
-                  padding: "0 8px",
-                  color: prefixColor,
-                  userSelect: "none",
-                  flexShrink: 0,
-                  fontWeight: 600,
-                }}
-              >
-                {prefix}
-              </span>
-              <span
-                style={{
-                  flex: 1,
-                  padding: "0 8px 0 0",
-                  whiteSpace: "pre",
-                  color: "var(--fx-text-primary)",
-                  overflowX: "auto",
-                }}
-              >
-                {line.text || "\u00a0"}
-              </span>
-            </div>
-          );
-        });
-        diffIdx += seg.lines.length;
-        return <div key={si}>{lines}</div>;
-      })}
+    <div className={`file-diff prismjs type-mono-code${wrapLines ? " is-wrapped" : ""}`}>
+      <div className="file-diff-hunk type-mono-meta">
+        <span>{layout.header}</span>
+      </div>
+      {layout.blocks.map((block) =>
+        block.kind === "fold" ? (
+          <button
+            key={`fold-${block.start}`}
+            type="button"
+            className="file-diff-fold type-meta-default"
+            title={t("expandUnchangedLines", "Show unchanged lines")}
+            onClick={() => expandFold(block.start)}
+          >
+            <FoldIcon />
+            {t("unchangedLines", "… {count} unchanged lines …").replace("{count}", formatNumber(block.count, locale))}
+          </button>
+        ) : (
+          block.lines.map((line, offset) => <DiffRow key={block.start + offset} line={line} tokens={tokensOf(line)} />)
+        ),
+      )}
     </div>
   );
 }
