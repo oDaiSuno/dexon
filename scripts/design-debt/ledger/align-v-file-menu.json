@@ -1,25 +1,6 @@
 {
   "lane": "对齐 v-file-menu @ 文件菜单：带查询词的头部、范围提示、底栏、骨架与出错状态",
-  "legacy": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "name": "--bg-selected",
-      "count": 1
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "property": "fontSize",
-      "count": 3
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "color": "rgba(0,0,0,0.12)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }

@@ -39,13 +39,17 @@ export function MenuHeader({
   title,
   titleMuted,
   query,
+  note,
   count,
+  announcement,
 }: {
   sigil: string;
   title: string;
   titleMuted?: boolean;
   query?: string;
+  note?: ReactNode;
   count: string;
+  announcement?: string;
 }) {
   const showQuery = Boolean(query);
   return (
@@ -113,9 +117,15 @@ export function MenuHeader({
         </span>
       )}
       <span style={{ flex: 1 }} />
+      {note}
       <span className="type-mono-meta" style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
         {count}
       </span>
+      {announcement !== undefined && (
+        <span className="sr-only" aria-live="polite">
+          {announcement}
+        </span>
+      )}
     </div>
   );
 }
@@ -146,7 +156,17 @@ export function MenuFooter({ hints, note }: { hints: MenuKeyHint[]; note?: strin
   );
 }
 
-export function MenuState({ icon, title, description }: { icon: ReactNode; title: string; description?: string }) {
+export function MenuState({
+  icon,
+  title,
+  description,
+  tone = "default",
+}: {
+  icon: ReactNode;
+  title: string;
+  description?: string;
+  tone?: "default" | "danger";
+}) {
   return (
     <div
       style={{
@@ -172,7 +192,7 @@ export function MenuState({ icon, title, description }: { icon: ReactNode; title
           border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-icon-box)",
           background: "var(--fx-surface-inset)",
-          color: "var(--fx-text-secondary)",
+          color: tone === "danger" ? "var(--fx-status-danger-text)" : "var(--fx-text-secondary)",
         }}
       >
         {icon}
@@ -196,6 +216,17 @@ export function SearchXIcon({ size = 16 }: { size?: number }) {
       <path d="m8.5 8.5 5 5" />
       <circle cx="11" cy="11" r="8" />
       <path d="m21 21-4.3-4.3" />
+    </Icon>
+  );
+}
+
+export function FileSearchIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={1.75}>
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="M4.268 21a2 2 0 0 0 1.727 1H18a2 2 0 0 0 2-2V7l-5-5H6a2 2 0 0 0-2 2v3" />
+      <path d="m9 18-1.5-1.5" />
+      <circle cx="5" cy="14" r="3" />
     </Icon>
   );
 }

@@ -3,6 +3,8 @@ export const enUS: Record<string, string> = {
   fileIndexTruncated: "index truncated",
   fileSearchDegraded: "limited to this folder",
   fileSuggestionsUnavailable: "File suggestions are temporarily unavailable",
+  fileSuggestionsUnavailableHint:
+    "Something went wrong reading project files. You can still type a full path by hand; sending is not affected.",
   filesAndMatchCount: "Files · {count}",
   audioLoadFailed: "Failed to load audio",
   binaryFileCannotShowText: "Binary file cannot be shown as text",
@@ -60,6 +62,7 @@ export const zhCN: Record<string, string> = {
   fileIndexTruncated: "索引已截断",
   fileSearchDegraded: "仅显示当前文件夹",
   fileSuggestionsUnavailable: "文件建议暂时不可用",
+  fileSuggestionsUnavailableHint: "读取项目文件时出错。可以继续手动输入完整路径，发送不受影响。",
   filesAndMatchCount: "文件 · {count}",
   audioLoadFailed: "音频加载失败",
   binaryFileCannotShowText: "二进制文件无法以文本显示",
