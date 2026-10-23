@@ -27,7 +27,7 @@ function baseProps(overrides = {}) {
       expanded: true,
       page: "chat",
       spaceName: "Personal space",
-      spacePath: "~/.dexon",
+      spacePath: "/Users/tester/.dexon",
       sessions: navigationSessions,
       loading: false,
       error: null,
@@ -55,15 +55,27 @@ test("expanded navigation presents space, main entries, history and settings", a
   const { props } = baseProps();
   const view = await mount(t, NavSidebar, props);
   assert.ok(button(view.container, "Hide sidebar"));
-  assert.ok(view.container.querySelector('[aria-haspopup="menu"]'));
+  assert.ok(byRole(view.container, "searchbox", "Search sessions"), "the session search is always visible");
+  assert.ok(button(view.container, "Actions for Personal space"), "the current project offers its space actions");
   assert.match(view.container.textContent, /Personal space/);
   const newSession = button(view.container, "New session");
   assert.ok(newSession, "the navigation offers an entry named New session");
   assert.equal(newSession.getAttribute("aria-current"), null);
   assert.equal(button(view.container, "Plugins & Skills").getAttribute("aria-current"), null);
-  for (const label of ["Search sessions", "Refresh", "Settings"]) assert.ok(button(view.container, label));
-  assert.match(view.container.textContent, /History/);
+  for (const label of ["Add project space from folder…", "Settings"]) assert.ok(button(view.container, label));
+  assert.match(view.container.textContent, /Project spaces/);
   assert.match(view.container.textContent, /alpha render bug/);
+});
+
+test("the top bar shows the decorative product icon on the button that hides the sidebar", async (t) => {
+  const { props, calls } = baseProps();
+  const view = await mount(t, NavSidebar, props);
+  const toggle = button(view.container, "Hide sidebar");
+  const icon = toggle.querySelector("img");
+  assert.ok(icon, "the product icon is shown in the top bar");
+  assert.equal(icon.getAttribute("aria-hidden"), "true", "the product icon stays decorative");
+  await click(toggle);
+  assert.equal(calls.toggle, 1);
 });
 
 test("the first main entry starts a new session and the second one shows Plugins & Skills", async (t) => {
@@ -80,17 +92,46 @@ test("the first main entry starts a new session and the second one shows Plugins
   assert.deepEqual(calls.navigate, ["resources"]);
 });
 
-test("the history header offers search and refresh without a new-session entry", async (t) => {
-  const { props, calls } = baseProps();
+test("the project list header adds a folder as a project space without a new-session entry", async (t) => {
+  let chosen = 0;
+  const { props, calls } = baseProps({ onChooseFolder: () => chosen++ });
   const view = await mount(t, NavSidebar, props);
-  const history = byRole(view.container, "navigation", "History");
-  assert.ok(button(history, "Refresh"));
-  assert.equal(allByRole(history, "button", /^new session$/i).length, 0, "history has no new-session entry of its own");
+  const projects = byRole(view.container, "navigation", "Project spaces");
+  assert.equal(
+    allByRole(projects, "button", /^new session$/i).length,
+    0,
+    "the list has no new-session entry of its own",
+  );
+  await click(button(projects, "Add project space from folder…"));
+  assert.equal(chosen, 1);
   assert.equal(calls.newSession, 0);
-  await click(button(history, "Refresh"));
-  assert.equal(calls.refresh, 1);
-  await click(button(history, "Search sessions"));
-  assert.ok(history.querySelector('input[type="search"]'));
+});
+
+test("sessions are grouped under the project they belong to and other projects start folded", async (t) => {
+  const sessions = [
+    ...navigationSessions,
+    {
+      ...navigationSessions[2],
+      id: "sess-gamma",
+      name: "gamma elsewhere",
+      cwd: "/work/gamma",
+      projectRoot: "/work/gamma",
+    },
+  ];
+  const { props } = baseProps({ sessions, spacePath: "/Users/tester/.dexon" });
+  const view = await mount(t, NavSidebar, props);
+  const current = button(view.container, "Personal space");
+  const other = button(view.container, "gamma");
+  assert.equal(current.getAttribute("aria-expanded"), "true");
+  assert.equal(other.getAttribute("aria-expanded"), "false");
+  assert.ok(precedes(current, other), "the current project is listed first");
+  assert.match(view.container.textContent, /alpha render bug/);
+  assert.doesNotMatch(view.container.textContent, /gamma elsewhere/);
+  await click(other);
+  assert.equal(other.getAttribute("aria-expanded"), "true");
+  assert.match(view.container.textContent, /gamma elsewhere/);
+  await click(current);
+  assert.doesNotMatch(view.container.textContent, /alpha render bug/);
 });
 
 test("the active page is marked on the matching main entry only", async (t) => {
@@ -138,7 +179,6 @@ test("collapsing and expanding navigation through its buttons resets the session
     return createElement(NavSidebar, { ...props, expanded, onToggleExpanded: () => setExpanded((value) => !value) });
   }
   const view = await mount(t, NavigationOwner);
-  await click(button(view.container, "Search sessions"));
   const search = view.container.querySelector('input[type="search"]');
   await input(search, "beta");
   assert.match(view.container.textContent, /beta unrelated/);
@@ -146,10 +186,7 @@ test("collapsing and expanding navigation through its buttons resets the session
   await click(button(view.container, "Hide sidebar"));
   assert.equal(view.container.querySelector('input[type="search"]'), null);
   await click(button(view.container, "Show sidebar"));
-  assert.equal(view.container.querySelector('input[type="search"]'), null);
+  assert.equal(view.container.querySelector('input[type="search"]').value, "");
   assert.match(view.container.textContent, /alpha render bug/);
   assert.match(view.container.textContent, /beta unrelated/);
 });
-
-// Width, clipping and overflow are exercised by test:nav-layout-electron with
-// the real production styles/fonts. JSDOM does not claim to measure layout.

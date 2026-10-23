@@ -4,16 +4,13 @@ import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory } from "./nav-history";
+import { NavTopBar } from "./nav-top-bar";
+import { spaceFolderName } from "@/lib/space-identity";
+import { worktreePathsEqual } from "@shared/worktree-path";
 import { NewSessionIcon, PluginsIcon, SettingsIcon } from "./nav-icons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
-
-// Phase 4 composition root of the new app navigation sidebar. Two states:
-// the expanded 224px navigation (top space, main functions, history, bottom
-// settings) and the collapsed 52px icon rail with exactly the four approved
-// entries. Presentation only — data and actions arrive via props; the space
-// coordination (Phase 6) and the production wiring (Phase 11) own the rest.
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
@@ -142,6 +139,11 @@ export function NavSidebar({
   spacePanel,
   foldedSessionIds,
   onToggleFold,
+  currentProject,
+  projectName,
+  isPinnedProject,
+  openProjects,
+  onToggleProject,
 }: {
   expanded: boolean;
   page: NavPage;
@@ -170,12 +172,20 @@ export function NavSidebar({
   spacePanel?: ReactNode;
   foldedSessionIds?: ReadonlySet<string>;
   onToggleFold?: (sessionId: string) => void;
+  currentProject?: string;
+  projectName?: (root: string) => string;
+  isPinnedProject?: (root: string) => boolean;
+  openProjects?: ReadonlyMap<string, boolean>;
+  onToggleProject?: (key: string, open: boolean) => void;
 }) {
   const { t } = useI18n();
-  // The friendly space name defaults to the personal-space label (N05): the
-  // space coordination (Phase 6) passes an explicit name when one exists.
   const spaceName = spaceNameProp ?? t("personalSpace", "Personal space");
   const [activeEntry, setActiveEntry] = useState(-1);
+  const [query, setQuery] = useState("");
+  if (!expanded && query) setQuery("");
+  const projectRoot = currentProject ?? spacePath;
+  const nameOfProject =
+    projectName ?? ((root: string) => (worktreePathsEqual(root, projectRoot) ? spaceName : spaceFolderName(root)));
   const currentPage = settingsOpen ? null : page;
   const onNewSessionPage = currentPage === "chat" && selectedSessionId === null;
 
@@ -267,15 +277,7 @@ export function NavSidebar({
         flexShrink: 0,
       }}
     >
-      <NavSpaceMenu
-        spaceName={spaceName}
-        spacePath={spacePath}
-        onToggleExpanded={onToggleExpanded}
-        onOpenFolder={onOpenFolder}
-        onChooseFolder={onChooseFolder}
-        onSwitchSpace={onSwitchSpace}
-        onBackToPersonalSpace={onBackToPersonalSpace}
-      />
+      <NavTopBar query={query} onQueryChange={setQuery} onToggleExpanded={onToggleExpanded} />
       {spacePanel}
 
       <div
@@ -355,8 +357,28 @@ export function NavSidebar({
       >
         <NavHistory
           sessions={sessions}
+          query={query}
           loading={loading}
           error={error}
+          tree={{
+            currentProject: projectRoot,
+            projectName: nameOfProject,
+            isPinnedProject,
+            openProjects,
+            onToggleProject,
+            onChooseFolder,
+            renderCurrentActions: (name, revealed) => (
+              <NavSpaceMenu
+                spaceName={name}
+                spacePath={spacePath}
+                revealed={revealed}
+                onOpenFolder={onOpenFolder}
+                onChooseFolder={onChooseFolder}
+                onSwitchSpace={onSwitchSpace}
+                onBackToPersonalSpace={onBackToPersonalSpace}
+              />
+            ),
+          }}
           selectedSessionId={selectedSessionId}
           liveStatuses={liveStatuses}
           runningSessionIds={runningSessionIds}
@@ -365,7 +387,6 @@ export function NavSidebar({
           onSelectSession={onSelectSession}
           onRenamed={onRefreshSessions}
           onSessionDeleted={(id) => onSessionDeleted?.(id)}
-          onRefreshSessions={onRefreshSessions}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={onToggleFold}
         />

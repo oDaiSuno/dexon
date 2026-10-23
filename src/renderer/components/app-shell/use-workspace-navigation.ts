@@ -4,6 +4,7 @@ import { beginSessionLoadTrace } from "@/lib/session-performance";
 import { readSessionIdFromSearch, routerCompat } from "@/lib/router-compat";
 import { getSessionCatalog } from "@/lib/session-catalog";
 import { subscribeOpenSessionRequests } from "@/lib/session-open-request";
+import { requestSessionSearchFocus } from "@/lib/session-search-focus";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { SessionInfo } from "@/lib/types";
 
@@ -85,6 +86,7 @@ export function useWorkspaceNavigation({
     const offSwitch = window.piBridge?.onMenu?.("switch-session", () => {
       onSwitchSessionRequested();
       setRefreshKey((k) => k + 1);
+      requestSessionSearchFocus();
     });
     return () => {
       offDeep?.();

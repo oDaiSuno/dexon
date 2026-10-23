@@ -222,7 +222,7 @@ export async function startNavigation(t, options = {}, external = navigationBoun
       return waitFor(() => control(scene.resourcePanel(), "textbox", labels.skillContent));
     },
     async menu(space = labels.personal) {
-      await click(control(scene.navigation(), "button", space));
+      await click(control(scene.navigation(), "button", labels.spaceActions.replace("{name}", space)));
       return waitFor(() => control(scene.navigation(), "menu", space));
     },
     // The real working directory, observed where the user's action leaves the

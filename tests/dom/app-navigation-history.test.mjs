@@ -33,7 +33,6 @@ test("selecting a history row shows that conversation and marks that row as the 
 test("the history search in the production navigation selects the matching session rather than the first conversation", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  await click(control(scene.navigation(), "button", "Search sessions"));
   await input(control(scene.navigation(), "searchbox", "Search sessions"), "personal-other");
   assert.equal(roles(scene.navigation(), "button", "Personal release notes").length, 0);
   await click(control(scene.navigation(), "button", "Another personal conversation"));
@@ -55,11 +54,11 @@ test("New session on the main navigation replaces the open conversation with an 
   historyRows(scene, "Personal release notes", "Another personal conversation");
 });
 
-test("the history header offers search and refresh without a separate new-session control", async (t) => {
+test("the navigation keeps a search box always visible and the project list offers adding a folder without a separate new-session control", async (t) => {
   const scene = await startNavigation(t);
   const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  control(history, "button", "Search sessions");
-  control(history, "button", "Refresh");
+  control(scene.navigation(), "searchbox", "Search sessions");
+  control(history, "button", "Add project space from folder…");
   assert.equal(roles(history, "button", /^new session$/i).length, 0, "history has no new-session entry of its own");
 });
 
@@ -125,14 +124,23 @@ test("a conversation that finishes in the background is marked as new activity u
   assert.equal(historyRowsWithStatus(scene, "Another personal conversation", "New activity").length, 0);
 });
 
-test("refreshing history shows a conversation the Host recorded after the list was first loaded", async (t) => {
+test("the Switch Session command reloads history and shows a conversation the Host recorded after the list was first loaded", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
   await scene.settled();
   scene.external.addConversation(laterConversation());
   assert.equal(roles(scene.history(), "button", "Later personal conversation").length, 0);
-  await click(control(scene.history(), "button", "Refresh"));
+  await act(async () => scene.external.menu("switch-session"));
   await waitFor(() => control(scene.history(), "button", "Later personal conversation"));
+});
+
+test("the Switch Session command puts the keyboard in the session search box", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, "Personal release notes"));
+  await act(async () => scene.external.menu("switch-session"));
+  await waitFor(() =>
+    assert.equal(dom.window.document.activeElement, control(scene.navigation(), "searchbox", "Search sessions")),
+  );
 });
 
 async function collapseAndExpand(scene) {
@@ -159,10 +167,9 @@ test("folded forks stay folded after the navigation is collapsed and expanded ag
 test("collapsing the navigation ends an active history search", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  await click(control(scene.history(), "button", "Search sessions"));
-  await input(control(scene.history(), "searchbox", "Search sessions"), "personal-other");
+  await input(control(scene.navigation(), "searchbox", "Search sessions"), "personal-other");
   await waitFor(() => assert.equal(roles(scene.history(), "button", "Personal release notes").length, 0));
   await collapseAndExpand(scene);
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  assert.equal(roles(scene.history(), "searchbox").length, 0);
+  assert.equal(control(scene.navigation(), "searchbox", "Search sessions").value, "");
 });

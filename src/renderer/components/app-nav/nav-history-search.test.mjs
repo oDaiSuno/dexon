@@ -6,13 +6,9 @@ import test, { after } from "node:test";
 // The DOM environment must be evaluated before react and react-dom so their
 // module-level feature detection sees a realistic browser (fixture contract).
 import { dom, createManagedDomRoot, restoreGlobals } from "../resource-dom-environment.mjs";
+import { act } from "react";
 import { click, input as enterText, keyDown } from "../../../../tests/support/dom-events.mjs";
-import { createElement } from "react";
-
-// Phase 4 contract tests for the on-demand session search inside the new
-// navigation history region: closed until the header icon is used, focused on
-// open, filtering across the five approved fields with hit ancestors, and the
-// two explicit close paths that both clear the filter.
+import { createElement, useState } from "react";
 
 after(() => {
   restoreGlobals();
@@ -20,9 +16,10 @@ after(() => {
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { NavHistory } = await importTestBundle("app-nav-history", {
+const { NavSidebar, requestSessionSearchFocus } = await importTestBundle("app-nav-history", {
   stdin: {
-    contents: 'export { NavHistory } from "./src/renderer/components/app-nav/nav-history.tsx";',
+    contents:
+      'export { NavSidebar } from "./src/renderer/components/app-nav/nav-sidebar.tsx"; export { requestSessionSearchFocus } from "./src/renderer/lib/session-search-focus.ts";',
     resolveDir: projectRoot,
     sourcefile: "app-nav-history-test-entry.tsx",
     loader: "tsx",
@@ -72,7 +69,19 @@ const CAST = [
 ];
 
 function historyProps(overrides = {}) {
+  const noop = () => {};
   return {
+    expanded: true,
+    page: "chat",
+    spaceName: "Personal space",
+    spacePath: "/Users/tester/.dexon",
+    onToggleExpanded: noop,
+    onNavigate: noop,
+    onOpenSettings: noop,
+    onOpenFolder: noop,
+    onChooseFolder: noop,
+    onSwitchSpace: noop,
+    onBackToPersonalSpace: noop,
     sessions: CAST,
     loading: false,
     error: null,
@@ -99,36 +108,49 @@ function visibleTitles(root) {
     .filter((text) => text.trim().length > 0);
 }
 
-async function openSearch(root) {
-  const toggle = root.container.querySelector('[aria-label="Search sessions"]');
-  assert.ok(toggle, "the history header must expose the on-demand search trigger");
-  await click(toggle);
-  return root.container.querySelector('input[type="search"]');
+function searchBox(root) {
+  const input = root.container.querySelector('input[type="search"]');
+  assert.ok(input, "the navigation must always show the session search box");
+  return input;
 }
 
 async function type(_root, input, value) {
   await enterText(input, value);
 }
 
-test("search stays closed until the header icon opens it, then it is focused", async () => {
+test("the search box is always visible and the Switch Session request puts the keyboard in it", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
-    assert.equal(root.container.querySelector('input[type="search"]'), null, "search must start closed");
-
-    const input = await openSearch(root);
-    assert.ok(input, "the search input must appear after opening");
-    assert.equal(dom.window.document.activeElement, input, "the search input must take focus on open");
+    await root.render(createElement(NavSidebar, historyProps()));
+    const input = searchBox(root);
+    assert.notEqual(dom.window.document.activeElement, input, "the search box does not grab focus on its own");
+    await act(async () => requestSessionSearchFocus());
+    assert.equal(dom.window.document.activeElement, input, "a Switch Session request focuses the search box");
   } finally {
     await root.unmount();
   }
 });
 
+test("a Switch Session request made while the navigation is not shown focuses the search box once it appears", async () => {
+  const root = createManagedDomRoot();
+  try {
+    function NavigationOwner() {
+      const [expanded, setExpanded] = useState(false);
+      return createElement(NavSidebar, { ...historyProps(), expanded, onToggleExpanded: () => setExpanded((v) => !v) });
+    }
+    await root.render(createElement(NavigationOwner));
+    await act(async () => requestSessionSearchFocus());
+    await click(root.container.querySelector('[aria-label="Show sidebar"]'));
+    assert.equal(dom.window.document.activeElement, searchBox(root));
+  } finally {
+    await root.unmount();
+  }
+});
 test("filtering matches names and first messages", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
-    const input = await openSearch(root);
+    await root.render(createElement(NavSidebar, historyProps()));
+    const input = searchBox(root);
     await type(root, input, "render");
 
     const titles = visibleTitles(root);
@@ -149,14 +171,14 @@ test("filtering matches names and first messages", async () => {
 test("filtering matches the five approved fields: id, cwd and branch", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
+    await root.render(createElement(NavSidebar, historyProps()));
 
     for (const [query, expectedTitle] of [
       ["qq99", "id marker"],
       ["proj-unique42", "cwd marker"],
       ["feature-x", "branch marker"],
     ]) {
-      const input = await openSearch(root);
+      const input = searchBox(root);
       await type(root, input, query);
       const titles = visibleTitles(root);
       assert.ok(
@@ -175,8 +197,8 @@ test("filtering matches the five approved fields: id, cwd and branch", async () 
 test("a deep hit keeps its whole ancestor chain visible", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
-    const input = await openSearch(root);
+    await root.render(createElement(NavSidebar, historyProps()));
+    const input = searchBox(root);
     await type(root, input, "deephit");
 
     const titles = visibleTitles(root);
@@ -192,35 +214,37 @@ test("a deep hit keeps its whole ancestor chain visible", async () => {
   }
 });
 
-test("the clear button empties the filter and closes the search", async () => {
+test("the clear button empties the filter and keeps the search box", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
-    const input = await openSearch(root);
+    await root.render(createElement(NavSidebar, historyProps()));
+    const before = visibleTitles(root).length;
+    const input = searchBox(root);
     await type(root, input, "render");
-    assert.ok(visibleTitles(root).length < CAST.length, "the filter must narrow the list first");
+    assert.ok(visibleTitles(root).length < before, "the filter must narrow the list first");
 
     const clear = root.container.querySelector('[aria-label="Clear session search"]');
     await click(clear);
 
-    assert.equal(root.container.querySelector('input[type="search"]'), null, "the search must close");
-    assert.equal(visibleTitles(root).length, CAST.length, "the full list must be restored");
+    assert.equal(searchBox(root).value, "", "the search box is emptied");
+    assert.equal(visibleTitles(root).length, before, "the full list must be restored");
   } finally {
     await root.unmount();
   }
 });
 
-test("Escape inside the input closes the search and clears the filter", async () => {
+test("Escape inside the input clears the filter", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavHistory, historyProps()));
-    const input = await openSearch(root);
+    await root.render(createElement(NavSidebar, historyProps()));
+    const before = visibleTitles(root).length;
+    const input = searchBox(root);
     await type(root, input, "render");
 
     await keyDown(input, "Escape");
 
-    assert.equal(root.container.querySelector('input[type="search"]'), null, "Escape must close the search");
-    assert.equal(visibleTitles(root).length, CAST.length, "Escape must clear the filter");
+    assert.equal(searchBox(root).value, "", "Escape must empty the search box");
+    assert.equal(visibleTitles(root).length, before, "Escape must clear the filter");
   } finally {
     await root.unmount();
   }

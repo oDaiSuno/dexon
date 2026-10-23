@@ -58,6 +58,7 @@ export function NavigationSidebar({
   const { t } = useI18n();
   const [mobileReady, setMobileReady] = useState(false);
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [openProjects, setOpenProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [pickerOpen, setPickerOpen] = useState(false);
   const [spaceError, setSpaceError] = useState<string | null>(null);
 
@@ -113,6 +114,10 @@ export function NavigationSidebar({
     });
   }, []);
 
+  const toggleProject = useCallback((key: string, open: boolean) => {
+    setOpenProjects((current) => new Map(current).set(key, open));
+  }, []);
+
   const selectSession = useCallback(
     (session: SessionInfo) => {
       requestDeparture(() => {
@@ -163,13 +168,10 @@ export function NavigationSidebar({
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
   const spaceName = spacePath && !personal(spacePath) ? spaceFolderName(spacePath) : undefined;
 
+  const projectName = (path: string) => (personal(path) ? t("personalSpace", "Personal space") : spaceFolderName(path));
   const spaces = getRecentProjects(sessions)
     .filter((path) => !selectedProject || !worktreePathsEqual(path, selectedProject))
-    .map((path) => ({
-      path,
-      name: personal(path) ? t("personalSpace", "Personal space") : spaceFolderName(path),
-      detail: abbreviateHomePath(path, homeDir),
-    }));
+    .map((path) => ({ path, name: projectName(path), detail: abbreviateHomePath(path, homeDir) }));
 
   const phase = coordination.spacePhase;
   const notice: SpaceNotice | null =
@@ -185,10 +187,6 @@ export function NavigationSidebar({
       : spaceError
         ? { message: spaceError }
         : null;
-
-  const projectSessions = selectedProject
-    ? sessions.filter((session) => worktreePathsEqual(session.projectRoot ?? session.cwd, selectedProject))
-    : [];
 
   const pendingClass = mobileReady ? "" : " sidebar-mobile-pending";
 
@@ -219,7 +217,12 @@ export function NavigationSidebar({
           settingsOpen={settingsOpen}
           spaceName={spaceName}
           spacePath={spacePath}
-          sessions={projectSessions}
+          sessions={sessions}
+          currentProject={selectedProject ?? spacePath}
+          projectName={projectName}
+          isPinnedProject={personal}
+          openProjects={openProjects}
+          onToggleProject={toggleProject}
           loading={directory.loading}
           error={directory.error}
           selectedSessionId={shownSessionId}

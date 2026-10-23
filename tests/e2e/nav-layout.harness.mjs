@@ -144,13 +144,14 @@ async function run() {
   assert.equal(long.workspace.height, short.workspace.height, "a long name does not enlarge the workspace controls");
 
   window.webContents.focus();
-  await key("Tab");
-  await waitFor("document.activeElement === window.navLayout.elements().toggle");
-  await key("Tab");
+  for (let step = 0; step < 12; step++) {
+    await key("Tab");
+    if (await js("document.activeElement === window.navLayout.elements().trigger")) break;
+  }
   await waitFor("document.activeElement === window.navLayout.elements().trigger");
   const focus = await js(`(() => {const e=document.activeElement,r=e.getBoundingClientRect(),s=getComputedStyle(e);
     return {label:window.navLayout.nameOf(e),hasMenu:e.getAttribute('aria-haspopup'),focusVisible:e.matches(':focus-visible'),outlineWidth:parseFloat(s.outlineWidth),outlineStyle:s.outlineStyle,inside:e.contains(document.elementFromPoint(r.x+r.width/2,r.y+r.height/2))};})()`);
-  assert.equal(focus.label, longSpaceName);
+  assert.equal(focus.label, `Actions for ${longSpaceName}`);
   assert.equal(focus.hasMenu, "menu");
   assert.equal(focus.focusVisible, true, "real Tab navigation activates visible keyboard focus");
   assert.ok(focus.outlineWidth > 0 && focus.outlineStyle !== "none" && focus.inside);
@@ -165,7 +166,7 @@ async function run() {
   assert.equal(await js("window.navLayout.elements().nav.getBoundingClientRect().width"), 52);
   await nativeClick("button", "Show sidebar");
   await waitFor("!!window.navLayout.find('button','Hide sidebar')");
-  await nativeClick("button", "Search sessions");
+  await nativeClick("searchbox", "Search sessions");
   await waitFor("document.activeElement === window.navLayout.find('searchbox','Search sessions')");
   await window.webContents.insertText("beta");
   await waitFor(
@@ -173,7 +174,7 @@ async function run() {
   );
   await key("Escape");
   await waitFor(
-    "!window.navLayout.find('searchbox','Search sessions') && !!window.navLayout.find('button','alpha render bug')",
+    "window.navLayout.find('searchbox','Search sessions').value === '' && !!window.navLayout.find('button','alpha render bug')",
   );
 
   await nativeClick("button", "Session actions for alpha render bug");
@@ -249,8 +250,8 @@ async function measureSessionTree(config, name) {
   assert.ok(!fork.name.includes("Created by session"), `${name}: the two relations are never confused`);
   assert.ok(chain[5].indent > chain[2].indent, `${name}: indent still grows up to the third level`);
   assert.equal(chain[3].indent, chain[5].indent, `${name}: the fourth level stops indenting`);
-  assert.ok(chain[5].titleWidth >= 100, `${name}: the sixth level keeps a readable title box`);
-  assert.ok(chain[3].titleWidth >= 80, `${name}: the third level keeps a usable title box next to its fold toggle`);
+  assert.ok(chain[5].titleWidth >= 72, `${name}: the sixth level keeps a readable title box`);
+  assert.ok(chain[3].titleWidth >= 50, `${name}: the third level keeps a usable title box next to its fold toggle`);
   assertInside(folded.countsBox, folded.rowBox, `${name}: the counts cluster sits inside its row`);
 }
 

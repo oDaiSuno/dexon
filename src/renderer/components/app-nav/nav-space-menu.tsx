@@ -1,14 +1,8 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import appIconUrl from "../../../../build/icon.png";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import { AnimatedDropdown } from "../session-sidebar/animated-dropdown";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
 import { SPACE_CARD_STYLE, SPACE_ROW_STYLE, SpaceIdentity } from "./nav-space-picker";
-
-// Phase 4: top area of the new navigation — collapse toggle, app icon,
-// friendly space name, and the space menu holding the abbreviated path plus
-// the four space actions. Presentation only: the actions are callbacks owned
-// by the future space coordination (wired in Phase 6).
 
 interface SpaceActions {
   onOpenFolder: () => void;
@@ -22,7 +16,7 @@ const MENU_ROW_HEIGHT = 36;
 export function NavSpaceMenu({
   spaceName,
   spacePath,
-  onToggleExpanded,
+  revealed = true,
   onOpenFolder,
   onChooseFolder,
   onSwitchSpace,
@@ -30,10 +24,9 @@ export function NavSpaceMenu({
 }: {
   spaceName: string;
   spacePath: string;
-  onToggleExpanded: () => void;
+  revealed?: boolean;
 } & SpaceActions) {
   const { t } = useI18n();
-  const spaceNameId = useId();
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -141,124 +134,45 @@ export function NavSpaceMenu({
   ];
 
   return (
-    <div ref={rootRef} style={{ position: "relative", padding: "10px 10px 8px", flexShrink: 0 }}>
-      <div
-        role="group"
-        aria-label={t("workspaceControls", "Workspace controls")}
-        style={{ display: "flex", alignItems: "center", gap: 6 }}
+    <div ref={rootRef}>
+      <button
+        type="button"
+        onClick={() => setMenuOpen((open) => !open)}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        aria-label={t("projectActionsFor", "Actions for {name}").replace("{name}", spaceName)}
+        title={spacePath}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 24,
+          height: 24,
+          padding: 0,
+          background: menuOpen ? "var(--fx-surface-selected)" : "transparent",
+          border: "none",
+          borderRadius: "var(--radius-chip)",
+          color: menuOpen ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
+          cursor: "pointer",
+          opacity: revealed || menuOpen ? 1 : 0,
+          transition:
+            "background var(--duration-quick) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out)",
+        }}
       >
-        <button
-          type="button"
-          onClick={onToggleExpanded}
-          title={t("hideSidebar", "Hide sidebar")}
-          aria-label={t("hideSidebar", "Hide sidebar")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 28,
-            height: 28,
-            padding: 0,
-            flexShrink: 0,
-            background: "transparent",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--fx-text-secondary)",
-            cursor: "pointer",
-            transition:
-              "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--fx-surface-hover)";
-            e.currentTarget.style.color = "var(--fx-text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--fx-text-secondary)";
-          }}
-        >
-          <PanelLeftIcon />
-        </button>
-        <img
-          src={appIconUrl}
-          alt=""
-          aria-hidden="true"
-          width={18}
-          height={18}
-          style={{ borderRadius: "var(--radius-chip)", flexShrink: 0 }}
-        />
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-labelledby={spaceNameId}
-          title={spacePath}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 6px",
-            background: menuOpen ? "var(--fx-surface-hover)" : "transparent",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--fx-text-primary)",
-            cursor: "pointer",
-            transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-          }}
-          onMouseEnter={(e) => {
-            if (!menuOpen) e.currentTarget.style.background = "var(--fx-surface-hover)";
-          }}
-          onMouseLeave={(e) => {
-            if (!menuOpen) e.currentTarget.style.background = "transparent";
-          }}
-        >
-          <span
-            id={spaceNameId}
-            className="type-body-medium"
-            style={{
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              textAlign: "left",
-            }}
-          >
-            {spaceName}
-          </span>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            style={{
-              flexShrink: 0,
-              color: "var(--fx-text-tertiary)",
-              transform: menuOpen ? "rotate(180deg)" : "none",
-              transition: "transform var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-            }}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </div>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="19" cy="12" r="1.7" />
+        </svg>
+      </button>
 
       <AnimatedDropdown
         open={menuOpen}
         style={{
           position: "absolute",
-          top: "calc(100% - 2px)",
-          left: 8,
-          right: 8,
+          top: "calc(100% + var(--space-1))",
+          left: 0,
+          right: 0,
           zIndex: 40,
         }}
       >

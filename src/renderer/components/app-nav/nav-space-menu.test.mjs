@@ -33,14 +33,11 @@ const { NavSpaceMenu } = await importTestBundle("app-nav-space-menu", {
 });
 
 function spaceMenuProps(overrides = {}) {
-  const calls = { toggle: 0, openFolder: 0, chooseFolder: 0, switchSpace: 0, back: 0 };
+  const calls = { openFolder: 0, chooseFolder: 0, switchSpace: 0, back: 0 };
   return {
     props: {
       spaceName: "Personal space",
       spacePath: "~/.dexon",
-      onToggleExpanded: () => {
-        calls.toggle += 1;
-      },
       onOpenFolder: () => {
         calls.openFolder += 1;
       },
@@ -155,20 +152,13 @@ test("a mousedown outside the menu closes it", async () => {
   }
 });
 
-test("the top row carries the collapse toggle and the decorative app icon", async () => {
+test("the menu trigger is named after the project it acts on", async () => {
   const root = createManagedDomRoot();
   try {
-    const { props, calls } = spaceMenuProps();
+    const { props } = spaceMenuProps();
     await root.render(createElement(NavSpaceMenu, props));
-
-    const toggle = querySelector(root.container, '[aria-label="Hide sidebar"]');
-    assert.ok(toggle, "the collapse toggle must be part of the top space row");
-    await click(toggle);
-    assert.equal(calls.toggle, 1, "the toggle must hand control to the sidebar owner");
-
-    const icon = querySelector(root.container, "img");
-    assert.ok(icon, "the app icon must be visible in the top space row");
-    assert.equal(icon.getAttribute("aria-hidden"), "true", "the app icon must stay decorative");
+    const trigger = querySelector(root.container, '[aria-haspopup="menu"]');
+    assert.equal(trigger.getAttribute("aria-label"), "Actions for Personal space");
   } finally {
     await root.unmount();
   }

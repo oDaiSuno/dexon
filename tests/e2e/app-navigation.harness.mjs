@@ -330,11 +330,8 @@ async function run() {
     return { ...measurement, restoredHistory: nativeHistoryTitle };
   });
   await scene("09-space-menu-keyboard", async () => {
-    await focusByTab("Hide sidebar");
-    await key("Tab");
-    await waitFor(async () => (await page("focus")).name === "Personal space", "Personal space focused by Tab");
-    const focus = await page("focus");
-    assert.equal(focus.name, "Personal space");
+    const focus = await focusByTab("Actions for Personal space");
+    assert.equal(focus.name, "Actions for Personal space");
     assert.ok(
       focus.focusVisible && focus.outlineWidth > 0 && focus.outlineStyle !== "none",
       "workspace has a visible real-keyboard focus ring",

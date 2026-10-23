@@ -8,9 +8,10 @@ import { act, create } from "react-test-renderer";
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { SessionGroupsSection } = await importTestBundle("session-sidebar-session-groups", {
+const { ProjectSessionList, SessionListStatus } = await importTestBundle("session-sidebar-session-groups", {
   stdin: {
-    contents: 'export { SessionGroupsSection } from "./src/renderer/components/session-sidebar/session-groups.tsx";',
+    contents:
+      'export { ProjectSessionList, SessionListStatus } from "./src/renderer/components/session-sidebar/session-groups.tsx";',
     resolveDir: projectRoot,
     sourcefile: "session-groups-test-entry.tsx",
     loader: "tsx",
@@ -98,9 +99,6 @@ function sessionFixture(id, overrides = {}) {
 function viewProps(overrides = {}) {
   return {
     sessions: [],
-    loading: false,
-    error: null,
-    hasActiveFilter: false,
     selectedSessionId: null,
     runningSessionIds: new Set(),
     unreadSessionIds: new Set(),
@@ -112,10 +110,10 @@ function viewProps(overrides = {}) {
   };
 }
 
-async function renderView(props) {
+async function renderView(props, component = ProjectSessionList) {
   let renderer;
   await act(async () => {
-    renderer = create(createElement(SessionGroupsSection, props));
+    renderer = create(createElement(component, props));
   });
   return renderer;
 }
@@ -130,27 +128,28 @@ function textOf(root) {
   return parts;
 }
 
-test("sessions render under the three date groups in group order", async () => {
+test("a project's sessions render as one list along a single guide line, newest tree first", async () => {
   const restore = installWindowStub();
   let root;
   try {
     const sessions = [
+      sessionFixture("older-1", { name: "older session", modified: daysAgoAtMidnight(30) }),
       sessionFixture("today-1", { name: "today session", modified: todayStart.toISOString() }),
       sessionFixture("recent-1", { name: "recent session", modified: daysAgoAtMidnight(2) }),
-      sessionFixture("older-1", { name: "older session", modified: daysAgoAtMidnight(30) }),
     ];
     root = await renderView(viewProps({ sessions }));
+    const lists = root.root.findAll((node) => node.type === "div" && node.props.role === "list");
+    assert.equal(lists.length, 1, "the project shows one list, not one per date");
     const text = textOf(root).join("\n");
     for (const label of ["Today", "Last 7 days", "Older"]) {
-      assert.match(text, new RegExp(label), `group label ${label} must render`);
+      assert.doesNotMatch(text, new RegExp(label), `no date heading ${label}`);
     }
-    const todayIndex = text.indexOf("Today");
-    const recentIndex = text.indexOf("Last 7 days");
-    const olderIndex = text.indexOf("Older");
-    assert.ok(todayIndex < recentIndex && recentIndex < olderIndex, "groups must render today → recent → older");
-    for (const name of ["today session", "recent session", "older session"]) {
-      assert.match(text, new RegExp(name));
-    }
+    const order = ["today session", "recent session", "older session"].map((name) => text.indexOf(name));
+    assert.ok(
+      order.every((index) => index >= 0),
+      "every session renders",
+    );
+    assert.ok(order[0] < order[1] && order[1] < order[2], "trees are ordered by their newest activity");
   } finally {
     root?.unmount?.();
     restore();
@@ -216,11 +215,13 @@ test("loading and error states render their own messages", async () => {
   const restore = installWindowStub();
   let root;
   try {
-    root = await renderView(viewProps({ loading: true }));
+    const status = (props) =>
+      renderView({ empty: false, hasActiveFilter: false, loading: false, error: null, ...props }, SessionListStatus);
+    root = await status({ loading: true });
     assert.match(textOf(root).join("\n"), /Loading/, "loading state must render while fetching");
 
     await root.unmount();
-    root = await renderView(viewProps({ error: "Session list failed to load" }));
+    root = await status({ error: "Session list failed to load" });
     assert.match(textOf(root).join("\n"), /Session list failed to load/, "error state must surface the load failure");
   } finally {
     root?.unmount?.();
@@ -232,11 +233,13 @@ test("empty states distinguish a filtered search from an empty directory", async
   const restore = installWindowStub();
   let root;
   try {
-    root = await renderView(viewProps({ hasActiveFilter: true }));
+    const status = (props) =>
+      renderView({ empty: true, hasActiveFilter: false, loading: false, error: null, ...props }, SessionListStatus);
+    root = await status({ hasActiveFilter: true });
     assert.match(textOf(root).join("\n"), /No matching sessions/, "filtered empty state must be explicit");
 
     await root.unmount();
-    root = await renderView(viewProps());
+    root = await status({});
     assert.match(textOf(root).join("\n"), /No sessions found/, "empty directory state must be explicit");
   } finally {
     root?.unmount?.();
