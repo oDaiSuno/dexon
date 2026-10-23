@@ -8,7 +8,7 @@
   border: 1px solid var(--fx-line-default);
   border-radius: var(--radius-menu);
   background: var(--fx-surface-raised);
-  box-shadow: var(--shadow-popover);
+  box-shadow: var(--shadow-menu);
   transform-origin: top right;
   cursor: default;
 }

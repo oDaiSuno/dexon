@@ -187,20 +187,14 @@ export function SessionItem({
   }, []);
 
   const ITEM_HEIGHT = 30;
-  const rowBackground = confirmDelete
-    ? "var(--fx-status-danger-soft)"
-    : renaming
-      ? "var(--fx-surface-raised)"
-      : isSelected || actionsOpen
-        ? "var(--fx-surface-selected)"
-        : hovered
-          ? "var(--fx-surface-hover)"
-          : "transparent";
-  const rowBorder = confirmDelete
-    ? "var(--fx-status-danger-border)"
-    : renaming
-      ? "var(--fx-accent-blue)"
-      : "transparent";
+  const rowBackground = renaming
+    ? "var(--fx-surface-raised)"
+    : isSelected || actionsOpen || confirmDelete
+      ? "var(--fx-surface-selected)"
+      : hovered
+        ? "var(--fx-surface-hover)"
+        : "transparent";
+  const rowBorder = renaming ? "var(--fx-accent-blue)" : "transparent";
   const titleTone = sessionRowTitleClass({ activity, relation, isSelected });
   const showTime = !showCounts && depth < MAX_TREE_INDENT_DEPTH && sessionRowShowsTime(activity);
 
