@@ -1,6 +1,6 @@
 export const enUS: Record<string, string> = {
-  addProvider: "Add provider",
-  configured: "configured",
+  addProvider: "Add channel",
+  configured: "Active",
   model: "Model",
   modelAddModel: "Add model",
   modelAlreadyConnected: "Already connected. You can re-login or disconnect.",
@@ -113,11 +113,20 @@ export const enUS: Record<string, string> = {
   modelReasoningDescription: "Shows its thinking; adjust the effort in each session",
   modelImageInputDescription: "Attach screenshots and images to messages",
   modelTokensUnit: "tokens",
+  modelApiProviders: "API providers",
+  modelCustomChannels: "Custom channels",
+  modelEnvSource: "Reads environment variable {name}",
+  modelSignedIn: "Signed in",
+  modelSignInWith: "Sign in with your {vendor} account",
+  modelsConfigFootnote: "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
+  sessionNamingGroup: "Session naming",
+  sessionNamingAutoDescription:
+    "After the first reply finishes, reads the conversation and replaces the “New session” placeholder name.",
 };
 
 export const zhCN: Record<string, string> = {
-  addProvider: "添加服务商",
-  configured: "已配置",
+  addProvider: "添加渠道",
+  configured: "正常",
   model: "模型",
   modelAddModel: "添加模型",
   modelAlreadyConnected: "账号已连接。你可以重新登录或断开连接。",
@@ -228,4 +237,12 @@ export const zhCN: Record<string, string> = {
   modelReasoningDescription: "输出思考过程，可在会话中调节思考强度",
   modelImageInputDescription: "可在消息中附带截图和图片",
   modelTokensUnit: "tokens",
+  modelApiProviders: "API 服务商",
+  modelCustomChannels: "自定义渠道",
+  modelEnvSource: "读取环境变量 {name}",
+  modelSignedIn: "已登录",
+  modelSignInWith: "使用 {vendor} 账号登录",
+  modelsConfigFootnote: "配置保存在 ~/.pi/agent/models.json，只影响本机。",
+  sessionNamingGroup: "会话命名",
+  sessionNamingAutoDescription: "第一轮回答结束后，读一遍对话，换掉“新会话”这个占位名。",
 };

@@ -132,7 +132,7 @@ for (const [command, selected] of [
 for (const [tab, content] of [
   ["General", /Interface language/],
   ["Browser", /Enable built-in Browser/],
-  ["Models", /Add provider/],
+  ["Models", /Add channel/],
   ["Developer Tools", /JavaScript/],
   ["About", /Software update/],
 ]) {

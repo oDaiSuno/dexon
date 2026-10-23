@@ -3,10 +3,13 @@ import { Button } from "../form-controls";
 import { useI18n } from "@/i18n";
 import type { ProviderEntry } from "@/lib/models-config-state";
 import type { ModelPreferencesResult } from "@contract/types";
+import framerTokens from "../../styles/framer-tokens.json";
 import { ProviderLogoTile } from "./provider-icon";
 import type { ApiKeyProvider, DialogTarget, OAuthProvider } from "./types";
 
 export type ProviderRowTone = "success" | "warning" | "muted";
+
+const WARNING_HALO = `0 0 0 3px color-mix(in srgb, ${framerTokens.colors["/Status/Warning"].dark} 16%, transparent)`;
 
 export function StatusDot({ tone }: { tone: ProviderRowTone }) {
   const fill =
@@ -24,7 +27,7 @@ export function StatusDot({ tone }: { tone: ProviderRowTone }) {
         borderRadius: 3,
         flexShrink: 0,
         background: fill,
-        boxShadow: tone === "warning" ? "0 0 0 3px var(--fx-status-warning-soft)" : undefined,
+        boxShadow: tone === "warning" ? WARNING_HALO : undefined,
       }}
     />
   );
@@ -182,18 +185,40 @@ export function hostOf(baseUrl: string | undefined): string | null {
   }
 }
 
+const OAUTH_VENDORS: Record<string, string> = {
+  anthropic: "Anthropic",
+  "github-copilot": "GitHub",
+  "google-antigravity": "Google",
+  "google-gemini-cli": "Google",
+  "openai-codex": "OpenAI",
+};
+
+const ENV_VARIABLE_LIST = /^[A-Z][A-Z0-9_]*(?:, [A-Z][A-Z0-9_]*)*$/;
+
 export function useProviderLabels(modelPreferences: ModelPreferencesResult | null) {
   const { t } = useI18n();
   const countLabel = (count: number) => t("modelCount", "{count} models").replace("{count}", String(count));
+  const apiKeySource = (source: string | undefined) =>
+    source && ENV_VARIABLE_LIST.test(source)
+      ? t("modelEnvSource", "Reads environment variable {name}").replace("{name}", source)
+      : t("modelApiKey", "API Key");
   return {
-    oauthMeta: (id: string) =>
-      modelPreferences
-        ? `OAuth · ${countLabel(modelPreferences.models.filter((model) => model.provider === id).length)}`
-        : "OAuth",
-    apiKeyMeta: (p: ApiKeyProvider) => `${t("modelApiKey", "API Key")} · ${countLabel(p.modelCount)}`,
+    oauthMeta: (p: OAuthProvider) => {
+      if (!p.loggedIn) {
+        return t("modelSignInWith", "Sign in with your {vendor} account").replace(
+          "{vendor}",
+          OAUTH_VENDORS[p.id] ?? p.name,
+        );
+      }
+      const signedIn = t("modelSignedIn", "Signed in");
+      return modelPreferences
+        ? `${signedIn} · ${countLabel(modelPreferences.models.filter((model) => model.provider === p.id).length)}`
+        : signedIn;
+    },
+    apiKeyMeta: (p: ApiKeyProvider) => `${apiKeySource(p.source)} · ${countLabel(p.modelCount)}`,
     apiKeyStatus: (p: ApiKeyProvider) =>
-      p.configured ? t("configured", "configured") : t("notConfigured", "not configured"),
-    oauthStatus: (p: OAuthProvider) => (p.loggedIn ? t("modelConnected", "connected") : undefined),
+      p.configured ? t("configured", "Active") : t("notConfigured", "not configured"),
+    oauthStatus: (p: OAuthProvider) => (p.loggedIn ? t("configured", "Active") : undefined),
     customMeta: (provider: ProviderEntry) => {
       const host = hostOf(provider.baseUrl);
       const count = countLabel(provider.models?.length ?? 0);
@@ -207,7 +232,7 @@ export function ProviderTree({
   loadError,
   onRetry,
   providers,
-  activeOAuth,
+  oauthProviders,
   activeApiKey,
   modelPreferences,
   onOpen,
@@ -217,7 +242,7 @@ export function ProviderTree({
   loadError: string | null;
   onRetry: () => void;
   providers: [string, ProviderEntry][];
-  activeOAuth: OAuthProvider[];
+  oauthProviders: OAuthProvider[];
   activeApiKey: ApiKeyProvider[];
   modelPreferences: ModelPreferencesResult | null;
   onOpen: (target: DialogTarget) => void;
@@ -225,6 +250,7 @@ export function ProviderTree({
 }) {
   const { t } = useI18n();
   const labels = useProviderLabels(modelPreferences);
+  const subscriptions = [...oauthProviders].sort((a, b) => Number(b.loggedIn) - Number(a.loggedIn));
 
   return (
     <div
@@ -232,15 +258,22 @@ export function ProviderTree({
       aria-label={t("selectProviderOrModel", "Select a provider or model")}
       style={{ display: "grid", gap: 28 }}
     >
-      {activeOAuth.length > 0 && (
+      {subscriptions.length > 0 && (
         <ProviderGroup title={t("modelSubscription", "Subscription")}>
-          {activeOAuth.map((p, index) => (
+          {subscriptions.map((p, index) => (
             <ProviderRow
               key={p.id}
               iconId={p.id}
               name={p.name}
-              meta={labels.oauthMeta(p.id)}
+              meta={labels.oauthMeta(p)}
               status={labels.oauthStatus(p)}
+              action={
+                p.loggedIn ? undefined : (
+                  <span aria-hidden="true" className="ui-button type-body-medium">
+                    {t("modelLogin", "Login")}
+                  </span>
+                )
+              }
               divider={index > 0}
               onSelect={() => onOpen({ type: "oauth", providerId: p.id })}
             />
@@ -249,7 +282,7 @@ export function ProviderTree({
       )}
 
       {activeApiKey.length > 0 && (
-        <ProviderGroup title={t("modelApiKey", "API Key")}>
+        <ProviderGroup title={t("modelApiProviders", "API providers")}>
           {activeApiKey.map((p, index) => (
             <ProviderRow
               key={p.id}
@@ -266,7 +299,7 @@ export function ProviderTree({
       )}
 
       <ProviderGroup
-        title={t("modelCustom", "Custom")}
+        title={t("modelCustomChannels", "Custom channels")}
         action={
           <Button onClick={onAddProvider}>
             <svg
@@ -282,7 +315,7 @@ export function ProviderTree({
             >
               <path d="M12 5v14M5 12h14" />
             </svg>
-            {t("addProvider", "Add provider")}
+            {t("addProvider", "Add channel")}
           </Button>
         }
       >

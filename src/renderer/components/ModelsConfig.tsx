@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n";
 import { Button } from "./form-controls";
 import { AddProviderPicker } from "./models/add-provider-picker";
 import { ProviderTree } from "./models/provider-tree";
+import { SessionNamingGroup } from "./models/session-naming-group";
 import { SelectionDetail } from "./models/selection-detail";
 import type { DialogTarget } from "./models/types";
 import { useModelsConfig } from "./models/use-models-config";
@@ -126,18 +127,28 @@ export function ModelsConfig({
                 : "var(--space-6) var(--space-6) var(--space-10)",
             }}
           >
-            <div style={{ maxWidth: 760, margin: "0 auto" }}>
+            <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
+              <SessionNamingGroup />
               <ProviderTree
                 loading={editor.loading}
                 loadError={editor.loadError}
                 onRetry={() => void editor.loadModelsConfig()}
                 providers={editor.providers}
-                activeOAuth={editor.activeOAuth}
+                oauthProviders={editor.oauthProviders}
                 activeApiKey={editor.activeApiKey}
                 modelPreferences={editor.modelPreferences}
                 onOpen={setTarget}
                 onAddProvider={() => setPickerOpen(true)}
               />
+              <p
+                className="type-body-default"
+                style={{ margin: 0, textAlign: "center", color: "var(--fx-text-tertiary)" }}
+              >
+                {t(
+                  "modelsConfigFootnote",
+                  "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
+                )}
+              </p>
             </div>
           </div>
         </div>

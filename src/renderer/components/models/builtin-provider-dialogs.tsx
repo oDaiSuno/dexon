@@ -167,7 +167,7 @@ export function OAuthProviderDialog({
       divided
       dirty={false}
       title={provider.name}
-      subtitle={labels.oauthMeta(provider.id)}
+      subtitle={labels.oauthMeta(provider)}
       leading={<ProviderLogoTile id={provider.id} />}
       trailing={<HeaderStatus label={labels.oauthStatus(provider)} tone="success" />}
       onClose={onClose}

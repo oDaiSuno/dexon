@@ -133,7 +133,7 @@ export function ProviderLogoTile({ id, dimmed = false }: { id: string; dimmed?: 
         alignItems: "center",
         justifyContent: "center",
         border: "1px solid var(--fx-line-default)",
-        borderRadius: "var(--radius-control)",
+        borderRadius: "var(--radius-icon-box)",
         background: "var(--fx-surface-card)",
         boxSizing: "border-box",
         opacity: dimmed ? 0.5 : undefined,

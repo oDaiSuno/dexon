@@ -174,7 +174,6 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     loadModelsConfig,
     persist,
     providers: Object.entries(config.providers ?? {}),
-    activeOAuth: oauthProviders.filter((p) => p.loggedIn),
     activeApiKey: apiKeyProviders.filter((p) => p.configured),
   };
 }

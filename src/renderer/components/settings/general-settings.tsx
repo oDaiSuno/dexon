@@ -2,7 +2,6 @@ import { useEffect, useId, useState } from "react";
 import { useI18n, type AppLanguage } from "@/i18n";
 import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@shared/chat-appearance";
 import type { ManagedProcessCapability } from "../../../contract/processes";
-import { isAutoSessionTitleEnabled, setAutoSessionTitleEnabled } from "../../lib/auto-session-title";
 import { SettingGroup, SettingNote, SettingRow, toggleHitAreaStyle } from "./setting-row";
 import { SessionOrchestrationSettings } from "./session-orchestration-settings";
 import { NativeSelect, Toggle } from "../form-controls";
@@ -34,12 +33,10 @@ export function GeneralSettings({
   const [managedProcessesSaving, setManagedProcessesSaving] = useState(false);
   const [managedProcessesError, setManagedProcessesError] = useState<"load" | "save" | null>(null);
   const [managedProcessCapability, setManagedProcessCapability] = useState<ManagedProcessCapability | null>(null);
-  const [autoSessionTitle, setAutoSessionTitle] = useState(() => isAutoSessionTitleEnabled());
   const [chatAppearanceError, setChatAppearanceError] = useState(false);
   const languageControlId = useId();
   const backgroundModeControlId = useId();
   const managedProcessesControlId = useId();
-  const autoSessionTitleControlId = useId();
   const chatFontSizeControlId = useId();
   const chatLayoutControlId = useId();
   const themeControlId = useId();
@@ -258,26 +255,13 @@ export function GeneralSettings({
           }
         >
           <SettingRow
-            label={t("autoSessionTitle", "Auto-title new sessions")}
+            label={t("chatFontSize", "Chat text size")}
             description={t(
               "conversationSettingsDescription",
-              "Control automatic titles, chat text size, and the conversation reading width.",
+              "Set the chat text size and the conversation reading width.",
             )}
-            controlId={autoSessionTitleControlId}
+            controlId={chatFontSizeControlId}
           >
-            <label htmlFor={autoSessionTitleControlId} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
-              <Toggle
-                id={autoSessionTitleControlId}
-                checked={autoSessionTitle}
-                onChange={(event) => {
-                  const next = event.target.checked;
-                  setAutoSessionTitle(next);
-                  setAutoSessionTitleEnabled(next);
-                }}
-              />
-            </label>
-          </SettingRow>
-          <SettingRow label={t("chatFontSize", "Chat text size")} controlId={chatFontSizeControlId}>
             <NativeSelect
               id={chatFontSizeControlId}
               value={chatAppearance.fontSize}

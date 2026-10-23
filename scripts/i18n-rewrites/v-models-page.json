@@ -1,0 +1,18 @@
+{
+  "addProvider": {
+    "enUS": "Add provider",
+    "zhCN": "添加服务商"
+  },
+  "configured": {
+    "enUS": "configured",
+    "zhCN": "已配置"
+  },
+  "autoSessionTitle": {
+    "enUS": "Auto-title new sessions",
+    "zhCN": "自动命名新会话"
+  },
+  "conversationSettingsDescription": {
+    "enUS": "Control automatic titles, chat text size, and the conversation reading width.",
+    "zhCN": "设置自动标题、聊天文字大小和对话阅读宽度。"
+  }
+}
