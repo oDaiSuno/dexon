@@ -1,0 +1,4 @@
+{
+  "failureRetried": { "enUS": "Retried", "zhCN": "已重试" },
+  "retryingNow": { "enUS": "Retrying…", "zhCN": "正在重试…" }
+}

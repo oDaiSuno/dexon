@@ -71,7 +71,6 @@ export function ChatWindow(props: Props) {
     processDetailsExpansionStore,
     agentPhase,
     retryInfo,
-    handleAbort,
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,
@@ -201,7 +200,11 @@ export function ChatWindow(props: Props) {
                   )}
 
                   {agentRunning && retryInfo?.waiting && (
-                    <RetryCountdownLine retryAt={retryInfo.retryAt} onCancel={handleAbort} />
+                    <RetryCountdownLine
+                      attempt={retryInfo.attempt}
+                      maxAttempts={retryInfo.maxAttempts}
+                      errorMessage={retryInfo.errorMessage}
+                    />
                   )}
 
                   {agentRunning && !retryInfo?.waiting && !streamState.streamingMessage && (

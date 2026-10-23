@@ -1,8 +1,61 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { CircleAlertIcon, Icon } from "../chat-input/icons";
 
 const COLLAPSED_LINES = 3;
+const STATUS_CODE_PREFIX = /^([1-5]\d{2})\s+(\S[\s\S]*)$/;
+
+function splitStatusCode(detail: string): { code: string | null; text: string } {
+  const match = STATUS_CODE_PREFIX.exec(detail);
+  return match ? { code: match[1], text: match[2] } : { code: null, text: detail };
+}
+
+function UpstreamErrorCard({
+  title,
+  attempts,
+  pending,
+  children,
+  ...rest
+}: {
+  title: string;
+  attempts?: string;
+  pending?: boolean;
+  children: ReactNode;
+  role: "alert" | "status";
+  "data-testid"?: string;
+}) {
+  return (
+    <div className="chat-upstream-error" {...rest}>
+      <div className="chat-upstream-error-card">
+        <div className="chat-upstream-error-title">
+          <span className="chat-upstream-error-icon">
+            <CircleAlertIcon size={16} />
+          </span>
+          <span className="type-body-large-medium chat-upstream-error-heading">{title}</span>
+          {attempts && <span className="type-mono-label chat-upstream-error-attempts">{attempts}</span>}
+          {pending && (
+            <span className="chat-upstream-error-spinner">
+              <Icon size={13} strokeWidth={2}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </Icon>
+            </span>
+          )}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function UpstreamErrorMessage({ code, children }: { code: string | null; children: ReactNode }) {
+  return (
+    <div className="chat-upstream-error-message">
+      {code && <span className="type-mono-label-strong chat-upstream-error-code">{code}</span>}
+      <div className="type-body-relaxed chat-upstream-error-text">{children}</div>
+    </div>
+  );
+}
 
 export function FailureLine({ detail, retried }: { detail: string | null; retried?: boolean }) {
   const { t } = useI18n();
@@ -10,7 +63,9 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
   const textRef = useRef<HTMLSpanElement>(null);
   const [expanded, setExpanded] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
-  const text = detail ?? t("upstreamErrorMissing", "The upstream service returned no error message");
+  const { code, text } = detail
+    ? splitStatusCode(detail)
+    : { code: null, text: t("upstreamErrorMissing", "The upstream service returned no error message") };
 
   useLayoutEffect(() => {
     const element = textRef.current;
@@ -21,16 +76,12 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
   const clamped = overflowing && !expanded;
 
   return (
-    <div
+    <UpstreamErrorCard
       role="alert"
       data-testid="assistant-error-message"
-      className="chat-failure-line"
-      style={{ fontSize: 13, marginBottom: 8 }}
+      title={retried ? t("failureRetried", "Retry failed") : t("upstreamRequestFailed", "Request failed")}
     >
-      <span aria-hidden="true" className="chat-failure-mark">
-        ✕
-      </span>
-      <span className="chat-failure-body">
+      <UpstreamErrorMessage code={code}>
         <span
           ref={textRef}
           className="chat-failure-text"
@@ -40,7 +91,6 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
           {text}
         </span>
         <span className="chat-failure-meta">
-          {retried && <span>· {t("failureRetried", "Retried")}</span>}
           {overflowing && (
             <button type="button" className="chat-failure-action" onClick={() => setExpanded((open) => !open)}>
               · {expanded ? t("failureCollapse", "Collapse") : t("failureExpand", "Show all")}
@@ -57,39 +107,36 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
             </button>
           )}
         </span>
-      </span>
-    </div>
+      </UpstreamErrorMessage>
+    </UpstreamErrorCard>
   );
 }
 
-export function RetryCountdownLine({ retryAt, onCancel }: { retryAt: number; onCancel: () => void }) {
+export function RetryCountdownLine({
+  attempt,
+  maxAttempts,
+  errorMessage,
+}: {
+  attempt: number;
+  maxAttempts: number;
+  errorMessage?: string;
+}) {
   const { t } = useI18n();
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, []);
-
-  const seconds = Math.max(0, Math.ceil((retryAt - now) / 1000));
-  const label =
-    seconds > 0
-      ? t("retryInSeconds", "Retrying in {seconds}s").replace("{seconds}", String(seconds))
-      : t("retryingNow", "Retrying…");
+  const detail = errorMessage?.trim();
+  const { code, text } = detail ? splitStatusCode(detail) : { code: null, text: "" };
 
   return (
-    <div role="status" className="chat-failure-line chat-retry-line" style={{ fontSize: 13 }}>
-      <span aria-hidden="true" className="chat-failure-mark chat-retry-mark">
-        ↻
-      </span>
-      <span className="chat-failure-body">
-        <span>{label}</span>
-        <span className="chat-failure-meta">
-          <button type="button" className="chat-failure-action" onClick={onCancel}>
-            · {t("cancel", "Cancel")}
-          </button>
-        </span>
-      </span>
-    </div>
+    <UpstreamErrorCard
+      role="status"
+      title={t("retryingNow", "Retrying")}
+      attempts={`${attempt}/${maxAttempts}`}
+      pending
+    >
+      {text && (
+        <UpstreamErrorMessage code={code}>
+          <span>{text}</span>
+        </UpstreamErrorMessage>
+      )}
+    </UpstreamErrorCard>
   );
 }
