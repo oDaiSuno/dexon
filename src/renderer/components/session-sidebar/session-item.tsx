@@ -3,7 +3,7 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { abbreviateHomePath } from "@/lib/display-path";
-import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
+import { formatNumber, formatRelativeDateTime, formatShortRelativeTime } from "@/lib/locale-format";
 import { MAX_TREE_INDENT_DEPTH } from "@/lib/session-tree";
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import { COUNTED_ACTIVITIES, type SubtreeActivity } from "@/lib/session-tree-status";
@@ -308,7 +308,7 @@ export function SessionItem({
                   whiteSpace: "nowrap",
                 }}
               >
-                {formatRelativeDateTime(session.modified, language)}
+                {formatShortRelativeTime(session.modified, language)}
               </span>
             )}
           </button>
