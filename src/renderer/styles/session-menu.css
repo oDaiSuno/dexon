@@ -17,11 +17,13 @@
   width: 216px;
 }
 .session-menu-card--confirm {
-  top: calc(100% + var(--space-1));
+  position: fixed;
+  right: auto;
+  z-index: 300;
   width: 264px;
-  max-width: 100%;
   gap: var(--space-1);
   padding: var(--space-1);
+  transform-origin: top left;
 }
 
 .session-menu-list {
@@ -77,15 +79,6 @@
   background: var(--fx-surface-selected);
 }
 
-.session-menu-pending-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--fx-text-primary);
-}
-
 .session-menu-confirm-body {
   display: flex;
   align-items: flex-start;
@@ -102,10 +95,21 @@
   color: var(--fx-status-danger);
 }
 .session-menu-confirm-text {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: var(--space-1);
   min-width: 0;
   color: var(--fx-text-primary);
   overflow-wrap: anywhere;
+}
+.session-menu-confirm-notice {
+  margin: 0;
+  color: var(--fx-text-secondary);
+  text-wrap: pretty;
+}
+.session-menu-confirm-notice[data-tone="danger"] {
+  color: var(--fx-status-danger-text);
 }
 .session-menu-confirm-footer {
   display: flex;

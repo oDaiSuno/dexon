@@ -1,5 +1,11 @@
 import { useI18n } from "@/i18n";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import {
+  useLayoutEffect,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from "react";
 import { Button } from "../form-controls";
 import { RowIcon } from "./session-relation-glyphs";
 
@@ -58,45 +64,101 @@ export function SessionItemActionsMenu({
           <span className="session-menu-item-icon">
             <TrashGlyph />
           </span>
-          <span className="session-menu-item-label">{t("delete", "Delete")}</span>
+          <span className="session-menu-item-label">{t("deleteSessionAction", "Delete session")}</span>
         </button>
       </div>
     </div>
   );
 }
 
+const CONFIRM_CARD_WIDTH = 264;
+const CONFIRM_CARD_OFFSET = 4;
+const VIEWPORT_MARGIN = 8;
+
+function useAnchoredPosition(anchorRef: RefObject<HTMLElement | null>) {
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const maxLeft = window.innerWidth - CONFIRM_CARD_WIDTH - VIEWPORT_MARGIN;
+      setPosition({
+        top: rect.bottom + CONFIRM_CARD_OFFSET,
+        left: Math.max(VIEWPORT_MARGIN, Math.min(rect.left, maxLeft)),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchorRef]);
+  return position;
+}
+
 export function SessionItemDeleteConfirm({
   title,
+  anchorRef,
+  blocked,
+  busy,
+  error,
   onConfirm,
   onCancel,
 }: {
   title: string;
+  anchorRef: RefObject<HTMLElement | null>;
+  blocked: boolean;
+  busy: boolean;
+  error: string | null;
   onConfirm: (event: ReactMouseEvent) => void;
-  onCancel: (event: ReactMouseEvent) => void;
+  onCancel: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
 }) {
   const { t } = useI18n();
+  const position = useAnchoredPosition(anchorRef);
+  const notice =
+    error ??
+    (blocked ? t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting.") : null);
   return (
-    <>
-      <span className="session-menu-pending-title type-body-large">{title}</span>
-      <div className="session-menu-card session-menu-card--confirm composer-pop-in">
-        <div className="session-menu-confirm-body">
-          <span className="session-menu-confirm-icon">
-            <TrashGlyph />
-          </span>
-          <div className="session-menu-confirm-text type-body-large-medium">
-            {t("deleteSessionConfirm", "Delete “{title}”?").replace(
-              "{title}",
-              `${title.slice(0, 22)}${title.length > 22 ? "…" : ""}`,
-            )}
-          </div>
-        </div>
-        <div className="session-menu-confirm-footer">
-          <Button variant="danger" onClick={onConfirm}>
-            {t("delete", "Delete")}
-          </Button>
-          <Button onClick={onCancel}>{t("cancel", "Cancel")}</Button>
+    <div
+      role="alertdialog"
+      aria-label={t("deleteSessionConfirm", "Delete “{title}”?").replace("{title}", title)}
+      className="session-menu-card session-menu-card--confirm composer-pop-in"
+      style={position ?? undefined}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || busy) return;
+        event.preventDefault();
+        onCancel(event);
+      }}
+    >
+      <div className="session-menu-confirm-body">
+        <span className="session-menu-confirm-icon">
+          <TrashGlyph />
+        </span>
+        <div className="session-menu-confirm-text">
+          <div className="type-body-large-medium">{t("deleteSessionTitle", "Delete this session?")}</div>
+          {notice && (
+            <p
+              role="alert"
+              className="session-menu-confirm-notice type-label-default"
+              data-tone={error ? "danger" : undefined}
+            >
+              {notice}
+            </p>
+          )}
         </div>
       </div>
-    </>
+      <div className="session-menu-confirm-footer">
+        <Button variant="danger" busy={busy} disabled={blocked || busy} onClick={onConfirm}>
+          {t("delete", "Delete")}
+        </Button>
+        <Button autoFocus disabled={busy} onClick={onCancel}>
+          {t("cancel", "Cancel")}
+        </Button>
+      </div>
+    </div>
   );
 }

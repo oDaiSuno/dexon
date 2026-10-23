@@ -124,15 +124,18 @@ test("skips the rename request when the name is unchanged", async (t) => {
   assert.deepEqual(view.env.requests, []);
 });
 
-test("blocks deleting a running session behind an alert", async (t) => {
+test("a running session explains inside the confirmation that it must be stopped and cannot be deleted", async (t) => {
   const deleted = [];
   const view = await mountItem(t, { isRunning: true, onDeleted: (id) => deleted.push(id) });
   await openActionsMenu(view);
-  await click(byRole(view.container, "menuitem", "Delete"));
-  assert.equal(view.env.alertCalls.length, 1);
+  await click(byRole(view.container, "menuitem", "Delete session"));
+  const confirm = byRole(view.container, "alertdialog", "Delete “Base session”?");
+  assert.ok(confirm, "the confirmation card opens");
+  assert.equal(byRole(confirm, "alert").textContent, "This session is still running. Stop it before deleting.");
+  assert.equal(button(confirm, "Delete").disabled, true);
+  assert.deepEqual(view.env.alertCalls, [], "no system dialog interrupts the user");
   assert.deepEqual(deleted, []);
   assert.deepEqual(view.env.requests, []);
-  assert.doesNotMatch(view.container.textContent, /Delete “/);
 });
 
 test("confirms deletion and reports the deleted id", async (t) => {
@@ -144,8 +147,8 @@ test("confirms deletion and reports the deleted id", async (t) => {
       resolveDelete = resolve;
     });
   await openActionsMenu(view);
-  await click(byRole(view.container, "menuitem", "Delete"));
-  assert.match(view.container.textContent, /Delete “/);
+  await click(byRole(view.container, "menuitem", "Delete session"));
+  assert.match(view.container.textContent, /Delete this session\?/);
   await click(button(view.container, "Delete"));
   assert.equal(view.env.requests.length, 1);
   assert.deepEqual(view.env.requests[0], { method: "sessions.delete", params: { id: "s1" } });
@@ -154,17 +157,18 @@ test("confirms deletion and reports the deleted id", async (t) => {
   assert.deepEqual(deleted, ["s1"]);
 });
 
-test("surfaces delete failures through an alert and keeps the row usable", async (t) => {
+test("shows a delete failure inside the confirmation and keeps the row usable", async (t) => {
   const deleted = [];
   const view = await mountItem(t, { onDeleted: (id) => deleted.push(id) });
   view.env.reply = () => {
     throw new Error("denied");
   };
   await openActionsMenu(view);
-  await click(byRole(view.container, "menuitem", "Delete"));
+  await click(byRole(view.container, "menuitem", "Delete session"));
   await click(button(view.container, "Delete"));
   assert.deepEqual(deleted, []);
-  assert.deepEqual(view.env.alertCalls, ["denied"]);
+  assert.equal(byRole(view.container, "alert").textContent, "denied");
+  assert.deepEqual(view.env.alertCalls, [], "no system dialog interrupts the user");
   assert.ok(button(view.container, "Base session"), "the row remains selectable after a failed delete");
 });
 

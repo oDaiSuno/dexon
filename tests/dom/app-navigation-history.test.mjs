@@ -85,7 +85,7 @@ test("deleting the open conversation removes it from history and leaves an empty
   const scene = await startNavigation(t, { initialSession: "personal-history" });
   await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
   const menu = await openRowActions(scene, "Personal release notes");
-  await click(control(menu, "menuitem", "Delete"));
+  await click(control(menu, "menuitem", "Delete session"));
   await click(await waitFor(() => control(scene.history(), "button", "Delete")));
   await waitFor(() => assert.equal(roles(scene.history(), "button", "Personal release notes").length, 0));
   control(scene.history(), "button", "Another personal conversation");
