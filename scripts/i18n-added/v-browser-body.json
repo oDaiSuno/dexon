@@ -1,0 +1,12 @@
+[
+  "browserEmptyTitle",
+  "browserEmptyDescription",
+  "browserTabCrashedDescription",
+  "browserCrashStaysInTab",
+  "browserLoadFailed",
+  "browserPermissionScope",
+  "browserPermissionMedia",
+  "browserPermissionFullscreen",
+  "browserPermissionPointerLock",
+  "browserPermissionClipboardWrite"
+]

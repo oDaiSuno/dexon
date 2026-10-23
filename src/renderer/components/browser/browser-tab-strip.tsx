@@ -131,7 +131,7 @@ function BrowserTab({
         {tab.control === "agent" && (
           <span
             role="img"
-            aria-label={t("browserAgentControl", "Agent is controlling this tab — click or type to take over")}
+            aria-label={t("browserAgentControl", "Agent in control")}
             style={{ color: "var(--fx-accent-blue-text)" }}
           >
             <BrowserIcon name="bot" size={12} strokeWidth={2} />

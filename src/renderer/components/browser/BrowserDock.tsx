@@ -1,17 +1,17 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
+import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
+import { BrowserCrashedState, BrowserEmptyState, BrowserNoTabState } from "./browser-empty-state";
+import { BrowserNotice, BrowserPermissionBar, activeDownload } from "./browser-notices";
+import { BrowserStatusBar } from "./browser-status-bar";
 import { BrowserTabStrip } from "./browser-tab-strip";
 import { BrowserToolbar } from "./browser-toolbar";
-import type {
-  BrowserDownloadInfo,
-  BrowserEvent,
-  BrowserPermissionRequest,
-  BrowserRendererState,
-} from "../../../contract/browser";
+import type { BrowserEvent, BrowserRendererState } from "../../../contract/browser";
 
 export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; ownerSessionId: string | null }) {
   const { t } = useI18n();
+  const sessionCatalog = useSessionCatalog();
   const [state, setState] = useState<BrowserRendererState | null>(null);
   const [address, setAddress] = useState("");
   const [profileId, setProfileId] = useState("temporary");
@@ -139,28 +139,41 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
     }
   };
 
-  if (!state) return <div style={emptyStyle}>{error || t("browserLoadingPanel", "Loading Browser…")}</div>;
+  if (!state) {
+    return (
+      <div style={columnStyle}>
+        {error ? (
+          <BrowserEmptyState
+            icon="triangle-alert"
+            iconColor="var(--fx-status-danger)"
+            title={t("browserLoadFailed", "Couldn't load the Browser")}
+            description={error}
+          />
+        ) : (
+          <BrowserEmptyState icon="loader" spinning title={t("browserLoadingPanel", "Loading Browser…")} />
+        )}
+      </div>
+    );
+  }
   if (!state.settings.settings.enabled) {
     return (
-      <div style={emptyStyle}>
-        <div>{t("browserDisabled", "Built-in Browser is disabled.")}</div>
-        <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)" }}>
-          {t("browserEnableInSettings", "Enable it in Settings → Browser.")}
-        </div>
+      <div style={columnStyle}>
+        <BrowserEmptyState
+          icon="globe"
+          title={t("browserDisabled", "Built-in Browser is off")}
+          description={t("browserEnableInSettings", "Enable it in Settings → Browser.")}
+        />
       </div>
     );
   }
 
+  const agentControl = activeTab?.control === "agent";
+  const tabOwnerId = activeTab?.ownerSessionId ?? null;
+  const resolvedTitle = tabOwnerId ? resolveSessionTitle(tabOwnerId, undefined, sessionCatalog) : null;
+  const sessionTitle = resolvedTitle && resolvedTitle !== tabOwnerId ? resolvedTitle : null;
+
   return (
-    <div
-      style={{
-        height: "100%",
-        minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        background: "var(--fx-surface-main)",
-      }}
-    >
+    <div style={columnStyle}>
       <BrowserTabStrip
         tabs={visibleTabs}
         activeTabId={state.activeTabId}
@@ -180,181 +193,42 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
         onMenuOpenChange={setMenuOpen}
         onError={reportError}
       />
-
-      {(error || state.permissionRequests.length > 0 || activeDownload(state.downloads)) && (
-        <div
-          style={{
-            display: "grid",
-            gap: 4,
-            padding: "4px 8px",
-            borderBottom: "1px solid var(--fx-line-default)",
-            background: "var(--fx-surface-raised)",
-            fontSize: "var(--text-micro)",
-          }}
-        >
-          {error && <div style={{ color: "var(--fx-status-danger)" }}>{error}</div>}
-          {state.permissionRequests.map((request) => (
-            <PermissionPrompt key={request.id} request={request} onRespond={refresh} />
-          ))}
-          {activeDownload(state.downloads) && <DownloadStatus download={activeDownload(state.downloads)!} />}
-        </div>
-      )}
+      {state.permissionRequests.map((request) => (
+        <BrowserPermissionBar key={request.id} request={request} onRespond={refresh} />
+      ))}
+      <BrowserNotice error={error} download={activeDownload(state.downloads)} />
 
       {!activeTab ? (
-        <div style={emptyStyle}>
-          <button style={primaryButtonStyle} onClick={() => void createTab()}>
-            {t("browserOpenNewTab", "Open a new tab")}
-          </button>
-          <div style={{ marginTop: 8, color: "var(--fx-text-tertiary)" }}>
-            {t("browserRemotePageSecurity", "Remote pages receive no Pi Desktop preload or Node access.")}
-          </div>
-        </div>
+        <BrowserNoTabState onCreate={() => void createTab()} />
       ) : activeTab.crashed ? (
-        <div style={emptyStyle}>
-          <div>{t("browserTabCrashed", "This tab’s renderer crashed.")}</div>
-          <button
-            style={{ ...primaryButtonStyle, marginTop: 8 }}
-            onClick={() => void window.piBridge.browserReload(activeTab.id)}
-          >
-            {t("browserReload", "Reload")}
-          </button>
-        </div>
+        <BrowserCrashedState onReload={() => void window.piBridge.browserReload(activeTab.id)} />
       ) : (
         <div
-          ref={surfaceRef}
-          data-browser-surface
-          style={{ flex: 1, minHeight: 1, position: "relative", background: "#fff" }}
-        />
-      )}
-
-      {activeTab && (
-        <div
+          data-agent-control={agentControl || undefined}
           style={{
-            minHeight: 22,
             display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "0 8px",
-            borderTop: "1px solid var(--fx-line-default)",
-            color: "var(--fx-text-tertiary)",
-            fontSize: "var(--text-micro)",
-            background: "var(--fx-surface-raised)",
+            flex: 1,
+            minHeight: 1,
+            padding: agentControl ? 2 : 0,
+            background: agentControl ? "var(--fx-accent-blue-border)" : undefined,
           }}
         >
-          <span>
-            {activeTab.control === "agent"
-              ? t("browserAgentControl", "Agent is controlling this tab — click or type to take over")
-              : t("browserUserControl", "User control")}
-          </span>
-          <span>·</span>
-          <span>
-            {state.settings.settings.navigation.networkIsolation === "strict"
-              ? t("browserStrictIsolation", "Strict isolation")
-              : t("browserBestEffortIsolation", "Best-effort network isolation")}
-          </span>
-          {activeTab.advanced || activeTab.advancedProfile ? (
-            <Badge danger>{t("browserAdvancedModeBadge", "Advanced Browser Mode")}</Badge>
-          ) : null}
+          <div
+            ref={surfaceRef}
+            data-browser-surface
+            style={{ flex: 1, minWidth: 0, minHeight: 1, position: "relative", background: "#fff" }}
+          />
         </div>
       )}
+
+      <BrowserStatusBar
+        agentControl={agentControl}
+        strictIsolation={state.settings.settings.navigation.networkIsolation === "strict"}
+        advanced={Boolean(activeTab?.advanced || activeTab?.advancedProfile)}
+        sessionTitle={sessionTitle}
+      />
     </div>
   );
-}
-
-function PermissionPrompt({
-  request,
-  onRespond,
-}: {
-  request: BrowserPermissionRequest;
-  onRespond: () => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const respond = (decision: "allow-once" | "allow-session" | "deny") =>
-    void window.piBridge.browserRespondPermission(request.id, decision).then(onRespond);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--fx-text-secondary)" }}>
-      <span style={{ flex: 1 }}>
-        {formatMessage(t("browserPermissionRequest", "{origin} requests {permission}"), {
-          origin: request.origin,
-          permission: request.permission,
-        })}
-      </span>
-      <button style={tinyButtonStyle} onClick={() => respond("deny")}>
-        {t("browserDeny", "Deny")}
-      </button>
-      <button style={tinyButtonStyle} onClick={() => respond("allow-once")}>
-        {t("browserAllowOnce", "Once")}
-      </button>
-      <button style={tinyButtonStyle} onClick={() => respond("allow-session")}>
-        {t("browserAllowSession", "Session")}
-      </button>
-    </div>
-  );
-}
-
-function DownloadStatus({ download }: { download: BrowserDownloadInfo }) {
-  const { t } = useI18n();
-  const percent = download.totalBytes > 0 ? Math.round((download.receivedBytes / download.totalBytes) * 100) : null;
-  const stateLabel = downloadStateLabel(t, download.state);
-  return (
-    <div style={{ color: download.state === "interrupted" ? "var(--fx-status-danger)" : "var(--fx-text-tertiary)" }}>
-      {formatMessage(t("browserDownloadStatus", "Download {filename}: {state}{percent}"), {
-        filename: download.filename,
-        state: stateLabel,
-        percent: percent === null ? "" : ` ${percent}%`,
-      })}
-    </div>
-  );
-}
-
-function Badge({ children, danger }: { children: string; danger?: boolean }) {
-  return (
-    <span
-      style={{
-        padding: "1px 4px",
-        borderRadius: "var(--radius-chip)",
-        color: danger ? "var(--fx-status-danger)" : "var(--fx-status-warning)",
-        border: `1px solid ${danger ? "var(--fx-status-danger)" : "var(--fx-status-warning)"}`,
-        fontSize: "var(--text-micro)",
-        fontWeight: 700,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function activeDownload(downloads: BrowserDownloadInfo[]): BrowserDownloadInfo | undefined {
-  return [...downloads]
-    .reverse()
-    .find(
-      (download) =>
-        download.state === "pending" || download.state === "progressing" || download.state === "interrupted",
-    );
-}
-
-type Translate = ReturnType<typeof useI18n>["t"];
-
-function formatMessage(template: string, values: Record<string, string | number>): string {
-  return Object.entries(values).reduce(
-    (message, [key, value]) => message.replaceAll(`{${key}}`, String(value)),
-    template,
-  );
-}
-
-function downloadStateLabel(t: Translate, state: BrowserDownloadInfo["state"]): string {
-  switch (state) {
-    case "pending":
-      return t("browserDownloadPending", "pending");
-    case "progressing":
-      return t("browserDownloadProgressing", "progressing");
-    case "completed":
-      return t("browserDownloadCompleted", "completed");
-    case "cancelled":
-      return t("browserDownloadCancelled", "cancelled");
-    default:
-      return t("browserDownloadInterrupted", "interrupted");
-  }
 }
 
 function applyBrowserEvent(state: BrowserRendererState, event: BrowserEvent): BrowserRendererState {
@@ -397,34 +271,10 @@ function applyBrowserEvent(state: BrowserRendererState, event: BrowserEvent): Br
   return state;
 }
 
-const emptyStyle = {
+const columnStyle = {
   height: "100%",
+  minHeight: 0,
   display: "flex",
   flexDirection: "column" as const,
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 20,
-  textAlign: "center" as const,
-  color: "var(--fx-text-secondary)",
-  fontSize: "var(--text-meta)",
-};
-const primaryButtonStyle = {
-  minHeight: 32,
-  padding: "0 12px",
-  border: "1px solid var(--fx-accent-blue)",
-  borderRadius: "var(--radius-control)",
-  background: "var(--fx-accent-blue-soft)",
-  color: "var(--fx-accent-blue)",
-  cursor: "pointer",
-  fontSize: "var(--text-meta)",
-};
-const tinyButtonStyle = {
-  minHeight: 22,
-  padding: "0 8px",
-  border: "1px solid var(--fx-line-default)",
-  borderRadius: "var(--radius-chip)",
   background: "var(--fx-surface-main)",
-  color: "var(--fx-text-secondary)",
-  cursor: "pointer",
-  fontSize: "var(--text-micro)",
 };

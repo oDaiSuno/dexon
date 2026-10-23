@@ -1,28 +1,6 @@
 {
   "lane": "对齐 v-browser-body 内置浏览器视口、状态栏、权限请求条与空/崩溃状态",
-  "legacy": [
-    {
-      "file": "src/renderer/components/browser/BrowserDock.tsx",
-      "name": "--text-meta",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserDock.tsx",
-      "name": "--text-micro",
-      "count": 4
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/browser/BrowserDock.tsx",
-      "property": "fontSize",
-      "count": 6
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserDock.tsx",
-      "property": "fontWeight",
-      "count": 1
-    }
-  ],
+  "legacy": [],
+  "typography": [],
   "colors": []
 }

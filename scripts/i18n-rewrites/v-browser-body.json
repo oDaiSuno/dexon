@@ -1,0 +1,26 @@
+{
+  "browserAgentControl": {
+    "enUS": "Agent is controlling this tab — click or type to take over",
+    "zhCN": "Agent 正在控制此标签页——点击或输入即可接管"
+  },
+  "browserUserControl": {
+    "enUS": "User control",
+    "zhCN": "用户控制"
+  },
+  "browserRemotePageSecurity": {
+    "enUS": "Remote pages receive no Pi Desktop preload or Node access.",
+    "zhCN": "远程页面无法访问 Pi Desktop preload 或 Node。"
+  },
+  "browserTabCrashed": {
+    "enUS": "This tab’s renderer crashed.",
+    "zhCN": "此标签页的 Renderer 已崩溃。"
+  },
+  "browserPermissionRequest": {
+    "enUS": "{origin} requests {permission}",
+    "zhCN": "{origin} 请求使用 {permission}"
+  },
+  "browserDisabled": {
+    "enUS": "Built-in Browser is disabled.",
+    "zhCN": "内置浏览器已禁用。"
+  }
+}
