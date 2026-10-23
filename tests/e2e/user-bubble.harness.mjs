@@ -200,6 +200,7 @@ async function run() {
     await settle();
     await type("@/tmp/shot.png ");
     await waitFor("!!window.userBubble.composerChipStyle()", "the typed reference becomes a composer chip");
+    await hover({ x: 1, y: 1 });
     const composer = await page("composerChipStyle()");
     const bubble = await page(`bubbleChipStyle(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);
     assert.ok(bubble, "the bubble shows the same attachment as a chip");
