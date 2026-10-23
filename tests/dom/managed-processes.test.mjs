@@ -150,13 +150,13 @@ test("Stop terminates only the selected server and Restart uses its current run 
   const view = await panel(t, twoServers());
   await view.select("Other server");
   await click(button(view.container, "Stop"));
-  assert.match(view.processButton("Other server").textContent, /exited/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Other server").textContent, /Exited/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 
   await click(button(view.container, "Restart"));
-  assert.match(view.processButton("Other server").textContent, /running/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Other server").textContent, /Running/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   await click(button(view.container, "Export Logs"));
   assert.deepEqual(view.exported, [
     { processId: "process-two", runId: "second-run-two", streams: ["stdout", "stderr", "system"] },
@@ -168,8 +168,8 @@ test("Force Stop force-terminates the selected server without stopping another r
   const view = await panel(t, twoServers());
   await view.select("Other server");
   await click(button(view.container, "Force Stop"));
-  assert.match(view.processButton("Other server").textContent, /killed/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Other server").textContent, /Killed/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 });
 
@@ -193,14 +193,14 @@ test("dismissing a finished selected process leaves another running server avail
   await view.select("Other server");
   await click(button(view.container, "Dismiss"));
   assert.equal(view.processButton("Other server"), undefined);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 });
 
 test("dismissing the last finished process shows the empty process list", async (t) => {
   const view = await panel(t, [processInfo("killed")]);
   await click(button(view.container, "Dismiss"));
-  assert.match(view.container.textContent, /No managed processes/);
+  assert.match(view.container.textContent, /No background processes/);
   assertHealthy(view);
 });
 
@@ -212,7 +212,7 @@ test("a lost process offers diagnostics and stops other active processes without
   await click(button(view.container, "Export Diagnostics"));
   assert.equal(view.diagnostics(), 1);
   await click(button(view.container, "Stop All"));
-  assert.match(view.processButton("Fixture server").textContent, /killed/);
-  assert.match(view.processButton("Other server").textContent, /lost/);
+  assert.match(view.processButton("Fixture server").textContent, /Killed/);
+  assert.match(view.processButton("Other server").textContent, /Lost/);
   assert.match(view.container.querySelector('[role="alert"]').textContent, /could not be safely confirmed as stopped/);
 });

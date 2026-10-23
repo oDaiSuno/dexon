@@ -8,35 +8,25 @@
     },
     {
       "file": "src/renderer/components/ProcessPanel.tsx",
-      "name": "--text-label",
+      "name": "--text-meta",
       "count": 4
     },
     {
       "file": "src/renderer/components/ProcessPanel.tsx",
-      "name": "--text-meta",
-      "count": 6
-    },
-    {
-      "file": "src/renderer/components/ProcessPanel.tsx",
       "name": "--text-micro",
-      "count": 9
+      "count": 7
     }
   ],
   "typography": [
     {
       "file": "src/renderer/components/ProcessPanel.tsx",
       "property": "fontSize",
-      "count": 20
-    },
-    {
-      "file": "src/renderer/components/ProcessPanel.tsx",
-      "property": "fontWeight",
-      "count": 1
+      "count": 12
     },
     {
       "file": "src/renderer/components/ProcessPanel.tsx",
       "property": "lineHeight",
-      "count": 2
+      "count": 1
     }
   ],
   "colors": []

@@ -1,34 +1,30 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ManagedProcessLogRecord, ManagedProcessLogStream, ManagedProcessPublicInfo } from "@contract/processes";
+import { useMemo, useState, type ReactNode } from "react";
+import type { ManagedProcessLogStream, ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
-import { call, subscribe } from "@/lib/api-client";
+import { call } from "@/lib/api-client";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/i18n";
+import { ProcessEmpty, ProcessList, ProcessListMessage, ProcessSummary } from "./processes/process-list";
+import { processStateLabel, processTone } from "./processes/process-format";
+import { TriangleAlertGlyph } from "./processes/process-icons";
+import { useProcessPanelState } from "./processes/use-process-panel-state";
 
 type Props = {
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 };
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-function formatDuration(startedAt: number | undefined, stoppedAt: number | undefined, now: number): string {
-  if (!startedAt) return "—";
-  const seconds = Math.max(0, Math.floor(((stoppedAt ?? now) - startedAt) / 1_000));
-  if (seconds < 60) return `${seconds}s`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-}
+const TONE_COLOR = {
+  success: "var(--fx-status-success)",
+  running: "var(--fx-accent-blue)",
+  danger: "var(--fx-status-danger)",
+  idle: "var(--fx-text-tertiary)",
+} as const;
 
 function stateColor(process: ManagedProcessPublicInfo): string {
-  if (process.state === "ready") return "var(--fx-status-success)";
-  if (isManagedProcessActiveState(process.state)) return "var(--fx-accent-blue)";
-  if (process.state === "exited" && process.exit?.code === 0) return "var(--fx-text-tertiary)";
   if (process.state === "killed" || process.state === "reaped") return "var(--fx-status-warning)";
-  return "var(--fx-status-danger)";
+  if (process.state === "exited" && process.exit?.code) return "var(--fx-status-danger)";
+  return TONE_COLOR[processTone(process)];
 }
 
 const buttonStyle = {
@@ -42,131 +38,46 @@ const buttonStyle = {
   cursor: "pointer",
 } as const;
 
+function DangerBanner({ children }: { children: ReactNode }) {
+  return (
+    <div
+      role="alert"
+      className="type-label-default flex shrink-0 items-center gap-2 px-4 py-2"
+      style={{
+        borderBottom: "1px solid var(--fx-status-danger-border)",
+        background: "var(--fx-status-danger-soft)",
+        color: "var(--fx-status-danger-text)",
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
   const { t } = useI18n();
-  const [processes, setProcesses] = useState<ManagedProcessPublicInfo[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [records, setRecords] = useState<ManagedProcessLogRecord[]>([]);
-  const [cursor, setCursor] = useState<string | undefined>();
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    processes,
+    selected,
+    selectedId,
+    setSelectedId,
+    records,
+    cursor,
+    hasMore,
+    loading,
+    busy,
+    error,
+    now,
+    logRef,
+    readMore,
+    invoke,
+    openEndpoint,
+  } = useProcessPanelState({ onActiveCountChange, onOpenBrowser });
   const [search, setSearch] = useState("");
   const [streams, setStreams] = useState<Set<ManagedProcessLogStream>>(() => new Set(["stdout", "stderr", "system"]));
   const [stdin, setStdin] = useState("");
-  const [now, setNow] = useState(Date.now());
-  const listRevisionRef = useRef(0);
-  const cursorRef = useRef<string | undefined>(undefined);
-  const selectedIdRef = useRef<string | null>(null);
-  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const logRef = useRef<HTMLDivElement | null>(null);
-
-  const selected = processes.find((process) => process.processId === selectedId) ?? null;
-  const selectedProcessId = selected?.processId ?? null;
-  const selectedRunId = selected?.runId ?? null;
-  selectedIdRef.current = selectedId;
-  cursorRef.current = cursor;
-
-  const refresh = useCallback(async () => {
-    try {
-      const snapshot = await call("processes.list", { includeExited: true });
-      listRevisionRef.current = Math.max(listRevisionRef.current, snapshot.revision);
-      setProcesses(snapshot.processes);
-      onActiveCountChange?.(snapshot.processes.filter((process) => isManagedProcessActiveState(process.state)).length);
-      setSelectedId((current) =>
-        current && snapshot.processes.some((process) => process.processId === current)
-          ? current
-          : (snapshot.processes[0]?.processId ?? null),
-      );
-      setError(null);
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setLoading(false);
-    }
-  }, [onActiveCountChange]);
-
-  const scheduleRefresh = useCallback(() => {
-    if (refreshTimerRef.current) return;
-    refreshTimerRef.current = setTimeout(() => {
-      refreshTimerRef.current = null;
-      void refresh();
-    }, 100);
-  }, [refresh]);
-
-  const readMore = useCallback(async (processId: string, runId: string, fromCursor?: string, reset = false) => {
-    try {
-      const result = await call("processes.read", {
-        processId,
-        runId,
-        cursor: fromCursor,
-        maxBytes: 256 * 1024,
-        streams: ["stdout", "stderr", "system"],
-      });
-      if (selectedIdRef.current !== processId) return;
-      setRecords((current) => {
-        const next = reset ? result.records : [...current, ...result.records];
-        const deduped = new Map(next.map((record) => [`${record.runId}:${record.seq}`, record]));
-        return [...deduped.values()].slice(-2_000);
-      });
-      setCursor(result.nextCursor);
-      setHasMore(result.truncated);
-      setError(null);
-      requestAnimationFrame(() => {
-        const element = logRef.current;
-        if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 160) {
-          element.scrollTop = element.scrollHeight;
-        }
-      });
-    } catch (cause) {
-      setError(messageOf(cause));
-    }
-  }, []);
-
-  useEffect(() => {
-    void refresh();
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
-    void subscribe("processes.changed", "*", (event) => {
-      if (event.revision <= listRevisionRef.current) return;
-      scheduleRefresh();
-    }).then((value) => {
-      if (disposed) value();
-      else unsubscribe = value;
-    });
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    };
-  }, [refresh, scheduleRefresh]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 1_000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    setRecords([]);
-    setCursor(undefined);
-    setHasMore(false);
-    if (!selectedProcessId || !selectedRunId) return;
-    void readMore(selectedProcessId, selectedRunId, undefined, true);
-    let disposed = false;
-    let unsubscribe: (() => void) | undefined;
-    void subscribe("processes.output", selectedProcessId, (event) => {
-      if (event.runId !== selectedRunId) return;
-      void readMore(selectedProcessId, selectedRunId, cursorRef.current);
-    }).then((value) => {
-      if (disposed) value();
-      else unsubscribe = value;
-    });
-    return () => {
-      disposed = true;
-      unsubscribe?.();
-    };
-  }, [readMore, selectedProcessId, selectedRunId]);
+  const lost = processes.some((process) => process.state === "lost");
+  const exportDiagnostics = () => void invoke(() => window.piBridge.exportDiagnostics());
 
   const filteredRecords = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
@@ -175,141 +86,78 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
     );
   }, [records, search, streams]);
 
-  const invoke = async (operation: () => Promise<unknown>) => {
-    setBusy(true);
-    setError(null);
-    try {
-      await operation();
-      await refresh();
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const openEndpoint = async (process: ManagedProcessPublicInfo, url: string) => {
-    setBusy(true);
-    try {
-      const tab = await window.piBridge.browserCreateUserTab({
-        url,
-        ownerSessionId: process.ownerSessionId,
-        activate: true,
-      });
-      window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: tab.id } }));
-      onOpenBrowser?.();
-    } catch (cause) {
-      setError(messageOf(cause));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   return (
     <div style={{ height: "100%", display: "flex", flexDirection: "column", minWidth: 0 }}>
       <div
         aria-live="polite"
         style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}
       >
-        {selected ? `${selected.label}: ${selected.state}` : t("noManagedProcesses", "No managed processes")}
+        {selected
+          ? `${selected.label}: ${processStateLabel(selected, t)}`
+          : t("noManagedProcesses", "No background processes")}
       </div>
-      {error && (
-        <div
-          role="alert"
-          style={{
-            padding: "8px 12px",
-            color: "var(--fx-status-danger)",
-            fontSize: "var(--text-meta)",
-            borderBottom: "1px solid var(--fx-line-default)",
-          }}
-        >
-          {error}
-        </div>
+      {!loading && (
+        <ProcessSummary
+          processes={processes}
+          busy={busy}
+          onStopAll={(mode) => void invoke(() => call("processes.stopAll", { mode }))}
+          onExportDiagnostics={exportDiagnostics}
+        />
       )}
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(120px, 32%) minmax(0, 1fr)", flex: 1, minHeight: 0 }}>
-        <div
-          style={{
-            borderRight: "1px solid var(--fx-line-default)",
-            overflowY: "auto",
-            background: "var(--fx-surface-raised)",
-          }}
-        >
-          {loading ? (
-            <div style={{ padding: 16, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
-              {t("loading", "Loading…")}
-            </div>
-          ) : processes.length === 0 ? (
-            <div
-              style={{ padding: 16, color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)", lineHeight: 1.6 }}
-            >
-              {t("noManagedProcesses", "No managed processes")}
-            </div>
-          ) : (
-            processes.map((process) => (
-              <button
-                type="button"
-                key={process.processId}
-                onClick={() => setSelectedId(process.processId)}
-                style={{
-                  width: "100%",
-                  border: "none",
-                  borderBottom: "1px solid var(--fx-line-default)",
-                  background: selectedId === process.processId ? "var(--fx-surface-main)" : "transparent",
-                  color: "var(--fx-text-primary)",
-                  padding: "12px",
-                  textAlign: "left",
-                  cursor: "pointer",
-                }}
-              >
-                <div style={{ display: "flex", gap: 8, alignItems: "center", minWidth: 0 }}>
-                  <span
-                    style={{ width: 7, height: 7, borderRadius: "50%", background: stateColor(process), flexShrink: 0 }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "var(--text-label)",
-                      fontWeight: 600,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {process.label}
-                  </span>
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    fontSize: "var(--text-micro)",
-                    color: "var(--fx-text-tertiary)",
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <span>{process.state}</span>
-                  <span>{formatDuration(process.startedAt, process.stoppedAt, now)}</span>
-                </div>
-                {process.lastOutput && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: "var(--text-micro)",
-                      color: "var(--fx-text-tertiary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {process.lastOutput.text}
-                  </div>
-                )}
-              </button>
-            ))
-          )}
-        </div>
+      {error && (
+        <DangerBanner>
+          <p className="m-0 min-w-0 flex-1" style={{ overflowWrap: "anywhere" }}>
+            {error}
+          </p>
+        </DangerBanner>
+      )}
+      {lost && (
+        <DangerBanner>
+          <TriangleAlertGlyph />
+          <p className="m-0 min-w-0 flex-1">
+            {t(
+              "managedProcessContainmentFailure",
+              "This process tree could not be safely confirmed as stopped. New starts are disabled; stop all processes and restart the app.",
+            )}
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            className="process-summary-button type-label-medium h-[26px] shrink-0 rounded-[var(--radius-chip)] px-2"
+            style={{ color: "var(--fx-status-danger-text)" }}
+            onClick={exportDiagnostics}
+          >
+            {t("exportDiagnostics", "Export Diagnostics")}
+          </button>
+        </DangerBanner>
+      )}
+      <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, overflowY: "auto" }}>
+        {loading ? (
+          <ProcessListMessage text={t("loading", "Loading…")} />
+        ) : processes.length === 0 ? (
+          <ProcessEmpty />
+        ) : (
+          <ProcessList
+            processes={processes}
+            selectedId={selectedId}
+            now={now}
+            onSelect={setSelectedId}
+            onOpenPort={(process, url) => void openEndpoint(process, url)}
+          />
+        )}
 
-        {selected ? (
-          <div style={{ display: "flex", flexDirection: "column", minWidth: 0, minHeight: 0 }}>
+        {selected && (
+          <div
+            style={{
+              display: "flex",
+              flex: "1 0 auto",
+              flexDirection: "column",
+              minWidth: 0,
+              minHeight: 320,
+              borderTop: "1px solid var(--fx-line-default)",
+              background: "var(--fx-surface-raised)",
+            }}
+          >
             <div
               style={{
                 padding: "12px 12px",
@@ -329,7 +177,9 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 >
                   {selected.label}
                 </strong>
-                <span style={{ color: stateColor(selected), fontSize: "var(--text-meta)" }}>{selected.state}</span>
+                <span style={{ color: stateColor(selected), fontSize: "var(--text-meta)" }}>
+                  {processStateLabel(selected, t)}
+                </span>
                 <span style={{ marginLeft: "auto", color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
                   run {selected.generation}
                 </span>
@@ -364,43 +214,6 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                     : warning}
                 </div>
               ))}
-              {selected.state === "lost" && (
-                <div
-                  role="alert"
-                  style={{
-                    padding: 8,
-                    border: "1px solid var(--fx-status-danger-border)",
-                    borderRadius: "var(--radius-control)",
-                    color: "var(--fx-status-danger)",
-                    fontSize: "var(--text-meta)",
-                  }}
-                >
-                  <div>
-                    {t(
-                      "managedProcessContainmentFailure",
-                      "This process tree could not be safely confirmed as stopped. New starts are disabled; stop all processes and restart the app.",
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() => void invoke(() => call("processes.stopAll", { mode: "force" }))}
-                    >
-                      {t("stopAll", "Stop All")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() => void invoke(() => window.piBridge.exportDiagnostics())}
-                    >
-                      {t("exportDiagnostics", "Export Diagnostics")}
-                    </button>
-                  </div>
-                </div>
-              )}
               {selected.endpoints.map((endpoint) => (
                 <button
                   key={endpoint.id}
@@ -669,17 +482,6 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 </button>
               </form>
             )}
-          </div>
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              placeItems: "center",
-              color: "var(--fx-text-tertiary)",
-              fontSize: "var(--text-label)",
-            }}
-          >
-            {t("noManagedProcesses", "No managed processes")}
           </div>
         )}
       </div>

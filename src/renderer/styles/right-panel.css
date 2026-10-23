@@ -479,7 +479,39 @@
 .file-viewer-status-spacer {
   flex: 1;
 }
-
+.process-card,
+.process-summary-button {
+  border: none;
+  background: var(--fx-surface-hover-clear);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.process-card:hover,
+.process-summary-button:hover:not(:disabled) {
+  background: var(--fx-surface-hover-overlay);
+}
+.process-summary-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.process-card[aria-pressed="true"] {
+  background: var(--fx-surface-raised);
+  box-shadow:
+    var(--shadow-control),
+    0 0 0 1px var(--fx-line-translucent);
+}
+.process-card-port:hover {
+  background: var(--fx-surface-hover-overlay-strong);
+}
+.process-card-pulse {
+  animation: process-card-pulse 1s var(--ease-in-out) infinite alternate;
+}
+@keyframes process-card-pulse {
+  to {
+    opacity: 0.4;
+    transform: scale(0.85);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .right-panel-resizer::before,
   .right-panel-resizer::after,
@@ -493,7 +525,10 @@
   .file-viewer-live-dot[data-watching="true"],
   .file-viewer-mode-pill-gliding,
   .file-viewer-mode-tab,
-  .file-viewer-icon-button {
+  .file-viewer-icon-button,
+  .process-card,
+  .process-summary-button,
+  .process-card-pulse {
     transition: none;
     animation: none;
   }
