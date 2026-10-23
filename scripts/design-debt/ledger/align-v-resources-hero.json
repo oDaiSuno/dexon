@@ -1,0 +1,25 @@
+{
+  "lane": "对齐 v-resources-hero 插件与技能：标题区、能力星图卡、待处理提醒、远程对话入口卡",
+  "legacy": [
+    {
+      "file": "src/renderer/components/plugins/plugin-shared.ts",
+      "name": "--text-label",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/plugins/plugin-shared.ts",
+      "property": "fontSize",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/plugins/plugin-shared.ts",
+      "color": "rgba(239,68,68,0.08)",
+      "count": 1,
+      "hint": "改用 var(--fx-status-danger-soft)；悬停加深用 var(--fx-status-danger-soft-strong)"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "lane": "对齐 v-file-tabs 文件标签与标签栏：小圆角块、激活阴影、悬停、关闭按钮",
+  "legacy": [
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "name": "--text-label",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/TabBar.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

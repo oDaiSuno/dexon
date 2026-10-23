@@ -1,0 +1,25 @@
+{
+  "lane": "对齐 f-brand 品牌标志：服务商图标与渠道品牌方块公共组件",
+  "legacy": [],
+  "typography": [],
+  "colors": [
+    {
+      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
+      "color": "#07c160",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
+      "color": "#229ed9",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
+      "color": "#3370ff",
+      "count": 1,
+      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
+    }
+  ]
+}

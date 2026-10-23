@@ -1,0 +1,43 @@
+{
+  "lane": "对齐 v-top-bar 会话顶栏：高度底色、项目路径、标题样式、用量胶囊、费用",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "name": "--text-label",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-breadcrumb.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-identity.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

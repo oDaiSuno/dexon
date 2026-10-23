@@ -1,0 +1,28 @@
+{
+  "lane": "对齐 v-model-dialog 配置模型弹窗：标题区、能力卡片、字段标签与删除按钮",
+  "legacy": [
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--text-label",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "name": "--text-meta",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/models/model-detail.tsx",
+      "property": "fontSize",
+      "count": 4
+    }
+  ],
+  "colors": []
+}

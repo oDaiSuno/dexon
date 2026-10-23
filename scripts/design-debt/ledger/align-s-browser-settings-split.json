@@ -1,21 +1,6 @@
 {
-  "lane": "E6 浏览器设置与授权弹窗",
+  "lane": "对齐 s-browser-settings-split 浏览器设置页拆成分区文件，统一用设置行组件，按稿重排分组",
   "legacy": [
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-body",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-heading-lg",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
     {
       "file": "src/renderer/components/browser/BrowserSettings.tsx",
       "name": "--text-body",
@@ -44,16 +29,6 @@
   ],
   "typography": [
     {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "property": "fontSize",
-      "count": 5
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "property": "lineHeight",
-      "count": 3
-    },
-    {
       "file": "src/renderer/components/browser/BrowserSettings.tsx",
       "property": "fontSize",
       "count": 20
@@ -70,18 +45,6 @@
     }
   ],
   "colors": [
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "color": "rgba(0,0,0,0.35)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "color": "rgba(0,0,0,0.5)",
-      "count": 1,
-      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
-    },
     {
       "file": "src/renderer/components/browser/BrowserSettings.tsx",
       "color": "rgba(0,0,0,0.28)",

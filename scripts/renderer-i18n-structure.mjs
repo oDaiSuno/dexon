@@ -15,6 +15,9 @@
  * （scripts/renderer-i18n-structure.test.mjs），不读仓库源码。
  */
 import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Phase 4 的九个导航键是组合根之外显式追加、由 nav-language 行为测试单独核对的，
 // 指纹基线必须排除它们——忠实原测试的豁免注释。
@@ -94,9 +97,22 @@ const SESSION_ORCHESTRATION_KEYS = new Set([
   "sessionCollaborationLoadFailed",
 ]);
 
-export const INTENTIONAL_REWRITES = {
-  newSession: { enUS: "new session", zhCN: "新建会话" },
-};
+const REWRITES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-rewrites");
+
+function readRewrites(dir) {
+  const merged = {};
+  for (const name of readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .sort()) {
+    for (const [key, values] of Object.entries(JSON.parse(readFileSync(path.join(dir, name), "utf8")))) {
+      if (key in merged) throw new Error(`i18n-rewrites: ${key} is registered twice (${name})`);
+      merged[key] = values;
+    }
+  }
+  return merged;
+}
+
+export const INTENTIONAL_REWRITES = readRewrites(REWRITES_DIR);
 
 const UPSTREAM_FAILURE_KEYS = new Set([
   "failureCollapse",

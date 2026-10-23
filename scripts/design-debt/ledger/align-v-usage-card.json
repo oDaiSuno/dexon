@@ -1,0 +1,60 @@
+{
+  "lane": "对齐 v-usage-card 用量卡：挂在胶囊下的 388 宽卡片、上下文头部、费用与消息汇总",
+  "legacy": [
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "name": "--text-label",
+      "count": 2
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/session-info-popover.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/app-shell/top-bar.tsx",
+      "color": "rgba(0,0,0,0.10)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    }
+  ]
+}

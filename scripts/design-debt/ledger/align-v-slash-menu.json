@@ -1,11 +1,6 @@
 {
-  "lane": "C4 斜杠菜单与文件菜单",
+  "lane": "对齐 v-slash-menu 斜杠命令菜单：带查询词的头部、三列网格、底栏、骨架与无匹配状态",
   "legacy": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "name": "--bg-selected",
-      "count": 1
-    },
     {
       "file": "src/renderer/components/chat-input/SlashMenu.tsx",
       "name": "--bg-selected",
@@ -13,11 +8,6 @@
     }
   ],
   "typography": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
     {
       "file": "src/renderer/components/chat-input/SlashMenu.tsx",
       "property": "fontSize",
@@ -35,12 +25,6 @@
     }
   ],
   "colors": [
-    {
-      "file": "src/renderer/components/chat-input/AtMenu.tsx",
-      "color": "rgba(0,0,0,0.12)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
     {
       "file": "src/renderer/components/chat-input/SlashMenu.tsx",
       "color": "rgba(0,0,0,0.12)",

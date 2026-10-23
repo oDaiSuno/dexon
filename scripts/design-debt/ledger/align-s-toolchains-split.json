@@ -1,5 +1,5 @@
 {
-  "lane": "E5 开发工具页",
+  "lane": "对齐 s-toolchains-split 开发工具页从左右两栏改为单列总览，拆分大文件并统一用公共按钮",
   "legacy": [
     {
       "file": "src/renderer/components/ToolchainsConfig.tsx",

@@ -2,31 +2,6 @@
   "lane": "F3 远程对话页与渠道详情",
   "legacy": [
     {
-      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card-header.tsx",
-      "name": "--text-body",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card-header.tsx",
-      "name": "--text-meta",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card-header.tsx",
-      "name": "--text-micro",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/channels/channels-config/account-credential-fields.tsx",
       "name": "--text-micro",
       "count": 3
@@ -35,61 +10,6 @@
       "file": "src/renderer/components/channels/channels-config/account-feedback.tsx",
       "name": "--text-meta",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
-      "name": "--text-micro",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/accounts-overview.tsx",
-      "name": "--text-label",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/accounts-overview.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "name": "--text-micro",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "name": "--text-title",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/bindings-section.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channels-header.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channels-header.tsx",
-      "name": "--text-title",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/control-styles.ts",
-      "name": "--text-body",
-      "count": 2
     },
     {
       "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
@@ -134,21 +54,6 @@
     {
       "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
       "name": "--text-title",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/pairing-section.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
-      "name": "--text-label",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
-      "name": "--text-meta",
       "count": 1
     },
     {
@@ -169,26 +74,6 @@
   ],
   "typography": [
     {
-      "file": "src/renderer/components/channels/ChannelsConfig.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card-header.tsx",
-      "property": "fontSize",
-      "count": 4
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card-header.tsx",
-      "property": "fontWeight",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-card.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/channels/channels-config/account-credential-fields.tsx",
       "property": "fontSize",
       "count": 3
@@ -204,56 +89,6 @@
       "count": 1
     },
     {
-      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
-      "property": "lineHeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/accounts-overview.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/accounts-overview.tsx",
-      "property": "letterSpacing",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "property": "fontSize",
-      "count": 4
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
-      "property": "fontWeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/bindings-section.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channels-header.tsx",
-      "property": "fontSize",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channels-header.tsx",
-      "property": "lineHeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/control-styles.ts",
-      "property": "fontSize",
-      "count": 2
-    },
-    {
       "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
       "property": "fontSize",
       "count": 4
@@ -296,21 +131,6 @@
     {
       "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
       "property": "lineHeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/pairing-section.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
-      "property": "fontWeight",
       "count": 1
     },
     {
@@ -325,24 +145,6 @@
     }
   ],
   "colors": [
-    {
-      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
-      "color": "#07c160",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
-      "color": "#229ed9",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/channel-labels.ts",
-      "color": "#3370ff",
-      "count": 1,
-      "hint": "渠道品牌色改用 var(--fx-channel-wechat / telegram / feishu)，与 Framer /Channel/* 一致"
-    },
     {
       "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
       "color": "rgba(0,0,0,.25)",

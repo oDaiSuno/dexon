@@ -1,0 +1,17 @@
+{
+  "lane": "对齐 v-upstream-error 上游错误卡：双层卡片、标题与图标、次数、错误原文",
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/components/messages/FailureLine.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/styles/messages-failure.css",
+      "property": "line-height",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

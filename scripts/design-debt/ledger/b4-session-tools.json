@@ -11,16 +11,6 @@
       "file": "src/renderer/components/messages/new-session-action.tsx",
       "property": "fontWeight",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/messages/session-links.tsx",
-      "property": "fontSize",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/messages/session-links.tsx",
-      "property": "lineHeight",
-      "count": 2
     }
   ],
   "colors": []

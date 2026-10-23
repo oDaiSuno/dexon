@@ -1,5 +1,5 @@
 {
-  "lane": "C5 排队消息与输入框提示条",
+  "lane": "对齐 v-queue-tray 排队托盘贴在输入框顶上，行样式与插话/后续文案",
   "legacy": [
     {
       "file": "src/renderer/components/chat-input/StatusBanners.tsx",

@@ -1,5 +1,5 @@
 {
-  "lane": "D5 进程面板",
+  "lane": "对齐 v-processes-detail 进程详情：头部、徽标、操作按钮、日志工具栏与日志行、stdin",
   "legacy": [
     {
       "file": "src/renderer/components/ProcessPanel.tsx",

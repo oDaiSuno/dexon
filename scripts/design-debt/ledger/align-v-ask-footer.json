@@ -1,5 +1,5 @@
 {
-  "lane": "B6 向你提问的卡片",
+  "lane": "对齐 v-ask-footer 提问卡底栏：发送中、失败条、放弃确认与按钮",
   "legacy": [
     {
       "file": "src/renderer/styles/tool-cards.css",

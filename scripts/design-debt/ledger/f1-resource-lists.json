@@ -2,21 +2,6 @@
   "lane": "F1 插件与技能列表",
   "legacy": [
     {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "name": "--bg-selected",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "name": "--text-micro",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/plugins/plugin-list.tsx",
       "name": "--bg-hover",
       "count": 2
@@ -42,11 +27,6 @@
       "count": 3
     },
     {
-      "file": "src/renderer/components/plugins/plugin-shared.ts",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/plugins/resource-list.tsx",
       "name": "--text-label",
       "count": 2
@@ -55,26 +35,6 @@
       "file": "src/renderer/components/plugins/resource-list.tsx",
       "name": "--text-micro",
       "count": 2
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "name": "--text-body",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "name": "--text-display",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "name": "--text-meta",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "name": "--text-title",
-      "count": 1
     },
     {
       "file": "src/renderer/components/skills/skill-list.tsx",
@@ -99,35 +59,10 @@
     {
       "file": "src/renderer/components/skills/skill-list.tsx",
       "name": "--text-micro",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "name": "--text-body",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "name": "--text-display",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "name": "--text-title",
       "count": 1
     }
   ],
   "typography": [
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "property": "fontSize",
-      "count": 2
-    },
     {
       "file": "src/renderer/components/plugins/plugin-list.tsx",
       "property": "fontSize",
@@ -139,11 +74,6 @@
       "count": 2
     },
     {
-      "file": "src/renderer/components/plugins/plugin-shared.ts",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/plugins/resource-list.tsx",
       "property": "fontSize",
       "count": 4
@@ -151,21 +81,6 @@
     {
       "file": "src/renderer/components/plugins/resource-list.tsx",
       "property": "fontWeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "property": "fontSize",
-      "count": 5
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "property": "fontWeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "property": "lineHeight",
       "count": 1
     },
     {
@@ -182,83 +97,7 @@
       "file": "src/renderer/components/skills/skill-list.tsx",
       "property": "letterSpacing",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "property": "fontSize",
-      "count": 5
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "property": "fontWeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "property": "lineHeight",
-      "count": 1
     }
   ],
-  "colors": [
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "color": "rgba(0,0,0,0.22)",
-      "count": 1,
-      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "color": "rgba(120,120,120,0.12)",
-      "count": 1,
-      "hint": "中性底色改用 var(--fx-surface-subtle) / var(--fx-surface-hover)，边线用 var(--fx-line-default)；状态标签可直接用 <Badge tone=\"neutral\">"
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "color": "rgba(99,102,241,0.12)",
-      "count": 1,
-      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-controls.tsx",
-      "color": "rgba(99,102,241,0.85)",
-      "count": 1,
-      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
-    },
-    {
-      "file": "src/renderer/components/plugins/plugin-shared.ts",
-      "color": "rgba(239,68,68,0.08)",
-      "count": 1,
-      "hint": "改用 var(--fx-status-danger-soft)；悬停加深用 var(--fx-status-danger-soft-strong)"
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "color": "rgba(0,0,0,0.18)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/PluginsConfig.tsx",
-      "color": "rgba(0,0,0,0.35)",
-      "count": 1,
-      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
-    },
-    {
-      "file": "src/renderer/components/skills/skill-toggle.tsx",
-      "color": "rgba(0,0,0,0.22)",
-      "count": 1,
-      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "color": "rgba(0,0,0,0.18)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/SkillsConfig.tsx",
-      "color": "rgba(0,0,0,0.35)",
-      "count": 1,
-      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
-    }
-  ]
+  "colors": []
 }

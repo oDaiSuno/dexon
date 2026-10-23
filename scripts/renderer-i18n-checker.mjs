@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { fileURLToPath } from "node:url";
 
 const LOCALIZED_OWNER_SUFFIXES = [
   "components/session-sidebar/worktree-switcher.tsx",
@@ -309,9 +310,18 @@ function checkRetiredBrowserTerminology({ failures, root, file, sourceText }) {
   }
 }
 
+const OWNERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-owners");
+const REGISTERED_OWNER_SUFFIXES = fs.existsSync(OWNERS_DIR)
+  ? fs
+      .readdirSync(OWNERS_DIR)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .flatMap((name) => JSON.parse(fs.readFileSync(path.join(OWNERS_DIR, name), "utf8")))
+  : [];
+
 function isLocalizedOwner(root, file) {
   const normalized = relative(root, file).split(path.sep).join("/");
-  return LOCALIZED_OWNER_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+  return [...LOCALIZED_OWNER_SUFFIXES, ...REGISTERED_OWNER_SUFFIXES].some((suffix) => normalized.endsWith(suffix));
 }
 
 function walk(node, visit) {

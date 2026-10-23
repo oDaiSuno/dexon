@@ -1,0 +1,93 @@
+{
+  "lane": "对齐 v-remote-bindings 远程对话页：已接通对话列表、安全设置文案、最近动态",
+  "legacy": [
+    {
+      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "name": "--text-title",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/bindings-section.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/control-styles.ts",
+      "name": "--text-body",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
+      "name": "--text-meta",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/account-settings-grid.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/activity-section.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/bindings-section.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/control-styles.ts",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/section-layout.tsx",
+      "property": "fontWeight",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

@@ -1,0 +1,112 @@
+{
+  "lane": "对齐 v-resources-sections 插件与技能：技能卡片网格、工具扩展、提示词模板、来源条",
+  "legacy": [
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "name": "--text-body-lg",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "name": "--text-label",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "name": "--text-micro",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "property": "fontSize",
+      "count": 12
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "property": "fontWeight",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "property": "lineHeight",
+      "count": 2
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--fx-surface-subtle) / var(--fx-surface-hover)，边线用 var(--fx-line-default)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-controls.tsx",
+      "color": "rgba(99,102,241,0.85)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-toggle.tsx",
+      "color": "rgba(0,0,0,0.22)",
+      "count": 1,
+      "hint": "自制开关直接换成 form-controls 的 <Toggle>，阴影随之消失"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--fx-surface-subtle) / var(--fx-surface-hover)，边线用 var(--fx-line-default)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(99,102,241,0.12)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    },
+    {
+      "file": "src/renderer/components/skills/skill-detail.tsx",
+      "color": "rgba(99,102,241,0.8)",
+      "count": 1,
+      "hint": "设计稿没有靛蓝：项目级标签改用 <Badge tone=\"accent\">，或 var(--fx-accent-blue-soft) / var(--fx-accent-blue-text)"
+    }
+  ]
+}
