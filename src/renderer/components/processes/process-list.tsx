@@ -32,10 +32,10 @@ const STATE_DOT = {
 function SummaryItem({ tone, label }: { tone: "running" | "exited" | "failed"; label: string }) {
   return (
     <span
-      className="type-label-default inline-flex items-center gap-1.5 whitespace-nowrap"
+      className="type-label-default inline-flex items-center gap-[6px] whitespace-nowrap"
       style={{ color: "var(--fx-text-tertiary)" }}
     >
-      <span className="size-1.5 rounded-[3px]" style={{ background: SUMMARY_DOT[tone] }} />
+      <span className="size-[6px] rounded-[3px]" style={{ background: SUMMARY_DOT[tone] }} />
       {label}
     </span>
   );
@@ -140,7 +140,7 @@ export function ProcessSummary({
 
   return (
     <div
-      className="flex h-10 shrink-0 items-center gap-3 pr-3 pl-4"
+      className="flex h-[40px] shrink-0 items-center gap-[12px] pr-[12px] pl-[16px]"
       style={{ background: "var(--fx-surface-sidebar)", borderBottom: "1px solid var(--fx-line-default)" }}
     >
       {processes.length === 0 ? (
@@ -174,7 +174,7 @@ export function ProcessSummary({
         <>
           <button
             type="button"
-            className="process-summary-button type-label-medium flex h-[26px] shrink-0 items-center gap-1.5 rounded-[var(--radius-chip)] px-2"
+            className="process-summary-button type-label-medium flex h-[26px] shrink-0 items-center gap-[6px] rounded-[var(--radius-chip)] px-[8px]"
             style={{ color: "var(--fx-text-secondary)" }}
             disabled={busy || (summary.running === 0 && !summary.lost)}
             onClick={() => onStopAll(summary.lost ? "force" : "graceful")}
@@ -193,14 +193,14 @@ function ProcessState({ process }: { process: ManagedProcessPublicInfo }) {
   const tone = processTone(process);
   return (
     <span
-      className="flex size-3.5 shrink-0 items-center justify-center"
+      className="flex size-[14px] shrink-0 items-center justify-center"
       style={{ color: "var(--fx-status-danger-text)" }}
     >
       {tone === "danger" ? (
         <CircleXGlyph />
       ) : (
         <span
-          className={tone === "idle" ? "size-2 rounded-[4px]" : "process-card-pulse size-2 rounded-[4px]"}
+          className={tone === "idle" ? "size-[8px] rounded-[4px]" : "process-card-pulse size-[8px] rounded-[4px]"}
           style={{ background: STATE_DOT[tone] }}
         />
       )}
@@ -233,18 +233,18 @@ function ProcessCard({
   return (
     <button
       type="button"
-      className="process-card flex w-full flex-col gap-1 rounded-[var(--radius-control)] p-2.5 text-left"
+      className="process-card flex w-full flex-col gap-[4px] rounded-[var(--radius-control)] p-[10px] text-left"
       aria-pressed={selected}
       onClick={onSelect}
     >
-      <span className="flex w-full min-w-0 items-center gap-2">
+      <span className="flex w-full min-w-0 items-center gap-[8px]">
         <ProcessState process={process} />
         <span className="type-body-medium min-w-0 flex-1 truncate" style={{ color: "var(--fx-text-primary)" }}>
           {process.label}
         </span>
         {endpoint && port && (
           <span
-            className="process-card-port type-mono-meta inline-flex h-5 shrink-0 items-center gap-1 rounded-[var(--radius-kbd)] px-1.5"
+            className="process-card-port type-mono-meta inline-flex h-[20px] shrink-0 items-center gap-[4px] rounded-[var(--radius-kbd)] px-[6px]"
             style={{ background: "var(--fx-surface-inset)", color: "var(--fx-text-secondary)" }}
             title={`${t("openInBrowser", "Open in Browser")}: ${endpoint.url}`}
             onClick={openPort}
@@ -259,7 +259,10 @@ function ProcessCard({
           {formatDuration(process.startedAt, process.stoppedAt, now)}
         </span>
       </span>
-      <span className="flex w-full min-w-0 items-center gap-1.5 pl-[22px]" style={{ color: "var(--fx-text-tertiary)" }}>
+      <span
+        className="flex w-full min-w-0 items-center gap-[6px] pl-[22px]"
+        style={{ color: "var(--fx-text-tertiary)" }}
+      >
         <span
           className="type-meta-default shrink-0 whitespace-nowrap"
           style={failed ? { color: "var(--fx-status-danger-text)" } : undefined}
@@ -294,7 +297,7 @@ export function ProcessList({
   onOpenPort: (process: ManagedProcessPublicInfo, url: string) => void;
 }) {
   return (
-    <div className="flex shrink-0 flex-col gap-0.5 p-2">
+    <div className="flex shrink-0 flex-col gap-[2px] p-[8px]">
       {processes.map((process) => (
         <ProcessCard
           key={process.processId}
@@ -312,9 +315,9 @@ export function ProcessList({
 export function ProcessEmpty() {
   const { t } = useI18n();
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-2.5 px-12 text-center">
+    <div className="flex flex-1 flex-col items-center justify-center gap-[10px] px-[48px] text-center">
       <span
-        className="flex size-11 items-center justify-center rounded-[var(--radius-menu)]"
+        className="flex size-[44px] items-center justify-center rounded-[var(--radius-menu)]"
         style={{
           border: "1px solid var(--fx-line-subtle)",
           background: "var(--fx-surface-inset)",
@@ -339,7 +342,7 @@ export function ProcessEmpty() {
 export function ProcessListMessage({ text, tone }: { text: string; tone?: "danger" }) {
   return (
     <div
-      className="type-label-default p-4"
+      className="type-label-default p-[16px]"
       style={{ color: tone === "danger" ? "var(--fx-status-danger-text)" : "var(--fx-text-tertiary)" }}
     >
       {text}

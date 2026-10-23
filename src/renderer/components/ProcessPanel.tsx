@@ -42,7 +42,7 @@ function DangerBanner({ children }: { children: ReactNode }) {
   return (
     <div
       role="alert"
-      className="type-label-default flex shrink-0 items-center gap-2 px-4 py-2"
+      className="type-label-default flex shrink-0 items-center gap-[8px] px-[16px] py-[8px]"
       style={{
         borderBottom: "1px solid var(--fx-status-danger-border)",
         background: "var(--fx-status-danger-soft)",
@@ -123,7 +123,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
           <button
             type="button"
             disabled={busy}
-            className="process-summary-button type-label-medium h-[26px] shrink-0 rounded-[var(--radius-chip)] px-2"
+            className="process-summary-button type-label-medium h-[26px] shrink-0 rounded-[var(--radius-chip)] px-[8px]"
             style={{ color: "var(--fx-status-danger-text)" }}
             onClick={exportDiagnostics}
           >
