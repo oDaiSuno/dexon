@@ -1,65 +1,6 @@
 {
   "lane": "对齐 s-toolchains-split 开发工具页从左右两栏改为单列总览，拆分大文件并统一用公共按钮",
-  "legacy": [
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--bg-hover",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--bg-selected",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--text-heading-lg",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--text-label",
-      "count": 7
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--text-meta",
-      "count": 8
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "name": "--text-micro",
-      "count": 9
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "property": "fontSize",
-      "count": 25
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "property": "fontWeight",
-      "count": 7
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "property": "letterSpacing",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "property": "lineHeight",
-      "count": 4
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/ToolchainsConfig.tsx",
-      "color": "rgba(120,120,120,0.12)",
-      "count": 1,
-      "hint": "中性底色改用 var(--fx-surface-subtle) / var(--fx-surface-hover)，边线用 var(--fx-line-default)；状态标签可直接用 <Badge tone=\"neutral\">"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }

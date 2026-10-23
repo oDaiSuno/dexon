@@ -1,0 +1,42 @@
+{
+  "chooseCustomTool": {
+    "enUS": "Choose…",
+    "zhCN": "选择…"
+  },
+  "repairManagedTool": {
+    "enUS": "Repair",
+    "zhCN": "修复"
+  },
+  "toolCache": {
+    "enUS": "cache",
+    "zhCN": "缓存"
+  },
+  "toolPrivateStorage": {
+    "enUS": "Private storage",
+    "zhCN": "私有存储"
+  },
+  "toolDetailDescription": {
+    "enUS": "Choose which verified provider Pi Desktop should use for Skills, Plugins, Agent commands, and project operations.",
+    "zhCN": "选择 Pi Desktop 应用于技能、插件、Agent 命令和项目操作的已验证工具来源。"
+  },
+  "toolGroupCli": {
+    "enUS": "CLI essentials",
+    "zhCN": "CLI 基础工具"
+  },
+  "toolPreferenceManaged": {
+    "enUS": "Managed",
+    "zhCN": "Pi 托管"
+  },
+  "toolProviderManaged": {
+    "enUS": "Managed",
+    "zhCN": "Pi 托管"
+  },
+  "toolDiscoveryPrivacy": {
+    "enUS": "Scanning does not run shell profiles or access the network. Pi Desktop does not modify the system PATH, shell profile, or registry.",
+    "zhCN": "扫描不会执行 shell profile 或访问网络。Pi Desktop 不会修改系统 PATH、shell profile 或注册表。"
+  },
+  "toolDownloadPrivacy": {
+    "enUS": "Managed installs contact the displayed official source and expose your IP address, platform, and architecture. Downloads stay inside Pi Desktop data.",
+    "zhCN": "托管安装会连接页面所示官方来源，并暴露 IP 地址、平台和架构。下载内容仅保存在 Pi Desktop 数据目录。"
+  }
+}
