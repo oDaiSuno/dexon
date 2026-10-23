@@ -135,7 +135,7 @@ for (const [tab, content] of [
   ["Channels", /Messaging channels/],
   ["Models", /Add provider/],
   ["Developer Tools", /JavaScript/],
-  ["About", /Application information/],
+  ["About", /Software update/],
 ]) {
   test(`the retained ${tab} category still opens its actual configuration through the real application`, async (t) => {
     const scene = await startNavigation(t, { history: false });

@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { createDeferred } from "#test-timing";
 import { dom, act, click, loadRenderer, mount, restoreGlobals, settle } from "../support/renderer.mjs";
-const { SoftwareUpdate } = await loadRenderer(
+const { AboutSettings } = await loadRenderer(
   "software-update-behavior",
-  'export {SoftwareUpdate} from "./src/renderer/components/settings/software-update.tsx";',
+  'export {AboutSettings} from "./src/renderer/components/settings/about-settings.tsx";',
 );
 after(restoreGlobals);
 const state = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
@@ -18,7 +18,7 @@ test("an automatic-update change waits for and displays the accepted service set
     getUpdateState: async () => state,
     setAutomaticUpdateChecks: () => pending.promise,
   };
-  const view = await mount(t, SoftwareUpdate, { onClose() {} });
+  const view = await mount(t, AboutSettings, { onClose() {} });
   const checkbox = view.container.querySelector('input[type="checkbox"]');
   assert.equal(checkbox.checked, false);
   await click(checkbox);
@@ -36,7 +36,7 @@ test("a failed automatic-update change retains the previous value and offers ret
       throw new Error("disk unavailable");
     },
   };
-  const view = await mount(t, SoftwareUpdate, { onClose() {} });
+  const view = await mount(t, AboutSettings, { onClose() {} });
   await click(view.container.querySelector('input[type="checkbox"]'));
   await settle();
   assert.equal(view.container.querySelector('input[type="checkbox"]').checked, false);

@@ -61,6 +61,18 @@
   cursor: progress;
 }
 
+.ui-link-button {
+  display: inline-flex;
+  align-items: center;
+  border: 0;
+  background: var(--fx-surface-hover-clear);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.ui-link-button:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
 .ui-input,
 .ui-select {
   min-height: 32px;
@@ -246,6 +258,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ui-button,
+  .ui-link-button,
   .ui-input,
   .ui-input-reveal,
   .ui-select,

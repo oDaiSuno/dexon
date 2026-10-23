@@ -1,49 +1,64 @@
 import type { DesktopUpdateState } from "../../../contract/desktop";
 import type { AppLanguage } from "@/i18n";
 import { useI18n } from "@/i18n";
+import { APP_DISPLAY_NAME } from "@/lib/app-version";
+import { appReleaseUrl } from "@shared/app-links";
+import { ArrowUpRightIcon } from "./about-icons";
 
-export function UpdateReleaseDetails({ state, language }: { state: DesktopUpdateState; language: AppLanguage }) {
+type Translate = (key: string, fallback: string) => string;
+
+export function UpdateNotes({ state }: { state: DesktopUpdateState }) {
   const { t } = useI18n();
+  const releaseUrl = state.availableVersion ? appReleaseUrl(state.availableVersion) : null;
+  if (!state.releaseNotes && !releaseUrl) return null;
   return (
-    <div style={{ marginTop: 12, fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--fx-text-secondary)" }}>
-      {state.availableVersion && (
-        <div>
-          {t("availableVersion", "Available version")}: {displayVersion(state.availableVersion)}
-        </div>
-      )}
-      {state.releaseName && <div>{state.releaseName}</div>}
-      {state.releaseDate && (
-        <div>
-          {t("releaseDate", "Released")}: {formatUpdateDate(state.releaseDate, language)}
-        </div>
-      )}
-      {state.releaseNotes && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ marginBottom: 4, fontWeight: 650, color: "var(--fx-text-primary)" }}>
-            {t("releaseNotes", "Release notes")}
-          </div>
-          <pre
-            tabIndex={0}
-            aria-label={t("releaseNotes", "Release notes")}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "var(--space-3)",
+        padding: "var(--space-4) var(--space-5) var(--space-4-5)",
+        borderTop: "1px solid var(--fx-line-default)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+        <h3 className="type-label-medium" style={{ flex: 1, margin: 0, color: "var(--fx-text-tertiary)" }}>
+          {t("releaseNotes", "What's new")}
+        </h3>
+        {releaseUrl && (
+          <button
+            type="button"
+            className="ui-link-button type-label-default"
+            onClick={() => void window.piBridge.openExternal(releaseUrl)}
             style={{
-              margin: 0,
-              maxHeight: 180,
-              overflowY: "auto",
-              padding: 12,
-              border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-control)",
-              background: "var(--fx-surface-main)",
-              color: "var(--fx-text-secondary)",
-              fontFamily: "inherit",
-              fontSize: "var(--text-meta)",
-              lineHeight: 1.55,
-              whiteSpace: "pre-wrap",
-              overflowWrap: "anywhere",
+              gap: "var(--space-1)",
+              padding: "var(--space-0-5) var(--space-1-5)",
+              borderRadius: "var(--radius-chip)",
+              color: "var(--fx-text-tertiary)",
             }}
           >
-            {state.releaseNotes}
-          </pre>
-        </div>
+            {t("fullChangelog", "Full changelog")}
+            <ArrowUpRightIcon />
+          </button>
+        )}
+      </div>
+      {state.releaseNotes && (
+        <p
+          tabIndex={0}
+          aria-label={t("releaseNotes", "What's new")}
+          className="type-body-large"
+          style={{
+            margin: 0,
+            maxHeight: 180,
+            overflowY: "auto",
+            paddingLeft: "var(--space-0-5)",
+            color: "var(--fx-text-primary)",
+            whiteSpace: "pre-wrap",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {state.releaseNotes}
+        </p>
       )}
     </div>
   );
@@ -54,22 +69,39 @@ export function UpdateDownloadProgress({ state, language }: { state: DesktopUpda
   const percent = Number.isFinite(state.percent) ? Math.max(0, Math.min(100, state.percent ?? 0)) : 0;
   const progressText = `${percent.toFixed(1)}%`;
   return (
-    <div style={{ marginTop: 16 }}>
-      <progress
-        max={100}
-        value={percent}
-        aria-label={t("updateDownloadProgress", "Update download progress")}
-        aria-valuetext={progressText}
-        style={{ width: "100%", height: 8, accentColor: "var(--fx-accent-blue)" }}
-      />
+    <div style={{ marginTop: "var(--space-2)", display: "grid", gap: "var(--space-1)" }}>
       <div
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-valuetext={progressText}
+        aria-label={t("updateDownloadProgress", "Update download progress")}
         style={{
-          marginTop: 4,
+          width: "100%",
+          height: 6,
+          borderRadius: "var(--radius-pill)",
+          background: "var(--fx-surface-track)",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            width: `${percent}%`,
+            height: "100%",
+            borderRadius: "inherit",
+            background: "var(--fx-accent-blue-fill)",
+            transition: "width var(--duration-quick) var(--ease-out)",
+          }}
+        />
+      </div>
+      <div
+        className="type-label-default"
+        style={{
           display: "flex",
           flexWrap: "wrap",
           justifyContent: "space-between",
-          gap: 8,
-          fontSize: "var(--text-micro)",
+          gap: "var(--space-2)",
           color: "var(--fx-text-tertiary)",
         }}
       >
@@ -87,10 +119,7 @@ export function UpdateDownloadProgress({ state, language }: { state: DesktopUpda
   );
 }
 
-export function getUpdateStatusTitle(
-  state: DesktopUpdateState | null,
-  t: (key: string, fallback: string) => string,
-): string {
+export function getUpdateStatusTitle(state: DesktopUpdateState | null, t: Translate): string {
   if (!state) return t("loadingUpdateStatus", "Loading update status…");
   switch (state.phase) {
     case "disabled":
@@ -102,7 +131,11 @@ export function getUpdateStatusTitle(
     case "up-to-date":
       return t("appIsUpToDate", "You are using the latest version");
     case "available":
-      return t("updateAvailable", "An update is available");
+      return state.availableVersion
+        ? t("availableVersion", "{app} {version} is ready to download")
+            .replace("{app}", APP_DISPLAY_NAME)
+            .replace("{version}", plainVersion(state.availableVersion))
+        : t("updateAvailable", "An update is available");
     case "downloading":
       return t("downloadingUpdate", "Downloading update…");
     case "downloaded":
@@ -114,10 +147,18 @@ export function getUpdateStatusTitle(
   }
 }
 
-export function getUpdateErrorMessage(
-  error: NonNullable<DesktopUpdateState["error"]>,
-  t: (key: string, fallback: string) => string,
-): string {
+export function getReleaseSummary(state: DesktopUpdateState, language: AppLanguage, t: Translate): string | null {
+  const parts: string[] = [];
+  if (state.releaseDate) {
+    parts.push(t("releaseDate", "Released {date}").replace("{date}", formatReleaseDay(state.releaseDate, language)));
+  }
+  if (state.total !== undefined && state.total > 0) {
+    parts.push(t("updateApproxSize", "About {size}").replace("{size}", formatBytes(state.total, language)));
+  }
+  return parts.length > 0 ? parts.join(" · ") : null;
+}
+
+export function getUpdateErrorMessage(error: NonNullable<DesktopUpdateState["error"]>, t: Translate): string {
   switch (error.code) {
     case "UPDATE_OFFLINE":
       return t("updateErrorOffline", "Unable to reach the update service. Check your network and try again.");
@@ -150,8 +191,15 @@ export function updateStatusColor(phase: DesktopUpdateState["phase"] | undefined
   return "var(--fx-text-tertiary)";
 }
 
-export function displayVersion(version: string): string {
-  return version.startsWith("v") ? version : `v${version}`;
+function plainVersion(version: string): string {
+  return version.startsWith("v") ? version.slice(1) : version;
+}
+
+function formatReleaseDay(value: string, language: AppLanguage): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  if (language === "zh-CN") return `${date.getFullYear()} 年 ${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+  return new Intl.DateTimeFormat(language, { dateStyle: "long" }).format(date);
 }
 
 export function formatUpdateDate(value: string, language: AppLanguage): string {
@@ -167,10 +215,3 @@ export function formatBytes(value: number, language: AppLanguage): string {
   const amount = value / 1024 ** unitIndex;
   return `${new Intl.NumberFormat(language, { maximumFractionDigits: unitIndex === 0 ? 0 : 1 }).format(amount)} ${units[unitIndex]}`;
 }
-
-export const updateDetailStyle: React.CSSProperties = {
-  margin: "12px 0 0",
-  fontSize: "var(--text-label)",
-  lineHeight: 1.55,
-  color: "var(--fx-text-secondary)",
-};

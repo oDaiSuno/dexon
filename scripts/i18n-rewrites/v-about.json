@@ -1,0 +1,26 @@
+{
+  "aboutDescription": {
+    "enUS": "App, Pi, and project information.",
+    "zhCN": "了解应用版本、Pi 版本和项目信息。"
+  },
+  "piVersion": {
+    "enUS": "Pi version",
+    "zhCN": "Pi 版本"
+  },
+  "availableVersion": {
+    "enUS": "Available version",
+    "zhCN": "可用版本"
+  },
+  "releaseDate": {
+    "enUS": "Released",
+    "zhCN": "发布时间"
+  },
+  "releaseNotes": {
+    "enUS": "Release notes",
+    "zhCN": "版本说明"
+  },
+  "githubRepository": {
+    "enUS": "GitHub repository",
+    "zhCN": "GitHub 地址"
+  }
+}
