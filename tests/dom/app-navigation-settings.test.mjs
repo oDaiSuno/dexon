@@ -88,9 +88,9 @@ test("Escape closes the six-category Settings without asking and returns focus t
   const entry = control(scene.navigation(), "button", "Settings");
   entry.focus();
   await click(entry);
-  const dialog = await waitFor(() => control(scene.container, "dialog", "Settings"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   await keyDown(selectedTab(dialog), "Escape");
-  await waitFor(() => assert.equal(roles(scene.container, "dialog", "Settings").length, 0));
+  await waitFor(() => assert.equal(roles(scene.container, "region", "Settings").length, 0));
   assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0);
   const focused = dom.window.document.activeElement;
   assert.ok(scene.navigation().contains(focused), "focus is back in the navigation");
@@ -164,7 +164,7 @@ test("Manage permanent permission from a browser authorization request still rea
     }),
   );
   await click(control(scene.container, "button", "Manage permanent permission…"));
-  const dialog = await waitFor(() => control(scene.container, "dialog", "Settings"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   assert.equal(control(dialog, "tab", "Browser").getAttribute("aria-selected"), "true");
   await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Enable built-in Browser/));
   expectSixTabs(dialog);

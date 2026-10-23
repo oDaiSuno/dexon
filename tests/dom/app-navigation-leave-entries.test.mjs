@@ -132,8 +132,8 @@ test("actions that stay on the resource page do not ask and keep the unsaved edi
   noPrompt(scene);
   const settings = await scene.settings();
   noPrompt(scene);
-  await click(control(settings, "button", "Close"));
-  await waitFor(() => assert.equal(roles(scene.container, "dialog", "Settings").length, 0));
+  await click(control(settings, "button", "Back to session"));
+  await waitFor(() => assert.equal(roles(scene.container, "region", "Settings").length, 0));
   noPrompt(scene);
   retainedEdit(scene);
 });

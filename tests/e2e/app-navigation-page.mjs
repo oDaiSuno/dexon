@@ -90,7 +90,7 @@ export function productionPage(operation, args = {}) {
     };
   }
   if (operation === "settingsTabs") {
-    const settings = find("dialog", "Settings");
+    const settings = find("region", "Settings");
     return settings ? [...settings.querySelectorAll('[role="tab"]')].filter(exposed).map(nameOf) : null;
   }
   if (operation === "focus") {

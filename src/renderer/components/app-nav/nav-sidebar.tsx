@@ -70,13 +70,15 @@ function RailButton({
   );
 }
 
-function SettingsButton({ label, onClick }: { label: string; onClick: () => void }) {
+function SettingsButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  const restingBackground = active ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)";
   return (
     <button
       type="button"
       onClick={onClick}
       title={label}
       aria-label={label}
+      aria-current={active ? "page" : undefined}
       style={{
         display: "flex",
         alignItems: "center",
@@ -85,18 +87,18 @@ function SettingsButton({ label, onClick }: { label: string; onClick: () => void
         height: 32,
         padding: 0,
         flexShrink: 0,
-        background: "var(--fx-surface-hover-clear)",
-        border: "none",
+        background: restingBackground,
+        border: `1px solid ${active ? "var(--fx-line-strong)" : "transparent"}`,
         borderRadius: "var(--radius-control)",
-        color: "var(--fx-text-secondary)",
+        color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
         cursor: "pointer",
         transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
+        if (!active) e.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "var(--fx-surface-hover-clear)";
+        e.currentTarget.style.background = restingBackground;
       }}
     >
       <SettingsIcon size={NAV_ICON_SIZE} />
@@ -115,6 +117,7 @@ type MainEntry = {
 export function NavSidebar({
   expanded,
   page,
+  settingsOpen = false,
   spaceName: spaceNameProp,
   spacePath,
   sessions,
@@ -142,6 +145,7 @@ export function NavSidebar({
 }: {
   expanded: boolean;
   page: NavPage;
+  settingsOpen?: boolean;
   spaceName?: string;
   spacePath: string;
   sessions: SessionInfo[];
@@ -172,7 +176,8 @@ export function NavSidebar({
   // space coordination (Phase 6) passes an explicit name when one exists.
   const spaceName = spaceNameProp ?? t("personalSpace", "Personal space");
   const [activeEntry, setActiveEntry] = useState(-1);
-  const onNewSessionPage = page === "chat" && selectedSessionId === null;
+  const currentPage = settingsOpen ? null : page;
+  const onNewSessionPage = currentPage === "chat" && selectedSessionId === null;
 
   if (!expanded) {
     return (
@@ -210,7 +215,7 @@ export function NavSidebar({
         <RailButton
           label={t("navPluginsSkills", "Plugins & Skills")}
           onClick={() => onNavigate("resources")}
-          active={page === "resources"}
+          active={currentPage === "resources"}
         >
           <PluginsIcon size={NAV_ICON_SIZE} />
         </RailButton>
@@ -225,7 +230,7 @@ export function NavSidebar({
             borderTop: "1px solid var(--fx-line-subtle)",
           }}
         >
-          <SettingsButton label={t("settings", "Settings")} onClick={onOpenSettings} />
+          <SettingsButton label={t("settings", "Settings")} active={settingsOpen} onClick={onOpenSettings} />
         </div>
       </nav>
     );
@@ -283,7 +288,7 @@ export function NavSidebar({
         }}
       >
         {entries.map((entry, index) => {
-          const current = entry.page === page;
+          const current = entry.page === currentPage;
           const selected = current || (entry.id === "new-session" && onNewSessionPage);
           const hovered = !selected && activeEntry === index;
           return (
@@ -377,7 +382,7 @@ export function NavSidebar({
           flexShrink: 0,
         }}
       >
-        <SettingsButton label={t("settings", "Settings")} onClick={onOpenSettings} />
+        <SettingsButton label={t("settings", "Settings")} active={settingsOpen} onClick={onOpenSettings} />
         <span
           className="type-mono-meta"
           style={{

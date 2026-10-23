@@ -245,11 +245,11 @@ export async function startNavigation(t, options = {}, external = navigationBoun
     },
     async settings() {
       await click(control(scene.navigation(), "button", labels.settings));
-      return waitFor(() => control(view.container, "dialog", labels.settings));
+      return waitFor(() => control(view.container, "region", labels.settings));
     },
     async desktopMenu(command) {
       await act(async () => external.menu(command));
-      return waitFor(() => control(view.container, "dialog", labels.settings));
+      return waitFor(() => control(view.container, "region", labels.settings));
     },
   };
   return scene;

@@ -44,8 +44,8 @@ export function SettingsConfig({
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
+  const restoreFocusRef = useRef(false);
   const returnFocusRef = useRef<HTMLElement | null>(
     document.activeElement instanceof HTMLElement ? document.activeElement : null,
   );
@@ -56,18 +56,38 @@ export function SettingsConfig({
 
   useEffect(() => {
     const returnFocus = returnFocusRef.current;
-    closeButtonRef.current?.focus();
     return () => {
-      returnFocus?.focus();
+      if (restoreFocusRef.current) returnFocus?.focus();
     };
   }, []);
 
   useEffect(() => {
-    const dialog = dialogRef.current;
-    if (dialog && !dialog.contains(document.activeElement)) {
+    const page = pageRef.current;
+    if (page && !page.contains(document.activeElement)) {
       document.getElementById(`settings-tab-${activeTab}`)?.focus();
     }
   }, [activeTab, navigationRequestId]);
+
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const close = () => {
+    restoreFocusRef.current = true;
+    closeRef.current();
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target;
+      const page = pageRef.current;
+      if (target !== document.body && !(target instanceof Node && page?.contains(target))) return;
+      event.preventDefault();
+      restoreFocusRef.current = true;
+      closeRef.current();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const tabs: { id: SettingsTab; label: string }[] = [
     { id: "general", label: t("general", "General") },
@@ -80,250 +100,212 @@ export function SettingsConfig({
 
   return (
     <div
-      role="presentation"
+      ref={pageRef}
+      role="region"
+      aria-label={t("settings", "Settings")}
+      tabIndex={-1}
       style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        background: "var(--fx-surface-scrim)",
+        flex: 1,
+        minWidth: 0,
+        minHeight: 0,
+        height: "100%",
         display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "var(--fx-surface-main)",
+        outline: "none",
       }}
     >
       <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={t("settings", "Settings")}
-        onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            onClose();
-            return;
-          }
-          if (event.key !== "Tab") return;
-
-          const dialog = dialogRef.current;
-          if (!dialog) return;
-          const focusable = Array.from(
-            dialog.querySelectorAll<HTMLElement>(
-              'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          ).filter((element) => element.getClientRects().length > 0);
-          if (focusable.length === 0) {
-            event.preventDefault();
-            dialog.focus();
-            return;
-          }
-
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (event.shiftKey && (document.activeElement === first || !dialog.contains(document.activeElement))) {
-            event.preventDefault();
-            last.focus();
-          } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-          }
-        }}
-        tabIndex={-1}
         style={{
-          width: isMobile ? "calc(100vw - 16px)" : 960,
-          maxWidth: "calc(100vw - 16px)",
-          height: isMobile ? "calc(100dvh - 16px)" : "82vh",
-          maxHeight: "calc(100dvh - 16px)",
-          background: "var(--fx-surface-main)",
-          border: "1px solid var(--fx-line-default)",
-          borderRadius: "var(--radius-dialog)",
           display: "flex",
-          flexDirection: "column",
-          boxShadow: "var(--shadow-dialog)",
-          overflow: "hidden",
+          alignItems: "center",
+          gap: 10,
+          height: 56,
+          padding: isMobile ? "0 var(--space-4)" : "0 var(--space-6)",
+          borderBottom: "1px solid var(--fx-line-subtle)",
+          background: "var(--fx-surface-main)",
+          flexShrink: 0,
         }}
       >
-        <div
+        <span className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
+          {t("settings", "Settings")}
+        </span>
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+          style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+        >
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+        <span
+          className="type-body-large-medium"
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            color: "var(--fx-text-primary)",
+          }}
+        >
+          {tabs.find((tab) => tab.id === activeTab)?.label}
+        </span>
+        <div style={{ flex: 1 }} />
+        <button
+          type="button"
+          onClick={close}
+          aria-label={t("backToSession", "Back to session")}
+          aria-keyshortcuts="Escape"
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 10,
-            height: 56,
-            padding: isMobile ? "0 var(--space-4)" : "0 var(--space-6)",
-            borderBottom: "1px solid var(--fx-line-subtle)",
-            background: "var(--fx-surface-main)",
+            gap: "var(--space-2)",
             flexShrink: 0,
+            padding: 0,
+            border: "none",
+            borderRadius: "var(--radius-chip)",
+            background: "transparent",
+            color: "var(--fx-text-tertiary)",
+            cursor: "pointer",
           }}
         >
-          <span className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
-            {t("settings", "Settings")}
-          </span>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
+          <kbd
+            className="type-mono-meta"
             aria-hidden="true"
-            style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
-          >
-            <path d="m9 18 6-6-6-6" />
-          </svg>
-          <span
-            className="type-body-large-medium"
             style={{
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              color: "var(--fx-text-primary)",
+              display: "flex",
+              alignItems: "center",
+              padding: "1px 6px",
+              border: "1px solid var(--fx-line-strong)",
+              borderRadius: "var(--radius-kbd)",
+              color: "var(--fx-text-tertiary)",
             }}
           >
-            {tabs.find((tab) => tab.id === activeTab)?.label}
+            esc
+          </kbd>
+          <span className="type-body-default" aria-hidden="true" style={{ whiteSpace: "nowrap" }}>
+            {t("backToSession", "Back to session")}
           </span>
-          <div style={{ flex: 1 }} />
-          <button
-            ref={closeButtonRef}
-            type="button"
-            className="ui-button"
-            data-variant="ghost"
-            onClick={onClose}
-            aria-label={t("close", "Close")}
-            style={{ width: 32, padding: 0, marginRight: -6 }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
-            </svg>
-          </button>
-        </div>
+        </button>
+      </div>
 
-        <div
-          style={{
-            flexShrink: 0,
-            padding: isMobile ? "var(--space-5) var(--space-4) 0" : "var(--space-8) var(--space-6) 0",
-          }}
-        >
-          <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
-            <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
-              <div className="type-title-page" style={{ color: "var(--fx-text-primary)" }}>
-                {t("settings", "Settings")}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: isMobile ? "var(--space-5) var(--space-4) 0" : "var(--space-8) var(--space-6) 0",
+        }}
+      >
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
+          <div style={{ display: "grid", gap: 6, minWidth: 0 }}>
+            <div className="type-title-page" style={{ color: "var(--fx-text-primary)" }}>
+              {t("settings", "Settings")}
+            </div>
+            {!isMobile && (
+              <div className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
+                {t("settingsDescription", "Manage app preferences, models, the browser, and app information.")}
               </div>
-              {!isMobile && (
-                <div className="type-body-large" style={{ color: "var(--fx-text-secondary)" }}>
-                  {t("settingsDescription", "Manage app preferences, models, channels, and app information.")}
-                </div>
-              )}
-            </div>
-            <div
-              role="tablist"
-              aria-label={t("settings", "Settings")}
-              aria-orientation="vertical"
-              style={{
-                display: "flex",
-                alignItems: "flex-end",
-                gap: isMobile ? "var(--space-4)" : "var(--space-6)",
-                borderBottom: "1px solid var(--fx-line-subtle)",
-                overflowX: "auto",
-                scrollbarWidth: "none",
-              }}
-            >
-              {tabs.map((tab) => {
-                const active = tab.id === activeTab;
-                return (
-                  <button
-                    key={tab.id}
-                    id={`settings-tab-${tab.id}`}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    aria-controls="settings-tabpanel"
-                    tabIndex={active ? 0 : -1}
-                    onClick={() => {
-                      if (!active) setActiveTab(tab.id);
-                    }}
-                    onKeyDown={(event) => {
-                      const currentIndex = tabs.findIndex((item) => item.id === tab.id);
-                      let nextIndex: number | undefined;
-                      if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
-                      if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
-                      if (event.key === "Home") nextIndex = 0;
-                      if (event.key === "End") nextIndex = tabs.length - 1;
-                      if (nextIndex === undefined) return;
-                      event.preventDefault();
-                      const nextTab = tabs[nextIndex];
-                      setActiveTab(nextTab.id);
-                      document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
-                    }}
-                    className={active ? "type-body-large-medium" : "type-body-large"}
-                    style={{
-                      flexShrink: 0,
-                      display: "flex",
-                      alignItems: "flex-start",
-                      height: 36,
-                      marginBottom: -1,
-                      padding: 0,
-                      border: "none",
-                      borderBottom: `2px solid ${active ? "var(--fx-text-primary)" : "transparent"}`,
-                      background: "transparent",
-                      color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-                      whiteSpace: "nowrap",
-                      cursor: "pointer",
-                      transition:
-                        "color var(--duration-quick) var(--ease-out), border-color var(--duration-quick) var(--ease-out)",
-                    }}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+            )}
+          </div>
+          <div
+            role="tablist"
+            aria-label={t("settings", "Settings")}
+            aria-orientation="vertical"
+            style={{
+              display: "flex",
+              alignItems: "flex-end",
+              gap: isMobile ? "var(--space-4)" : "var(--space-6)",
+              borderBottom: "1px solid var(--fx-line-subtle)",
+              overflowX: "auto",
+              scrollbarWidth: "none",
+            }}
+          >
+            {tabs.map((tab) => {
+              const active = tab.id === activeTab;
+              return (
+                <button
+                  key={tab.id}
+                  id={`settings-tab-${tab.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  aria-controls="settings-tabpanel"
+                  tabIndex={active ? 0 : -1}
+                  onClick={() => {
+                    if (!active) setActiveTab(tab.id);
+                  }}
+                  onKeyDown={(event) => {
+                    const currentIndex = tabs.findIndex((item) => item.id === tab.id);
+                    let nextIndex: number | undefined;
+                    if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % tabs.length;
+                    if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+                    if (event.key === "Home") nextIndex = 0;
+                    if (event.key === "End") nextIndex = tabs.length - 1;
+                    if (nextIndex === undefined) return;
+                    event.preventDefault();
+                    const nextTab = tabs[nextIndex];
+                    setActiveTab(nextTab.id);
+                    document.getElementById(`settings-tab-${nextTab.id}`)?.focus();
+                  }}
+                  className={active ? "type-body-large-medium" : "type-body-large"}
+                  style={{
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    height: 36,
+                    marginBottom: -1,
+                    padding: 0,
+                    border: "none",
+                    borderBottom: `2px solid ${active ? "var(--fx-text-primary)" : "transparent"}`,
+                    background: "transparent",
+                    color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                    transition:
+                      "color var(--duration-quick) var(--ease-out), border-color var(--duration-quick) var(--ease-out)",
+                  }}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
+      </div>
 
-        <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", overflow: "hidden" }}>
-          <div
-            id="settings-tabpanel"
-            role="tabpanel"
-            aria-labelledby={`settings-tab-${activeTab}`}
-            style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex" }}
-          >
-            {activeTab === "general" && (
-              <GeneralSettings
-                language={language}
-                onLanguageChange={setLanguage}
-                isDark={isDark}
-                onThemeChange={(nextDark) => {
-                  if (nextDark !== isDark) toggleTheme();
-                }}
-                chatAppearance={chatAppearance}
-                chatAppearanceSaving={chatAppearanceSaving}
-                onChatAppearanceChange={onChatAppearanceChange}
-              />
-            )}
-            {activeTab === "browser" && <BrowserSettings sessionId={sessionId} />}
-            {activeTab === "models" && (
-              <ModelsConfig embedded cwd={cwd} onClose={() => undefined} onChanged={onModelsChanged} />
-            )}
-            {activeTab === "tools" && <ToolchainsConfig cwd={cwd} />}
-            {activeTab === "channels" && <ChannelsConfig onSnapshotChange={onChannelsChanged} />}
-            {activeTab === "about" && <AboutSettings onClose={onClose} />}
-          </div>
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", overflow: "hidden" }}>
+        <div
+          id="settings-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`settings-tab-${activeTab}`}
+          style={{ flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden", display: "flex" }}
+        >
+          {activeTab === "general" && (
+            <GeneralSettings
+              language={language}
+              onLanguageChange={setLanguage}
+              isDark={isDark}
+              onThemeChange={(nextDark) => {
+                if (nextDark !== isDark) toggleTheme();
+              }}
+              chatAppearance={chatAppearance}
+              chatAppearanceSaving={chatAppearanceSaving}
+              onChatAppearanceChange={onChatAppearanceChange}
+            />
+          )}
+          {activeTab === "browser" && <BrowserSettings sessionId={sessionId} />}
+          {activeTab === "models" && (
+            <ModelsConfig embedded cwd={cwd} onClose={() => undefined} onChanged={onModelsChanged} />
+          )}
+          {activeTab === "tools" && <ToolchainsConfig cwd={cwd} />}
+          {activeTab === "channels" && <ChannelsConfig onSnapshotChange={onChannelsChanged} />}
+          {activeTab === "about" && <AboutSettings onClose={close} />}
         </div>
       </div>
     </div>

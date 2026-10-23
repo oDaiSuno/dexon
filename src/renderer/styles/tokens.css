@@ -106,6 +106,7 @@
   --shadow-badge-danger: 0 0 0 3px var(--fx-status-danger-soft-strong);
   --shadow-badge-running: 0 0 0 3px var(--fx-accent-blue-selection);
 
+  --radius-kbd: 5px;
   --radius-chip: 6px;
   --radius-row: 7px;
   --radius-control: 8px;

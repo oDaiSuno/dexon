@@ -135,7 +135,7 @@ test("Settings opened from the navigation hides the native browser view and clos
   await waitFor(() => assert.equal(scene.external.nativeSurface().visible, true));
   const settings = await scene.settings();
   await waitFor(() => assert.equal(scene.external.nativeSurface().visible, false));
-  await click(control(settings, "button", "Close"));
+  await click(control(settings, "button", "Back to session"));
   await waitFor(() => assert.deepEqual(scene.external.nativeSurface(), { tabId: "shared-page", visible: true }));
 });
 

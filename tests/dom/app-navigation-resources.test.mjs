@@ -24,7 +24,7 @@ test("with no history or selected session, the official Resources entry opens pe
   const panel = await scene.resources();
   await waitFor(() => visibleText(panel, "npm:personal-navigation-plugin"));
   visibleText(panel, "npm:shared-navigation-plugin");
-  assert.equal(roles(scene.container, "dialog", "Settings").length, 0);
+  assert.equal(roles(scene.container, "region", "Settings").length, 0);
   assert.deepEqual(
     roles(scene.container, "tab").map((element) => element.textContent.trim()),
     ["Plugins", "Skills"],

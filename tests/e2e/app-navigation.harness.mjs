@@ -227,7 +227,7 @@ async function run() {
       async () => (await page("text")).includes("production-navigation-plugin"),
       "the real locally configured plugin",
     );
-    assert.equal(await exists("dialog", "Settings"), false);
+    assert.equal(await exists("region", "Settings"), false);
     return navigationWidth(224);
   });
   await scene("03-plugin-persistence", async () => {
@@ -312,10 +312,10 @@ async function run() {
   });
   await scene("07-rail-settings", async () => {
     await click("button", "Settings");
-    await waitFor(() => exists("dialog", "Settings"), "Settings from the rail");
+    await waitFor(() => exists("region", "Settings"), "Settings from the rail");
     assert.deepEqual((await page("settingsTabs")).sort(), [...remainingSettings].sort());
     await key("Escape");
-    await waitFor(async () => !(await exists("dialog", "Settings")), "Settings closed by Escape");
+    await waitFor(async () => !(await exists("region", "Settings")), "Settings closed by Escape");
     return { categories: remainingSettings };
   });
   await scene("08-new-session-and-expand", async () => {

@@ -20,6 +20,7 @@ export function NavigationSidebar({
   onToggle,
   onClose,
   page,
+  settingsOpen,
   onNavigate,
   onOpenSettings,
   coordination,
@@ -40,6 +41,7 @@ export function NavigationSidebar({
   onToggle: () => void;
   onClose: () => void;
   page: NavPage;
+  settingsOpen: boolean;
   onNavigate: (page: NavPage) => void;
   onOpenSettings: () => void;
   coordination: SpaceCoordination;
@@ -214,6 +216,7 @@ export function NavigationSidebar({
         <NavSidebar
           expanded={expanded}
           page={page}
+          settingsOpen={settingsOpen}
           spaceName={spaceName}
           spacePath={spacePath}
           sessions={projectSessions}

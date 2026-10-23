@@ -102,6 +102,17 @@ test("the active page is marked on the matching main entry only", async (t) => {
   assert.equal(newSession.getAttribute("aria-current"), null);
 });
 
+test("while Settings is open, the Settings entry is the current page instead of any main entry", async (t) => {
+  for (const expanded of [true, false]) {
+    const { props } = baseProps({ expanded, page: "resources", settingsOpen: true });
+    const view = await mount(t, NavSidebar, props);
+    assert.equal(button(view.container, "Settings").getAttribute("aria-current"), "page");
+    assert.equal(button(view.container, "Plugins & Skills").getAttribute("aria-current"), null);
+    assert.equal(button(view.container, "New session").getAttribute("aria-current"), null);
+    await view.unmount();
+  }
+});
+
 test("collapsed navigation exposes only the four approved entries and no history", async (t) => {
   const { props, calls } = baseProps({ expanded: false });
   const view = await mount(t, NavSidebar, props);

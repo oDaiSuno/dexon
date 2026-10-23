@@ -45,7 +45,6 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [page, setPage] = useState<NavPage>("chat");
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
-  const showChatPage = useCallback(() => setPage("chat"), []);
   const { leaveRef, requestDeparture } = useDepartureGuard();
   const changeResourceTab = useCallback(
     (tab: ResourceTab) => requestDeparture(() => setResourceTab(tab)),
@@ -70,6 +69,10 @@ export function AppShell({
 
   const { settingsOpen, settingsInitialTab, settingsNavigationRequestId, openSettings, closeSettings } =
     useSettingsDialog();
+  const showChatPage = useCallback(() => {
+    closeSettings();
+    setPage("chat");
+  }, [closeSettings]);
   const [authorizationSettingsSessionId, setAuthorizationSettingsSessionId] = useState<string | null>(null);
   const [modelsRefreshKey, setModelsRefreshKey] = useState(0);
   const [activeTopPanel, setActiveTopPanel] = useState<"session" | null>(null);
@@ -157,17 +160,24 @@ export function AppShell({
     (target: NavPage) => {
       setActiveTopPanel(null);
       if (isMobile) setSidebarOpen(false);
+      closeSettings();
       setPage(target);
     },
-    [isMobile],
+    [isMobile, closeSettings],
   );
+  const handleOpenSettings = useCallback(() => {
+    setActiveTopPanel(null);
+    if (isMobile) setSidebarOpen(false);
+    openSettings("general");
+  }, [isMobile, openSettings]);
   const onResources = page === "resources";
+  const mainSuspended = onResources || settingsOpen;
 
   const dock = useRightPanelDock({
     isMobile,
     sidebarOpen,
     onCollapseSidebar: collapseMobileSidebar,
-    suspended: onResources,
+    suspended: mainSuspended,
   });
 
   const panelToggle = useRightPanelToggleFocus(dock.handleRightPanelToggle);
@@ -255,12 +265,13 @@ export function AppShell({
           onToggle={handleSidebarToggle}
           onClose={collapseMobileSidebar}
           page={page}
+          settingsOpen={settingsOpen}
           onNavigate={handleNavigate}
-          onOpenSettings={() => openSettings("general")}
+          onOpenSettings={handleOpenSettings}
           coordination={coordination}
           onCwdChange={handleSidebarCwdChange}
           onReturnToPersonalSpace={handleReturnToPersonalSpace}
-          shownSessionId={onResources ? null : (selectedSession?.id ?? null)}
+          shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
           initialSessionId={initialSessionId}
@@ -281,73 +292,101 @@ export function AppShell({
             position: "relative",
           }}
         >
-          <TopBar
-            sidebarOpen={sidebarOpen}
-            onToggleSidebar={handleSidebarToggle}
-            showSidebarToggle={isMobile}
-            isMobile={isMobile}
-            selectedSession={onResources ? null : selectedSession}
-            channelSnapshot={channels.channelSnapshot}
-            onChannelSnapshotChange={channels.setChannelSnapshot}
-            activeTopPanel={activeTopPanel}
-            onToggleTopPanel={toggleTopPanel}
-            sessionStats={info.sessionStats}
-            contextUsage={info.contextUsage}
-            copyFeedback={info.sessionCopyFeedback}
-            onCopyField={info.handleCopySessionField}
-            trailing={
-              !onResources && !dock.rightPanelOpen ? (
-                <RightPanelToggle
-                  placement="top-bar"
-                  onToggle={() => panelToggle.toggleFrom("top-bar")}
-                  focusRequested={panelToggle.focusTarget === "top-bar"}
-                  onFocusHandled={panelToggle.clearFocusTarget}
-                />
-              ) : null
-            }
-            showChat={showChat && !onResources}
-          />
+          {settingsOpen && (
+            <SettingsConfig
+              cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}
+              sessionId={authorizationSettingsSessionId ?? selectedSession?.id ?? null}
+              initialTab={settingsInitialTab}
+              navigationRequestId={settingsNavigationRequestId}
+              onClose={closeSettings}
+              onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
+              onChannelsChanged={channels.setChannelSnapshot}
+              chatAppearance={chatAppearance}
+              chatAppearanceSaving={chatAppearanceSaving}
+              onChatAppearanceChange={onChatAppearanceChange}
+            />
+          )}
+          <div
+            hidden={settingsOpen}
+            aria-hidden={settingsOpen ? true : undefined}
+            inert={settingsOpen ? true : undefined}
+            style={{
+              flex: 1,
+              display: settingsOpen ? "none" : "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              minWidth: 0,
+              minHeight: 0,
+            }}
+          >
+            <TopBar
+              sidebarOpen={sidebarOpen}
+              onToggleSidebar={handleSidebarToggle}
+              showSidebarToggle={isMobile}
+              isMobile={isMobile}
+              selectedSession={onResources ? null : selectedSession}
+              channelSnapshot={channels.channelSnapshot}
+              onChannelSnapshotChange={channels.setChannelSnapshot}
+              activeTopPanel={activeTopPanel}
+              onToggleTopPanel={toggleTopPanel}
+              sessionStats={info.sessionStats}
+              contextUsage={info.contextUsage}
+              copyFeedback={info.sessionCopyFeedback}
+              onCopyField={info.handleCopySessionField}
+              trailing={
+                !mainSuspended && !dock.rightPanelOpen ? (
+                  <RightPanelToggle
+                    placement="top-bar"
+                    onToggle={() => panelToggle.toggleFrom("top-bar")}
+                    focusRequested={panelToggle.focusTarget === "top-bar"}
+                    onFocusHandled={panelToggle.clearFocusTarget}
+                  />
+                ) : null
+              }
+              showChat={showChat && !onResources}
+            />
 
-          {selectedSession && !onResources && <SessionBreadcrumb session={selectedSession} />}
+            {selectedSession && !onResources && <SessionBreadcrumb session={selectedSession} />}
 
-          {/* Chat content */}
-          <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
-            {onResources && (
-              <ResourcePage
-                cwd={activeCwd ?? coordination.spaceCwd ?? ""}
-                sessionId={selectedSession?.id ?? null}
-                activeTab={resourceTab}
-                onTabChange={changeResourceTab}
-                skillsRef={leaveRef}
-                onPluginsReloaded={bumpSessionKey}
-              />
-            )}
-            {showChat ? (
-              <SessionProfiler key={sessionKey} id="ChatWindow">
-                <ChatWindow
-                  visible={!onResources}
-                  session={selectedSession}
-                  newSessionCwd={effectiveNewSessionCwd}
-                  onAgentEnd={handleAgentEnd}
-                  onSessionCreated={handleSessionCreated}
-                  onSessionForked={handleSessionForked}
-                  modelsRefreshKey={modelsRefreshKey}
-                  chatInputRef={chatInputRef}
-                  onSessionStatsChange={info.setSessionStats}
-                  onSessionStatsPanelOpen={openSessionStatsPanel}
-                  onContextUsageChange={info.setContextUsage}
-                  onOpenFile={handleOpenLinkedFile}
-                  thinkingExpansionStore={thinkingExpansionRegistryRef.current.get(
-                    selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
-                  )}
-                  processDetailsExpansionStore={processDetailsExpansionRegistryRef.current.get(
-                    selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
-                  )}
+            {/* Chat content */}
+            <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+              {onResources && (
+                <ResourcePage
+                  cwd={activeCwd ?? coordination.spaceCwd ?? ""}
+                  sessionId={selectedSession?.id ?? null}
+                  activeTab={resourceTab}
+                  onTabChange={changeResourceTab}
+                  skillsRef={leaveRef}
+                  onPluginsReloaded={bumpSessionKey}
                 />
-              </SessionProfiler>
-            ) : showPlaceholder && !onResources ? (
-              <ChatPlaceholder activeCwd={activeCwd} />
-            ) : null}
+              )}
+              {showChat ? (
+                <SessionProfiler key={sessionKey} id="ChatWindow">
+                  <ChatWindow
+                    visible={!mainSuspended}
+                    session={selectedSession}
+                    newSessionCwd={effectiveNewSessionCwd}
+                    onAgentEnd={handleAgentEnd}
+                    onSessionCreated={handleSessionCreated}
+                    onSessionForked={handleSessionForked}
+                    modelsRefreshKey={modelsRefreshKey}
+                    chatInputRef={chatInputRef}
+                    onSessionStatsChange={info.setSessionStats}
+                    onSessionStatsPanelOpen={openSessionStatsPanel}
+                    onContextUsageChange={info.setContextUsage}
+                    onOpenFile={handleOpenLinkedFile}
+                    thinkingExpansionStore={thinkingExpansionRegistryRef.current.get(
+                      selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
+                    )}
+                    processDetailsExpansionStore={processDetailsExpansionRegistryRef.current.get(
+                      selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
+                    )}
+                  />
+                </SessionProfiler>
+              ) : showPlaceholder && !onResources ? (
+                <ChatPlaceholder activeCwd={activeCwd} />
+              ) : null}
+            </div>
           </div>
         </div>
 
@@ -383,23 +422,9 @@ export function AppShell({
               onFocusHandled={panelToggle.clearFocusTarget}
             />
           }
-          suspended={onResources}
+          suspended={mainSuspended}
         />
       </div>
-      {settingsOpen && (
-        <SettingsConfig
-          cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}
-          sessionId={authorizationSettingsSessionId ?? selectedSession?.id ?? null}
-          initialTab={settingsInitialTab}
-          navigationRequestId={settingsNavigationRequestId}
-          onClose={closeSettings}
-          onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
-          onChannelsChanged={channels.setChannelSnapshot}
-          chatAppearance={chatAppearance}
-          chatAppearanceSaving={chatAppearanceSaving}
-          onChatAppearanceChange={onChatAppearanceChange}
-        />
-      )}
       {(() => {
         const authorizationRequest = authorization.browserAuthorization;
         if (!authorizationRequest || settingsOpen) return null;
