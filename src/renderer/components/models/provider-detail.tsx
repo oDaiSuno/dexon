@@ -36,7 +36,7 @@ export function ProviderDetail({
         </Button>
       </div>
 
-      <Field label={t("modelProviderName", "Provider name")}>
+      <Field labelSize="body" label={t("modelProviderName", "Provider name")}>
         <TextInput value={editingName} onChange={setEditingName} placeholder="provider-name" mono />
         {editingName !== name && editingName.trim() && (
           <Button
@@ -49,7 +49,7 @@ export function ProviderDetail({
         )}
       </Field>
 
-      <Field label={t("modelBaseUrl", "Base URL")}>
+      <Field labelSize="body" label={t("modelBaseUrl", "Base URL")}>
         <TextInput
           value={provider.baseUrl ?? ""}
           onChange={(v) => set("baseUrl", v || undefined)}
@@ -58,7 +58,7 @@ export function ProviderDetail({
         />
       </Field>
 
-      <Field label={t("modelApiKey", "API Key")}>
+      <Field labelSize="body" label={t("modelApiKey", "API Key")}>
         <SecretTextInput
           value={provider.apiKey ?? ""}
           onChange={(v) => set("apiKey", v || undefined)}
@@ -70,7 +70,7 @@ export function ProviderDetail({
         </span>
       </Field>
 
-      <Field label={t("modelApi", "API")}>
+      <Field labelSize="body" label={t("modelApi", "API")}>
         <Select
           value={provider.api ?? "openai-completions"}
           onChange={(v) => set("api", v)}

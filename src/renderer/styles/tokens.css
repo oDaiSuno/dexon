@@ -148,10 +148,8 @@
   --text-label: 12px;
   --text-meta: 11px;
   --text-micro: 10px;
-  --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
-  --leading-normal: 1.4;
 }
 
 html.dark {

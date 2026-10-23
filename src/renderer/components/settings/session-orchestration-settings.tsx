@@ -9,8 +9,8 @@ import {
   type SessionOrchestrationSettings as Settings,
   type SessionThinkingLevel,
 } from "@shared/session-orchestration";
-import { SettingGroup, SettingNote, SettingRow, selectClassName, selectStyle, toggleHitAreaStyle } from "./setting-row";
-import { Toggle } from "../form-controls";
+import { SettingGroup, SettingNote, SettingRow, toggleHitAreaStyle } from "./setting-row";
+import { NativeSelect, Toggle } from "../form-controls";
 
 interface ModelOption {
   provider: string;
@@ -159,21 +159,18 @@ export function SessionOrchestrationSettings() {
                 event.preventDefault();
                 commitLimit();
               }}
-              className="ui-input"
+              className="ui-input type-mono-label"
               data-mono
-              style={{ width: 88, textAlign: "right", fontVariantNumeric: "tabular-nums" }}
             />
           </SettingRow>
           <SettingRow label={t("sessionCollaborationModel", "Session model")} controlId={modelControlId}>
-            <select
+            <NativeSelect
               id={modelControlId}
               value={settings.model ? `${settings.model.provider}:${settings.model.modelId}` : ""}
               onChange={(event) => {
                 const chosen = models.find((model) => modelValue(model) === event.target.value);
                 save({ ...settings, model: chosen ? { provider: chosen.provider, modelId: chosen.id } : null });
               }}
-              className={selectClassName}
-              style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
               {models.map((model) => (
@@ -181,17 +178,15 @@ export function SessionOrchestrationSettings() {
                   {model.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </SettingRow>
           <SettingRow label={t("sessionCollaborationThinking", "Thinking level")} controlId={thinkingControlId}>
-            <select
+            <NativeSelect
               id={thinkingControlId}
               value={settings.thinkingLevel ?? ""}
               onChange={(event) =>
                 save({ ...settings, thinkingLevel: (event.target.value || null) as SessionThinkingLevel | null })
               }
-              className={selectClassName}
-              style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
               {SESSION_THINKING_LEVELS.map((level) => (
@@ -199,7 +194,7 @@ export function SessionOrchestrationSettings() {
                   {thinkingLevelLabel(level, t)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </SettingRow>
           <SettingRow
             label={t("sessionCollaborationAllowUserSessions", "Allow messaging any session")}

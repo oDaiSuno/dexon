@@ -3,9 +3,9 @@ import { useI18n, type AppLanguage } from "@/i18n";
 import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@shared/chat-appearance";
 import type { ManagedProcessCapability } from "../../../contract/processes";
 import { isAutoSessionTitleEnabled, setAutoSessionTitleEnabled } from "../../lib/auto-session-title";
-import { SettingGroup, SettingNote, SettingRow, selectClassName, selectStyle, toggleHitAreaStyle } from "./setting-row";
+import { SettingGroup, SettingNote, SettingRow, toggleHitAreaStyle } from "./setting-row";
 import { SessionOrchestrationSettings } from "./session-orchestration-settings";
-import { Toggle } from "../form-controls";
+import { NativeSelect, Toggle } from "../form-controls";
 
 export function GeneralSettings({
   language,
@@ -148,16 +148,14 @@ export function GeneralSettings({
             )}
             controlId={languageControlId}
           >
-            <select
+            <NativeSelect
               id={languageControlId}
               value={language}
               onChange={(event) => onLanguageChange(event.target.value as AppLanguage)}
-              className={selectClassName}
-              style={selectStyle}
             >
               <option value="en-US">English</option>
               <option value="zh-CN">简体中文</option>
-            </select>
+            </NativeSelect>
           </SettingRow>
         </SettingGroup>
 
@@ -280,7 +278,7 @@ export function GeneralSettings({
             </label>
           </SettingRow>
           <SettingRow label={t("chatFontSize", "Chat text size")} controlId={chatFontSizeControlId}>
-            <select
+            <NativeSelect
               id={chatFontSizeControlId}
               value={chatAppearance.fontSize}
               disabled={chatAppearanceSaving}
@@ -288,17 +286,16 @@ export function GeneralSettings({
                 const fontSize = event.target.value as ChatFontSize;
                 void saveChatAppearance({ ...chatAppearance, fontSize });
               }}
-              className={selectClassName}
-              style={{ ...selectStyle, cursor: chatAppearanceSaving ? "wait" : "pointer" }}
+              style={{ cursor: chatAppearanceSaving ? "wait" : "pointer" }}
             >
               <option value="small">{t("chatFontSizeSmall", "Small")}</option>
               <option value="standard">{t("chatFontSizeStandard", "Standard")}</option>
               <option value="large">{t("chatFontSizeLarge", "Large")}</option>
               <option value="extra-large">{t("chatFontSizeExtraLarge", "Extra large")}</option>
-            </select>
+            </NativeSelect>
           </SettingRow>
           <SettingRow label={t("chatLayout", "Conversation width")} controlId={chatLayoutControlId}>
-            <select
+            <NativeSelect
               id={chatLayoutControlId}
               value={chatAppearance.layout}
               disabled={chatAppearanceSaving}
@@ -308,12 +305,11 @@ export function GeneralSettings({
                   layout: event.target.value as ChatLayout,
                 });
               }}
-              className={selectClassName}
-              style={{ ...selectStyle, cursor: chatAppearanceSaving ? "wait" : "pointer" }}
+              style={{ cursor: chatAppearanceSaving ? "wait" : "pointer" }}
             >
               <option value="fixed">{t("chatLayoutFixed", "Comfortable width")}</option>
               <option value="wide">{t("chatLayoutWide", "Expanded width")}</option>
-            </select>
+            </NativeSelect>
           </SettingRow>
         </SettingGroup>
 
@@ -323,16 +319,14 @@ export function GeneralSettings({
             description={t("appearanceDescription", "Choose the color mode used by the app.")}
             controlId={themeControlId}
           >
-            <select
+            <NativeSelect
               id={themeControlId}
               value={isDark ? "dark" : "light"}
               onChange={(event) => onThemeChange(event.target.value === "dark")}
-              className={selectClassName}
-              style={selectStyle}
             >
               <option value="light">{t("light", "Light")}</option>
               <option value="dark">{t("dark", "Dark")}</option>
-            </select>
+            </NativeSelect>
           </SettingRow>
         </SettingGroup>
       </div>

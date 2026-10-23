@@ -108,7 +108,7 @@ export function ApiKeyDetail({
               .replace("{count}", String(provider.modelCount))}
       </p>
 
-      <Field label={t("modelBaseUrl", "Base URL")}>
+      <Field labelSize="body" label={t("modelBaseUrl", "Base URL")}>
         <TextInput
           value={baseUrl}
           onChange={onBaseUrlChange}
@@ -123,7 +123,7 @@ export function ApiKeyDetail({
         </span>
       </Field>
 
-      <Field label={t("modelApiKey", "API Key")}>
+      <Field labelSize="body" label={t("modelApiKey", "API Key")}>
         <div style={{ display: "flex", gap: 8 }}>
           <SecretTextInput
             value={apiKey}

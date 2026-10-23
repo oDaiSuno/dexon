@@ -72,6 +72,9 @@ export const enUS: Record<string, string> = {
   pluginsTab: "Plugins",
   skillsTab: "Skills",
   sessionPath: "Session path",
+  secretInputShow: "Show API key",
+  secretInputHide: "Hide API key",
+  selectUseDefault: "Use default",
 };
 
 export const zhCN: Record<string, string> = {
@@ -147,4 +150,7 @@ export const zhCN: Record<string, string> = {
   pluginsTab: "插件",
   skillsTab: "技能",
   sessionPath: "会话路径",
+  secretInputShow: "显示 API Key",
+  secretInputHide: "隐藏 API Key",
+  selectUseDefault: "使用默认",
 };

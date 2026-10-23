@@ -1,10 +1,3 @@
-export const selectStyle: React.CSSProperties = {
-  width: "auto",
-  minWidth: 160,
-};
-
-export const selectClassName = "ui-select";
-
 export const toggleHitAreaStyle: React.CSSProperties = {
   width: 36,
   height: 36,
@@ -31,8 +24,7 @@ export function SettingGroup({
       <div
         style={{
           display: "grid",
-          gap: 1,
-          background: "var(--fx-line-default)",
+          background: "var(--fx-surface-raised)",
           border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-dialog)",
           overflow: "hidden",
@@ -61,15 +53,19 @@ export function SettingRow({
   label,
   description,
   controlId,
+  divider = true,
   children,
 }: {
   label: string;
   description?: string;
   controlId: string;
+  divider?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div
+      className="ui-setting-row"
+      data-divider={divider || undefined}
       style={{
         display: "flex",
         alignItems: "center",
@@ -95,5 +91,13 @@ export function SettingRow({
       </div>
       {children}
     </div>
+  );
+}
+
+export function SettingValue({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="type-mono-body" style={{ minWidth: 0, color: "var(--fx-text-secondary)" }}>
+      {children}
+    </span>
   );
 }
