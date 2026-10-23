@@ -1,17 +1,23 @@
-import { useEffect, useLayoutEffect, useRef, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool-store";
 import { hasQuestionAnswer, type QuestionnaireRequest } from "@shared/interactive-tools";
+import { ChevronDownIcon, ChevronUpIcon } from "./tool-card-icons";
+import { IconButton } from "./tool-card-parts";
 import { AutoHeight } from "./tool-motion";
 
 export function Questionnaire({
   entry,
   store,
   visible = true,
+  header,
+  replaceBody,
 }: {
   entry: ToolCardEntry & { request: QuestionnaireRequest };
   store: InteractiveToolStore;
   visible?: boolean;
+  header: (group: ReactNode, nav: ReactNode) => ReactNode;
+  replaceBody?: ReactNode;
 }) {
   const { t } = useI18n();
   const { request, draft } = entry;
@@ -36,11 +42,12 @@ export function Questionnaire({
     },
     [],
   );
+  const replaced = replaceBody !== undefined;
   useEffect(() => {
-    if (visible) return;
+    if (visible && !replaced) return;
     cancelAdvance();
     focusOnNavigation.current = false;
-  }, [visible]);
+  }, [visible, replaced]);
   const navigate = (next: number) => {
     if (!visible) return;
     cancelAdvance();
@@ -89,139 +96,151 @@ export function Questionnaire({
   };
   const answered = draft.answers.filter(hasQuestionAnswer).length;
   const busy = entry.status === "sending";
+  const total = request.questions.length;
+  const navigation = (
+    <nav className="tool-question-nav" aria-label={t("toolQuestionNavigation", "Question navigation")}>
+      <span className="tool-progress" aria-hidden="true">
+        {request.questions.map((_, i) => (
+          <span
+            key={i}
+            className="tool-progress-step"
+            data-step={i < index ? "done" : i === index ? "current" : "todo"}
+          />
+        ))}
+      </span>
+      <span className="tool-question-count type-mono-meta" aria-label={`${index + 1} / ${total}`}>
+        <span className="tool-number-window" aria-hidden="true">
+          <span className="tool-number-strip" style={{ "--tool-index": index } as CSSProperties}>
+            {request.questions.map((_, i) => (
+              <span key={i}>{i + 1}</span>
+            ))}
+          </span>
+        </span>
+        <span aria-hidden="true"> / {total}</span>
+      </span>
+      <span className="tool-nav-actions">
+        <IconButton
+          label={t("toolPreviousQuestion", "Previous question")}
+          disabled={busy || index === 0}
+          onClick={() => navigate(index - 1)}
+        >
+          <ChevronUpIcon size={14} />
+        </IconButton>
+        <IconButton
+          label={t("toolNextQuestion", "Next question")}
+          disabled={busy || index === total - 1}
+          onClick={() => navigate(index + 1)}
+        >
+          <ChevronDownIcon size={14} />
+        </IconButton>
+      </span>
+    </nav>
+  );
   return (
     <div ref={root} className="tool-questionnaire">
-      <nav className="tool-question-nav" aria-label={t("toolQuestionNavigation", "Question navigation")}>
-        <div className="tool-question-count" aria-label={`${index + 1} / ${request.questions.length}`}>
-          <span className="tool-number-window" aria-hidden="true">
-            <span className="tool-number-strip" style={{ transform: `translateY(-${index}em)` }}>
-              {request.questions.map((_, i) => (
-                <span key={i}>{i + 1}</span>
-              ))}
-            </span>
-          </span>
-          <span aria-hidden="true"> / {request.questions.length}</span>
-        </div>
-        <span className="tool-subtle">{question.header}</span>
-        <div className="tool-nav-actions">
-          <button
-            type="button"
-            className="tool-pill"
-            disabled={busy || index === 0}
-            onClick={() => navigate(index - 1)}
-            aria-label={t("toolPreviousQuestion", "Previous question")}
-          >
-            ↑
-          </button>
-          <button
-            type="button"
-            className="tool-pill"
-            disabled={busy || index === request.questions.length - 1}
-            onClick={() => navigate(index + 1)}
-            aria-label={t("toolNextQuestion", "Next question")}
-          >
-            ↓
-          </button>
-        </div>
-      </nav>
-      <AutoHeight visible={visible}>
-        <div
-          className="tool-question-page"
-          key={index}
-          style={{ "--tool-direction": direction.current } as CSSProperties}
-        >
-          <h3 tabIndex={-1} className="tool-question-title">
-            {question.question}
-          </h3>
-          <p className="tool-subtle">
-            {question.multiSelect
-              ? t("toolMultiHint", "Choose any options and add a note, or write your own answer.")
-              : t("toolSingleHint", "Choose one option or write your own answer.")}
-          </p>
-          <fieldset className="tool-options" disabled={busy} aria-label={question.question}>
-            {question.options.map((option, optionIndex) => (
-              <div key={optionIndex} className="tool-option-group">
-                <label className="tool-option" data-selected={answer.selected.includes(optionIndex)}>
-                  <input
-                    type={question.multiSelect ? "checkbox" : "radio"}
-                    name={`${request.id}-${index}`}
-                    checked={answer.selected.includes(optionIndex)}
-                    onChange={() => choose(optionIndex)}
-                  />
-                  <span>
-                    <strong>{option.label}</strong>
-                    <span className="tool-option-description">{option.description}</span>
-                  </span>
-                </label>
-                {option.preview && (
-                  <details className="tool-preview" onToggle={() => visible && cancelAdvance()}>
-                    <summary>{t("toolViewPreview", "View full preview")}</summary>
-                    <pre>{option.preview}</pre>
-                  </details>
-                )}
-              </div>
-            ))}
-          </fieldset>
-          <label className="tool-custom-answer">
+      {header(<span className="tool-subtle type-label-default">{question.header}</span>, navigation)}
+      {replaceBody ?? (
+        <>
+          <AutoHeight visible={visible}>
+            <div
+              className="tool-question-page"
+              key={index}
+              style={{ "--tool-direction": direction.current } as CSSProperties}
+            >
+              <h3 tabIndex={-1} className="tool-question-title">
+                {question.question}
+              </h3>
+              <p className="tool-subtle">
+                {question.multiSelect
+                  ? t("toolMultiHint", "Choose any options and add a note, or write your own answer.")
+                  : t("toolSingleHint", "Choose one option or write your own answer.")}
+              </p>
+              <fieldset className="tool-options" disabled={busy} aria-label={question.question}>
+                {question.options.map((option, optionIndex) => (
+                  <div key={optionIndex} className="tool-option-group">
+                    <label className="tool-option" data-selected={answer.selected.includes(optionIndex)}>
+                      <input
+                        type={question.multiSelect ? "checkbox" : "radio"}
+                        name={`${request.id}-${index}`}
+                        checked={answer.selected.includes(optionIndex)}
+                        onChange={() => choose(optionIndex)}
+                      />
+                      <span>
+                        <strong>{option.label}</strong>
+                        <span className="tool-option-description">{option.description}</span>
+                      </span>
+                    </label>
+                    {option.preview && (
+                      <details className="tool-preview" onToggle={() => visible && cancelAdvance()}>
+                        <summary>{t("toolViewPreview", "View full preview")}</summary>
+                        <pre>{option.preview}</pre>
+                      </details>
+                    )}
+                  </div>
+                ))}
+              </fieldset>
+              <label className="tool-custom-answer">
+                <span className="tool-subtle">
+                  {question.multiSelect
+                    ? t("toolAdditionalAnswer", "Additional text or your own answer")
+                    : t("toolOwnAnswer", "Your own answer")}
+                </span>
+                <textarea
+                  value={answer.text}
+                  disabled={busy}
+                  rows={2}
+                  onChange={(event) => {
+                    if (!visible) return;
+                    cancelAdvance();
+                    const text = event.target.value;
+                    store.updateDraft(request.id, (d) => ({
+                      ...d,
+                      answers: d.answers.map((a, i) =>
+                        i !== index
+                          ? a
+                          : {
+                              selected: !question.multiSelect && text.trim() ? [] : a.selected,
+                              text,
+                            },
+                      ),
+                    }));
+                  }}
+                />
+              </label>
+            </div>
+          </AutoHeight>
+          <footer className="tool-question-footer">
             <span className="tool-subtle">
-              {question.multiSelect
-                ? t("toolAdditionalAnswer", "Additional text or your own answer")
-                : t("toolOwnAnswer", "Your own answer")}
+              {t("toolAnsweredCount", "{answered} of {total} answered")
+                .replace("{answered}", String(answered))
+                .replace("{total}", String(request.questions.length))}
             </span>
-            <textarea
-              value={answer.text}
-              disabled={busy}
-              rows={2}
-              onChange={(event) => {
-                if (!visible) return;
-                cancelAdvance();
-                const text = event.target.value;
-                store.updateDraft(request.id, (d) => ({
-                  ...d,
-                  answers: d.answers.map((a, i) =>
-                    i !== index
-                      ? a
-                      : {
-                          selected: !question.multiSelect && text.trim() ? [] : a.selected,
-                          text,
-                        },
-                  ),
-                }));
-              }}
-            />
-          </label>
-        </div>
-      </AutoHeight>
-      <footer className="tool-question-footer">
-        <span className="tool-subtle">
-          {t("toolAnsweredCount", "{answered} of {total} answered")
-            .replace("{answered}", String(answered))
-            .replace("{total}", String(request.questions.length))}
-        </span>
-        <div className="tool-footer-actions">
-          {index < request.questions.length - 1 && (
-            <button type="button" className="tool-pill" disabled={busy} onClick={() => navigate(index + 1)}>
-              {hasQuestionAnswer(answer) ? t("toolContinue", "Continue") : t("toolSkip", "Skip for now")}
-            </button>
-          )}
-          <button
-            type="button"
-            className="tool-pill tool-primary"
-            disabled={busy || answered === 0}
-            onClick={() => {
-              if (!visible) return;
-              cancelAdvance();
-              void store.respond(request.id, { answers: draft.answers });
-            }}
-          >
-            {busy
-              ? t("toolSending", "Sending…")
-              : answered < request.questions.length
-                ? t("toolSendPartial", "Send answered questions")
-                : t("toolSendAnswers", "Send answers")}
-          </button>
-        </div>
-      </footer>
+            <div className="tool-footer-actions">
+              {index < request.questions.length - 1 && (
+                <button type="button" className="tool-pill" disabled={busy} onClick={() => navigate(index + 1)}>
+                  {hasQuestionAnswer(answer) ? t("toolContinue", "Continue") : t("toolSkip", "Skip for now")}
+                </button>
+              )}
+              <button
+                type="button"
+                className="tool-pill tool-primary"
+                disabled={busy || answered === 0}
+                onClick={() => {
+                  if (!visible) return;
+                  cancelAdvance();
+                  void store.respond(request.id, { answers: draft.answers });
+                }}
+              >
+                {busy
+                  ? t("toolSending", "Sending…")
+                  : answered < request.questions.length
+                    ? t("toolSendPartial", "Send answered questions")
+                    : t("toolSendAnswers", "Send answers")}
+              </button>
+            </div>
+          </footer>
+        </>
+      )}
     </div>
   );
 }

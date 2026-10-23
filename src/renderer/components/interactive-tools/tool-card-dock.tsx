@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import { isPendingCard, type InteractiveToolStore, type ToolCardEntry } from "@/lib/interactive-tool-store";
+import { answerSummary } from "./answer-summary";
 import { OrdinaryForm } from "./ordinary-form";
 import { Questionnaire } from "./questionnaire";
 import { TerminalContent } from "./terminal-content";
+import { CardHeader, Receipt, ResumeRow, StatusLead } from "./tool-card-parts";
 
 export function ToolCardDock({ store, visible = true }: { store: InteractiveToolStore; visible?: boolean }) {
   const { t } = useI18n();
@@ -12,29 +14,23 @@ export function ToolCardDock({ store, visible = true }: { store: InteractiveTool
   const entry = pending[0] ?? state.entries.at(-1);
   if (!entry)
     return state.expiredDraft ? (
-      <section className="tool-card-dock tool-card" data-state="expired">
-        <div className="tool-card-header">
-          <span role="status" className="tool-card-status">
-            {t("toolExpired", "This request is no longer active")}
-          </span>
-          <button
-            type="button"
-            className="tool-pill tool-icon"
-            aria-label={t("toolDismiss", "Dismiss status")}
-            onClick={() => {
+      <div className="tool-card-dock">
+        <section className="tool-card" aria-label={t("toolInteraction", "Tool interaction")} data-state="expired">
+          <Receipt
+            status="expired"
+            detail={t("toolExpiredDetail", "The agent stopped waiting; your draft wasn't sent")}
+            onDismiss={() => {
               if (visible) store.dismissExpiredDraft();
             }}
-          >
-            ×
-          </button>
-        </div>
-      </section>
+          />
+        </section>
+      </div>
     ) : null;
   return (
     <div className="tool-card-dock">
       <ToolCard key={entry.request.id} entry={entry} store={store} count={pending.length} visible={visible} />
       {state.storageFailed && (
-        <p role="status" className="tool-subtle">
+        <p role="status" className="tool-subtle tool-storage-note type-label-default">
           {t(
             "toolDraftStorageFailed",
             "Answers remain in this view, but browser storage is unavailable. Avoid reloading until you send them.",
@@ -56,7 +52,7 @@ function ToolCard({
   count: number;
   visible: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [abandoning, setAbandoning] = useState(false);
   const card = useRef<HTMLElement>(null);
   const resume = useRef<HTMLButtonElement>(null);
@@ -96,22 +92,57 @@ function ToolCard({
       : request.method === "custom"
         ? t("toolCustomPanel", "Interactive panel")
         : request.title;
-  const statusLabel =
-    status === "submitted"
-      ? t("toolSubmitted", "Answers sent")
-      : status === "cancelled"
-        ? t("toolAbandoned", "Answering abandoned")
-        : status === "completed"
-          ? t("toolCompleted", "Interaction ended")
-          : status === "expired"
-            ? t("toolExpired", "This request is no longer active")
-            : status === "sending"
-              ? t("toolSending", "Sending…")
-              : status === "checking"
-                ? t("toolChecking", "Checking whether this request is still active…")
-                : status === "failed"
-                  ? t("toolSendFailed", "Delivery failed. Your answers are kept; try again.")
-                  : t("toolWaiting", "Waiting for your answer");
+  const queue =
+    count > 1 ? (
+      <span className="tool-subtle type-label-default">
+        {t("toolPendingCount", "{count} pending").replace("{count}", String(count))}
+      </span>
+    ) : null;
+  const header = (group: ReactNode, nav?: ReactNode) => (
+    <CardHeader
+      lead={
+        <StatusLead status={status}>
+          {group}
+          {group && queue ? <span className="tool-dot" aria-hidden="true" /> : null}
+          {queue}
+        </StatusLead>
+      }
+      nav={nav}
+      onCollapse={collapse}
+    />
+  );
+  const receiptDetail =
+    status === "expired"
+      ? t("toolExpiredDetail", "The agent stopped waiting; your draft wasn't sent")
+      : (status === "submitted" && answerSummary(request, entry.draft, language, t("toolSummarySeparator", "; "))) ||
+        title;
+  const abandonConfirm = (
+    <div className="tool-abandon-confirm">
+      <h3 className="tool-question-title">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
+      <p>{t("toolAbandonDescription", "The tool will stop waiting. Draft answers will not be sent to the model.")}</p>
+      <div className="tool-footer-actions">
+        <button
+          type="button"
+          className="tool-pill tool-primary"
+          onClick={() => {
+            if (visible) setAbandoning(false);
+          }}
+        >
+          {t("toolKeepAnswering", "Keep answering")}
+        </button>
+        <button
+          type="button"
+          className="tool-pill"
+          disabled={status === "sending"}
+          onClick={() => {
+            if (visible) void store.respond(request.id, { cancelled: true });
+          }}
+        >
+          {t("toolConfirmAbandon", "Abandon without sending")}
+        </button>
+      </div>
+    </div>
+  );
   return (
     <section
       ref={card}
@@ -126,107 +157,60 @@ function ToolCard({
         if (!event.nativeEvent.isComposing && event.keyCode !== 229 && pending) collapse();
       }}
     >
-      <header className="tool-card-header">
-        <span className="tool-card-status" role="status">
-          {statusLabel}
-        </span>
-        <span className="tool-subtle">
-          {t("toolPendingCount", "{count} pending").replace("{count}", String(count))}
-        </span>
-        {pending && !collapsed && (
-          <button
-            type="button"
-            className="tool-pill tool-icon"
-            onClick={collapse}
-            aria-label={t("toolCollapse", "Collapse and keep answers")}
-          >
-            −
-          </button>
-        )}
-        {!pending && (
-          <button
-            type="button"
-            className="tool-pill tool-icon"
-            onClick={() => {
-              if (visible) store.dismiss(request.id);
-            }}
-            aria-label={t("toolDismiss", "Dismiss status")}
-          >
-            ×
-          </button>
-        )}
-      </header>
       {!pending ? (
-        <p className="tool-receipt">{title}</p>
+        <Receipt
+          status={status}
+          detail={receiptDetail}
+          onDismiss={() => {
+            if (visible) store.dismiss(request.id);
+          }}
+        />
       ) : collapsed ? (
-        <button
+        <ResumeRow
           ref={resume}
-          type="button"
-          className="tool-resume"
-          onClick={() => {
+          status={status}
+          title={title}
+          onResume={() => {
             if (!visible) return;
             store.setCollapsed(request.id, false);
             focusAfterPaint(card);
           }}
-        >
-          <span>{title}</span>
-          <strong>{t("toolResume", "Continue answering")} ↗</strong>
-        </button>
+        />
       ) : (
         <>
-          {abandoning ? (
-            <div className="tool-abandon-confirm">
-              <h3 className="tool-question-title">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
-              <p>
-                {t(
-                  "toolAbandonDescription",
-                  "The tool will stop waiting. Draft answers will not be sent to the model.",
-                )}
-              </p>
-              <div className="tool-footer-actions">
-                <button
-                  type="button"
-                  className="tool-pill tool-primary"
-                  onClick={() => {
-                    if (visible) setAbandoning(false);
-                  }}
-                >
-                  {t("toolKeepAnswering", "Keep answering")}
-                </button>
-                <button
-                  type="button"
-                  className="tool-pill"
-                  disabled={status === "sending"}
-                  onClick={() => {
-                    if (visible) void store.respond(request.id, { cancelled: true });
-                  }}
-                >
-                  {t("toolConfirmAbandon", "Abandon without sending")}
-                </button>
-              </div>
-            </div>
+          {request.method === "questionnaire" ? (
+            <Questionnaire
+              entry={{ ...entry, request }}
+              store={store}
+              visible={visible}
+              header={header}
+              replaceBody={abandoning ? abandonConfirm : undefined}
+            />
           ) : (
             <>
-              {request.method === "questionnaire" ? (
-                <Questionnaire entry={{ ...entry, request }} store={store} visible={visible} />
+              {header(null)}
+              {abandoning ? (
+                abandonConfirm
               ) : request.method === "custom" ? (
                 <TerminalContent entry={entry} store={store} visible={visible} />
               ) : (
                 <OrdinaryForm entry={entry} store={store} visible={visible} />
               )}
-              <div className="tool-abandon-row">
-                <button
-                  type="button"
-                  className="tool-text-button"
-                  disabled={status === "sending"}
-                  onClick={() => {
-                    if (visible) setAbandoning(true);
-                  }}
-                >
-                  {t("toolAbandon", "Abandon this answer")}
-                </button>
-              </div>
             </>
+          )}
+          {!abandoning && (
+            <div className="tool-abandon-row">
+              <button
+                type="button"
+                className="tool-text-button"
+                disabled={status === "sending"}
+                onClick={() => {
+                  if (visible) setAbandoning(true);
+                }}
+              >
+                {t("toolAbandon", "Abandon this answer")}
+              </button>
+            </div>
           )}
         </>
       )}

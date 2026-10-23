@@ -167,7 +167,7 @@ async function run(): Promise<void> {
   await js("window.fixture.connect()");
   await js("window.fixture.start()");
   await js("window.fixture.edit('window answer survives reload')");
-  await js("window.fixture.click('收起并保留答案')");
+  await js("window.fixture.click('收起，答案会保留')");
   assert.equal(continued, 0);
   assert.equal(wrapper.getInteractiveSnapshot().requests.length, 1);
   const selectedContext = await js<string>(

@@ -16,16 +16,18 @@
   min-width: 0;
   background: var(--fx-surface-raised);
   border-radius: var(--radius-composer);
-  box-shadow: var(--shadow-hairline-card);
+  box-shadow: var(--shadow-hairline), var(--shadow-floating-card);
   overflow: hidden;
+}
+.tool-card:is([data-state="submitted"], [data-state="expired"], [data-state="cancelled"], [data-state="completed"]) {
+  background: var(--fx-surface-card);
+  box-shadow: var(--shadow-hairline-card);
 }
 .tool-card :is(button, input, textarea, summary, pre):focus-visible,
 .tool-card:focus-visible {
   outline: 2px solid var(--fx-accent-blue);
   outline-offset: -2px;
 }
-.tool-card-header,
-.tool-question-nav,
 .tool-question-footer {
   display: flex;
   align-items: center;
@@ -33,30 +35,128 @@
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
 }
+.tool-card-header,
+.tool-receipt,
+.tool-resume {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+  min-width: 0;
+  min-height: 44px;
+  padding: 0 var(--space-2-5) 0 var(--space-4);
+}
 .tool-card-header {
-  font-size: var(--text-label);
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--fx-line-default);
 }
-.tool-card-status {
-  flex: 1;
-  min-width: 0;
-  overflow-wrap: anywhere;
+.tool-status-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--fx-accent-blue-text);
 }
-.tool-card[data-state="failed"] .tool-card-status,
-.tool-card[data-state="expired"] .tool-card-status {
+.tool-card-status {
+  flex-shrink: 0;
+  color: var(--fx-text-primary);
+}
+.tool-card[data-state="failed"] .tool-status-icon {
   color: var(--fx-status-danger);
 }
-.tool-card[data-state="submitted"] .tool-card-status {
+.tool-card[data-state="failed"] .tool-card-status {
+  color: var(--fx-status-danger-text);
+}
+.tool-card:is([data-state="submitted"], [data-state="completed"]) .tool-status-icon {
   color: var(--fx-status-success);
+}
+.tool-card:is([data-state="submitted"], [data-state="completed"]) .tool-card-status {
+  color: var(--fx-status-success-text);
+}
+.tool-card:is([data-state="expired"], [data-state="cancelled"], [data-state="checking"]) .tool-status-icon {
+  color: var(--fx-text-tertiary);
+}
+.tool-card:is([data-state="expired"], [data-state="cancelled"]) .tool-card-status {
+  color: var(--fx-text-secondary);
+}
+.tool-dot {
+  flex-shrink: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-bar);
+  background: var(--fx-text-faint);
+}
+.tool-spacer {
+  flex: 1;
 }
 .tool-subtle {
   color: var(--fx-text-secondary);
   margin: 0;
 }
-.tool-nav-actions {
+.tool-line-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--fx-text-secondary);
+}
+.tool-question-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2-5);
+}
+.tool-progress {
   display: flex;
   gap: var(--space-1);
-  margin-left: auto;
+}
+.tool-progress-step {
+  width: 10px;
+  height: 4px;
+  border-radius: var(--radius-bar);
+  background: var(--fx-surface-track);
+  transition:
+    width var(--duration-quick) var(--ease-smooth-out),
+    background-color var(--duration-quick) var(--ease-out);
+}
+.tool-progress-step[data-step="current"] {
+  width: 20px;
+  background: var(--fx-accent-blue);
+}
+.tool-progress-step[data-step="done"] {
+  background: color-mix(in srgb, var(--fx-accent-blue-text) 55%, transparent);
+}
+.tool-nav-actions {
+  display: flex;
+  gap: var(--space-0-5);
+}
+.tool-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 16px;
+  background: var(--fx-line-default);
+}
+.tool-icon-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  flex-shrink: 0;
+  width: var(--space-6);
+  height: var(--space-6);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.tool-icon-button:hover:not(:disabled) {
+  background: var(--fx-surface-hover-overlay);
+}
+.tool-icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.tool-storage-note {
+  margin-top: var(--space-2);
 }
 .tool-pill {
   display: inline-flex;
@@ -91,11 +191,6 @@
 .tool-primary:hover:not(:disabled) {
   background: var(--fx-accent-blue-fill-hover);
   color: var(--fx-text-on-accent);
-}
-.tool-icon {
-  padding: var(--space-1);
-  width: var(--space-8);
-  flex-shrink: 0;
 }
 .tool-question-title {
   margin: 0 0 var(--space-3);
@@ -142,22 +237,23 @@
 .tool-question-count {
   display: inline-flex;
   align-items: baseline;
-  gap: var(--space-1);
+  color: var(--fx-text-tertiary);
   font-variant-numeric: tabular-nums;
+  white-space: pre;
 }
 .tool-number-window {
-  height: 1em;
-  line-height: 1;
+  height: 1.4em;
   overflow: hidden;
   display: inline-flex;
 }
 .tool-number-strip {
   display: flex;
   flex-direction: column;
+  transform: translateY(calc(var(--tool-index, 0) * -1.4em));
   transition: transform var(--duration-fast) var(--ease-smooth-out);
 }
 .tool-number-strip > span {
-  height: 1em;
+  height: 1.4em;
   flex-shrink: 0;
 }
 .tool-options {
@@ -265,32 +361,26 @@
   margin: 0 0 var(--space-3);
 }
 .tool-resume {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: var(--space-3);
   width: 100%;
-  padding: var(--space-4);
+  min-height: var(--space-12);
+  padding-right: var(--space-3-5);
   border: 0;
-  background: transparent;
+  background: var(--fx-surface-hover-clear);
   text-align: left;
-  font: inherit;
-  color: var(--fx-text-secondary);
+  color: inherit;
   cursor: pointer;
-}
-.tool-resume > span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.tool-resume strong {
-  color: var(--fx-text-primary);
-  font-weight: var(--weight-medium);
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
 }
 .tool-resume:hover {
-  background: var(--bg-hover);
+  background: var(--fx-surface-hover-overlay);
+}
+.tool-resume-link,
+.tool-resume-arrow {
+  flex-shrink: 0;
+  color: var(--fx-accent-blue-text);
+}
+.tool-resume-arrow {
+  display: inline-flex;
 }
 .tool-abandon-row {
   padding: 0 var(--space-4) var(--space-3);
@@ -317,14 +407,7 @@
   margin: 0 0 var(--space-4);
   color: var(--fx-text-secondary);
 }
-.tool-receipt {
-  padding: var(--space-3) var(--space-4);
-  margin: 0;
-  color: var(--fx-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+
 @media (prefers-reduced-motion: reduce) {
   .t-resize {
     transition: none !important;

@@ -100,6 +100,7 @@
   --shadow-toast: 0 8px 24px 0 var(--fx-shadow-soft), 0 1px 2px 0 var(--fx-shadow-soft);
   --shadow-hairline: 0 0 0 1px var(--fx-line-default);
   --shadow-hairline-card: 0 0 0 1px var(--fx-line-default), var(--shadow-control);
+  --shadow-floating-card: 0 12px 32px 0 var(--fx-shadow-strong), var(--shadow-control);
   --shadow-hairline-button: 0 0 0 1px var(--fx-line-strong), var(--shadow-control);
   --shadow-badge-success: 0 0 0 3px var(--fx-status-success-soft);
   --shadow-badge-warning: 0 0 0 3px var(--fx-status-warning-soft);
@@ -112,6 +113,7 @@
   --radius-control: 8px;
   --radius-send: 9px;
   --radius-icon-box: 9px;
+  --radius-bar: 2px;
   --radius-skeleton: 3px;
   --radius-card: 10px;
   --radius-menu: 12px;
@@ -124,8 +126,10 @@
   --radius-brand-lg: 10px;
   --radius-brand-xl: 11px;
 
+  --space-0-5: 2px;
   --space-1: 4px;
   --space-2: 8px;
+  --space-2-5: 10px;
   --space-3: 12px;
   --space-3-5: 14px;
   --space-4: 16px;

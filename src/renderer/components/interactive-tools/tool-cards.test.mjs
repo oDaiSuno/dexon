@@ -155,7 +155,7 @@ test("Close and Escape repeatedly collapse the card while retaining its answer w
   dom.window.document.body.addEventListener("keydown", onOutsideKey);
   t.after(() => dom.window.document.body.removeEventListener("keydown", onOutsideKey));
   for (let i = 0; i < 3; i++) {
-    await h.click("Collapse and keep answers");
+    await h.click("Collapse — your answers stay");
     assert.equal(h.container.querySelector("textarea"), null);
     await h.resume();
     const field = h.container.querySelector("textarea");
@@ -209,7 +209,7 @@ for (const action of ["collapse", "navigate", "text", "unmount"])
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const h = await harness(t, request("questionnaire", [question(), question()]));
     await h.choose();
-    if (action === "collapse") await h.click("Collapse and keep answers");
+    if (action === "collapse") await h.click("Collapse — your answers stay");
     if (action === "navigate") {
       await h.click("Next question");
       await h.click("Previous question");
@@ -312,7 +312,7 @@ for (const method of ["select", "input", "editor", "confirm", "custom"])
       assert.equal(h.commands[0].confirmed, false);
     }
     if (method === "custom") {
-      await h.click("Collapse and keep answers");
+      await h.click("Collapse — your answers stay");
       assert.deepEqual(h.commands, []);
       await h.resume();
       await keyDown(h.container.querySelector('[role="textbox"]'), "ArrowDown");
@@ -334,7 +334,7 @@ test("failed delivery retains the visible answer and permits a successful retry"
   });
   await h.type("saved");
   await h.click("Send answers");
-  assert.match(h.container.textContent, /Delivery failed/);
+  assert.match(h.container.textContent, /Not delivered/);
   assert.equal(h.container.querySelector("textarea").value, "saved");
   assert.equal(h.button("Restart"), undefined);
   offline = false;
