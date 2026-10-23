@@ -24,6 +24,7 @@ export function CloseIcon() {
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      style={{ color: "var(--fx-text-tertiary)" }}
     >
       <path d="M18 6 6 18" />
       <path d="m6 6 12 12" />

@@ -47,7 +47,7 @@ export function Field({
   labelSize = "label",
   children,
 }: {
-  label: string;
+  label: ReactNode;
   labelSize?: FieldLabelSize;
   children: ReactNode;
 }) {

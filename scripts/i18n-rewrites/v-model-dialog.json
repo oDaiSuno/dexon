@@ -1,0 +1,7 @@
+{
+  "modelContextWindow": { "enUS": "Context window (tokens)", "zhCN": "上下文窗口（Token）" },
+  "modelId": { "enUS": "ID *", "zhCN": "ID *" },
+  "modelMaxOutputTokens": { "enUS": "Max output tokens", "zhCN": "最大输出 Token" },
+  "modelName": { "enUS": "Name", "zhCN": "名称" },
+  "modelReasoning": { "enUS": "Reasoning / thinking", "zhCN": "推理 / 思考" }
+}

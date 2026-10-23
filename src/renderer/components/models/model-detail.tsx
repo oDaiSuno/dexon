@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, Field, NumInput, Select, SectionTitle, TextInput } from "../form-controls";
+import { Button, Check, Field, NumInput, Select, SectionTitle, TextInput } from "../form-controls";
 import { applyStrictOptionalPositiveInteger } from "@/lib/strict-integer";
 import { useI18n } from "@/i18n";
 import type { ModelEntry, ProviderEntry } from "@/lib/models-config-state";
+import { ImageInputIcon, ModelCapabilityList, ReasoningIcon } from "./model-capability-list";
+import { ModelConnectionTest } from "./model-connection-test";
 import { ThinkingLevelMapEditor } from "./thinking-level-map-editor";
 import { API_OPTIONS, type ModelTestState } from "./types";
 
@@ -42,6 +44,17 @@ function setDeepseekCompat(model: ModelEntry, enabled: boolean): ModelEntry {
   return { ...model, compat: Object.keys(rest).length ? rest : undefined };
 }
 
+function TokenLabel({ text, unit }: { text: string; unit: string }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ flex: 1, minWidth: 0 }}>{text}</span>
+      <span className="type-mono-meta" style={{ color: "var(--fx-text-tertiary)" }}>
+        {unit}
+      </span>
+    </span>
+  );
+}
+
 export function ModelDetail({
   providerName,
   provider,
@@ -54,6 +67,7 @@ export function ModelDetail({
   onChange: (m: ModelEntry) => void;
 }) {
   const { t } = useI18n();
+  const tokensUnit = t("modelTokensUnit", "tokens");
   const [testState, setTestState] = useState<ModelTestState>({ phase: "idle" });
   const set = <K extends keyof ModelEntry>(k: K, v: ModelEntry[K]) => onChange({ ...model, [k]: v });
   const costVal = (k: keyof NonNullable<ModelEntry["cost"]>) =>
@@ -118,97 +132,21 @@ export function ModelDetail({
   }, [model, provider, providerName, testState.phase]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <SectionTitle>{t("model", "Model")}</SectionTitle>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {testSummary && (
-            <span
-              title={testSummary}
-              style={{
-                maxWidth: 260,
-                height: 24,
-                padding: "0 8px",
-                border: `1px solid ${testState.phase === "error" ? "var(--fx-status-danger-border)" : testState.phase === "success" ? "var(--fx-status-success-border)" : "var(--fx-line-default)"}`,
-                borderRadius: "var(--radius-chip)",
-                background:
-                  testState.phase === "error"
-                    ? "var(--fx-status-danger-soft)"
-                    : testState.phase === "success"
-                      ? "var(--fx-status-success-soft)"
-                      : "var(--bg-hover)",
-                color:
-                  testState.phase === "error"
-                    ? "var(--fx-status-danger)"
-                    : testState.phase === "success"
-                      ? "var(--fx-status-success)"
-                      : "var(--fx-text-secondary)",
-                fontSize: "var(--text-meta)",
-                display: "inline-flex",
-                alignItems: "center",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                boxSizing: "border-box",
-              }}
-            >
-              {testSummary}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={handleTest}
-            disabled={!model.id.trim() || testState.phase === "testing"}
-            title={t("modelTestConnection", "Test model connection")}
-            style={{
-              height: 32,
-              padding: "0 12px",
-              background: testState.phase === "success" ? "var(--fx-status-success)" : "none",
-              border: `1px solid ${testState.phase === "success" ? "var(--fx-status-success)" : "var(--fx-line-default)"}`,
-              borderRadius: "var(--radius-chip)",
-              color:
-                testState.phase === "success"
-                  ? "var(--fx-text-on-accent)"
-                  : !model.id.trim() || testState.phase === "testing"
-                    ? "var(--fx-text-tertiary)"
-                    : "var(--fx-text-secondary)",
-              cursor: !model.id.trim() || testState.phase === "testing" ? "not-allowed" : "pointer",
-              fontSize: "var(--text-label)",
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxSizing: "border-box",
-              gap: 4,
-            }}
-          >
-            {testState.phase === "success" && (
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            )}
-            {testState.phase === "testing"
-              ? t("testingConnection", "Testing…")
-              : testState.phase === "success"
-                ? "OK"
-                : t("modelTest", "Test")}
-          </button>
-        </div>
-      </div>
-
+    <div role="group" aria-label={t("model", "Model")} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label={t("modelId", "ID *")}>
+        <Field
+          label={
+            <span style={{ display: "flex", alignItems: "center", gap: 3 }}>
+              {t("modelId", "Model ID")}
+              <span className="type-label-medium" style={{ color: "var(--fx-accent-blue-text)" }}>
+                *
+              </span>
+            </span>
+          }
+        >
           <TextInput value={model.id} onChange={(v) => set("id", v)} placeholder="model-id" mono />
         </Field>
-        <Field label={t("modelName", "Name")}>
+        <Field label={t("modelName", "Display name")}>
           <TextInput
             value={model.name ?? ""}
             onChange={(v) => set("name", v || undefined)}
@@ -217,22 +155,48 @@ export function ModelDetail({
         </Field>
       </div>
 
+      <ModelCapabilityList
+        label={t("modelCapabilities", "Capabilities")}
+        capabilities={[
+          {
+            key: "reasoning",
+            icon: <ReasoningIcon />,
+            title: t("modelReasoning", "Reasoning"),
+            description: t("modelReasoningDescription", "Shows its thinking; adjust the effort in each session"),
+            checked: model.reasoning ?? false,
+            onChange: (v) => set("reasoning", v || undefined),
+          },
+          {
+            key: "image",
+            icon: <ImageInputIcon />,
+            title: t("modelImageInput", "Image input"),
+            description: t("modelImageInputDescription", "Attach screenshots and images to messages"),
+            checked: model.input?.includes("image") ?? false,
+            onChange: (v) => set("input", v ? ["text", "image"] : undefined),
+          },
+        ]}
+      />
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <Field label={<TokenLabel text={t("modelContextWindow", "Context window")} unit={tokensUnit} />}>
+          <NumInput
+            value={model.contextWindow !== undefined ? String(model.contextWindow) : ""}
+            onChange={(value) => set("contextWindow", applyStrictOptionalPositiveInteger(model.contextWindow, value))}
+            placeholder="128000"
+          />
+        </Field>
+        <Field label={<TokenLabel text={t("modelMaxOutputTokens", "Max output")} unit={tokensUnit} />}>
+          <NumInput
+            value={model.maxTokens !== undefined ? String(model.maxTokens) : ""}
+            onChange={(value) => set("maxTokens", applyStrictOptionalPositiveInteger(model.maxTokens, value))}
+            placeholder="16384"
+          />
+        </Field>
+      </div>
+
       <Field label={t("modelApiOverride", "API override")}>
         <Select value={model.api ?? ""} onChange={(v) => set("api", v || undefined)} options={API_OPTIONS} />
       </Field>
-
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-        <Check
-          label={t("modelReasoning", "Reasoning / thinking")}
-          checked={model.reasoning ?? false}
-          onChange={(v) => set("reasoning", v || undefined)}
-        />
-        <Check
-          label={t("modelImageInput", "Image input")}
-          checked={model.input?.includes("image") ?? false}
-          onChange={(v) => set("input", v ? ["text", "image"] : undefined)}
-        />
-      </div>
 
       {model.reasoning && (
         <>
@@ -245,45 +209,15 @@ export function ModelDetail({
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <SectionTitle>{t("modelThinkingLevelMap", "Thinking level map")}</SectionTitle>
               {model.thinkingLevelMap && (
-                <button
-                  type="button"
-                  onClick={() => set("thinkingLevelMap", undefined)}
-                  style={{
-                    minHeight: 32,
-                    fontSize: "var(--text-label)",
-                    padding: "0 8px",
-                    background: "none",
-                    border: "1px solid var(--fx-line-default)",
-                    borderRadius: "var(--radius-chip)",
-                    color: "var(--fx-text-tertiary)",
-                    cursor: "pointer",
-                  }}
-                >
+                <Button variant="ghost" onClick={() => set("thinkingLevelMap", undefined)}>
                   {t("modelClearAll", "Clear all")}
-                </button>
+                </Button>
               )}
             </div>
             <ThinkingLevelMapEditor value={model.thinkingLevelMap} onChange={(v) => set("thinkingLevelMap", v)} />
           </div>
         </>
       )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-        <Field label={t("modelContextWindow", "Context window (tokens)")}>
-          <NumInput
-            value={model.contextWindow !== undefined ? String(model.contextWindow) : ""}
-            onChange={(value) => set("contextWindow", applyStrictOptionalPositiveInteger(model.contextWindow, value))}
-            placeholder="128000"
-          />
-        </Field>
-        <Field label={t("modelMaxOutputTokens", "Max output tokens")}>
-          <NumInput
-            value={model.maxTokens !== undefined ? String(model.maxTokens) : ""}
-            onChange={(value) => set("maxTokens", applyStrictOptionalPositiveInteger(model.maxTokens, value))}
-            placeholder="16384"
-          />
-        </Field>
-      </div>
 
       <div>
         <SectionTitle>{t("modelCostPerMillion", "Cost (per million tokens)")}</SectionTitle>
@@ -295,6 +229,13 @@ export function ModelDetail({
           ))}
         </div>
       </div>
+
+      <ModelConnectionTest
+        state={testState}
+        summary={testSummary}
+        disabled={!model.id.trim() || testState.phase === "testing"}
+        onTest={handleTest}
+      />
     </div>
   );
 }
