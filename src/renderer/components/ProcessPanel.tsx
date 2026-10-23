@@ -5,7 +5,9 @@ import { call } from "@/lib/api-client";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/i18n";
 import { ProcessEmpty, ProcessList, ProcessListMessage, ProcessSummary } from "./processes/process-list";
-import { processStateLabel, processTone } from "./processes/process-format";
+import { processStateLabel } from "./processes/process-format";
+import { ProcessDetailHeader, ProcessNetworkWarnings, type ProcessDetailActions } from "./processes/process-detail";
+import { LOG_STREAMS, LogToolbar, LogView, StdinBar } from "./processes/process-log";
 import { TriangleAlertGlyph } from "./processes/process-icons";
 import { useProcessPanelState } from "./processes/use-process-panel-state";
 
@@ -13,30 +15,6 @@ type Props = {
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 };
-
-const TONE_COLOR = {
-  success: "var(--fx-status-success)",
-  running: "var(--fx-accent-blue)",
-  danger: "var(--fx-status-danger)",
-  idle: "var(--fx-text-tertiary)",
-} as const;
-
-function stateColor(process: ManagedProcessPublicInfo): string {
-  if (process.state === "killed" || process.state === "reaped") return "var(--fx-status-warning)";
-  if (process.state === "exited" && process.exit?.code) return "var(--fx-status-danger)";
-  return TONE_COLOR[processTone(process)];
-}
-
-const buttonStyle = {
-  height: 28,
-  border: "1px solid var(--fx-line-default)",
-  borderRadius: "var(--radius-control)",
-  background: "var(--fx-surface-raised)",
-  color: "var(--fx-text-secondary)",
-  padding: "0 8px",
-  fontSize: "var(--text-meta)",
-  cursor: "pointer",
-} as const;
 
 function DangerBanner({ children }: { children: ReactNode }) {
   return (
@@ -74,10 +52,24 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
     openEndpoint,
   } = useProcessPanelState({ onActiveCountChange, onOpenBrowser });
   const [search, setSearch] = useState("");
-  const [streams, setStreams] = useState<Set<ManagedProcessLogStream>>(() => new Set(["stdout", "stderr", "system"]));
-  const [stdin, setStdin] = useState("");
+  const [streams, setStreams] = useState<Set<ManagedProcessLogStream>>(() => new Set(LOG_STREAMS));
   const lost = processes.some((process) => process.state === "lost");
   const exportDiagnostics = () => void invoke(() => window.piBridge.exportDiagnostics());
+  const toggleStream = (stream: ManagedProcessLogStream) =>
+    setStreams((current) => {
+      const next = new Set(current);
+      if (next.has(stream)) next.delete(stream);
+      else next.add(stream);
+      return next;
+    });
+  const detailActions = (process: ManagedProcessPublicInfo): ProcessDetailActions => ({
+    openEndpoint: (url) => void openEndpoint(process, url),
+    stop: (mode) =>
+      void invoke(() => call("processes.stop", { processId: process.processId, runId: process.runId, mode })),
+    restart: () => void invoke(() => call("processes.restart", { processId: process.processId, runId: process.runId })),
+    dismiss: () => void invoke(() => call("processes.dismiss", { processId: process.processId })),
+    exportDiagnostics,
+  });
 
   const filteredRecords = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
@@ -148,339 +140,66 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
 
         {selected && (
           <div
-            style={{
-              display: "flex",
-              flex: "1 0 auto",
-              flexDirection: "column",
-              minWidth: 0,
-              minHeight: 320,
-              borderTop: "1px solid var(--fx-line-default)",
-              background: "var(--fx-surface-raised)",
-            }}
+            className="flex min-h-[320px] min-w-0 flex-[1_0_auto] flex-col overflow-hidden"
+            style={{ borderTop: "1px solid var(--fx-line-default)", background: "var(--fx-surface-raised)" }}
           >
-            <div
-              style={{
-                padding: "12px 12px",
-                borderBottom: "1px solid var(--fx-line-default)",
-                display: "grid",
-                gap: 8,
-              }}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <strong
-                  style={{
-                    fontSize: "var(--text-body)",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {selected.label}
-                </strong>
-                <span style={{ color: stateColor(selected), fontSize: "var(--text-meta)" }}>
-                  {processStateLabel(selected, t)}
-                </span>
-                <span style={{ marginLeft: "auto", color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
-                  run {selected.generation}
-                </span>
-              </div>
-              <div
-                title={selected.commandDisplay}
-                style={{
-                  color: "var(--fx-text-secondary)",
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "var(--text-micro)",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {selected.commandDisplay}
-              </div>
-              <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}>
-                {selected.cwdDisplay} · {selected.kind} · {selected.readiness}
-                {selected.exit ? ` · exit ${selected.exit.code ?? selected.exit.signal ?? "unknown"}` : ""}
-              </div>
-              <div
-                style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)" }}
-                title={selected.ownerSessionId}
-              >
-                {t("ownerTask", "Owner task")}: {selected.ownerSessionId.slice(-12)}
-              </div>
-              {selected.networkWarnings.map((warning) => (
-                <div key={warning} style={{ color: "var(--fx-status-warning)", fontSize: "var(--text-micro)" }}>
-                  {warning === "Process may be reachable from the local network"
-                    ? t("managedProcessLanWarning", "Process may be reachable from the local network")
-                    : warning}
-                </div>
-              ))}
-              {selected.endpoints.map((endpoint) => (
-                <button
-                  key={endpoint.id}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void openEndpoint(selected, endpoint.url)}
-                  style={{ ...buttonStyle, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis" }}
-                >
-                  {t("openInBrowser", "Open in Browser")}: {endpoint.url}
-                </button>
-              ))}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {isManagedProcessActiveState(selected.state) ? (
-                  <>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() =>
-                        void invoke(() =>
-                          call("processes.stop", {
-                            processId: selected.processId,
-                            runId: selected.runId,
-                            mode: "graceful",
-                          }),
-                        )
-                      }
-                    >
-                      {t("stop", "Stop")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() =>
-                        void invoke(() =>
-                          call("processes.stop", {
-                            processId: selected.processId,
-                            runId: selected.runId,
-                            mode: "force",
-                          }),
-                        )
-                      }
-                    >
-                      {t("forceStop", "Force Stop")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() =>
-                        void invoke(() =>
-                          call("processes.restart", {
-                            processId: selected.processId,
-                            runId: selected.runId,
-                          }),
-                        )
-                      }
-                    >
-                      {t("restart", "Restart")}
-                    </button>
-                  </>
-                ) : selected.state === "lost" ? null : (
-                  <>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() =>
-                        void invoke(() =>
-                          call("processes.restart", { processId: selected.processId, runId: selected.runId }),
-                        )
-                      }
-                    >
-                      {t("restart", "Restart")}
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy}
-                      style={buttonStyle}
-                      onClick={() => void invoke(() => call("processes.dismiss", { processId: selected.processId }))}
-                    >
-                      {t("dismiss", "Dismiss")}
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  disabled={busy}
-                  style={buttonStyle}
-                  onClick={() =>
-                    void invoke(() =>
-                      call("processes.export", {
-                        processId: selected.processId,
-                        runId: selected.runId,
-                        streams: [...streams],
-                      }),
-                    )
-                  }
-                >
-                  {t("exportLogs", "Export Logs")}
-                </button>
-              </div>
-            </div>
-
-            <div
-              style={{
-                padding: "8px 8px",
-                display: "flex",
-                gap: 8,
-                borderBottom: "1px solid var(--fx-line-default)",
-                alignItems: "center",
-                flexWrap: "wrap",
-              }}
-            >
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t("searchLogs", "Search logs")}
-                style={{
-                  flex: 1,
-                  minWidth: 100,
-                  height: 26,
-                  border: "1px solid var(--fx-line-default)",
-                  borderRadius: "var(--radius-control)",
-                  background: "var(--fx-surface-main)",
-                  color: "var(--fx-text-primary)",
-                  padding: "0 8px",
-                  fontSize: "var(--text-meta)",
-                }}
-              />
-              {(["stdout", "stderr", "system"] as ManagedProcessLogStream[]).map((stream) => (
-                <label
-                  key={stream}
-                  style={{
-                    fontSize: "var(--text-micro)",
-                    color: "var(--fx-text-secondary)",
-                    display: "flex",
-                    gap: 4,
-                    alignItems: "center",
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={streams.has(stream)}
-                    onChange={(event) =>
-                      setStreams((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) next.add(stream);
-                        else next.delete(stream);
-                        return next;
-                      })
-                    }
-                  />
-                  {stream}
-                </label>
-              ))}
-              <button
-                type="button"
-                style={buttonStyle}
-                onClick={() =>
-                  void copyText(filteredRecords.map((record) => `[${record.stream}] ${record.text}`).join("\n"))
-                }
-              >
-                {t("copyVisible", "Copy Visible")}
-              </button>
-            </div>
-
-            <div
-              ref={logRef}
-              role="log"
-              aria-label={t("managedProcessLogs", "Managed process logs")}
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflow: "auto",
-                padding: "8px 12px",
-                fontFamily: "var(--font-mono)",
-                fontSize: "var(--text-micro)",
-                lineHeight: 1.55,
-                whiteSpace: "pre-wrap",
-                overflowWrap: "anywhere",
-              }}
-            >
-              {filteredRecords.map((record) => (
-                <div
-                  key={`${record.runId}:${record.seq}`}
-                  style={{
-                    color:
-                      record.stream === "stderr"
-                        ? "var(--fx-status-danger)"
-                        : record.stream === "system"
-                          ? "var(--fx-status-warning)"
-                          : "var(--fx-text-secondary)",
-                  }}
-                >
-                  <span style={{ color: "var(--fx-text-tertiary)" }}>[{record.stream}] </span>
-                  {record.text}
-                </div>
-              ))}
-              {hasMore && (
-                <button
-                  type="button"
-                  style={{ ...buttonStyle, marginTop: 8 }}
-                  onClick={() => void readMore(selected.processId, selected.runId, cursor)}
-                >
-                  {t("loadMoreLogs", "Load more logs")}
-                </button>
-              )}
-            </div>
-
+            <ProcessDetailHeader process={selected} now={now} busy={busy} actions={detailActions(selected)} />
+            <ProcessNetworkWarnings process={selected} />
+            <LogToolbar
+              search={search}
+              onSearchChange={setSearch}
+              streams={streams}
+              onToggleStream={toggleStream}
+              busy={busy}
+              onCopyVisible={() =>
+                void copyText(filteredRecords.map((record) => `[${record.stream}] ${record.text}`).join("\n"))
+              }
+              onExport={() =>
+                void invoke(() =>
+                  call("processes.export", {
+                    processId: selected.processId,
+                    runId: selected.runId,
+                    streams: [...streams],
+                  }),
+                )
+              }
+            />
+            <LogView
+              process={selected}
+              records={filteredRecords}
+              hasMore={hasMore}
+              logRef={logRef}
+              onLoadMore={() => void readMore(selected.processId, selected.runId, cursor)}
+            />
             {selected.stdinOpen && isManagedProcessActiveState(selected.state) && (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!stdin) return;
-                  void invoke(async () => {
+              <StdinBar
+                busy={busy}
+                onSend={async (text) => {
+                  let sent = false;
+                  await invoke(async () => {
                     await call("processes.write", {
                       processId: selected.processId,
                       runId: selected.runId,
-                      text: stdin,
+                      text,
                       appendNewline: true,
                     });
-                    setStdin("");
+                    sent = true;
                   });
+                  return sent;
                 }}
-                style={{ padding: 8, borderTop: "1px solid var(--fx-line-default)", display: "flex", gap: 8 }}
-              >
-                <input
-                  value={stdin}
-                  onChange={(event) => setStdin(event.target.value)}
-                  placeholder={t("processStdin", "Send line to stdin")}
-                  style={{
-                    flex: 1,
-                    minWidth: 0,
-                    height: 28,
-                    border: "1px solid var(--fx-line-default)",
-                    borderRadius: "var(--radius-control)",
-                    background: "var(--fx-surface-main)",
-                    color: "var(--fx-text-primary)",
-                    padding: "0 8px",
-                    fontSize: "var(--text-meta)",
-                  }}
-                />
-                <button type="submit" disabled={busy || !stdin} style={buttonStyle}>
-                  {t("send", "Send")}
-                </button>
-                <button
-                  type="button"
-                  disabled={busy}
-                  style={buttonStyle}
-                  onClick={() =>
-                    window.confirm(t("closeStdinConfirm", "Close stdin for this process?")) &&
-                    void invoke(() =>
-                      call("processes.write", {
-                        processId: selected.processId,
-                        runId: selected.runId,
-                        text: "",
-                        appendNewline: false,
-                        close: true,
-                      }),
-                    )
-                  }
-                >
-                  {t("closeStdin", "Close stdin")}
-                </button>
-              </form>
+                onClose={() =>
+                  window.confirm(t("closeStdinConfirm", "Close stdin for this process?")) &&
+                  void invoke(() =>
+                    call("processes.write", {
+                      processId: selected.processId,
+                      runId: selected.runId,
+                      text: "",
+                      appendNewline: false,
+                      close: true,
+                    }),
+                  )
+                }
+              />
             )}
           </div>
         )}

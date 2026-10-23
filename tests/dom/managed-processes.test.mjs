@@ -134,9 +134,10 @@ test("output availability shows bounded plain text rather than executable markup
   }));
   await view.output(records);
   const log = view.container.querySelector('[role="log"]');
-  assert.match(log.textContent, /^\[stdout\] line-10/);
-  assert.doesNotMatch(log.textContent, /\[stdout\] line-[0-9](?=\[stdout\])/);
-  assert.match(log.textContent, /<img src=x onerror="attack\(\)">$/);
+  const shown = [...log.querySelectorAll("[title]")].map((line) => line.textContent);
+  assert.equal(shown.length, 2000, "the log shows exactly the retained 2,000 records");
+  assert.equal(shown[0], "line-10");
+  assert.equal(shown.at(-1), '<img src=x onerror="attack()">');
   await click(button(view.container, "Copy Visible"));
   const lines = view.copied.at(-1).split("\n");
   assert.equal(lines.length, 2000, "the public copy action contains exactly the retained 2,000 records");
@@ -154,7 +155,7 @@ test("Stop terminates only the selected server and Restart uses its current run 
   assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 
-  await click(button(view.container, "Restart"));
+  await click(button(view.container, "Run again"));
   assert.match(view.processButton("Other server").textContent, /Running/);
   assert.match(view.processButton("Fixture server").textContent, /Running/);
   await click(button(view.container, "Export Logs"));
@@ -180,10 +181,7 @@ test("stdin and browser controls preserve the selected process and owning sessio
   assert.deepEqual(view.inputs, [
     { processId: "process-one", runId: "run-one", text: "hello server", appendNewline: true },
   ]);
-  const endpoint = [...view.container.querySelectorAll("button")].find((control) =>
-    control.textContent.includes("Open in Browser:"),
-  );
-  await click(endpoint);
+  await click(button(view.container, "Open in browser"));
   assert.deepEqual(view.opened, [{ url: "http://127.0.0.1:4173/", ownerSessionId: "session-one", activate: true }]);
   assertHealthy(view);
 });
@@ -209,6 +207,7 @@ test("a lost process offers diagnostics and stops other active processes without
   await view.select("Other server");
   assert.match(view.container.querySelector('[role="alert"]').textContent, /could not be safely confirmed as stopped/);
   assert.equal(button(view.container, "Restart"), undefined);
+  assert.equal(button(view.container, "Run again"), undefined);
   await click(button(view.container, "Export Diagnostics"));
   assert.equal(view.diagnostics(), 1);
   await click(button(view.container, "Stop All"));

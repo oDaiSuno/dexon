@@ -1,0 +1,6 @@
+{
+  "managedProcessLanWarning": {
+    "enUS": "Process may be reachable from the local network",
+    "zhCN": "该进程可能可从局域网访问"
+  }
+}

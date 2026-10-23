@@ -64,7 +64,7 @@ function processKindLabel(process: ManagedProcessPublicInfo, t: Translate): stri
   }
 }
 
-function processExitLabel(process: ManagedProcessPublicInfo, t: Translate): string | null {
+export function processExitLabel(process: ManagedProcessPublicInfo, t: Translate): string | null {
   if (process.state !== "failed" || !process.exit) return null;
   if (process.exit.code !== null) {
     return t("managedProcessExitCode", "Exit code {code}").replace("{code}", String(process.exit.code));
@@ -100,4 +100,9 @@ export function summarizeProcesses(processes: ManagedProcessPublicInfo[]) {
     exited: processes.length - running - failed,
     lost: processes.some((process) => process.state === "lost"),
   };
+}
+
+export function formatClock(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${twoDigits(date.getHours())}:${twoDigits(date.getMinutes())}:${twoDigits(date.getSeconds())}`;
 }

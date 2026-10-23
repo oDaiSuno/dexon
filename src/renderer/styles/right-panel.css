@@ -503,6 +503,25 @@
 .process-card-port:hover {
   background: var(--fx-surface-hover-overlay-strong);
 }
+.process-stdin-send {
+  background: var(--fx-surface-inset);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.process-stdin-send:hover:not(:disabled) {
+  background: var(--fx-surface-hover-overlay);
+}
+.process-stdin-send:disabled {
+  cursor: not-allowed;
+}
+.process-log-caret {
+  animation: process-log-caret 1s steps(1, end) infinite;
+}
+@keyframes process-log-caret {
+  50% {
+    opacity: 0;
+  }
+}
 .process-card-pulse {
   animation: process-card-pulse 1s var(--ease-in-out) infinite alternate;
 }
@@ -528,6 +547,8 @@
   .file-viewer-icon-button,
   .process-card,
   .process-summary-button,
+  .process-stdin-send,
+  .process-log-caret,
   .process-card-pulse {
     transition: none;
     animation: none;
