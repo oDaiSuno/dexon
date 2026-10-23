@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
 import { useI18n } from "@/i18n";
 import { ChevronDownIcon, CompactIcon, Icon } from "./icons";
-
-const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
-type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+import {
+  THINKING_LEVELS,
+  THINKING_TONES,
+  ThinkingFill,
+  ThinkingThumb,
+  labelTone,
+  tint,
+  type ThinkingLevel,
+} from "./thinking-art";
 
 export function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
@@ -48,51 +54,29 @@ export interface SessionControlsProps {
   onSoundToggle?: () => void;
 }
 
-const THINKING_TONES: Record<ThinkingLevel, string> = {
-  auto: "var(--fx-text-secondary)",
-  off: "var(--fx-text-secondary)",
-  minimal: "var(--fx-data-slate)",
-  low: "var(--fx-data-blue)",
-  medium: "var(--fx-data-indigo)",
-  high: "var(--fx-data-violet)",
-  xhigh: "var(--fx-data-fuchsia)",
-  max: "var(--fx-data-fuchsia)",
-};
-const THINKING_FILL: Partial<Record<ThinkingLevel, number[]>> = {
-  minimal: [3, 36],
-  low: [3, 42],
-  medium: [3, 55],
-  high: [6, 54],
-  xhigh: [6, 60],
-};
-const labelTone = (level: ThinkingLevel) => (level === "max" ? "var(--fx-data-cyan)" : THINKING_TONES[level]);
-
-const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
-
-function thinkingFill(level: ThinkingLevel): string {
-  const [from, to] = THINKING_FILL[level] ?? [0, 0];
-  if (level === "max") {
-    return `linear-gradient(90deg, ${tint("var(--fx-data-indigo)", 55)} 0%, ${tint("var(--fx-data-violet)", 65)} 55%, ${tint("var(--fx-data-fuchsia)", 75)} 100%)`;
-  }
-  return `linear-gradient(90deg, ${tint(THINKING_TONES[level], from)} 0%, ${tint(THINKING_TONES[level], to)} 100%)`;
-}
-
 const TICK: CSSProperties = { width: 4, height: 4, borderRadius: 2, background: "var(--fx-control-tick)" };
 
 const CARD: CSSProperties = { bottom: "calc(100% + 8px)", zIndex: 100, transformOrigin: "bottom right", gap: 14 };
-const MAX_CARD: CSSProperties = {
-  background: "linear-gradient(160deg, var(--fx-surface-raised) 35%, var(--fx-data-purple-surface) 100%)",
-  border: "1px solid var(--fx-data-fuchsia-line)",
-  boxShadow: `var(--shadow-picker), 0 0 36px 0 ${tint("var(--fx-data-violet)", 20)}`,
+const SPECIAL_CARD: Partial<Record<ThinkingLevel, CSSProperties>> = {
+  xhigh: {
+    background: "linear-gradient(160deg, var(--fx-surface-raised) 50%, var(--fx-data-fuchsia-surface) 100%)",
+    border: "1px solid var(--fx-data-fuchsia-line)",
+    boxShadow: "var(--shadow-picker)",
+  },
+  max: {
+    background: "linear-gradient(160deg, var(--fx-surface-raised) 35%, var(--fx-data-purple-surface) 100%)",
+    border: "1px solid var(--fx-data-fuchsia-line)",
+    boxShadow: `var(--shadow-picker), 0 0 36px 0 ${tint("var(--fx-data-violet)", 20)}`,
+  },
 };
-const PLAIN_CARD: CSSProperties = { background: "var(--fx-surface-raised)", boxShadow: "var(--shadow-picker)" };
-const FILL: CSSProperties = {
-  position: "absolute",
-  inset: "0 auto 0 0",
-  borderRadius: "var(--radius-card)",
-  transition: "width var(--duration-glide, 220ms) var(--ease-smooth-out, ease)",
-  pointerEvents: "none",
+const PLAIN_CARD: CSSProperties = {
+  background: "var(--fx-surface-raised)",
+  border: "1px solid var(--fx-line-default)",
+  boxShadow: "var(--shadow-picker)",
 };
+const TRACK: CSSProperties = { width: 308, height: 36, borderRadius: "var(--radius-card)" };
+const STOP: CSSProperties = { width: 40, height: 36 };
+const HELP: CSSProperties = { color: "var(--fx-text-secondary)", cursor: "help" };
 const AUTO_CHIP: CSSProperties = {
   height: 22,
   padding: "0 var(--space-2)",
@@ -111,22 +95,10 @@ const GHOST: CSSProperties = {
   borderRadius: "var(--radius-control)",
   transition: `background ${QUICK}, opacity ${QUICK}`,
 };
-const GHOST_CLASS = "flex min-h-[30px] items-center justify-center gap-1.5";
+const GHOST_CLASS = "flex min-h-[30px] items-center justify-center gap-[6px]";
 
 const BRAIN_PATH =
   "M12 18V5M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5M17.997 5.125a4 4 0 0 1 2.526 5.77M18 18a4 4 0 0 0 2-7.464M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517M6 18a4 4 0 0 1-2-7.464M6.003 5.125a4 4 0 0 0-2.526 5.77";
-
-function BrainThumb({ alpha }: { alpha: number }) {
-  return (
-    <svg width={30} height={30} viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
-      <path
-        opacity={alpha}
-        d="M240,124a48,48,0,0,1-32,45.27V176a40,40,0,0,1-80,0,40,40,0,0,1-80,0v-6.73a48,48,0,0,1,0-90.54V72a40,40,0,0,1,80,0,40,40,0,0,1,80,0v6.73A48,48,0,0,1,240,124Z"
-      />
-      <path d="M248,124a56.11,56.11,0,0,0-32-50.61V72a48,48,0,0,0-88-26.49A48,48,0,0,0,40,72v1.39a56,56,0,0,0,0,101.2V176a48,48,0,0,0,88,26.49A48,48,0,0,0,216,176v-1.41A56.09,56.09,0,0,0,248,124ZM88,208a32,32,0,0,1-31.81-28.56A55.87,55.87,0,0,0,64,180h8a8,8,0,0,0,0-16H64A40,40,0,0,1,50.67,86.27,8,8,0,0,0,56,78.73V72a32,32,0,0,1,64,0v68.26A47.8,47.8,0,0,0,88,128a8,8,0,0,0,0,16,32,32,0,0,1,0,64Zm104-44h-8a8,8,0,0,0,0,16h8a55.87,55.87,0,0,0,7.81-.56A32,32,0,1,1,168,144a8,8,0,0,0,0-16,47.8,47.8,0,0,0-32,12.26V72a32,32,0,0,1,64,0v6.73a8,8,0,0,0,5.33,7.54A40,40,0,0,1,192,164Zm16-52a8,8,0,0,1-8,8h-4a36,36,0,0,1-36-36V80a8,8,0,0,1,16,0v4a20,20,0,0,0,20,20h4A8,8,0,0,1,208,112ZM60,120H56a8,8,0,0,1,0-16h4A20,20,0,0,0,80,84V80a8,8,0,0,1,16,0v4A36,36,0,0,1,60,120Z" />
-    </svg>
-  );
-}
 
 /** Session-scoped controls below the composer: reasoning level, context
  *  compaction, completion sound. Ghost chips — chrome only on hover. */
@@ -184,13 +156,13 @@ export function SessionControls(props: SessionControlsProps) {
   };
   const thinkingDescriptions: Record<ThinkingLevel, string> = {
     auto: t("thinkingDefaultDescription", "Use Pi default"),
-    off: t("thinkingOffDescription", "Reasoning off"),
+    off: t("thinkingOffDescription", "Reasoning off, fastest replies"),
     minimal: t("thinkingMinimalDescription", "Minimal reasoning"),
     low: t("thinkingLowDescription", "Low reasoning"),
     medium: t("thinkingMediumDescription", "Medium reasoning"),
-    high: t("thinkingHighDescription", "High reasoning"),
-    xhigh: t("thinkingXHighDescription", "Extra-high reasoning"),
-    max: t("thinkingMaxDescription", "Maximum reasoning"),
+    high: t("thinkingHighDescription", "High reasoning, slower replies"),
+    xhigh: t("thinkingXHighDescription", "Extra-high reasoning, uses more tokens"),
+    max: t("thinkingMaxDescription", "Maximum reasoning, for the hardest problems"),
   };
   const translateThinkingValue = (value: string): string =>
     (THINKING_LEVELS as readonly string[]).includes(value) ? thinkingLabels[value as ThinkingLevel] : value;
@@ -277,7 +249,10 @@ export function SessionControls(props: SessionControlsProps) {
           {thinkingDropdownOpen && (
             <ThinkingCard
               label={t("changeThinkingLevel", "Change reasoning level")}
-              title={t("sessionCollaborationThinking", "Thinking level")}
+              title={t("thinkingCardTitle", "Reasoning effort")}
+              help={t("thinkingCardHelp", "Higher effort thinks longer before replying; Auto uses the Pi default")}
+              fasterLabel={t("thinkingFaster", "Faster")}
+              smarterLabel={t("thinkingSmarter", "Smarter")}
               current={currentLevel}
               currentLabel={thinkingDisplayLabel}
               description={thinkingDescriptions[currentLevel]}
@@ -396,6 +371,9 @@ export function SessionControls(props: SessionControlsProps) {
 interface ThinkingCardProps {
   label: string;
   title: string;
+  help: string;
+  fasterLabel: string;
+  smarterLabel: string;
   current: ThinkingLevel;
   currentLabel: string;
   description: string;
@@ -403,11 +381,11 @@ interface ThinkingCardProps {
   onPick: (level: ThinkingLevel) => void;
 }
 
-function ThinkingCard({ label, title, current, currentLabel, description, options, onPick }: ThinkingCardProps) {
+function ThinkingCard(props: ThinkingCardProps) {
+  const { label, title, help, fasterLabel, smarterLabel, current, currentLabel, description, options, onPick } = props;
   const auto = options.find((option) => option.level === "auto");
   const stops = options.filter((option) => option.level !== "auto");
   const activeIndex = stops.findIndex((option) => option.level === current);
-  const isMax = current === "max";
   const isAuto = current === "auto";
   const resting = isAuto || current === "off";
   const autoRest = isAuto ? "var(--fx-surface-selected)" : CLEAR;
@@ -423,9 +401,8 @@ function ThinkingCard({ label, title, current, currentLabel, description, option
       className="composer-pop-in absolute right-0 box-border flex w-[340px] flex-col overflow-hidden"
       style={{
         ...CARD,
-        border: "1px solid var(--fx-line-default)",
-        ...(isMax ? MAX_CARD : PLAIN_CARD),
-        padding: "var(--space-4)",
+        ...(SPECIAL_CARD[current] ?? PLAIN_CARD),
+        padding: "calc(var(--space-4) - 1px)",
         borderRadius: "var(--radius-composer)",
       }}
     >
@@ -456,38 +433,43 @@ function ThinkingCard({ label, title, current, currentLabel, description, option
             {auto.label}
           </button>
         )}
+        <span role="img" aria-label={help} title={help} className="flex" style={HELP}>
+          <Icon size={15} strokeWidth={1.75}>
+            <circle cx="12" cy="12" r="10" />
+            <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" />
+          </Icon>
+        </span>
       </div>
       {stops.length > 0 && (
-        <div
-          className="relative flex h-9 justify-between overflow-hidden"
-          style={{
-            borderRadius: "var(--radius-card)",
-            background: resting ? "var(--fx-surface-card)" : "var(--fx-surface-selected)",
-          }}
-        >
-          <span aria-hidden="true" style={{ ...FILL, width: fillWidth, background: thinkingFill(current) }} />
-          {stops.map((option, index) => {
-            const active = index === activeIndex;
-            return (
-              <button
-                key={option.level}
-                type="button"
-                role="menuitemradio"
-                aria-checked={active}
-                title={option.description}
-                onClick={() => onPick(option.level)}
-                className="relative flex h-9 w-10 cursor-pointer items-center justify-center border-none bg-transparent p-0"
-                style={{ color: THINKING_TONES[current] }}
-              >
-                <span className="sr-only">{option.label}</span>
-                {active ? (
-                  <BrainThumb alpha={option.level === "off" ? 0 : 0.45} />
-                ) : (
-                  <span aria-hidden="true" style={TICK} />
-                )}
-              </button>
-            );
-          })}
+        <div className="flex flex-col" style={{ gap: "var(--space-2)" }}>
+          <div className="type-label-default flex justify-between" style={{ color: "var(--fx-text-tertiary)" }}>
+            <span>{fasterLabel}</span>
+            <span>{smarterLabel}</span>
+          </div>
+          <div
+            className="relative flex justify-between"
+            style={{ ...TRACK, background: resting ? "var(--fx-surface-card)" : "var(--fx-surface-selected)" }}
+          >
+            <ThinkingFill level={current} width={fillWidth} />
+            {stops.map((option, index) => {
+              const active = index === activeIndex;
+              return (
+                <button
+                  key={option.level}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={active}
+                  title={option.description}
+                  onClick={() => onPick(option.level)}
+                  className="relative flex flex-none cursor-pointer items-center justify-center border-none bg-transparent p-0"
+                  style={{ ...STOP, color: THINKING_TONES[current] }}
+                >
+                  <span className="sr-only">{option.label}</span>
+                  {active ? <ThinkingThumb level={option.level} /> : <span aria-hidden="true" style={TICK} />}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
       <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>

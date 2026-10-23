@@ -42,7 +42,7 @@ await build({
   format: "iife",
   tsconfig: "tsconfig.renderer.json",
   outfile: path.join(output, "renderer.js"),
-  loader: { ".png": "dataurl", ".woff2": "file" },
+  loader: { ".png": "dataurl", ".svg": "dataurl", ".woff2": "file" },
   // The preview bundle runs outside Vite: pin the env flags the component
   // graph reads (session performance profiling stays off in previews).
   define: {

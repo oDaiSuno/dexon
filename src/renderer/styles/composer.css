@@ -71,3 +71,70 @@
     transform: none;
   }
 }
+
+@keyframes thinking-pixels-a {
+  to {
+    opacity: 0.45;
+  }
+}
+
+@keyframes thinking-pixels-b {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes thinking-burst {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes thinking-halo {
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+
+.thinking-pixels {
+  position: absolute;
+  top: 0;
+  left: var(--space-1);
+  width: 300px;
+  height: 36px;
+  background: center / 100% 100% no-repeat;
+}
+
+.thinking-pixels-a {
+  background-image: url("../assets/thinking/pixels-a.svg");
+  animation: thinking-pixels-a 1.7s cubic-bezier(0.44, 0, 0.56, 1) infinite alternate;
+}
+
+.thinking-pixels-b {
+  background-image: url("../assets/thinking/pixels-b.svg");
+  animation: thinking-pixels-b 0.9s cubic-bezier(0.44, 0, 0.56, 1) infinite alternate;
+}
+
+.thinking-burst {
+  position: absolute;
+  top: -52px;
+  left: 218px;
+  width: 140px;
+  height: 140px;
+  background: url("../assets/thinking/burst.svg") center / 100% 100% no-repeat;
+  animation: thinking-burst 18s linear infinite;
+}
+
+.thinking-halo {
+  animation: thinking-halo 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thinking-pixels-a,
+  .thinking-pixels-b,
+  .thinking-burst,
+  .thinking-halo {
+    animation: none;
+  }
+}
