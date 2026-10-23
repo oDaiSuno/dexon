@@ -1,6 +1,7 @@
 import { enUS as enUSInteractiveTools, zhCN as zhCNInteractiveTools } from "./i18n/interactive-tools.ts";
 import { enUS as enUSApp, zhCN as zhCNApp } from "./i18n/app.ts";
 import { enUS as enUSBrowser, zhCN as zhCNBrowser } from "./i18n/browser.ts";
+import { enUS as enUSBrowserHero, zhCN as zhCNBrowserHero } from "./i18n/browser-hero.ts";
 import { enUS as enUSChannels, zhCN as zhCNChannels } from "./i18n/channels.ts";
 import { enUS as enUSChat, zhCN as zhCNChat } from "./i18n/chat.ts";
 import { enUS as enUSFiles, zhCN as zhCNFiles } from "./i18n/files.ts";
@@ -14,6 +15,7 @@ export const enUS: Record<string, string> = {
   ...enUSApp,
   ...enUSInteractiveTools,
   ...enUSBrowser,
+  ...enUSBrowserHero,
   ...enUSChannels,
   ...enUSChat,
   ...enUSFiles,
@@ -28,6 +30,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNApp,
   ...zhCNInteractiveTools,
   ...zhCNBrowser,
+  ...zhCNBrowserHero,
   ...zhCNChannels,
   ...zhCNChat,
   ...zhCNFiles,

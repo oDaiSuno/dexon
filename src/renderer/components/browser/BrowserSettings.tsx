@@ -107,7 +107,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
     <>
       <div style={scrollStyle}>
         <div style={{ ...contentStyle, opacity: busy ? 0.72 : 1 }}>
-          <BrowserHero />
+          <BrowserHero model={model} />
           {error && <SettingNote alert>{error}</SettingNote>}
           <BasicsSection model={model} />
           <NetworkSection model={model} />

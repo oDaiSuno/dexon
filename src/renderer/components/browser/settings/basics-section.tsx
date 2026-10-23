@@ -16,11 +16,6 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
   return (
     <SettingGroup title={t("browserBasics", "Basics")}>
       <ToggleRow
-        label={t("browserEnableBuiltIn", "Enable built-in Browser")}
-        checked={settings.enabled}
-        onChange={(enabled) => void update({ enabled })}
-      />
-      <ToggleRow
         label={t("browserRestoreTabs", "Restore safe tabs on startup")}
         description={t(
           "browserRestoreTabsDescription",

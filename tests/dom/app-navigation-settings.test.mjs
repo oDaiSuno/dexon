@@ -131,7 +131,7 @@ for (const [command, selected] of [
 // Distinct visible contents detect a tab that changes selection but not page.
 for (const [tab, content] of [
   ["General", /Interface language/],
-  ["Browser", /Enable built-in Browser/],
+  ["Browser", /Built-in Browser/],
   ["Models", /Add channel/],
   ["Developer Tools", /JavaScript/],
   ["About", /Software update/],
@@ -178,6 +178,6 @@ test("Manage permanent permission from a browser authorization request still rea
   await click(control(scene.container, "button", "Manage permanent permissions"));
   const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   assert.equal(control(dialog, "tab", "Browser").getAttribute("aria-selected"), "true");
-  await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Enable built-in Browser/));
+  await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Built-in Browser/));
   expectSettingsTabs(dialog);
 });
