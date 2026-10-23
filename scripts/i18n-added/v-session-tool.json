@@ -11,5 +11,13 @@
   "sessionOutcomeStopped",
   "sessionOutcomeClosed",
   "sessionOutcomeTimeout",
-  "sessionBriefLabel"
+  "sessionBriefLabel",
+  "sessionDetailThisProject",
+  "sessionDetailParallel",
+  "sessionDetailWaitUpTo",
+  "sessionDetailHours",
+  "sessionDetailMinutes",
+  "sessionDetailSeconds",
+  "sessionDetailProjectCount",
+  "sessionDetailRunningCount"
 ]

@@ -4,6 +4,7 @@ import { useSessionActivity } from "@/lib/session-catalog";
 import { readSessionToolTarget } from "@shared/session-orchestration";
 import { SessionTargetLink, type SessionCardTarget } from "./session-links";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
+import { sessionToolDetail } from "./session-tool-detail";
 import { formatToolDuration, useElapsedSince } from "./tool-elapsed";
 import {
   reportedSessionStatus,
@@ -46,6 +47,7 @@ export function SessionToolRow({
   const elapsed = useElapsedSince(isRunning ? startedAt : undefined);
   const meta = isRunning ? elapsed : duration;
   const failure = isError ? (resultText ?? "").trim() : "";
+  const detail = failure ? firstLine(failure) : sessionToolDetail(block, resultText, t);
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"}>
@@ -62,8 +64,8 @@ export function SessionToolRow({
           <span className="chat-session-tool-verb type-body-medium">{sessionToolVerb(block.toolName, t)}</span>
         </button>
         {target && <SessionTargetLink target={target} />}
-        <span className="chat-session-tool-detail type-label-default" title={failure || undefined}>
-          {firstLine(failure)}
+        <span className="chat-session-tool-detail type-label-default" title={failure || detail || undefined}>
+          {detail}
         </span>
         <span className="chat-session-tool-outcome">
           <span className="chat-session-tool-dot" aria-hidden="true" />
