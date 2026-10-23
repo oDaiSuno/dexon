@@ -7,6 +7,7 @@ import { useDelayedUnmount } from "./messages/shared";
 export function ProcessDetailsGroup({
   messageCount,
   toolCallCount,
+  createdSessionCount = 0,
   durationSeconds,
   children,
   stateKey,
@@ -18,23 +19,28 @@ export function ProcessDetailsGroup({
   const { language, t } = useI18n();
   const durationLabel =
     durationSeconds !== undefined && durationSeconds > 0 ? formatTurnDuration(durationSeconds) : null;
-  // Preferred header: whole-turn duration. Falls back to the legacy counts
-  // only when message timestamps are unavailable.
-  const parts = durationLabel
-    ? [`${t("processedLabel", "Processed")} ${durationLabel}`]
-    : [
-        t("processDetails", "Process details"),
-        language === "zh-CN"
-          ? `${messageCount} ${t("messagesCount", "messages")}`
-          : `${messageCount} ${messageCount === 1 ? "message" : "messages"}`,
-        ...(toolCallCount > 0
-          ? [
-              language === "zh-CN"
-                ? `${toolCallCount} ${t("toolCallsCount", "tool calls")}`
-                : `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`,
-            ]
-          : []),
-      ];
+  const label = durationLabel
+    ? `${t("processedLabel", "Processed")} ${durationLabel}`
+    : t("processedLabel", "Processed");
+  const summary =
+    createdSessionCount > 0
+      ? createdSessionCount === 1
+        ? t("processCreatedOneSession", "· 1 new session")
+        : t("processCreatedSessions", "· {count} new sessions").replace("{count}", String(createdSessionCount))
+      : null;
+  const counts = [
+    t("processDetails", "Process details"),
+    language === "zh-CN"
+      ? `${messageCount} ${t("messagesCount", "messages")}`
+      : `${messageCount} ${messageCount === 1 ? "message" : "messages"}`,
+    ...(toolCallCount > 0
+      ? [
+          language === "zh-CN"
+            ? `${toolCallCount} ${t("toolCallsCount", "tool calls")}`
+            : `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`,
+        ]
+      : []),
+  ].join(" · ");
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 16 }}>
@@ -63,7 +69,9 @@ export function ProcessDetailsGroup({
             <path d="M6 9l6 6 6-6" />
           </svg>
         </span>
-        <span className="chat-process-label">{parts.join(" · ")}</span>
+        <span className="chat-process-label">{label}</span>
+        {summary && <span className="chat-process-summary">{summary}</span>}
+        {!durationLabel && <span className="sr-only">{counts}</span>}
       </button>
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
@@ -77,7 +85,7 @@ export function ProcessDetailsGroup({
 interface Props {
   messageCount: number;
   toolCallCount: number;
-  /** Whole-turn processing duration in seconds; falls back to counts when unavailable. */
+  createdSessionCount?: number;
   durationSeconds?: number;
   children: ReactNode;
   stateKey: string;

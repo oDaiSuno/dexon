@@ -178,6 +178,7 @@ export function ChatMessages({
           expansionStore={processDetailsExpansionStore}
           messageCount={piece.flow.messageCount}
           toolCallCount={piece.flow.toolCallCount}
+          createdSessionCount={piece.flow.createdSessionCount}
           durationSeconds={piece.durationSeconds}
         >
           <ProcessFlow
