@@ -266,13 +266,16 @@ test("skipping stays local and partial submission includes explicit unanswered s
 
 test("opening the full preview exposes inert source without selecting or submitting", async (t) => {
   const h = await harness(t);
-  await click(h.container.querySelector("summary"));
+  assert.equal(h.container.querySelector("pre"), null);
+  await h.click("Preview");
   const preview = h.container.querySelector("pre");
   assert.ok(preview.textContent.length > 600);
   assert.ok(preview.textContent.includes("<script>no execution</script>"));
   assert.equal(h.container.querySelector("script"), null);
   assert.ok([...h.container.querySelectorAll("input")].every((field) => !field.checked));
   assert.deepEqual(h.commands, []);
+  await h.click("Hide preview");
+  assert.equal(h.container.querySelector("pre"), null);
 });
 
 test("abandonment requires in-card confirmation and never sends the retained draft", async (t) => {

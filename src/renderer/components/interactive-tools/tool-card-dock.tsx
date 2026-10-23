@@ -118,7 +118,7 @@ function ToolCard({
         title;
   const abandonConfirm = (
     <div className="tool-abandon-confirm">
-      <h3 className="tool-question-title">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
+      <h3 className="tool-question-title type-title-dialog">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
       <p>{t("toolAbandonDescription", "The tool will stop waiting. Draft answers will not be sent to the model.")}</p>
       <div className="tool-footer-actions">
         <button

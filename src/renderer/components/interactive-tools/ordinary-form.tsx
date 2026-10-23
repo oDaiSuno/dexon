@@ -43,7 +43,7 @@ export function OrdinaryForm({
     <>
       <AutoHeight visible={visible}>
         <div className="tool-form-body">
-          <h3 className="tool-question-title">{request.title}</h3>
+          <h3 className="tool-question-title type-title-dialog">{request.title}</h3>
           {request.method === "confirm" && <p className="tool-description">{request.message}</p>}
           {request.method === "select" && (
             <fieldset className="tool-options" disabled={busy} aria-label={request.title}>

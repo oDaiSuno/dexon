@@ -1,0 +1,13 @@
+{
+  "toolMultiHint": {
+    "enUS": "Choose any options and add a note, or write your own answer.",
+    "zhCN": "可勾选多项并补充文字，也可以只写自己的回答。"
+  },
+  "toolSingleHint": {
+    "enUS": "Choose one option or write your own answer.",
+    "zhCN": "选择一项，或写下自己的回答。"
+  },
+  "toolViewPreview": { "enUS": "View full preview", "zhCN": "查看完整预览" },
+  "toolAdditionalAnswer": { "enUS": "Additional text or your own answer", "zhCN": "补充说明或自己的回答" },
+  "toolOwnAnswer": { "enUS": "Your own answer", "zhCN": "自己的回答" }
+}

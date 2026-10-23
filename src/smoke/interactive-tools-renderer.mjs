@@ -14,6 +14,7 @@ import "../renderer/styles/messages-process.css";
 import "../renderer/styles/messages-failure.css";
 import "../renderer/styles/messages-stream.css";
 import "../renderer/styles/tool-cards.css";
+import "../renderer/styles/tool-questions.css";
 
 const document = globalThis.document;
 const window = globalThis.window;
@@ -93,7 +94,7 @@ window.fixture = {
     if (mode === "failed") await store.respond(req.id, { answers: store.getSnapshot().entries[0].draft.answers });
     render();
     if (mode === "abandon") button("放弃本次回答").click();
-    if (mode === "preview") document.querySelector("details").open = true;
+    if (mode === "preview") flushSync(() => document.querySelector(".tool-preview-toggle").click());
     await paint();
     return this.inspect();
   },
@@ -132,7 +133,7 @@ window.fixture = {
       composerVisible: document.querySelector(".composer").getBoundingClientRect().bottom <= window.innerHeight,
       primaryVisible: !primary || primary.getBoundingClientRect().bottom <= window.innerHeight,
       bodyScroll: !!body && body.scrollHeight > body.clientHeight,
-      previewLength: document.querySelector(".tool-preview pre")?.textContent.length ?? 0,
+      previewLength: document.querySelector(".tool-preview")?.textContent.length ?? 0,
       previewExecuted: !!window.previewExecuted,
       reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       motion: [...document.querySelectorAll(".tool-card *")].map((e) => {

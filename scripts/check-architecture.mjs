@@ -121,6 +121,7 @@ GROUPS.push({
     "src/shared/interactive-tools.ts",
     "src/shared/questionnaire.ts",
     "src/renderer/styles/tool-cards.css",
+    "src/renderer/styles/tool-questions.css",
     "scripts/check-desktop-security.mjs",
     "scripts/test-interactive-tools-electron.mjs",
     "src/smoke/interactive-tools-harness.ts",
@@ -234,6 +235,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/messages-failure.css",
   "styles/messages-stream.css",
   "styles/tool-cards.css",
+  "styles/tool-questions.css",
 ];
 
 function checkCssWiring() {

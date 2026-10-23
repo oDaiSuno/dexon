@@ -4,6 +4,7 @@ import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool
 import { hasQuestionAnswer, type QuestionnaireRequest } from "@shared/interactive-tools";
 import { ChevronDownIcon, ChevronUpIcon } from "./tool-card-icons";
 import { IconButton } from "./tool-card-parts";
+import { OwnAnswer, QuestionChoice } from "./question-fields";
 import { AutoHeight } from "./tool-motion";
 
 export function Questionnaire({
@@ -97,6 +98,7 @@ export function Questionnaire({
   const answered = draft.answers.filter(hasQuestionAnswer).length;
   const busy = entry.status === "sending";
   const total = request.questions.length;
+  const previewLabels = { show: t("toolViewPreview", "Preview"), hide: t("toolHidePreview", "Hide preview") };
   const navigation = (
     <nav className="tool-question-nav" aria-label={t("toolQuestionNavigation", "Question navigation")}>
       <span className="tool-progress" aria-hidden="true">
@@ -147,66 +149,59 @@ export function Questionnaire({
               key={index}
               style={{ "--tool-direction": direction.current } as CSSProperties}
             >
-              <h3 tabIndex={-1} className="tool-question-title">
-                {question.question}
-              </h3>
-              <p className="tool-subtle">
-                {question.multiSelect
-                  ? t("toolMultiHint", "Choose any options and add a note, or write your own answer.")
-                  : t("toolSingleHint", "Choose one option or write your own answer.")}
-              </p>
-              <fieldset className="tool-options" disabled={busy} aria-label={question.question}>
+              <div className="tool-question-head">
+                <h3 tabIndex={-1} className="tool-question-title type-title-dialog">
+                  {question.question}
+                </h3>
+                <p className="tool-subtle type-label-default">
+                  {question.multiSelect
+                    ? t("toolMultiHint", "Pick as many as you like, and add a note below if needed.")
+                    : t("toolSingleHint", "Pick one, or write your own answer.")}
+                </p>
+              </div>
+              <fieldset className="tool-choices" aria-label={question.question}>
                 {question.options.map((option, optionIndex) => (
-                  <div key={optionIndex} className="tool-option-group">
-                    <label className="tool-option" data-selected={answer.selected.includes(optionIndex)}>
-                      <input
-                        type={question.multiSelect ? "checkbox" : "radio"}
-                        name={`${request.id}-${index}`}
-                        checked={answer.selected.includes(optionIndex)}
-                        onChange={() => choose(optionIndex)}
-                      />
-                      <span>
-                        <strong>{option.label}</strong>
-                        <span className="tool-option-description">{option.description}</span>
-                      </span>
-                    </label>
-                    {option.preview && (
-                      <details className="tool-preview" onToggle={() => visible && cancelAdvance()}>
-                        <summary>{t("toolViewPreview", "View full preview")}</summary>
-                        <pre>{option.preview}</pre>
-                      </details>
-                    )}
-                  </div>
+                  <QuestionChoice
+                    key={optionIndex}
+                    position={optionIndex + 1}
+                    label={option.label}
+                    description={option.description}
+                    preview={option.preview}
+                    multiSelect={!!question.multiSelect}
+                    name={`${request.id}-${index}`}
+                    checked={answer.selected.includes(optionIndex)}
+                    disabled={busy}
+                    onChoose={() => choose(optionIndex)}
+                    previewLabels={previewLabels}
+                    onPreviewToggle={() => visible && cancelAdvance()}
+                  />
                 ))}
               </fieldset>
-              <label className="tool-custom-answer">
-                <span className="tool-subtle">
-                  {question.multiSelect
-                    ? t("toolAdditionalAnswer", "Additional text or your own answer")
-                    : t("toolOwnAnswer", "Your own answer")}
-                </span>
-                <textarea
-                  value={answer.text}
-                  disabled={busy}
-                  rows={2}
-                  onChange={(event) => {
-                    if (!visible) return;
-                    cancelAdvance();
-                    const text = event.target.value;
-                    store.updateDraft(request.id, (d) => ({
-                      ...d,
-                      answers: d.answers.map((a, i) =>
-                        i !== index
-                          ? a
-                          : {
-                              selected: !question.multiSelect && text.trim() ? [] : a.selected,
-                              text,
-                            },
-                      ),
-                    }));
-                  }}
-                />
-              </label>
+              <OwnAnswer
+                value={answer.text}
+                disabled={busy}
+                placeholder={
+                  question.multiSelect
+                    ? t("toolAdditionalAnswer", "Add a note (optional)")
+                    : t("toolOwnAnswer", "Or write your own answer…")
+                }
+                onChange={(event) => {
+                  if (!visible) return;
+                  cancelAdvance();
+                  const text = event.target.value;
+                  store.updateDraft(request.id, (d) => ({
+                    ...d,
+                    answers: d.answers.map((a, i) =>
+                      i !== index
+                        ? a
+                        : {
+                            selected: !question.multiSelect && text.trim() ? [] : a.selected,
+                            text,
+                          },
+                    ),
+                  }));
+                }}
+              />
             </div>
           </AutoHeight>
           <footer className="tool-question-footer">
