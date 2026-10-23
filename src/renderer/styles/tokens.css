@@ -92,6 +92,7 @@
   --shadow-control: 0 1px 2px 0 var(--fx-shadow-soft);
   --shadow-card: 0 2px 6px 0 var(--fx-shadow-soft);
   --shadow-popover: 0 16px 40px 0 var(--fx-shadow-strong), 0 2px 6px 0 var(--fx-shadow-soft);
+  --shadow-picker: 0 16px 40px 0 var(--fx-shadow-strong);
   --shadow-menu: 0 12px 32px -8px var(--fx-shadow-strong), 0 1px 2px 0 var(--fx-shadow-soft);
   --shadow-composer: 0 12px 32px 0 var(--fx-shadow-strong);
   --shadow-dialog: 0 24px 64px 0 var(--fx-shadow-strong), 0 0 0 1px var(--fx-shadow-strong);
@@ -101,6 +102,7 @@
   --shadow-hairline-button: 0 0 0 1px var(--fx-line-strong), var(--shadow-control);
 
   --radius-chip: 6px;
+  --radius-row: 7px;
   --radius-control: 8px;
   --radius-card: 10px;
   --radius-menu: 12px;

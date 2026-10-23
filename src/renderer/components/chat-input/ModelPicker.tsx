@@ -156,7 +156,7 @@ export function ModelPicker({
               background: "var(--fx-surface-raised)",
               border: "1px solid var(--fx-line-default)",
               borderRadius: "var(--radius-composer)",
-              boxShadow: "var(--shadow-popover)",
+              boxShadow: "var(--shadow-picker)",
               overflow: "hidden",
               maxHeight: maxH,
               overflowY: "auto",

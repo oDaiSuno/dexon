@@ -83,9 +83,9 @@ const CARD: CSSProperties = { bottom: "calc(100% + 8px)", zIndex: 100, transform
 const MAX_CARD: CSSProperties = {
   background: "linear-gradient(160deg, var(--fx-surface-raised) 35%, var(--fx-data-purple-surface) 100%)",
   border: "1px solid var(--fx-data-fuchsia-line)",
-  boxShadow: `var(--shadow-popover), 0 0 36px 0 ${tint("var(--fx-data-violet)", 20)}`,
+  boxShadow: `var(--shadow-picker), 0 0 36px 0 ${tint("var(--fx-data-violet)", 20)}`,
 };
-const PLAIN_CARD: CSSProperties = { background: "var(--fx-surface-raised)", boxShadow: "var(--shadow-popover)" };
+const PLAIN_CARD: CSSProperties = { background: "var(--fx-surface-raised)", boxShadow: "var(--shadow-picker)" };
 const FILL: CSSProperties = {
   position: "absolute",
   inset: "0 auto 0 0",
