@@ -25,6 +25,7 @@ import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab } from "./app-nav/resource-page";
+import { RemotePage } from "./app-nav/remote-page";
 import { useDepartureGuard } from "./app-shell/use-departure-guard";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
@@ -45,6 +46,7 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [page, setPage] = useState<NavPage>("chat");
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
+  const [remoteOpen, setRemoteOpen] = useState(false);
   const { leaveRef, requestDeparture } = useDepartureGuard();
   const changeResourceTab = useCallback(
     (tab: ResourceTab) => requestDeparture(() => setResourceTab(tab)),
@@ -71,6 +73,7 @@ export function AppShell({
     useSettingsDialog();
   const showChatPage = useCallback(() => {
     closeSettings();
+    setRemoteOpen(false);
     setPage("chat");
   }, [closeSettings]);
   const [authorizationSettingsSessionId, setAuthorizationSettingsSessionId] = useState<string | null>(null);
@@ -161,6 +164,7 @@ export function AppShell({
       setActiveTopPanel(null);
       if (isMobile) setSidebarOpen(false);
       closeSettings();
+      setRemoteOpen(false);
       setPage(target);
     },
     [isMobile, closeSettings],
@@ -170,7 +174,17 @@ export function AppShell({
     if (isMobile) setSidebarOpen(false);
     openSettings("general");
   }, [isMobile, openSettings]);
+  const openRemote = useCallback(() => {
+    requestDeparture(() => {
+      setActiveTopPanel(null);
+      closeSettings();
+      setPage("resources");
+      setRemoteOpen(true);
+    });
+  }, [requestDeparture, closeSettings]);
   const onResources = page === "resources";
+  const remoteShown = onResources && remoteOpen && !settingsOpen;
+  const mainCovered = settingsOpen || remoteShown;
   const mainSuspended = onResources || settingsOpen;
 
   const dock = useRightPanelDock({
@@ -292,6 +306,14 @@ export function AppShell({
             position: "relative",
           }}
         >
+          {remoteShown && (
+            <RemotePage
+              isMobile={isMobile}
+              onOpenResources={() => setRemoteOpen(false)}
+              onClose={showChatPage}
+              onSnapshotChange={channels.setChannelSnapshot}
+            />
+          )}
           {settingsOpen && (
             <SettingsConfig
               cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}
@@ -300,19 +322,18 @@ export function AppShell({
               navigationRequestId={settingsNavigationRequestId}
               onClose={closeSettings}
               onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
-              onChannelsChanged={channels.setChannelSnapshot}
               chatAppearance={chatAppearance}
               chatAppearanceSaving={chatAppearanceSaving}
               onChatAppearanceChange={onChatAppearanceChange}
             />
           )}
           <div
-            hidden={settingsOpen}
-            aria-hidden={settingsOpen ? true : undefined}
-            inert={settingsOpen ? true : undefined}
+            hidden={mainCovered}
+            aria-hidden={mainCovered ? true : undefined}
+            inert={mainCovered ? true : undefined}
             style={{
               flex: 1,
-              display: settingsOpen ? "none" : "flex",
+              display: mainCovered ? "none" : "flex",
               flexDirection: "column",
               overflow: "hidden",
               minWidth: 0,
@@ -358,6 +379,8 @@ export function AppShell({
                   onTabChange={changeResourceTab}
                   skillsRef={leaveRef}
                   onPluginsReloaded={bumpSessionKey}
+                  channelSnapshot={channels.channelSnapshot}
+                  onOpenRemote={openRemote}
                 />
               )}
               {showChat ? (

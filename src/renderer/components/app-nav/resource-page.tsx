@@ -2,6 +2,8 @@ import { useEffect, useRef, type Ref } from "react";
 import { useI18n } from "@/i18n";
 import { SkillsConfig, type SkillsConfigHandle } from "../SkillsConfig";
 import { PluginsConfig } from "../PluginsConfig";
+import type { ChannelsSnapshot } from "@shared/channel-types";
+import { RemoteEntryCard } from "./remote-entry-card";
 
 // Phase 4: the resource main page — one sidebar entry opening a page with the
 // two approved tabs. The embedded configs provide the full management
@@ -18,6 +20,8 @@ export function ResourcePage({
   onTabChange,
   onPluginsReloaded,
   skillsRef,
+  channelSnapshot,
+  onOpenRemote,
 }: {
   cwd: string;
   sessionId?: string | null;
@@ -25,6 +29,8 @@ export function ResourcePage({
   onTabChange: (tab: ResourceTab) => void;
   onPluginsReloaded?: () => void;
   skillsRef?: Ref<SkillsConfigHandle>;
+  channelSnapshot: ChannelsSnapshot;
+  onOpenRemote: () => void;
 }) {
   const { t } = useI18n();
   const tabs: { id: ResourceTab; label: string }[] = [
@@ -130,6 +136,9 @@ export function ResourcePage({
           ))}
         </div>
       </header>
+      <div style={{ flexShrink: 0, padding: "0 20px 16px" }}>
+        <RemoteEntryCard snapshot={channelSnapshot} onOpen={onOpenRemote} />
+      </div>
       <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {activeTab === "plugins" ? (
           <PluginsConfig

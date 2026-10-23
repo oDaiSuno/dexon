@@ -98,7 +98,6 @@ test("Browser settings are reachable by vertical keyboard navigation and use the
     onClose() {},
     onModelsChanged() {},
     onPluginsReloaded() {},
-    onChannelsChanged() {},
     chatAppearance: { fontSize: "standard", layout: "fixed" },
     chatAppearanceSaving: false,
     onChatAppearanceChange: async () => {},

@@ -22,7 +22,7 @@ export function AccountsOverview({
   const configuredCount = snapshot.accounts.filter((account) => account.configured).length;
 
   return (
-    <section style={{ marginTop: 20 }}>
+    <section>
       <div
         style={{
           fontSize: "var(--text-meta)",

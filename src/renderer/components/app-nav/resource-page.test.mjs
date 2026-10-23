@@ -55,7 +55,14 @@ function externalResources() {
   }));
 }
 
-const props = (activeTab = "plugins", onTabChange = () => {}) => ({ cwd: "/workspace", activeTab, onTabChange });
+const noChannels = { accounts: [], statuses: [], pairings: [], bindings: [], activities: [] };
+const props = (activeTab = "plugins", onTabChange = () => {}) => ({
+  cwd: "/workspace",
+  activeTab,
+  onTabChange,
+  channelSnapshot: noChannels,
+  onOpenRemote: () => {},
+});
 
 test("the active resource tab displays its real configuration, not the other one", async (t) => {
   const host = externalResources();

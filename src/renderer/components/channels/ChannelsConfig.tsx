@@ -46,8 +46,8 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
   } = useChannelsState(onSnapshotChange);
 
   return (
-    <div style={{ width: "100%", overflowY: "auto", padding: "24px clamp(16px, 4vw, 36px)" }}>
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+    <div style={{ width: "100%", overflowY: "auto", padding: "var(--space-8) var(--space-6)" }}>
+      <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: "var(--space-8)" }}>
         <ChannelsHeader
           busy={busy}
           onConnectFeishu={() => {
@@ -64,7 +64,6 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
         {error && (
           <div
             style={{
-              marginTop: 16,
               border: "1px solid var(--fx-status-danger-border)",
               background: "var(--fx-status-danger-soft)",
               color: "var(--fx-status-danger)",

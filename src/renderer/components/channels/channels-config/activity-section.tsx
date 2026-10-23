@@ -13,7 +13,6 @@ export function ActivitySection({ snapshot }: { snapshot: ChannelsSnapshot }) {
   return (
     <section
       style={{
-        marginTop: 24,
         border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         background: "var(--fx-surface-raised)",

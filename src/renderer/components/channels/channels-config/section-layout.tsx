@@ -11,7 +11,6 @@ export function Section({ title, children }: { title: string; children: React.Re
   return (
     <section
       style={{
-        marginTop: 24,
         border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-card)",
         background: "var(--fx-surface-raised)",
