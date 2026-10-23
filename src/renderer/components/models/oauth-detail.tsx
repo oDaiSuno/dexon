@@ -104,7 +104,7 @@ export function OAuthDetail({
                     ? "http://localhost:1455/auth/callback?code=…"
                     : (loginState.placeholder ?? t("modelEnterValue", "Enter value…"))
                 }
-                className="ui-input"
+                className="ui-input type-mono-label"
                 data-mono="true"
                 style={{ flex: 1 }}
               />

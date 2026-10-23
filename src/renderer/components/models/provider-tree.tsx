@@ -290,7 +290,7 @@ export function ProviderTree({
                   status={p.loggedIn ? t("modelConnected", "connected") : undefined}
                   action={
                     p.loggedIn ? undefined : (
-                      <span aria-hidden="true" className="ui-button">
+                      <span aria-hidden="true" className="ui-button type-body-medium">
                         {t("modelLogin", "Login")}
                       </span>
                     )

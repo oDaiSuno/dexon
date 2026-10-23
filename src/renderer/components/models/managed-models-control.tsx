@@ -98,7 +98,7 @@ export function ManagedModelsControl({
               onChange={(event) => setQuery(event.target.value)}
               placeholder={t("modelSearchModels", "Search models…")}
               aria-label={t("modelSearchProviderModels", "Search provider models")}
-              className="ui-input"
+              className="ui-input type-body-default"
             />
           )}
 

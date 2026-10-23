@@ -205,19 +205,19 @@
 }
 .ui-badge[data-tone="success"]::before {
   background: var(--fx-status-success);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-status-success) 16%, transparent);
+  box-shadow: var(--shadow-badge-success);
 }
 .ui-badge[data-tone="warning"]::before {
   background: var(--fx-status-warning);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-status-warning) 16%, transparent);
+  box-shadow: var(--shadow-badge-warning);
 }
 .ui-badge[data-tone="danger"]::before {
   background: var(--fx-status-danger);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-status-danger) 16%, transparent);
+  box-shadow: var(--shadow-badge-danger);
 }
 .ui-badge[data-tone="running"]::before {
   background: var(--fx-accent-blue);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fx-accent-blue) 20%, transparent);
+  box-shadow: var(--shadow-badge-running);
 }
 .ui-badge:is([data-tone="neutral"], [data-tone="accent"]) {
   gap: 0;
