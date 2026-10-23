@@ -97,16 +97,6 @@ const SESSION_ORCHESTRATION_KEYS = new Set([
   "sessionCollaborationLoadFailed",
 ]);
 
-const FEEDBACK_KEYS = new Set([
-  "submissionFailureUnknownReason",
-  "resendMessage",
-  "dismissNotice",
-  "dismissImageAttachError",
-  "dismissCompactResult",
-  "compactResultManual",
-  "compactResultAuto",
-]);
-
 const REWRITES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-rewrites");
 
 function readRewrites(dir) {
@@ -123,6 +113,15 @@ function readRewrites(dir) {
 }
 
 export const INTENTIONAL_REWRITES = readRewrites(REWRITES_DIR);
+
+const ADDED_KEYS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-added");
+
+const ADDED_KEYS = new Set(
+  readdirSync(ADDED_KEYS_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .flatMap((name) => JSON.parse(readFileSync(path.join(ADDED_KEYS_DIR, name), "utf8"))),
+);
 
 const UPSTREAM_FAILURE_KEYS = new Set([
   "failureCollapse",
@@ -291,7 +290,7 @@ export function dictionaryBaselineFailures({
     ...OLDER_HISTORY_KEYS,
     ...MESSAGE_VERSION_KEYS,
     ...SESSION_ORCHESTRATION_KEYS,
-    ...FEEDBACK_KEYS,
+    ...ADDED_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));
