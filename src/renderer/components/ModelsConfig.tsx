@@ -3,9 +3,9 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { Button } from "./form-controls";
 import { AddProviderPicker } from "./models/add-provider-picker";
-import { ModelsFooter } from "./models/models-footer";
 import { ProviderTree } from "./models/provider-tree";
 import { SelectionDetail } from "./models/selection-detail";
+import type { DialogTarget } from "./models/types";
 import { useModelsConfig } from "./models/use-models-config";
 
 export function ModelsConfig({
@@ -22,7 +22,7 @@ export function ModelsConfig({
   const isMobile = useIsMobile();
   const { t } = useI18n();
   const editor = useModelsConfig({ cwd, onChanged });
-  const { setSelection, loading } = editor;
+  const [target, setTarget] = useState<DialogTarget | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
   return (
@@ -128,73 +128,31 @@ export function ModelsConfig({
           >
             <div style={{ maxWidth: 760, margin: "0 auto" }}>
               <ProviderTree
-                loading={loading}
+                loading={editor.loading}
+                loadError={editor.loadError}
+                onRetry={() => void editor.loadModelsConfig()}
                 providers={editor.providers}
-                oauthProviders={editor.oauthProviders}
-                apiKeyProviders={editor.apiKeyProviders}
                 activeOAuth={editor.activeOAuth}
                 activeApiKey={editor.activeApiKey}
                 modelPreferences={editor.modelPreferences}
-                selection={editor.selection}
-                setSelection={setSelection}
-                addModel={editor.addModel}
-                setPickerOpen={setPickerOpen}
-                detail={
-                  <SelectionDetail
-                    loading={loading}
-                    config={editor.config}
-                    selection={editor.selection}
-                    setConfig={editor.setConfig}
-                    oauthProviders={editor.oauthProviders}
-                    apiKeyProviders={editor.apiKeyProviders}
-                    modelPreferences={editor.modelPreferences}
-                    modelPreferencesLoading={editor.modelPreferencesLoading}
-                    modelPreferencesSaving={editor.modelPreferencesSaving}
-                    modelPreferencesError={editor.modelPreferencesError}
-                    updateModelPreferences={editor.updateModelPreferences}
-                    refreshOAuthProviders={editor.refreshOAuthProviders}
-                    refreshApiKeyProviders={editor.refreshApiKeyProviders}
-                    updateProvider={editor.updateProvider}
-                    renameProvider={editor.renameProvider}
-                    deleteProvider={editor.deleteProvider}
-                    updateModel={editor.updateModel}
-                    removeModel={editor.removeModel}
-                  />
-                }
+                onOpen={setTarget}
+                onAddProvider={() => setPickerOpen(true)}
               />
-              {!loading && !editor.selection && (
-                <p
-                  className="type-body-default"
-                  style={{ margin: "var(--space-6) 0 0", textAlign: "center", color: "var(--fx-text-tertiary)" }}
-                >
-                  {t("selectProviderOrModel", "Select a provider or model")}
-                </p>
-              )}
             </div>
           </div>
-          <ModelsFooter
-            embedded={embedded}
-            loading={loading}
-            saving={editor.saving}
-            savedOk={editor.savedOk}
-            saveError={editor.saveError}
-            saveConflict={editor.saveConflict}
-            loadFailed={editor.loadFailed}
-            configLoaded={editor.configLoaded}
-            configVersion={editor.configVersion}
-            loadModelsConfig={editor.loadModelsConfig}
-            onClose={onClose}
-            handleSave={editor.handleSave}
-          />
         </div>
       </div>
+      <span key={editor.savedAt} role="status" className="sr-only">
+        {editor.savedAt ? t("saved", "Saved") : ""}
+      </span>
+      <SelectionDetail editor={editor} target={target} onClose={() => setTarget(null)} />
       {pickerOpen && (
         <AddProviderPicker
           oauthProviders={editor.oauthProviders}
           apiKeyProviders={editor.apiKeyProviders}
-          onSelectOAuth={(id) => setSelection({ type: "oauth", providerId: id })}
-          onSelectApiKey={(id) => setSelection({ type: "apikey", providerId: id })}
-          onAddCustom={editor.addCustomProvider}
+          onSelectOAuth={(id) => setTarget({ type: "oauth", providerId: id })}
+          onSelectApiKey={(id) => setTarget({ type: "apikey", providerId: id })}
+          onAddCustom={() => setTarget({ type: "provider", name: null })}
           onClose={() => setPickerOpen(false)}
         />
       )}

@@ -47,13 +47,11 @@ export function ModelDetail({
   provider,
   model,
   onChange,
-  onDelete,
 }: {
   providerName: string;
   provider: ProviderEntry;
   model: ModelEntry;
   onChange: (m: ModelEntry) => void;
-  onDelete: () => void;
 }) {
   const { t } = useI18n();
   const [testState, setTestState] = useState<ModelTestState>({ phase: "idle" });
@@ -202,23 +200,6 @@ export function ModelDetail({
               : testState.phase === "success"
                 ? "OK"
                 : t("modelTest", "Test")}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            style={{
-              height: 32,
-              padding: "0 12px",
-              background: "none",
-              border: "1px solid var(--fx-status-danger-border)",
-              borderRadius: "var(--radius-chip)",
-              color: "var(--fx-status-danger)",
-              cursor: "pointer",
-              fontSize: "var(--text-label)",
-              boxSizing: "border-box",
-            }}
-          >
-            {t("modelRemove", "Remove")}
           </button>
         </div>
       </div>

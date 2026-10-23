@@ -1,38 +1,20 @@
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
-import {
-  addModelTransition,
-  deleteProviderTransition,
-  modelsConfigEditorReducer,
-  renameProviderEntry,
-  replaceModelEntry,
-  selectionAfterProviderRename,
-  type ModelEntry,
-  type ModelsConfigUpdate,
-  type ModelsJson,
-  type ProviderEntry,
-} from "@/lib/models-config-state";
+import type { ModelsJson } from "@/lib/models-config-state";
 import { getModelPreferences, setModelPreferences } from "@/lib/api-client";
 import type { ModelPreferencesResult } from "@contract/types";
-import type { ApiKeyProvider, OAuthProvider, Selection } from "./types";
+import type { ApiKeyProvider, OAuthProvider } from "./types";
+
+export type PersistResult = { ok: true } | { ok: false; error: string; conflict: boolean };
 
 export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChanged?: () => void }) {
   const { t } = useI18n();
-  const [{ config, selection }, dispatchEditor] = useReducer(modelsConfigEditorReducer, {
-    config: { providers: {} },
-    selection: null,
-  });
-  const setConfig = useCallback((update: ModelsConfigUpdate) => dispatchEditor({ type: "config.update", update }), []);
-  const setSelection = useCallback(
-    (nextSelection: Selection | null) => dispatchEditor({ type: "selection.set", selection: nextSelection }),
-    [],
-  );
+  const [config, setConfig] = useState<ModelsJson>({ providers: {} });
   const [configVersion, setConfigVersion] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveConflict, setSaveConflict] = useState(false);
-  const [savedOk, setSavedOk] = useState(false);
+  const [savedAt, setSavedAt] = useState(0);
   const [oauthProviders, setOauthProviders] = useState<OAuthProvider[]>([]);
   const [apiKeyProviders, setApiKeyProviders] = useState<ApiKeyProvider[]>([]);
   const [modelPreferences, setModelPreferencesState] = useState<ModelPreferencesResult | null>(null);
@@ -93,13 +75,9 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     void loadModelPreferences();
   }, [loadApiKeyProviders, loadModelPreferences]);
 
-  const [loadFailed, setLoadFailed] = useState(false);
-  const [configLoaded, setConfigLoaded] = useState(false);
-
   const loadModelsConfig = useCallback(async () => {
     setLoading(true);
-    setLoadFailed(false);
-    setConfigLoaded(false);
+    setLoadError(null);
     try {
       const response = await fetch("/api/models-config");
       if (!response.ok) {
@@ -109,20 +87,11 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
       const snapshot = (await response.json()) as { config?: ModelsJson; version?: string; error?: string };
       if (snapshot.error) throw new Error(snapshot.error);
       if (!snapshot.config || typeof snapshot.version !== "string") throw new Error("Invalid models config snapshot");
-      const normalized = snapshot.config.providers ? snapshot.config : { ...snapshot.config, providers: {} };
-      const keys = Object.keys(normalized.providers ?? {});
-      dispatchEditor({
-        type: "config.replace",
-        config: normalized,
-        selection: keys.length > 0 ? { type: "provider", name: keys[0] } : null,
-      });
+      setConfig(snapshot.config.providers ? snapshot.config : { ...snapshot.config, providers: {} });
       setConfigVersion(snapshot.version);
-      setConfigLoaded(true);
-      setSaveConflict(false);
-      setSaveError(null);
     } catch (error) {
-      setLoadFailed(true);
-      setSaveError(error instanceof Error ? error.message : String(error));
+      setConfigVersion(null);
+      setLoadError(error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -138,130 +107,61 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     void loadModelPreferences();
   }, [loadModelPreferences]);
 
-  const addCustomProvider = useCallback(() => {
-    dispatchEditor({ type: "provider.addCustom" });
-  }, []);
-
-  const updateProvider = useCallback(
-    (name: string, p: ProviderEntry) => {
-      setConfig((prev) => ({ ...prev, providers: { ...(prev.providers ?? {}), [name]: p } }));
-    },
-    [setConfig],
-  );
-
-  const renameProvider = useCallback(
-    (oldName: string, newName: string) => {
-      const result = renameProviderEntry(config, oldName, newName);
-      if (!result.ok) {
-        setSaveError(result.error);
-        return;
-      }
-      setSaveError(null);
-      setConfig(result.config);
-      setSelection(selectionAfterProviderRename(selection, oldName, result.name));
-    },
-    [config, selection, setConfig, setSelection],
-  );
-
-  const deleteProvider = useCallback(
-    (name: string) => {
-      const transition = deleteProviderTransition(config, selection, name);
-      setConfig(transition.config);
-      setSelection(transition.selection);
-    },
-    [config, selection, setConfig, setSelection],
-  );
-
-  const addModel = useCallback(
-    (providerName: string) => {
-      const transition = addModelTransition(config, providerName);
-      setConfig(transition.config);
-      setSelection(transition.selection);
-    },
-    [config, setConfig, setSelection],
-  );
-
-  const updateModel = useCallback(
-    (providerName: string, index: number, m: ModelEntry) => {
-      setConfig((prev) => replaceModelEntry(prev, providerName, index, m));
-    },
-    [setConfig],
-  );
-
-  const removeModel = useCallback(
-    (providerName: string, index: number) => {
-      setConfig((prev) => {
-        const provider = prev.providers?.[providerName] ?? {};
-        const models = [...(provider.models ?? [])];
-        models.splice(index, 1);
+  const persist = useCallback(
+    async (next: ModelsJson): Promise<PersistResult> => {
+      if (!configVersion) {
         return {
-          ...prev,
-          providers: {
-            ...(prev.providers ?? {}),
-            [providerName]: { ...provider, models: models.length ? models : undefined },
-          },
+          ok: false,
+          conflict: false,
+          error: t("modelCannotSaveBeforeLoad", "Cannot save until config loads successfully"),
         };
-      });
-      setSelection({ type: "provider", name: providerName });
-    },
-    [setConfig, setSelection],
-  );
-
-  const handleSave = useCallback(async () => {
-    if (!configVersion) return;
-    setSaving(true);
-    setSaveError(null);
-    setSavedOk(false);
-    try {
-      const res = await fetch("/api/models-config", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ config, expectedVersion: configVersion }),
-      });
-      const d = (await res.json()) as { success?: boolean; error?: string; code?: string; version?: string };
-      if (!res.ok || d.error) {
-        const conflict = res.status === 409 || d.code === "CONFLICT";
-        setSaveConflict(conflict);
-        setSaveError(
-          conflict
-            ? t(
-                "modelConfigConflict",
-                "models.json changed outside this editor. Your edits are preserved here; copy or compare them before reloading the disk version to merge manually.",
-              )
-            : (d.error ?? `HTTP ${res.status}`),
-        );
-      } else if (typeof d.version !== "string") {
-        setSaveError("Invalid models config save response");
-      } else {
+      }
+      setSaving(true);
+      try {
+        const res = await fetch("/api/models-config", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ config: next, expectedVersion: configVersion }),
+        });
+        const d = (await res.json()) as { success?: boolean; error?: string; code?: string; version?: string };
+        if (!res.ok || d.error) {
+          const conflict = res.status === 409 || d.code === "CONFLICT";
+          return {
+            ok: false,
+            conflict,
+            error: conflict
+              ? t(
+                  "modelConfigConflict",
+                  "models.json changed outside this editor. Your edits are preserved here; copy or compare them before reloading the disk version to merge manually.",
+                )
+              : (d.error ?? `HTTP ${res.status}`),
+          };
+        }
+        if (typeof d.version !== "string") {
+          return { ok: false, conflict: false, error: "Invalid models config save response" };
+        }
+        setConfig(next);
         setConfigVersion(d.version);
-        setSaveConflict(false);
-        setSavedOk(true);
+        setSavedAt(Date.now());
         onChanged?.();
         void loadModelPreferences();
-        setTimeout(() => setSavedOk(false), 2000);
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, conflict: false, error: String(e) };
+      } finally {
+        setSaving(false);
       }
-    } catch (e) {
-      setSaveError(String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [config, configVersion, loadModelPreferences, onChanged, t]);
-
-  const providers = Object.entries(config.providers ?? {});
-  const activeOAuth = oauthProviders.filter((p) => p.loggedIn);
-  const activeApiKey = apiKeyProviders.filter((p) => p.configured);
+    },
+    [configVersion, loadModelPreferences, onChanged, t],
+  );
 
   return {
     config,
-    selection,
-    setConfig,
-    setSelection,
     configVersion,
     loading,
+    loadError,
     saving,
-    saveError,
-    saveConflict,
-    savedOk,
+    savedAt,
     oauthProviders,
     apiKeyProviders,
     modelPreferences,
@@ -271,19 +171,12 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     updateModelPreferences,
     refreshOAuthProviders,
     refreshApiKeyProviders,
-    loadFailed,
-    configLoaded,
     loadModelsConfig,
-    addCustomProvider,
-    updateProvider,
-    renameProvider,
-    deleteProvider,
-    addModel,
-    updateModel,
-    removeModel,
-    handleSave,
-    providers,
-    activeOAuth,
-    activeApiKey,
+    persist,
+    providers: Object.entries(config.providers ?? {}),
+    activeOAuth: oauthProviders.filter((p) => p.loggedIn),
+    activeApiKey: apiKeyProviders.filter((p) => p.configured),
   };
 }
+
+export type ModelsConfigEditor = ReturnType<typeof useModelsConfig>;

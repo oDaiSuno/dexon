@@ -29,31 +29,28 @@ export interface ModelsJson {
   [key: string]: unknown;
 }
 
-export type ModelsConfigSelection =
-  | { type: "provider"; name: string }
-  | { type: "model"; providerName: string; index: number }
-  | { type: "oauth"; providerId: string }
-  | { type: "apikey"; providerId: string };
-
-export interface ModelsConfigEditorState {
-  config: ModelsJson;
-  selection: ModelsConfigSelection | null;
-}
-
-export type ModelsConfigUpdate = ModelsJson | ((current: ModelsJson) => ModelsJson);
-
-export type ModelsConfigEditorAction =
-  | { type: "config.replace"; config: ModelsJson; selection: ModelsConfigSelection | null }
-  | { type: "config.update"; update: ModelsConfigUpdate }
-  | { type: "selection.set"; selection: ModelsConfigSelection | null }
-  | { type: "provider.addCustom" };
-
 const RESERVED_PROVIDER_NAMES = new Set(["__proto__", "prototype", "constructor"]);
 
-export type RenameProviderResult =
+export type ProviderSaveResult =
   { ok: true; config: ModelsJson; name: string } | { ok: false; config: ModelsJson; error: string };
 
-export function renameProviderEntry(config: ModelsJson, oldName: string, requestedName: string): RenameProviderResult {
+const hasProvider = (providers: Record<string, ProviderEntry>, name: string) =>
+  Object.prototype.hasOwnProperty.call(providers, name);
+
+export function nextCustomProviderName(config: ModelsJson): string {
+  const providers = config.providers ?? {};
+  let name = "new-provider";
+  let suffix = 1;
+  while (hasProvider(providers, name)) name = `new-provider-${suffix++}`;
+  return name;
+}
+
+export function saveProviderEntry(
+  config: ModelsJson,
+  originalName: string | null,
+  requestedName: string,
+  entry: ProviderEntry,
+): ProviderSaveResult {
   const name = requestedName.trim();
   if (!name) return { ok: false, config, error: "Provider name cannot be empty." };
   if (RESERVED_PROVIDER_NAMES.has(name)) {
@@ -61,105 +58,41 @@ export function renameProviderEntry(config: ModelsJson, oldName: string, request
   }
 
   const providers = config.providers ?? {};
-  if (!Object.prototype.hasOwnProperty.call(providers, oldName)) {
-    return { ok: false, config, error: `Provider “${oldName}” no longer exists.` };
+  if (originalName !== null && !hasProvider(providers, originalName)) {
+    return { ok: false, config, error: `Provider “${originalName}” no longer exists.` };
   }
-  if (name !== oldName && Object.prototype.hasOwnProperty.call(providers, name)) {
+  if (name !== originalName && hasProvider(providers, name)) {
     return { ok: false, config, error: `Provider “${name}” already exists.` };
   }
-  if (name === oldName) return { ok: true, config, name };
 
-  const entries = Object.entries(providers);
-  const index = entries.findIndex(([providerName]) => providerName === oldName);
-  entries[index] = [name, entries[index][1]];
+  if (originalName === null) {
+    return { ok: true, config: { ...config, providers: { ...providers, [name]: entry } }, name };
+  }
+  const entries = Object.entries(providers).map(([providerName, provider]): [string, ProviderEntry] =>
+    providerName === originalName ? [name, entry] : [providerName, provider],
+  );
   return { ok: true, config: { ...config, providers: Object.fromEntries(entries) }, name };
 }
 
-export function selectionAfterProviderRename(
-  selection: ModelsConfigSelection | null,
-  oldName: string,
-  newName: string,
-): ModelsConfigSelection | null {
-  if (selection?.type === "provider" && selection.name === oldName) return { type: "provider", name: newName };
-  if (selection?.type === "model" && selection.providerName === oldName) {
-    return { ...selection, providerName: newName };
-  }
-  return selection;
-}
-
-export function deleteProviderTransition(
-  config: ModelsJson,
-  selection: ModelsConfigSelection | null,
-  providerName: string,
-): { config: ModelsJson; selection: ModelsConfigSelection | null } {
+export function deleteProviderEntry(config: ModelsJson, providerName: string): ModelsJson {
   const currentProviders = config.providers ?? {};
-  if (!Object.prototype.hasOwnProperty.call(currentProviders, providerName)) return { config, selection };
-
+  if (!hasProvider(currentProviders, providerName)) return config;
   const providers = { ...currentProviders };
   delete providers[providerName];
-  const selectionWasDeleted =
-    (selection?.type === "provider" && selection.name === providerName) ||
-    (selection?.type === "model" && selection.providerName === providerName);
-  const nextProviderName = Object.keys(providers)[0];
-  return {
-    config: { ...config, providers },
-    selection: selectionWasDeleted
-      ? nextProviderName
-        ? { type: "provider", name: nextProviderName }
-        : null
-      : selection,
-  };
+  return { ...config, providers };
 }
 
-export function addModelTransition(
-  config: ModelsJson,
-  providerName: string,
-): { config: ModelsJson; selection: ModelsConfigSelection } {
-  const provider = config.providers?.[providerName] ?? {};
-  const models = [...(provider.models ?? []), { id: "" }];
-  return {
-    config: {
-      ...config,
-      providers: { ...(config.providers ?? {}), [providerName]: { ...provider, models } },
-    },
-    selection: { type: "model", providerName, index: models.length - 1 },
-  };
+export function saveModelEntry(provider: ProviderEntry, index: number | null, model: ModelEntry): ProviderEntry {
+  const models = [...(provider.models ?? [])];
+  if (index === null) models.push(model);
+  else models[index] = model;
+  return { ...provider, models };
 }
 
-export function addCustomProviderTransition(config: ModelsJson): {
-  config: ModelsJson;
-  selection: ModelsConfigSelection;
-} {
-  const providers = config.providers ?? {};
-  let name = "new-provider";
-  let suffix = 1;
-  while (Object.prototype.hasOwnProperty.call(providers, name)) name = `new-provider-${suffix++}`;
-  return {
-    config: {
-      ...config,
-      providers: { ...providers, [name]: { api: "openai-completions" } },
-    },
-    selection: { type: "provider", name },
-  };
-}
-
-export function modelsConfigEditorReducer(
-  state: ModelsConfigEditorState,
-  action: ModelsConfigEditorAction,
-): ModelsConfigEditorState {
-  switch (action.type) {
-    case "config.replace":
-      return { config: action.config, selection: action.selection };
-    case "config.update":
-      return {
-        ...state,
-        config: typeof action.update === "function" ? action.update(state.config) : action.update,
-      };
-    case "selection.set":
-      return { ...state, selection: action.selection };
-    case "provider.addCustom":
-      return addCustomProviderTransition(state.config);
-  }
+export function deleteModelEntry(provider: ProviderEntry, index: number): ProviderEntry {
+  if (!provider.models || index < 0 || index >= provider.models.length) return provider;
+  const models = provider.models.filter((_, i) => i !== index);
+  return { ...provider, models: models.length ? models : undefined };
 }
 
 export function setProviderBaseUrl(config: ModelsJson, providerName: string, baseUrl: string): ModelsJson {
@@ -177,22 +110,4 @@ export function setProviderBaseUrl(config: ModelsJson, providerName: string, bas
   }
 
   return { ...config, providers };
-}
-
-export function replaceModelEntry(
-  config: ModelsJson,
-  providerName: string,
-  index: number,
-  model: ModelEntry,
-): ModelsJson {
-  const provider = config.providers?.[providerName] ?? {};
-  const models = [...(provider.models ?? [])];
-  models[index] = model;
-  return {
-    ...config,
-    providers: {
-      ...(config.providers ?? {}),
-      [providerName]: { ...provider, models },
-    },
-  };
 }

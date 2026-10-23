@@ -9,7 +9,7 @@
     {
       "file": "src/renderer/components/models/model-detail.tsx",
       "name": "--text-label",
-      "count": 3
+      "count": 2
     },
     {
       "file": "src/renderer/components/models/model-detail.tsx",
@@ -21,7 +21,7 @@
     {
       "file": "src/renderer/components/models/model-detail.tsx",
       "property": "fontSize",
-      "count": 4
+      "count": 3
     }
   ],
   "colors": []

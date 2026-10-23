@@ -18,7 +18,7 @@ async function loadModule() {
 }
 
 test("editing one model preserves v0.84 sampling, nullable headers, and unknown fields", async () => {
-  const { replaceModelEntry } = await loadModule();
+  const { saveModelEntry, saveProviderEntry } = await loadModule();
   const original = {
     revision: 7,
     providers: {
@@ -39,8 +39,11 @@ test("editing one model preserves v0.84 sampling, nullable headers, and unknown 
     },
   };
   const selected = original.providers.custom.models[0];
-  const updated = replaceModelEntry(original, "custom", 0, { ...selected, name: "New name" });
+  const provider = saveModelEntry(original.providers.custom, 0, { ...selected, name: "New name" });
+  const saved = saveProviderEntry(original, "custom", "custom", provider);
 
+  assert.equal(saved.ok, true);
+  const updated = saved.config;
   assert.equal(updated.providers.custom.models[0].name, "New name");
   assert.deepEqual(updated.providers.custom.models[0].samplingParams, selected.samplingParams);
   assert.deepEqual(updated.providers.custom.models[0].futureModelField, selected.futureModelField);
@@ -89,8 +92,8 @@ test("clearing a provider base URL preserves other provider fields and removes e
   );
 });
 
-test("provider rename rejects conflicts and reserved or empty names without changing config", async () => {
-  const { renameProviderEntry } = await loadModule();
+test("saving a provider under a new name rejects conflicts and reserved or empty names without changing config", async () => {
+  const { saveProviderEntry } = await loadModule();
   const original = {
     revision: 7,
     providers: {
@@ -100,13 +103,13 @@ test("provider rename rejects conflicts and reserved or empty names without chan
   };
 
   for (const requestedName of [" beta ", "", "   ", "__proto__", "prototype", "constructor"]) {
-    const result = renameProviderEntry(original, "alpha", requestedName);
+    const result = saveProviderEntry(original, "alpha", requestedName, original.providers.alpha);
     assert.equal(result.ok, false, requestedName);
     assert.equal(result.config, original);
     assert.deepEqual(Object.keys(original.providers), ["alpha", "beta"]);
   }
 
-  const renamed = renameProviderEntry(original, "alpha", " gamma ");
+  const renamed = saveProviderEntry(original, "alpha", " gamma ", original.providers.alpha);
   assert.equal(renamed.ok, true);
   assert.equal(renamed.name, "gamma");
   assert.deepEqual(Object.keys(renamed.config.providers), ["gamma", "beta"]);
@@ -115,8 +118,8 @@ test("provider rename rejects conflicts and reserved or empty names without chan
   assert.deepEqual(Object.keys(original.providers), ["alpha", "beta"]);
 });
 
-test("provider deletion and model addition compute config and selection without side effects", async () => {
-  const { addModelTransition, deleteProviderTransition, selectionAfterProviderRename } = await loadModule();
+test("provider deletion and model addition or removal compute new config without side effects", async () => {
+  const { deleteModelEntry, deleteProviderEntry, saveModelEntry } = await loadModule();
   const original = {
     revision: 7,
     providers: {
@@ -124,49 +127,41 @@ test("provider deletion and model addition compute config and selection without 
       beta: { api: "anthropic-messages" },
     },
   };
-  const selectedBeta = { type: "provider", name: "beta" };
 
-  const unrelatedDelete = deleteProviderTransition(original, selectedBeta, "alpha");
-  assert.equal(unrelatedDelete.selection, selectedBeta);
-  assert.deepEqual(Object.keys(unrelatedDelete.config.providers), ["beta"]);
+  const deleted = deleteProviderEntry(original, "alpha");
+  assert.deepEqual(Object.keys(deleted.providers), ["beta"]);
+  assert.equal(deleted.revision, 7);
+  assert.equal(deleteProviderEntry(original, "missing"), original);
 
-  const selectedAlphaModel = { type: "model", providerName: "alpha", index: 0 };
-  const selectedDelete = deleteProviderTransition(original, selectedAlphaModel, "alpha");
-  assert.deepEqual(selectedDelete.selection, { type: "provider", name: "beta" });
-  assert.deepEqual(Object.keys(selectedDelete.config.providers), ["beta"]);
+  const added = saveModelEntry(original.providers.alpha, null, { id: "two" });
+  assert.deepEqual(added.models, [{ id: "one" }, { id: "two" }]);
+  assert.equal(added.futureField, true);
 
-  const added = addModelTransition(original, "alpha");
-  assert.deepEqual(added.selection, { type: "model", providerName: "alpha", index: 1 });
-  assert.deepEqual(added.config.providers.alpha.models, [{ id: "one" }, { id: "" }]);
-  assert.equal(added.config.providers.alpha.futureField, true);
+  const emptied = deleteModelEntry(original.providers.alpha, 0);
+  assert.equal(emptied.models, undefined);
+  assert.equal(emptied.futureField, true);
 
-  assert.deepEqual(selectionAfterProviderRename(selectedAlphaModel, "alpha", "gamma"), {
-    type: "model",
-    providerName: "gamma",
-    index: 0,
-  });
   assert.deepEqual(original.providers.alpha.models, [{ id: "one" }]);
   assert.equal(original.providers.alpha.futureField, true);
 });
 
-test("consecutive custom providers derive unique names from the reducer current state", async () => {
-  const { modelsConfigEditorReducer } = await loadModule();
+test("new custom providers get a unique name and are appended without touching existing ones", async () => {
+  const { nextCustomProviderName, saveProviderEntry } = await loadModule();
   const original = {
-    config: {
-      revision: 7,
-      providers: { "new-provider": { api: "anthropic-messages", futureField: true } },
-    },
-    selection: null,
+    revision: 7,
+    providers: { "new-provider": { api: "anthropic-messages", futureField: true } },
   };
 
-  const first = modelsConfigEditorReducer(original, { type: "provider.addCustom" });
-  const second = modelsConfigEditorReducer(first, { type: "provider.addCustom" });
+  const firstName = nextCustomProviderName(original);
+  assert.equal(firstName, "new-provider-1");
+  const first = saveProviderEntry(original, null, firstName, { api: "openai-completions" });
+  assert.equal(first.ok, true);
+  const secondName = nextCustomProviderName(first.config);
+  assert.equal(secondName, "new-provider-2");
+  const second = saveProviderEntry(first.config, null, secondName, { api: "openai-completions" });
 
   assert.deepEqual(Object.keys(second.config.providers), ["new-provider", "new-provider-1", "new-provider-2"]);
-  assert.deepEqual(second.config.providers["new-provider-1"], { api: "openai-completions" });
   assert.deepEqual(second.config.providers["new-provider-2"], { api: "openai-completions" });
-  assert.deepEqual(second.selection, { type: "provider", name: "new-provider-2" });
-  assert.deepEqual(original.config.providers, {
-    "new-provider": { api: "anthropic-messages", futureField: true },
-  });
+  assert.deepEqual(original.providers, { "new-provider": { api: "anthropic-messages", futureField: true } });
+  assert.equal(saveProviderEntry(original, null, "new-provider", {}).ok, false);
 });

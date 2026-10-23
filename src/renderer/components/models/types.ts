@@ -1,4 +1,3 @@
-import type { ModelsConfigSelection } from "@/lib/models-config-state";
 import type { ModelPreferencesResult } from "@contract/types";
 
 export interface OAuthProvider {
@@ -39,7 +38,10 @@ export type ModelTestState =
   | { phase: "success"; latencyMs?: number; status?: number; responseText?: string }
   | { phase: "error"; message: string; latencyMs?: number; status?: number };
 
-export type Selection = ModelsConfigSelection;
+export type DialogTarget =
+  | { type: "oauth"; providerId: string }
+  | { type: "apikey"; providerId: string }
+  | { type: "provider"; name: string | null };
 
 export const API_OPTIONS = [
   "openai-completions",

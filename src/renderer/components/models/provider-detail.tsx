@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Button, Field, SecretTextInput, Select, SectionTitle, TextInput } from "../form-controls";
+import { useEffect } from "react";
+import { Field, SecretTextInput, Select, SectionTitle, TextInput } from "../form-controls";
 import { useI18n } from "@/i18n";
 import type { ProviderEntry } from "@/lib/models-config-state";
 import { API_OPTIONS } from "./types";
@@ -7,19 +7,15 @@ import { API_OPTIONS } from "./types";
 export function ProviderDetail({
   name,
   provider,
+  onNameChange,
   onChange,
-  onRename,
-  onDelete,
 }: {
   name: string;
   provider: ProviderEntry;
+  onNameChange: (n: string) => void;
   onChange: (p: ProviderEntry) => void;
-  onRename: (n: string) => void;
-  onDelete: () => void;
 }) {
   const { t } = useI18n();
-  const [editingName, setEditingName] = useState(name);
-  useEffect(() => setEditingName(name), [name]);
   const set = <K extends keyof ProviderEntry>(k: K, v: ProviderEntry[K]) => onChange({ ...provider, [k]: v });
 
   useEffect(() => {
@@ -29,24 +25,10 @@ export function ProviderDetail({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <SectionTitle>{t("modelProvider", "Provider")}</SectionTitle>
-        <Button variant="danger" onClick={onDelete}>
-          {t("delete", "Delete")}
-        </Button>
-      </div>
+      <SectionTitle>{t("modelProvider", "Provider")}</SectionTitle>
 
       <Field labelSize="body" label={t("modelProviderName", "Provider name")}>
-        <TextInput value={editingName} onChange={setEditingName} placeholder="provider-name" mono />
-        {editingName !== name && editingName.trim() && (
-          <Button
-            variant="primary"
-            onClick={() => onRename(editingName.trim())}
-            style={{ marginTop: 4, alignSelf: "flex-start" }}
-          >
-            {t("rename", "Rename")}
-          </Button>
-        )}
+        <TextInput value={name} onChange={onNameChange} placeholder="provider-name" mono />
       </Field>
 
       <Field labelSize="body" label={t("modelBaseUrl", "Base URL")}>
