@@ -1,5 +1,6 @@
 import { useI18n } from "@/i18n";
 import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool-store";
+import { QuestionChoice } from "./question-fields";
 import { AutoHeight } from "./tool-motion";
 
 export function OrdinaryForm({
@@ -46,19 +47,20 @@ export function OrdinaryForm({
           <h3 className="tool-question-title type-title-dialog">{request.title}</h3>
           {request.method === "confirm" && <p className="tool-description">{request.message}</p>}
           {request.method === "select" && (
-            <fieldset className="tool-options" disabled={busy} aria-label={request.title}>
+            <fieldset className="tool-choices" aria-label={request.title}>
               {request.options.map((option, index) => (
-                <label className="tool-option" key={index} data-selected={draft.selected === index}>
-                  <input
-                    type="radio"
-                    name={request.id}
-                    checked={draft.selected === index}
-                    onChange={() => {
-                      if (visible) store.updateDraft(request.id, (d) => ({ ...d, selected: index }));
-                    }}
-                  />
-                  <span>{option}</span>
-                </label>
+                <QuestionChoice
+                  key={index}
+                  position={index + 1}
+                  label={option}
+                  multiSelect={false}
+                  name={request.id}
+                  checked={draft.selected === index}
+                  disabled={busy}
+                  onChoose={() => {
+                    if (visible) store.updateDraft(request.id, (d) => ({ ...d, selected: index }));
+                  }}
+                />
               ))}
             </fieldset>
           )}

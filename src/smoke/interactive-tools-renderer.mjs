@@ -14,7 +14,6 @@ import "../renderer/styles/messages-process.css";
 import "../renderer/styles/messages-failure.css";
 import "../renderer/styles/messages-stream.css";
 import "../renderer/styles/tool-cards.css";
-import "../renderer/styles/tool-questions.css";
 
 const document = globalThis.document;
 const window = globalThis.window;

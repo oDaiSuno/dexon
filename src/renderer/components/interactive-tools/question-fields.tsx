@@ -16,15 +16,15 @@ export function QuestionChoice({
 }: {
   position: number;
   label: string;
-  description: string;
+  description?: string;
   preview?: string;
   multiSelect: boolean;
   name: string;
   checked: boolean;
   disabled: boolean;
   onChoose: () => void;
-  previewLabels: { show: string; hide: string };
-  onPreviewToggle: () => void;
+  previewLabels?: { show: string; hide: string };
+  onPreviewToggle?: () => void;
 }) {
   const id = useId();
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -32,37 +32,37 @@ export function QuestionChoice({
   const descriptionId = `${id}-description`;
   const previewId = `${id}-preview`;
   return (
-    <div className="tool-choice" data-selected={checked} data-multi={multiSelect} data-disabled={disabled}>
-      <label className="tool-choice-hit">
-        <input
-          className="tool-choice-input"
-          type={multiSelect ? "checkbox" : "radio"}
-          name={name}
-          checked={checked}
-          disabled={disabled}
-          aria-labelledby={titleId}
-          aria-describedby={descriptionId}
-          onChange={onChoose}
-        />
-        <span className="tool-choice-key type-mono-meta" aria-hidden="true">
-          {position}
+    <label className="tool-choice" data-selected={checked} data-multi={multiSelect} data-disabled={disabled}>
+      <input
+        className="tool-choice-input"
+        type={multiSelect ? "checkbox" : "radio"}
+        name={name}
+        checked={checked}
+        disabled={disabled}
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
+        onChange={onChoose}
+      />
+      <span className="tool-choice-key type-mono-meta" aria-hidden="true">
+        {position}
+      </span>
+      <span className="tool-choice-text">
+        <span id={titleId} className="type-body-medium">
+          {label}
         </span>
-        <span className="tool-choice-text">
-          <span id={titleId} className="tool-choice-title type-body-medium">
-            {label}
-          </span>
+        {description && (
           <span id={descriptionId} className="tool-choice-description type-label-default">
             {description}
           </span>
-        </span>
-      </label>
-      {preview && previewOpen && (
-        <pre id={previewId} className="tool-preview type-mono-code">
-          {preview}
-        </pre>
-      )}
+        )}
+        {preview && previewOpen && (
+          <pre id={previewId} className="tool-preview type-mono-code" onClick={(event) => event.preventDefault()}>
+            {preview}
+          </pre>
+        )}
+      </span>
       <span className="tool-choice-trail">
-        {preview && (
+        {preview && previewLabels && (
           <button
             type="button"
             className="tool-preview-toggle"
@@ -70,7 +70,7 @@ export function QuestionChoice({
             aria-controls={previewOpen ? previewId : undefined}
             aria-describedby={titleId}
             onClick={() => {
-              onPreviewToggle();
+              onPreviewToggle?.();
               setPreviewOpen((open) => !open);
             }}
           >
@@ -84,7 +84,7 @@ export function QuestionChoice({
           </span>
         )}
       </span>
-    </div>
+    </label>
   );
 }
 
