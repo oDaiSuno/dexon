@@ -5,7 +5,6 @@
   max-width: 236px;
   padding: 0 6px 0 var(--space-1);
   border-radius: var(--radius-chip);
-  font-size: 0.82em;
   white-space: nowrap;
   vertical-align: middle;
   position: relative;
@@ -39,7 +38,6 @@
   border: 1px solid var(--fx-line-translucent);
   background: var(--fx-surface-subtle);
   color: var(--fx-text-primary);
-  font-family: var(--font-mono);
   transition: background-color var(--duration-quick) var(--ease-smooth-out);
 }
 
@@ -129,10 +127,6 @@
 
 .skill-chip-glyph {
   color: var(--fx-accent-blue-text);
-}
-
-.skill-chip-name {
-  font-weight: 500;
 }
 
 .skill-chip .token-chip-remove:hover {

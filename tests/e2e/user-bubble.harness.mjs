@@ -218,8 +218,8 @@ async function run() {
     near(composer.paddingRight, bubble.paddingRight, "chip right padding");
     near(composer.glyph.width, bubble.glyph.width, "chip glyph width");
     near(composer.glyph.height, bubble.glyph.height, "chip glyph height");
-    near(bubble.fontSize, bubble.surroundingFontSize * 0.82, "the bubble chip font follows the bubble text");
-    near(composer.fontSize, composer.surroundingFontSize * 0.82, "the composer chip font follows the composer text");
+    near(bubble.fontSize, 12, "the bubble chip label uses the 12px Mono/Label text style");
+    near(composer.fontSize, 12, "the composer chip label uses the 12px Mono/Label text style");
     const center = await page(`chipCenter(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);
     await hover(center);
     const hovered = await page(`bubbleChipStyle(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);

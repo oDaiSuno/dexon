@@ -15,7 +15,7 @@ export function AttachmentChip({ path, cwd, previewUrl }: { path: string; cwd?: 
   );
   if (!target) {
     return (
-      <span className="token-chip token-chip-static" title={path}>
+      <span className="token-chip token-chip-static type-mono-label" title={path}>
         {content}
       </span>
     );
@@ -23,7 +23,7 @@ export function AttachmentChip({ path, cwd, previewUrl }: { path: string; cwd?: 
   return (
     <button
       type="button"
-      className="token-chip"
+      className="token-chip type-mono-label"
       title={path}
       onClick={() => void window.piBridge?.showItemInFolder?.(target)}
     >
@@ -34,7 +34,7 @@ export function AttachmentChip({ path, cwd, previewUrl }: { path: string; cwd?: 
 
 export function SkillChip({ name }: { name: string }) {
   return (
-    <span className="skill-chip" title={name}>
+    <span className="skill-chip type-label-medium" title={name}>
       <span className="skill-chip-glyph" dangerouslySetInnerHTML={{ __html: SKILL_CHIP_SVG }} />
       <span className="skill-chip-name">{name}</span>
     </span>

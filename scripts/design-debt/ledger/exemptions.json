@@ -62,18 +62,6 @@
       "property": "line-height",
       "count": 3,
       "reason": "消息正文里的 Markdown（标题、表格、代码块）按正文的相对比例排版；Framer 没有为 Markdown 内容设计文字样式"
-    },
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "property": "font-size",
-      "count": 1,
-      "reason": "引用标签嵌在正文和输入框文字中间，字号按周围文字的 0.82 倍随聊天字号缩放（tests/e2e/user-bubble.harness.mjs 校验这一比例）；固定像素的 .type-* 类无法表达"
-    },
-    {
-      "file": "src/renderer/styles/ref-chips.css",
-      "property": "font-weight",
-      "count": 1,
-      "reason": "与上一条同一处标签文字，随相对字号一起定义"
     }
   ],
   "colors": [
