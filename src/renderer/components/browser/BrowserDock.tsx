@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
+import { BrowserTabStrip } from "./browser-tab-strip";
+import { BrowserToolbar } from "./browser-toolbar";
 import type {
   BrowserDownloadInfo,
   BrowserEvent,
@@ -14,6 +16,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
   const [address, setAddress] = useState("");
   const [profileId, setProfileId] = useState("temporary");
   const [error, setError] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -30,6 +33,8 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
       setError(messageOf(cause));
     }
   }, []);
+
+  const reportError = useCallback((cause: unknown) => setError(messageOf(cause)), []);
 
   const handleTabSyncError = useCallback(
     (cause: unknown) => {
@@ -156,177 +161,25 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
         background: "var(--fx-surface-main)",
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          minHeight: 34,
-          padding: "4px 4px",
-          borderBottom: "1px solid var(--fx-line-default)",
-          overflowX: "auto",
-          background: "var(--fx-surface-raised)",
-        }}
-      >
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            title={tab.url}
-            onClick={() => void window.piBridge.browserActivateTab(tab.id).catch((cause) => setError(messageOf(cause)))}
-            style={{
-              maxWidth: 150,
-              minWidth: 72,
-              height: 27,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "0 8px",
-              background: tab.id === state.activeTabId ? "var(--fx-surface-main)" : "transparent",
-              color: tab.crashed ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
-              border: `1px solid ${tab.id === state.activeTabId ? "var(--fx-line-default)" : "transparent"}`,
-              borderRadius: "var(--radius-control)",
-              cursor: "pointer",
-              fontSize: "var(--text-micro)",
-            }}
-          >
-            {tab.loading ? (
-              <span aria-label={t("browserLoading", "Loading")}>◌</span>
-            ) : (
-              <span aria-hidden="true">●</span>
-            )}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-              {tab.title || t("browserNewTab", "New tab")}
-            </span>
-            {tab.advanced || tab.advancedProfile ? (
-              <Badge danger>{t("browserAdvancedModeBadge", "Advanced Browser Mode")}</Badge>
-            ) : null}
-            <span
-              role="button"
-              aria-label={t("browserCloseTab", "Close tab")}
-              tabIndex={0}
-              onClick={(event) => {
-                event.stopPropagation();
-                void window.piBridge.browserCloseTab(tab.id).catch((cause) => setError(messageOf(cause)));
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.stopPropagation();
-                  void window.piBridge.browserCloseTab(tab.id).catch((cause) => setError(messageOf(cause)));
-                }
-              }}
-            >
-              ×
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          style={iconButtonStyle}
-          title={t("browserNewTab", "New tab")}
-          onClick={() => void createTab()}
-        >
-          ＋
-        </button>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: 4,
-          borderBottom: "1px solid var(--fx-line-default)",
-          background: "var(--fx-surface-raised)",
-        }}
-      >
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab?.canGoBack}
-          title={t("browserBack", "Back")}
-          onClick={() => activeTab && void window.piBridge.browserGoBack(activeTab.id)}
-        >
-          ←
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab?.canGoForward}
-          title={t("browserForward", "Forward")}
-          onClick={() => activeTab && void window.piBridge.browserGoForward(activeTab.id)}
-        >
-          →
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab}
-          title={activeTab?.loading ? t("browserStop", "Stop") : t("browserReload", "Reload")}
-          onClick={() =>
-            activeTab &&
-            void (activeTab.loading
-              ? window.piBridge.browserStop(activeTab.id)
-              : window.piBridge.browserReload(activeTab.id))
-          }
-        >
-          {activeTab?.loading ? "×" : "↻"}
-        </button>
-        <form
-          style={{ flex: 1, minWidth: 0 }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void navigate();
-          }}
-        >
-          <input
-            aria-label={t("browserAddress", "Browser address")}
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder="https://example.com"
-            style={{
-              width: "100%",
-              height: 29,
-              boxSizing: "border-box",
-              padding: "0 8px",
-              border: `1px solid ${activeTab?.url.startsWith("http:") ? "var(--fx-status-warning-border)" : "var(--fx-line-default)"}`,
-              borderRadius: "var(--radius-control)",
-              background: "var(--fx-surface-main)",
-              color: "var(--fx-text-primary)",
-              fontSize: "var(--text-meta)",
-              outline: "none",
-            }}
-          />
-        </form>
-        <select
-          aria-label={t("browserProfileForNewTabs", "Profile for new tabs")}
-          value={profileId}
-          onChange={(event) => setProfileId(event.target.value)}
-          style={{ ...selectStyle, maxWidth: 90 }}
-        >
-          {state.profiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab}
-          title={t("browserChooseUpload", "Choose files for focused upload input")}
-          onClick={() =>
-            activeTab &&
-            void window.piBridge.browserChooseUploadFiles(activeTab.id).catch((cause) => setError(messageOf(cause)))
-          }
-        >
-          ↑
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab || !/^https?:/.test(activeTab.url)}
-          title={t("browserOpenSystem", "Open in system browser")}
-          onClick={() => activeTab && void window.piBridge.openExternal(activeTab.url)}
-        >
-          ↗
-        </button>
-      </div>
+      <BrowserTabStrip
+        tabs={visibleTabs}
+        activeTabId={state.activeTabId}
+        onActivate={(tabId) => void window.piBridge.browserActivateTab(tabId).catch(reportError)}
+        onClose={(tabId) => void window.piBridge.browserCloseTab(tabId).catch(reportError)}
+        onCreate={() => void createTab()}
+      />
+      <BrowserToolbar
+        activeTab={activeTab}
+        address={address}
+        profiles={state.profiles}
+        newTabProfileId={profileId}
+        menuOpen={menuOpen}
+        onAddressChange={setAddress}
+        onNavigate={() => void navigate()}
+        onNewTabProfileChange={setProfileId}
+        onMenuOpenChange={setMenuOpen}
+        onError={reportError}
+      />
 
       {(error || state.permissionRequests.length > 0 || activeDownload(state.downloads)) && (
         <div
@@ -554,29 +407,6 @@ const emptyStyle = {
   textAlign: "center" as const,
   color: "var(--fx-text-secondary)",
   fontSize: "var(--text-meta)",
-};
-const iconButtonStyle = {
-  width: 28,
-  height: 28,
-  flexShrink: 0,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 0,
-  border: "1px solid transparent",
-  borderRadius: "var(--radius-control)",
-  background: "transparent",
-  color: "var(--fx-text-secondary)",
-  cursor: "pointer",
-  fontSize: "var(--text-body-lg)",
-};
-const selectStyle = {
-  height: 29,
-  border: "1px solid var(--fx-line-default)",
-  borderRadius: "var(--radius-control)",
-  background: "var(--fx-surface-main)",
-  color: "var(--fx-text-secondary)",
-  fontSize: "var(--text-micro)",
 };
 const primaryButtonStyle = {
   minHeight: 32,

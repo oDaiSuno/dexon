@@ -102,11 +102,13 @@
   --shadow-hairline-card: 0 0 0 1px var(--fx-line-default), var(--shadow-control);
   --shadow-floating-card: 0 12px 32px 0 var(--fx-shadow-strong), var(--shadow-control);
   --shadow-hairline-button: 0 0 0 1px var(--fx-line-strong), var(--shadow-control);
+  --shadow-tab: var(--shadow-control), 0 0 0 1px var(--fx-line-translucent);
   --shadow-badge-success: 0 0 0 3px var(--fx-status-success-soft);
   --shadow-badge-warning: 0 0 0 3px var(--fx-status-warning-soft);
   --shadow-badge-danger: 0 0 0 3px var(--fx-status-danger-soft-strong);
   --shadow-badge-running: 0 0 0 3px var(--fx-accent-blue-selection);
 
+  --radius-xs: 4px;
   --radius-kbd: 5px;
   --radius-chip: 6px;
   --radius-row: 7px;

@@ -349,3 +349,89 @@
     animation: none;
   }
 }
+
+.browser-tab,
+.browser-icon-button,
+.browser-tab-close {
+  background: var(--fx-surface-hover-clear);
+  transition:
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    opacity var(--duration-quick) var(--ease-smooth-out);
+}
+.browser-tab:hover,
+.browser-icon-button:hover:not(:disabled),
+.browser-icon-button[aria-expanded="true"] {
+  background: var(--fx-surface-hover-overlay);
+}
+.browser-tab[data-active="true"] {
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-tab);
+}
+.browser-tab-close {
+  opacity: 0;
+}
+.browser-tab[data-active="true"] .browser-tab-close,
+.browser-tab:hover .browser-tab-close,
+.browser-tab:focus-within .browser-tab-close {
+  opacity: 1;
+}
+.browser-tab-close:hover {
+  background: var(--fx-surface-hover-overlay-strong);
+}
+.browser-icon-button:disabled {
+  color: var(--fx-text-faint) !important;
+  cursor: default !important;
+}
+.browser-address {
+  border: 1px solid var(--fx-line-default);
+  transition:
+    border-color var(--duration-quick) var(--ease-smooth-out),
+    box-shadow var(--duration-quick) var(--ease-smooth-out);
+}
+.browser-address[data-insecure="true"] {
+  border-color: var(--fx-status-warning-border);
+}
+.browser-address:focus-within {
+  border-color: var(--fx-accent-blue);
+  box-shadow: 0 0 0 3px var(--fx-accent-blue-soft);
+}
+.browser-address-input {
+  outline: none !important;
+}
+.browser-address-input::placeholder {
+  color: var(--fx-text-tertiary);
+}
+.browser-address-field[data-formatted="true"]:not(:focus-within) .browser-address-input {
+  color: transparent !important;
+}
+.browser-address-field:focus-within .browser-address-display {
+  display: none;
+}
+.browser-toolbar-menu {
+  top: calc(100% - var(--space-1));
+  right: var(--space-2);
+  width: 256px;
+}
+.browser-toolbar-menu .session-menu-item:disabled {
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-faint);
+  cursor: default;
+}
+.browser-spin {
+  animation: chat-spin 900ms var(--ease-linear) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .browser-tab,
+  .browser-tab-close,
+  .browser-icon-button,
+  .browser-address,
+  .browser-toolbar-menu .session-menu-item:disabled {
+    background: var(--fx-surface-hover-clear);
+    color: var(--fx-text-faint);
+    cursor: default;
+  }
+  .browser-spin {
+    transition: none;
+    animation: none;
+  }
+}

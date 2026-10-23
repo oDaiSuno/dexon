@@ -3,25 +3,20 @@
   "legacy": [
     {
       "file": "src/renderer/components/browser/BrowserDock.tsx",
-      "name": "--text-body-lg",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserDock.tsx",
       "name": "--text-meta",
-      "count": 3
+      "count": 2
     },
     {
       "file": "src/renderer/components/browser/BrowserDock.tsx",
       "name": "--text-micro",
-      "count": 6
+      "count": 4
     }
   ],
   "typography": [
     {
       "file": "src/renderer/components/browser/BrowserDock.tsx",
       "property": "fontSize",
-      "count": 10
+      "count": 6
     },
     {
       "file": "src/renderer/components/browser/BrowserDock.tsx",
