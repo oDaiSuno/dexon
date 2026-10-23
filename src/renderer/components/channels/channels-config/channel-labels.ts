@@ -70,7 +70,7 @@ export function channelLabel(channel: ChannelAccountConfig["channel"], t: Transl
 }
 
 export function channelAccent(channel: ChannelAccountConfig["channel"]): string {
-  if (channel === "telegram") return "#229ed9";
-  if (channel === "feishu") return "#3370ff";
-  return "#07c160";
+  if (channel === "telegram") return "var(--fx-channel-telegram)";
+  if (channel === "feishu") return "var(--fx-channel-feishu)";
+  return "var(--fx-channel-wechat)";
 }

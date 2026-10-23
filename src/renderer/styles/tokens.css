@@ -109,6 +109,11 @@
   --radius-composer: 14px;
   --radius-dialog: 14px;
   --radius-pill: 999px;
+  --radius-brand-xs: 4px;
+  --radius-brand-sm: 6px;
+  --radius-brand-md: 9px;
+  --radius-brand-lg: 10px;
+  --radius-brand-xl: 11px;
 
   --space-1: 4px;
   --space-2: 8px;

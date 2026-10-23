@@ -1,6 +1,7 @@
 import type { ChannelAccountConfig, ChannelAccountView, ChannelStatus } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { channelAccent, channelLabel, channelStatusLabel, statusColor } from "./channel-labels";
+import { ChannelBrandMark } from "../channel-brand-mark";
+import { channelLabel, channelStatusLabel, statusColor } from "./channel-labels";
 
 export function AccountCardHeader({
   account,
@@ -14,32 +15,12 @@ export function AccountCardHeader({
   setDraft: (draft: ChannelAccountConfig) => void;
 }) {
   const { t } = useI18n();
-  const accent = channelAccent(account.channel);
   const label = channelLabel(account.channel, t, account.domain);
 
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: "var(--radius-card)",
-            display: "grid",
-            placeItems: "center",
-            background: `color-mix(in srgb, ${accent} 12%, transparent)`,
-            color: accent,
-            fontWeight: 800,
-          }}
-        >
-          {account.channel === "telegram"
-            ? "TG"
-            : account.channel === "feishu"
-              ? account.domain === "lark"
-                ? "L"
-                : "飞"
-              : "微"}
-        </div>
+        <ChannelBrandMark channel={account.channel} size={36} />
         <div>
           <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body)", fontWeight: 700 }}>
             {account.name}
