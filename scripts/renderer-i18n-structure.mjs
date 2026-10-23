@@ -97,6 +97,16 @@ const SESSION_ORCHESTRATION_KEYS = new Set([
   "sessionCollaborationLoadFailed",
 ]);
 
+const FEEDBACK_KEYS = new Set([
+  "submissionFailureUnknownReason",
+  "resendMessage",
+  "dismissNotice",
+  "dismissImageAttachError",
+  "dismissCompactResult",
+  "compactResultManual",
+  "compactResultAuto",
+]);
+
 const REWRITES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-rewrites");
 
 function readRewrites(dir) {
@@ -281,6 +291,7 @@ export function dictionaryBaselineFailures({
     ...OLDER_HISTORY_KEYS,
     ...MESSAGE_VERSION_KEYS,
     ...SESSION_ORCHESTRATION_KEYS,
+    ...FEEDBACK_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));

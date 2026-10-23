@@ -122,6 +122,8 @@ export function useChatWindow({
     handleRecallQueue,
     handleBuiltinSlashCommand,
     handleThinkingLevelChange,
+    dismissNotice,
+    dismissCompactResult,
     loadSlashCommands,
     loadOlder,
     loadDeferredContent,
@@ -317,6 +319,7 @@ export function useChatWindow({
       isCompacting={isCompacting}
       compactError={compactError}
       compactResult={compactResult}
+      onDismissCompactResult={dismissCompactResult}
       contextUsage={contextUsage}
       thinkingLevel={thinkingLevel}
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
@@ -351,6 +354,7 @@ export function useChatWindow({
     isEmptyNew,
     t,
     notices,
+    dismissNotice,
     isMobile,
     scrollContainerRef,
     hasOlder,

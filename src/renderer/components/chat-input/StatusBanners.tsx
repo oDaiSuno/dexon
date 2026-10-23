@@ -1,7 +1,8 @@
+import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
 import { splitLocalFileReferenceMarkdown } from "@/lib/file-url";
-import { RecallIcon } from "./icons";
+import { CircleAlertIcon, CircleCheckIcon, CloseIcon, RecallIcon, TriangleAlertIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
 
 function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: string }) {
@@ -150,93 +151,67 @@ export function QueuedMessagesPanel({
   );
 }
 
-export function NoticeBanner({
+export type ComposerBannerTone = "error" | "success" | "warning";
+
+const BANNER_ICONS: Record<ComposerBannerTone, ReactNode> = {
+  error: <CircleAlertIcon size={15} />,
+  success: <CircleCheckIcon size={15} />,
+  warning: <TriangleAlertIcon size={15} />,
+};
+
+export function ComposerBanner({
+  tone,
   message,
   onDismiss,
   dismissLabel,
+  action,
   testId,
 }: {
+  tone: ComposerBannerTone;
   message: string;
   onDismiss: () => void;
   dismissLabel: string;
+  action?: { label: string; onClick: () => void } | null;
   testId?: string;
 }) {
   return (
     <div
-      role="alert"
+      role={tone === "success" ? "status" : "alert"}
       data-testid={testId}
-      style={{
-        marginBottom: 8,
-        padding: "4px 12px",
-        background: "color-mix(in srgb, var(--fx-status-danger) 8%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--fx-status-danger) 28%, var(--fx-line-default))",
-        borderRadius: "var(--radius-control)",
-        fontSize: 12,
-        color: "var(--fx-status-danger)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-      }}
+      data-tone={tone}
+      className="composer-banner"
     >
-      <span>{message}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label={dismissLabel}
-        style={{
-          border: "none",
-          background: "transparent",
-          color: "inherit",
-          cursor: "pointer",
-          padding: 2,
-          lineHeight: 1,
-        }}
-      >
-        ×
+      <span className="composer-banner-icon">{BANNER_ICONS[tone]}</span>
+      <span className="composer-banner-message type-label-default">{message}</span>
+      {action && (
+        <button type="button" className="feedback-action type-label-medium" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+      <button type="button" className="feedback-close" data-size="banner" onClick={onDismiss} aria-label={dismissLabel}>
+        <CloseIcon size={14} />
       </button>
     </div>
   );
 }
 
-/** Success note after a finished compaction: tokens before → after, saved. */
-export function CompactResultBanner({ result }: { result?: CompactResultInfo | null }) {
-  if (!result) return null;
+export function CompactResultBanner({ result, onDismiss }: { result: CompactResultInfo; onDismiss: () => void }) {
+  const { t } = useI18n();
   const savedTokens = Math.max(0, result.tokensBefore - result.estimatedTokensAfter);
-  const verb =
+  const template =
     result.reason && result.reason !== "manual"
-      ? `${result.reason[0].toUpperCase()}${result.reason.slice(1)} compacted`
-      : "Compacted";
+      ? t("compactResultAuto", "Context compacted automatically: {before} → {after} tokens, {saved} saved")
+      : t("compactResultManual", "Context compacted: {before} → {after} tokens, {saved} saved");
+  const message = template
+    .replace("{before}", formatTokenCount(result.tokensBefore))
+    .replace("{after}", formatTokenCount(result.estimatedTokensAfter))
+    .replace("{saved}", formatTokenCount(savedTokens));
   return (
-    <div
-      style={{
-        marginBottom: 8,
-        padding: "4px 12px",
-        background: "var(--fx-status-success-soft)",
-        border: "1px solid var(--fx-status-success-border)",
-        borderRadius: "var(--radius-control)",
-        fontSize: 12,
-        color: "var(--fx-status-success)",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
-        aria-hidden="true"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-      {`${verb} ${formatTokenCount(result.tokensBefore)} -> ${formatTokenCount(result.estimatedTokensAfter)} tokens (${formatTokenCount(savedTokens)} saved)`}
-    </div>
+    <ComposerBanner
+      tone="success"
+      message={message}
+      onDismiss={onDismiss}
+      dismissLabel={t("dismissCompactResult", "Dismiss compaction result")}
+    />
   );
 }

@@ -10,6 +10,17 @@ import { registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 
 type Translate = (key: string, fallback: string) => string;
 
+export interface SubmissionNotice {
+  tone: "error" | "warning";
+  message: string;
+  canResend: boolean;
+}
+
+function failureReason(reason: string | null, t: Translate): string {
+  const trimmed = reason?.trim().replace(/[。.！!]+$/u, "") ?? "";
+  return trimmed || t("submissionFailureUnknownReason", "reason unknown");
+}
+
 function extensionForImageMime(mimeType: string): string | null {
   switch (mimeType.split(";")[0]?.trim().toLowerCase()) {
     case "image/png":
@@ -38,7 +49,7 @@ interface PendingLegacyMigration {
 
 export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
   const [value, setValueState] = useState(() => (draftKey ? (getDraft(draftKey)?.value ?? "") : ""));
-  const [submissionNotice, setSubmissionNotice] = useState<string | null>(null);
+  const [submissionNotice, setSubmissionNotice] = useState<SubmissionNotice | null>(null);
   const draftKeyRef = useRef<string | undefined>(undefined);
   const valueRef = useRef(value);
   const inputRevisionRef = useRef(0);
@@ -50,12 +61,14 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
   const persistenceRef = useRef<DraftPersistenceController | null>(null);
 
   persistenceErrorRef.current = () =>
-    setSubmissionNotice(
-      t(
+    setSubmissionNotice({
+      tone: "warning",
+      message: t(
         "draftPersistenceFailed",
         "Draft could not be saved on this device. Your current input is still on screen; check available storage.",
       ),
-    );
+      canResend: false,
+    });
   if (!persistenceRef.current) {
     persistenceRef.current = new DraftPersistenceController(500, undefined, () => persistenceErrorRef.current());
   }
@@ -86,18 +99,30 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
   }, [draftKey, setValue]);
 
   const restoreFailedSubmission = useCallback(
-    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue") => {
+    (
+      snapshot: ComposerSubmissionSnapshot,
+      clearedAtRevision: number,
+      kind: "send" | "queue",
+      reason: string | null,
+    ) => {
       const action = failedComposerSubmissionAction(clearedAtRevision, inputRevisionRef.current);
       if (action === "restore") setValue(failedComposerSubmissionValue(snapshot));
-      setSubmissionNotice(
+      const template =
         action === "restore"
           ? kind === "send"
-            ? t("messageNotSentDraftRestored", "Message was not sent. Your draft was restored.")
-            : t("messageNotQueuedDraftRestored", "Message could not be queued. Your draft was restored.")
+            ? t("messageNotSentDraftRestored", "Not sent: {reason}. Your draft was kept.")
+            : t("messageNotQueuedDraftRestored", "Not queued: {reason}. Your draft was kept.")
           : kind === "send"
-            ? t("messageNotSentNewDraftKept", "The previous message was not sent. Your newer draft was kept.")
-            : t("messageNotQueuedNewDraftKept", "The previous message could not be queued. Your newer draft was kept."),
-      );
+            ? t("messageNotSentNewDraftKept", "The previous message wasn't sent: {reason}. Your newer draft was kept.")
+            : t(
+                "messageNotQueuedNewDraftKept",
+                "The previous message wasn't queued: {reason}. Your newer draft was kept.",
+              );
+      setSubmissionNotice({
+        tone: "error",
+        message: template.replace("{reason}", failureReason(reason, t)),
+        canResend: action === "restore" && kind === "send",
+      });
     },
     [setValue, t],
   );

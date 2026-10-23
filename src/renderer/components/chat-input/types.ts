@@ -29,6 +29,7 @@ export interface ChatInputProps {
   isCompacting?: boolean;
   compactError?: string | null;
   compactResult?: CompactResultInfo | null;
+  onDismissCompactResult?: () => void;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;

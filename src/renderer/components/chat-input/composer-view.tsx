@@ -12,7 +12,8 @@ import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
 import { SlashMenu, type SlashCommandGroup } from "./SlashMenu";
-import { CompactResultBanner, NoticeBanner, QueuedMessagesPanel } from "./StatusBanners";
+import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
+import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashCommandPaletteItem } from "./slash-commands";
 import { PackageIcon, PaperclipIcon, PlusIcon } from "./icons";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
@@ -74,11 +75,13 @@ export interface ComposerViewProps {
   onHoverAt: (index: number) => void;
   imageAttachNotice: string | null;
   onDismissImageNotice: () => void;
-  submissionNotice: string | null;
+  submissionNotice: SubmissionNotice | null;
   onDismissSubmissionNotice: () => void;
+  onResendSubmission: () => void;
   queuedMessages?: QueuedMessages | null;
   onRecallQueue?: () => void;
   compactResult?: CompactResultInfo | null;
+  onDismissCompactResult: () => void;
   model?: { provider: string; modelId: string } | null;
   modelOptionsByProvider: { provider: string; options: ModelOption[] }[];
   currentModelName: string | null;
@@ -173,9 +176,11 @@ export function ComposerView(props: ComposerViewProps) {
     onDismissImageNotice,
     submissionNotice,
     onDismissSubmissionNotice,
+    onResendSubmission,
     queuedMessages,
     onRecallQueue,
     compactResult,
+    onDismissCompactResult,
     model,
     modelOptionsByProvider,
     currentModelName,
@@ -231,21 +236,26 @@ export function ComposerView(props: ComposerViewProps) {
           <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
         )}
         {imageAttachNotice && (
-          <NoticeBanner
+          <ComposerBanner
+            tone="error"
             message={imageAttachNotice}
             onDismiss={onDismissImageNotice}
-            dismissLabel="Dismiss image attachment error"
+            dismissLabel={t("dismissImageAttachError", "Dismiss image attachment error")}
           />
         )}
         {submissionNotice && (
-          <NoticeBanner
+          <ComposerBanner
             testId="composer-submission-error"
-            message={submissionNotice}
+            tone={submissionNotice.tone}
+            message={submissionNotice.message}
             onDismiss={onDismissSubmissionNotice}
             dismissLabel={t("dismissSubmissionError", "Dismiss submission error")}
+            action={
+              submissionNotice.canResend ? { label: t("resendMessage", "Resend"), onClick: onResendSubmission } : null
+            }
           />
         )}
-        {compactResult && <CompactResultBanner result={compactResult} />}
+        {compactResult && <CompactResultBanner result={compactResult} onDismiss={onDismissCompactResult} />}
 
         <div data-composer-anchor style={{ position: "relative" }}>
           {plusMenuOpen && (

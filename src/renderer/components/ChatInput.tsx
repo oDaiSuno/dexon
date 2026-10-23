@@ -11,6 +11,7 @@ import {
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { captureComposerSubmission, type ComposerSubmissionSnapshot } from "@/lib/composer-submission";
+import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
 import { compareModelOptions, type ModelOption } from "./chat-input/ModelPicker";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
@@ -44,6 +45,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     isCompacting,
     compactError,
     compactResult,
+    onDismissCompactResult,
     contextUsage,
     thinkingLevel,
     onThinkingLevelChange,
@@ -114,10 +116,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   }, [onRecallQueue, visible]);
 
   const restoreFailedSubmission = useCallback(
-    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue") => {
-      restoreDraft(snapshot, clearedAtRevision, kind);
+    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue", error: unknown) => {
+      const reason = typeof error === "string" ? error : sessionClientErrorMessage(error, t, "");
+      restoreDraft(snapshot, clearedAtRevision, kind, reason);
     },
-    [restoreDraft],
+    [restoreDraft, t],
   );
 
   const handleSend = useCallback(async () => {
@@ -134,17 +137,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       if (!attachments.attachmentTokens.length && message.startsWith("/") && onBuiltinCommand) {
         const result = await onBuiltinCommand(message);
         if (result.handled) {
-          if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+          if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send", result.error);
           return;
         }
       }
       const result = onSend(message) as void | Promise<unknown> | { ok?: boolean };
       const settled = await Promise.resolve(result);
       if (settled && typeof settled === "object" && "ok" in settled && settled.ok === false) {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+        restoreFailedSubmission(snapshot, clearedAtRevision, "send", null);
       }
-    } catch {
-      restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+    } catch (error) {
+      restoreFailedSubmission(snapshot, clearedAtRevision, "send", error);
     }
   }, [
     attachments.attachmentTokens.length,
@@ -180,8 +183,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         }
         if (mode === "steer" && onSteer) await Promise.resolve(onSteer(message));
         else if (mode === "followup" && onFollowUp) await Promise.resolve(onFollowUp(message));
-      } catch {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "queue");
+      } catch (error) {
+        restoreFailedSubmission(snapshot, clearedAtRevision, "queue", error);
       }
     },
     [
@@ -394,9 +397,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onDismissImageNotice={() => setImageAttachNotice(null)}
       submissionNotice={submissionNotice}
       onDismissSubmissionNotice={() => setSubmissionNotice(null)}
+      onResendSubmission={() => void handleSend()}
       queuedMessages={queuedMessages}
       onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}
       compactResult={compactResult}
+      onDismissCompactResult={() => onDismissCompactResult?.()}
       model={model}
       modelOptionsByProvider={modelOptionsByProvider}
       currentModelName={currentModelName}
