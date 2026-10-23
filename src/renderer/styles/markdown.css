@@ -284,6 +284,17 @@
   color: var(--fx-text-primary);
 }
 
+.markdown-code-plain {
+  margin: var(--space-3) 0;
+  padding: var(--space-3) var(--space-3-5);
+  overflow-x: auto;
+  white-space: pre;
+  background: var(--fx-surface-inset);
+  border: 1px solid var(--fx-line-subtle);
+  border-radius: var(--radius-control);
+  color: var(--fx-text-body);
+}
+
 .mermaid-block {
   padding: var(--space-3);
   overflow-x: auto;
@@ -307,4 +318,54 @@
 span.linenumber {
   color: var(--fx-text-tertiary) !important;
   font-style: normal !important;
+}
+
+pre.prismjs {
+  color: var(--fx-text-body);
+  tab-size: 4;
+}
+.prismjs .token.tag,
+.prismjs .token.selector,
+.prismjs .token.function,
+.prismjs .token.class-name,
+.prismjs .token.maybe-class-name {
+  color: var(--fx-accent-blue-text);
+}
+.prismjs .token.script,
+.prismjs .token.operator,
+.prismjs .token.punctuation,
+.prismjs .token.attr-name,
+.prismjs .token.interpolation {
+  color: var(--fx-text-body);
+}
+.prismjs .token.keyword,
+.prismjs .token.builtin,
+.prismjs .token.boolean,
+.prismjs .token.rule,
+.prismjs .token.important {
+  color: var(--fx-data-violet);
+}
+.prismjs .token.string,
+.prismjs .token.char,
+.prismjs .token.regex,
+.prismjs .token.url,
+.prismjs .token.attr-value,
+.prismjs .token.inserted {
+  color: var(--fx-status-success-text);
+}
+.prismjs .token.attr-equals {
+  color: var(--fx-text-body);
+}
+.prismjs .token.deleted {
+  color: var(--fx-status-danger-text);
+}
+.prismjs .token.number,
+.prismjs .token.unit {
+  color: var(--fx-status-warning-text);
+}
+.prismjs .token.comment,
+.prismjs .token.prolog,
+.prismjs .token.doctype,
+.prismjs .token.cdata {
+  color: var(--fx-text-tertiary);
 }

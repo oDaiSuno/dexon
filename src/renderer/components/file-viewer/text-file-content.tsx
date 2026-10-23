@@ -1,10 +1,18 @@
-import { SyntaxHighlighter, vs, vscDarkPlus } from "@/lib/syntax-highlight";
+import { SyntaxHighlighter } from "@/lib/syntax-highlight";
 import { getParentFilePath } from "@/lib/file-paths";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { MarkdownBody } from "../MarkdownBody";
 import { DiffView } from "./diff-view";
 import { HtmlPreview } from "./html-preview";
 import type { TextViewMode } from "./use-text-file";
+
+const JSX_FLAVORS: Readonly<Record<string, string>> = { javascript: "jsx", typescript: "tsx" };
+
+function sourceLanguage(language: string, filePath: string): string {
+  if (language === "text") return "plaintext";
+  if (/\.[jt]sx$/i.test(filePath)) return JSX_FLAVORS[language] ?? language;
+  return language;
+}
 
 export interface TextFileContentProps {
   filePath: string;
@@ -16,7 +24,6 @@ export interface TextFileContentProps {
   viewMode: TextViewMode;
   previewMode: boolean;
   wrapLines: boolean;
-  isDark: boolean;
 }
 
 export function TextFileContent({
@@ -29,7 +36,6 @@ export function TextFileContent({
   viewMode,
   previewMode,
   wrapLines,
-  isDark,
 }: TextFileContentProps) {
   const isHtml = data.language === "html";
   const isMarkdown = data.language === "markdown";
@@ -42,14 +48,18 @@ export function TextFileContent({
         <HtmlPreview content={data.content} filePath={filePath} sourceSessionId={sourceSessionId} />
       ) : isMarkdown && previewMode ? (
         <div className="markdown-body markdown-file-preview" style={{ padding: "24px 32px", maxWidth: 800 }}>
-          <MarkdownBody cwd={cwd} imageBasePath={getParentFilePath(filePath)} sourceSessionId={sourceSessionId}>
+          <MarkdownBody
+            cwd={cwd}
+            imageBasePath={getParentFilePath(filePath)}
+            sourceSessionId={sourceSessionId}
+            codeBlockVariant="plain"
+          >
             {data.content}
           </MarkdownBody>
         </div>
       ) : (
         <SyntaxHighlighter
-          language={data.language === "text" ? "plaintext" : data.language}
-          style={isDark ? vscDarkPlus : vs}
+          language={sourceLanguage(data.language, filePath)}
           showLineNumbers
           lineNumberStyle={{
             color: "var(--fx-text-tertiary)",

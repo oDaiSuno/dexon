@@ -1,4 +1,3 @@
-import { useTheme } from "@/hooks/useTheme";
 import { getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
 import { formatFileSize, formatNumber } from "@/lib/locale-format";
@@ -10,7 +9,6 @@ import { useTextFile } from "./use-text-file";
 import { WatchIndicator } from "./watch-indicator";
 
 export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
-  const { isDark } = useTheme();
   const { language, t } = useI18n();
   const { loadState, previewMode, setPreviewMode, viewMode, setViewMode, wrapLines, setWrapLines, watching } =
     useTextFile(filePath, sourceSessionId);
@@ -104,7 +102,6 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
         viewMode={viewMode}
         previewMode={previewMode}
         wrapLines={wrapLines}
-        isDark={isDark}
       />
     </div>
   );

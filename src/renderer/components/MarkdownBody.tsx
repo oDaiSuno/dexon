@@ -14,7 +14,7 @@ import ReactMarkdown, {
   type Components,
   type Options as ReactMarkdownOptions,
 } from "react-markdown";
-import { SyntaxHighlighter, vs, vscDarkPlus } from "@/lib/syntax-highlight";
+import { SyntaxHighlighter } from "@/lib/syntax-highlight";
 import { useTheme } from "@/hooks/useTheme";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { resolveLocalFileHref } from "@/lib/file-links";
@@ -40,7 +40,10 @@ interface MarkdownBodyProps {
   sourceSessionId?: string | null;
   onOpenFile?: (filePath: string) => void;
   inlineChips?: InlineChips;
+  codeBlockVariant?: CodeBlockVariant;
 }
+
+type CodeBlockVariant = "card" | "plain";
 
 export interface InlineChips {
   leadingSkill?: string | null;
@@ -55,7 +58,7 @@ interface ChipNodeData {
 
 type MarkdownRenderContextValue = Pick<
   MarkdownBodyProps,
-  "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile"
+  "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile" | "codeBlockVariant"
 >;
 
 const MarkdownRenderContext = createContext<MarkdownRenderContextValue>({});
@@ -65,7 +68,7 @@ type MarkdownComponentProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intri
 };
 
 function MarkdownCode({ className, children, node: _node, ...props }: MarkdownComponentProps<"code">) {
-  const { isStreaming } = useContext(MarkdownRenderContext);
+  const { isStreaming, codeBlockVariant } = useContext(MarkdownRenderContext);
   const lang = className?.replace("language-", "").toLowerCase() ?? "";
   const raw = String(children);
   const isBlock = className?.includes("language-") || raw.includes("\n");
@@ -73,7 +76,7 @@ function MarkdownCode({ className, children, node: _node, ...props }: MarkdownCo
     if (lang === "mermaid") {
       return <MermaidBlock code={raw.replace(/\n$/, "")} isStreaming={isStreaming} />;
     }
-    return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} />;
+    return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} variant={codeBlockVariant} />;
   }
   return (
     <code className="markdown-inline-code" {...props}>
@@ -204,11 +207,12 @@ export function MarkdownBody({
   sourceSessionId,
   onOpenFile,
   inlineChips,
+  codeBlockVariant,
 }: MarkdownBodyProps) {
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
-    () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile }),
-    [cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
+    () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
+    [codeBlockVariant, cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
   );
   const hasInlineChips = inlineChips !== undefined;
   const leadingSkill = inlineChips?.leadingSkill ?? null;
@@ -408,18 +412,38 @@ function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?: boole
   );
 }
 
-const CODE_PRE_SELECTOR = 'pre[class*="language-"]';
-
-function withoutBoxStyles(theme: typeof vs): typeof vs {
-  const pre = theme[CODE_PRE_SELECTOR];
-  return { ...theme, [CODE_PRE_SELECTOR]: { color: pre?.color, tabSize: pre?.tabSize, whiteSpace: "pre" } };
+function PlainCodeBlock({ code, lang }: { code: string; lang: string }) {
+  return shouldHighlightCode(code) ? (
+    <SyntaxHighlighter
+      language={lang || "text"}
+      className="markdown-code-plain type-mono-code"
+      codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
+    >
+      {code}
+    </SyntaxHighlighter>
+  ) : (
+    <pre className="markdown-code-plain type-mono-code">
+      <code>{code}</code>
+    </pre>
+  );
 }
 
-const lightCodeTheme = withoutBoxStyles(vs);
-const darkCodeTheme = withoutBoxStyles(vscDarkPlus);
+function CodeBlock({
+  code,
+  lang,
+  headerAction,
+  variant = "card",
+}: {
+  code: string;
+  lang: string;
+  headerAction?: ReactNode;
+  variant?: CodeBlockVariant;
+}) {
+  if (variant === "plain") return <PlainCodeBlock code={code} lang={lang} />;
+  return <CodeCard code={code} lang={lang} headerAction={headerAction} />;
+}
 
-function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
-  const { isDark } = useTheme();
+function CodeCard({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
   const { copied, copy } = useCopyFeedback();
 
   return (
@@ -469,7 +493,6 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
       {shouldHighlightCode(code) ? (
         <SyntaxHighlighter
           language={lang || "text"}
-          style={isDark ? darkCodeTheme : lightCodeTheme}
           className="markdown-code-body type-mono-chat-code"
           showLineNumbers
           lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
