@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export function Icon({
   children,
   size = 15,
-  strokeWidth = 1.8,
+  strokeWidth = 1.75,
 }: {
   children: ReactNode;
   size?: number;
@@ -29,7 +29,7 @@ export function Icon({
 
 export function PlusIcon({ size = 16 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2}>
+    <Icon size={size}>
       <path d="M12 5v14M5 12h14" />
     </Icon>
   );
@@ -67,7 +67,7 @@ export function PaperclipIcon({ size = 15 }: { size?: number }) {
 
 export function ArrowUpIcon({ size = 16 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2.4}>
+    <Icon size={size} strokeWidth={2.25}>
       <path d="M12 19V5M5 12l7-7 7 7" />
     </Icon>
   );
@@ -76,7 +76,7 @@ export function ArrowUpIcon({ size = 16 }: { size?: number }) {
 export function StopIcon({ size = 10 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="0.75" y="0.75" width="8.5" height="8.5" rx="2" fill="currentColor" />
+      <rect width="10" height="10" fill="currentColor" />
     </svg>
   );
 }
@@ -198,7 +198,7 @@ export function CheckIcon({ size = 10 }: { size?: number }) {
 
 export function ChevronDownIcon({ size = 11 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2.4}>
+    <Icon size={size} strokeWidth={2}>
       <path d="M6 9l6 6 6-6" />
     </Icon>
   );

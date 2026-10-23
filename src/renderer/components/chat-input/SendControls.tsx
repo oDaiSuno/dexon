@@ -73,7 +73,7 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
       }}
       className="tap-scale"
     >
-      <StopIcon size={12} />
+      <StopIcon />
     </button>
   );
 }
