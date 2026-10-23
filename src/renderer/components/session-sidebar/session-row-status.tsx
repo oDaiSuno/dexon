@@ -1,28 +1,24 @@
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import type { CountedActivity, SessionActivityCounts, SubtreeActivity } from "@/lib/session-tree-status";
-import { COUNTED_ACTIVITIES } from "@/lib/session-tree-status";
+import { COUNTED_ACTIVITIES, isCountedActivity } from "@/lib/session-tree-status";
 import {
-  AlertGlyph,
   AwaitingInputSessionIndicator,
   FailedTurnSessionIndicator,
-  LoaderGlyph,
-  QuestionGlyph,
   RunningSessionIndicator,
   UnreadSessionIndicator,
 } from "./session-status-indicators";
-import { SessionMessageGlyph, SessionRelationGlyph } from "./session-relation-glyphs";
+import {
+  BranchCountGlyph,
+  SessionMessageGlyph,
+  SessionNamingGlyph,
+  SessionRelationGlyph,
+} from "./session-relation-glyphs";
 
 type Translate = (key: string, fallback: string) => string;
 
-const COUNT_COLORS: Record<CountedActivity, string> = {
-  awaiting_input: "var(--fx-status-warning)",
-  error: "var(--fx-status-danger)",
-  running: "var(--fx-accent-blue-text)",
-};
-
 export function sessionStatusPhrase(status: SessionActivityStatus, t: Translate): string | null {
   if (status === "awaiting_input") return t("sessionStatusAwaitingInput", "Waiting for your answer");
-  if (status === "error") return t("sessionStatusError", "Last turn failed");
+  if (status === "error") return t("sessionStatusError", "Failed");
   if (status === "running") return t("agentRunningStatus", "Agent running");
   if (status === "unread") return t("newSessionActivity", "New activity");
   return null;
@@ -51,16 +47,19 @@ export function sessionRowLabel({
   title,
   activity,
   relation,
+  naming,
   descendants,
   t,
 }: {
   title: string;
   activity: SessionActivityStatus;
   relation: SessionRelation | null;
+  naming: boolean;
   descendants: SubtreeActivity | null;
   t: Translate;
 }): string {
   const parts = [title];
+  if (naming) parts.push(t("sessionNaming", "Naming…"));
   const own = sessionStatusPhrase(activity, t);
   if (own) parts.push(own);
   if (relation) parts.push(relationPhrase(relation, t));
@@ -84,9 +83,11 @@ function leadTone(relation: SessionRelation | null, activity: SessionActivitySta
 export function SessionRowLead({
   activity,
   relation,
+  naming = false,
 }: {
   activity: SessionActivityStatus;
   relation: SessionRelation | null;
+  naming?: boolean;
 }) {
   return (
     <span
@@ -98,10 +99,16 @@ export function SessionRowLead({
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        color: leadTone(relation, activity),
+        color: naming ? "var(--fx-accent-blue-text)" : leadTone(relation, activity),
       }}
     >
-      {relation ? <SessionRelationGlyph relation={relation} /> : <SessionMessageGlyph />}
+      {naming ? (
+        <SessionNamingGlyph />
+      ) : relation ? (
+        <SessionRelationGlyph relation={relation} />
+      ) : (
+        <SessionMessageGlyph />
+      )}
     </span>
   );
 }
@@ -110,11 +117,14 @@ export function sessionRowTitleClass({
   activity,
   relation,
   isSelected,
+  naming,
 }: {
   activity: SessionActivityStatus;
   relation: SessionRelation | null;
   isSelected: boolean;
+  naming: boolean;
 }): { className: string; color: string } {
+  if (naming) return { className: "type-body-large", color: "var(--fx-accent-blue-text)" };
   if (isSelected || activity === "awaiting_input" || activity === "unread")
     return { className: "type-body-large-medium", color: "var(--fx-text-primary)" };
   if (relation === "delegate")
@@ -127,7 +137,15 @@ export function sessionRowTitleClass({
 }
 
 export function sessionRowShowsTime(activity: SessionActivityStatus): boolean {
-  return activity !== "running" && activity !== "awaiting_input" && activity !== "error";
+  return !isCountedActivity(activity);
+}
+
+export function sessionRowIndicatedActivity(
+  activity: SessionActivityStatus,
+  descendants: SubtreeActivity | null,
+): SessionActivityStatus {
+  if (activity !== "idle" || !descendants?.status) return activity;
+  return isCountedActivity(descendants.status) ? descendants.status : activity;
 }
 
 export function SessionRowStatusSlot({ activity }: { activity: SessionActivityStatus }) {
@@ -138,48 +156,31 @@ export function SessionRowStatusSlot({ activity }: { activity: SessionActivitySt
   return null;
 }
 
-function CountGlyph({ activity }: { activity: CountedActivity }) {
-  const color = COUNT_COLORS[activity];
-  return (
-    <span style={{ display: "inline-flex", color }}>
-      {activity === "awaiting_input" ? (
-        <QuestionGlyph size={11} />
-      ) : activity === "error" ? (
-        <AlertGlyph size={11} />
-      ) : (
-        <LoaderGlyph size={11} />
-      )}
-    </span>
-  );
-}
-
-export function SessionRowCounts({ counts }: { counts: SessionActivityCounts }) {
-  const present = COUNTED_ACTIVITIES.filter((activity) => counts[activity] > 0);
-  if (present.length === 0) return null;
+export function SessionRowCount({ count }: { count: number }) {
   return (
     <span
       data-session-row-counts
       aria-hidden="true"
-      className="type-mono-meta"
       style={{
         display: "inline-flex",
         alignItems: "center",
-        gap: 6,
+        gap: 3,
         flexShrink: 0,
         padding: "0 6px",
-        borderRadius: "var(--radius-pill)",
+        borderRadius: "var(--radius-status)",
         background: "var(--fx-surface-card)",
-        color: "var(--fx-text-secondary)",
-        fontVariantNumeric: "tabular-nums",
         whiteSpace: "nowrap",
       }}
     >
-      {present.map((activity) => (
-        <span key={activity} style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-          <CountGlyph activity={activity} />
-          <span>{counts[activity]}</span>
-        </span>
-      ))}
+      <span style={{ display: "inline-flex", color: "var(--fx-text-tertiary)" }}>
+        <BranchCountGlyph />
+      </span>
+      <span
+        className="type-mono-meta"
+        style={{ color: "var(--fx-text-secondary)", fontVariantNumeric: "tabular-nums" }}
+      >
+        {count}
+      </span>
     </span>
   );
 }

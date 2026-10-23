@@ -181,7 +181,7 @@ window.navLayout = {
       const counts = item.querySelector("[data-session-row-counts]");
       return {
         name: accessibleName(row),
-        indent: parseFloat(window.getComputedStyle(item).paddingLeft),
+        indent: item.getBoundingClientRect().x - nav.getBoundingClientRect().x,
         titleWidth: title ? title.clientWidth : null,
         titleScrollWidth: title ? title.scrollWidth : null,
         rowBox: boxOf(item),

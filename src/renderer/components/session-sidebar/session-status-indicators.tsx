@@ -107,7 +107,7 @@ function StatusPill({ tone, label, icon }: { tone: keyof typeof PILL_TONES; labe
         flexShrink: 0,
         padding: "1px 7px 1px 5px",
         border: `1px solid ${colors.border}`,
-        borderRadius: "var(--radius-pill)",
+        borderRadius: "var(--radius-status)",
         background: colors.fill,
         whiteSpace: "nowrap",
       }}
@@ -148,9 +148,7 @@ export function AwaitingInputSessionIndicator() {
 
 export function FailedTurnSessionIndicator() {
   const { t } = useI18n();
-  return (
-    <StatusPill tone="danger" label={t("sessionStatusError", "Last turn failed")} icon={<AlertGlyph size={12} />} />
-  );
+  return <StatusPill tone="danger" label={t("sessionStatusError", "Failed")} icon={<AlertGlyph size={12} />} />;
 }
 
 export function UnreadSessionIndicator() {
