@@ -79,6 +79,12 @@
   font-variant-numeric: tabular-nums;
 }
 
+.chat-process-summary {
+  flex-shrink: 0;
+  white-space: nowrap;
+  color: var(--fx-text-tertiary);
+}
+
 .chat-tool-icon.chat-think-spark {
   display: flex;
   flex-shrink: 0;
@@ -107,7 +113,7 @@
 }
 
 .chat-tool-row {
-  width: calc(100% + 8px);
+  width: calc(100% + 6px);
   height: 28px;
 }
 
@@ -122,8 +128,18 @@
   color: var(--fx-text-tertiary);
 }
 
-.chat-tool-icon .chat-status-icon {
-  transition: opacity var(--duration-quick) var(--ease-out);
+.chat-tool-icon.is-error {
+  color: var(--fx-status-danger);
+}
+
+.chat-tool-spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid var(--fx-accent-blue-text);
+  -webkit-mask: conic-gradient(transparent, var(--fx-text-primary));
+  mask: conic-gradient(transparent, var(--fx-text-primary));
+  animation: chat-spin 800ms var(--ease-linear) infinite;
 }
 
 .chat-tool-name {
@@ -258,170 +274,13 @@
   animation: chat-spin 700ms var(--ease-linear) infinite;
 }
 
-/* ── Tool status morph (transitions.dev 41-spinner-check-morph, adapted:
-     idle ring → running spinner → done check (draw + pop) → resting icon,
-     error variant uses the Framer danger fill. No auto-revert: a finished tool call is
-     a persistent fact. ── */
-
-.chat-status-icon {
-  position: relative;
-  width: 16px;
-  height: 16px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chat-status-icon .chat-scmorph-badge {
-  position: absolute;
-  inset: 0;
-  scale: 1;
-  transition: scale var(--duration-fast) var(--ease-smooth-out);
-}
-
-.chat-status-icon .chat-scmorph-badge.is-done {
-  scale: 1.09;
-  transition: scale var(--duration-medium) var(--ease-bounce);
-}
-
-.chat-status-icon .chat-scmorph-ring {
-  position: absolute;
-  inset: 1px;
-  border-radius: 50%;
-  border: 1.5px solid color-mix(in srgb, var(--fx-text-tertiary) 45%, transparent);
-  transition:
-    opacity var(--duration-fast) var(--ease-out),
-    filter var(--duration-fast) var(--ease-smooth-out);
-}
-
-.chat-status-icon .chat-scmorph-spinring {
-  position: absolute;
-  inset: 2px;
-  border-radius: 50%;
-  border: 1.5px solid var(--fx-accent-blue-text);
-  -webkit-mask: conic-gradient(transparent, var(--fx-text-primary));
-  mask: conic-gradient(transparent, var(--fx-text-primary));
-  animation: chat-spin 800ms var(--ease-linear) infinite;
-  transition: opacity var(--duration-fast) var(--ease-out);
-}
-
-.chat-status-icon .chat-scmorph-fill {
-  position: absolute;
-  inset: 1px;
-  border-radius: 50%;
-  background: var(--fx-status-success);
-  opacity: 0;
-  transition:
-    opacity var(--duration-fast) var(--ease-smooth-out),
-    filter var(--duration-fast) var(--ease-smooth-out);
-}
-
-.chat-status-icon.is-error .chat-scmorph-fill {
-  background: var(--fx-status-danger);
-}
-
-.chat-status-icon .chat-scmorph-check {
-  fill: none;
-  stroke: var(--fx-text-on-accent);
-  stroke-width: 2.4;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: var(--chat-scmorph-check-len, 20);
-  stroke-dashoffset: var(--chat-scmorph-check-len, 20);
-  opacity: 0;
-  transition:
-    opacity var(--duration-quick) var(--ease-out),
-    stroke-dashoffset var(--duration-quick) var(--ease-out);
-}
-
-.chat-status-icon.is-crossing .chat-scmorph-ring,
-.chat-status-icon.is-crossing .chat-scmorph-spinring {
-  filter: blur(1px);
-  opacity: 0.4;
-}
-
-.chat-status-icon.is-crossing .chat-scmorph-fill {
-  opacity: 1;
-}
-
-.chat-status-icon.is-done .chat-scmorph-ring,
-.chat-status-icon.is-done .chat-scmorph-spinring {
-  opacity: 0;
-  animation-play-state: paused;
-}
-
-.chat-status-icon.is-done .chat-scmorph-fill {
-  opacity: 1;
-}
-
-.chat-status-icon.is-done .chat-scmorph-check {
-  opacity: 1;
-  stroke-dashoffset: 0;
-  transition:
-    opacity var(--duration-quick) var(--ease-out),
-    stroke-dashoffset var(--duration-medium) var(--ease-smooth-out) var(--duration-micro);
-}
-
-/* crossfade from the drawn check to the resting tool icon */
-.chat-status-icon .chat-scmorph-rest {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--fx-text-tertiary);
-  opacity: 0;
-  filter: blur(2px);
-  transition:
-    opacity var(--duration-fast) var(--ease-smooth-out),
-    filter var(--duration-fast) var(--ease-smooth-out);
-}
-
-.chat-status-icon .chat-scmorph-badge,
-.chat-status-icon .chat-scmorph-check,
-.chat-status-icon .chat-scmorph-fill {
-  transition-delay: 0s;
-}
-
-.chat-status-icon.is-rest .chat-scmorph-badge {
-  scale: 1;
-  transition: none;
-}
-
-.chat-status-icon.is-rest .chat-scmorph-check,
-.chat-status-icon.is-rest .chat-scmorph-fill {
-  opacity: 0;
-  transition-duration: var(--duration-quick);
-}
-
-.chat-status-icon.is-rest .chat-scmorph-rest {
-  opacity: 1;
-  filter: blur(0);
-}
-
-.chat-status-icon.is-error .chat-scmorph-rest {
-  color: var(--fx-status-danger);
-}
-
 @media (prefers-reduced-motion: reduce) {
   .chat-acc-panel,
   .chat-acc-chevron,
-  .chat-status-icon,
-  .chat-status-icon .chat-scmorph-ring,
-  .chat-status-icon .chat-scmorph-spinring,
-  .chat-status-icon .chat-scmorph-fill,
-  .chat-status-icon .chat-scmorph-check,
-  .chat-status-icon .chat-scmorph-rest,
+  .chat-tool-spinner,
   .chat-tool-meta-running,
   .chat-quiet-head {
     transition: none !important;
     animation: none !important;
-  }
-  .chat-scmorph-spinring {
-    animation: none !important;
-  }
-  .chat-status-icon.is-done .chat-scmorph-check {
-    stroke-dashoffset: 0;
   }
 }

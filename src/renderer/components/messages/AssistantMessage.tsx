@@ -211,6 +211,7 @@ export function AssistantMessageView({
               (block.type === "thinking" ? thinkingDurationFromFile : undefined)
             }
             toolCallDurations={toolCallDurations}
+            toolStartedAt={compact && !isStreaming ? message.timestamp : undefined}
             cwd={cwd}
             onOpenFile={onOpenFile}
             onLoadDeferredContent={onLoadDeferredContent}
@@ -231,6 +232,7 @@ function BlockView({
   isStreaming,
   streamingDuration,
   toolCallDurations,
+  toolStartedAt,
   cwd,
   onOpenFile,
   onLoadDeferredContent,
@@ -242,6 +244,7 @@ function BlockView({
   isStreaming?: boolean;
   streamingDuration?: number;
   toolCallDurations?: ReadonlyMap<string, number>;
+  toolStartedAt?: number;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
@@ -271,7 +274,13 @@ function BlockView({
     const duration = toolCallDurations?.get(tc.toolCallId);
     return (
       <>
-        <ToolCallBlock block={tc} result={result} duration={duration} onLoadDeferredContent={onLoadDeferredContent} />
+        <ToolCallBlock
+          block={tc}
+          result={result}
+          duration={duration}
+          startedAt={toolStartedAt}
+          onLoadDeferredContent={onLoadDeferredContent}
+        />
         <DeferredContentActions content={[block]} onLoad={onLoadDeferredContent} />
       </>
     );

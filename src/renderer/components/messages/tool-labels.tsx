@@ -27,59 +27,75 @@ export function ToolGlyph({ toolName }: { toolName: string }): ReactNode {
   if (/^(read|less)/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <path d="M14 2v6h6" />
+        <path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z" />
+        <path d="M14 2v5a1 1 0 0 0 1 1h5" />
+        <path d="M10 9H8" />
+        <path d="M16 13H8" />
+        <path d="M16 17H8" />
       </svg>
     );
   }
   if (/^(edit|write|str_replace|replace|multiedit|notebook|apply|save)/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z" />
+        <path d="M13 21h8" />
+        <path d="m15 5 4 4" />
+        <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
       </svg>
     );
   }
   if (/^(bash|run|terminal|command|process|exec)/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <path d="M4 17l6-5-6-5M12 19h8" />
+        <path d="m7 11 2-2-2-2" />
+        <path d="M11 13h4" />
+        <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
       </svg>
     );
   }
   if (/^(grep|glob|search|find|list|ls)/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <circle cx="11" cy="11" r="7" />
-        <path d="M21 21l-4.3-4.3" />
+        <path d="m21 21-4.34-4.34" />
+        <circle cx="11" cy="11" r="8" />
       </svg>
     );
   }
   if (/^browser/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <circle cx="12" cy="12" r="9" />
-        <path d="M3.5 12h17M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+        <path d="M2 12h20" />
       </svg>
     );
   }
   if (/^(task|agent|subagent|dispatch)/i.test(toolName)) {
     return (
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-        <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
+      <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
+        <path d="M12 8V4H8" />
+        <rect width="16" height="12" x="4" y="8" rx="2" />
+        <path d="M2 14h2" />
+        <path d="M20 14h2" />
+        <path d="M15 13v2" />
+        <path d="M9 13v2" />
       </svg>
     );
   }
   if (/^(todo|plan|track)/i.test(toolName)) {
     return (
       <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-        <path d="M8 6h13M8 12h13M8 18h13" />
-        <path d="M3 6h.01M3 12h.01M3 18h.01" />
+        <path d="M13 5h8" />
+        <path d="M13 12h8" />
+        <path d="M13 19h8" />
+        <path d="m3 17 2 2 4-4" />
+        <rect x="3" y="4" width="6" height="6" rx="1" />
       </svg>
     );
   }
   return (
     <svg width="14" height="14" viewBox="0 0 24 24" {...ICON_STROKE}>
-      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+      <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z" />
     </svg>
   );
 }
