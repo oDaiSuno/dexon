@@ -267,12 +267,13 @@ export function useComposerSuggestions({
           setSlashMenuOpen(false);
           return;
         }
-        if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && slashCommandsLoading === true) {
+        if (event.key === "Tab" && slashCommandsLoading === true) {
           event.preventDefault();
           return;
         }
         if (
           (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) &&
+          slashCommandsLoading !== true &&
           filteredSlashCommands[slashActiveIndex]
         ) {
           event.preventDefault();
