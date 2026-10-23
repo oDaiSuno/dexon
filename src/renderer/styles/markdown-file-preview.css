@@ -1,23 +1,232 @@
-/* File viewer markdown preview — larger headings */
-.markdown-file-preview h1 {
-  font-size: 1.8em;
+.file-viewer-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  background: var(--fx-surface-raised);
 }
-.markdown-file-preview h2 {
-  font-size: 1.4em;
+
+.file-code,
+.file-diff {
+  min-height: 100%;
+  color: var(--fx-text-body);
+  tab-size: 4;
 }
-.markdown-file-preview h3 {
-  font-size: 1.15em;
+
+.file-code {
+  padding: var(--space-3) 0;
 }
-.markdown-file-preview p {
-  margin: 0 0 12px;
+
+.file-code-row,
+.file-diff-row {
+  display: flex;
+  min-height: var(--space-5);
 }
+
+.file-code-no {
+  flex: 0 0 44px;
+  padding-right: 10px;
+  text-align: right;
+  color: var(--fx-text-tertiary);
+  user-select: none;
+}
+
+.file-code-text,
+.file-diff-code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre;
+}
+
+.file-code-text {
+  padding: 0 var(--space-4) 0 var(--space-3);
+}
+
+.file-code.is-wrapped .file-code-text,
+.file-diff.is-wrapped .file-diff-code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.file-diff {
+  padding: var(--space-2) 0;
+}
+
+.file-diff-row.is-removed {
+  background: var(--fx-status-danger-soft);
+}
+
+.file-diff-row.is-added {
+  background: var(--fx-status-success-soft);
+}
+
+.file-diff-no {
+  flex: 0 0 36px;
+  padding-right: var(--space-2);
+  text-align: right;
+  color: var(--fx-text-tertiary);
+  user-select: none;
+}
+
+.file-diff-sign {
+  flex: 0 0 var(--space-4);
+  text-align: center;
+  user-select: none;
+}
+
+.file-diff-row.is-removed .file-diff-no,
+.file-diff-row.is-removed .file-diff-sign {
+  color: var(--fx-status-danger-text);
+}
+
+.file-diff-row.is-added .file-diff-no,
+.file-diff-row.is-added .file-diff-sign {
+  color: var(--fx-status-success-text);
+}
+
+.file-diff-code {
+  padding-right: var(--space-4);
+}
+
+.file-diff-hunk,
+.file-diff-fold {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 0 var(--space-4) 0 88px;
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-tertiary);
+}
+
+.file-diff-hunk {
+  height: var(--space-6);
+}
+
+.file-diff-hunk > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-diff-fold {
+  gap: 6px;
+  height: 28px;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.file-diff-fold:hover {
+  color: var(--fx-text-secondary);
+}
+
+.file-diff-note {
+  padding: var(--space-3) var(--space-4);
+  color: var(--fx-text-tertiary);
+}
+
+.file-diff-note[role="status"] {
+  color: var(--fx-text-secondary);
+}
+
+.file-markdown-preview {
+  padding: 28px var(--space-8);
+}
+
+.markdown-body.markdown-file-preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3-5);
+  font-size: inherit;
+  line-height: inherit;
+  color: var(--fx-text-body);
+}
+
+.markdown-body.markdown-file-preview > * {
+  margin: 0;
+}
+
+.markdown-body.markdown-file-preview h1 {
+  font-size: calc(24px * var(--type-scale, 1));
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.markdown-body.markdown-file-preview h2 {
+  font-size: calc(14px * var(--type-scale, 1));
+  line-height: 1.4;
+}
+
+.markdown-body.markdown-file-preview hr {
+  background: var(--fx-line-subtle);
+}
+
+.markdown-body.markdown-file-preview ul,
+.markdown-body.markdown-file-preview ol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.markdown-body.markdown-file-preview li {
+  margin: 0;
+}
+
+.markdown-body.markdown-file-preview li > ul,
+.markdown-body.markdown-file-preview li > ol {
+  margin: var(--space-2) 0 0;
+}
+
+.markdown-body.markdown-file-preview ul:not(.contains-task-list) {
+  padding-left: 0;
+}
+
+.markdown-body.markdown-file-preview ul:not(.contains-task-list) > li {
+  position: relative;
+  padding-left: 14px;
+  list-style: none;
+}
+
+.markdown-body.markdown-file-preview ul:not(.contains-task-list) > li::before {
+  content: "";
+  position: absolute;
+  top: var(--space-2);
+  left: 0;
+  width: var(--space-1);
+  height: var(--space-1);
+  border-radius: 2px;
+  background: var(--fx-text-tertiary);
+}
+
+.markdown-body.markdown-file-preview blockquote {
+  position: relative;
+  padding: 0 0 0 14px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--fx-text-secondary);
+}
+
+.markdown-body.markdown-file-preview blockquote::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--fx-line-strong);
+}
+
 .markdown-file-preview code {
   font-family: var(--font-mono);
   font-size: 0.9em;
-  background: var(--fx-surface-raised);
+  background: var(--fx-surface-inset);
   padding: 1px 5px;
   border-radius: 3px;
 }
+
 .markdown-file-preview pre code {
   background: none;
   padding: 0;
