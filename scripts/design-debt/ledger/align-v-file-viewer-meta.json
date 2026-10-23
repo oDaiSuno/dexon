@@ -1,48 +1,6 @@
 {
   "lane": "对齐 v-file-viewer-meta 文件查看器元信息栏与底部状态栏",
-  "legacy": [
-    {
-      "file": "src/renderer/components/file-viewer/text-file-viewer.tsx",
-      "name": "--text-body",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-file-viewer.tsx",
-      "name": "--text-label",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-mode-toggles.tsx",
-      "name": "--bg-hover",
-      "count": 7
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-mode-toggles.tsx",
-      "name": "--bg-selected",
-      "count": 7
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-mode-toggles.tsx",
-      "name": "--text-label",
-      "count": 7
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/file-viewer/text-file-viewer.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-mode-toggles.tsx",
-      "property": "fontSize",
-      "count": 7
-    },
-    {
-      "file": "src/renderer/components/file-viewer/text-mode-toggles.tsx",
-      "property": "fontWeight",
-      "count": 7
-    }
-  ],
+  "legacy": [],
+  "typography": [],
   "colors": []
 }

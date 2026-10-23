@@ -335,6 +335,151 @@
   width: 14px;
   height: 14px;
 }
+.file-viewer-meta {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--fx-line-subtle);
+  background: var(--fx-surface-main);
+  white-space: nowrap;
+}
+.file-viewer-crumbs {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+}
+.file-viewer-crumb {
+  flex: 0 1000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fx-text-tertiary);
+}
+.file-viewer-crumb-current {
+  flex-shrink: 1;
+  color: var(--fx-text-primary);
+}
+.file-viewer-crumb-chevron {
+  flex-shrink: 0;
+  color: var(--fx-text-faint);
+}
+.file-viewer-live {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  color: var(--fx-text-tertiary);
+}
+.file-viewer-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--fx-line-default);
+}
+.file-viewer-live-dot[data-watching="true"] {
+  background: var(--fx-status-success);
+  animation: file-viewer-live-breathe 1.2s cubic-bezier(0.44, 0, 0.56, 1) infinite alternate;
+}
+@keyframes file-viewer-live-breathe {
+  to {
+    opacity: 0.35;
+  }
+}
+.file-viewer-mode {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-inset);
+}
+.file-viewer-mode-pill {
+  position: absolute;
+  top: 2px;
+  left: 0;
+  height: 22px;
+  border-radius: var(--radius-segment);
+  background: var(--fx-surface-raised);
+  box-shadow:
+    var(--shadow-control),
+    0 0 0 1px var(--fx-line-translucent);
+  pointer-events: none;
+}
+.file-viewer-mode-pill-gliding {
+  transition:
+    transform var(--duration-glide) var(--ease-smooth-out),
+    width var(--duration-glide) var(--ease-smooth-out);
+}
+.file-viewer-mode-tab {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: 22px;
+  padding: 0 var(--space-2);
+  border: none;
+  border-radius: var(--radius-segment);
+  background: none;
+  color: var(--fx-text-secondary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-quick) var(--ease-smooth-out);
+}
+.file-viewer-mode-tab:hover,
+.file-viewer-mode-tab[aria-pressed="true"] {
+  color: var(--fx-text-primary);
+}
+.file-viewer-mode-changes {
+  color: var(--fx-status-success-text);
+}
+.file-viewer-icon-button {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-tertiary);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.file-viewer-icon-button:hover,
+.file-viewer-icon-button[aria-pressed="true"] {
+  background: var(--fx-surface-hover-overlay);
+}
+.file-viewer-icon-button[aria-pressed="true"] {
+  color: var(--fx-text-secondary);
+}
+.file-viewer-status {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-3);
+  height: 28px;
+  padding: 0 var(--space-3);
+  border-top: 1px solid var(--fx-line-default);
+  background: var(--fx-surface-sidebar);
+  color: var(--fx-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.file-viewer-status-spacer {
+  flex: 1;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .right-panel-resizer::before,
   .right-panel-resizer::after,
@@ -344,7 +489,11 @@
   .dock-switcher-tab > svg,
   .panel-width-readout,
   .panel-width-readout-bound,
-  .right-panel-toggle {
+  .right-panel-toggle,
+  .file-viewer-live-dot[data-watching="true"],
+  .file-viewer-mode-pill-gliding,
+  .file-viewer-mode-tab,
+  .file-viewer-icon-button {
     transition: none;
     animation: none;
   }

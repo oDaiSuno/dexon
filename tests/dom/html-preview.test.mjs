@@ -61,7 +61,7 @@ test("leaving an active preview releases its URL even when release fails", async
     },
   );
   assert.equal(view.container.querySelector("iframe").getAttribute("src"), "pi-preview://active");
-  await click(button(view.container, "Code"));
+  await click(button(view.container, "Source"));
   assert.deepEqual([...urls], []);
   assert.equal(view.container.querySelector("iframe"), null);
 });
@@ -76,7 +76,7 @@ test("a URL created after leaving preview is released and never displayed", asyn
       urls.delete(url);
     },
   );
-  await click(button(view.container, "Code"));
+  await click(button(view.container, "Source"));
   await act(async () => {
     urls.add("pi-preview://late");
     pending.resolve("pi-preview://late");

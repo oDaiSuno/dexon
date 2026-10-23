@@ -1,30 +1,39 @@
-import { getRelativeFilePath } from "@/lib/file-paths";
+import type { MouseEvent } from "react";
+import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { useI18n } from "@/i18n";
-import { formatFileSize, formatNumber } from "@/lib/locale-format";
-import { DownloadLink } from "./download-link";
+import { PathCrumbs } from "./path-crumbs";
+import { StatusBar } from "./status-bar";
 import { TextFileContent } from "./text-file-content";
-import { TextModeToggles } from "./text-mode-toggles";
+import { TextModeToggles, type TextModeTogglesProps } from "./text-mode-toggles";
 import type { FileViewerProps } from "./types";
 import { useTextFile } from "./use-text-file";
 import { WatchIndicator } from "./watch-indicator";
 
+const PLACEHOLDER_STYLE = {
+  height: "100%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+} as const;
+
 export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
-  const { language, t } = useI18n();
-  const { loadState, previewMode, setPreviewMode, viewMode, setViewMode, wrapLines, setWrapLines, watching } =
-    useTextFile(filePath, sourceSessionId);
+  const { t } = useI18n();
+  const {
+    loadState,
+    hasDiff,
+    diffSummary,
+    previewMode,
+    setPreviewMode,
+    viewMode,
+    setViewMode,
+    wrapLines,
+    setWrapLines,
+    watching,
+  } = useTextFile(filePath, sourceSessionId);
 
   if (loadState.status === "loading") {
     return (
-      <div
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--fx-text-secondary)",
-          fontSize: "var(--text-body)",
-        }}
-      >
+      <div className="type-body-default" style={{ ...PLACEHOLDER_STYLE, color: "var(--fx-text-secondary)" }}>
         {t("loading", "Loading…")}
       </div>
     );
@@ -32,57 +41,75 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
 
   if (loadState.status === "error") {
     return (
-      <div
-        style={{
-          height: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "var(--fx-status-danger)",
-          fontSize: "var(--text-body)",
-        }}
-      >
+      <div className="type-body-default" style={{ ...PLACEHOLDER_STYLE, color: "var(--fx-status-danger)" }}>
         {loadState.error}
       </div>
     );
   }
 
-  const { data, prevContent, changeCount } = loadState;
+  return (
+    <TextFileReady
+      filePath={filePath}
+      cwd={cwd}
+      sourceSessionId={sourceSessionId}
+      data={loadState.data}
+      prevContent={loadState.prevContent}
+      hasDiff={hasDiff}
+      diffSummary={diffSummary}
+      viewMode={viewMode}
+      setViewMode={setViewMode}
+      previewMode={previewMode}
+      setPreviewMode={setPreviewMode}
+      wrapLines={wrapLines}
+      setWrapLines={setWrapLines}
+      watching={watching}
+    />
+  );
+}
 
-  const lines = data.content.split("\n");
-  const hasDiff = prevContent !== null && prevContent !== data.content;
+export interface TextFileReadyProps extends FileViewerProps, Omit<TextModeTogglesProps, "data"> {
+  data: TextFileData;
+  prevContent: string | null;
+  watching: boolean;
+}
+
+export function TextFileReady({
+  filePath,
+  cwd,
+  sourceSessionId,
+  data,
+  prevContent,
+  hasDiff,
+  diffSummary,
+  viewMode,
+  setViewMode,
+  previewMode,
+  setPreviewMode,
+  wrapLines,
+  setWrapLines,
+  watching,
+}: TextFileReadyProps) {
+  const { language } = useI18n();
+  const previewable = data.language === "html" || data.language === "markdown";
+  const mode = viewMode === "diff" && hasDiff ? "diff" : previewable && previewMode ? "preview" : "source";
+
+  const openFileMenu = (event: MouseEvent<HTMLDivElement>) => {
+    if (event.defaultPrevented || !window.piBridge?.showFileContextMenu) return;
+    event.preventDefault();
+    void window.piBridge
+      .showFileContextMenu({ href: filePath, cwd, source: "local-file-reference", language })
+      .catch(() => undefined);
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          minHeight: 40,
-          padding: "4px 12px",
-          borderBottom: "1px solid var(--fx-line-default)",
-          fontSize: "var(--text-label)",
-          color: "var(--fx-text-tertiary)",
-          background: "var(--fx-surface-main)",
-          flexShrink: 0,
-          overflowX: "auto",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
-          {getRelativeFilePath(filePath, cwd)}
-        </span>
-        <span style={{ marginLeft: "auto" }}>{data.language}</span>
-        {viewMode === "source" && (
-          <span>{t("lineCount", "{count} lines").replace("{count}", formatNumber(lines.length, language))}</span>
-        )}
-        <span>{formatFileSize(data.size, language)}</span>
-        <WatchIndicator watching={watching} />
+      <div className="file-viewer-meta" onContextMenu={openFileMenu}>
+        <PathCrumbs filePath={filePath} cwd={cwd} />
+        <WatchIndicator watching={watching} showLabel={mode !== "diff"} />
         <TextModeToggles
           data={data}
-          changeCount={changeCount}
           hasDiff={hasDiff}
+          diffSummary={diffSummary}
           viewMode={viewMode}
           setViewMode={setViewMode}
           previewMode={previewMode}
@@ -90,7 +117,6 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
           wrapLines={wrapLines}
           setWrapLines={setWrapLines}
         />
-        <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <TextFileContent
         filePath={filePath}
@@ -102,6 +128,13 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
         viewMode={viewMode}
         previewMode={previewMode}
         wrapLines={wrapLines}
+      />
+      <StatusBar
+        filePath={filePath}
+        data={data}
+        lineCount={data.content.split("\n").length}
+        mode={mode}
+        diffSummary={diffSummary}
       />
     </div>
   );

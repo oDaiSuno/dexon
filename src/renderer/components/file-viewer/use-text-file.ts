@@ -1,9 +1,27 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { INITIAL_TEXT_FILE_LOAD_STATE, textFileLoadReducer, type TextFileData } from "@/lib/file-viewer-load-state";
+import { createBoundedTextDiff } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
+import { collapseDiff } from "./diff-segments";
 import { getFileApiUrl } from "./file-api-url";
 
 export type TextViewMode = "source" | "diff";
+
+export interface DiffSummary {
+  added: number;
+  removed: number;
+  hunks: number;
+}
+
+function summarizeDiff(oldContent: string, newContent: string): DiffSummary | null {
+  const result = createBoundedTextDiff(oldContent, newContent);
+  if (result.kind === "fallback") return null;
+  return {
+    added: result.lines.filter((line) => line.type === "added").length,
+    removed: result.lines.filter((line) => line.type === "removed").length,
+    hunks: collapseDiff(result.lines).filter((segment) => !segment.hidden).length,
+  };
+}
 
 export function useTextFile(filePath: string, sourceSessionId?: string | null) {
   const { t } = useI18n();
@@ -97,5 +115,24 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     };
   }, [filePath, fetchContent, sourceSessionId]);
 
-  return { loadState, previewMode, setPreviewMode, viewMode, setViewMode, wrapLines, setWrapLines, watching };
+  const content = loadState.status === "ready" ? loadState.data.content : null;
+  const prevContent = loadState.status === "ready" ? loadState.prevContent : null;
+  const hasDiff = content !== null && prevContent !== null && prevContent !== content;
+  const diffSummary = useMemo(
+    () => (hasDiff ? summarizeDiff(prevContent!, content!) : null),
+    [hasDiff, prevContent, content],
+  );
+
+  return {
+    loadState,
+    hasDiff,
+    diffSummary,
+    previewMode,
+    setPreviewMode,
+    viewMode,
+    setViewMode,
+    wrapLines,
+    setWrapLines,
+    watching,
+  };
 }
