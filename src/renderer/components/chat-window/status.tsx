@@ -1,4 +1,7 @@
+import type { ReactNode } from "react";
 import { type NoticeItem } from "@/hooks/useAgentSession";
+import { useI18n } from "@/i18n";
+import { CircleCheckIcon, CircleXIcon, CloseIcon, InfoIcon, TriangleAlertIcon } from "../chat-input/icons";
 export function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text: string }> }) {
   if (statuses.length === 0) return null;
   return (
@@ -16,10 +19,10 @@ export function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string
             borderRadius: "var(--radius-control)",
             background: "color-mix(in srgb, var(--fx-accent-blue) 7%, var(--fx-surface-main))",
             color: "var(--fx-text-secondary)",
-            fontSize: 12,
           }}
+          className="type-label-default"
         >
-          <span style={{ color: "var(--fx-accent-blue)", fontFamily: "var(--font-mono)", fontSize: 11 }}>
+          <span className="type-mono-meta" style={{ color: "var(--fx-accent-blue)" }}>
             {status.key}
           </span>
           <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -45,26 +48,23 @@ export function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; li
           }}
         >
           <div
+            className="type-mono-meta"
             style={{
               padding: "4px 8px",
               borderBottom: "1px solid var(--fx-line-default)",
               color: "var(--fx-text-tertiary)",
-              fontSize: 11,
-              fontFamily: "var(--font-mono)",
             }}
           >
             {widget.key}
           </div>
           <pre
+            className="type-mono-code"
             style={{
               margin: 0,
               padding: "8px 8px",
               color: "var(--fx-text-secondary)",
-              fontSize: 12,
-              lineHeight: 1.5,
               whiteSpace: "pre-wrap",
               wordBreak: "break-word",
-              fontFamily: "var(--font-mono)",
             }}
           >
             {widget.lines.join("\n")}
@@ -74,15 +74,25 @@ export function ExtensionWidgets({ widgets }: { widgets: Array<{ key: string; li
     </div>
   );
 }
+const NOTICE_ICONS: Record<NoticeItem["type"], ReactNode> = {
+  info: <InfoIcon size={16} />,
+  success: <CircleCheckIcon size={16} />,
+  warning: <TriangleAlertIcon size={16} />,
+  error: <CircleXIcon size={16} />,
+};
+
 export function NoticeShelf({
   notices,
+  onDismiss,
   floating = false,
   align = "left",
 }: {
   notices: NoticeItem[];
+  onDismiss: (id: string) => void;
   floating?: boolean;
   align?: "left" | "right" | "center";
 }) {
+  const { t } = useI18n();
   if (notices.length === 0) return null;
   const alignItems = align === "right" ? "flex-end" : align === "center" ? "center" : "stretch";
   return (
@@ -94,68 +104,29 @@ export function NoticeShelf({
         marginBottom: floating ? 0 : 10,
       }}
     >
-      {notices.map((notice, index) => {
-        const color =
-          notice.type === "error"
-            ? "var(--fx-status-danger-text)"
-            : notice.type === "warning"
-              ? "var(--fx-status-warning-text)"
-              : notice.type === "success"
-                ? "var(--fx-status-success-text)"
-                : "var(--fx-accent-blue-text)";
-        return (
-          <div
-            key={notice.id}
-            className="notice-shelf-item"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              minHeight: 60,
-              height: 60,
-              maxHeight: 60,
-              marginBottom: index === notices.length - 1 ? 0 : 6,
-              overflow: "hidden",
-              borderRadius: "var(--radius-card)",
-              border: "1px solid var(--fx-line-default)",
-              background: "var(--fx-surface-raised)",
-              color: "var(--fx-text-secondary)",
-              width: "fit-content",
-              maxWidth: "min(100%, 620px)",
-              boxShadow: floating ? "var(--shadow-hairline-card)" : "var(--shadow-hairline-button)",
-              fontSize: "var(--text-heading-lg)",
-              lineHeight: 1.45,
-              transformOrigin: "top center",
-              animation: notice.exiting
-                ? "notice-shelf-out var(--duration-pop, 180ms) var(--ease-in-out) forwards"
-                : "notice-shelf-in var(--duration-pop, 180ms) var(--ease-smooth-out) both",
-              padding: "0 12px",
-            }}
+      {notices.map((notice) => (
+        <div
+          key={notice.id}
+          className="notice-toast"
+          data-tone={notice.type}
+          data-exiting={notice.exiting ? "true" : undefined}
+        >
+          <span className="notice-toast-icon">{NOTICE_ICONS[notice.type]}</span>
+          <span className="notice-toast-message type-body-default" title={notice.message}>
+            {notice.message}
+          </span>
+          <span className="notice-toast-divider" aria-hidden="true" />
+          <button
+            type="button"
+            className="feedback-close"
+            data-size="toast"
+            aria-label={t("dismissNotice", "Dismiss notification")}
+            onClick={() => onDismiss(notice.id)}
           >
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: "50%",
-                background: color,
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                padding: "16px 0",
-                minWidth: 0,
-                maxWidth: "100%",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {notice.message}
-            </span>
-          </div>
-        );
-      })}
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      ))}
     </div>
   );
 }

@@ -1,3 +1,160 @@
+.notice-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-sizing: border-box;
+  width: 360px;
+  max-width: 100%;
+  height: 40px;
+  min-height: 40px;
+  max-height: 40px;
+  margin-bottom: 6px;
+  padding: 0 6px 0 var(--space-3);
+  overflow: hidden;
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-card);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-toast);
+  color: var(--fx-text-primary);
+  pointer-events: auto;
+  transform-origin: top center;
+  animation: notice-shelf-in var(--duration-pop) var(--ease-smooth-out) both;
+}
+
+.notice-toast:last-child {
+  margin-bottom: 0;
+}
+
+.notice-toast[data-exiting="true"] {
+  animation: notice-shelf-out var(--duration-pop) var(--ease-in-out) forwards;
+}
+
+.notice-toast[data-tone="error"] {
+  border-color: var(--fx-status-danger-border);
+}
+
+.notice-toast-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--fx-accent-blue-text);
+}
+
+.notice-toast[data-tone="success"] .notice-toast-icon {
+  color: var(--fx-status-success);
+}
+
+.notice-toast[data-tone="warning"] .notice-toast-icon {
+  color: var(--fx-status-warning);
+}
+
+.notice-toast[data-tone="error"] .notice-toast-icon {
+  color: var(--fx-status-danger);
+}
+
+.notice-toast-message {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fx-text-primary);
+}
+
+.notice-toast-divider {
+  flex-shrink: 0;
+  width: 1px;
+  height: 16px;
+  background: var(--fx-line-default);
+}
+
+.feedback-close,
+.feedback-action {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-tertiary);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.feedback-close:hover,
+.feedback-action:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
+.feedback-close[data-size="toast"] {
+  width: 28px;
+  height: 28px;
+}
+
+.feedback-close[data-size="banner"] {
+  width: 26px;
+  height: 26px;
+  color: inherit;
+}
+
+.feedback-action {
+  height: 26px;
+  padding: 0 var(--space-2);
+  color: inherit;
+  white-space: nowrap;
+}
+
+.composer-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) 6px var(--space-2) var(--space-3);
+  border: 1px solid var(--fx-line-translucent);
+  border-radius: var(--radius-card);
+}
+
+.composer-banner[data-tone="error"] {
+  border-color: var(--fx-status-danger-border);
+  background: var(--fx-status-danger-soft);
+  color: var(--fx-status-danger-text);
+}
+
+.composer-banner[data-tone="success"] {
+  background: var(--fx-status-success-soft);
+  color: var(--fx-status-success-text);
+}
+
+.composer-banner[data-tone="warning"] {
+  border-color: var(--fx-status-warning-border);
+  background: var(--fx-status-warning-soft);
+  color: var(--fx-status-warning-text);
+}
+
+.composer-banner-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.composer-banner[data-tone="error"] .composer-banner-icon {
+  color: var(--fx-status-danger);
+}
+
+.composer-banner[data-tone="success"] .composer-banner-icon {
+  color: var(--fx-status-success);
+}
+
+.composer-banner[data-tone="warning"] .composer-banner-icon {
+  color: var(--fx-status-warning);
+}
+
+.composer-banner-message {
+  flex: 1 1 0;
+  min-width: 0;
+  text-wrap: pretty;
+}
+
 @keyframes notice-shelf-in {
   from {
     opacity: 0;
@@ -9,9 +166,9 @@
   }
   to {
     opacity: 1;
-    height: 60px;
-    max-height: 60px;
-    min-height: 60px;
+    height: 40px;
+    max-height: 40px;
+    min-height: 40px;
     transform: translateY(0) scale(1);
   }
 }
@@ -19,9 +176,9 @@
 @keyframes notice-shelf-out {
   from {
     opacity: 1;
-    height: 60px;
-    max-height: 60px;
-    min-height: 60px;
+    height: 40px;
+    max-height: 40px;
+    min-height: 40px;
     transform: translateY(0) scale(1);
   }
   to {
@@ -35,7 +192,12 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .notice-shelf-item {
+  .notice-toast {
     animation-duration: 0.001ms !important;
+  }
+
+  .feedback-close,
+  .feedback-action {
+    transition: none;
   }
 }

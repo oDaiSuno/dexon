@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import type { UseAgentSessionOptions } from "./agent-session/shared";
 import { useSessionActions } from "./agent-session/use-session-actions";
 import { useSessionCommands } from "./agent-session/use-session-commands";
@@ -132,6 +132,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     loadingOlder,
     historyRevision,
     noticeState,
+    dispatchNotice,
+    setCompactResult,
     interactiveTools,
     extensionStatuses,
     extensionWidgets,
@@ -190,6 +192,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...reading,
     ...effects,
   };
+  const dismissNotice = useCallback((id: string) => dispatchNotice({ type: "mark_exiting", id }), [dispatchNotice]);
+  const dismissCompactResult = useCallback(() => setCompactResult(null), [setCompactResult]);
   return {
     // State
     data,
@@ -261,6 +265,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     handleRecallQueue,
     handleBuiltinSlashCommand,
     handleThinkingLevelChange,
+    dismissNotice,
+    dismissCompactResult,
     loadSlashCommands,
     loadOlder,
     loadDeferredContent,

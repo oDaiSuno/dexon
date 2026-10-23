@@ -36,6 +36,7 @@ export function ChatWindow(props: Props) {
     isEmptyNew,
     t,
     notices,
+    dismissNotice,
     isMobile,
     scrollContainerRef,
     hasOlder,
@@ -117,7 +118,7 @@ export function ChatWindow(props: Props) {
       <DragOverlay isDragOver={isDragOver} />
 
       {isEmptyNew ? (
-        <Welcome notices={notices} />
+        <Welcome notices={notices} onDismissNotice={dismissNotice} />
       ) : (
         <>
           <div className="chat-conversation-enter relative z-[1] flex min-h-0 flex-[1_1_0] overflow-hidden">
@@ -133,7 +134,7 @@ export function ChatWindow(props: Props) {
               }}
             >
               <div className="chat-content-column">
-                <NoticeShelf notices={notices} floating align="right" />
+                <NoticeShelf notices={notices} onDismiss={dismissNotice} floating align="right" />
               </div>
             </div>
             <div

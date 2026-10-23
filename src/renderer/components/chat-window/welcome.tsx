@@ -2,7 +2,13 @@ import { type NoticeItem } from "@/hooks/useAgentSession";
 import { useI18n } from "@/i18n";
 import appIconUrl from "../../../../build/icon.png";
 import { NoticeShelf } from "./status";
-export function Welcome({ notices }: { notices: NoticeItem[] }) {
+export function Welcome({
+  notices,
+  onDismissNotice,
+}: {
+  notices: NoticeItem[];
+  onDismissNotice: (id: string) => void;
+}) {
   const { t } = useI18n();
   return (
     <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
@@ -14,7 +20,6 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              lineHeight: 1.4,
             }}
           >
             <img
@@ -31,11 +36,9 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               }}
             />
             <span
+              className="type-title-section"
               style={{
-                fontSize: 20,
                 color: "var(--fx-text-primary)",
-                fontWeight: 600,
-                letterSpacing: "-0.2px",
                 flexShrink: 0,
                 whiteSpace: "nowrap",
               }}
@@ -45,14 +48,12 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
           </div>
         </div>
         <div
-          className="chat-welcome-line"
+          className="chat-welcome-line type-body-relaxed"
           style={
             {
               "--line-i": 1,
               marginTop: 16,
               marginBottom: 12,
-              fontSize: 13,
-              lineHeight: 1.6,
               color: "var(--fx-text-secondary)",
               textAlign: "center",
             } as React.CSSProperties
@@ -60,7 +61,7 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
         >
           {t("welcomeGreeting", "What are we working on? Describe a task, paste an error, or drop in files.")}
         </div>
-        <NoticeShelf notices={notices} align="center" />
+        <NoticeShelf notices={notices} onDismiss={onDismissNotice} align="center" />
       </div>
     </div>
   );

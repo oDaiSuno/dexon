@@ -86,6 +86,8 @@ test("the public return shape of useAgentSession is stable for consumers", async
     "handleRecallQueue",
     "handleBuiltinSlashCommand",
     "handleThinkingLevelChange",
+    "dismissNotice",
+    "dismissCompactResult",
     "loadSlashCommands",
     "loadOlder",
     "loadDeferredContent",
