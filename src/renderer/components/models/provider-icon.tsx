@@ -9,7 +9,6 @@ import MinimaxIcon from "@lobehub/icons/es/Minimax/components/Mono";
 import FireworksIcon from "@lobehub/icons/es/Fireworks/components/Mono";
 import HuggingFaceIcon from "@lobehub/icons/es/HuggingFace/components/Mono";
 import CerebrasIcon from "@lobehub/icons/es/Cerebras/components/Mono";
-import OpenRouterIcon from "@lobehub/icons/es/OpenRouter/components/Mono";
 import XAIIcon from "@lobehub/icons/es/XAI/components/Mono";
 import CloudflareIcon from "@lobehub/icons/es/Cloudflare/components/Mono";
 import VercelIcon from "@lobehub/icons/es/Vercel/components/Mono";
@@ -32,6 +31,22 @@ import OllamaIcon from "@lobehub/icons/es/Ollama/components/Mono";
 import GeminiIcon from "@lobehub/icons/es/Gemini/components/Mono";
 
 type IconComponent = React.ComponentType<{ size?: number | string; style?: React.CSSProperties }>;
+
+function OpenRouterIcon({ size, style }: { size?: number | string; style?: React.CSSProperties }) {
+  return (
+    <svg
+      aria-hidden="true"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      fillRule="evenodd"
+      style={{ flex: "none", ...style }}
+    >
+      <path d="M18.654 3.87a5.087 5.087 0 1 1 0 10.174L23.7 19.09c.64.641.187 1.737-.72 1.737H8.48a8.479 8.479 0 0 1 0-16.958h10.175zM8.479 7.26a5.087 5.087 0 1 0 0 10.176 5.087 5.087 0 0 0 0-10.175z" />
+    </svg>
+  );
+}
 
 const PROVIDER_ICONS: Record<string, IconComponent> = {
   anthropic: AnthropicIcon,
