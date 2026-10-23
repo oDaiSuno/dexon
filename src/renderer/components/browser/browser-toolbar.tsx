@@ -161,12 +161,12 @@ function AddressBar({
       >
         <input
           aria-label={t("browserAddress", "Browser address")}
-          className="browser-address-input type-mono-label"
+          className={`browser-address-input ${address ? "type-mono-label" : "type-body-large"}`}
           value={address}
           spellCheck={false}
           onChange={(event) => onAddressChange(event.target.value)}
           onFocus={(event) => event.currentTarget.select()}
-          placeholder="https://example.com"
+          placeholder={t("browserAddressPlaceholder", "Enter a URL or search")}
           style={{
             width: "100%",
             height: "100%",

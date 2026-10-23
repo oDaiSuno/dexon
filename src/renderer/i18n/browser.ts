@@ -3,6 +3,7 @@ export const enUS: Record<string, string> = {
   browserActionTimeout: "Action timeout (ms)",
   browserAddHeaderRule: "Add header rule",
   browserAddress: "Browser address",
+  browserAddressPlaceholder: "Enter a URL or search",
   browserAdvancedMode: "Advanced Browser Mode",
   browserAdvancedModeBadge: "Advanced Browser Mode",
   browserAdvancedModeWarning:
@@ -243,6 +244,7 @@ export const zhCN: Record<string, string> = {
   browserActionTimeout: "操作超时（毫秒）",
   browserAddHeaderRule: "添加标头规则",
   browserAddress: "浏览器地址",
+  browserAddressPlaceholder: "输入网址或搜索",
   browserAdvancedMode: "高级浏览器模式",
   browserAdvancedModeBadge: "高级模式",
   browserAdvancedModeWarning:
