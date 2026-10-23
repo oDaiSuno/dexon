@@ -1,0 +1,21 @@
+[
+  "browserRestoreTabsDescription",
+  "browserOpenPanelOnUseDescription",
+  "browserHomepageDescription",
+  "browserDefaultProfileDescription",
+  "browserTabLimits",
+  "browserTabLimitsDescription",
+  "browserTimeouts",
+  "browserTimeoutsDescription",
+  "browserNetworkSecurity",
+  "browserAllowHttpDescription",
+  "browserAllowPrivateNetworkDescription",
+  "browserEnableAgentToolsDescription",
+  "browserDefaultPermanentPermissionDescription",
+  "browserUserTakeoverDescription",
+  "browserHighlightTargetDescription",
+  "browserDownloads",
+  "browserDownloadPolicyDescription",
+  "browserProxy",
+  "browserProxyModeDescription"
+]

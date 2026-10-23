@@ -6,6 +6,7 @@ import {
   click,
   input,
   keyDown,
+  labelledControl,
   selectOption,
   button,
   loadRenderer,
@@ -18,9 +19,6 @@ const { BrowserSettings, SettingsConfig, setAppLanguage } = await loadRenderer(
   'export {BrowserSettings} from "./src/renderer/components/browser/BrowserSettings.tsx"; export {SettingsConfig} from "./src/renderer/components/SettingsConfig.tsx";',
 );
 after(restoreGlobals);
-function field(container, label) {
-  return [...container.querySelectorAll("label")].find((element) => element.textContent.includes(label));
-}
 function installMain() {
   const state = browserState();
   const permissions = [];
@@ -60,7 +58,7 @@ test("permanent permission and temporary grants remain independent user actions"
   const main = installMain();
   setAppLanguage("en-US");
   const view = await mount(t, BrowserSettings, { sessionId: "session-one" });
-  const select = field(view.container, "Permanent Browser permission for this session").querySelector("select");
+  const select = labelledControl(view.container, "Permanent Browser permission for this session");
   await selectOption(select, "interact");
   assert.deepEqual(main.permissions, [["session-one", "interact"]]);
   assert.equal(main.state.runtimeSessionGrants["session-one"].permission, "read");
@@ -73,7 +71,7 @@ test("advanced mode requires the exact in-app phrase and a Main confirmation", a
   const main = installMain();
   setAppLanguage("en-US");
   const view = await mount(t, BrowserSettings, { sessionId: null });
-  await click(field(view.container, "Enable Advanced Browser Mode for this launch").querySelector("input"));
+  await click(labelledControl(view.container, "Enable Advanced Browser Mode for this launch"));
   const prompt = view.container.querySelector('[role="dialog"]');
   assert.ok(prompt);
   assert.equal(button(prompt, "Continue").disabled, true);

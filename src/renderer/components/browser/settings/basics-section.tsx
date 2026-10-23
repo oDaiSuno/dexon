@@ -1,0 +1,112 @@
+import { useI18n } from "@/i18n";
+import { SettingGroup } from "../../settings/setting-row";
+import {
+  InputRow,
+  NumberRow,
+  SelectRow,
+  ToggleRow,
+  profileModeLabel,
+  withSettings,
+  type BrowserSettingsModel,
+} from "./shared";
+
+export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
+  const { t } = useI18n();
+  const { state, settings, update, setState } = model;
+  return (
+    <SettingGroup title={t("browserBasics", "Basics")}>
+      <ToggleRow
+        label={t("browserEnableBuiltIn", "Enable built-in Browser")}
+        checked={settings.enabled}
+        onChange={(enabled) => void update({ enabled })}
+      />
+      <ToggleRow
+        label={t("browserRestoreTabs", "Restore safe tabs on startup")}
+        description={t(
+          "browserRestoreTabsDescription",
+          "Only regular tabs without sensitive information are restored.",
+        )}
+        checked={settings.panel.restoreTabs}
+        onChange={(restoreTabs) => void update({ panel: { restoreTabs } })}
+      />
+      <ToggleRow
+        label={t("browserOpenPanelOnUse", "Open Browser panel when Agent starts browsing")}
+        description={t(
+          "browserOpenPanelOnUseDescription",
+          "Expands the Browser panel when the Agent opens a page, so you can watch it live.",
+        )}
+        checked={settings.panel.openOnAgentUse}
+        onChange={(openOnAgentUse) => void update({ panel: { openOnAgentUse } })}
+      />
+      <InputRow
+        label={t("browserHomepage", "Homepage")}
+        description={t("browserHomepageDescription", "The address opened when the Browser starts and for new tabs.")}
+        value={settings.navigation.homepage}
+        onChange={(homepage) => setState(withSettings(state, "navigation", { homepage }))}
+        onBlur={(homepage) => void update({ navigation: { homepage } })}
+      />
+      <SelectRow
+        label={t("browserDefaultProfile", "Default Profile for new tabs")}
+        description={t(
+          "browserDefaultProfileDescription",
+          "Decides where new tabs keep their sign-in state and site data.",
+        )}
+        value={settings.panel.defaultProfileId}
+        onChange={(defaultProfileId) => void update({ panel: { defaultProfileId } })}
+      >
+        {state.profiles
+          .filter((profile) => profile.mode !== "unsafe")
+          .map((profile) => (
+            <option key={profile.id} value={profile.id}>
+              {profile.name} ({profileModeLabel(t, profile.mode)})
+            </option>
+          ))}
+      </SelectRow>
+      <NumberRow
+        label={t("browserTabLimits", "Tab limits")}
+        description={t("browserTabLimitsDescription", "How many tabs can be open in total and per Agent session.")}
+        fields={[
+          {
+            label: t("browserMaximumTabs", "Maximum tabs"),
+            value: settings.navigation.maxTabs,
+            min: 1,
+            max: 50,
+            onCommit: (maxTabs) => void update({ navigation: { maxTabs } }),
+          },
+          {
+            label: t("browserTabsPerAgent", "Tabs per Agent session"),
+            value: settings.navigation.maxTabsPerSession,
+            min: 1,
+            max: 20,
+            onCommit: (maxTabsPerSession) => void update({ navigation: { maxTabsPerSession } }),
+          },
+        ]}
+      />
+      <NumberRow
+        label={t("browserTimeouts", "Timeouts")}
+        description={t("browserTimeoutsDescription", "The longest wait for page navigation and for a single action.")}
+        fields={[
+          {
+            label: t("browserNavigationTimeout", "Navigation timeout (ms)"),
+            value: settings.navigation.navigationTimeoutMs,
+            min: 1000,
+            max: 300000,
+            onCommit: (navigationTimeoutMs) => void update({ navigation: { navigationTimeoutMs } }),
+          },
+          {
+            label: t("browserActionTimeout", "Action timeout (ms)"),
+            value: settings.navigation.actionTimeoutMs,
+            min: 250,
+            max: 120000,
+            onCommit: (actionTimeoutMs) => void update({ navigation: { actionTimeoutMs } }),
+          },
+        ]}
+      />
+      <ToggleRow
+        label={t("browserUsePersistentProfiles", "Use persistent Profiles by default when creating a Profile")}
+        checked={settings.panel.saveLoginState}
+        onChange={(saveLoginState) => void update({ panel: { saveLoginState } })}
+      />
+    </SettingGroup>
+  );
+}
