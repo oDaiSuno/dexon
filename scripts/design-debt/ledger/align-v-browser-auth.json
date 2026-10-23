@@ -1,46 +1,6 @@
 {
   "lane": "对齐 v-browser-auth 浏览器授权弹窗：图标块、权限阶梯、信息框、按钮与危险档",
-  "legacy": [
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-body",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-heading-lg",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "name": "--text-label",
-      "count": 1
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "property": "fontSize",
-      "count": 5
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "property": "lineHeight",
-      "count": 3
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "color": "rgba(0,0,0,0.35)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/browser/BrowserAuthorizationDialog.tsx",
-      "color": "rgba(0,0,0,0.5)",
-      "count": 1,
-      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }

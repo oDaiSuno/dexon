@@ -163,7 +163,7 @@ test("Manage permanent permission from a browser authorization request still rea
       },
     }),
   );
-  await click(control(scene.container, "button", "Manage permanent permission…"));
+  await click(control(scene.container, "button", "Manage permanent permissions"));
   const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   assert.equal(control(dialog, "tab", "Browser").getAttribute("aria-selected"), "true");
   await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Enable built-in Browser/));
