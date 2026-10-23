@@ -13,7 +13,7 @@ function squareBase(): CSSProperties {
     height: 32,
     padding: 0,
     border: "none",
-    borderRadius: "var(--radius-control)",
+    borderRadius: "var(--radius-send)",
     transition:
       "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), transform var(--duration-micro, 80ms)",
   };
