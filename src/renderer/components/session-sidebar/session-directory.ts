@@ -7,7 +7,12 @@ import {
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
 } from "@/lib/unread-session-storage";
 import { applySessionChangedEvent } from "@/lib/session-sidebar-state";
-import { clearSessionCatalog, publishSessionCatalog } from "@/lib/session-catalog";
+import {
+  clearSessionActivity,
+  clearSessionCatalog,
+  publishSessionActivity,
+  publishSessionCatalog,
+} from "@/lib/session-catalog";
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -142,6 +147,12 @@ export function useSessionDirectory({
   }, [allSessions]);
 
   useEffect(() => clearSessionCatalog, []);
+
+  useEffect(() => {
+    publishSessionActivity({ liveStatuses, runningSessionIds, unreadSessionIds });
+  }, [liveStatuses, runningSessionIds, unreadSessionIds]);
+
+  useEffect(() => clearSessionActivity, []);
 
   // Persist unread markers so they survive a browser refresh before the user
   // has actually opened the completed session.

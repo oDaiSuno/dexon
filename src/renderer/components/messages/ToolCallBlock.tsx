@@ -1,26 +1,26 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n";
-import { readSessionToolTarget, isSessionToolName, type SessionToolTargetDetails } from "@shared/session-orchestration";
-import { SessionTargetLink } from "./session-links";
+import { isSessionToolName } from "@shared/session-orchestration";
+import { SessionToolRow } from "./session-tool-row";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
 import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
 import { formatToolDuration, useElapsedSince } from "./tool-elapsed";
 import type { ToolCallContent, ToolResultMessage } from "@/lib/types";
 
-export function ToolCallBlock({
-  block,
-  result,
-  duration,
-  startedAt,
-  onLoadDeferredContent,
-}: {
+interface ToolCallBlockProps {
   block: ToolCallContent;
   result?: ToolResultMessage;
   duration?: number;
   startedAt?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
-}) {
+}
+
+export function ToolCallBlock(props: ToolCallBlockProps) {
+  return isSessionToolName(props.block.toolName) ? <SessionToolRow {...props} /> : <GenericToolRow {...props} />;
+}
+
+function GenericToolRow({ block, result, duration, startedAt, onLoadDeferredContent }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const { t } = useI18n();
   const detailMounted = useDelayedUnmount(expanded);
@@ -39,7 +39,6 @@ export function ToolCallBlock({
   const isRunning = !result;
   const preview = getToolPreview(block);
   const browserTabId = isBrowserToolName(block.toolName) ? browserTabIdFromResult(resultText) : null;
-  const sessionTarget = sessionToolTarget(block, result);
   const diffCounts = resultDiff ? countDiffLines(resultDiff.text) : null;
   const label = toolVerbLabel(block.toolName, t);
   const elapsed = useElapsedSince(isRunning ? startedAt : undefined);
@@ -86,11 +85,6 @@ export function ToolCallBlock({
           </span>
         </button>
       </div>
-      {sessionTarget && (
-        <div style={{ display: "flex", paddingLeft: 22 }}>
-          <SessionTargetLink target={sessionTarget} />
-        </div>
-      )}
       {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
           `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
           the accordion root (this nesting is what broke expansion once). */}
@@ -125,17 +119,6 @@ export function ToolCallBlock({
 
 function isBrowserToolName(value: string): boolean {
   return value.startsWith("browser_");
-}
-
-function sessionToolTarget(
-  block: ToolCallContent,
-  result: ToolResultMessage | undefined,
-): SessionToolTargetDetails | null {
-  if (!isSessionToolName(block.toolName)) return null;
-  const reported = readSessionToolTarget(result?.details);
-  if (reported) return reported;
-  const named = block.input.sessionId;
-  return typeof named === "string" && named.length > 0 ? { targetSessionId: named } : null;
 }
 
 function browserTabIdFromResult(value: string | null): string | null {

@@ -1,0 +1,15 @@
+[
+  "sessionToolNew",
+  "sessionToolPrompt",
+  "sessionToolWait",
+  "sessionToolList",
+  "sessionToolRead",
+  "sessionToolStop",
+  "sessionToolClose",
+  "sessionOutcomeDone",
+  "sessionOutcomeBusy",
+  "sessionOutcomeStopped",
+  "sessionOutcomeClosed",
+  "sessionOutcomeTimeout",
+  "sessionBriefLabel"
+]

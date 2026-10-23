@@ -255,6 +255,214 @@
   background: var(--fx-surface-hover-overlay);
 }
 
+.chat-session-tool {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: calc(100% + 6px);
+  height: 28px;
+  margin: 0 -6px;
+  padding: 0 var(--space-2) 0 6px;
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-hover-clear);
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.chat-session-tool:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
+.chat-session-tool-toggle {
+  -webkit-appearance: none;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: var(--space-2);
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chat-session-tool-toggle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.chat-session-tool-verb {
+  color: var(--fx-text-secondary);
+  white-space: nowrap;
+}
+
+.chat-session-tool.is-running .chat-session-tool-verb {
+  color: var(--fx-text-primary);
+}
+
+.chat-session-tool.is-failed .chat-session-tool-verb {
+  color: var(--fx-status-danger);
+}
+
+.chat-session-card {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 5px;
+  min-width: 0;
+  max-width: 280px;
+  height: 22px;
+  padding: 0 7px 0 5px;
+  border: 1px solid var(--fx-line-translucent);
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-subtle);
+  color: var(--fx-text-secondary);
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.chat-session-card.is-link {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.chat-session-card.is-link:hover {
+  background: var(--fx-surface-hover-overlay-strong);
+}
+
+.chat-session-card-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fx-text-primary);
+}
+
+.chat-session-tool-detail {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fx-text-tertiary);
+  pointer-events: none;
+}
+
+.chat-session-tool.is-failed .chat-session-tool-detail {
+  color: var(--fx-status-danger-text);
+}
+
+.chat-session-tool-outcome {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 7px;
+  height: 20px;
+  pointer-events: none;
+}
+
+.chat-session-tool-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-skeleton);
+  background: var(--fx-text-tertiary);
+}
+
+.chat-session-tool[data-tone="success"] .chat-session-tool-dot {
+  background: var(--fx-status-success);
+  box-shadow: var(--shadow-badge-success);
+}
+
+.chat-session-tool[data-tone="running"] .chat-session-tool-dot,
+.chat-session-tool[data-tone="busy"] .chat-session-tool-dot {
+  background: var(--fx-accent-blue);
+  box-shadow: var(--shadow-badge-running);
+}
+
+.chat-session-tool[data-tone="running"] .chat-session-tool-dot {
+  animation: chat-tool-meta-breathe 900ms var(--ease-in-out) infinite alternate;
+}
+
+.chat-session-tool[data-tone="warning"] .chat-session-tool-dot {
+  background: var(--fx-status-warning);
+  box-shadow: var(--shadow-badge-warning);
+}
+
+.chat-session-tool[data-tone="danger"] .chat-session-tool-dot {
+  background: var(--fx-status-danger);
+  box-shadow: var(--shadow-badge-danger);
+}
+
+.chat-session-tool-outcome-text {
+  white-space: nowrap;
+  color: var(--fx-text-secondary);
+}
+
+.chat-session-tool-meta {
+  flex-shrink: 0;
+  color: var(--fx-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.chat-session-tool.is-running .chat-session-tool-outcome-text,
+.chat-session-tool.is-running .chat-session-tool-meta {
+  color: var(--fx-accent-blue-text);
+}
+
+.chat-session-brief {
+  padding: 2px 0 var(--space-2) 24px;
+  animation: chat-fade-in var(--duration-medium) var(--ease-out) both;
+}
+
+.chat-session-brief-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-3-5);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-card);
+  background: var(--fx-surface-inset);
+  overflow: hidden;
+}
+
+.chat-session-brief-label {
+  color: var(--fx-text-tertiary);
+}
+
+.chat-session-brief-body,
+.chat-session-brief-error {
+  margin: 0;
+  color: var(--fx-text-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+
+.chat-session-brief-error {
+  color: var(--fx-status-danger-text);
+}
+
+.chat-session-brief-raw {
+  margin: 0;
+  color: var(--fx-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .chat-diff-card {
   border-radius: var(--radius-card);
   background: var(--fx-surface-raised);
@@ -279,6 +487,10 @@
   .chat-acc-chevron,
   .chat-tool-spinner,
   .chat-tool-meta-running,
+  .chat-session-tool,
+  .chat-session-tool-dot,
+  .chat-session-card,
+  .chat-session-brief,
   .chat-quiet-head {
     transition: none !important;
     animation: none !important;

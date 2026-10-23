@@ -1,6 +1,8 @@
-import { useSyncExternalStore } from "react";
+import { useCallback, useSyncExternalStore } from "react";
+import type { SessionActivityStatus } from "@shared/session-orchestration";
 import type { SessionInfo } from "./types";
 import { getSessionDisplayTitle } from "./session-list";
+import { ownActivity, type SessionActivitySignals } from "./session-tree-status";
 
 let snapshot: SessionInfo[] = [];
 const listeners = new Set<() => void>();
@@ -43,4 +45,34 @@ export function resolveSessionTitle(
   if (title) return title;
   const session = catalog.find((item) => item.id === sessionId);
   return session ? getSessionDisplayTitle(session) : sessionId;
+}
+
+let activity: SessionActivitySignals | null = null;
+const activityListeners = new Set<() => void>();
+
+function notifyActivity(): void {
+  for (const listener of activityListeners) listener();
+}
+
+export function publishSessionActivity(signals: SessionActivitySignals): void {
+  activity = signals;
+  notifyActivity();
+}
+
+export function clearSessionActivity(): void {
+  if (!activity) return;
+  activity = null;
+  notifyActivity();
+}
+
+function subscribeSessionActivity(listener: () => void): () => void {
+  activityListeners.add(listener);
+  return () => {
+    activityListeners.delete(listener);
+  };
+}
+
+export function useSessionActivity(sessionId: string | null): SessionActivityStatus | null {
+  const read = useCallback(() => (activity && sessionId ? ownActivity(sessionId, activity) : null), [sessionId]);
+  return useSyncExternalStore(subscribeSessionActivity, read, read);
 }
