@@ -34,7 +34,7 @@ export function SessionToolRow({
   const isRunning = !result;
   const isError = result?.isError ?? false;
   const resultText = result ? textOf(result) : null;
-  const target = sessionCardTarget(block, result, isError);
+  const target = sessionCardTarget(block, result);
   const activity = useSessionActivity(target?.sessionId ?? null);
   const outcome = resolveSessionOutcome({
     toolName: block.toolName,
@@ -131,15 +131,11 @@ function firstLine(text: string): string {
   return end < 0 ? text : text.slice(0, end);
 }
 
-function sessionCardTarget(
-  block: ToolCallContent,
-  result: ToolResultMessage | undefined,
-  isError: boolean,
-): SessionCardTarget | null {
+function sessionCardTarget(block: ToolCallContent, result: ToolResultMessage | undefined): SessionCardTarget | null {
   const reported = readSessionToolTarget(result?.details);
   if (reported) return { sessionId: reported.targetSessionId, title: reported.targetTitle };
   const sessionId = stringInput(block, "sessionId");
   if (sessionId) return { sessionId };
-  const title = block.toolName === "session_new" && !isError ? stringInput(block, "name") : "";
+  const title = block.toolName === "session_new" ? stringInput(block, "name") : "";
   return title ? { title } : null;
 }
