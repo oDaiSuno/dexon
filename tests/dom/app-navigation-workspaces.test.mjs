@@ -10,6 +10,7 @@ import {
   input,
   waitFor,
   pathChoice,
+  menuAction,
   historyRows,
   noHistoryRows,
   restoreGlobals,
@@ -130,7 +131,7 @@ test("creating a worktree from the composer footer moves to the new checkout and
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
   await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => control(scene.container, "menuitem", "New worktree…")));
+  await click(await waitFor(() => menuAction(scene.container, "New worktree…")));
   const branch = await waitFor(() => {
     const fields = roles(scene.container, "textbox").filter((element) => element.placeholder === "branch name");
     assert.equal(fields.length, 1, "Expected one visible branch name field");
@@ -175,7 +176,9 @@ async function openRemoveControl(scene, path) {
 }
 
 function worktreeChoices(scene, path) {
-  return roles(scene.container, "menuitemradio").filter((element) => element.title === path);
+  return [...roles(scene.container, "button"), ...roles(scene.container, "menuitemradio")].filter(
+    (element) => element.title === path,
+  );
 }
 
 test("removing a worktree with uncommitted changes asks first and keeps it when the user cancels", async (t) => {

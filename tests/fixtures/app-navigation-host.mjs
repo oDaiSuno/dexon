@@ -56,7 +56,7 @@ export function navigationBoundary({
   const menus = new Map();
   const browserListeners = new Set();
   const deepLinkListeners = new Set();
-  const failures = { skillSave: null };
+  const failures = { skillSave: null, openDirectory: null };
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
   const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0 };
@@ -305,6 +305,7 @@ export function navigationBoundary({
     },
     getManagedProcessCapability: async () => ({ ready: false }),
     openDirectory: async (directory) => {
+      if (failures.openDirectory) throw new Error(failures.openDirectory);
       desktop.openedDirectory = directory;
     },
     selectDirectory: async () => {

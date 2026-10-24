@@ -15,9 +15,10 @@ import {
 import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 
 after(restoreGlobals);
-const { resetRpc, WorktreeSwitcher, useProjectWorkspace } = await loadRenderer(
+const { resetRpc, WorkspaceTrigger, useComposerWorkspace, useProjectWorkspace } = await loadRenderer(
   "session-sidebar-pickers",
-  'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
+  'export { WorkspaceTrigger } from "./src/renderer/components/chat-input/workspace-trigger.tsx";\n' +
+    'export { useComposerWorkspace } from "./src/renderer/components/app-shell/composer-workspace.ts";\n' +
     'export { useProjectWorkspace } from "./src/renderer/components/session-sidebar/project-workspace.ts";',
 );
 
@@ -37,31 +38,35 @@ const GIT_REPO_LIST = {
   ],
 };
 
-function SwitcherScene({ departure }) {
+function SwitcherScene({ departure, cwd }) {
   const workspace = useProjectWorkspace({
     sessions: [],
-    selectedCwdProp: "/repo",
+    selectedCwdProp: cwd,
     onCwdChange: () => {},
     refreshKey: 0,
     requestDeparture: departure,
   });
-  return createElement(WorktreeSwitcher, {
-    workspace: {
-      workspace,
-      project: { name: "repo", path: "/repo", displayPath: "/repo" },
-      onSwitchProject: () => {},
-      onOpenInFinder: () => {},
-      onCopyPath: () => {},
-      deferFocus: (focus) => setTimeout(focus, 0),
-    },
+  const composer = useComposerWorkspace({
+    workspace,
+    project: { name: "repo", path: "/repo", displayPath: "/repo" },
+    onSwitchProject: () => {},
+    onOpenInFinder: async () => {},
+    onCopyPath: async () => {},
   });
+  return composer ? createElement(WorkspaceTrigger, { workspace: composer, isMobile: false }) : null;
 }
 
-async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl, departure } = {}) {
-  const calls = { removed: [], created: [] };
+async function renderSwitcher(
+  t,
+  { removeWorktreeImpl, createWorktreeImpl, departure, cwd = "/repo", list = GIT_REPO_LIST } = {},
+) {
+  const calls = { listed: 0, removed: [], created: [] };
   const replies = {
     async call(method, params) {
-      if (method === "worktrees.list") return GIT_REPO_LIST;
+      if (method === "worktrees.list") {
+        calls.listed++;
+        return list;
+      }
       if (method === "worktrees.create") {
         calls.created.push(params.branch);
         return createWorktreeImpl?.(params.branch) ?? { worktree: { path: "/repo/wt2", branch: params.branch } };
@@ -77,9 +82,11 @@ async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl, depar
   const view = await mount(
     t,
     SwitcherScene,
-    { departure: departure ?? ((action) => action()) },
+    { departure: departure ?? ((action) => action()), cwd },
     { release: () => host.close() },
   );
+  await waitFor(() => assert.ok(calls.listed > 0));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   return { ...view, calls };
 }
 
@@ -176,4 +183,40 @@ test("escape closes the new-worktree entry without submitting", async (t) => {
   await keyDown(branch, "Escape");
   assert.deepEqual(view.calls.created, []);
   assert.equal(view.container.querySelector("input"), null);
+});
+
+const SUBDIRECTORY_LIST = {
+  projectRoot: "/repo/src",
+  isGit: true,
+  isTopLevel: false,
+  worktrees: GIT_REPO_LIST.worktrees,
+};
+const PLAIN_LIST = { projectRoot: "/plain", isGit: false, isTopLevel: true, worktrees: [] };
+
+test("in a Git checkout the footer trigger shows the current branch next to the project", async (t) => {
+  const view = await renderSwitcher(t);
+  await waitFor(() => assert.match(worktreeTrigger(view).textContent, /main/));
+});
+
+test("in a repository subdirectory the footer trigger shows only the project, never the main branch", async (t) => {
+  const view = await renderSwitcher(t, { cwd: "/repo/src", list: SUBDIRECTORY_LIST });
+  assert.equal(worktreeTrigger(view), undefined, "a subdirectory offers no checkout switch");
+  assert.doesNotMatch(view.container.textContent, /main|feat/);
+});
+
+test("in a folder outside Git the footer trigger shows only the project", async (t) => {
+  const view = await renderSwitcher(t, { cwd: "/plain", list: PLAIN_LIST });
+  assert.equal(worktreeTrigger(view), undefined);
+  assert.doesNotMatch(view.container.textContent, /main|feat/);
+});
+
+test("removing another worktree is sent at once, even while a departure is still undecided", async (t) => {
+  const view = await renderSwitcher(t, { departure: () => {} });
+  await openWorktreeDropdown(view);
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) =>
+      control.title.includes("Remove worktree checkout"),
+    ),
+  );
+  assert.deepEqual(view.calls.removed, [["/repo/wt", false]]);
 });

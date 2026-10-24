@@ -11,7 +11,7 @@ import {
 } from "./session-directory.harness.mjs";
 const UNREAD_STORAGE_KEY = "dexon:unread-session-ids";
 
-test("loads sessions, the fetched running fallback, and the home directory on mount", async () => {
+test("loads sessions and the fetched running fallback on mount", async () => {
   await withEnvironment({ responses: respondWithSessions([session("a"), session("b")], ["a"]) }, async (env) => {
     const { state, Probe } = createProbe();
     const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
@@ -21,7 +21,6 @@ test("loads sessions, the fetched running fallback, and the home directory on mo
       ["a", "b"],
     );
     assert.deepEqual([...state.value.runningSessionIds], ["a"]);
-    assert.equal(state.value.homeDir, "/Users/tester");
     assert.equal(state.value.error, null);
     await mounted.unmount();
   });
@@ -251,29 +250,6 @@ test("shows refresh feedback until the sidebar timer clears it", async () => {
     });
     assert.equal(state.value.sessionRefreshDone, false);
     await mounted.unmount();
-  });
-});
-
-test("runs deferred focus callbacks through the sidebar-owned timer and cleans up", async () => {
-  const scheduler = createManualScheduler();
-  await withEnvironment({ responses: respondWithSessions([session("a")]), scheduler }, async (env) => {
-    const { state, Probe } = createProbe();
-    const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
-    const focusCalls = [];
-    await act(async () => {
-      state.value.deferFocus(() => focusCalls.push("first"));
-    });
-    assert.deepEqual(focusCalls, []);
-    await act(async () => {
-      while (focusCalls.length === 0 && scheduler.pendingCount() > 0) await scheduler.runNext();
-    });
-    assert.deepEqual(focusCalls, ["first"]);
-    await act(async () => {
-      state.value.deferFocus(() => focusCalls.push("pending"));
-    });
-    await mounted.unmount();
-    assert.equal(scheduler.pendingCount(), 0);
-    assert.deepEqual(focusCalls, ["first"]);
   });
 });
 

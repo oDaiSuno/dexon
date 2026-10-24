@@ -131,8 +131,8 @@ GROUPS.push({
 });
 
 // 所有权禁令（阻断）：结构性规则，禁止在指定文件中重现特定形态。
-// 本组来自原 session-sidebar-timer-contract.test.mjs 的 tripwire：侧栏子组件的
-// 焦点延迟必须经属主 deferFocus（卸载时可整体取消），不得自建 setTimeout 焦点。
+// 本组来自原 session-sidebar-timer-contract.test.mjs 的 tripwire：输入框底栏的
+// 工作区菜单用 autoFocus 或同步 focus，不得自建 setTimeout 焦点。
 const PATTERN_BANS = [
   {
     name: "导航展示边界",
@@ -149,10 +149,13 @@ const PATTERN_BANS = [
     message: "会话导航由外层统一处理，不得恢复旧的重复路由订阅",
   },
   {
-    name: "焦点延迟属主（侧栏）",
-    files: ["src/renderer/components/session-sidebar/worktree-switcher.tsx"],
+    name: "工作区菜单焦点",
+    files: [
+      "src/renderer/components/chat-input/workspace-trigger.tsx",
+      "src/renderer/components/chat-input/workspace-menu.tsx",
+    ],
     forbidden: /setTimeout\([^;]*\.focus\(/,
-    message: "焦点请求必须经侧栏属主的 deferFocus，不得自建 setTimeout 焦点",
+    message: "工作区菜单的焦点用 autoFocus 或同步 focus，不得自建 setTimeout 焦点",
   },
 ];
 

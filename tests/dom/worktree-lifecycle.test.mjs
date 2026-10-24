@@ -5,10 +5,11 @@ import { act, click, createElement, dom, loadRenderer, mount, restoreGlobals } f
 import { installApiHostBridge } from "../support/api-host.mjs";
 
 after(restoreGlobals);
-const { resetRpc, useProjectWorkspace, WorktreeSwitcher } = await loadRenderer(
+const { resetRpc, useProjectWorkspace, useComposerWorkspace, WorkspaceTrigger } = await loadRenderer(
   "worktree-lifecycle-dom",
   'export {useProjectWorkspace} from "./src/renderer/components/session-sidebar/project-workspace.ts";\n' +
-    'export {WorktreeSwitcher} from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";',
+    'export {useComposerWorkspace} from "./src/renderer/components/app-shell/composer-workspace.ts";\n' +
+    'export {WorkspaceTrigger} from "./src/renderer/components/chat-input/workspace-trigger.tsx";',
   { define: { setTimeout: "window.setTimeout", clearTimeout: "window.clearTimeout" } },
 );
 
@@ -24,16 +25,14 @@ const git = {
 
 function WorkspaceScene({ cwd }) {
   const workspace = useProjectWorkspace({ sessions: [], selectedCwdProp: cwd, onCwdChange: () => {}, refreshKey: 0 });
-  return createElement(WorktreeSwitcher, {
-    workspace: {
-      workspace,
-      project: { name: "repo", path: "/repo", displayPath: "/repo" },
-      onSwitchProject: () => {},
-      onOpenInFinder: () => {},
-      onCopyPath: () => {},
-      deferFocus: (focus) => dom.window.setTimeout(focus, 0),
-    },
+  const composer = useComposerWorkspace({
+    workspace,
+    project: { name: "repo", path: "/repo", displayPath: "/repo" },
+    onSwitchProject: () => {},
+    onOpenInFinder: async () => {},
+    onCopyPath: async () => {},
   });
+  return composer ? createElement(WorkspaceTrigger, { workspace: composer, isMobile: false }) : null;
 }
 
 async function workspace(t, props, remove = async () => ({})) {

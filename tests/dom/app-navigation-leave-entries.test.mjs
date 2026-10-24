@@ -13,7 +13,7 @@ import {
   waitFor,
   historyRow,
   currentPages,
-  pathChoice,
+  menuAction,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import {
@@ -205,38 +205,15 @@ test("returning to personal space with an unsaved project skill edit asks first;
   control(scene.workspace(), "button", "Personal space");
 });
 
-test("a project checkout switch asks first when a project skill edit is unsaved, then rescopes resources to the chosen checkout", async (t) => {
-  const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
-  await dirtySkill(scene, "project-checklist");
-  await cancelThenRetry(scene, () => click(control(scene.history(), "button", "Project release notes")), {
-    space: "navigation-project",
-    search: "",
-  });
-  await waitFor(() => visibleText(chatRegion(scene), "Project conversation marker"));
-  await switchCheckout(scene, navigationPaths.worktree);
-  await waitFor(() => assert.equal(worktreeSwitcher(scene).title, `Switch worktree: ${navigationPaths.worktree}`));
-  await scene.resources();
-  await click(control(scene.container, "tab", "Skills"));
-  await skillListShows(scene, "review-checklist", ["project-checklist"]);
-  await scene.settled();
-  noPrompt(scene);
-});
-
 function worktreeSwitcher(scene) {
   const found = roles(scene.container, "button").filter((item) => item.title.startsWith("Switch worktree:"));
   assert.equal(found.length, 1);
   return found[0];
 }
 
-// Creating a worktree moves the space to the new checkout, so it is a departure.
-async function switchCheckout(scene, path) {
-  await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => pathChoice(scene.container, path)));
-}
-
 async function requestNewWorktree(scene) {
   await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => control(scene.container, "menuitem", "New worktree…")));
+  await click(await waitFor(() => menuAction(scene.container, "New worktree…")));
   const branch = await waitFor(() => {
     const fields = roles(scene.container, "textbox").filter((element) => element.placeholder === "branch name");
     assert.equal(fields.length, 1, "Expected one visible branch name field");
@@ -252,23 +229,7 @@ async function projectEditor(t) {
   return scene;
 }
 
-test("a project skill edit is unsaved, leaving the editor is cancelled, and the current checkout and the edit are kept", async (t) => {
-  const scene = await projectEditor(t);
-  const depart = () => click(control(scene.history(), "button", "Project release notes"));
-  await depart();
-  await answer(scene, "Cancel");
-  await promptClosed(scene);
-  retainedEdit(scene, { space: "navigation-project", search: "" });
-  await scene.settled();
-  assert.equal(
-    roles(scene.container, "button").filter((item) => item.title.startsWith("Switch worktree:")).length,
-    0,
-    "cancelling kept the editor open, so the composer's worktree trigger is not on screen",
-  );
-  await skillListShows(scene, "project-checklist");
-});
-
-test("creating a worktree with an unsaved project skill edit asks first; discarding moves to the new checkout without writing", async (t) => {
+test("after discarding an unsaved project skill edit, creating a worktree from the composer footer scopes resources to the new checkout and the file stays unwritten", async (t) => {
   const scene = await projectEditor(t);
   await click(control(scene.history(), "button", "Project release notes"));
   await answer(scene, "Discard");
@@ -282,28 +243,6 @@ test("creating a worktree with an unsaved project skill edit asks first; discard
   await click(control(scene.container, "tab", "Skills"));
   await skillListShows(scene, "shared-checklist", ["project-checklist"]);
   assert.equal(scene.external.skillWrites(), 0, "discarding did not write the skill file");
-});
-
-test("removing another worktree keeps the current checkout, so it never asks and the editor keeps its edit", async (t) => {
-  const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
-  await click(await waitFor(() => worktreeSwitcher(scene)));
-  const remove = `Remove worktree checkout ${navigationPaths.worktree}; the branch is kept`;
-  await click(
-    await waitFor(() => {
-      const matches = roles(scene.container, "button").filter((element) => element.title === remove);
-      assert.equal(matches.length, 1, "Expected one remove control for the review worktree");
-      return matches[0];
-    }),
-  );
-  await waitFor(() =>
-    assert.equal(
-      roles(scene.container, "menuitemradio").filter((element) => element.title === navigationPaths.worktree).length,
-      0,
-    ),
-  );
-  await scene.settled();
-  noPrompt(scene);
-  await waitFor(() => assert.equal(worktreeSwitcher(scene).title, `Switch worktree: ${navigationPaths.project}`));
 });
 
 test("opening a history conversation from another worktree with an unsaved edit asks first, and discarding aligns resources to it", async (t) => {

@@ -114,6 +114,16 @@ export function pathChoice(root, path) {
   return matches[0];
 }
 
+export function menuActions(root, name) {
+  return [...new Set(["button", "menuitem"].flatMap((role) => roles(root, role, name)))];
+}
+
+export function menuAction(root, name) {
+  const matches = menuActions(root, name);
+  assert.equal(matches.length, 1, `Expected one visible menu action named ${name}`);
+  return matches[0];
+}
+
 export function historyRows(scene, ...titles) {
   const history = scene.history();
   for (const title of titles) control(history, "button", title);
