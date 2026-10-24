@@ -1,10 +1,11 @@
 import { useI18n } from "@/i18n";
 import { SettingGroup } from "../../settings/setting-row";
+import { NumberPillsRow, type NumberPillSpec } from "./number-pills";
 import {
   InputRow,
-  NumberRow,
   SelectRow,
   ToggleRow,
+  formatMessage,
   profileModeLabel,
   withSettings,
   type BrowserSettingsModel,
@@ -13,6 +14,13 @@ import {
 export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
   const { t } = useI18n();
   const { state, settings, update, setState } = model;
+  const milliseconds = t("browserMillisecondsUnit", "ms");
+  const invalidMessage = (field: NumberPillSpec) =>
+    formatMessage(t("browserNumberOutOfRange", "{label}: enter a whole number from {min} to {max}."), {
+      label: field.label,
+      min: field.min,
+      max: field.max,
+    });
   return (
     <SettingGroup title={t("browserBasics", "Basics")}>
       <ToggleRow
@@ -41,7 +49,7 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
         onBlur={(homepage) => void update({ navigation: { homepage } })}
       />
       <SelectRow
-        label={t("browserDefaultProfile", "Default Profile for new tabs")}
+        label={t("browserDefaultProfile", "Profile for new tabs")}
         description={t(
           "browserDefaultProfileDescription",
           "Decides where new tabs keep their sign-in state and site data.",
@@ -53,23 +61,24 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
           .filter((profile) => profile.mode !== "unsafe")
           .map((profile) => (
             <option key={profile.id} value={profile.id}>
-              {profile.name} ({profileModeLabel(t, profile.mode)})
+              {profile.name} · {profileModeLabel(t, profile.mode)}
             </option>
           ))}
       </SelectRow>
-      <NumberRow
+      <NumberPillsRow
         label={t("browserTabLimits", "Tab limits")}
         description={t("browserTabLimitsDescription", "How many tabs can be open in total and per Agent session.")}
+        invalidMessage={invalidMessage}
         fields={[
           {
-            label: t("browserMaximumTabs", "Maximum tabs"),
+            label: t("browserMaximumTabs", "Global"),
             value: settings.navigation.maxTabs,
             min: 1,
             max: 50,
             onCommit: (maxTabs) => void update({ navigation: { maxTabs } }),
           },
           {
-            label: t("browserTabsPerAgent", "Tabs per Agent session"),
+            label: t("browserTabsPerAgent", "Per session"),
             value: settings.navigation.maxTabsPerSession,
             min: 1,
             max: 20,
@@ -77,22 +86,25 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
           },
         ]}
       />
-      <NumberRow
+      <NumberPillsRow
         label={t("browserTimeouts", "Timeouts")}
         description={t("browserTimeoutsDescription", "The longest wait for page navigation and for a single action.")}
+        invalidMessage={invalidMessage}
         fields={[
           {
-            label: t("browserNavigationTimeout", "Navigation timeout (ms)"),
+            label: t("browserNavigationTimeout", "Navigation"),
             value: settings.navigation.navigationTimeoutMs,
             min: 1000,
             max: 300000,
+            unit: milliseconds,
             onCommit: (navigationTimeoutMs) => void update({ navigation: { navigationTimeoutMs } }),
           },
           {
-            label: t("browserActionTimeout", "Action timeout (ms)"),
+            label: t("browserActionTimeout", "Action"),
             value: settings.navigation.actionTimeoutMs,
             min: 250,
             max: 120000,
+            unit: milliseconds,
             onCommit: (actionTimeoutMs) => void update({ navigation: { actionTimeoutMs } }),
           },
         ]}

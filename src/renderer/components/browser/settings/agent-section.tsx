@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n";
 import type { BrowserPersistentSessionPermission } from "../../../../contract/browser";
 import { Button, NativeSelect } from "../../form-controls";
 import { SettingGroup, SettingRow } from "../../settings/setting-row";
+import { DefaultPermissionRow } from "./default-permission-row";
 import { NoticeRow, SelectRow, ToggleRow, ValueRow, permissionLabel, type BrowserSettingsModel } from "./shared";
 
 export function AgentSection({ model, sessionId }: { model: BrowserSettingsModel; sessionId: string | null }) {
@@ -24,24 +25,12 @@ export function AgentSection({ model, sessionId }: { model: BrowserSettingsModel
           })
         }
       />
-      <SelectRow
-        label={t("browserDefaultPermanentPermission", "Default permanent permission")}
-        description={t(
-          "browserDefaultPermanentPermissionDescription",
-          "What happens the first time a new session uses the Browser. Temporary grants only last while the session is running.",
-        )}
+      <DefaultPermissionRow
         value={settings.automation.defaultPermission}
-        onChange={(value) =>
-          void update({ automation: { defaultPermission: value as "ask" | "deny" | "read" | "interact" } })
-        }
-      >
-        <option value="ask">{t("browserPermissionAsk", "Ask for each session")}</option>
-        <option value="deny">{t("browserPermissionDeny", "Always deny")}</option>
-        <option value="read">{t("browserPermissionReadOnly", "Read only")}</option>
-        <option value="interact">{t("browserPermissionAllowInteractions", "Allow interactions")}</option>
-      </SelectRow>
+        onChange={(defaultPermission) => void update({ automation: { defaultPermission } })}
+      />
       <SelectRow
-        label={t("browserUserTakeover", "When the user acts while the Agent is working")}
+        label={t("browserUserTakeover", "When you use the page while the Agent is working")}
         description={t(
           "browserUserTakeoverDescription",
           "What happens to the Agent's current action when you click or type yourself.",

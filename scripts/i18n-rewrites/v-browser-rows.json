@@ -1,0 +1,34 @@
+{
+  "browserDefaultProfile": {
+    "enUS": "Default Profile for new tabs",
+    "zhCN": "新标签页的默认 Profile"
+  },
+  "browserMaximumTabs": {
+    "enUS": "Maximum tabs",
+    "zhCN": "标签页数量上限"
+  },
+  "browserTabsPerAgent": {
+    "enUS": "Tabs per Agent session",
+    "zhCN": "每个 Agent 会话的标签页上限"
+  },
+  "browserNavigationTimeout": {
+    "enUS": "Navigation timeout (ms)",
+    "zhCN": "导航超时（毫秒）"
+  },
+  "browserActionTimeout": {
+    "enUS": "Action timeout (ms)",
+    "zhCN": "操作超时（毫秒）"
+  },
+  "browserNetworkStrict": {
+    "enUS": "Strict (unavailable without enforcing network sandbox)",
+    "zhCN": "严格（没有强制网络沙箱时不可用）"
+  },
+  "browserNetworkSummaryBestEffort": {
+    "enUS": "Best effort: URL checks, DNS preflight, redirects, and subresources; DNS TOCTOU cannot be fully eliminated.",
+    "zhCN": "尽力隔离：检查 URL、DNS 预检、重定向和子资源；无法完全消除 DNS TOCTOU。"
+  },
+  "browserUserTakeover": {
+    "enUS": "When the user acts while the Agent is working",
+    "zhCN": "Agent 工作时用户进行操作"
+  }
+}

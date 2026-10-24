@@ -1,0 +1,8 @@
+[
+  "browserMillisecondsUnit",
+  "browserNumberOutOfRange",
+  "browserPermissionAskHint",
+  "browserPermissionReadOnlyHint",
+  "browserPermissionAllowInteractionsHint",
+  "browserPermissionDenyHint"
+]

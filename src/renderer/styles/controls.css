@@ -256,7 +256,67 @@
   background: var(--fx-line-default);
 }
 
+.ui-number-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-control);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-tertiary);
+  cursor: text;
+  transition:
+    border-color var(--duration-quick) var(--ease-smooth-out),
+    box-shadow var(--duration-quick) var(--ease-smooth-out);
+}
+.ui-number-pill:focus-within {
+  border-color: var(--fx-accent-blue);
+  box-shadow: 0 0 0 3px var(--fx-accent-blue-soft);
+}
+.ui-number-pill[data-invalid="true"] {
+  border-color: var(--fx-status-danger);
+}
+.ui-number-pill-value {
+  color: var(--fx-text-primary);
+  white-space: pre;
+}
+.ui-number-pill input {
+  min-width: 1ch;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  field-sizing: content;
+  appearance: textfield;
+}
+.ui-number-pill input:focus-visible {
+  outline: none !important;
+}
+.ui-number-pill input::-webkit-inner-spin-button,
+.ui-number-pill input::-webkit-outer-spin-button {
+  margin: 0;
+  appearance: none;
+}
+
+.ui-choice-card {
+  transition:
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    border-color var(--duration-quick) var(--ease-smooth-out);
+}
+.ui-choice-card[aria-checked="false"]:hover {
+  background: var(--fx-surface-raised-hover);
+}
+.ui-segment-option[aria-checked="false"]:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .ui-number-pill,
+  .ui-choice-card,
   .ui-button,
   .ui-link-button,
   .ui-input,
