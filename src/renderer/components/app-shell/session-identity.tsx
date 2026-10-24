@@ -59,7 +59,7 @@ export function SessionIdentity({
         onMouseEnter={(e) => {
           e.currentTarget.style.color = "var(--fx-accent-blue)";
           e.currentTarget.style.borderColor = "var(--fx-accent-blue)";
-          e.currentTarget.style.background = "var(--bg-hover)";
+          e.currentTarget.style.background = "var(--fx-surface-hover)";
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.color = failed
@@ -122,14 +122,7 @@ export function SessionIdentity({
 
   return (
     <div style={{ minWidth: 0 }}>
-      <div
-        style={{
-          fontSize: "var(--text-label)",
-          fontWeight: 700,
-          color: "var(--fx-text-primary)",
-          marginBottom: 8,
-        }}
-      >
+      <div className="type-label-medium" style={{ color: "var(--fx-text-primary)", marginBottom: 8 }}>
         {t("sessionInfo", "Session info")}
       </div>
       <div

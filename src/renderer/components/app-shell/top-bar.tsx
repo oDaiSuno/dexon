@@ -1,16 +1,74 @@
 import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/i18n";
-import { getSessionDisplayTitle } from "@/lib/session-list";
-import type { ReactNode } from "react";
-import { SessionIdentity } from "./session-identity";
+import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
+import type { CSSProperties, ReactNode } from "react";
+import { PathChevron, ProjectGlyph, SessionBreadcrumb, SessionTitle } from "./session-breadcrumb";
 import { SessionInfoPopover } from "./session-info-popover";
+import { SessionIdentity } from "./session-identity";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SessionCopyFeedback, SessionCopyField, ContextUsageState } from "./use-session-info";
 
-// Split from AppShell.tsx in Phase 2: the top bar's presentation. Owns no
-// long-lived state; toggles, stats and the info popover arrive from the
-// composition root.
+const UTILITY_BUTTON: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 32,
+  height: 32,
+  padding: 0,
+  flexShrink: 0,
+  background: "none",
+  border: "none",
+  borderRadius: "var(--radius-control)",
+  color: "var(--fx-text-secondary)",
+  cursor: "pointer",
+  transition: "color 0.12s, background 0.12s",
+};
+
+function compact(n: number) {
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
+}
+
+function CoinsGlyph() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+    >
+      <circle cx="8" cy="8" r="6" />
+      <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+      <path d="M7 6h1v4" />
+      <path d="m16.71 13.88.7.71-2.82 2.82" />
+    </svg>
+  );
+}
+
+function CaretGlyph() {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
 
 export function TopBar({
   sidebarOpen,
@@ -18,6 +76,9 @@ export function TopBar({
   showSidebarToggle,
   isMobile,
   selectedSession,
+  projectPath,
+  personalSpacePath,
+  homeDir,
   activeTopPanel,
   onToggleTopPanel,
   sessionStats,
@@ -32,6 +93,9 @@ export function TopBar({
   showSidebarToggle: boolean;
   isMobile: boolean;
   selectedSession: SessionInfo | null;
+  projectPath?: string | null;
+  personalSpacePath?: string | null;
+  homeDir?: string | null;
   activeTopPanel: "session" | null;
   onToggleTopPanel: () => void;
   sessionStats: SessionStatsInfo | null;
@@ -44,44 +108,77 @@ export function TopBar({
   const { isDark, toggleTheme } = useTheme();
   const { language, t } = useI18n();
 
+  const projectLabel = projectPath
+    ? isPersonalSpace(projectPath, personalSpacePath ?? null, homeDir ?? "")
+      ? t("personalSpace", "Personal space")
+      : spaceFolderName(projectPath)
+    : null;
+  const themeLabel = isDark ? t("switchToLight", "Switch to light mode") : t("switchToDark", "Switch to dark mode");
+
+  const percent = contextUsage?.percent ?? null;
+  const contextWindow = contextUsage?.contextWindow ?? null;
+  const usedTokens = contextUsage?.tokens ?? null;
+  const cost = sessionStats?.cost ?? 0;
+  const percentTone =
+    percent === null
+      ? "var(--fx-text-secondary)"
+      : percent > 90
+        ? "var(--fx-status-danger)"
+        : percent > 70
+          ? "var(--fx-status-warning)"
+          : "var(--fx-text-secondary)";
+  const meterTone = percentTone === "var(--fx-text-secondary)" ? "var(--fx-text-body)" : percentTone;
+
+  const tooltipParts: string[] = [];
+  if (sessionStats) {
+    tooltipParts.push(`${t("usageInput", "Input")}: ${sessionStats.tokens.input.toLocaleString(language)}`);
+    tooltipParts.push(`${t("usageOutput", "Output")}: ${sessionStats.tokens.output.toLocaleString(language)}`);
+    tooltipParts.push(`${t("cacheRead", "Cache read")}: ${sessionStats.tokens.cacheRead.toLocaleString(language)}`);
+    tooltipParts.push(`${t("cacheWrite", "Cache write")}: ${sessionStats.tokens.cacheWrite.toLocaleString(language)}`);
+    if (cost > 0) tooltipParts.push(`${t("usageCost", "Cost")}: $${cost.toFixed(4)}`);
+  }
+  if (contextWindow) {
+    tooltipParts.push(
+      `${t("usageContext", "Context")}: ${percent !== null ? `${percent.toFixed(1)}%` : t("unknown", "unknown")} / ${contextWindow.toLocaleString(language)} ${t("tokens", "tokens")}`,
+    );
+    if (percent === null)
+      tooltipParts.push(
+        t(
+          "contextUsagePendingHint",
+          "Context usage updates after the next model response (e.g. right after compaction)",
+        ),
+      );
+  }
+
   return (
     <div
       style={{
         display: "flex",
         alignItems: "center",
         flexShrink: 0,
-        borderBottom: "1px solid var(--fx-line-default)",
-        height: 44,
-        background: "var(--fx-surface-raised)",
+        gap: 10,
+        height: 56,
+        padding: showSidebarToggle ? "0 16px 0 0" : "0 16px 0 24px",
+        borderBottom: "1px solid var(--fx-line-subtle)",
+        background: "var(--fx-surface-main)",
         position: "relative",
         zIndex: 2,
       }}
     >
       {showSidebarToggle && (
         <button
+          type="button"
           onClick={onToggleSidebar}
           title={sidebarOpen ? t("hideSidebar", "Hide sidebar") : t("showSidebar", "Show sidebar")}
           aria-label={sidebarOpen ? t("hideSidebar", "Hide sidebar") : t("showSidebar", "Show sidebar")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 36,
-            height: 36,
-            padding: 0,
-            background: "none",
-            border: "none",
-            borderRight: "1px solid var(--fx-line-default)",
-            color: "var(--fx-text-secondary)",
-            cursor: "pointer",
-            flexShrink: 0,
-            transition: "color 0.12s",
+          style={{ ...UTILITY_BUTTON, width: 36, height: 36, borderRadius: 0 }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.color = "var(--fx-text-primary)";
+            event.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.color = "var(--fx-text-primary)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--fx-text-secondary)";
+          onMouseLeave={(event) => {
+            event.currentTarget.style.color = "var(--fx-text-secondary)";
+            event.currentTarget.style.background = "none";
           }}
         >
           {sidebarOpen ? (
@@ -115,44 +212,150 @@ export function TopBar({
           )}
         </button>
       )}
+
+      {showChat && projectLabel && (
+        <>
+          {!isMobile && (
+            <>
+              <ProjectGlyph />
+              <span
+                className="type-body-large"
+                style={{
+                  minWidth: 0,
+                  maxWidth: 240,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  color: "var(--fx-text-secondary)",
+                }}
+              >
+                {projectLabel}
+              </span>
+              <PathChevron />
+            </>
+          )}
+          {selectedSession ? (
+            <SessionBreadcrumb session={selectedSession} compact={isMobile} />
+          ) : (
+            <SessionTitle>{t("newSessionTitle", "New session")}</SessionTitle>
+          )}
+        </>
+      )}
+
+      <span style={{ flex: "1 1 auto" }} />
+
+      {showChat && (
+        <button
+          type="button"
+          onClick={onToggleTopPanel}
+          title={tooltipParts.join("  |  ") || t("contextAndCost", "View context and cost")}
+          aria-label={t("contextAndCost", "View context and cost")}
+          aria-expanded={activeTopPanel === "session"}
+          className="type-mono-label"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            height: 30,
+            flexShrink: 0,
+            boxSizing: "border-box",
+            padding: "0 8px 0 10px",
+            border: "none",
+            borderRadius: "var(--radius-control)",
+            background: activeTopPanel === "session" ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)",
+            color: "var(--fx-text-secondary)",
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(event) => {
+            event.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
+          }}
+          onMouseLeave={(event) => {
+            event.currentTarget.style.background =
+              activeTopPanel === "session" ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)";
+          }}
+        >
+          <CoinsGlyph />
+          {sessionStats && <span style={{ color: "var(--fx-text-secondary)" }}>{`$${cost.toFixed(2)}`}</span>}
+          {percent !== null && (
+            <>
+              <span
+                aria-hidden="true"
+                style={{ width: 1, height: 12, flexShrink: 0, background: "var(--fx-surface-selected)" }}
+              />
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "flex",
+                  width: 28,
+                  height: 4,
+                  flexShrink: 0,
+                  overflow: "hidden",
+                  borderRadius: "var(--radius-bar)",
+                  background: "var(--fx-surface-track)",
+                }}
+              >
+                <span
+                  style={{
+                    width: `${Math.max(0, Math.min(100, percent))}%`,
+                    height: "100%",
+                    borderRadius: "var(--radius-bar)",
+                    background: meterTone,
+                  }}
+                />
+              </span>
+              <span style={{ color: percentTone }}>{`${percent.toFixed(0)}%`}</span>
+            </>
+          )}
+          {contextWindow !== null && !isMobile && (
+            <span style={{ color: "var(--fx-text-tertiary)" }}>
+              {usedTokens !== null ? `${compact(usedTokens)}/${compact(contextWindow)}` : `?/${compact(contextWindow)}`}
+            </span>
+          )}
+          <CaretGlyph />
+        </button>
+      )}
+
+      {trailing && (
+        <>
+          {showChat && (
+            <span
+              aria-hidden="true"
+              style={{ width: 1, height: 16, flexShrink: 0, background: "var(--fx-surface-selected)" }}
+            />
+          )}
+          {trailing}
+        </>
+      )}
+
       <button
-        onClick={(e) => {
-          const rect = e.currentTarget.getBoundingClientRect();
+        type="button"
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
           toggleTheme({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
         }}
-        title={isDark ? t("switchToLight", "Switch to light mode") : t("switchToDark", "Switch to dark mode")}
-        aria-label={isDark ? t("switchToLight", "Switch to light mode") : t("switchToDark", "Switch to dark mode")}
+        title={themeLabel}
+        aria-label={themeLabel}
         aria-pressed={isDark}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 36,
-          height: 36,
-          padding: 0,
-          background: "none",
-          border: "none",
-          borderRight: "1px solid var(--fx-line-default)",
-          color: "var(--fx-text-secondary)",
-          cursor: "pointer",
-          flexShrink: 0,
-          transition: "color 0.12s",
+        style={UTILITY_BUTTON}
+        onMouseEnter={(event) => {
+          event.currentTarget.style.color = "var(--fx-text-primary)";
+          event.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
         }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = "var(--fx-text-primary)";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = "var(--fx-text-secondary)";
+        onMouseLeave={(event) => {
+          event.currentTarget.style.color = "var(--fx-text-secondary)";
+          event.currentTarget.style.background = "none";
         }}
       >
         {isDark ? (
           <svg
-            width="16"
-            height="16"
+            width="17"
+            height="17"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.75"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
@@ -168,12 +371,12 @@ export function TopBar({
           </svg>
         ) : (
           <svg
-            width="16"
-            height="16"
+            width="17"
+            height="17"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="1.75"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
@@ -181,164 +384,7 @@ export function TopBar({
           </svg>
         )}
       </button>
-      {selectedSession && !isMobile && (
-        <div
-          role="heading"
-          aria-level={1}
-          title={getSessionDisplayTitle(selectedSession, 240)}
-          style={{
-            flex: "1 1 auto",
-            minWidth: 0,
-            padding: "0 12px",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "var(--fx-text-primary)",
-            fontSize: "var(--text-body)",
-            fontWeight: 650,
-          }}
-        >
-          {getSessionDisplayTitle(selectedSession)}
-        </div>
-      )}
-      {/* Session stats — right-aligned in top bar */}
-      {showChat &&
-        (() => {
-          const tokenStats = sessionStats?.tokens;
-          const c = sessionStats?.cost ?? 0;
-          const fmt = (n: number) =>
-            n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
-          let ctxColor = "var(--fx-text-secondary)";
-          let ctxStr: string | null = null;
-          if (contextUsage?.contextWindow) {
-            const pct = contextUsage.percent;
-            if (pct !== null && pct > 90) ctxColor = "var(--fx-status-danger)";
-            else if (pct !== null && pct > 70) ctxColor = "var(--fx-status-warning)";
-            ctxStr =
-              pct !== null
-                ? `${pct.toFixed(0)}% / ${fmt(contextUsage.contextWindow)}`
-                : `? / ${fmt(contextUsage.contextWindow)}`;
-          }
 
-          const tooltipParts: string[] = [];
-          if (tokenStats) {
-            tooltipParts.push(`${t("usageInput", "Input")}: ${tokenStats.input.toLocaleString(language)}`);
-            tooltipParts.push(`${t("usageOutput", "Output")}: ${tokenStats.output.toLocaleString(language)}`);
-            tooltipParts.push(`${t("cacheRead", "Cache read")}: ${tokenStats.cacheRead.toLocaleString(language)}`);
-            tooltipParts.push(`${t("cacheWrite", "Cache write")}: ${tokenStats.cacheWrite.toLocaleString(language)}`);
-            if (c > 0) tooltipParts.push(`${t("usageCost", "Cost")}: $${c.toFixed(4)}`);
-          }
-          if (contextUsage?.contextWindow) {
-            const pct = contextUsage.percent;
-            tooltipParts.push(
-              `${t("usageContext", "Context")}: ${pct !== null ? pct.toFixed(1) + "%" : t("unknown", "unknown")} / ${contextUsage.contextWindow.toLocaleString(language)} ${t("tokens", "tokens")}`,
-            );
-            if (pct === null)
-              tooltipParts.push(
-                t(
-                  "contextUsagePendingHint",
-                  "Context usage updates after the next model response (e.g. right after compaction)",
-                ),
-              );
-          }
-          const tooltip = tooltipParts.join("  |  ");
-
-          return (
-            <button
-              type="button"
-              onClick={onToggleTopPanel}
-              title={tooltip || t("sessionInfo", "Session info")}
-              aria-label={t("sessionInfo", "Session info")}
-              aria-pressed={activeTopPanel === "session"}
-              style={{
-                marginLeft: "auto",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                paddingLeft: 12,
-                paddingRight: 12,
-                height: "100%",
-                background: activeTopPanel === "session" ? "var(--bg-selected)" : "none",
-                border: "none",
-                borderTop: activeTopPanel === "session" ? "2px solid var(--fx-accent-blue)" : "2px solid transparent",
-                fontSize: "var(--text-label)",
-                color: "var(--fx-text-secondary)",
-                whiteSpace: "nowrap",
-                cursor: "pointer",
-                fontVariantNumeric: "tabular-nums",
-                transition: "color 0.1s, background 0.1s",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.color = "var(--fx-text-primary)";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.color =
-                  activeTopPanel === "session" ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="12" y1="16" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12.01" y2="8" />
-              </svg>
-              {!isMobile && tokenStats && tokenStats.total > 0 && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                  {fmt(tokenStats.total)} {t("tokens", "tokens")}
-                </span>
-              )}
-              {ctxStr && (
-                <span style={{ display: "flex", alignItems: "center", gap: 4, color: ctxColor }}>
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 10 10"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="M1 9 L1 5 Q1 1 5 1 Q9 1 9 5 L9 9" />
-                    <line x1="1" y1="9" x2="9" y2="9" />
-                  </svg>
-                  {ctxStr}
-                </span>
-              )}
-            </button>
-          );
-        })()}
-      {trailing && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            flexShrink: 0,
-            marginLeft: showChat ? undefined : "auto",
-            paddingRight: 16,
-          }}
-        >
-          {showChat && (
-            <span
-              aria-hidden="true"
-              style={{ width: 1, height: 16, background: "var(--fx-surface-selected)", flexShrink: 0 }}
-            />
-          )}
-          {trailing}
-        </div>
-      )}
-      {/* Top panel dropdown — shared, only one active at a time */}
       {activeTopPanel && (
         <div
           style={{
@@ -346,7 +392,7 @@ export function TopBar({
             top: "100%",
             left: 0,
             right: 0,
-            maxHeight: "calc(100dvh - 44px)",
+            maxHeight: "calc(100dvh - 56px)",
             overflowY: "auto",
             zIndex: 50,
           }}
@@ -357,7 +403,7 @@ export function TopBar({
               style={{
                 background: "var(--fx-surface-raised)",
                 borderBottom: "1px solid var(--fx-line-default)",
-                boxShadow: "0 10px 28px rgba(0,0,0,0.10)",
+                boxShadow: "var(--shadow-popover)",
                 padding: "12px 16px",
               }}
             >
@@ -378,7 +424,7 @@ export function TopBar({
                   onCopyField={onCopyField}
                 />
               ) : (
-                <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-secondary)", fontStyle: "italic" }}>
+                <div className="type-label-default" style={{ color: "var(--fx-text-secondary)", fontStyle: "italic" }}>
                   {t("loadSessionInfoHint", "Send a message or run /session to load session info")}
                 </div>
               )}

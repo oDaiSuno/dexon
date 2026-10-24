@@ -69,7 +69,7 @@ async function mountPanel(t, overrides) {
 
 test("when the session panel is open with whole-session counts, it shows those counts for the session", async (t) => {
   const view = await mountPanel(t, { sessionStats: WHOLE_SESSION_STATS });
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
+  const panel = byRole(view.container, "button", "View context and cost").parentElement.lastElementChild;
   assert.ok(text(panel, "194"), "the total number of messages is the whole session's total");
   assert.ok(text(panel, "96"), "the user message count is the whole session's count");
   assert.ok(text(panel, "98"), "the assistant message count is the whole session's count");
@@ -79,7 +79,7 @@ test("when the session panel is open with whole-session counts, it shows those c
 
 test("when the counts are not available yet, the session panel still names the session it belongs to", async (t) => {
   const view = await mountPanel(t, {});
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
+  const panel = byRole(view.container, "button", "View context and cost").parentElement.lastElementChild;
   assert.ok(panel.textContent.includes("session-one"), "the session ID is on screen");
   assert.ok(panel.textContent.includes("/workspace/notes.jsonl"), "the session file is on screen");
   assert.ok(panel.textContent.includes("Release notes"), "the session name is on screen");
@@ -88,6 +88,6 @@ test("when the counts are not available yet, the session panel still names the s
 
 test("when no session is selected, the session panel explains how to load session information", async (t) => {
   const view = await mountPanel(t, { selectedSession: null });
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
+  const panel = byRole(view.container, "button", "View context and cost").parentElement.lastElementChild;
   assert.ok(panel.textContent.includes(LOAD_HINT), "the hint appears only when there is no session to describe");
 });

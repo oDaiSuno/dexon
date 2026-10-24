@@ -347,7 +347,11 @@ async function run() {
     await page("clearCatalog()");
     await paint();
     const cleared = await page("breadcrumb()");
-    assert.equal(cleared.exists, false, "an empty catalog leaves no stale path");
+    assert.deepEqual(
+      cleared.segments.map((segment) => segment.label),
+      ["补接口测试"],
+      "an empty catalog drops the ancestors and keeps the session on screen",
+    );
     await page(`publishCatalog(["bulb-root", "bulb-mid", "bulb-leaf"])`);
     await paint();
     records.push({
