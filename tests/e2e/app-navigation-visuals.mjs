@@ -10,10 +10,25 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
       "Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))).then(() => undefined)",
     );
   const isDark = () => js('document.documentElement.classList.contains("dark")');
+  const escape = () => {
+    window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Escape" });
+    window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Escape" });
+  };
   const useTheme = async (theme) => {
     if ((await isDark()) === (theme === "dark")) return;
-    await click("button", theme === "dark" ? "Switch to dark mode" : "Switch to light mode");
+    await click("button", "Settings");
+    await waitFor(() => exists("region", "Settings"), "Settings opened for the theme switch");
+    await js(`(() => {
+      const select = [...document.querySelectorAll("select")].find((element) =>
+        (document.querySelector('label[for="' + element.id + '"]')?.textContent ?? "").trim().startsWith("Theme"),
+      );
+      if (!select) throw new Error("Settings shows no Theme control");
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value").set.call(select, ${JSON.stringify(theme)});
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+    })()`);
     await waitFor(async () => (await isDark()) === (theme === "dark"), `the ${theme} theme`);
+    escape();
+    await waitFor(async () => !(await exists("region", "Settings")), "Settings closed after the theme switch");
     await settle();
   };
   const screens = {

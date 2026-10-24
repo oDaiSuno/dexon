@@ -24,7 +24,7 @@ const CRUMB: CSSProperties = {
   padding: 0,
   background: "transparent",
   color: "var(--fx-text-tertiary)",
-  font: "inherit",
+  fontFamily: "inherit",
   cursor: "pointer",
   transition: "color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
 };
