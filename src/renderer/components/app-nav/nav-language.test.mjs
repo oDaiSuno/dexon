@@ -12,9 +12,6 @@ const NEW_NAV_KEYS = [
   "navPluginsSkills",
   "navHistory",
   "personalSpace",
-  "openCurrentFolder",
-  "chooseOtherFolder",
-  "switchSpace",
   "backToPersonalSpace",
   "pluginsTab",
   "skillsTab",
@@ -33,4 +30,11 @@ test("every phase-4 navigation key exists in both dictionaries with distinct tra
 test("the entry that starts a session is named New session in English and 新建会话 in Chinese", () => {
   assert.equal(historyCopy.enUS.newSession, "New session");
   assert.equal(historyCopy.zhCN.newSession, "新建会话");
+});
+
+test("the project switcher card reads 当前项目 and 从文件夹新增项目空间… in Chinese, as in the design", () => {
+  assert.equal(enUS.currentProjectGroup, "Current project");
+  assert.equal(zhCN.currentProjectGroup, "当前项目");
+  assert.equal(enUS.addProjectSpace, "Add project space from folder…");
+  assert.equal(zhCN.addProjectSpace, "从文件夹新增项目空间…");
 });

@@ -10,7 +10,6 @@ import {
   act,
   dom,
   waitFor,
-  pathChoice,
   historyRow,
   onChatPage,
   restoreGlobals,
@@ -251,17 +250,11 @@ test("a direct save still writing when the space switches lands in the original 
   const save = scene.external.hold("skills.set");
   await click(control(scene.resourcePanel(), "button", "Save changes"));
   await waitFor(() => assert.ok(save.reached()));
+  scene.external.desktop.selectedDirectory = navigationPaths.project;
   await openSwitchSpace(scene)();
-  const first = await waitFor(() => {
-    if (roles(scene.container, "dialog", "Unsaved skill changes").length) return "prompt";
-    pathChoice(scene.container, navigationPaths.project);
-    return "choice";
-  });
-  if (first === "choice") await click(pathChoice(scene.container, navigationPaths.project));
   save.release();
   await scene.settled();
   if (roles(scene.container, "dialog", "Unsaved skill changes").length) await answer(scene, "Discard");
-  if (first === "prompt") await click(await waitFor(() => pathChoice(scene.container, navigationPaths.project)));
   await waitFor(() => visibleText(scene.resourcePanel(), "project-checklist"));
   await scene.settled();
   assert.ok(!scene.resourcePanel().textContent.includes("personal-checklist"));

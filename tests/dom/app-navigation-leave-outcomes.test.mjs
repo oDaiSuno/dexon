@@ -95,7 +95,7 @@ test("saving from a dirty space switch writes the skill of the space being left,
 test("a failed save from a dirty space switch stays in the personal space with the edit and the reason", async (t) => {
   const scene = await personalEditor(t);
   scene.external.failures.skillSave = refusal;
-  await pickWithConsent(scene, openSwitchSpace(scene), navigationPaths.project, "Save", { proceeds: false });
+  await pickWithConsent(scene, openSwitchSpace(scene), navigationPaths.project, "Save");
   await refusedSaveKeepsEverything(scene);
   await skillListShows(scene, "personal-checklist", ["project-checklist"]);
 });

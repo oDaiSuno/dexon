@@ -24,8 +24,6 @@ import {
   retainedEdit,
   chatRegion,
   skillListShows,
-  openSwitchSpace,
-  pickWithConsent,
 } from "../support/app-navigation-leave.mjs";
 import {
   createdWorktreeBranch,
@@ -126,8 +124,9 @@ test("actions that stay on the resource page do not ask and keep the unsaved edi
   const scene = await personalEditor(t);
   await click(control(scene.navigation(), "button", "Plugins & Skills"));
   noPrompt(scene);
-  await click(control(await scene.menu(), "menuitem", "Open current folder"));
-  await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
+  const card = await scene.menu();
+  await keyDown(card, "Escape");
+  await waitFor(() => assert.equal(roles(dom.window.document.body, "menu", "Personal space").length, 0));
   noPrompt(scene);
   await act(async () => scene.external.menu("switch-session"));
   noPrompt(scene);
@@ -165,20 +164,10 @@ test("with an unsaved skill edit, reloading or closing the window is blocked; af
   await waitFor(() => assert.equal(unload(), false, "a saved editor no longer blocks reloading"));
 });
 
-test("switching space from the menu with an unsaved skill edit asks first; discarding moves resources to the chosen project", async (t) => {
-  const scene = await personalEditor(t);
-  await pickWithConsent(scene, openSwitchSpace(scene), navigationPaths.project, "Cancel");
-  await promptClosed(scene);
-  retainedEdit(scene);
-  await pickWithConsent(scene, openSwitchSpace(scene), navigationPaths.project, "Discard");
-  await skillListShows(scene, "project-checklist", ["personal-checklist"]);
-  control(scene.workspace(), "button", "navigation-project");
-});
-
 test("choosing another folder with an unsaved skill edit asks first; discarding moves resources to that folder", async (t) => {
   const scene = await personalEditor(t);
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  const choose = async () => click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  const choose = async () => click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await choose();
   await answer(scene, "Cancel");
   await promptClosed(scene);

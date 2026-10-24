@@ -373,6 +373,7 @@ export function navigationBoundary({
     failures,
     unexpected,
     activity: () => ({ ...activity }),
+    rememberedSpace: () => uiState.lastSpaceCwd,
     hold(method, matches = () => true) {
       const entry = { method, matches, reached: false, released: createDeferred() };
       entry.released.promise.catch(() => {});

@@ -238,27 +238,20 @@ export async function startNavigation(t, options = {}, external = navigationBoun
       await click(visibleText(scene.resourcePanel(), name));
       return waitFor(() => control(scene.resourcePanel(), "textbox", labels.skillContent));
     },
+    // The project card floats above the page, so it is looked up in the whole
+    // document rather than inside the navigation it was opened from.
     async menu(space = labels.personal) {
       await click(control(scene.navigation(), "button", labels.spaceActions.replace("{name}", space)));
-      return waitFor(() => control(scene.navigation(), "menu", space));
+      return waitFor(() => control(dom.window.document.body, "menu", space));
     },
-    // The real working directory, observed where the user's action leaves the
-    // App: the folder handed to the operating system by "Open current folder".
-    // The space button is found by its menu popup, not by its friendly name,
-    // so this checks the directory without fixing how a space is named.
+    // The real working directory, observed where it leaves the App: the folder
+    // the App hands to the desktop to remember as the current space. Waiting
+    // for quiet first means a pending change is reported, not the previous one.
     async currentFolder() {
-      external.desktop.openedDirectory = null;
-      const spaceButtons = roles(scene.workspace(), "button").filter(
-        (element) => element.getAttribute("aria-haspopup") === "menu",
-      );
-      assert.equal(spaceButtons.length, 1, "Expected one space menu button");
-      await click(spaceButtons[0]);
-      const menu = await waitFor(() => control(scene.navigation(), "menu"));
-      await click(control(menu, "menuitem", labels.openFolder));
-      return waitFor(() => {
-        assert.ok(external.desktop.openedDirectory, "the App asked the system to open a folder");
-        return external.desktop.openedDirectory;
-      });
+      await scene.settled();
+      const folder = external.rememberedSpace();
+      assert.ok(folder, "the App told the desktop which folder is the current space");
+      return folder;
     },
     async settings() {
       await click(control(scene.navigation(), "button", labels.settings));

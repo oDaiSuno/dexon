@@ -101,9 +101,7 @@ function NavigationScene({
         void refresh();
       },
       onOpenSettings: () => actions.push("settings"),
-      onOpenFolder: () => actions.push("open folder"),
       onChooseFolder: () => actions.push("choose folder"),
-      onSwitchSpace: () => actions.push("switch space"),
       onBackToPersonalSpace: () => actions.push("personal space"),
     }),
     createElement(

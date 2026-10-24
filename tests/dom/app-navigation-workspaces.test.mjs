@@ -39,16 +39,18 @@ function worktreeSwitcher(scene) {
   return matches[0];
 }
 
-test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and keeps the path and space actions in its menu", async (t) => {
+test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the two space actions", async (t) => {
   const scene = await startNavigation(t, { history: false });
   control(scene.workspace(), "button", "Personal space");
   const menu = await scene.menu();
-  assert.ok(menu.textContent.includes(navigationPaths.personal), "the menu shows the full personal folder path");
+  const blocks = textBlocks(menu);
+  assert.ok(blocks.includes("Current project"), "the card labels the current project group");
+  assert.ok(blocks.includes("Personal space"), "the card names the current project");
+  assert.ok(blocks.includes("~"), "the personal folder lives in the home folder, shown as ~");
+  assert.ok(!menu.textContent.includes(navigationPaths.home), "the card does not spell out the home folder");
   assert.deepEqual(
-    roles(menu, "menuitem")
-      .map((item) => item.textContent.trim())
-      .sort(),
-    ["Open current folder", "Choose another folder…", "Switch space…", "Back to personal space"].sort(),
+    roles(menu, "menuitem").map((item) => item.textContent.trim()),
+    ["Add project space from folder…", "Back to personal space"],
   );
   await keyDown(menu, "Escape");
   await waitFor(() => assert.equal(roles(scene.navigation(), "menu").length, 0));
@@ -57,10 +59,17 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.doesNotMatch(scene.navigation().textContent, /worktree|repo root/i);
 });
 
-test("Open current folder asks the operating-system boundary to open the active personal directory", async (t) => {
+test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const menu = await scene.menu();
-  await click(control(menu, "menuitem", "Open current folder"));
+  const trigger = await waitFor(() => {
+    const matches = roles(scene.container, "button").filter(
+      (element) => element.getAttribute("aria-haspopup") === "menu" && element.textContent.includes("Personal space"),
+    );
+    assert.equal(matches.length, 1, "Expected one workspace button showing the personal space");
+    return matches[0];
+  });
+  await click(trigger);
+  await click(await waitFor(() => control(scene.container, "menuitem", "Open in Finder")));
   await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
 });
 
@@ -68,7 +77,7 @@ test("choosing another folder moves the sidebar to that project and shows all of
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await expectProjectSpace(scene);
   assert.equal(await scene.currentFolder(), navigationPaths.project);
 });
@@ -77,7 +86,7 @@ test("cancelling the native directory picker keeps the personal space and its hi
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = null;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
   control(scene.workspace(), "button", "Personal space");
@@ -86,11 +95,11 @@ test("cancelling the native directory picker keeps the personal space and its hi
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });
 
-test("Switch space exposes a recent project whose selection moves the sidebar to that project", async (t) => {
+test("another project in the sidebar tree is reached by expanding it and opening one of its conversations, which moves the sidebar to that project", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
-  await click(control(await scene.menu(), "menuitem", "Switch space…"));
-  await click(await waitFor(() => pathChoice(scene.container, navigationPaths.project)));
+  await click(control(scene.history(), "button", "navigation-project"));
+  await click(await waitFor(() => control(scene.history(), "button", "Project release notes")));
   await expectProjectSpace(scene);
   assert.equal(await scene.currentFolder(), navigationPaths.project);
 });
@@ -99,7 +108,7 @@ test("a space chosen from the sidebar is still the current space after reloading
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await expectProjectSpace(scene);
   await scene.settled();
   const reopened = await scene.reload();
