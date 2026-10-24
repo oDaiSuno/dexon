@@ -57,7 +57,7 @@ export const FOLDER_PATH =
 export function CheckMark({ size = 14 }: { size?: number }) {
   return (
     <span style={{ ...GLYPH, color: "var(--fx-accent-blue-text)" }}>
-      <Icon size={size} strokeWidth={2.25}>
+      <Icon size={size} strokeWidth={2}>
         <path d="M20 6 9 17l-5-5" />
       </Icon>
     </span>
