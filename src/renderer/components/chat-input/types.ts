@@ -8,7 +8,6 @@ import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
-import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
 
 export interface ChatInputProps {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -56,13 +55,41 @@ export interface ChatInputProps {
   workspace?: ComposerWorkspace | null;
 }
 
+export interface ComposerCheckout {
+  path: string;
+  branch: string | null;
+  isMain: boolean;
+}
+
+export interface ComposerProject {
+  name: string;
+  path: string;
+  displayPath: string;
+}
+
 export interface ComposerWorkspace {
-  workspace: ProjectWorkspaceState;
-  project: { name: string; path: string; displayPath: string };
-  onSwitchProject: () => void;
-  onOpenInFinder: () => void;
-  onCopyPath: () => void;
-  deferFocus: (focus: () => void) => void;
+  project: ComposerProject;
+  checkouts: ComposerCheckout[];
+  current: ComposerCheckout | null;
+  currentPath: string | null;
+  menuOpen: boolean;
+  newEntryOpen: boolean;
+  newBranch: string;
+  busy: boolean;
+  error: string | null;
+  confirmRemovePath: string | null;
+  toggleMenu: () => void;
+  closeMenu: () => void;
+  selectCheckout: (path: string) => void;
+  openNewEntry: () => void;
+  closeNewEntry: () => void;
+  setNewBranch: (branch: string) => void;
+  createCheckout: () => void;
+  removeCheckout: (path: string, force: boolean) => void;
+  cancelRemove: () => void;
+  switchProject: () => void;
+  openInFinder: () => Promise<void>;
+  copyPath: () => Promise<void>;
 }
 
 export interface ComposerRemote {

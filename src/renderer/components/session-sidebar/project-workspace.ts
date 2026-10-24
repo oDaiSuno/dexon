@@ -39,7 +39,7 @@ export function useProjectWorkspace({
   refreshKey,
   requestDeparture = proceed,
 }: {
-  sessions: SessionInfo[];
+  sessions: readonly Pick<SessionInfo, "cwd" | "projectRoot">[];
   selectedCwdProp: string | null | undefined;
   onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   refreshKey?: number;
@@ -49,10 +49,6 @@ export function useProjectWorkspace({
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [worktreeState, setWorktreeState] = useState<WorktreeState | null>(null);
   const [wtRefreshKey, setWtRefreshKey] = useState(0);
-  // Worktree switcher UI state. It lives here — NOT in the conditionally
-  // mounted WorktreeSwitcher view — so an in-flight operation and its feedback
-  // survive project switches exactly as they did in the original monolith,
-  // where this state belonged to the always-mounted sidebar.
   const [wtDropdownOpen, setWtDropdownOpen] = useState(false);
   const [wtNewOpen, setWtNewOpen] = useState(false);
   const [wtNewBranch, setWtNewBranch] = useState("");

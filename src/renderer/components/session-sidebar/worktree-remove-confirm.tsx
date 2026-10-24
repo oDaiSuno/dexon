@@ -1,9 +1,6 @@
 import { useI18n } from "@/i18n";
 import type { MouseEvent as ReactMouseEvent } from "react";
 
-// Split from worktree-switcher.tsx in Phase 2: the inline force-remove
-// confirmation row shown inside the worktree dropdown.
-
 export function WorktreeRemoveConfirm({
   onForce,
   onCancel,

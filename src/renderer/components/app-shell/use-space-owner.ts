@@ -1,31 +1,23 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
-import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
-import { useSessionDirectory } from "../session-sidebar/session-directory";
+import { spaceDisplayName } from "@/lib/space-identity";
+import { useSessionProjectRoots } from "@/lib/session-catalog";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
-import type { ComposerWorkspace } from "../chat-input/types";
+import { useComposerWorkspace } from "./composer-workspace";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { RequestDeparture } from "./use-departure-guard";
 
 export function useSpaceOwner({
-  selectedSessionId,
-  sessionCwd,
-  newSessionCwd,
   refreshKey,
-  onSessionDeleted,
   coordination,
   onCwdCommitted,
   onCoordinatorCwd,
   requestDeparture,
   onOpenSidebar,
 }: {
-  selectedSessionId: string | null;
-  sessionCwd: string | null;
-  newSessionCwd: string | null;
   refreshKey: number;
-  onSessionDeleted: (sessionId: string) => void;
   coordination: SpaceCoordination;
   onCwdCommitted: (cwd: string | null, projectRoot?: string | null) => void;
   onCoordinatorCwd: (cwd: string | null) => void;
@@ -34,7 +26,16 @@ export function useSpaceOwner({
 }) {
   const { t } = useI18n();
   const [spacePickerOpen, setSpacePickerOpen] = useState(false);
-  const directory = useSessionDirectory({ selectedSessionId, refreshKey, onSessionDeleted });
+  const [homeDir, setHomeDir] = useState("");
+  useEffect(() => {
+    fetch("/api/home")
+      .then((r) => r.json())
+      .then((d: { home?: string }) => {
+        if (d.home) setHomeDir(d.home);
+      })
+      .catch(() => {});
+  }, []);
+
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => {
       if (origin === "coordinator") {
@@ -46,8 +47,9 @@ export function useSpaceOwner({
     },
     [onCwdCommitted, onCoordinatorCwd, coordination],
   );
+  const sessionRoots = useSessionProjectRoots();
   const workspace = useProjectWorkspace({
-    sessions: directory.sessions,
+    sessions: sessionRoots,
     selectedCwdProp: coordination.spaceCwd,
     onCwdChange: handleCwdChange,
     refreshKey,
@@ -60,50 +62,41 @@ export function useSpaceOwner({
   }, [coordination, onCwdCommitted]);
 
   const closeWorktreeMenu = workspace.resetWorktreeDropdownForOutsideClick;
-  const projectPath =
-    workspace.worktreeState?.projectRoot ??
-    workspace.selectedCwd ??
-    coordination.spaceCwd ??
-    sessionCwd ??
-    newSessionCwd ??
-    "";
+  const projectPath = workspace.selectedProject;
+  const personalLabel = t("personalSpace", "Personal space");
+  const project = useMemo(
+    () =>
+      projectPath
+        ? {
+            path: projectPath,
+            name: spaceDisplayName(projectPath, coordination.personalCwd, homeDir, personalLabel),
+            displayPath: abbreviateHomePath(projectPath, homeDir),
+          }
+        : null,
+    [projectPath, coordination.personalCwd, homeDir, personalLabel],
+  );
   const openPicker = useCallback(() => {
     closeWorktreeMenu();
     onOpenSidebar();
     setSpacePickerOpen(true);
   }, [closeWorktreeMenu, onOpenSidebar]);
 
-  const composerWorkspace: ComposerWorkspace | null = projectPath
-    ? {
-        workspace,
-        project: {
-          name: isPersonalSpace(projectPath, coordination.personalCwd, directory.homeDir)
-            ? t("personalSpace", "Personal space")
-            : spaceFolderName(projectPath),
-          path: projectPath,
-          displayPath: abbreviateHomePath(projectPath, directory.homeDir),
-        },
-        onSwitchProject: openPicker,
-        onOpenInFinder: () => {
-          closeWorktreeMenu();
-          void window.piBridge?.openDirectory?.(projectPath);
-        },
-        onCopyPath: () => {
-          closeWorktreeMenu();
-          void copyText(projectPath).catch(() => undefined);
-        },
-        deferFocus: directory.deferFocus,
-      }
-    : null;
+  const copyPath = useCallback(() => (projectPath ? copyText(projectPath) : Promise.resolve()), [projectPath]);
+  const composerWorkspace = useComposerWorkspace({
+    workspace,
+    project,
+    onSwitchProject: openPicker,
+    onOpenInFinder: coordination.openCurrentFolder,
+    onCopyPath: copyPath,
+  });
 
   return {
-    directory,
+    homeDir,
     workspace,
+    project,
     composerWorkspace,
     spacePickerOpen,
     setSpacePickerOpen,
     handleReturnToPersonalSpace,
   };
 }
-
-export type SpaceOwner = ReturnType<typeof useSpaceOwner>;

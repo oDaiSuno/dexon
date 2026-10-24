@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useI18n } from "@/i18n";
 import { ChevronDownIcon, CompactIcon, Icon } from "./icons";
+import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import {
   THINKING_LEVELS,
   THINKING_TONES,
@@ -85,10 +86,6 @@ const AUTO_CHIP: CSSProperties = {
   cursor: "pointer",
   whiteSpace: "nowrap",
 };
-const QUICK = "var(--duration-quick, 150ms) var(--ease-smooth-out, ease)";
-const HOVER = "var(--fx-surface-hover-overlay)";
-const CLEAR = "var(--fx-surface-hover-clear)";
-const paint = (e: MouseEvent<HTMLElement>, background: string) => (e.currentTarget.style.background = background);
 
 const GHOST: CSSProperties = {
   border: "none",

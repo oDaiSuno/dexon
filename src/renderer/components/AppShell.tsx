@@ -190,11 +190,7 @@ export function AppShell({
   const mainSuspended = onResources || settingsOpen;
 
   const space = useSpaceOwner({
-    selectedSessionId: mainSuspended ? null : (selectedSession?.id ?? null),
-    sessionCwd: selectedSession?.cwd ?? null,
-    newSessionCwd,
     refreshKey,
-    onSessionDeleted: handleSessionDeleted,
     coordination,
     onCwdCommitted: handleCwdChange,
     onCoordinatorCwd: noteCoordinatorCwd,
@@ -288,7 +284,8 @@ export function AppShell({
           onNavigate={handleNavigate}
           onOpenSettings={handleOpenSettings}
           coordination={coordination}
-          directory={space.directory}
+          homeDir={space.homeDir}
+          refreshKey={refreshKey}
           workspace={space.workspace}
           spacePickerOpen={space.spacePickerOpen}
           onSpacePickerOpenChange={space.setSpacePickerOpen}
@@ -354,7 +351,7 @@ export function AppShell({
               showSidebarToggle={isMobile}
               isMobile={isMobile}
               selectedSession={onResources ? null : selectedSession}
-              projectName={space.composerWorkspace?.project.name ?? null}
+              projectName={space.project?.name ?? null}
               activeTopPanel={activeTopPanel}
               onToggleTopPanel={toggleTopPanel}
               sessionStats={info.sessionStats}

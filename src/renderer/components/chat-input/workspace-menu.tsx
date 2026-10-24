@@ -1,55 +1,33 @@
-import { useCallback, useRef, useState } from "react";
+import { useState } from "react";
 import { useI18n } from "@/i18n";
+import { FolderIcon } from "../FileIcons";
 import { WorktreeRemoveConfirm } from "../session-sidebar/worktree-remove-confirm";
-import type { WorktreeEntry } from "../session-sidebar/project-workspace";
-import { Icon } from "./icons";
-import type { ComposerWorkspace } from "./types";
-import {
-  CLEAR,
-  CheckMark,
-  ELLIPSIS,
-  GLYPH,
-  GitBranchGlyph,
-  HOVER,
-  HOVER_ROW,
-  QUICK,
-  ROW,
-  SECTION,
-  SELECTED,
-  SEPARATOR,
-} from "./workspace-chrome";
+import { CheckmarkIcon, Icon, PlusIcon } from "./icons";
+import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
+import type { ComposerCheckout, ComposerWorkspace } from "./types";
+import { ELLIPSIS, GLYPH, GitBranchGlyph, ROW, SECTION, SELECTED, SEPARATOR } from "./workspace-chrome";
 
-const FOLDER_OPEN_PATH =
-  "m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2";
-
-export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
+export function WorkspaceMenu({ id, workspace }: { id: string; workspace: ComposerWorkspace }) {
   const { t } = useI18n();
-  const { workspace: state, project, onSwitchProject, onOpenInFinder, onCopyPath, deferFocus } = workspace;
-  const branchInputRef = useRef<HTMLInputElement>(null);
+  const { project } = workspace;
   const [hoveredPath, setHoveredPath] = useState<string | null>(null);
   const [focusedPath, setFocusedPath] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { worktreeState, selectedCwd } = state;
-  const worktrees = worktreeState?.worktrees ?? [];
-  const currentPath = selectedCwd ?? worktreeState?.projectRoot ?? null;
-  const canPickCheckout = state.showWorktreeSwitcher && worktrees.length > 0;
+  const runAction = (action: () => Promise<void>, failure: (error: unknown) => string) => {
+    setActionError(null);
+    void action().then(workspace.closeMenu, (error: unknown) => setActionError(failure(error)));
+  };
 
-  const close = useCallback(() => state.resetWorktreeDropdownForOutsideClick(), [state]);
-  const openNewEntry = useCallback(() => {
-    state.openNewWorktreeEntry();
-    deferFocus(() => branchInputRef.current?.focus());
-  }, [state, deferFocus]);
-
-  const renderWorktree = (entry: WorktreeEntry) => {
-    const selected =
-      entry.path === currentPath || (entry.isMain && !worktrees.some((item) => item.path === currentPath));
-    if (state.wtConfirmRemove === entry.path) {
+  const renderCheckout = (entry: ComposerCheckout) => {
+    const selected = workspace.current?.path === entry.path;
+    if (workspace.confirmRemovePath === entry.path) {
       return (
         <WorktreeRemoveConfirm
           key={entry.path}
-          busy={state.wtBusy}
-          onForce={() => state.handleRemoveWorktree(entry.path, true)}
-          onCancel={state.cancelWorktreeRemove}
+          busy={workspace.busy}
+          onForce={() => workspace.removeCheckout(entry.path, true)}
+          onCancel={workspace.cancelRemove}
         />
       );
     }
@@ -70,10 +48,9 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
       >
         <button
           type="button"
-          role="menuitemradio"
-          aria-checked={selected}
+          aria-current={selected ? "true" : undefined}
           title={entry.path}
-          onClick={() => state.handleSelectWorktree(entry.path)}
+          onClick={() => workspace.selectCheckout(entry.path)}
           style={{ ...ROW, flex: 1, minWidth: 0, paddingRight: showsRemove ? 32 : 8, background: "transparent" }}
         >
           <span style={{ ...GLYPH, color: selected ? "var(--fx-text-primary)" : "var(--fx-text-secondary)" }}>
@@ -90,13 +67,17 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
               {entry.isMain ? t("mainBranch", "Main branch") : t("worktreeEntryKind", "worktree")}
             </span>
           )}
-          {selected && <CheckMark />}
+          {selected && (
+            <span style={{ ...GLYPH, color: "var(--fx-accent-blue-text)" }}>
+              <CheckmarkIcon />
+            </span>
+          )}
         </button>
         {!entry.isMain && (
           <button
             type="button"
-            onClick={() => state.handleRemoveWorktree(entry.path, false)}
-            disabled={state.wtBusy}
+            onClick={() => workspace.removeCheckout(entry.path, false)}
+            disabled={workspace.busy}
             onFocus={() => setFocusedPath(entry.path)}
             onBlur={() => setFocusedPath((path) => (path === entry.path ? null : path))}
             title={t("removeWorktreeHint", "Remove worktree checkout {path}; the branch is kept").replace(
@@ -121,7 +102,7 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
               borderRadius: "var(--radius-chip)",
               background: "transparent",
               color: "var(--fx-text-tertiary)",
-              cursor: state.wtBusy ? "not-allowed" : "pointer",
+              cursor: workspace.busy ? "not-allowed" : "pointer",
               opacity: revealed ? 1 : 0,
               pointerEvents: revealed ? "auto" : "none",
               transition: `opacity ${QUICK}, color ${QUICK}`,
@@ -145,9 +126,12 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
     );
   };
 
+  const message = actionError ?? workspace.error;
+
   return (
     <div
-      role="menu"
+      id={id}
+      role="group"
       aria-label={t("workspaceMenu", "Workspace")}
       className="composer-pop-in"
       style={{
@@ -172,17 +156,9 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
       <div className="type-meta-caps" style={SECTION}>
         {t("projectSection", "Project")}
       </div>
-      <button
-        type="button"
-        role="menuitemradio"
-        aria-checked
-        onClick={close}
-        style={{ ...ROW, height: 44, background: SELECTED }}
-      >
+      <div style={{ ...ROW, height: 44, background: SELECTED, cursor: "default" }}>
         <span style={{ ...GLYPH, color: "var(--fx-text-primary)" }}>
-          <Icon size={15} strokeWidth={1.75}>
-            <path d={FOLDER_OPEN_PATH} />
-          </Icon>
+          <FolderIcon size={15} open color="currentColor" />
         </span>
         <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
           <span className="type-body-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
@@ -192,14 +168,16 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
             {project.displayPath}
           </span>
         </span>
-        <CheckMark />
-      </button>
+        <span style={{ ...GLYPH, color: "var(--fx-accent-blue-text)" }}>
+          <CheckmarkIcon />
+        </span>
+      </div>
       <button
         type="button"
-        role="menuitem"
-        onClick={onSwitchProject}
+        onClick={workspace.switchProject}
         style={{ ...ROW, background: CLEAR, color: "var(--fx-text-secondary)" }}
-        {...HOVER_ROW}
+        onMouseEnter={(event) => paint(event, HOVER)}
+        onMouseLeave={(event) => paint(event, CLEAR)}
       >
         <span style={{ ...GLYPH, color: "var(--fx-text-secondary)" }}>
           <Icon size={15} strokeWidth={1.75}>
@@ -212,27 +190,38 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
         </span>
       </button>
 
-      {canPickCheckout && (
+      {workspace.checkouts.length > 0 && (
         <>
           <div style={SEPARATOR} />
           <div className="type-meta-caps" style={SECTION}>
             {t("branchSection", "Branches & worktrees")}
           </div>
-          {worktrees.map(renderWorktree)}
-          {state.wtNewOpen ? (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              maxHeight: "min(28vh, 200px)",
+              overflowY: "auto",
+              overscrollBehavior: "contain",
+            }}
+          >
+            {workspace.checkouts.map(renderCheckout)}
+          </div>
+          {workspace.newEntryOpen ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 6, padding: "6px 8px 8px" }}>
               <input
-                ref={branchInputRef}
-                value={state.wtNewBranch}
-                onChange={(event) => state.setNewWorktreeBranch(event.target.value)}
+                autoFocus
+                value={workspace.newBranch}
+                onChange={(event) => workspace.setNewBranch(event.target.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Enter") {
                     event.preventDefault();
-                    state.handleCreateWorktree();
+                    workspace.createCheckout();
                   }
                   if (event.key === "Escape") {
                     event.stopPropagation();
-                    state.closeNewWorktreeEntry();
+                    workspace.closeNewEntry();
                   }
                 }}
                 placeholder={t("branchName", "branch name")}
@@ -253,8 +242,8 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
               <div style={{ display: "flex", gap: 6 }}>
                 <button
                   type="button"
-                  onClick={state.handleCreateWorktree}
-                  disabled={state.wtBusy || !state.wtNewBranch.trim()}
+                  onClick={workspace.createCheckout}
+                  disabled={workspace.busy || !workspace.newBranch.trim()}
                   className="type-label-medium"
                   style={{
                     flex: 1,
@@ -263,15 +252,15 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
                     border: "none",
                     borderRadius: "var(--radius-control)",
                     color: "var(--fx-text-on-accent)",
-                    cursor: state.wtBusy || !state.wtNewBranch.trim() ? "not-allowed" : "pointer",
-                    opacity: state.wtBusy || !state.wtNewBranch.trim() ? 0.65 : 1,
+                    cursor: workspace.busy || !workspace.newBranch.trim() ? "not-allowed" : "pointer",
+                    opacity: workspace.busy || !workspace.newBranch.trim() ? 0.65 : 1,
                   }}
                 >
-                  {state.wtBusy ? t("creating", "Creating…") : t("create", "Create")}
+                  {workspace.busy ? t("creating", "Creating…") : t("create", "Create")}
                 </button>
                 <button
                   type="button"
-                  onClick={state.closeNewWorktreeEntry}
+                  onClick={workspace.closeNewEntry}
                   className="type-label-default"
                   style={{
                     flex: 1,
@@ -290,16 +279,14 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
           ) : (
             <button
               type="button"
-              role="menuitem"
-              onClick={openNewEntry}
+              onClick={workspace.openNewEntry}
               title={t("createWorktreeHint", "Create a worktree checkout for a branch")}
               style={{ ...ROW, background: CLEAR, color: "var(--fx-text-secondary)" }}
-              {...HOVER_ROW}
+              onMouseEnter={(event) => paint(event, HOVER)}
+              onMouseLeave={(event) => paint(event, CLEAR)}
             >
               <span style={{ ...GLYPH, color: "var(--fx-text-secondary)" }}>
-                <Icon size={15} strokeWidth={1.75}>
-                  <path d="M12 5v14M5 12h14" />
-                </Icon>
+                <PlusIcon size={15} />
               </span>
               <span className="type-body-default" style={{ ...ELLIPSIS, flex: 1 }}>
                 {t("newWorktree", "New worktree…")}
@@ -309,23 +296,25 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
         </>
       )}
 
-      {state.wtError && (
+      {message && (
         <div
           role="alert"
           className="type-meta-default"
           style={{ padding: "4px 8px", color: "var(--fx-status-danger-text)", overflowWrap: "anywhere" }}
         >
-          {state.wtError}
+          {message}
         </div>
       )}
 
       <div style={SEPARATOR} />
       <button
         type="button"
-        role="menuitem"
-        onClick={onOpenInFinder}
+        onClick={() =>
+          runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
+        }
         style={{ ...ROW, background: CLEAR, color: "var(--fx-text-secondary)" }}
-        {...HOVER_ROW}
+        onMouseEnter={(event) => paint(event, HOVER)}
+        onMouseLeave={(event) => paint(event, CLEAR)}
       >
         <span style={{ ...GLYPH, color: "var(--fx-text-secondary)" }}>
           <Icon size={15} strokeWidth={1.75}>
@@ -340,10 +329,10 @@ export function WorkspaceMenu({ workspace }: { workspace: ComposerWorkspace }) {
       </button>
       <button
         type="button"
-        role="menuitem"
-        onClick={onCopyPath}
+        onClick={() => runAction(workspace.copyPath, () => t("copyFailed", "Copy failed"))}
         style={{ ...ROW, background: CLEAR, color: "var(--fx-text-secondary)" }}
-        {...HOVER_ROW}
+        onMouseEnter={(event) => paint(event, HOVER)}
+        onMouseLeave={(event) => paint(event, CLEAR)}
       >
         <span style={{ ...GLYPH, color: "var(--fx-text-secondary)" }}>
           <Icon size={15} strokeWidth={1.75}>

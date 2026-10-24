@@ -3,12 +3,13 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { getRecentProjects } from "@/lib/session-list";
 import { abbreviateHomePath } from "@/lib/display-path";
-import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
+import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
-import type { SpaceOwner } from "./use-space-owner";
+import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
+import { useSessionDirectory } from "../session-sidebar/session-directory";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
@@ -25,7 +26,8 @@ export function NavigationSidebar({
   onNavigate,
   onOpenSettings,
   coordination,
-  directory,
+  homeDir,
+  refreshKey,
   workspace,
   spacePickerOpen,
   onSpacePickerOpenChange,
@@ -48,8 +50,9 @@ export function NavigationSidebar({
   onNavigate: (page: NavPage) => void;
   onOpenSettings: (tab?: SettingsTab) => void;
   coordination: SpaceCoordination;
-  directory: SpaceOwner["directory"];
-  workspace: SpaceOwner["workspace"];
+  homeDir: string;
+  refreshKey: number;
+  workspace: ProjectWorkspaceState;
   spacePickerOpen: boolean;
   onSpacePickerOpenChange: (open: boolean) => void;
   onReturnToPersonalSpace: () => void;
@@ -71,7 +74,8 @@ export function NavigationSidebar({
     setMobileReady(true);
   }, []);
 
-  const { sessions, homeDir, refreshSessions } = directory;
+  const directory = useSessionDirectory({ selectedSessionId: shownSessionId, refreshKey, onSessionDeleted });
+  const { sessions, refreshSessions } = directory;
   const {
     selectedCwd,
     setSelectedCwd,
@@ -168,7 +172,8 @@ export function NavigationSidebar({
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
   const spaceName = spacePath && !personal(spacePath) ? spaceFolderName(spacePath) : undefined;
 
-  const projectName = (path: string) => (personal(path) ? t("personalSpace", "Personal space") : spaceFolderName(path));
+  const projectName = (path: string) =>
+    spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Personal space"));
   const spaces = getRecentProjects(sessions)
     .filter((path) => !selectedProject || !worktreePathsEqual(path, selectedProject))
     .map((path) => ({ path, name: projectName(path), detail: abbreviateHomePath(path, homeDir) }));

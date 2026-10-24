@@ -318,3 +318,11 @@ export function CloseIcon({ size = 14 }: { size?: number }) {
     </Icon>
   );
 }
+
+export function CheckmarkIcon({ size = 14, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M20 6 9 17l-5-5" />
+    </Icon>
+  );
+}

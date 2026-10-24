@@ -1,6 +1,12 @@
-import type { ReactNode } from "react";
+import type { MouseEvent, ReactNode } from "react";
 import { ArrowUpRightIcon, ChevronLeftIcon, Icon } from "./icons";
 import { KeyHint } from "./SendControls";
+
+export const QUICK = "var(--duration-quick, 150ms) var(--ease-smooth-out, ease)";
+export const HOVER = "var(--fx-surface-hover-overlay)";
+export const CLEAR = "var(--fx-surface-hover-clear)";
+export const paint = (e: MouseEvent<HTMLElement>, background: string) =>
+  (e.currentTarget.style.background = background);
 
 export interface MenuKeyHint {
   keyLabel: string;

@@ -12,3 +12,12 @@ export function isPersonalSpace(path: string, personalCwd: string | null, homeDi
 export function spaceFolderName(path: string): string {
   return getFileName(path) || path;
 }
+
+export function spaceDisplayName(
+  path: string,
+  personalCwd: string | null,
+  homeDir: string,
+  personalLabel: string,
+): string {
+  return isPersonalSpace(path, personalCwd, homeDir) ? personalLabel : spaceFolderName(path);
+}

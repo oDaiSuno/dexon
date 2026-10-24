@@ -1,29 +1,31 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useEffect, useId, useRef } from "react";
 import { useI18n } from "@/i18n";
-import { ChevronDownIcon, Icon } from "./icons";
+import { FolderIcon } from "../FileIcons";
+import { ChevronDownIcon } from "./icons";
+import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import type { ComposerWorkspace } from "./types";
-import { CLEAR, ELLIPSIS, FOLDER_PATH, GLYPH, GitBranchGlyph, HOVER, QUICK } from "./workspace-chrome";
+import { ELLIPSIS, GLYPH, GitBranchGlyph } from "./workspace-chrome";
 import { WorkspaceMenu } from "./workspace-menu";
 
 export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerWorkspace; isMobile: boolean }) {
   const { t } = useI18n();
-  const { workspace: state, project } = workspace;
+  const { project, current, currentPath, menuOpen, closeMenu } = workspace;
   const rootRef = useRef<HTMLDivElement>(null);
-  const { worktreeState, selectedCwd, wtDropdownOpen } = state;
-
-  const close = useCallback(() => state.resetWorktreeDropdownForOutsideClick(), [state]);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuId = useId();
 
   useEffect(() => {
-    if (!wtDropdownOpen) return;
+    if (!menuOpen) return;
     const onMouseDown = (event: globalThis.MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(event.target as Node)) close();
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) closeMenu();
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable='true']")) return;
       if (event.key !== "Escape") return;
       event.stopPropagation();
-      close();
+      closeMenu();
+      buttonRef.current?.focus();
     };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKeyDown, true);
@@ -31,29 +33,31 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [wtDropdownOpen, close]);
+  }, [menuOpen, closeMenu]);
 
-  const worktrees = worktreeState?.worktrees ?? [];
-  const currentPath = selectedCwd ?? worktreeState?.projectRoot ?? null;
-  const canPickCheckout = state.showWorktreeSwitcher && worktrees.length > 0;
-  const checkout =
-    worktrees.find((entry) => entry.path === selectedCwd) ?? (canPickCheckout ? worktrees.find((e) => e.isMain) : null);
-  const branch = checkout?.branch ?? null;
-  const title = canPickCheckout
+  const branch = current?.branch ?? null;
+  const canPick = workspace.checkouts.length > 0;
+  const title = canPick
     ? currentPath
       ? t("switchWorktreePath", "Switch worktree: {path}").replace("{path}", currentPath)
       : t("switchWorktree", "Switch worktree")
     : t("workspaceSettings", "Workspace settings");
+  const label = branch
+    ? t("workspaceTriggerBranchLabel", "Workspace: {project}, branch {branch}")
+        .replace("{project}", project.name)
+        .replace("{branch}", branch)
+    : t("workspaceTriggerLabel", "Workspace: {project}").replace("{project}", project.name);
 
   return (
     <div ref={rootRef} style={{ position: "relative", display: "flex", minWidth: 0, maxWidth: "100%" }}>
       <button
+        ref={buttonRef}
         type="button"
-        aria-haspopup="menu"
-        aria-expanded={wtDropdownOpen}
-        aria-label={t("workspaceSettings", "Workspace settings")}
+        aria-expanded={menuOpen}
+        aria-controls={menuId}
+        aria-label={label}
         title={title}
-        onClick={state.toggleWorktreeDropdown}
+        onClick={workspace.toggleMenu}
         className="type-body-medium"
         style={{
           display: "flex",
@@ -64,24 +68,18 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
           minWidth: 0,
           boxSizing: "border-box",
           padding: "0 8px 0 6px",
-          background: wtDropdownOpen ? HOVER : CLEAR,
+          background: menuOpen ? HOVER : CLEAR,
           border: "none",
           borderRadius: "var(--radius-control)",
           color: "var(--fx-text-primary)",
           cursor: "pointer",
           transition: QUICK,
         }}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.background = HOVER;
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.background = wtDropdownOpen ? HOVER : CLEAR;
-        }}
+        onMouseEnter={(event) => paint(event, HOVER)}
+        onMouseLeave={(event) => paint(event, menuOpen ? HOVER : CLEAR)}
       >
         <span style={{ ...GLYPH, color: "var(--fx-text-secondary)" }}>
-          <Icon size={14} strokeWidth={1.75}>
-            <path d={FOLDER_PATH} />
-          </Icon>
+          <FolderIcon size={14} color="currentColor" />
         </span>
         <span style={{ ...ELLIPSIS, flexShrink: 1 }}>{project.name}</span>
         {branch && !isMobile && (
@@ -102,7 +100,7 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
           <ChevronDownIcon size={12} />
         </span>
       </button>
-      {wtDropdownOpen && <WorkspaceMenu workspace={workspace} />}
+      {menuOpen && <WorkspaceMenu id={menuId} workspace={workspace} />}
     </div>
   );
 }

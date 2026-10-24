@@ -37,6 +37,28 @@ export function useSessionCatalog(): SessionInfo[] {
   return useSyncExternalStore(subscribeSessionCatalog, getSessionCatalog, getSessionCatalog);
 }
 
+export type SessionProjectRoot = Pick<SessionInfo, "cwd" | "projectRoot">;
+
+let roots: SessionProjectRoot[] = [];
+let rootsSource: SessionInfo[] = snapshot;
+let rootsKey = "[]";
+
+function getSessionProjectRoots(): SessionProjectRoot[] {
+  if (rootsSource === snapshot) return roots;
+  rootsSource = snapshot;
+  const next = snapshot.map(({ cwd, projectRoot }) => ({ cwd, projectRoot }));
+  const key = JSON.stringify(next);
+  if (key !== rootsKey) {
+    rootsKey = key;
+    roots = next;
+  }
+  return roots;
+}
+
+export function useSessionProjectRoots(): SessionProjectRoot[] {
+  return useSyncExternalStore(subscribeSessionCatalog, getSessionProjectRoots, getSessionProjectRoots);
+}
+
 export function resolveSessionTitle(
   sessionId: string,
   title: string | undefined,

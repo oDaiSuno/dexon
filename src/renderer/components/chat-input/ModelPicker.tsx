@@ -1,19 +1,15 @@
-import type { CSSProperties, MouseEvent, RefObject } from "react";
+import type { CSSProperties, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
 import type { ModelCatalogStatus } from "@contract/types";
-import { ChevronDownIcon, Icon } from "./icons";
+import { CheckmarkIcon, ChevronDownIcon, Icon } from "./icons";
+import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 
 export interface ModelOption {
   provider: string;
   modelId: string;
   name: string;
 }
-
-const HOVER = "var(--fx-surface-hover-overlay)";
-const CLEAR = "var(--fx-surface-hover-clear)";
-const QUICK = "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)";
-const paint = (e: MouseEvent<HTMLElement>, background: string) => (e.currentTarget.style.background = background);
 
 const ROW: CSSProperties = {
   display: "flex",
@@ -27,7 +23,7 @@ const ROW: CSSProperties = {
   cursor: "pointer",
   textAlign: "left",
   whiteSpace: "nowrap",
-  transition: QUICK,
+  transition: `background ${QUICK}`,
 };
 
 function PlugsIcon() {
@@ -125,7 +121,7 @@ export function ModelPicker({
           color: "var(--fx-text-primary)",
           cursor: isStreaming ? "not-allowed" : "pointer",
           opacity: isStreaming ? 0.5 : 1,
-          transition: QUICK,
+          transition: `background ${QUICK}`,
         }}
         onMouseEnter={(e) => !isStreaming && paint(e, HOVER)}
         onMouseLeave={(e) => paint(e, dropdownOpen ? HOVER : CLEAR)}
@@ -264,11 +260,7 @@ export function ModelPicker({
                         <span
                           style={{ display: "flex", width: 14, flexShrink: 0, color: "var(--fx-accent-blue-text)" }}
                         >
-                          {isActive && (
-                            <Icon size={14} strokeWidth={2.25}>
-                              <path d="M20 6 9 17l-5-5" />
-                            </Icon>
-                          )}
+                          {isActive && <CheckmarkIcon size={14} strokeWidth={2.25} />}
                         </span>
                       </button>
                     );
