@@ -324,7 +324,7 @@ test("hiding closes local menus and the body-mounted model menu", async (t) => {
   t.after(async () => unmount());
   await mount();
 
-  await click(rootEl.querySelector('button[aria-haspopup="listbox"]'));
+  await click(rootEl.querySelector('button[aria-haspopup="dialog"]'));
   assert.ok(modelPortal(), "the model picker must be mounted outside the ChatInput root when open");
   await rerender({ visible: false });
   assert.equal(modelPortal(), undefined, "hiding must remove the body-mounted model picker");
