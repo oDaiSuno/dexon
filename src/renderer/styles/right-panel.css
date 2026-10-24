@@ -159,7 +159,10 @@
   min-width: 0;
 }
 .right-panel-tab-strip {
+  display: flex;
   flex-shrink: 0;
+  box-sizing: border-box;
+  height: 36px;
   overflow: hidden;
   background: var(--fx-surface-sidebar);
   border-bottom: 1px solid var(--fx-line-default);

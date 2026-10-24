@@ -11,6 +11,7 @@ export const enUS: Record<string, string> = {
   changedPathCount: "{count} changed paths",
   code: "Source",
   collapseFolder: "Collapse folder {name}",
+  closeFileTab: "Close {name}",
   diff: "Changes",
   diffHunkCount: "{count} changes",
   diffTooLarge:
@@ -69,6 +70,7 @@ export const zhCN: Record<string, string> = {
   changedPathCount: "{count} 个变更路径",
   code: "源码",
   collapseFolder: "收起文件夹 {name}",
+  closeFileTab: "关闭 {name}",
   diff: "改动",
   diffHunkCount: "{count} 处改动",
   diffTooLarge: "差异过大，无法安全渲染。文件从 {oldLines} 行变为 {newLines} 行；当前显示最新源码以避免应用卡死。",
