@@ -61,19 +61,13 @@ test("the production sidebar shows a friendly personal-space name without a resi
 });
 
 function composerWorkspaceButton(scene) {
-  return waitFor(() => {
-    const matches = roles(scene.container, "button").filter(
-      (element) => element.getAttribute("aria-haspopup") === "menu" && element.textContent.includes("Personal space"),
-    );
-    assert.equal(matches.length, 1, "Expected one workspace button showing the personal space");
-    return matches[0];
-  });
+  return waitFor(() => control(scene.container, "button", "Workspace: Personal space"));
 }
 
 test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
   const scene = await startNavigation(t, { history: false });
   await click(await composerWorkspaceButton(scene));
-  await click(await waitFor(() => control(scene.container, "menuitem", "Open in Finder")));
+  await click(await waitFor(() => control(scene.container, "button", "Open in Finder")));
   await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
 });
 
@@ -83,7 +77,7 @@ test("Switch project… in the composer's workspace menu brings back the collaps
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
   await click(await composerWorkspaceButton(scene));
-  await click(await waitFor(() => control(scene.container, "menuitem", "Switch project…")));
+  await click(await waitFor(() => control(scene.container, "button", "Switch project…")));
   await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"));
   historyRows(scene, ...personalRows);
   control(scene.history(), "button", "navigation-project");
