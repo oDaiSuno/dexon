@@ -5,8 +5,6 @@ import type { ComposerWorkspace } from "./types";
 import { CLEAR, ELLIPSIS, FOLDER_PATH, GLYPH, GitBranchGlyph, HOVER, QUICK } from "./workspace-chrome";
 import { WorkspaceMenu } from "./workspace-menu";
 
-/** Footer workspace trigger — the project and branch this composer writes to,
- *  with the workspace menu opening upward above it. */
 export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerWorkspace; isMobile: boolean }) {
   const { t } = useI18n();
   const { workspace: state, project } = workspace;

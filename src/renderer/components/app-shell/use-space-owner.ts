@@ -9,9 +9,6 @@ import type { ComposerWorkspace } from "../chat-input/types";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { RequestDeparture } from "./use-departure-guard";
 
-/** Owns the current space's sessions and worktrees above both surfaces that use
- *  them: the sidebar (session list, project picker, worktree notices) and the
- *  composer footer's workspace trigger. */
 export function useSpaceOwner({
   selectedSessionId,
   sessionCwd,
@@ -30,9 +27,7 @@ export function useSpaceOwner({
   refreshKey: number;
   onSessionDeleted: (sessionId: string) => void;
   coordination: SpaceCoordination;
-  /** Commits a user-chosen cwd to session navigation. */
   onCwdCommitted: (cwd: string | null, projectRoot?: string | null) => void;
-  /** Adopts a cwd this owner already pushed down, without user semantics. */
   onCoordinatorCwd: (cwd: string | null) => void;
   requestDeparture: RequestDeparture;
   onOpenSidebar: () => void;

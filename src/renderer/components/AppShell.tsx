@@ -187,9 +187,6 @@ export function AppShell({
   const mainCovered = settingsOpen || remoteShown;
   const mainSuspended = onResources || settingsOpen;
 
-  // The space's sessions and its worktrees are owned here, above the sidebar
-  // and the chat, so the composer footer's workspace trigger and the sidebar
-  // read and drive the same space.
   const space = useSpaceOwner({
     selectedSessionId: mainSuspended ? null : (selectedSession?.id ?? null),
     sessionCwd: selectedSession?.cwd ?? null,
