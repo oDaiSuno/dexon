@@ -13,6 +13,7 @@ import {
   menuAction,
   historyRows,
   noHistoryRows,
+  dom,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import {
@@ -59,18 +60,35 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.doesNotMatch(scene.navigation().textContent, /worktree|repo root/i);
 });
 
-test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
-  const scene = await startNavigation(t, { history: false });
-  const trigger = await waitFor(() => {
+function composerWorkspaceButton(scene) {
+  return waitFor(() => {
     const matches = roles(scene.container, "button").filter(
       (element) => element.getAttribute("aria-haspopup") === "menu" && element.textContent.includes("Personal space"),
     );
     assert.equal(matches.length, 1, "Expected one workspace button showing the personal space");
     return matches[0];
   });
-  await click(trigger);
+}
+
+test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  await click(await composerWorkspaceButton(scene));
   await click(await waitFor(() => control(scene.container, "menuitem", "Open in Finder")));
   await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
+});
+
+test("Switch project… in the composer's workspace menu brings back the collapsed sidebar with its project tree, and no separate list of spaces appears", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, ...personalRows));
+  await click(control(scene.navigation(), "button", "Hide sidebar"));
+  await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
+  await click(await composerWorkspaceButton(scene));
+  await click(await waitFor(() => control(scene.container, "menuitem", "Switch project…")));
+  await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"));
+  historyRows(scene, ...personalRows);
+  control(scene.history(), "button", "navigation-project");
+  await scene.settled();
+  assert.equal(roles(dom.window.document.body, "menu", "Switch space").length, 0, "no extra list of spaces is opened");
 });
 
 test("choosing another folder moves the sidebar to that project and shows all of its worktree histories", async (t) => {
