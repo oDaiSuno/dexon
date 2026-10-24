@@ -446,7 +446,7 @@ export function AppShell({
           onAtMention={handleAtMention}
           activeCwd={activeCwd}
           personalCwd={coordination.personalCwd}
-          homeDir={space.directory.homeDir}
+          homeDir={space.homeDir}
           headerAction={
             <RightPanelToggle
               placement="panel"
