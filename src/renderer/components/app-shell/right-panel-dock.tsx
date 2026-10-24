@@ -1,6 +1,12 @@
 import { useI18n } from "@/i18n";
 import { formatNumber } from "@/lib/locale-format";
 import {
+  RIGHT_PANEL_MAX_VIEWPORT_RATIO,
+  getRightPanelWidthLimit,
+  type RightPanelWidthBounds,
+  type RightPanelWidthLimit,
+} from "@/lib/layout-preferences";
+import {
   useLayoutEffect,
   useRef,
   useState,
@@ -54,7 +60,7 @@ export function RightPanelDock({
   ) => void;
   rightPanelOpen: boolean;
   rightPanelWidth: number;
-  rightPanelBounds: { minWidth: number; maxWidth: number };
+  rightPanelBounds: RightPanelWidthBounds;
   rightPanelResizing: boolean;
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onResizeKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
@@ -77,10 +83,7 @@ export function RightPanelDock({
   const { language, t } = useI18n();
   const activeFileTab = fileTabs.find((t) => t.id === activeFileTabId) ?? null;
 
-  const atLimit =
-    rightPanelResizing &&
-    (Math.round(rightPanelWidth) <= rightPanelBounds.minWidth ||
-      Math.round(rightPanelWidth) >= rightPanelBounds.maxWidth);
+  const widthLimit = getRightPanelWidthLimit(rightPanelWidth, rightPanelBounds);
 
   const panelStyle: CSSProperties = {
     display: suspended ? "none" : "flex",
@@ -92,7 +95,7 @@ export function RightPanelDock({
 
   return (
     <div
-      className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelResizing ? " right-panel-resizing" : ""}${atLimit ? " right-panel-at-limit" : ""}`}
+      className={`right-panel-container${rightPanelOpen ? " right-panel-open" : " right-panel-closed"}${rightPanelResizing ? " right-panel-resizing" : ""}`}
       style={panelStyle}
       hidden={suspended}
       aria-hidden={suspended || !rightPanelOpen ? true : undefined}
@@ -111,11 +114,12 @@ export function RightPanelDock({
           formatNumber(Math.round(rightPanelWidth), language),
         )}
         tabIndex={isMobile ? -1 : 0}
+        data-limit={widthLimit ?? undefined}
         onPointerDown={onResizeStart}
         onKeyDown={onResizeKeyDown}
       />
       {rightPanelResizing && rightPanelOpen && (
-        <PanelWidthReadout width={rightPanelWidth} bounds={rightPanelBounds} language={language} />
+        <PanelWidthReadout width={rightPanelWidth} bounds={rightPanelBounds} limit={widthLimit} language={language} />
       )}
       <div
         className={`right-panel-header${activeFileTabId === EXPLORER_TAB_ID ? " right-panel-header-explorer" : ""}${activeFileTabId === EXPLORER_TAB_ID && fileTabs.length === 0 ? " right-panel-header-ruled" : ""}`}
@@ -319,7 +323,7 @@ function DockSwitcher({
               <span
                 className={`dock-switcher-count type-mono-meta${attention ? " dock-switcher-count-attention" : ""}`}
               >
-                {count > 0 ? count : "!"}
+                {count}
               </span>
             )}
           </button>
@@ -329,32 +333,42 @@ function DockSwitcher({
   );
 }
 
+function readoutNote(
+  bounds: RightPanelWidthBounds,
+  limit: RightPanelWidthLimit | null,
+  language: AppLanguage,
+  t: (key: string, fallback: string) => string,
+): string {
+  if (limit === "min") return t("rightPanelWidthAtMin", "Minimum width reached");
+  if (limit === "max") {
+    if (bounds.maxLimitedBy === "chat") {
+      return t("rightPanelWidthAtChatMax", "Maximum · chat needs its minimum width");
+    }
+    const percent = formatNumber(Math.round(RIGHT_PANEL_MAX_VIEWPORT_RATIO * 100), language);
+    return t("rightPanelWidthAtWindowMax", "Maximum · {percent}% of window").replace("{percent}", percent);
+  }
+  return `${formatNumber(bounds.minWidth, language)} – ${formatNumber(bounds.maxWidth, language)}`;
+}
+
 function PanelWidthReadout({
   width,
   bounds,
+  limit,
   language,
 }: {
   width: number;
-  bounds: { minWidth: number; maxWidth: number };
+  bounds: RightPanelWidthBounds;
+  limit: RightPanelWidthLimit | null;
   language: AppLanguage;
 }) {
+  const { t } = useI18n();
   const rounded = Math.round(width);
-  const limit = rounded <= bounds.minWidth ? "min" : rounded >= bounds.maxWidth ? "max" : null;
-  const boundClass = (edge: "min" | "max") => (limit === edge ? " panel-width-readout-bound-reached" : "");
   return (
     <div className="panel-width-readout" aria-hidden="true">
       <span className="panel-width-readout-value type-mono-label">{formatNumber(rounded, language)}</span>
       <span className="panel-width-readout-meta type-mono-meta">{PIXEL_UNIT}</span>
       <span className="panel-width-readout-separator" />
-      <span className="panel-width-readout-meta type-mono-meta">
-        <span className={`panel-width-readout-bound${boundClass("min")}`}>
-          {formatNumber(bounds.minWidth, language)}
-        </span>
-        {" – "}
-        <span className={`panel-width-readout-bound${boundClass("max")}`}>
-          {formatNumber(bounds.maxWidth, language)}
-        </span>
-      </span>
+      <span className="panel-width-readout-meta type-mono-meta">{readoutNote(bounds, limit, language, t)}</span>
     </div>
   );
 }
