@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ChannelBinding, ChannelsSnapshot } from "@shared/channel-types";
 import { call, listSessions } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
 import { formatRelativeDateTime } from "@/lib/locale-format";
 import { getSessionDisplayTitle } from "@/lib/session-list";
-import { MenuPanel } from "../chat-input/menu-chrome";
+import { MenuPanel, MenuState, SearchXIcon } from "../chat-input/menu-chrome";
 import { channelLabel, statusFor } from "./channels-config/channel-labels";
 import { accountPresence } from "./channels-config/channel-presentation";
 import { BindingRow, type BindingGroup } from "./quick-channel-rows";
@@ -51,6 +51,7 @@ export function QuickChannelBinding({
   onManage,
 }: QuickChannelBindingProps) {
   const { language, t } = useI18n();
+  const searchRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -94,8 +95,10 @@ export function QuickChannelBinding({
     }
     return needle ? result.filter((group) => group.bindings.length > 0) : result;
   }, [needle, snapshot.accounts, snapshot.bindings, t]);
-  const rows = groups.flatMap((group) => group.bindings);
-  const active = Math.min(activeIndex, Math.max(0, rows.length - 1));
+  const rows = useMemo(() => groups.flatMap((group) => group.bindings), [groups]);
+  const choices = useMemo(() => rows.filter((binding) => binding.sessionId !== sessionId), [rows, sessionId]);
+  const active = Math.min(activeIndex, Math.max(0, choices.length - 1));
+  const activeBinding = choices[active];
   const linkedItems: LinkedConversation[] = linked.map((binding) => ({
     binding,
     account: accountOf(binding.accountId),
@@ -129,7 +132,7 @@ export function QuickChannelBinding({
   const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      setActiveIndex(Math.min(active + 1, Math.max(0, rows.length - 1)));
+      setActiveIndex(Math.min(active + 1, Math.max(0, choices.length - 1)));
       return;
     }
     if (event.key === "ArrowUp") {
@@ -139,8 +142,8 @@ export function QuickChannelBinding({
     }
     if (event.key === "Enter" && !event.nativeEvent.isComposing) {
       event.preventDefault();
-      const target = rows[active];
-      if (target && target.sessionId !== sessionId && busyId === null) void updateBinding(target, true);
+      const target = choices[active];
+      if (target && busyId === null) void updateBinding(target, true);
     }
   };
 
@@ -170,6 +173,7 @@ export function QuickChannelBinding({
                     setActiveIndex(0);
                   },
                   onKeyDown: onSearchKey,
+                  inputRef: searchRef,
                 }
               : undefined
           }
@@ -189,10 +193,16 @@ export function QuickChannelBinding({
               <RemoteLinked
                 items={linkedItems}
                 busy={busyId !== null}
-                onDisconnect={(binding) => void updateBinding(binding, false)}
+                onDisconnect={(binding) => void updateBinding(binding, false).then(() => searchRef.current?.focus())}
               />
             )}
             <RemoteList label={t("quickChannelBinding", "Conversations you can connect")}>
+              {needle && rows.length === 0 && (
+                <MenuState
+                  icon={<SearchXIcon size={16} />}
+                  title={t("remoteNoMatch", "No conversations match “{query}”").replace("{query}", query.trim())}
+                />
+              )}
               {groups.map((group) => {
                 const presence = accountPresence(statusFor(snapshot, group.accountId), t);
                 return (
@@ -204,7 +214,7 @@ export function QuickChannelBinding({
                       onReconnect={() => void reconnect(group.accountId)}
                     />
                     {group.bindings.map((binding) => {
-                      const index = rows.indexOf(binding);
+                      const index = choices.indexOf(binding);
                       return (
                         <BindingRow
                           key={binding.id}
@@ -212,10 +222,12 @@ export function QuickChannelBinding({
                           account={group.account}
                           sessionId={sessionId}
                           elsewhereTitle={binding.sessionId ? (sessionTitles.get(binding.sessionId) ?? null) : null}
-                          active={index === active}
+                          active={binding === activeBinding}
                           dimmed={presence.offline && !binding.sessionId}
                           busy={busyId !== null}
-                          onHover={() => setActiveIndex(index)}
+                          onHover={() => {
+                            if (index >= 0) setActiveIndex(index);
+                          }}
                           onConnect={() => void updateBinding(binding, true)}
                         />
                       );

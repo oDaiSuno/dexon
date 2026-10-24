@@ -201,6 +201,7 @@ export const enUS: Record<string, string> = {
   remoteGroupMention: "Group · replies only when the bot is @mentioned",
   remoteLinkedHint: "Messages they send on {channel} show up here, and your replies go back to them",
   remoteManage: "Manage remote chat",
+  remoteNoMatch: "No conversations match “{query}”",
   remoteConversationCount: "{count} conversations",
   remoteOneConversation: "1 conversation",
 };
@@ -396,6 +397,7 @@ export const zhCN: Record<string, string> = {
   remoteGroupMention: "群聊 · 要 @ 机器人才会回复",
   remoteLinkedHint: "对方在{channel}里发的消息会出现在这里，你的回复也会发回给对方",
   remoteManage: "管理远程对话",
+  remoteNoMatch: "没有匹配“{query}”的对话",
   remoteConversationCount: "{count} 个对话",
   remoteOneConversation: "1 个对话",
 };

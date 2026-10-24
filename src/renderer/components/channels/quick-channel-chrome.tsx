@@ -14,6 +14,7 @@ export interface RemoteSearch {
   count: string;
   onChange: (value: string) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef: React.RefObject<HTMLInputElement | null>;
 }
 
 export function RemoteHeader({ onBack, title, search }: { onBack: () => void; title: string; search?: RemoteSearch }) {
@@ -67,6 +68,7 @@ export function RemoteHeader({ onBack, title, search }: { onBack: () => void; ti
           </span>
           <input
             autoFocus
+            ref={search.inputRef}
             data-remote-search
             value={search.value}
             aria-label={search.label}
