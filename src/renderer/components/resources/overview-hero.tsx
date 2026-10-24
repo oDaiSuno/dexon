@@ -1,10 +1,58 @@
+import type { ComponentType } from "react";
 import { useI18n, type AppLanguage } from "@/i18n";
 import { formatNumber } from "@/lib/locale-format";
 import appIconUrl from "../../../../build/icon.png";
 import type { CapabilitySummary } from "./overview-model";
-import { InfoIcon } from "./overview-icons";
+import { EyeOffIcon, PuzzleIcon, SkillIcon, SlashIcon } from "./overview-icons";
 
 type Translate = (key: string, fallback: string) => string;
+type OrbitIcon = ComponentType<{ size: number; className?: string }>;
+
+interface OrbitKind {
+  key: "skills" | "extensions" | "prompts";
+  color: string;
+  border: string;
+  icon: OrbitIcon;
+  slots: { top: number; left: number; size: 26 | 30 }[];
+}
+
+const ORBIT_KINDS: OrbitKind[] = [
+  {
+    key: "skills",
+    color: "var(--fx-data-blue)",
+    border: "var(--fx-accent-blue-border)",
+    icon: SkillIcon,
+    slots: [
+      { top: 17, left: 155, size: 30 },
+      { top: 52, left: 227, size: 30 },
+      { top: 129, left: 245, size: 30 },
+      { top: 192, left: 195, size: 30 },
+      { top: 192, left: 115, size: 30 },
+    ],
+  },
+  {
+    key: "extensions",
+    color: "var(--fx-data-violet)",
+    border: "var(--fx-line-translucent)",
+    icon: PuzzleIcon,
+    slots: [
+      { top: 73, left: 195, size: 26 },
+      { top: 149, left: 195, size: 26 },
+      { top: 149, left: 119, size: 26 },
+    ],
+  },
+  {
+    key: "prompts",
+    color: "var(--fx-data-green)",
+    border: "var(--fx-line-translucent)",
+    icon: SlashIcon,
+    slots: [
+      { top: 129, left: 65, size: 30 },
+      { top: 52, left: 83, size: 30 },
+      { top: 73, left: 119, size: 26 },
+    ],
+  },
+];
 
 function legend(summary: CapabilitySummary, t: Translate) {
   return [
@@ -51,7 +99,39 @@ function footnote(summary: CapabilitySummary, language: AppLanguage, t: Translat
   return null;
 }
 
-function Orbit() {
+function orbitCount(summary: CapabilitySummary, key: OrbitKind["key"]): number {
+  if (key === "skills") return summary.readySkills;
+  if (key === "extensions") return summary.extensions;
+  return summary.prompts;
+}
+
+function OrbitTiles({ summary }: { summary: CapabilitySummary }) {
+  return ORBIT_KINDS.flatMap((kind) =>
+    kind.slots.slice(0, orbitCount(summary, kind.key)).map((slot, index) => {
+      const Icon = kind.icon;
+      return (
+        <span
+          key={`${kind.key}-${index}`}
+          data-orbit-kind={kind.key}
+          className="absolute flex items-center justify-center rounded-[var(--radius-icon-box)] border border-solid bg-[var(--fx-surface-card)]"
+          style={{
+            top: slot.top,
+            left: slot.left,
+            width: slot.size,
+            height: slot.size,
+            borderColor: kind.border,
+            color: kind.color,
+            boxShadow: `0 0 14px 0 color-mix(in srgb, ${kind.color} 15%, transparent)`,
+          }}
+        >
+          <Icon size={slot.size === 30 ? 14 : 12} />
+        </span>
+      );
+    }),
+  );
+}
+
+function Orbit({ summary }: { summary: CapabilitySummary }) {
   return (
     <div aria-hidden="true" className="relative h-full w-[340px] shrink-0">
       <div className="absolute top-[-6px] left-[40px] size-[260px] rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,color-mix(in_srgb,var(--fx-accent-blue)_28%,transparent)_0%,color-mix(in_srgb,var(--fx-accent-blue)_8%,transparent)_45%,transparent_70%)]" />
@@ -64,6 +144,19 @@ function Orbit() {
         height={60}
         className="absolute top-[94px] left-[140px] size-[60px] rounded-[var(--radius-hero)] border border-solid border-[var(--fx-line-translucent)] shadow-[0_0_0_6px_color-mix(in_srgb,var(--fx-accent-blue)_10%,transparent),0_10px_40px_0_color-mix(in_srgb,var(--fx-accent-blue)_45%,transparent)]"
       />
+      <OrbitTiles summary={summary} />
+      {summary.hidden > 0 && (
+        <span
+          data-orbit-kind="hidden"
+          className="absolute top-[213px] left-[167px] size-[6px] rounded-[3px] bg-[var(--fx-text-faint)]"
+        />
+      )}
+      {summary.unavailable > 0 && (
+        <span
+          data-orbit-kind="unavailable"
+          className="absolute top-[121px] left-[221px] size-[6px] rounded-[3px] bg-[var(--fx-status-warning)] opacity-70"
+        />
+      )}
     </div>
   );
 }
@@ -104,12 +197,12 @@ export function OverviewHero({ summary }: { summary: CapabilitySummary }) {
         </ul>
         {note && (
           <p className="m-0 flex items-center gap-[6px]">
-            <InfoIcon size={13} className="text-[var(--fx-text-tertiary)]" />
+            <EyeOffIcon size={13} className="text-[var(--fx-text-tertiary)]" />
             <span className="type-label-default text-[var(--fx-text-tertiary)]">{note}</span>
           </p>
         )}
       </div>
-      <Orbit />
+      <Orbit summary={summary} />
     </section>
   );
 }

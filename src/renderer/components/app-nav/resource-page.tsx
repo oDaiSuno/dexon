@@ -72,6 +72,7 @@ function ResourceWorkspace({
       {view === "overview" ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-[24px] py-[32px]">
           <ResourcesOverview
+            cwd={cwd}
             library={library}
             directory={directory}
             channelSnapshot={channelSnapshot}

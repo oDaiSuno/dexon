@@ -7,7 +7,8 @@ import { AddPluginPanel } from "./plugins/add-plugin-panel";
 import { PackageDetail } from "./plugins/package-detail";
 import { PluginList } from "./plugins/plugin-list";
 import { usePluginLibrary, type PluginLibrary } from "./plugins/use-plugin-library";
-import { buttonStyle, packageKey, shortenPath } from "./plugins/plugin-shared";
+import { Button } from "./form-controls";
+import { packageKey, shortenPath } from "./plugins/plugin-shared";
 
 const embeddedFrame: CSSProperties = { position: "relative", flex: 1, minWidth: 0, minHeight: 0, display: "flex" };
 const dialogFrame: CSSProperties = {
@@ -254,18 +255,10 @@ export function PluginsManager({
               </span>
             )}
           </div>
-          <button
-            onClick={() => void loadPlugins()}
-            disabled={loading || busyKey !== null}
-            style={buttonStyle(loading || busyKey !== null)}
-          >
+          <Button onClick={() => void loadPlugins()} disabled={loading || busyKey !== null}>
             {t("refresh", "Refresh")}
-          </button>
-          {!embedded && (
-            <button onClick={onClose} style={buttonStyle(false)}>
-              {t("close", "Close")}
-            </button>
-          )}
+          </Button>
+          {!embedded && <Button onClick={onClose}>{t("close", "Close")}</Button>}
         </div>
       </div>
     </div>

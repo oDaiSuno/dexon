@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useI18n } from "@/i18n";
-import { buttonStyle, installLocation, type PluginScope } from "./plugin-shared";
+import { Button } from "../form-controls";
+import { installLocation, type PluginScope } from "./plugin-shared";
 import { SegmentedScope } from "./plugin-controls";
 
 export function AddPluginPanel({
@@ -76,19 +77,9 @@ export function AddPluginPanel({
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <SegmentedScope value={scope} onChange={onScopeChange} />
-        <button
-          type="button"
-          onClick={onInstall}
-          disabled={busy || !source.trim()}
-          style={{
-            ...buttonStyle(busy || !source.trim()),
-            background: "var(--fx-accent-blue-fill)",
-            color: "var(--fx-text-on-accent)",
-            borderColor: "transparent",
-          }}
-        >
+        <Button variant="primary" onClick={onInstall} disabled={busy || !source.trim()} busy={busy}>
           {busy ? t("installing", "Installing…") : t("install", "Install")}
-        </button>
+        </Button>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

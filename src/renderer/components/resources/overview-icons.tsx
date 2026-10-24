@@ -122,3 +122,31 @@ export function ArrowRightIcon({ size, className }: IconProps) {
     </OverviewIcon>
   );
 }
+
+export function EyeOffIcon({ size, className }: IconProps) {
+  return (
+    <OverviewIcon size={size} strokeWidth={2} className={className}>
+      <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+      <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+      <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+      <path d="m2 2 20 20" />
+    </OverviewIcon>
+  );
+}
+
+export function SmartphoneIcon({ size, className }: IconProps) {
+  return (
+    <OverviewIcon size={size} className={className}>
+      <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+      <path d="M12 18h.01" />
+    </OverviewIcon>
+  );
+}
+
+export function SlashIcon({ size, className }: IconProps) {
+  return (
+    <OverviewIcon size={size} className={className}>
+      <path d="M22 2 2 22" />
+    </OverviewIcon>
+  );
+}

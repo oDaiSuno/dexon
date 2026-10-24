@@ -45,19 +45,6 @@ export function statusColor(status: PluginPackageInfo["status"]): string {
   return "var(--fx-status-danger)";
 }
 
-export function buttonStyle(disabled?: boolean, danger?: boolean): React.CSSProperties {
-  return {
-    padding: "8px 12px",
-    background: danger ? "rgba(239,68,68,0.08)" : "none",
-    border: "1px solid var(--fx-line-default)",
-    borderRadius: "var(--radius-control)",
-    color: danger ? "var(--fx-status-danger)" : "var(--fx-text-secondary)",
-    cursor: disabled ? "not-allowed" : "pointer",
-    fontSize: "var(--text-label)",
-    opacity: disabled ? 0.5 : 1,
-  };
-}
-
 export function safePluginError(message: string | undefined, fallback: string, t: Translate): string {
   if (!message) return fallback;
   if (/ENOENT|spawn\s+(?:npm|npx|node|git)|not found/i.test(message)) {

@@ -1,8 +1,9 @@
+import { useState } from "react";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
+import { CapabilityRequired } from "../CapabilityRequired";
 import { Button } from "../form-controls";
-import { RemoteEntryCard } from "../app-nav/remote-entry-card";
 import type { PluginLibrary } from "../plugins/use-plugin-library";
 import type { SkillDirectory } from "../skills/use-skill-directory";
 import type { Skill } from "../skills/skill-shared";
@@ -10,10 +11,12 @@ import { AttentionCard } from "./attention-card";
 import { OverviewHero } from "./overview-hero";
 import { capabilitySummary, missingPackages, packageResources, type PackageResource } from "./overview-model";
 import { PlusIcon } from "./overview-icons";
+import { RemoteEntryCard } from "./remote-entry-card";
 import { ExtensionsSection, PromptsSection, SourcesBar } from "./resource-sections";
 import { SkillGrid } from "./skill-grid";
 
 export function ResourcesOverview({
+  cwd,
   library,
   directory,
   channelSnapshot,
@@ -24,6 +27,7 @@ export function ResourcesOverview({
   onOpenPackage,
   onManageSources,
 }: {
+  cwd: string;
   library: PluginLibrary;
   directory: SkillDirectory;
   channelSnapshot: ChannelsSnapshot;
@@ -40,6 +44,12 @@ export function ResourcesOverview({
   const prompts = packageResources(packages, "prompt");
   const summary = capabilitySummary(directory.skills, packages, extensions.length, prompts.length);
   const openResource = (resource: PackageResource) => onOpenPackage(resource.pkg);
+  const [reinstallTried, setReinstallTried] = useState(false);
+  const reinstallError = reinstallTried && library.busyKey === null ? library.actionError : null;
+  const reinstall = (pkg: PluginPackageInfo) => {
+    setReinstallTried(true);
+    void library.installPluginSource(pkg.source, pkg.scope);
+  };
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] flex-col items-stretch gap-[36px]">
@@ -61,8 +71,18 @@ export function ResourcesOverview({
       <AttentionCard
         packages={missingPackages(packages)}
         busyKey={library.busyKey}
-        onReinstall={(pkg) => void library.installPluginSource(pkg.source, pkg.scope)}
-      />
+        error={reinstallError}
+        onReinstall={reinstall}
+      >
+        {reinstallTried && library.capabilityIssue && library.hasPendingCapabilityOperation && (
+          <CapabilityRequired
+            issue={library.capabilityIssue}
+            cwd={cwd}
+            onContinue={library.retryCapabilityOperation}
+            onCancel={library.clearCapabilityPending}
+          />
+        )}
+      </AttentionCard>
       <RemoteEntryCard snapshot={channelSnapshot} onOpen={onOpenRemote} />
       <SkillGrid
         skills={directory.skills}

@@ -1,7 +1,8 @@
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import { pluginResourceSummary, pluginStatusLabel, pluginVersionSummary } from "@/lib/plugin-presentation";
-import { packageKey, shortenPath, statusColor, buttonStyle, type PluginAction } from "./plugin-shared";
+import { Button } from "../form-controls";
+import { packageKey, shortenPath, statusColor, type PluginAction } from "./plugin-shared";
 import { PluginToggle, ScopeTag } from "./plugin-controls";
 import { ResourceList } from "./resource-list";
 
@@ -94,17 +95,17 @@ export function PackageDetail({
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
+          <Button
             onClick={() => onAction("update", pkg)}
             disabled={busy || reloadBusy}
-            style={buttonStyle(busy || reloadBusy)}
+            busy={busyKey === `update:${key}`}
           >
             {busyKey === `update:${key}` ? t("pluginUpdating", "Updating…") : t("pluginUpdate", "Update")}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onReloadSession}
             disabled={!sessionId || reloadBusy || busy}
-            style={buttonStyle(!sessionId || reloadBusy || busy)}
+            busy={reloadBusy}
             title={
               sessionId
                 ? t("pluginReloadCurrentSession", "Reload current session")
@@ -112,14 +113,15 @@ export function PackageDetail({
             }
           >
             {reloadBusy ? t("pluginReloading", "Reloading…") : t("pluginReloadSession", "Reload session")}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={() => onAction("remove", pkg)}
             disabled={busy || reloadBusy}
-            style={buttonStyle(busy || reloadBusy, true)}
+            busy={busyKey === `remove:${key}`}
           >
             {busyKey === `remove:${key}` ? t("pluginRemoving", "Removing…") : t("pluginRemove", "Remove")}
-          </button>
+          </Button>
         </div>
       </div>
 
