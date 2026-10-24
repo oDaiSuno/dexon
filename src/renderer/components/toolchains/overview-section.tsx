@@ -63,7 +63,7 @@ export function OverviewSection({
         <Notice tone="warning">
           {t(
             "toolStateReadOnly",
-            "These tool settings were written by a newer Pi Desktop. This version will not modify or delete them.",
+            "These tool settings were written by a newer version of Dexon. This version will not change or delete them.",
           )}
         </Notice>
       )}

@@ -308,7 +308,7 @@ export function friendlyErrorCode(code: string, t: Translate): string {
       "This component is being installed or may still be used by a running Agent command. Retry when it is idle.",
     );
   if (code === "TOOLCHAIN_PERMISSION_DENIED")
-    return t("toolErrorPermission", "Pi Desktop cannot write or execute its private tool directory.");
+    return t("toolErrorPermission", "Dexon cannot write to or run its private tools folder.");
   if (code === "TOOLCHAIN_UNSUPPORTED")
     return t("toolErrorUnsupported", "This managed tool is not available for the current platform and architecture.");
   if (code === "TOOLCHAIN_MODIFIED")
