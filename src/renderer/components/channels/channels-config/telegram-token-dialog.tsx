@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n";
-import { buttonStyle, inputStyle } from "./control-styles";
+import { buttonStyle, controlTextClass, inputStyle } from "./control-styles";
 
 export function TelegramTokenDialog({
   busy,
@@ -50,6 +50,7 @@ export function TelegramTokenDialog({
           autoFocus
           type="password"
           autoComplete="off"
+          className={controlTextClass}
           style={inputStyle}
           value={token}
           onChange={(event) => setToken(event.target.value)}
@@ -71,12 +72,13 @@ export function TelegramTokenDialog({
           </div>
         )}
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
+          <button type="button" disabled={busy} className={controlTextClass} style={buttonStyle()} onClick={onClose}>
             {t("cancel", "Cancel")}
           </button>
           <button
             type="button"
             disabled={busy || !token.trim()}
+            className={controlTextClass}
             style={buttonStyle(true)}
             onClick={() => onConnect(token.trim())}
           >

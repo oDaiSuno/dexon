@@ -71,9 +71,10 @@ test("channel account settings expose the opt-in IM command switch", () => {
       onDelete() {},
     }),
   );
-  assert.match(html, /IM commands/);
-  assert.match(html, /Enable \/help, \/status, \/new, \/compact, and \/reload/);
-  assert.match(html, /Default tools/);
+  assert.match(html, /Chat commands/);
+  assert.match(html, /Allow \/new, \/status, \/compact and other commands in chat to control the session/);
+  assert.match(html, /role="switch"[^>]*>(?:<\/label>)?<\/div>/);
+  assert.match(html, /Tools the Agent can use/);
   assert.match(html, /synchronized to sessions currently bound to this account/);
 });
 

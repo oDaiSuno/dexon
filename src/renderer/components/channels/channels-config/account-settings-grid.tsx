@@ -1,9 +1,40 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import type { ChannelAccountConfig } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
+import { Button, NativeSelect, Toggle } from "../../form-controls";
+import { SettingRow, SettingValue, toggleHitAreaStyle } from "../../settings/setting-row";
 import { TOOL_PRESETS } from "./constants";
-import { buttonStyle, inputStyle } from "./control-styles";
-import { Field } from "./section-layout";
+import { SectionCard } from "./section-layout";
+
+function parseIds(value: string): string[] {
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function IdListRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const id = useId();
+  return (
+    <SettingRow label={label} controlId={id}>
+      <input
+        id={id}
+        className="ui-input type-mono-label"
+        value={value.join(", ")}
+        onChange={(event) => onChange(parseIds(event.target.value))}
+        style={{ width: 200 }}
+      />
+    </SettingRow>
+  );
+}
 
 export function AccountSettingsGrid({
   draft,
@@ -12,7 +43,9 @@ export function AccountSettingsGrid({
   draft: ChannelAccountConfig;
   setDraft: (draft: ChannelAccountConfig) => void;
 }) {
-  const { t } = useI18n();
+  const { language, t } = useI18n();
+  const ids = { name: useId(), dm: useId(), group: useId(), mention: useId(), tools: useId(), commands: useId() };
+  const cwdId = useId();
   const preset = useMemo(() => {
     const value = [...draft.toolNames].sort().join(",");
     if (value === [...TOOL_PRESETS.read].sort().join(",")) return "read";
@@ -21,154 +54,134 @@ export function AccountSettingsGrid({
   }, [draft.toolNames]);
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginTop: 16 }}>
-      <Field label={t("channelName", "Name")}>
+    <SectionCard>
+      <SettingRow label={t("channelName", "Name")} controlId={ids.name}>
         <input
-          aria-label={t("channelName", "Name")}
-          style={inputStyle}
+          id={ids.name}
+          className="ui-input type-body-default"
           value={draft.name}
           onChange={(event) => setDraft({ ...draft, name: event.target.value })}
+          style={{ width: 200 }}
         />
-      </Field>
-      <Field label={t("dmAccess", "Direct-message access")}>
-        <select
-          aria-label={t("dmAccess", "Direct-message access")}
-          style={inputStyle}
+      </SettingRow>
+      <SettingRow
+        label={t("dmAccess", "Direct messages")}
+        description={t(
+          "dmAccessDescription",
+          "When a stranger messages for the first time, you confirm the pairing code here.",
+        )}
+        controlId={ids.dm}
+      >
+        <NativeSelect
+          id={ids.dm}
           value={draft.dmPolicy}
           onChange={(event) => setDraft({ ...draft, dmPolicy: event.target.value as ChannelAccountConfig["dmPolicy"] })}
         >
-          <option value="pairing">{t("policyPairing", "Pairing")}</option>
-          <option value="allowlist">{t("policyAllowlistOnly", "Allowlist only")}</option>
+          <option value="pairing">{t("policyPairing", "Requires pairing approval")}</option>
+          <option value="allowlist">{t("policyAllowlistOnly", "Only people on the list")}</option>
           <option value="open">{t("policyOpenUnsafe", "Open (unsafe)")}</option>
-        </select>
-      </Field>
-      <Field label={t("allowedUserIds", "Allowed user IDs")}>
-        <input
-          aria-label={t("allowedUserIds", "Allowed user IDs")}
-          style={inputStyle}
-          value={draft.allowFrom.join(", ")}
-          onChange={(event) =>
-            setDraft({
-              ...draft,
-              allowFrom: event.target.value
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </Field>
-      <Field label={t("groupAccess", "Group access")}>
-        <select
-          aria-label={t("groupAccess", "Group access")}
-          style={inputStyle}
+        </NativeSelect>
+      </SettingRow>
+      <IdListRow
+        label={t("allowedUserIds", "Allowed user IDs")}
+        value={draft.allowFrom}
+        onChange={(allowFrom) => setDraft({ ...draft, allowFrom })}
+      />
+      <SettingRow
+        label={t("groupAccess", "Group chats")}
+        description={t(
+          "groupAccessDescription",
+          "Replies only in groups you allow; messages from other groups are ignored.",
+        )}
+        controlId={ids.group}
+      >
+        <NativeSelect
+          id={ids.group}
           value={draft.groupPolicy}
           onChange={(event) =>
             setDraft({ ...draft, groupPolicy: event.target.value as ChannelAccountConfig["groupPolicy"] })
           }
         >
           <option value="disabled">{t("policyDisabledRecommended", "Disabled (recommended)")}</option>
-          <option value="allowlist">{t("policyAllowlist", "Allowlist")}</option>
+          <option value="allowlist">{t("policyAllowlist", "Only groups on the list")}</option>
           <option value="open">{t("policyOpenUnsafe", "Open (unsafe)")}</option>
-        </select>
-      </Field>
-      <Field label={t("allowedGroupIds", "Allowed group IDs")}>
-        <input
-          aria-label={t("allowedGroupIds", "Allowed group IDs")}
-          style={inputStyle}
-          value={draft.groupIds.join(", ")}
-          onChange={(event) =>
-            setDraft({
-              ...draft,
-              groupIds: event.target.value
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </Field>
-      <Field label={t("allowedGroupSenderIds", "Allowed group sender IDs")}>
-        <input
-          aria-label={t("allowedGroupSenderIds", "Allowed group sender IDs")}
-          style={inputStyle}
-          value={draft.groupAllowFrom.join(", ")}
-          onChange={(event) =>
-            setDraft({
-              ...draft,
-              groupAllowFrom: event.target.value
-                .split(",")
-                .map((item) => item.trim())
-                .filter(Boolean),
-            })
-          }
-        />
-      </Field>
-      <Field label={t("groupMentionRequired", "Group mention required")}>
-        <label
-          style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--fx-text-secondary)" }}
-        >
-          <input
-            type="checkbox"
+        </NativeSelect>
+      </SettingRow>
+      <IdListRow
+        label={t("allowedGroupIds", "Allowed group IDs")}
+        value={draft.groupIds}
+        onChange={(groupIds) => setDraft({ ...draft, groupIds })}
+      />
+      <IdListRow
+        label={t("allowedGroupSenderIds", "Allowed group sender IDs")}
+        value={draft.groupAllowFrom}
+        onChange={(groupAllowFrom) => setDraft({ ...draft, groupAllowFrom })}
+      />
+      <SettingRow
+        label={t("groupMentionRequired", "Reply in groups only when @mentioned")}
+        description={t("requireMention", "Keeps Dexon from answering every bit of small talk in a group.")}
+        controlId={ids.mention}
+      >
+        <label htmlFor={ids.mention} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
+          <Toggle
+            id={ids.mention}
             checked={draft.requireMention}
             onChange={(event) => setDraft({ ...draft, requireMention: event.target.checked })}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
           />
-          {t("requireMention", "Require @mention")}
         </label>
-      </Field>
-      <Field label={t("imCommands", "IM commands")}>
-        <label
-          style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, color: "var(--fx-text-secondary)" }}
-        >
-          <input
-            type="checkbox"
-            checked={draft.commandsEnabled === true}
-            onChange={(event) => setDraft({ ...draft, commandsEnabled: event.target.checked })}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
-          />
-          {t("enableImCommands", "Enable /help, /status, /new, /compact, and /reload")}
-        </label>
-      </Field>
-      <Field label={t("defaultTools", "Default tools")}>
-        <select
-          aria-label={t("defaultTools", "Default tools")}
-          style={inputStyle}
+      </SettingRow>
+      <SettingRow
+        label={t("defaultTools", "Tools the Agent can use")}
+        description={[
+          t("defaultToolsDescription", "How far a task started from chat is allowed to go."),
+          t(
+            "defaultToolsHint",
+            "Used for new channel sessions and synchronized to sessions currently bound to this account when saved.",
+          ),
+        ].join(language === "zh-CN" ? "" : " ")}
+        controlId={ids.tools}
+      >
+        <NativeSelect
+          id={ids.tools}
           value={preset}
           onChange={(event) =>
             setDraft({ ...draft, toolNames: [...TOOL_PRESETS[event.target.value as keyof typeof TOOL_PRESETS]] })
           }
         >
           <option value="none">{t("toolPresetNone", "No tools (recommended)")}</option>
-          <option value="read">{t("toolPresetRead", "Read-only tools")}</option>
+          <option value="read">{t("toolPresetRead", "Read files only")}</option>
           <option value="full">{t("toolPresetFull", "Full coding tools")}</option>
-        </select>
-        <span style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}>
-          {t(
-            "defaultToolsHint",
-            "Used for new channel sessions and synchronized to sessions currently bound to this account when saved.",
-          )}
-        </span>
-      </Field>
-      <Field label={t("defaultProjectDirectory", "Default project directory")}>
-        <div style={{ display: "flex", gap: 8 }}>
-          <input
-            aria-label={t("defaultProjectDirectory", "Default project directory")}
-            style={inputStyle}
-            readOnly
-            value={draft.defaultCwd ?? t("isolatedChannelWorkspace", "Isolated channel workspace")}
+        </NativeSelect>
+      </SettingRow>
+      <SettingRow
+        label={t("imCommands", "Chat commands")}
+        description={t(
+          "enableImCommands",
+          "Allow /new, /status, /compact and other commands in chat to control the session.",
+        )}
+        controlId={ids.commands}
+      >
+        <label htmlFor={ids.commands} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
+          <Toggle
+            id={ids.commands}
+            checked={draft.commandsEnabled === true}
+            onChange={(event) => setDraft({ ...draft, commandsEnabled: event.target.checked })}
           />
-          <button
-            type="button"
-            style={buttonStyle()}
+        </label>
+      </SettingRow>
+      <SettingRow label={t("defaultProjectDirectory", "Default project directory")} controlId={cwdId}>
+        <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+          <SettingValue>{draft.defaultCwd ?? t("isolatedChannelWorkspace", "Isolated channel workspace")}</SettingValue>
+          <Button
+            id={cwdId}
             onClick={() =>
               void window.piBridge.selectDirectory().then((cwd) => cwd && setDraft({ ...draft, defaultCwd: cwd }))
             }
           >
             {t("browse", "Browse")}
-          </button>
-        </div>
-      </Field>
-    </div>
+          </Button>
+        </span>
+      </SettingRow>
+    </SectionCard>
   );
 }

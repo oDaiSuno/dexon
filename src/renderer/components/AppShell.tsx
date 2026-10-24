@@ -329,6 +329,7 @@ export function AppShell({
               onOpenResources={() => setRemoteOpen(false)}
               onClose={showChatPage}
               onSnapshotChange={channels.setChannelSnapshot}
+              currentSessionId={selectedSession?.id ?? null}
             />
           )}
           {settingsOpen && (

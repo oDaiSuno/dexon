@@ -387,14 +387,9 @@ export async function runSmokeHostChecks(
                 if (typeof window.piBridge.setChannelCredential !== "function") {
                   throw new Error("Write-only channel credential bridge is unavailable");
                 }
-                const activityToggle = document.querySelector('[data-testid="channel-activity-toggle"]');
-                if (!activityToggle || activityToggle.getAttribute("aria-expanded") !== "false") {
-                  throw new Error("Recent channel activity is not collapsed by default");
-                }
-                activityToggle.click();
-                await new Promise((wait) => setTimeout(wait, 0));
-                if (activityToggle.getAttribute("aria-expanded") !== "true") {
-                  throw new Error("Recent channel activity cannot be expanded");
+                const activityLog = document.querySelector('[data-testid="channel-activity-log"]');
+                if (!activityLog || activityLog.getClientRects().length === 0) {
+                  throw new Error("Recent channel activity log is not shown");
                 }
                 const status = await fetch(${JSON.stringify(`/api/git-status?cwd=${encodeURIComponent(process.cwd())}`)}).then((response) => response.json());
                 const token = "pi-html-preview-smoke-" + Math.random().toString(36).slice(2);

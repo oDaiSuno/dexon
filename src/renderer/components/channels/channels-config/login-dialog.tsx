@@ -2,7 +2,7 @@ import { QRCodeSVG } from "@rc-component/qrcode";
 import { useEffect, useState } from "react";
 import type { ChannelLoginEvent } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { buttonStyle, inputStyle } from "./control-styles";
+import { buttonStyle, controlTextClass, inputStyle } from "./control-styles";
 
 export function LoginDialog({
   event,
@@ -102,12 +102,13 @@ export function LoginDialog({
           <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
             <input
               autoFocus
+              className={controlTextClass}
               style={inputStyle}
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
               placeholder={t("verificationNumber", "Verification number")}
             />
-            <button type="button" style={buttonStyle(true)} onClick={onSubmitCode}>
+            <button type="button" className={controlTextClass} style={buttonStyle(true)} onClick={onSubmitCode}>
               {t("submit", "Submit")}
             </button>
           </div>
@@ -121,11 +122,11 @@ export function LoginDialog({
         )}
         <div style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 16 }}>
           {retryable && onRetry && (
-            <button type="button" style={buttonStyle(true)} onClick={onRetry}>
+            <button type="button" className={controlTextClass} style={buttonStyle(true)} onClick={onRetry}>
               {t("regenerateQrCode", "Generate a new QR code")}
             </button>
           )}
-          <button type="button" style={buttonStyle()} onClick={onClose}>
+          <button type="button" className={controlTextClass} style={buttonStyle()} onClick={onClose}>
             {terminal ? t("close", "Close") : t("cancel", "Cancel")}
           </button>
         </div>

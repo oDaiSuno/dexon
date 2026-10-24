@@ -3,7 +3,7 @@ import type { FeishuDomain } from "@shared/channel-types";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/i18n";
 import { FEISHU_PERMISSION_IMPORT_JSON } from "./constants";
-import { buttonStyle, inputStyle } from "./control-styles";
+import { buttonStyle, controlTextClass, inputStyle } from "./control-styles";
 import { FeishuDialogError } from "./feishu-dialog-error";
 
 export function FeishuManualForm({
@@ -40,12 +40,18 @@ export function FeishuManualForm({
         <input
           autoFocus
           autoComplete="off"
+          className={controlTextClass}
           style={inputStyle}
           value={appId}
           onChange={(event) => setAppId(event.target.value)}
           placeholder={t("feishuAppId", "App ID (cli_…)")}
         />
-        <select style={inputStyle} value={domain} onChange={(event) => setDomain(event.target.value as FeishuDomain)}>
+        <select
+          className={controlTextClass}
+          style={inputStyle}
+          value={domain}
+          onChange={(event) => setDomain(event.target.value as FeishuDomain)}
+        >
           <option value="feishu">{t("feishuChina", "Feishu (China)")}</option>
           <option value="lark">Lark</option>
         </select>
@@ -53,6 +59,7 @@ export function FeishuManualForm({
       <input
         type="password"
         autoComplete="off"
+        className={controlTextClass}
         style={{ ...inputStyle, marginTop: 8 }}
         value={appSecret}
         onChange={(event) => setAppSecret(event.target.value)}
@@ -129,6 +136,7 @@ export function FeishuManualForm({
           <button
             type="button"
             data-testid="copy-feishu-permission-json"
+            className={controlTextClass}
             style={buttonStyle(true)}
             onClick={() => void copyPermissionJson()}
           >
@@ -138,6 +146,7 @@ export function FeishuManualForm({
           </button>
           <button
             type="button"
+            className={controlTextClass}
             style={buttonStyle()}
             onClick={() => void window.piBridge.openExternal(`${docsBase}/app`)}
           >
@@ -148,12 +157,13 @@ export function FeishuManualForm({
 
       <FeishuDialogError error={error} />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-        <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
+        <button type="button" disabled={busy} className={controlTextClass} style={buttonStyle()} onClick={onClose}>
           {t("cancel", "Cancel")}
         </button>
         <button
           type="button"
           disabled={busy || !appId.trim() || !appSecret.trim()}
+          className={controlTextClass}
           style={buttonStyle(true)}
           onClick={() => onConnect(appId.trim(), appSecret.trim(), domain)}
         >

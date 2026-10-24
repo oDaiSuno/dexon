@@ -1,107 +1,81 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ChannelBinding, ChannelsSnapshot } from "@shared/channel-types";
 import type { SessionInfo } from "@contract/types";
 import { call } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
-import { channelLabel } from "./channel-labels";
-import { buttonStyle, inputStyle } from "./control-styles";
-import { EmptyLine, Section } from "./section-layout";
+import { bindingMatches } from "./binding-presentation";
+import { BindingRow } from "./binding-row";
+import { EmptyLine, SectionCard, SectionHeader } from "./section-layout";
 
 export function BindingsSection({
   snapshot,
   sessions,
+  currentSessionId,
   busy,
   run,
 }: {
   snapshot: ChannelsSnapshot;
   sessions: SessionInfo[];
+  currentSessionId?: string | null;
   busy: boolean;
   run: (task: () => Promise<unknown>) => Promise<void>;
 }) {
   const { t } = useI18n();
-  return (
-    <Section title={`${t("conversationBindings", "Conversation bindings")} (${snapshot.bindings.length})`}>
-      {snapshot.bindings.length === 0 ? (
-        <EmptyLine>
-          {t("noConversationBindings", "A binding is created after an approved user sends the first message.")}
-        </EmptyLine>
-      ) : (
-        snapshot.bindings.map((binding) => (
-          <BindingRow key={binding.id} binding={binding} sessions={sessions} busy={busy} run={run} />
-        ))
-      )}
-    </Section>
-  );
-}
+  const [query, setQuery] = useState("");
+  const sessionOf = (binding: ChannelBinding) => sessions.find((session) => session.id === binding.sessionId);
+  const visible = snapshot.bindings.filter((binding) => bindingMatches(binding, sessionOf(binding), query));
+  const searchLabel = t("searchConversations", "Search conversations…");
 
-function BindingRow({
-  binding,
-  sessions,
-  busy,
-  run,
-}: {
-  binding: ChannelBinding;
-  sessions: SessionInfo[];
-  busy: boolean;
-  run: (task: () => Promise<unknown>) => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const [sessionId, setSessionId] = useState(binding.sessionId ?? "");
-  useEffect(() => setSessionId(binding.sessionId ?? ""), [binding.sessionId]);
+  const attach = (binding: ChannelBinding, sessionId: string | undefined) =>
+    void run(() =>
+      call("channels.bindingUpsert", {
+        binding: { ...binding, sessionId, lastUsedAt: new Date().toISOString() },
+      }),
+    );
+
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "minmax(150px,1fr) minmax(220px,2fr) auto",
-        alignItems: "center",
-        gap: 8,
-        padding: "8px 0",
-        borderBottom: "1px solid var(--fx-line-default)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: "var(--text-meta)",
-          color: "var(--fx-text-secondary)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-        }}
-      >
-        {channelLabel(binding.channel, t)} · {binding.peerId}
-        {binding.threadId ? ` · ${t("topic", "topic")} ${binding.threadId}` : ""}
-      </div>
-      <select style={inputStyle} value={sessionId} onChange={(event) => setSessionId(event.target.value)}>
-        <option value="">{t("dedicatedImSession", "Dedicated IM session")}</option>
-        {sessions.map((session) => (
-          <option key={session.id} value={session.id}>
-            {session.name || session.firstMessage || session.id}
-          </option>
-        ))}
-      </select>
-      <div style={{ display: "flex", gap: 4 }}>
-        <button
-          disabled={busy}
-          style={buttonStyle()}
-          onClick={() =>
-            void run(() =>
-              call("channels.bindingUpsert", {
-                binding: { ...binding, sessionId: sessionId || undefined, lastUsedAt: new Date().toISOString() },
-              }),
-            )
-          }
-        >
-          {t("save", "Save")}
-        </button>
-        <button
-          disabled={busy}
-          style={{ ...buttonStyle(), color: "var(--fx-status-danger)" }}
-          onClick={() => void run(() => call("channels.bindingDelete", { bindingId: binding.id }))}
-          title={t("deleteBinding", "Delete binding")}
-          aria-label={t("deleteBinding", "Delete binding")}
-        >
-          ×
-        </button>
-      </div>
-    </div>
+    <section style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+      <SectionHeader
+        title={t("conversationBindings", "Connected conversations")}
+        count={snapshot.bindings.length}
+        aside={
+          <input
+            type="search"
+            className="ui-input type-body-default"
+            aria-label={searchLabel}
+            placeholder={searchLabel}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            style={{ width: 200, flexShrink: 0 }}
+          />
+        }
+      />
+      <SectionCard>
+        {snapshot.bindings.length === 0 || visible.length === 0 ? (
+          <EmptyLine>
+            {snapshot.bindings.length === 0
+              ? t("noConversationBindings", "A binding is created after an approved user sends the first message.")
+              : t("noMatchingConversations", "No matching conversations")}
+          </EmptyLine>
+        ) : (
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {visible.map((binding, index) => (
+              <BindingRow
+                key={binding.id}
+                binding={binding}
+                snapshot={snapshot}
+                session={sessionOf(binding)}
+                sessions={sessions}
+                currentSessionId={currentSessionId}
+                divider={index > 0}
+                busy={busy}
+                onAttach={(sessionId) => attach(binding, sessionId)}
+                onDisconnect={() => void run(() => call("channels.bindingDelete", { bindingId: binding.id }))}
+              />
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+    </section>
   );
 }

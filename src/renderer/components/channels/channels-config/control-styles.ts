@@ -5,7 +5,6 @@ export function buttonStyle(primary = false): React.CSSProperties {
     background: primary ? "var(--fx-accent-blue)" : "var(--fx-surface-main)",
     color: primary ? "var(--fx-text-on-accent)" : "var(--fx-text-secondary)",
     minHeight: 36,
-    fontSize: "var(--text-body)",
     padding: "0 12px",
     cursor: "pointer",
   };
@@ -18,6 +17,7 @@ export const inputStyle: React.CSSProperties = {
   background: "var(--fx-surface-main)",
   color: "var(--fx-text-primary)",
   minHeight: 36,
-  fontSize: "var(--text-body)",
   padding: "8px 8px",
 };
+
+export const controlTextClass = "type-body-default";

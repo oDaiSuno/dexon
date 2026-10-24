@@ -1,0 +1,66 @@
+{
+  "conversationBindings": {
+    "enUS": "Conversation bindings",
+    "zhCN": "会话绑定"
+  },
+  "dedicatedImSession": {
+    "enUS": "Dedicated IM session",
+    "zhCN": "使用独立 IM 会话"
+  },
+  "deleteBinding": {
+    "enUS": "Delete binding",
+    "zhCN": "删除绑定"
+  },
+  "recentActivity": {
+    "enUS": "Recent activity",
+    "zhCN": "最近活动"
+  },
+  "recentActivityDescription": {
+    "enUS": "Message content is never logged; the latest 100 records are retained.",
+    "zhCN": "不会记录消息正文；最多保留最近 100 条记录。"
+  },
+  "dmAccess": {
+    "enUS": "Direct-message access",
+    "zhCN": "私聊访问"
+  },
+  "groupAccess": {
+    "enUS": "Group access",
+    "zhCN": "群聊访问"
+  },
+  "groupMentionRequired": {
+    "enUS": "Group mention required",
+    "zhCN": "群聊触发条件"
+  },
+  "requireMention": {
+    "enUS": "Require @mention",
+    "zhCN": "必须 @提及"
+  },
+  "defaultTools": {
+    "enUS": "Default tools",
+    "zhCN": "默认工具权限"
+  },
+  "imCommands": {
+    "enUS": "IM commands",
+    "zhCN": "IM 命令"
+  },
+  "enableImCommands": {
+    "enUS": "Enable /help, /status, /new, /compact, and /reload",
+    "zhCN": "启用 /help、/status、/new、/compact 和 /reload"
+  },
+  "policyPairing": {
+    "enUS": "Pairing",
+    "zhCN": "需要配对"
+  },
+  "policyAllowlist": {
+    "enUS": "Allowlist",
+    "zhCN": "允许名单"
+  },
+  "policyAllowlistOnly": {
+    "enUS": "Allowlist only",
+    "zhCN": "仅允许名单"
+  },
+  "toolPresetRead": {
+    "enUS": "Read-only tools",
+    "zhCN": "只读工具"
+  }
+}

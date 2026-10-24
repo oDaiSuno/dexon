@@ -20,7 +20,13 @@ export { FeishuCredentialDialog } from "./channels-config/feishu-credential-dial
 export { LoginDialog } from "./channels-config/login-dialog";
 export { TelegramTokenDialog } from "./channels-config/telegram-token-dialog";
 
-export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snapshot: ChannelsSnapshot) => void }) {
+export function ChannelsConfig({
+  onSnapshotChange,
+  currentSessionId,
+}: {
+  onSnapshotChange?: (snapshot: ChannelsSnapshot) => void;
+  currentSessionId?: string | null;
+}) {
   const {
     snapshot,
     sessions,
@@ -99,7 +105,13 @@ export function ChannelsConfig({ onSnapshotChange }: { onSnapshotChange?: (snaps
             setFeishuDialogOpen(true);
           }}
         />
-        <BindingsSection snapshot={snapshot} sessions={sessions} busy={busy} run={run} />
+        <BindingsSection
+          snapshot={snapshot}
+          sessions={sessions}
+          currentSessionId={currentSessionId}
+          busy={busy}
+          run={run}
+        />
         <ActivitySection snapshot={snapshot} />
       </div>
 

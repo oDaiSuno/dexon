@@ -9,11 +9,13 @@ export function RemotePage({
   onOpenResources,
   onClose,
   onSnapshotChange,
+  currentSessionId,
 }: {
   isMobile: boolean;
   onOpenResources: () => void;
   onClose: () => void;
   onSnapshotChange?: (snapshot: ChannelsSnapshot) => void;
+  currentSessionId?: string | null;
 }) {
   const { t } = useI18n();
   const pageRef = useRef<HTMLDivElement>(null);
@@ -65,7 +67,7 @@ export function RemotePage({
         onBack={() => closeRef.current()}
       />
       <div style={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", overflow: "hidden" }}>
-        <ChannelsConfig onSnapshotChange={onSnapshotChange} />
+        <ChannelsConfig onSnapshotChange={onSnapshotChange} currentSessionId={currentSessionId} />
       </div>
     </div>
   );

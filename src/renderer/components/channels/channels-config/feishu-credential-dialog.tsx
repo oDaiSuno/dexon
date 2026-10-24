@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FeishuDomain } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { buttonStyle, inputStyle } from "./control-styles";
+import { buttonStyle, controlTextClass, inputStyle } from "./control-styles";
 import { FeishuDialogError } from "./feishu-dialog-error";
 import { FeishuManualForm } from "./feishu-manual-form";
 
@@ -73,6 +73,7 @@ export function FeishuCredentialDialog({
             role="tab"
             aria-selected={mode === "scan"}
             data-testid="feishu-scan-tab"
+            className={controlTextClass}
             style={buttonStyle(mode === "scan")}
             onClick={() => setMode("scan")}
           >
@@ -83,6 +84,7 @@ export function FeishuCredentialDialog({
             role="tab"
             aria-selected={mode === "manual"}
             data-testid="feishu-manual-tab"
+            className={controlTextClass}
             style={buttonStyle(mode === "manual")}
             onClick={() => setMode("manual")}
           >
@@ -96,6 +98,7 @@ export function FeishuCredentialDialog({
               {t("feishuTenantRegion", "Account region")}
               <select
                 autoFocus
+                className={controlTextClass}
                 style={inputStyle}
                 value={domain}
                 onChange={(event) => setDomain(event.target.value as FeishuDomain)}
@@ -134,13 +137,20 @@ export function FeishuCredentialDialog({
             </div>
             <FeishuDialogError error={error} />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-              <button type="button" disabled={busy} style={buttonStyle()} onClick={onClose}>
+              <button
+                type="button"
+                disabled={busy}
+                className={controlTextClass}
+                style={buttonStyle()}
+                onClick={onClose}
+              >
                 {t("cancel", "Cancel")}
               </button>
               <button
                 type="button"
                 data-testid="start-feishu-scan"
                 disabled={busy}
+                className={controlTextClass}
                 style={buttonStyle(true)}
                 onClick={() => onStartScan(domain)}
               >
