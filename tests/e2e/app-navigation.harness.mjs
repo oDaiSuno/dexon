@@ -83,10 +83,23 @@ async function replaceText(name, value) {
 
 async function click(role, name, text) {
   if (role) await waitFor(() => exists(role, name), `${name} ready for native input`);
-  const point = await page("point", { role, name, text });
+  const point = await settledPoint({ role, name, text });
   window.webContents.sendInputEvent({ type: "mouseMove", ...point });
   window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
   window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+}
+
+const nextFrames = () => js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+async function settledPoint(target) {
+  const deadline = Date.now() + 8000;
+  let previous = await page("point", target);
+  for (;;) {
+    await nextFrames();
+    const current = await page("point", target);
+    if ((current.x === previous.x && current.y === previous.y) || Date.now() >= deadline) return current;
+    previous = current;
+  }
 }
 
 async function screenshot(name, { waitForFrames = true } = {}) {
