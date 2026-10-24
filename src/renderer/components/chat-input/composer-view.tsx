@@ -247,9 +247,6 @@ export function ComposerView(props: ComposerViewProps) {
         }}
       />
       <div className="chat-content-column">
-        {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
-          <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
-        )}
         {imageAttachNotice && (
           <ComposerBanner
             tone="error"
@@ -271,6 +268,10 @@ export function ComposerView(props: ComposerViewProps) {
           />
         )}
         {compactResult && <CompactResultBanner result={compactResult} onDismiss={onDismissCompactResult} />}
+
+        {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
+          <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
+        )}
 
         <div data-composer-anchor style={{ position: "relative" }}>
           <PlusMenuLayer

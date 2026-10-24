@@ -1,65 +1,67 @@
 import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
-import { splitLocalFileReferenceMarkdown } from "@/lib/file-url";
-import { CircleAlertIcon, CircleCheckIcon, CloseIcon, RecallIcon, TriangleAlertIcon } from "./icons";
+import { segmentByAttachmentTokens } from "@shared/attachment-tokens";
+import { AttachmentChip } from "../messages/message-chips";
+import { CircleAlertIcon, CircleCheckIcon, CloseIcon, Icon, RecallIcon, TriangleAlertIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
+
+function ListEndIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M16 12H3" />
+      <path d="M16 6H3" />
+      <path d="M10 18H3" />
+      <path d="M21 6v10a2 2 0 0 1-2 2h-5" />
+      <path d="m16 16-2 2 2 2" />
+    </Icon>
+  );
+}
+
+function SteerIcon({ size = 13 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="m15 10 5 5-5 5" />
+      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+    </Icon>
+  );
+}
+
+function FollowUpIcon({ size = 13 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M12 17V3" />
+      <path d="m6 11 6 6 6-6" />
+      <path d="M19 21H5" />
+    </Icon>
+  );
+}
 
 function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: string }) {
   const { t } = useI18n();
-  const segments = splitLocalFileReferenceMarkdown(text);
+  const isSteer = kind === "steer";
   return (
-    <div
-      title={text}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "4px 12px",
-        fontSize: 12,
-        color: "var(--fx-text-secondary)",
-        minWidth: 0,
-      }}
-    >
+    <div className="queue-tray-row" title={text}>
       <span
-        style={{
-          flexShrink: 0,
-          fontSize: 10,
-          fontFamily: "var(--font-mono)",
-          padding: "1px 8px",
-          borderRadius: "var(--radius-pill)",
-          border: `1px solid ${
-            kind === "steer" ? "color-mix(in srgb, var(--fx-accent-blue) 45%, transparent)" : "var(--fx-line-default)"
-          }`,
-          color: kind === "steer" ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
-        }}
+        className="queue-tray-kind type-label-medium"
+        style={{ color: isSteer ? "var(--fx-status-warning-text)" : "var(--fx-text-secondary)" }}
       >
-        {kind === "steer" ? t("steer", "Steer") : t("followUp", "Follow-up")}
+        {isSteer ? <SteerIcon /> : <FollowUpIcon />}
+        {isSteer ? t("steer", "Steer") : t("followUp", "Follow-up")}
       </span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {segments.map((seg, i) =>
-          seg.file === null ? (
-            <span key={i}>{seg.text}</span>
-          ) : (
-            <span
-              key={i}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "0 8px",
-                margin: "0 2px",
-                borderRadius: "var(--radius-chip)",
-                border: "1px solid var(--fx-line-default)",
-                background: "var(--bg-subtle)",
-                color: "var(--fx-text-primary)",
-                fontSize: 11,
-                verticalAlign: "baseline",
-              }}
-            >
-              {seg.text}
+      <div className="queue-tray-message type-body-default">
+        {segmentByAttachmentTokens(text).map((segment, index) =>
+          segment.type === "text" ? (
+            <span key={index} className="queue-tray-message-text">
+              {segment.text}
             </span>
+          ) : (
+            <AttachmentChip key={index} path={segment.token.path} previewUrl={null} />
           ),
         )}
+      </div>
+      <span className="queue-tray-when type-meta-default">
+        {isSteer ? t("queuedTimingNextStep", "Before next step") : t("queuedTimingAfterDone", "When done")}
       </span>
     </div>
   );
@@ -75,78 +77,42 @@ export function QueuedMessagesPanel({
   const { t } = useI18n();
   const total = queuedMessages.steering.length + queuedMessages.followUp.length;
   return (
-    <div
-      style={{
-        marginBottom: 8,
-        border: "1px solid var(--fx-line-default)",
-        borderRadius: "var(--radius-control)",
-        background: "var(--fx-surface-raised)",
-        padding: "4px 0",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          padding: "2px 8px 4px 12px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 10,
-            fontFamily: "var(--font-mono)",
-            color: "var(--fx-text-tertiary)",
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-          }}
-        >
-          {t("queued", "Queued")} · {total}
+    <div className="queue-tray">
+      <div className="queue-tray-header">
+        <span className="queue-tray-mark">
+          <ListEndIcon />
+        </span>
+        <span className="queue-tray-title type-label-medium">{t("queued", "Queued")}</span>
+        <span className="queue-tray-count type-mono-meta">{total}</span>
+        <span className="queue-tray-dot" aria-hidden="true" />
+        <span className="queue-tray-hint type-label-default">
+          {t("queuedHint", "Delivered in order; recall to rewrite and resend")}
         </span>
         {onRecallQueue && (
           <button
+            type="button"
+            className="queue-tray-recall type-label-medium"
             onClick={onRecallQueue}
-            title={t(
+            aria-label={t(
               "recallQueueDescription",
               "Remove all queued messages and put them back into the input box for editing",
             )}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 12px",
-              fontSize: 12,
-              color: "var(--fx-text-primary)",
-              background: "transparent",
-              border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-card)",
-              cursor: "pointer",
-              transition:
-                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-              whiteSpace: "nowrap",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--bg-hover)";
-              e.currentTarget.style.borderColor =
-                "color-mix(in srgb, var(--fx-accent-blue) 45%, var(--fx-line-default))";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.borderColor = "var(--fx-line-default)";
-            }}
           >
-            <RecallIcon size={13} />
+            <span className="queue-tray-recall-glyph">
+              <RecallIcon size={13} />
+            </span>
             {t("recallToInput", "Recall to input")}
           </button>
         )}
       </div>
-      {queuedMessages.steering.map((text, i) => (
-        <QueuedMessageRow key={`steer-${i}`} kind="steer" text={text} />
-      ))}
-      {queuedMessages.followUp.map((text, i) => (
-        <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
-      ))}
+      <div className="queue-tray-list">
+        {queuedMessages.steering.map((text, i) => (
+          <QueuedMessageRow key={`steer-${i}`} kind="steer" text={text} />
+        ))}
+        {queuedMessages.followUp.map((text, i) => (
+          <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
+        ))}
+      </div>
     </div>
   );
 }

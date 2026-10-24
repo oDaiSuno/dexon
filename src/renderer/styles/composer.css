@@ -17,6 +17,152 @@
   outline: none;
 }
 
+.queue-tray {
+  margin: 0 16px;
+  background: var(--fx-surface-main);
+  border: 1px solid var(--fx-line-default);
+  border-bottom: none;
+  border-radius: var(--radius-menu) var(--radius-menu) 0 0;
+  overflow: hidden;
+}
+
+.queue-tray-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 6px 0 14px;
+}
+
+.queue-tray-mark,
+.queue-tray-recall-glyph {
+  display: flex;
+  flex-shrink: 0;
+  color: var(--fx-text-secondary);
+}
+
+.queue-tray-mark svg,
+.queue-tray-recall-glyph svg {
+  display: block;
+}
+
+.queue-tray-title,
+.queue-tray-count,
+.queue-tray-when {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.queue-tray-title {
+  color: var(--fx-text-primary);
+}
+
+.queue-tray-count,
+.queue-tray-when {
+  color: var(--fx-text-tertiary);
+}
+
+.queue-tray-dot {
+  flex-shrink: 0;
+  width: 3px;
+  height: 3px;
+  border-radius: var(--radius-bar);
+  background: var(--fx-text-faint);
+}
+
+.queue-tray-hint {
+  flex: 1;
+  min-width: 0;
+  color: var(--fx-text-tertiary);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.queue-tray-recall {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-primary);
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    transform var(--duration-quick) var(--ease-smooth-out);
+}
+
+.queue-tray-recall:hover {
+  background: var(--fx-surface-hover-overlay);
+  transform: scale(1.1);
+}
+
+.queue-tray-recall:active {
+  transform: scale(0.97);
+}
+
+.queue-tray-list {
+  max-height: 146px;
+  padding: 4px 6px 6px;
+  border-top: 1px solid var(--fx-line-default);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.queue-tray-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.queue-tray-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-control);
+}
+
+.queue-tray-kind {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  min-width: 48px;
+}
+
+.queue-tray-kind svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.queue-tray-message {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--fx-text-body);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.queue-tray-message-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.queue-tray-message .token-chip {
+  flex: none;
+}
+
 /* The composer is a contenteditable surface; the placeholder shows via
    [data-empty]::before and disappears on the first character. */
 .composer-editor[data-empty]::before {
@@ -67,7 +213,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tap-scale:active {
+  .tap-scale:active,
+  .queue-tray-recall:hover,
+  .queue-tray-recall:active {
     transform: none;
   }
 }

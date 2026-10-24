@@ -1,0 +1,10 @@
+{
+  "followUp": {
+    "enUS": "Follow-up",
+    "zhCN": "后续消息"
+  },
+  "steer": {
+    "enUS": "Steer",
+    "zhCN": "立即引导"
+  }
+}
