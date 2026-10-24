@@ -1,4 +1,3 @@
-import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { startNavigation, control, visibleText, click, waitFor, restoreGlobals } from "../support/app-navigation.mjs";
 

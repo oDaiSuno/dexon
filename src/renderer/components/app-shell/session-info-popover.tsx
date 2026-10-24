@@ -61,6 +61,7 @@ export function UsageCard({
         border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-dialog)",
         boxShadow: "var(--shadow-overlay)",
+        transformOrigin: "top right",
       }}
     >
       {sessionStats ? (

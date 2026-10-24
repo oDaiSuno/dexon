@@ -266,16 +266,6 @@ export function AppShell({
   return (
     <>
       <style>{`
-      .session-info-popover {
-        position: relative;
-        overflow: hidden;
-        transform-origin: top right;
-      }
-      @media (prefers-reduced-motion: reduce) {
-        .session-info-popover {
-          animation: none;
-        }
-      }
       @media (max-width: 640px) {
         .sidebar-overlay-backdrop.sidebar-mobile-pending {
           opacity: 0 !important;
