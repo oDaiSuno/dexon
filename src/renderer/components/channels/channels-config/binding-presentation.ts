@@ -1,7 +1,7 @@
 import type { ChannelBinding } from "@shared/channel-types";
 import type { SessionInfo } from "@contract/types";
 import type { AppLanguage } from "@/i18n";
-import { formatShortRelativeTime } from "@/lib/locale-format";
+import { calendarDaysBetween, formatShortRelativeTime } from "@/lib/locale-format";
 import type { Translate } from "./channel-labels";
 
 export function sessionTitle(session: SessionInfo): string {
@@ -11,12 +11,6 @@ export function sessionTitle(session: SessionInfo): string {
 export function projectName(cwd: string): string {
   const parts = cwd.split(/[\\/]+/).filter(Boolean);
   return parts[parts.length - 1] ?? cwd;
-}
-
-function calendarDaysBetween(earlier: Date, later: Date): number {
-  const start = new Date(earlier.getFullYear(), earlier.getMonth(), earlier.getDate()).getTime();
-  const end = new Date(later.getFullYear(), later.getMonth(), later.getDate()).getTime();
-  return Math.round((end - start) / 86_400_000);
 }
 
 export function bindingTimeLabel(at: string, now: number, language: AppLanguage, t: Translate): string {

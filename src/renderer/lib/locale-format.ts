@@ -50,7 +50,7 @@ export function formatShortRelativeTime(
   return new Intl.DateTimeFormat(language, { year: "numeric", month: "numeric", day: "numeric" }).format(date);
 }
 
-function calendarDaysBetween(earlier: Date, later: Date): number {
+export function calendarDaysBetween(earlier: Date, later: Date): number {
   const start = new Date(earlier.getFullYear(), earlier.getMonth(), earlier.getDate()).getTime();
   const end = new Date(later.getFullYear(), later.getMonth(), later.getDate()).getTime();
   return Math.round((end - start) / 86_400_000);
