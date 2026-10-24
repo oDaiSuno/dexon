@@ -140,6 +140,7 @@ export function NavSpaceMenu({
         aria-haspopup="menu"
         aria-expanded={menuOpen}
         aria-label={t("projectActionsFor", "Actions for {name}").replace("{name}", spaceName)}
+        title={spacePath}
         style={{
           display: "flex",
           alignItems: "center",

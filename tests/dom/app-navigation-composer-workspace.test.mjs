@@ -77,9 +77,9 @@ test("after switching to another worktree the footer names that branch and its m
   const trigger = await footerTrigger(scene, "Workspace: navigation-project, branch review");
   await click(trigger);
   await waitFor(() =>
-    assert.equal(pathChoice(scene.container, navigationPaths.worktree).getAttribute("aria-current"), "true"),
+    assert.equal(pathChoice(chatRegion(scene), navigationPaths.worktree).getAttribute("aria-current"), "true"),
   );
-  assert.equal(pathChoice(scene.container, navigationPaths.project).hasAttribute("aria-current"), false);
+  assert.equal(pathChoice(chatRegion(scene), navigationPaths.project).hasAttribute("aria-current"), false);
 });
 
 test("Escape closes the footer workspace menu and puts keyboard focus back on its trigger", async (t) => {
