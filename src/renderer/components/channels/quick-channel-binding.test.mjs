@@ -58,27 +58,53 @@ function snapshot(sessionId, connected, channel = "weixin") {
   };
 }
 
-test("active session header switches from quick bind to connected status", () => {
-  const props = { sessionId: "session-one", isMobile: false, onSnapshotChange() {} };
-  const unbound = renderToStaticMarkup(
-    createElement(QuickChannelBinding, { ...props, snapshot: snapshot(undefined, true) }),
+function render(channelSnapshot) {
+  return renderToStaticMarkup(
+    createElement(QuickChannelBinding, {
+      sessionId: "session-one",
+      snapshot: channelSnapshot,
+      onSnapshotChange() {},
+      onBack() {},
+      onManage() {},
+    }),
   );
-  assert.match(unbound, /data-testid="channel-quick-bind-button"/);
-  assert.match(unbound, /Bind messaging conversation/);
+}
 
-  const bound = renderToStaticMarkup(
-    createElement(QuickChannelBinding, { ...props, snapshot: snapshot("session-one", true) }),
-  );
-  assert.match(bound, /data-testid="channel-binding-indicator"/);
-  assert.match(bound, /Connected to WeChat/);
+test("the remote panel lists every conversation of a connected account and where it goes", () => {
+  const html = render(snapshot(undefined, true));
+  assert.match(html, /data-testid="channel-quick-bind-popover"/);
+  assert.match(html, /Connect a chat conversation to this session/);
+  assert.match(html, /My WeChat/);
+  assert.match(html, /user-one/);
+  assert.match(html, /DM/);
+  assert.match(html, /1 conversation/);
+});
 
-  const telegramBound = renderToStaticMarkup(
-    createElement(QuickChannelBinding, { ...props, snapshot: snapshot("session-one", true, "telegram") }),
-  );
-  assert.match(telegramBound, /Connected to Telegram/);
+test("the remote panel names the messaging app of each account", () => {
+  assert.match(render(snapshot(undefined, true, "telegram")), />Telegram</);
+  assert.match(render(snapshot(undefined, true, "feishu")), />Feishu</);
+  const lark = snapshot(undefined, true, "feishu");
+  lark.accounts[0].domain = "lark";
+  assert.match(render(lark), />Lark</);
+});
 
-  const feishuBound = renderToStaticMarkup(
-    createElement(QuickChannelBinding, { ...props, snapshot: snapshot("session-one", true, "feishu") }),
-  );
-  assert.match(feishuBound, /Connected to Feishu \/ Lark/);
+test("a conversation connected to this session is reported as connected and can be disconnected", () => {
+  const html = render(snapshot("session-one", true));
+  assert.match(html, /Connected to this session/);
+  assert.match(html, /Connected here/);
+  assert.match(html, /Disconnect/);
+  assert.match(html, /1 connected · 1 total/);
+});
+
+test("a conversation connected to another session is not offered as connected here", () => {
+  const html = render(snapshot("another-session", true));
+  assert.doesNotMatch(html, /Connected here/);
+  assert.match(html, /Connected to “another-session”/);
+});
+
+test("without any chat app the panel explains how to connect one", () => {
+  const html = render({ accounts: [], statuses: [], pairings: [], bindings: [], activities: [] });
+  assert.match(html, /No chat apps connected yet/);
+  assert.match(html, /Connect an app/);
+  assert.doesNotMatch(html, /Conversations you can connect/);
 });

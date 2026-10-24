@@ -1,397 +1,252 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { ChannelBinding, ChannelsSnapshot } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
-import {
-  getQuickChannelBindingPopoverLayout,
-  type QuickChannelBindingPopoverLayout,
-} from "@/lib/quick-channel-binding-layout";
+import { call, listSessions } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
+import { formatRelativeDateTime } from "@/lib/locale-format";
+import { getSessionDisplayTitle } from "@/lib/session-list";
+import { MenuPanel } from "../chat-input/menu-chrome";
+import { channelLabel, statusFor } from "./channels-config/channel-labels";
+import { accountPresence } from "./channels-config/channel-presentation";
+import { BindingRow, type BindingGroup } from "./quick-channel-rows";
+import {
+  GroupHeader,
+  RemoteEmpty,
+  RemoteFooter,
+  RemoteHeader,
+  RemoteHint,
+  RemoteLinked,
+  RemoteList,
+  type LinkedConversation,
+} from "./quick-channel-chrome";
 
 interface QuickChannelBindingProps {
   sessionId: string;
   snapshot: ChannelsSnapshot;
-  isMobile: boolean;
   onSnapshotChange: (snapshot: ChannelsSnapshot) => void;
+  onBack: () => void;
+  onManage: () => void;
 }
 
-export function QuickChannelBinding({ sessionId, snapshot, isMobile, onSnapshotChange }: QuickChannelBindingProps) {
-  const { t } = useI18n();
-  const channelName = (channel: ChannelBinding["channel"]) => {
-    if (channel === "telegram") return "Telegram";
-    if (channel === "feishu") return t("feishuLark", "Feishu / Lark");
-    return t("weixin", "WeChat");
-  };
-  const [open, setOpen] = useState(false);
-  const [busyBindingId, setBusyBindingId] = useState<string | null>(null);
+type Translate = (key: string, fallback: string) => string;
+
+function hasRemoteAccounts(snapshot: ChannelsSnapshot): boolean {
+  return snapshot.accounts.some((account) => account.configured) || snapshot.bindings.length > 0;
+}
+
+function countLabel(t: Translate, linked: number, total: number): string {
+  if (linked > 0) {
+    return t("connectedToMessagingChannels", "{linked} connected · {total} total")
+      .replace("{linked}", String(linked))
+      .replace("{total}", String(total));
+  }
+  if (total === 1) return t("remoteOneConversation", "1 conversation");
+  return t("remoteConversationCount", "{count} conversations").replace("{count}", String(total));
+}
+
+export function QuickChannelBinding({
+  sessionId,
+  snapshot,
+  onSnapshotChange,
+  onBack,
+  onManage,
+}: QuickChannelBindingProps) {
+  const { language, t } = useI18n();
+  const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [popoverLayout, setPopoverLayout] = useState<QuickChannelBindingPopoverLayout | null>(null);
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const dialogRef = useRef<HTMLDivElement | null>(null);
-  const dialogId = useId();
+  const [sessionTitles, setSessionTitles] = useState<ReadonlyMap<string, string>>(new Map());
 
-  const closePopover = useCallback((restoreFocus = false) => {
-    setOpen(false);
-    if (restoreFocus) {
-      window.requestAnimationFrame(() => triggerRef.current?.focus());
+  const available = hasRemoteAccounts(snapshot);
+  const elsewhereIds = snapshot.bindings.some((binding) => binding.sessionId && binding.sessionId !== sessionId);
+
+  useEffect(() => {
+    if (!elsewhereIds) return;
+    let cancelled = false;
+    listSessions()
+      .then(({ sessions }) => {
+        if (cancelled) return;
+        setSessionTitles(new Map(sessions.map((session) => [session.id, getSessionDisplayTitle(session, 40)])));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [elsewhereIds]);
+
+  const accountOf = (accountId: string) => snapshot.accounts.find((account) => account.id === accountId);
+  const isOnline = (accountId: string) => accountPresence(statusFor(snapshot, accountId), t).online;
+  const linked = snapshot.bindings.filter((binding) => binding.sessionId === sessionId);
+  const needle = query.trim().toLowerCase();
+
+  const groups = useMemo<BindingGroup[]>(() => {
+    const result: BindingGroup[] = snapshot.accounts
+      .filter((account) => account.configured || snapshot.bindings.some((binding) => binding.accountId === account.id))
+      .map((account) => ({ accountId: account.id, account, channel: account.channel, bindings: [] }));
+    for (const binding of snapshot.bindings) {
+      let group = result.find((candidate) => candidate.accountId === binding.accountId);
+      if (!group) {
+        group = { accountId: binding.accountId, channel: binding.channel, bindings: [] };
+        result.push(group);
+      }
+      const haystack = `${binding.peerId} ${group.account?.name ?? ""} ${channelLabel(binding.channel, t)}`;
+      if (!needle || haystack.toLowerCase().includes(needle)) group.bindings.push(binding);
     }
-  }, []);
+    return needle ? result.filter((group) => group.bindings.length > 0) : result;
+  }, [needle, snapshot.accounts, snapshot.bindings, t]);
+  const rows = groups.flatMap((group) => group.bindings);
+  const active = Math.min(activeIndex, Math.max(0, rows.length - 1));
+  const linkedItems: LinkedConversation[] = linked.map((binding) => ({
+    binding,
+    account: accountOf(binding.accountId),
+    since: formatRelativeDateTime(binding.lastUsedAt, language),
+    online: isOnline(binding.accountId),
+  }));
 
-  const updatePopoverLayout = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) return;
-    const next = getQuickChannelBindingPopoverLayout({
-      trigger: trigger.getBoundingClientRect(),
-      viewportWidth: window.innerWidth,
-      viewportHeight: window.innerHeight,
-      isMobile,
-    });
-    setPopoverLayout((previous) =>
-      previous &&
-      previous.left === next.left &&
-      previous.top === next.top &&
-      previous.width === next.width &&
-      previous.maxHeight === next.maxHeight &&
-      previous.placement === next.placement
-        ? previous
-        : next,
-    );
-  }, [isMobile]);
-
-  const currentBindings = useMemo(
-    () => snapshot.bindings.filter((binding) => binding.sessionId === sessionId),
-    [sessionId, snapshot.bindings],
-  );
-  const accountNames = useMemo(
-    () => [
-      ...new Set(
-        currentBindings.flatMap((binding) => {
-          const account = snapshot.accounts.find((candidate) => candidate.id === binding.accountId);
-          return account ? [account.name] : [];
-        }),
-      ),
-    ],
-    [currentBindings, snapshot.accounts],
-  );
-  const online = currentBindings.some((binding) =>
-    snapshot.statuses.some((status) => status.accountId === binding.accountId && status.connected),
-  );
-  const available = snapshot.accounts.some((account) => account.configured) || snapshot.bindings.length > 0;
-  const currentChannels = [...new Set(currentBindings.map((binding) => binding.channel))];
-
-  useEffect(() => {
-    setOpen(false);
-    setError("");
-  }, [sessionId]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: globalThis.PointerEvent) => {
-      const target = event.target as Node;
-      if (rootRef.current?.contains(target) || dialogRef.current?.contains(target)) return;
-      closePopover();
-    };
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key === "Escape") closePopover(true);
-    };
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [closePopover, open]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    updatePopoverLayout();
-
-    const frame = window.requestAnimationFrame(() => dialogRef.current?.focus());
-    const observer =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => {
-            updatePopoverLayout();
-          });
-    if (triggerRef.current) observer?.observe(triggerRef.current);
-    if (rootRef.current?.parentElement) observer?.observe(rootRef.current.parentElement);
-
-    window.addEventListener("resize", updatePopoverLayout);
-    window.addEventListener("scroll", updatePopoverLayout, true);
-    return () => {
-      window.cancelAnimationFrame(frame);
-      observer?.disconnect();
-      window.removeEventListener("resize", updatePopoverLayout);
-      window.removeEventListener("scroll", updatePopoverLayout, true);
-    };
-  }, [open, updatePopoverLayout]);
-
-  if (!available) return null;
-
-  const updateBinding = async (binding: ChannelBinding, bind: boolean) => {
-    setBusyBindingId(binding.id);
+  const run = async (id: string, task: () => Promise<ChannelsSnapshot | void>) => {
+    setBusyId(id);
     setError("");
     try {
-      const next = await call("channels.bindingUpsert", {
-        binding: {
-          ...binding,
-          sessionId: bind ? sessionId : undefined,
-          lastUsedAt: new Date().toISOString(),
-        },
-      });
-      onSnapshotChange(next);
-      setOpen(false);
+      const next = await task();
+      if (next) onSnapshotChange(next);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
-      setBusyBindingId(null);
+      setBusyId(null);
+    }
+  };
+  const updateBinding = (binding: ChannelBinding, bind: boolean) =>
+    run(binding.id, () =>
+      call("channels.bindingUpsert", {
+        binding: { ...binding, sessionId: bind ? sessionId : undefined, lastUsedAt: new Date().toISOString() },
+      }),
+    );
+  const reconnect = (accountId: string) =>
+    run(accountId, async () => {
+      await call("channels.restart", { accountId });
+    });
+
+  const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveIndex(Math.min(active + 1, Math.max(0, rows.length - 1)));
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveIndex(Math.max(0, active - 1));
+      return;
+    }
+    if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+      event.preventDefault();
+      const target = rows[active];
+      if (target && target.sessionId !== sessionId && busyId === null) void updateBinding(target, true);
     }
   };
 
-  const bound = currentBindings.length > 0;
-  const singleChannel = currentChannels.length === 1 ? currentChannels[0] : undefined;
-  const accent =
-    singleChannel === "telegram"
-      ? "#229ed9"
-      : singleChannel === "weixin"
-        ? "#07c160"
-        : singleChannel === "feishu"
-          ? "#3370ff"
-          : "var(--fx-accent-blue)";
-  const label = bound
-    ? online
-      ? singleChannel
-        ? `${t("connectedToChannel", "Connected to")} ${channelName(singleChannel)}`
-        : t("connectedToMessagingChannels", "Connected to messaging channels")
-      : t("boundToMessagingChannelsOffline", "Bound to messaging channels (offline)")
-    : t("bindMessagingConversation", "Bind messaging conversation");
-
   return (
-    <>
-      <div ref={rootRef} style={{ position: "relative", marginLeft: 12, minWidth: 0, flexShrink: 1 }}>
-        <button
-          ref={triggerRef}
-          type="button"
-          data-testid={bound ? "channel-binding-indicator" : "channel-quick-bind-button"}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-controls={open ? dialogId : undefined}
-          title={`${bound ? t("channelBindingIndicatorTitle", "This UI session is shared with messaging channels") : t("bindChannelToCurrentSession", "Bind a messaging conversation to this session")}${accountNames.length > 0 ? ` · ${accountNames.join(", ")}` : ""}`}
-          onClick={() => {
-            setError("");
-            setOpen((value) => !value);
-          }}
-          style={{
-            minWidth: 0,
-            maxWidth: isMobile ? 148 : 280,
-            padding: "4px 8px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            border: `1px solid ${bound ? `color-mix(in srgb, ${accent} 38%, var(--fx-line-default))` : "var(--fx-line-default)"}`,
-            borderRadius: "var(--radius-pill)",
-            background: bound ? `color-mix(in srgb, ${accent} 9%, var(--fx-surface-raised))` : "var(--fx-surface-main)",
-            color: "var(--fx-text-secondary)",
-            fontSize: "var(--text-meta)",
-            whiteSpace: "nowrap",
-            cursor: "pointer",
-            overflow: "hidden",
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              width: 7,
-              height: 7,
-              flexShrink: 0,
-              borderRadius: "50%",
-              background: bound ? (online ? accent : "var(--fx-text-tertiary)") : "var(--fx-accent-blue)",
-              boxShadow: bound && online ? `0 0 0 2px color-mix(in srgb, ${accent} 18%, transparent)` : "none",
-            }}
-          />
-          <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-            {label}
-            {!isMobile && currentBindings.length > 1
-              ? ` · ${currentBindings.length} ${t("conversations", "conversations")}`
-              : ""}
-          </span>
-          <span aria-hidden="true" style={{ fontSize: "var(--text-micro)", opacity: 0.7 }}>
-            ▾
-          </span>
-        </button>
-      </div>
-
-      {open &&
-        popoverLayout &&
-        typeof document !== "undefined" &&
-        createPortal(
+    <MenuPanel label={t("bindChannelToCurrentSession", "Connect a chat conversation to this session")}>
+      <div
+        data-testid="channel-quick-bind-popover"
+        style={{ flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" }}
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          event.stopPropagation();
+          onBack();
+        }}
+      >
+        <RemoteHeader
+          onBack={onBack}
+          title={t("channels", "Remote chat")}
+          search={
+            available
+              ? {
+                  value: query,
+                  label: t("quickChannelBindingDescription", "Search contacts or groups…"),
+                  count: countLabel(t, linked.length, snapshot.bindings.length),
+                  onChange: (next) => {
+                    setQuery(next);
+                    setActiveIndex(0);
+                  },
+                  onKeyDown: onSearchKey,
+                }
+              : undefined
+          }
+        />
+        {error && (
           <div
-            ref={dialogRef}
-            id={dialogId}
-            role="dialog"
-            tabIndex={-1}
-            aria-label={t("quickChannelBinding", "Quick messaging-channel binding")}
-            data-testid="channel-quick-bind-popover"
-            data-placement={popoverLayout.placement}
-            style={{
-              position: "fixed",
-              top: popoverLayout.top,
-              left: popoverLayout.left,
-              zIndex: 250,
-              width: popoverLayout.width,
-              maxHeight: popoverLayout.maxHeight,
-              overflowX: "hidden",
-              overflowY: "auto",
-              overscrollBehavior: "contain",
-              border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-card)",
-              background: "var(--fx-surface-main)",
-              boxShadow: "0 12px 34px rgba(0,0,0,.22)",
-              padding: 12,
-              outline: "none",
-            }}
+            role="alert"
+            className="type-label-default"
+            style={{ padding: "8px 14px 0", color: "var(--fx-status-danger-text)", overflowWrap: "anywhere" }}
           >
-            <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body)", fontWeight: 700 }}>
-              {t("quickChannelBinding", "Quick messaging-channel binding")}
-            </div>
-            <div
-              style={{ marginTop: 4, color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", lineHeight: 1.5 }}
-            >
-              {t(
-                "quickChannelBindingDescription",
-                "Choose the messaging conversation that should share this active UI session.",
-              )}
-            </div>
-
-            {error && (
-              <div
-                style={{
-                  marginTop: 8,
-                  color: "var(--fx-status-danger)",
-                  fontSize: "var(--text-meta)",
-                  overflowWrap: "anywhere",
-                }}
-              >
-                {error}
-              </div>
-            )}
-
-            <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
-              {snapshot.bindings.length === 0 ? (
-                <div
-                  style={{
-                    border: "1px dashed var(--fx-line-default)",
-                    borderRadius: "var(--radius-card)",
-                    padding: 12,
-                    color: "var(--fx-text-tertiary)",
-                    fontSize: "var(--text-meta)",
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {t(
-                    "noBindableChannelConversations",
-                    "No messaging conversations are available yet. Ask an approved user to send the first message.",
-                  )}
-                </div>
-              ) : (
-                snapshot.bindings.map((binding) => {
-                  const account = snapshot.accounts.find((candidate) => candidate.id === binding.accountId);
-                  const boundHere = binding.sessionId === sessionId;
-                  const boundElsewhere = Boolean(binding.sessionId) && !boundHere;
-                  const busy = busyBindingId === binding.id;
-                  return (
-                    <div
-                      key={binding.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "minmax(0,1fr) auto",
-                        alignItems: "center",
-                        gap: 12,
-                        border: `1px solid ${boundHere ? "color-mix(in srgb, var(--fx-accent-blue) 35%, var(--fx-line-default))" : "var(--fx-line-default)"}`,
-                        borderRadius: "var(--radius-card)",
-                        background: boundHere
-                          ? "color-mix(in srgb, var(--fx-accent-blue) 7%, var(--fx-surface-raised))"
-                          : "var(--fx-surface-raised)",
-                        padding: "8px 12px",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            color: "var(--fx-text-primary)",
-                            fontSize: "var(--text-meta)",
-                            fontWeight: 650,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {account?.name ?? channelName(binding.channel)} ·{" "}
-                          {binding.peerKind === "group"
-                            ? t("groupConversation", "Group")
-                            : t("directConversation", "DM")}
-                        </div>
-                        <div
-                          title={binding.peerId}
-                          style={{
-                            marginTop: 4,
-                            color: "var(--fx-text-tertiary)",
-                            fontFamily: "var(--font-mono)",
-                            fontSize: "var(--text-micro)",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {binding.peerId}
-                        </div>
-                        {(boundHere || boundElsewhere) && (
-                          <div
-                            style={{
-                              marginTop: 4,
-                              color: boundHere ? "var(--fx-accent-blue)" : "var(--fx-text-tertiary)",
-                              fontSize: "var(--text-micro)",
-                            }}
-                          >
-                            {boundHere
-                              ? t("boundToCurrentSession", "Bound to current session")
-                              : t("boundToAnotherSession", "Bound to another session")}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        disabled={busyBindingId !== null}
-                        onClick={() => void updateBinding(binding, !boundHere)}
-                        style={{
-                          border: `1px solid ${boundHere ? "color-mix(in srgb, var(--fx-status-danger) 40%, transparent)" : "var(--fx-accent-blue)"}`,
-                          borderRadius: "var(--radius-control)",
-                          background: boundHere ? "var(--fx-surface-main)" : "var(--fx-accent-blue-fill)",
-                          color: boundHere ? "var(--fx-status-danger)" : "var(--fx-text-on-accent)",
-                          padding: "8px 8px",
-                          fontSize: "var(--text-micro)",
-                          whiteSpace: "nowrap",
-                          cursor: busyBindingId !== null ? "default" : "pointer",
-                          opacity: busyBindingId !== null && !busy ? 0.55 : 1,
-                        }}
-                      >
-                        {busy
-                          ? t("saving", "Saving…")
-                          : boundHere
-                            ? t("unbind", "Unbind")
-                            : boundElsewhere
-                              ? t("rebindHere", "Rebind here")
-                              : t("bindHere", "Bind here")}
-                      </button>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>,
-          document.body,
+            {error}
+          </div>
         )}
-    </>
+        {available ? (
+          <>
+            {linked.length > 0 && !needle && (
+              <RemoteLinked
+                items={linkedItems}
+                busy={busyId !== null}
+                onDisconnect={(binding) => void updateBinding(binding, false)}
+              />
+            )}
+            <RemoteList label={t("quickChannelBinding", "Conversations you can connect")}>
+              {groups.map((group) => {
+                const presence = accountPresence(statusFor(snapshot, group.accountId), t);
+                return (
+                  <Fragment key={group.accountId}>
+                    <GroupHeader
+                      group={group}
+                      presence={presence}
+                      busy={busyId !== null}
+                      onReconnect={() => void reconnect(group.accountId)}
+                    />
+                    {group.bindings.map((binding) => {
+                      const index = rows.indexOf(binding);
+                      return (
+                        <BindingRow
+                          key={binding.id}
+                          binding={binding}
+                          account={group.account}
+                          sessionId={sessionId}
+                          elsewhereTitle={binding.sessionId ? (sessionTitles.get(binding.sessionId) ?? null) : null}
+                          active={index === active}
+                          dimmed={presence.offline && !binding.sessionId}
+                          busy={busyId !== null}
+                          onHover={() => setActiveIndex(index)}
+                          onConnect={() => void updateBinding(binding, true)}
+                        />
+                      );
+                    })}
+                  </Fragment>
+                );
+              })}
+              <RemoteHint>
+                {t(
+                  "noBindableChannelConversations",
+                  "Don't see the conversation you want? Send the bot a message from your phone and it will show up here.",
+                )}
+              </RemoteHint>
+            </RemoteList>
+          </>
+        ) : (
+          <RemoteEmpty onConnect={onManage} />
+        )}
+        <RemoteFooter
+          hints={
+            available
+              ? [
+                  { keyLabel: "↑↓", label: t("menuKeySelect", "Select") },
+                  { keyLabel: "↵", label: t("bindMessagingConversation", "Connect to this session") },
+                  { keyLabel: "esc", label: t("remoteBack", "Back") },
+                ]
+              : [{ keyLabel: "esc", label: t("remoteBack", "Back") }]
+          }
+          onManage={onManage}
+        />
+      </div>
+    </MenuPanel>
   );
 }

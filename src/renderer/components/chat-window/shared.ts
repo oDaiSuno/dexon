@@ -4,6 +4,8 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import { type ChatInputHandle } from "../ChatInput";
+import type { ChannelsSnapshot } from "@shared/channel-types";
+import type { ComposerNavigation } from "../chat-input/types";
 import { type ChatMinimapMessage } from "../ChatMinimap";
 export interface Props {
   session: SessionInfo | null;
@@ -29,6 +31,9 @@ export interface Props {
   visible?: boolean;
   thinkingExpansionStore: ThinkingExpansionStore;
   processDetailsExpansionStore: ThinkingExpansionStore;
+  channelSnapshot?: ChannelsSnapshot;
+  onChannelSnapshotChange?: (snapshot: ChannelsSnapshot) => void;
+  navigation?: ComposerNavigation;
 }
 export function phaseLabel(phase: AgentPhase, t: (key: string, fallback: string) => string): string {
   if (phase?.kind === "running_tools") {

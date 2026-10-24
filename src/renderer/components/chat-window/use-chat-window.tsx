@@ -36,6 +36,9 @@ export function useChatWindow({
   thinkingExpansionStore,
   processDetailsExpansionStore,
   visible = true,
+  channelSnapshot,
+  onChannelSnapshotChange,
+  navigation,
 }: Props) {
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
 
@@ -296,6 +299,15 @@ export function useChatWindow({
     ? (modelThinkingLevelMaps[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
     : null;
 
+  const sessionId = session?.id;
+  const remote = useMemo(
+    () =>
+      sessionId && channelSnapshot && onChannelSnapshotChange
+        ? { sessionId, snapshot: channelSnapshot, onSnapshotChange: onChannelSnapshotChange }
+        : null,
+    [channelSnapshot, onChannelSnapshotChange, sessionId],
+  );
+
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
@@ -337,6 +349,8 @@ export function useChatWindow({
       draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
       visible={visible}
+      remote={remote}
+      navigation={navigation}
     />
   );
 

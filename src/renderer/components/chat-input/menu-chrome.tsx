@@ -7,11 +7,11 @@ export interface MenuKeyHint {
   label: string;
 }
 
-export function MenuPanel({ label, children }: { label?: string; children: ReactNode }) {
+export function MenuPanel({ label, role, children }: { label?: string; role?: "group" | "menu"; children: ReactNode }) {
   return (
     <div
       className="composer-pop-in"
-      role={label ? "group" : undefined}
+      role={role ?? (label ? "group" : undefined)}
       aria-label={label}
       style={{
         position: "absolute",

@@ -2,11 +2,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import type { ReactNode } from "react";
-import { QuickChannelBinding } from "../channels/QuickChannelBinding";
 import { SessionIdentity } from "./session-identity";
 import { SessionInfoPopover } from "./session-info-popover";
 import type { SessionInfo } from "@/lib/types";
-import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SessionCopyFeedback, SessionCopyField, ContextUsageState } from "./use-session-info";
 
@@ -20,8 +18,6 @@ export function TopBar({
   showSidebarToggle,
   isMobile,
   selectedSession,
-  channelSnapshot,
-  onChannelSnapshotChange,
   activeTopPanel,
   onToggleTopPanel,
   sessionStats,
@@ -36,8 +32,6 @@ export function TopBar({
   showSidebarToggle: boolean;
   isMobile: boolean;
   selectedSession: SessionInfo | null;
-  channelSnapshot: ChannelsSnapshot;
-  onChannelSnapshotChange: (snapshot: ChannelsSnapshot) => void;
   activeTopPanel: "session" | null;
   onToggleTopPanel: () => void;
   sessionStats: SessionStatsInfo | null;
@@ -206,14 +200,6 @@ export function TopBar({
         >
           {getSessionDisplayTitle(selectedSession)}
         </div>
-      )}
-      {selectedSession && (
-        <QuickChannelBinding
-          sessionId={selectedSession.id}
-          snapshot={channelSnapshot}
-          isMobile={isMobile}
-          onSnapshotChange={onChannelSnapshotChange}
-        />
       )}
       {/* Session stats — right-aligned in top bar */}
       {showChat &&

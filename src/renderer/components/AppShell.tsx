@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ChatWindow } from "./ChatWindow";
 import { SettingsConfig } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
@@ -188,6 +188,16 @@ export function AppShell({
       setRemoteOpen(true);
     });
   }, [requestDeparture, closeSettings]);
+  const openResources = useCallback(() => handleNavigate("resources"), [handleNavigate]);
+  const openModelSettings = useCallback(() => {
+    setActiveTopPanel(null);
+    if (isMobile) setSidebarOpen(false);
+    openSettings("models");
+  }, [isMobile, openSettings]);
+  const composerNavigation = useMemo(
+    () => ({ openResources, openRemote, openModelSettings }),
+    [openResources, openRemote, openModelSettings],
+  );
   const onResources = page === "resources";
   const remoteShown = onResources && remoteOpen && !settingsOpen;
   const mainCovered = settingsOpen || remoteShown;
@@ -352,8 +362,6 @@ export function AppShell({
               showSidebarToggle={isMobile}
               isMobile={isMobile}
               selectedSession={onResources ? null : selectedSession}
-              channelSnapshot={channels.channelSnapshot}
-              onChannelSnapshotChange={channels.setChannelSnapshot}
               activeTopPanel={activeTopPanel}
               onToggleTopPanel={toggleTopPanel}
               sessionStats={info.sessionStats}
@@ -406,6 +414,9 @@ export function AppShell({
                     onSessionStatsPanelOpen={openSessionStatsPanel}
                     onContextUsageChange={info.setContextUsage}
                     onOpenFile={handleOpenLinkedFile}
+                    channelSnapshot={channels.channelSnapshot}
+                    onChannelSnapshotChange={channels.setChannelSnapshot}
+                    navigation={composerNavigation}
                     thinkingExpansionStore={thinkingExpansionRegistryRef.current.get(
                       selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
                     )}

@@ -64,6 +64,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     draftKey,
     cwd,
     visible = true,
+    remote,
+    navigation,
   },
   ref,
 ) {
@@ -368,6 +370,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       plusMenuOpen={skills.plusMenuOpen}
       onTogglePlusMenu={skills.openPlusMenu}
       onOpenSkillPicker={skills.openSkillPicker}
+      remotePanelOpen={skills.remotePanelOpen}
+      onOpenRemotePanel={skills.openRemotePanel}
+      onBackToPlusMenu={skills.backToPlusMenu}
+      onCloseMenus={skills.closeTransientMenus}
+      remote={remote}
+      navigation={navigation}
       skills={skills.skillsState.skills}
       skillsLoading={skills.skillsState.loading}
       skillsError={skills.skillsState.error}

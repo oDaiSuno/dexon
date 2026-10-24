@@ -6,6 +6,7 @@ import type {
 } from "@/hooks/useAgentSession";
 import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
+import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 
 export interface ChatInputProps {
@@ -49,6 +50,20 @@ export interface ChatInputProps {
   cwd?: string | null;
   /** Whether this input is currently user-visible and interactive. */
   visible?: boolean;
+  remote?: ComposerRemote | null;
+  navigation?: ComposerNavigation;
+}
+
+export interface ComposerRemote {
+  sessionId: string;
+  snapshot: ChannelsSnapshot;
+  onSnapshotChange: (snapshot: ChannelsSnapshot) => void;
+}
+
+export interface ComposerNavigation {
+  openResources: () => void;
+  openRemote: () => void;
+  openModelSettings: () => void;
 }
 
 export interface ComposerEditableHandle {

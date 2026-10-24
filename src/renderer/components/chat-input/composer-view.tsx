@@ -4,10 +4,10 @@ import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession"
 import type { ModelCatalogStatus } from "@contract/types";
 import type { SkillRecord } from "@/lib/api-types";
 import { ComposerEditable } from "./ComposerEditable";
-import type { ComposerEditableHandle } from "./types";
+import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote } from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
-import { PlusMenu, type PlusMenuRow } from "./PlusMenu";
+import { PlusMenuLayer } from "./plus-menu-layer";
 import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
@@ -15,7 +15,7 @@ import { SlashMenu } from "./SlashMenu";
 import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashCommandPaletteItem } from "./slash-commands";
-import { PackageIcon, PaperclipIcon, PlusIcon } from "./icons";
+import { PlusIcon } from "./icons";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps {
@@ -48,6 +48,12 @@ export interface ComposerViewProps {
   plusMenuOpen: boolean;
   onTogglePlusMenu: () => void;
   onOpenSkillPicker: () => void;
+  remotePanelOpen: boolean;
+  onOpenRemotePanel: () => void;
+  onBackToPlusMenu: () => void;
+  onCloseMenus: () => void;
+  remote?: ComposerRemote | null;
+  navigation?: ComposerNavigation;
   skills: SkillRecord[];
   skillsLoading: boolean;
   skillsError: boolean;
@@ -147,6 +153,12 @@ export function ComposerView(props: ComposerViewProps) {
     plusMenuOpen,
     onTogglePlusMenu,
     onOpenSkillPicker,
+    remotePanelOpen,
+    onOpenRemotePanel,
+    onBackToPlusMenu,
+    onCloseMenus,
+    remote,
+    navigation,
     skills,
     skillsLoading,
     skillsError,
@@ -258,28 +270,18 @@ export function ComposerView(props: ComposerViewProps) {
         {compactResult && <CompactResultBanner result={compactResult} onDismiss={onDismissCompactResult} />}
 
         <div data-composer-anchor style={{ position: "relative" }}>
-          {plusMenuOpen && (
-            <PlusMenu
-              rows={
-                [
-                  {
-                    key: "files",
-                    name: t("plusAttachFiles", "Add files"),
-                    desc: t("plusAttachFilesDesc", "Upload files from your computer"),
-                    icon: <PaperclipIcon size={15} />,
-                    onSelect: onOpenPicker,
-                  },
-                  {
-                    key: "skill",
-                    name: t("plusUseSkill", "Use a skill"),
-                    desc: t("plusUseSkillDesc", "Browse and invoke installed skills"),
-                    icon: <PackageIcon size={15} />,
-                    onSelect: onOpenSkillPicker,
-                  },
-                ] satisfies PlusMenuRow[]
-              }
-            />
-          )}
+          <PlusMenuLayer
+            plusMenuOpen={plusMenuOpen}
+            remotePanelOpen={remotePanelOpen}
+            skillCount={skills.length}
+            remote={remote}
+            navigation={navigation}
+            onOpenPicker={onOpenPicker}
+            onOpenSkillPicker={onOpenSkillPicker}
+            onOpenRemotePanel={onOpenRemotePanel}
+            onBackToPlusMenu={onBackToPlusMenu}
+            onCloseMenus={onCloseMenus}
+          />
           {skillPickerOpen && (
             <SkillPickerPanel
               skills={skills}
@@ -324,7 +326,7 @@ export function ComposerView(props: ComposerViewProps) {
               <button
                 type="button"
                 aria-haspopup="menu"
-                aria-expanded={plusMenuOpen}
+                aria-expanded={plusMenuOpen || remotePanelOpen}
                 onClick={onTogglePlusMenu}
                 title={t(
                   "attachLocalFilesDescription",

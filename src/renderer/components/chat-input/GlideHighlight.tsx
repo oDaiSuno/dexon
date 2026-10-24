@@ -13,6 +13,7 @@ export function GlideHighlight({
   activeIndex,
   visible,
   insetX = 4,
+  radius = "var(--radius-control)",
 }: {
   containerRef: RefObject<HTMLElement | null>;
   rowSelector: string;
@@ -21,6 +22,7 @@ export function GlideHighlight({
   /** Horizontal inset from the container edge; 0 when the rows live in a
    *  scroll container that is itself already inset by the panel padding. */
   insetX?: number;
+  radius?: string;
 }) {
   const [box, setBox] = useState<{ top: number; height: number } | null>(null);
 
@@ -43,7 +45,7 @@ export function GlideHighlight({
         position: "absolute",
         left: insetX,
         right: insetX,
-        borderRadius: "var(--radius-control)",
+        borderRadius: radius,
         background: "var(--fx-surface-raised-hover)",
         top: box?.top ?? 0,
         height: box?.height ?? 0,

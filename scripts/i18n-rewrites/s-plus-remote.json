@@ -1,0 +1,70 @@
+{
+  "bindChannelToCurrentSession": {
+    "enUS": "Bind a messaging conversation to this session",
+    "zhCN": "将消息对话绑定到当前会话"
+  },
+  "bindHere": {
+    "enUS": "Bind here",
+    "zhCN": "绑定到这里"
+  },
+  "bindMessagingConversation": {
+    "enUS": "Bind messaging conversation",
+    "zhCN": "绑定消息对话"
+  },
+  "boundToAnotherSession": {
+    "enUS": "Bound to another session",
+    "zhCN": "已绑定到其他会话"
+  },
+  "boundToCurrentSession": {
+    "enUS": "Bound to current session",
+    "zhCN": "已绑定到当前会话"
+  },
+  "boundToMessagingChannelsOffline": {
+    "enUS": "Bound to messaging channels (offline)",
+    "zhCN": "已绑定消息渠道（未在线）"
+  },
+  "channelBindingIndicatorTitle": {
+    "enUS": "This UI session is shared with messaging channels",
+    "zhCN": "此 UI 会话已与消息渠道共用"
+  },
+  "connectedToChannel": {
+    "enUS": "Connected to",
+    "zhCN": "已连接到"
+  },
+  "connectedToMessagingChannels": {
+    "enUS": "Connected to messaging channels",
+    "zhCN": "已连接到消息渠道"
+  },
+  "noBindableChannelConversations": {
+    "enUS": "No messaging conversations are available yet. Ask an approved user to send the first message.",
+    "zhCN": "暂无可绑定的消息对话。请先让已批准的用户发送第一条消息。"
+  },
+  "plusAttachFilesDesc": {
+    "enUS": "Upload files from your computer",
+    "zhCN": "从计算机中上传文件"
+  },
+  "plusUseSkill": {
+    "enUS": "Use a skill",
+    "zhCN": "使用 Skill"
+  },
+  "plusUseSkillDesc": {
+    "enUS": "Browse and invoke installed skills",
+    "zhCN": "查询并调用已有技能"
+  },
+  "quickChannelBinding": {
+    "enUS": "Quick messaging-channel binding",
+    "zhCN": "快速绑定消息渠道"
+  },
+  "quickChannelBindingDescription": {
+    "enUS": "Choose the messaging conversation that should share this active UI session.",
+    "zhCN": "选择要与当前 UI 会话共用上下文的消息对话。"
+  },
+  "rebindHere": {
+    "enUS": "Rebind here",
+    "zhCN": "改绑到这里"
+  },
+  "unbind": {
+    "enUS": "Unbind",
+    "zhCN": "解除绑定"
+  }
+}

@@ -44,7 +44,7 @@ export const navigationLabels = {
     spaceActions: "{name} 的项目操作",
     newSession: "新建会话",
     attach: "添加图片或本地文件引用",
-    skillAction: /^使用 Skill/,
+    skillAction: /^使用技能/,
     skillPicker: "使用技能",
     skillContent: "技能 Markdown 内容",
   },
