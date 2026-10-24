@@ -21,34 +21,29 @@ export function WorktreeRemoveConfirm({
         flexWrap: "wrap",
         alignItems: "center",
         gap: 8,
-        padding: "8px 12px",
-        borderBottom: "1px solid var(--fx-line-default)",
-        background: "rgba(239,68,68,0.06)",
+        padding: 8,
+        borderRadius: "var(--radius-control)",
+        background: "var(--fx-status-danger-soft)",
       }}
     >
       <span
-        style={{
-          flex: "1 1 100%",
-          fontSize: "var(--text-meta)",
-          color: "var(--fx-text-primary)",
-          overflowWrap: "anywhere",
-        }}
+        className="type-meta-default"
+        style={{ flex: "1 1 100%", color: "var(--fx-text-primary)", overflowWrap: "anywhere" }}
       >
         {t("worktreeForceRemoveConfirm", "Uncommitted changes. Force remove checkout?")}
       </span>
       <button
         onClick={onForce}
         disabled={busy}
+        className="type-label-medium"
         style={{
           marginLeft: "auto",
           padding: "4px 8px",
           background: "var(--fx-status-danger)",
-          border: "none",
+          border: "1px solid transparent",
           borderRadius: "var(--radius-control)",
           color: "var(--fx-text-on-danger)",
-          fontSize: "var(--text-meta)",
-          fontWeight: 600,
-          cursor: "pointer",
+          cursor: busy ? "not-allowed" : "pointer",
           flexShrink: 0,
         }}
       >
@@ -56,13 +51,13 @@ export function WorktreeRemoveConfirm({
       </button>
       <button
         onClick={onCancel}
+        className="type-label-medium"
         style={{
           padding: "4px 8px",
-          background: "var(--bg-hover)",
+          background: "var(--fx-surface-card)",
           border: "1px solid var(--fx-line-default)",
           borderRadius: "var(--radius-control)",
           color: "var(--fx-text-secondary)",
-          fontSize: "var(--text-meta)",
           cursor: "pointer",
           flexShrink: 0,
         }}

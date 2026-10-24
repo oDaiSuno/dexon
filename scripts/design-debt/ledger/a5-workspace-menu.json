@@ -1,35 +1,6 @@
 {
   "lane": "A5 工作区菜单",
-  "legacy": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-remove-confirm.tsx",
-      "name": "--bg-hover",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-remove-confirm.tsx",
-      "name": "--text-meta",
-      "count": 3
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-remove-confirm.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-remove-confirm.tsx",
-      "property": "fontWeight",
-      "count": 1
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-remove-confirm.tsx",
-      "color": "rgba(239,68,68,0.06)",
-      "count": 1,
-      "hint": "改用 var(--fx-status-danger-soft)；悬停加深用 var(--fx-status-danger-soft-strong)"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }
