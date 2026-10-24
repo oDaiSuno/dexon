@@ -44,12 +44,15 @@ export function useSessionInfo() {
 
   // Context usage — populated by ChatWindow, displayed in top bar
   const [contextUsage, setContextUsage] = useState<ContextUsageState | null>(null);
+  const [modelId, setModelId] = useState<string | null>(null);
 
   return {
     sessionStats,
     setSessionStats,
     contextUsage,
     setContextUsage,
+    modelId,
+    setModelId,
     sessionCopyFeedback,
     handleCopySessionField,
   };

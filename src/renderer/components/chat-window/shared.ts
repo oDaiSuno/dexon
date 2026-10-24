@@ -26,6 +26,7 @@ export interface Props {
   onContextUsageChange?: (
     usage: { percent: number | null; contextWindow: number; tokens: number | null } | null,
   ) => void;
+  onModelIdChange?: (modelId: string | null) => void;
   onOpenFile?: (filePath: string) => void;
   /** True while this chat surface is the page currently shown to the user. */
   visible?: boolean;

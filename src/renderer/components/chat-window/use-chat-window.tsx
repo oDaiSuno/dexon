@@ -32,6 +32,7 @@ export function useChatWindow({
   onSessionStatsChange,
   onSessionStatsPanelOpen,
   onContextUsageChange,
+  onModelIdChange,
   onOpenFile,
   thinkingExpansionStore,
   processDetailsExpansionStore,
@@ -202,6 +203,19 @@ export function useChatWindow({
       onContextUsageChange?.(null);
     },
     [onContextUsageChange],
+  );
+
+  const displayModelId = displayModelValue?.modelId ?? null;
+
+  useEffect(() => {
+    onModelIdChange?.(displayModelId);
+  }, [displayModelId, onModelIdChange]);
+
+  useEffect(
+    () => () => {
+      onModelIdChange?.(null);
+    },
+    [onModelIdChange],
   );
 
   const onDrop = useCallback(

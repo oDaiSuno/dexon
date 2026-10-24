@@ -369,6 +369,7 @@ export function AppShell({
               onToggleTopPanel={toggleTopPanel}
               sessionStats={info.sessionStats}
               contextUsage={info.contextUsage}
+              modelId={info.modelId}
               copyFeedback={info.sessionCopyFeedback}
               onCopyField={info.handleCopySessionField}
               trailing={
@@ -414,6 +415,7 @@ export function AppShell({
                     onSessionStatsChange={info.setSessionStats}
                     onSessionStatsPanelOpen={openSessionStatsPanel}
                     onContextUsageChange={info.setContextUsage}
+                    onModelIdChange={info.setModelId}
                     onOpenFile={handleOpenLinkedFile}
                     channelSnapshot={channels.channelSnapshot}
                     onChannelSnapshotChange={channels.setChannelSnapshot}

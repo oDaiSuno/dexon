@@ -2,8 +2,8 @@ import { useI18n } from "@/i18n";
 import type { CSSProperties, ReactNode } from "react";
 import { formatTokenCount } from "../chat-input/SessionControls";
 import { PathChevron, ProjectGlyph, SessionBreadcrumb, SessionTitle } from "./session-breadcrumb";
-import { SessionInfoPopover } from "./session-info-popover";
-import { SessionIdentity } from "./session-identity";
+import { UsageCard } from "./session-info-popover";
+import { formatUsageCost, formatUsagePercent } from "./usage-format";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SessionCopyFeedback, SessionCopyField, ContextUsageState } from "./use-session-info";
@@ -157,12 +157,12 @@ function UsageCapsule({
       }}
     >
       <CoinsGlyph />
-      {hasStats && <span style={{ color: "var(--fx-text-secondary)" }}>{`$${cost.toFixed(2)}`}</span>}
+      {hasStats && <span style={{ color: "var(--fx-text-secondary)" }}>{formatUsageCost(cost)}</span>}
       {percent !== null && (
         <>
           <Separator height={12} />
           <Meter percent={percent} tone={meterTone} />
-          <span style={{ color: alertTone ?? "var(--fx-text-secondary)" }}>{`${percent.toFixed(0)}%`}</span>
+          <span style={{ color: alertTone ?? "var(--fx-text-secondary)" }}>{formatUsagePercent(percent)}</span>
         </>
       )}
       {showWindow && contextWindow !== null && (
@@ -241,6 +241,7 @@ export function TopBar({
   onToggleTopPanel,
   sessionStats,
   contextUsage,
+  modelId,
   copyFeedback,
   onCopyField,
   trailing,
@@ -256,6 +257,7 @@ export function TopBar({
   onToggleTopPanel: () => void;
   sessionStats: SessionStatsInfo | null;
   contextUsage: ContextUsageState | null;
+  modelId: string | null;
   copyFeedback: SessionCopyFeedback | null;
   onCopyField: (field: SessionCopyField, value: string) => void;
   trailing?: ReactNode;
@@ -346,19 +348,31 @@ export function TopBar({
       <span style={{ flex: "1 1 auto" }} />
 
       {showChat && (
-        <UsageCapsule
-          open={activeTopPanel === "session"}
-          onToggle={onToggleTopPanel}
-          label={t("contextAndCost", "View context and cost")}
-          title={tooltipParts.join("  |  ") || t("contextAndCost", "View context and cost")}
-          cost={cost}
-          hasStats={sessionStats !== null}
-          percent={percent}
-          alertTone={alertTone}
-          usedTokens={usedTokens}
-          contextWindow={contextWindow}
-          showWindow={!isMobile}
-        />
+        <div style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+          <UsageCapsule
+            open={activeTopPanel === "session"}
+            onToggle={onToggleTopPanel}
+            label={t("contextAndCost", "View context and cost")}
+            title={tooltipParts.join("  |  ") || t("contextAndCost", "View context and cost")}
+            cost={cost}
+            hasStats={sessionStats !== null}
+            percent={percent}
+            alertTone={alertTone}
+            usedTokens={usedTokens}
+            contextWindow={contextWindow}
+            showWindow={!isMobile}
+          />
+          {activeTopPanel === "session" && (
+            <UsageCard
+              sessionStats={sessionStats}
+              contextUsage={contextUsage}
+              modelId={modelId}
+              selectedSession={selectedSession}
+              copyFeedback={copyFeedback}
+              onCopyField={onCopyField}
+            />
+          )}
+        </div>
       )}
 
       {trailing && (
@@ -366,54 +380,6 @@ export function TopBar({
           {showChat && <Separator height={16} />}
           {trailing}
         </>
-      )}
-
-      {activeTopPanel && (
-        <div
-          style={{
-            position: "absolute",
-            top: "100%",
-            left: 0,
-            right: 0,
-            maxHeight: "calc(100dvh - 56px)",
-            overflowY: "auto",
-            zIndex: 50,
-          }}
-        >
-          {activeTopPanel === "session" && (
-            <div
-              className="session-info-popover composer-pop-in"
-              style={{
-                background: "var(--fx-surface-raised)",
-                borderBottom: "1px solid var(--fx-line-default)",
-                boxShadow: "var(--shadow-popover)",
-                padding: "12px 16px",
-              }}
-            >
-              {sessionStats ? (
-                <SessionInfoPopover
-                  sessionStats={sessionStats}
-                  contextUsage={contextUsage}
-                  copyFeedback={copyFeedback}
-                  onCopyField={onCopyField}
-                  isMobile={isMobile}
-                />
-              ) : selectedSession ? (
-                <SessionIdentity
-                  sessionName={selectedSession.name}
-                  sessionFile={selectedSession.path}
-                  sessionId={selectedSession.id}
-                  copyFeedback={copyFeedback}
-                  onCopyField={onCopyField}
-                />
-              ) : (
-                <div className="type-label-default" style={{ color: "var(--fx-text-secondary)", fontStyle: "italic" }}>
-                  {t("loadSessionInfoHint", "Send a message or run /session to load session info")}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
       )}
     </div>
   );
