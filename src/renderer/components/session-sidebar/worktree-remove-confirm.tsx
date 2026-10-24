@@ -18,6 +18,7 @@ export function WorktreeRemoveConfirm({
     <div
       style={{
         display: "flex",
+        flexWrap: "wrap",
         alignItems: "center",
         gap: 8,
         padding: "8px 12px",
@@ -27,12 +28,10 @@ export function WorktreeRemoveConfirm({
     >
       <span
         style={{
-          flex: 1,
+          flex: "1 1 100%",
           fontSize: "var(--text-meta)",
           color: "var(--fx-text-primary)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          overflowWrap: "anywhere",
         }}
       >
         {t("worktreeForceRemoveConfirm", "Uncommitted changes. Force remove checkout?")}
@@ -41,6 +40,7 @@ export function WorktreeRemoveConfirm({
         onClick={onForce}
         disabled={busy}
         style={{
+          marginLeft: "auto",
           padding: "4px 8px",
           background: "var(--fx-status-danger)",
           border: "none",

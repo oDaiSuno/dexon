@@ -305,3 +305,5 @@ export function useProjectWorkspace({
     handleSelectWorktree,
   };
 }
+
+export type ProjectWorkspaceState = ReturnType<typeof useProjectWorkspace>;

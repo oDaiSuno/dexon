@@ -39,6 +39,7 @@ export function useChatWindow({
   channelSnapshot,
   onChannelSnapshotChange,
   navigation,
+  workspace,
 }: Props) {
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
 
@@ -351,6 +352,7 @@ export function useChatWindow({
       visible={visible}
       remote={remote}
       navigation={navigation}
+      workspace={workspace}
     />
   );
 

@@ -126,11 +126,11 @@ test("switching a Git worktree moves to that checkout while keeping both histori
   assert.equal(await scene.currentFolder(), navigationPaths.worktree);
 });
 
-test("creating a worktree from the sidebar moves to the new checkout and keeps the project history", async (t) => {
+test("creating a worktree from the composer footer moves to the new checkout and keeps the project history", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
   await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => control(scene.container, "button", "New worktree…")));
+  await click(await waitFor(() => control(scene.container, "menuitem", "New worktree…")));
   const branch = await waitFor(() => {
     const fields = roles(scene.container, "textbox").filter((element) => element.placeholder === "branch name");
     assert.equal(fields.length, 1, "Expected one visible branch name field");
@@ -145,7 +145,7 @@ test("creating a worktree from the sidebar moves to the new checkout and keeps t
   assert.equal(await scene.currentFolder(), navigationPaths.createdWorktree);
 });
 
-test("removing another worktree from the sidebar drops it from the choices and keeps the current checkout", async (t) => {
+test("removing another worktree from the composer footer drops it from the choices and keeps the current checkout", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
   await click(await openRemoveControl(scene, navigationPaths.worktree));
@@ -175,7 +175,7 @@ async function openRemoveControl(scene, path) {
 }
 
 function worktreeChoices(scene, path) {
-  return roles(scene.container, "button").filter((element) => element.title === path);
+  return roles(scene.container, "menuitemradio").filter((element) => element.title === path);
 }
 
 test("removing a worktree with uncommitted changes asks first and keeps it when the user cancels", async (t) => {

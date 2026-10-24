@@ -7,8 +7,7 @@ import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
-import { useSessionDirectory } from "../session-sidebar/session-directory";
-import { useProjectWorkspace } from "../session-sidebar/project-workspace";
+import type { SpaceOwner } from "./use-space-owner";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
@@ -24,14 +23,16 @@ export function NavigationSidebar({
   onNavigate,
   onOpenSettings,
   coordination,
-  onCwdChange,
+  directory,
+  workspace,
+  spacePickerOpen,
+  onSpacePickerOpenChange,
   onReturnToPersonalSpace,
   shownSessionId,
   onSelectSession,
   onNewSession,
   initialSessionId,
   onInitialRestoreDone,
-  refreshKey,
   onSessionDeleted,
   requestDeparture,
 }: {
@@ -45,35 +46,28 @@ export function NavigationSidebar({
   onNavigate: (page: NavPage) => void;
   onOpenSettings: () => void;
   coordination: SpaceCoordination;
-  onCwdChange: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
+  directory: SpaceOwner["directory"];
+  workspace: SpaceOwner["workspace"];
+  spacePickerOpen: boolean;
+  onSpacePickerOpenChange: (open: boolean) => void;
   onReturnToPersonalSpace: () => void;
   shownSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
   onNewSession: (sessionId: string, cwd: string) => void;
   initialSessionId: string | null;
   onInitialRestoreDone: () => void;
-  refreshKey: number;
   onSessionDeleted: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
   const [mobileReady, setMobileReady] = useState(false);
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [openProjects, setOpenProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [spaceError, setSpaceError] = useState<string | null>(null);
 
   useEffect(() => {
     setMobileReady(true);
   }, []);
 
-  const directory = useSessionDirectory({ selectedSessionId: shownSessionId, refreshKey, onSessionDeleted });
-  const workspace = useProjectWorkspace({
-    sessions: directory.sessions,
-    selectedCwdProp: coordination.spaceCwd,
-    onCwdChange,
-    refreshKey,
-    requestDeparture,
-  });
   const { sessions, homeDir, refreshSessions } = directory;
   const {
     selectedCwd,
@@ -96,15 +90,15 @@ export function NavigationSidebar({
 
   const expanded = isMobile || open;
   const hidden = isMobile && !open;
-  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const closePicker = useCallback(() => onSpacePickerOpenChange(false), [onSpacePickerOpenChange]);
 
   const handleToggle = useCallback(() => {
     if (expanded) {
-      setPickerOpen(false);
+      onSpacePickerOpenChange(false);
       resetWorktreeDropdownForOutsideClick();
     }
     onToggle();
-  }, [expanded, onToggle, resetWorktreeDropdownForOutsideClick]);
+  }, [expanded, onToggle, onSpacePickerOpenChange, resetWorktreeDropdownForOutsideClick]);
 
   const toggleFold = useCallback((sessionId: string) => {
     setFoldedSessionIds((current) => {
@@ -148,13 +142,13 @@ export function NavigationSidebar({
 
   const selectSpace = useCallback(
     (path: string) => {
-      setPickerOpen(false);
+      onSpacePickerOpenChange(false);
       requestDeparture(() => {
         setSpaceError(null);
         setSelectedCwd(path);
       });
     },
-    [requestDeparture, setSelectedCwd],
+    [requestDeparture, setSelectedCwd, onSpacePickerOpenChange],
   );
 
   const backToPersonalSpace = useCallback(() => {
@@ -242,17 +236,14 @@ export function NavigationSidebar({
           }}
           onOpenFolder={openFolder}
           onChooseFolder={chooseFolder}
-          onSwitchSpace={() => setPickerOpen(true)}
+          onSwitchSpace={() => onSpacePickerOpenChange(true)}
           onBackToPersonalSpace={backToPersonalSpace}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={toggleFold}
           spacePanel={
             <NavSpacePanel
-              workspace={workspace}
-              homeDir={homeDir}
-              deferFocus={directory.deferFocus}
               notice={notice}
-              pickerOpen={pickerOpen}
+              pickerOpen={spacePickerOpen}
               spaces={spaces}
               onSelectSpace={selectSpace}
               onClosePicker={closePicker}

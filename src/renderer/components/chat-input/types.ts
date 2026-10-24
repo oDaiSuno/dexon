@@ -8,6 +8,7 @@ import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
+import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
 
 export interface ChatInputProps {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -52,6 +53,16 @@ export interface ChatInputProps {
   visible?: boolean;
   remote?: ComposerRemote | null;
   navigation?: ComposerNavigation;
+  workspace?: ComposerWorkspace | null;
+}
+
+export interface ComposerWorkspace {
+  workspace: ProjectWorkspaceState;
+  project: { name: string; path: string; displayPath: string };
+  onSwitchProject: () => void;
+  onOpenInFinder: () => void;
+  onCopyPath: () => void;
+  deferFocus: (focus: () => void) => void;
 }
 
 export interface ComposerRemote {

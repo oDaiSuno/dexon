@@ -4,7 +4,7 @@ import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession"
 import type { ModelCatalogStatus } from "@contract/types";
 import type { SkillRecord } from "@/lib/api-types";
 import { ComposerEditable } from "./ComposerEditable";
-import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote } from "./types";
+import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote, ComposerWorkspace } from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 import { PlusMenuLayer } from "./plus-menu-layer";
@@ -16,6 +16,7 @@ import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./Stat
 import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashCommandPaletteItem } from "./slash-commands";
 import { PlusIcon } from "./icons";
+import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps {
@@ -120,6 +121,7 @@ export interface ComposerViewProps {
   soundEnabled?: boolean;
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
+  workspace?: ComposerWorkspace | null;
 }
 
 export function ComposerView(props: ComposerViewProps) {
@@ -222,6 +224,7 @@ export function ComposerView(props: ComposerViewProps) {
     thinkingButtonRef,
     closeControlDropdowns,
     onSoundToggle,
+    workspace,
   } = props;
 
   return (
@@ -410,7 +413,13 @@ export function ComposerView(props: ComposerViewProps) {
             padding: isMobile ? 0 : "0 6px",
           }}
         >
-          {!isMobile && <div style={{ flex: "1 1 0", minWidth: 0 }} />}
+          {workspace ? (
+            <div style={{ flex: "1 1 0", minWidth: 0, display: "flex" }}>
+              <WorkspaceTrigger workspace={workspace} isMobile={isMobile} />
+            </div>
+          ) : (
+            !isMobile && <div style={{ flex: "1 1 0", minWidth: 0 }} />
+          )}
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex" }}>
             <ModelPicker
               model={model}

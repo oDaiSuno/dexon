@@ -1,7 +1,5 @@
 import { useI18n } from "@/i18n";
-import { WorktreeSwitcher } from "../session-sidebar/worktree-switcher";
 import { NavSpacePicker, type SpaceChoice } from "../app-nav/nav-space-picker";
-import type { useProjectWorkspace } from "../session-sidebar/project-workspace";
 
 export interface SpaceNotice {
   message: string;
@@ -10,18 +8,12 @@ export interface SpaceNotice {
 }
 
 export function NavSpacePanel({
-  workspace,
-  homeDir,
-  deferFocus,
   notice,
   pickerOpen,
   spaces,
   onSelectSpace,
   onClosePicker,
 }: {
-  workspace: ReturnType<typeof useProjectWorkspace>;
-  homeDir: string;
-  deferFocus: (focus: () => void) => void;
   notice: SpaceNotice | null;
   pickerOpen: boolean;
   spaces: SpaceChoice[];
@@ -29,8 +21,7 @@ export function NavSpacePanel({
   onClosePicker: () => void;
 }) {
   const { t } = useI18n();
-  const showSwitcher = workspace.showWorktreeSwitcher && workspace.worktreeState;
-  if (!showSwitcher && !notice && !pickerOpen) return null;
+  if (!notice && !pickerOpen) return null;
 
   return (
     <div style={{ position: "relative", padding: "0 10px 8px", flexShrink: 0 }}>
@@ -76,29 +67,6 @@ export function NavSpacePanel({
             </button>
           )}
         </div>
-      )}
-      {showSwitcher && workspace.worktreeState && (
-        <WorktreeSwitcher
-          worktreeState={workspace.worktreeState}
-          selectedCwd={workspace.selectedCwd}
-          homeDir={homeDir}
-          dropdownOpen={workspace.wtDropdownOpen}
-          onToggleDropdown={workspace.toggleWorktreeDropdown}
-          onOutsideClickClose={workspace.resetWorktreeDropdownForOutsideClick}
-          newOpen={workspace.wtNewOpen}
-          onOpenNewEntry={workspace.openNewWorktreeEntry}
-          onCloseNewEntry={workspace.closeNewWorktreeEntry}
-          newBranch={workspace.wtNewBranch}
-          onNewBranchChange={workspace.setNewWorktreeBranch}
-          busy={workspace.wtBusy}
-          error={workspace.wtError}
-          confirmRemovePath={workspace.wtConfirmRemove}
-          onCancelRemove={workspace.cancelWorktreeRemove}
-          onCreateWorktree={workspace.handleCreateWorktree}
-          onRemoveWorktree={workspace.handleRemoveWorktree}
-          onSelectWorktree={workspace.handleSelectWorktree}
-          deferFocus={deferFocus}
-        />
       )}
     </div>
   );

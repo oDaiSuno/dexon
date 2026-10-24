@@ -107,9 +107,9 @@ export function visibleText(root, value) {
 export function pathChoice(root, path) {
   // Both the visible path and its public tooltip identify a folder to a user.
   // No component classes, generated IDs, or parent/child layout assumptions.
-  const matches = [...new Set(["button", "menuitem", "option"].flatMap((role) => roles(root, role)))].filter(
-    (element) => element.title === path || element.textContent.trim() === path,
-  );
+  const matches = [
+    ...new Set(["button", "menuitem", "menuitemradio", "option"].flatMap((role) => roles(root, role))),
+  ].filter((element) => element.title === path || element.textContent.trim() === path);
   assert.equal(matches.length, 1, `Expected one visible folder choice for ${path}`);
   return matches[0];
 }

@@ -57,9 +57,8 @@ test("returning from a project to personal space restores personal resources whi
   assert.ok(!scene.resourcePanel().textContent.includes("project-checklist"));
 });
 
-test("switching a Git worktree scopes resources to the checkout", async (t) => {
+test("switching a Git worktree from the composer footer scopes resources to the checkout", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
-  await scene.resources();
   const switcher = await waitFor(() => {
     const matches = roles(scene.container, "button").filter((element) => element.title.startsWith("Switch worktree:"));
     assert.equal(matches.length, 1);
@@ -67,6 +66,7 @@ test("switching a Git worktree scopes resources to the checkout", async (t) => {
   });
   await click(switcher);
   await click(await waitFor(() => pathChoice(scene.container, navigationPaths.worktree)));
+  await scene.resources();
   await expectScope(scene, "npm:review-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
 });
 

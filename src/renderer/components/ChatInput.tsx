@@ -66,6 +66,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     visible = true,
     remote,
     navigation,
+    workspace,
   },
   ref,
 ) {
@@ -441,6 +442,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       closeControlDropdowns={closeControlDropdowns}
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
+      workspace={workspace}
     />
   );
 });

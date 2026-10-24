@@ -24,27 +24,15 @@ const git = {
 
 function WorkspaceScene({ cwd }) {
   const workspace = useProjectWorkspace({ sessions: [], selectedCwdProp: cwd, onCwdChange: () => {}, refreshKey: 0 });
-  if (!workspace.showWorktreeSwitcher || !workspace.worktreeState) return null;
   return createElement(WorktreeSwitcher, {
-    worktreeState: workspace.worktreeState,
-    selectedCwd: workspace.selectedCwd,
-    homeDir: "",
-    dropdownOpen: workspace.wtDropdownOpen,
-    onToggleDropdown: workspace.toggleWorktreeDropdown,
-    onOutsideClickClose: workspace.resetWorktreeDropdownForOutsideClick,
-    newOpen: workspace.wtNewOpen,
-    onOpenNewEntry: workspace.openNewWorktreeEntry,
-    onCloseNewEntry: workspace.closeNewWorktreeEntry,
-    newBranch: workspace.wtNewBranch,
-    onNewBranchChange: workspace.setNewWorktreeBranch,
-    busy: workspace.wtBusy,
-    error: workspace.wtError,
-    confirmRemovePath: workspace.wtConfirmRemove,
-    onCancelRemove: workspace.cancelWorktreeRemove,
-    onCreateWorktree: workspace.handleCreateWorktree,
-    onRemoveWorktree: workspace.handleRemoveWorktree,
-    onSelectWorktree: workspace.handleSelectWorktree,
-    deferFocus: (focus) => dom.window.setTimeout(focus, 0),
+    workspace: {
+      workspace,
+      project: { name: "repo", path: "/repo", displayPath: "/repo" },
+      onSwitchProject: () => {},
+      onOpenInFinder: () => {},
+      onCopyPath: () => {},
+      deferFocus: (focus) => dom.window.setTimeout(focus, 0),
+    },
   });
 }
 

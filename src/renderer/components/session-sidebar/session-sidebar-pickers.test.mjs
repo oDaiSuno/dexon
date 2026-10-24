@@ -37,39 +37,27 @@ const GIT_REPO_LIST = {
   ],
 };
 
-function SwitcherScene() {
+function SwitcherScene({ departure }) {
   const workspace = useProjectWorkspace({
     sessions: [],
     selectedCwdProp: "/repo",
     onCwdChange: () => {},
     refreshKey: 0,
+    requestDeparture: departure,
   });
-  if (!workspace.showWorktreeSwitcher || !workspace.worktreeState)
-    return createElement("div", null, "Loading worktrees");
   return createElement(WorktreeSwitcher, {
-    worktreeState: workspace.worktreeState,
-    selectedCwd: workspace.selectedCwd,
-    homeDir: "/Users/tester",
-    dropdownOpen: workspace.wtDropdownOpen,
-    onToggleDropdown: workspace.toggleWorktreeDropdown,
-    onOutsideClickClose: workspace.resetWorktreeDropdownForOutsideClick,
-    newOpen: workspace.wtNewOpen,
-    onOpenNewEntry: workspace.openNewWorktreeEntry,
-    onCloseNewEntry: workspace.closeNewWorktreeEntry,
-    newBranch: workspace.wtNewBranch,
-    onNewBranchChange: workspace.setNewWorktreeBranch,
-    busy: workspace.wtBusy,
-    error: workspace.wtError,
-    confirmRemovePath: workspace.wtConfirmRemove,
-    onCancelRemove: workspace.cancelWorktreeRemove,
-    onCreateWorktree: workspace.handleCreateWorktree,
-    onRemoveWorktree: workspace.handleRemoveWorktree,
-    onSelectWorktree: workspace.handleSelectWorktree,
-    deferFocus: (focus) => setTimeout(focus, 0),
+    workspace: {
+      workspace,
+      project: { name: "repo", path: "/repo", displayPath: "/repo" },
+      onSwitchProject: () => {},
+      onOpenInFinder: () => {},
+      onCopyPath: () => {},
+      deferFocus: (focus) => setTimeout(focus, 0),
+    },
   });
 }
 
-async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl } = {}) {
+async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl, departure } = {}) {
   const calls = { removed: [], created: [] };
   const replies = {
     async call(method, params) {
@@ -86,15 +74,21 @@ async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl } = {}
     },
   };
   const host = installApiHostBridge(dom.window, () => replies, resetRpc);
-  const view = await mount(t, SwitcherScene, {}, { release: () => host.close() });
+  const view = await mount(
+    t,
+    SwitcherScene,
+    { departure: departure ?? ((action) => action()) },
+    { release: () => host.close() },
+  );
   return { ...view, calls };
 }
 
+function worktreeTrigger(view) {
+  return [...view.container.querySelectorAll("button")].find((control) => control.title.startsWith("Switch worktree"));
+}
+
 async function openWorktreeDropdown(view) {
-  const trigger = [...view.container.querySelectorAll("button")].find((control) =>
-    control.title.startsWith("Switch worktree"),
-  );
-  await click(trigger);
+  await click(worktreeTrigger(view));
   assert.ok([...view.container.querySelectorAll("button")].some((control) => control.title === "/repo"));
 }
 
@@ -114,6 +108,24 @@ async function openNewWorktree(view) {
   );
   return view.container.querySelector("input");
 }
+
+test("a checkout switch and a worktree creation both wait for the departure owner before anything moves", async (t) => {
+  const departures = [];
+  const view = await renderSwitcher(t, { departure: (action) => departures.push(action) });
+  await openWorktreeDropdown(view);
+  await click([...view.container.querySelectorAll("button")].find((control) => control.title === "/repo/wt"));
+  assert.equal(departures.length, 1, "the checkout switch waits for the departure owner");
+  await act(async () => departures[0]());
+  await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt"));
+
+  const branch = await openNewWorktree(view);
+  await input(branch, "feat-2");
+  await keyDown(branch, "Enter");
+  assert.deepEqual(view.calls.created, [], "creating a worktree waits for the departure owner");
+  await act(async () => departures[1]());
+  await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt2"));
+  assert.deepEqual(view.calls.created, ["feat-2"]);
+});
 
 test("a dirty removal surfaces the inline confirmation until it is resolved", async (t) => {
   const view = await renderSwitcher(t, {

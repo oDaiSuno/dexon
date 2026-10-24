@@ -27,6 +27,7 @@ import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-pa
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useDepartureGuard } from "./app-shell/use-departure-guard";
+import { useSpaceOwner } from "./app-shell/use-space-owner";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -147,23 +148,6 @@ export function AppShell({
     sessionFound: selectedSession !== null,
     sessionCwd: selectedSession?.cwd ?? newSessionCwd ?? null,
   });
-  const handleSidebarCwdChange = useCallback(
-    (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => {
-      if (origin === "coordinator") {
-        noteCoordinatorCwd(cwd);
-        return;
-      }
-      handleCwdChange(cwd, projectRoot);
-      coordination.noteExternalCwd(cwd);
-    },
-    [handleCwdChange, noteCoordinatorCwd, coordination],
-  );
-  const { returnToPersonalSpace } = coordination;
-  const handleReturnToPersonalSpace = useCallback(() => {
-    void returnToPersonalSpace().then((cwd) => {
-      if (cwd) handleCwdChange(cwd, cwd);
-    });
-  }, [returnToPersonalSpace, handleCwdChange]);
   const handleNavigate = useCallback(
     (target: NavPage) => {
       setActiveTopPanel(null);
@@ -202,6 +186,22 @@ export function AppShell({
   const remoteShown = onResources && remoteOpen && !settingsOpen;
   const mainCovered = settingsOpen || remoteShown;
   const mainSuspended = onResources || settingsOpen;
+
+  // The space's sessions and its worktrees are owned here, above the sidebar
+  // and the chat, so the composer footer's workspace trigger and the sidebar
+  // read and drive the same space.
+  const space = useSpaceOwner({
+    selectedSessionId: mainSuspended ? null : (selectedSession?.id ?? null),
+    sessionCwd: selectedSession?.cwd ?? null,
+    newSessionCwd,
+    refreshKey,
+    onSessionDeleted: handleSessionDeleted,
+    coordination,
+    onCwdCommitted: handleCwdChange,
+    onCoordinatorCwd: noteCoordinatorCwd,
+    requestDeparture,
+    onOpenSidebar: openSidebarForSwitchSession,
+  });
 
   const dock = useRightPanelDock({
     isMobile,
@@ -299,14 +299,16 @@ export function AppShell({
           onNavigate={handleNavigate}
           onOpenSettings={handleOpenSettings}
           coordination={coordination}
-          onCwdChange={handleSidebarCwdChange}
-          onReturnToPersonalSpace={handleReturnToPersonalSpace}
+          directory={space.directory}
+          workspace={space.workspace}
+          spacePickerOpen={space.spacePickerOpen}
+          onSpacePickerOpenChange={space.setSpacePickerOpen}
+          onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
           initialSessionId={initialSessionId}
           onInitialRestoreDone={handleInitialRestoreDone}
-          refreshKey={refreshKey}
           onSessionDeleted={handleSessionDeleted}
           requestDeparture={requestDeparture}
         />
@@ -417,6 +419,7 @@ export function AppShell({
                     channelSnapshot={channels.channelSnapshot}
                     onChannelSnapshotChange={channels.setChannelSnapshot}
                     navigation={composerNavigation}
+                    workspace={space.composerWorkspace}
                     thinkingExpansionStore={thinkingExpansionRegistryRef.current.get(
                       selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
                     )}
