@@ -4,6 +4,7 @@ import ts from "typescript";
 import { fileURLToPath } from "node:url";
 
 const LOCALIZED_OWNER_SUFFIXES = [
+  "components/session-sidebar/worktree-switcher.tsx",
   "components/session-sidebar/worktree-remove-confirm.tsx",
   "components/session-sidebar/session-tree-item.tsx",
   "components/session-sidebar/session-item.tsx",
