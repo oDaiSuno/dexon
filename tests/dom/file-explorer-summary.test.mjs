@@ -50,7 +50,7 @@ const file = (name) => ({ name, path: name, type: "file", isDir: false, size: 1,
 function explorerHost(t, { git = DIRTY, entries = [file("README.md")], pending = false } = {}) {
   const watchers = [];
   const host = installRendererApi(dom.window, api, () => ({
-    call(method, params) {
+    call(method) {
       if (method === "files.watchStart" || method === "files.watchStop") return { ok: true };
       if (pending && (method === "git.status" || method === "files.list")) return new Promise(() => {});
       if (method === "git.status") return git;
