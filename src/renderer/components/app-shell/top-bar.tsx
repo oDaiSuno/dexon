@@ -1,6 +1,6 @@
 import { useI18n } from "@/i18n";
-import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
 import type { CSSProperties, ReactNode } from "react";
+import { formatTokenCount } from "../chat-input/SessionControls";
 import { PathChevron, ProjectGlyph, SessionBreadcrumb, SessionTitle } from "./session-breadcrumb";
 import { SessionInfoPopover } from "./session-info-popover";
 import { SessionIdentity } from "./session-identity";
@@ -23,10 +23,6 @@ const ICON_BUTTON: CSSProperties = {
   cursor: "pointer",
   transition: "color 0.12s, background 0.12s",
 };
-
-function compact(n: number) {
-  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(0)}k` : String(n);
-}
 
 function CoinsGlyph() {
   return (
@@ -109,7 +105,7 @@ function UsageCapsule({
   cost,
   hasStats,
   percent,
-  percentTone,
+  alertTone,
   usedTokens,
   contextWindow,
   showWindow,
@@ -121,12 +117,12 @@ function UsageCapsule({
   cost: number;
   hasStats: boolean;
   percent: number | null;
-  percentTone: string;
+  alertTone: string | null;
   usedTokens: number | null;
   contextWindow: number | null;
   showWindow: boolean;
 }) {
-  const meterTone = percentTone === "var(--fx-text-secondary)" ? "var(--fx-text-body)" : percentTone;
+  const meterTone = alertTone ?? "var(--fx-text-body)";
   const resting = open ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)";
 
   return (
@@ -166,12 +162,14 @@ function UsageCapsule({
         <>
           <Separator height={12} />
           <Meter percent={percent} tone={meterTone} />
-          <span style={{ color: percentTone }}>{`${percent.toFixed(0)}%`}</span>
+          <span style={{ color: alertTone ?? "var(--fx-text-secondary)" }}>{`${percent.toFixed(0)}%`}</span>
         </>
       )}
       {showWindow && contextWindow !== null && (
         <span style={{ color: "var(--fx-text-tertiary)" }}>
-          {usedTokens !== null ? `${compact(usedTokens)}/${compact(contextWindow)}` : `?/${compact(contextWindow)}`}
+          {usedTokens !== null
+            ? `${formatTokenCount(usedTokens)}/${formatTokenCount(contextWindow)}`
+            : `?/${formatTokenCount(contextWindow)}`}
         </span>
       )}
       <CaretGlyph />
@@ -238,9 +236,7 @@ export function TopBar({
   showSidebarToggle,
   isMobile,
   selectedSession,
-  projectPath,
-  personalSpacePath,
-  homeDir,
+  projectName,
   activeTopPanel,
   onToggleTopPanel,
   sessionStats,
@@ -255,9 +251,7 @@ export function TopBar({
   showSidebarToggle: boolean;
   isMobile: boolean;
   selectedSession: SessionInfo | null;
-  projectPath?: string | null;
-  personalSpacePath?: string | null;
-  homeDir?: string | null;
+  projectName?: string | null;
   activeTopPanel: "session" | null;
   onToggleTopPanel: () => void;
   sessionStats: SessionStatsInfo | null;
@@ -269,24 +263,18 @@ export function TopBar({
 }) {
   const { language, t } = useI18n();
 
-  const projectLabel = projectPath
-    ? isPersonalSpace(projectPath, personalSpacePath ?? null, homeDir ?? "")
-      ? t("personalSpace", "Personal space")
-      : spaceFolderName(projectPath)
-    : null;
-
   const percent = contextUsage?.percent ?? null;
   const contextWindow = contextUsage?.contextWindow ?? null;
   const usedTokens = contextUsage?.tokens ?? null;
   const cost = sessionStats?.cost ?? 0;
-  const percentTone =
+  const alertTone =
     percent === null
-      ? "var(--fx-text-secondary)"
+      ? null
       : percent > 90
         ? "var(--fx-status-danger)"
         : percent > 70
           ? "var(--fx-status-warning)"
-          : "var(--fx-text-secondary)";
+          : null;
 
   const tooltipParts: string[] = [];
   if (sessionStats) {
@@ -326,9 +314,9 @@ export function TopBar({
     >
       {showSidebarToggle && <SidebarToggle open={sidebarOpen} onToggle={onToggleSidebar} />}
 
-      {showChat && projectLabel && (
+      {showChat && (
         <>
-          {!isMobile && (
+          {projectName && !isMobile && (
             <>
               <ProjectGlyph />
               <span
@@ -342,7 +330,7 @@ export function TopBar({
                   color: "var(--fx-text-secondary)",
                 }}
               >
-                {projectLabel}
+                {projectName}
               </span>
               <PathChevron />
             </>
@@ -366,7 +354,7 @@ export function TopBar({
           cost={cost}
           hasStats={sessionStats !== null}
           percent={percent}
-          percentTone={percentTone}
+          alertTone={alertTone}
           usedTokens={usedTokens}
           contextWindow={contextWindow}
           showWindow={!isMobile}

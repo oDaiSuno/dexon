@@ -363,11 +363,7 @@ export function AppShell({
               showSidebarToggle={isMobile}
               isMobile={isMobile}
               selectedSession={onResources ? null : selectedSession}
-              projectPath={
-                selectedSession ? (selectedSession.projectRoot ?? selectedSession.cwd) : effectiveNewSessionCwd
-              }
-              personalSpacePath={coordination.personalCwd}
-              homeDir={space.directory.homeDir}
+              projectName={space.composerWorkspace?.project.name ?? null}
               activeTopPanel={activeTopPanel}
               onToggleTopPanel={toggleTopPanel}
               sessionStats={info.sessionStats}

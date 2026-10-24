@@ -67,12 +67,21 @@ export function PathChevron() {
   );
 }
 
-export function SessionTitle({ children, current = false }: { children: ReactNode; current?: boolean }) {
+export function SessionTitle({
+  children,
+  current = false,
+  title,
+}: {
+  children: ReactNode;
+  current?: boolean;
+  title?: string;
+}) {
   return (
     <span
       role="heading"
       aria-level={1}
       aria-current={current ? "page" : undefined}
+      title={title}
       className="type-body-large-medium"
       style={{ ...ELLIPSIS, flexShrink: 1, color: "var(--fx-text-primary)" }}
     >
@@ -109,7 +118,9 @@ export function SessionBreadcrumb({ session, compact = false }: { session: Sessi
         </Fragment>
       ))}
       {items.length > 0 && <PathChevron />}
-      <SessionTitle current>{getSessionDisplayTitle(current)}</SessionTitle>
+      <SessionTitle current title={getSessionDisplayTitle(current, 240)}>
+        {getSessionDisplayTitle(current)}
+      </SessionTitle>
     </nav>
   );
 }
