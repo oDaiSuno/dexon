@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react";
-import { byRole, mouseDown } from "../../../tests/support/dom-events.mjs";
+import { byRole, click } from "../../../tests/support/dom-events.mjs";
 import { createSessionDetail } from "../hooks/agent-session/session-hook-harness.mjs";
 import {
   createChatWindowBundle,
@@ -14,7 +14,7 @@ import {
 /**
  * Retained ChatWindow composition evidence (ASTRA-R5-G001.2): the actual
  * ChatWindow assembly — real useChatWindow/useAgentSession, ChatInput,
- * ChatMinimap, history sentinel and viewport-height owners — driven through a
+ * TurnNavigator, history sentinel and viewport-height owners — driven through a
  * visible→hidden→visible cycle through browser target notifications and actual
  * DOM events. Visible results and released targets remain stable when reading
  * ownership is reorganized; no positive observer or listener count is fixed.
@@ -30,8 +30,8 @@ const emit = (host, event) => {
 
 /**
  * Installs controlled geometry with read/write counters on the scroll
- * container, so hidden presence/minimap reevaluation (which reads geometry)
- * and drag/scroll writes become observable.
+ * container, so hidden presence/navigator reevaluation (which reads geometry)
+ * and jump/scroll writes become observable.
  */
 function trackGeometry(container, { clientHeight, scrollHeight, scrollTop }) {
   let reads = 0;
@@ -74,7 +74,7 @@ function trackGeometry(container, { clientHeight, scrollHeight, scrollTop }) {
   };
 }
 
-const minimapElementOf = (env) => byRole(env.root, "region", "Conversation minimap");
+const navigatorOf = (env) => byRole(env.root, "navigation", "Conversation navigator");
 const bottomButtonOf = (env) => env.root.querySelector('[aria-label="Scroll to bottom"]');
 const sentinelOf = (env) => byRole(env.root, "group", "Earlier messages");
 
@@ -154,7 +154,7 @@ test("retained ChatWindow hides reading work while the runtime continues", async
   geometry.set({ scrollTop: 0 });
   await act(async () => env.resize(container));
   assert.ok(bottomButtonOf(env), "viewport changes expose the public return-to-latest action");
-  assert.ok(minimapElementOf(env), "the visible overflowing conversation exposes its minimap");
+  assert.ok(navigatorOf(env), "the visible overflowing conversation exposes its turn navigator");
   const sentinel = sentinelOf(env);
   assert.ok(sentinel, "older history is available before hiding");
 
@@ -217,9 +217,9 @@ test("retained ChatWindow hides reading work while the runtime continues", async
   assertReleased(env, container);
 });
 
-test("an active minimap drag and a pending follow frame are cancelled by hiding", async (t) => {
+test("hiding the page withdraws the turn navigator and a pending follow frame; both work again on return", async (t) => {
   const env = installCompositionEnvironment();
-  const detail = createSessionDetail("composition-drag", { previousCursor: "older" });
+  const detail = createSessionDetail("composition-turns", { previousCursor: "older" });
   const host = createCompositionHost({ getSession: async () => detail });
   const teardown = createTeardown(t, env);
   const { ChatWindow, releaseHost } = await createChatWindowBundle(host);
@@ -248,45 +248,36 @@ test("an active minimap drag and a pending follow frame are cancelled by hiding"
     }),
   );
   await flushAsync();
-  const minimap = minimapElementOf(env);
-  assert.ok(minimap, "the visible conversation has a draggable minimap");
-  Object.defineProperty(minimap, "getBoundingClientRect", {
-    configurable: true,
-    value: () => ({ top: 0, bottom: 400, height: 400 }),
-  });
-  await mouseDown(minimap, { clientY: 100 });
-  await act(async () => env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 200 })));
-  assert.equal(geometry.scrollTop(), 200, "dragging the viewport halfway across its travel scrolls halfway down");
+  const navigator = navigatorOf(env);
+  assert.ok(navigator, "the visible conversation offers its turn navigator");
+  const beforeJump = env.scrollToCalls.length;
+  await click(byRole(navigator, "button", "Turn 1: fixture"));
+  assert.equal(env.scrollToCalls.length, beforeJump + 1, "choosing a turn scrolls the visible conversation");
+
   await h.rerender({ visible: false });
+  assert.equal(navigatorOf(env), undefined, "a hidden page offers no turn navigator");
   const reads = geometry.reads();
   const writes = geometry.writes();
   const scrolls = env.scrollIntoViewCalls.length;
+  const jumps = env.scrollToCalls.length;
   await act(async () => {
-    env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 300 }));
-    env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mouseup"));
     notifyReadingSurface(env, container);
     await env.clock.advanceBy(100);
     env.flushRafUntilSettled();
   });
-  assert.equal(geometry.scrollTop(), 200, "continuing the old drag cannot move hidden content");
-  assert.equal(geometry.reads(), reads, "the stopped drag and follow work perform no hidden measurement");
-  assert.equal(geometry.writes(), writes, "the stopped drag and follow work perform no hidden write");
+  assert.equal(env.scrollToCalls.length, jumps, "no turn jump scrolls the hidden conversation");
+  assert.equal(geometry.reads(), reads, "the withdrawn navigator and follow work perform no hidden measurement");
+  assert.equal(geometry.writes(), writes, "the withdrawn navigator and follow work perform no hidden write");
   assert.equal(env.scrollIntoViewCalls.length, scrolls, "a pending visible follow never scrolls after hiding");
 
   await h.rerender({ visible: true });
-  const returnedMinimap = minimapElementOf(env);
-  assert.ok(returnedMinimap, "the minimap returns with the visible page");
-  Object.defineProperty(returnedMinimap, "getBoundingClientRect", {
-    configurable: true,
-    value: () => ({ top: 0, bottom: 400, height: 400 }),
-  });
-  await mouseDown(returnedMinimap, { clientY: 100 });
-  await act(async () => env.dom.window.dispatchEvent(new env.dom.window.MouseEvent("mousemove", { clientY: 200 })));
-  assert.equal(geometry.scrollTop(), 400, "a new drag works after returning to the page");
+  const returnedNavigator = navigatorOf(env);
+  assert.ok(returnedNavigator, "the turn navigator returns with the visible page");
+  const beforeReturnJump = env.scrollToCalls.length;
+  await click(byRole(returnedNavigator, "button", "Turn 1: fixture"));
+  assert.equal(env.scrollToCalls.length, beforeReturnJump + 1, "choosing a turn works again after returning");
   await h.unmount();
   assertReleased(env, container);
-  assert.equal(env.windowListeners.get("mousemove")?.length ?? 0, 0, "unmount releases an active drag");
-  assert.equal(env.windowListeners.get("mouseup")?.length ?? 0, 0, "unmount releases drag completion");
 });
 
 test("delayed element readiness attaches the viewport observer", async (t) => {
@@ -310,7 +301,7 @@ test("delayed element readiness attaches the viewport observer", async (t) => {
   trackGeometry(container, { clientHeight: 400, scrollHeight: 800, scrollTop: 0 });
   await act(async () => env.resize(container));
   assert.ok(bottomButtonOf(env), "a late viewport responds to the same browser size notification");
-  assert.ok(minimapElementOf(env), "late content becomes available in the minimap");
+  assert.ok(navigatorOf(env), "late content becomes available in the turn navigator");
   await h.unmount();
   assertReleased(env, container);
 });
