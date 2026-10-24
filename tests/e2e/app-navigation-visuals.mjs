@@ -29,6 +29,8 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
       await click("button", "Show sidebar");
       await waitFor(() => exists("button", "Personal space"), "the expanded navigation");
       await click("button", "Plugins & Skills");
+      await waitFor(() => exists("heading", "Plugins & Skills"), "the resources overview");
+      await settle();
       await click("button", "Manage sources");
       await click("tab", "Plugins");
       await waitFor(

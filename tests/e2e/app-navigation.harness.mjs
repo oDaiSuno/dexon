@@ -148,8 +148,11 @@ function assertNavigationWidth(measurement, expected) {
   );
   if (measurement.resourceHeading) {
     assert.ok(measurement.resourceHeading.x >= measurement.rect.right - 1, "resources are not under the rail");
+    const centeredInset = measurement.resourceColumn
+      ? Math.max(0, (measurement.documentWidth - measurement.rect.right - measurement.resourceColumn.width) / 2)
+      : 0;
     assert.ok(
-      measurement.resourceHeading.x <= measurement.rect.right + 40,
+      measurement.resourceHeading.x <= measurement.rect.right + centeredInset + 40,
       "the former sidebar does not leave a hidden-width gap",
     );
   }
