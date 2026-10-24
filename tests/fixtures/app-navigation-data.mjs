@@ -17,6 +17,7 @@ export const navigationLabels = {
   "en-US": {
     navigation: "Main navigation",
     resources: "Plugins & Skills",
+    manageSources: "Manage sources",
     skills: "Skills",
     settings: "Settings",
     filePanel: "Show file panel",
@@ -33,6 +34,7 @@ export const navigationLabels = {
   "zh-CN": {
     navigation: "主导航",
     resources: "插件与技能",
+    manageSources: "管理来源",
     skills: "技能",
     settings: "设置",
     filePanel: "显示文件面板",

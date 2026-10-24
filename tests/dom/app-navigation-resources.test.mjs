@@ -19,6 +19,31 @@ import { initialSkillContent, savedSkillContent, reloadedPluginStatus } from "..
 
 after(restoreGlobals);
 
+test("the official Resources entry first shows one overview with skills, tool extensions and sources together", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  await scene.overview();
+  await waitFor(() => visibleText(scene.container, "personal-checklist"));
+  visibleText(scene.container, "shared-checklist");
+  visibleText(scene.container, "These capabilities come from 2 installed packages");
+  assert.equal(roles(scene.container, "tab").length, 0, "the overview is a single page, not tabs");
+  assert.deepEqual(currentPages(scene), ["Plugins & Skills"]);
+});
+
+test("Manage sources keeps the full plugin manager reachable, and returning to the page shows the overview again", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+  const panel = await scene.resources();
+  await waitFor(() => visibleText(panel, "npm:personal-navigation-plugin"));
+  await click(control(scene.container, "button", "Back to Plugins & Skills"));
+  await waitFor(() => control(scene.container, "button", "Manage sources"));
+  assert.equal(roles(scene.container, "tabpanel").length, 0);
+  await scene.resources();
+  await click(historyRow(scene, "Personal release notes"));
+  await waitFor(() => visibleText(control(scene.container, "region", "Chat"), "Personal conversation marker"));
+  await scene.overview();
+  assert.equal(roles(scene.container, "tabpanel").length, 0, "re-entering the page starts from the overview");
+});
+
 test("with no history or selected session, the official Resources entry opens personal-space plugins as a main page", async (t) => {
   const scene = await startNavigation(t, { history: false });
   const panel = await scene.resources();

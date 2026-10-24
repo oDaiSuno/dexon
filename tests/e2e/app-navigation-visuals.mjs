@@ -29,6 +29,7 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
       await click("button", "Show sidebar");
       await waitFor(() => exists("button", "Personal space"), "the expanded navigation");
       await click("button", "Plugins & Skills");
+      await click("button", "Manage sources");
       await click("tab", "Plugins");
       await waitFor(
         async () => (await js("document.body.innerText")).includes("production-navigation-plugin"),

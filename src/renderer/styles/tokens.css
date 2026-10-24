@@ -130,6 +130,8 @@
   --radius-plugin-tile: 12px;
   --radius-pairing-card: 12px;
   --radius-relay-hero: 18px;
+  --radius-resource-tile: 12px;
+  --radius-resource-hero: 18px;
   --radius-pill: 999px;
   --radius-brand-xs: 4px;
   --radius-brand-sm: 6px;
@@ -166,7 +168,6 @@
   --heat-4: color-mix(in srgb, var(--fx-status-warning) 32%, var(--fx-status-danger));
   --heat-5: color-mix(in srgb, var(--fx-status-warning) 12%, var(--fx-status-danger));
   --heat-6: color-mix(in srgb, var(--fx-status-danger) 82%, var(--fx-text-primary));
-  --text-display: 28px;
   --text-heading-lg: 20px;
   --text-title: 16px;
   --text-body-lg: 14px;

@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { CapabilityRequired } from "@/components/CapabilityRequired";
@@ -5,25 +6,42 @@ import { formatNumber } from "@/lib/locale-format";
 import { AddPluginPanel } from "./plugins/add-plugin-panel";
 import { PackageDetail } from "./plugins/package-detail";
 import { PluginList } from "./plugins/plugin-list";
-import { usePluginLibrary } from "./plugins/use-plugin-library";
+import { usePluginLibrary, type PluginLibrary } from "./plugins/use-plugin-library";
 import { buttonStyle, packageKey, shortenPath } from "./plugins/plugin-shared";
 
-export function PluginsConfig({
-  cwd,
-  sessionId,
-  onClose,
-  onReloaded,
-  embedded = false,
-}: {
+const embeddedFrame: CSSProperties = { position: "relative", flex: 1, minWidth: 0, minHeight: 0, display: "flex" };
+const dialogFrame: CSSProperties = {
+  position: "fixed",
+  inset: 0,
+  zIndex: 1000,
+  background: "var(--fx-surface-scrim)",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+interface PluginsConfigProps {
   cwd: string;
   sessionId: string | null;
   onClose: () => void;
   onReloaded?: () => void;
   embedded?: boolean;
-}) {
+}
+
+export function PluginsConfig({ onReloaded, ...props }: PluginsConfigProps) {
+  const library = usePluginLibrary({ cwd: props.cwd, sessionId: props.sessionId, onReloaded });
+  return <PluginsManager {...props} library={library} />;
+}
+
+export function PluginsManager({
+  cwd,
+  sessionId,
+  onClose,
+  embedded = false,
+  library,
+}: Omit<PluginsConfigProps, "onReloaded"> & { library: PluginLibrary }) {
   const isMobile = useIsMobile();
   const { language, t } = useI18n();
-  const library = usePluginLibrary({ cwd, sessionId, onReloaded });
 
   const {
     data,
@@ -54,25 +72,7 @@ export function PluginsConfig({
 
   return (
     <div
-      style={
-        embedded
-          ? {
-              position: "relative",
-              flex: 1,
-              minWidth: 0,
-              minHeight: 0,
-              display: "flex",
-            }
-          : {
-              position: "fixed",
-              inset: 0,
-              zIndex: 1000,
-              background: "rgba(0,0,0,0.35)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }
-      }
+      style={embedded ? embeddedFrame : dialogFrame}
       onClick={(e) => {
         if (!embedded && e.target === e.currentTarget) onClose();
       }}
@@ -85,10 +85,10 @@ export function PluginsConfig({
           maxHeight: embedded ? undefined : "calc(100dvh - 16px)",
           background: "var(--fx-surface-main)",
           border: embedded ? "none" : "1px solid var(--fx-line-default)",
-          borderRadius: embedded ? 0 : 8,
+          borderRadius: embedded ? 0 : "var(--radius-control)",
           display: "flex",
           flexDirection: "column",
-          boxShadow: embedded ? "none" : "0 8px 32px rgba(0,0,0,0.18)",
+          boxShadow: embedded ? "none" : "var(--shadow-dialog)",
           overflow: "hidden",
         }}
       >
@@ -104,14 +104,13 @@ export function PluginsConfig({
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, minWidth: 0 }}>
-              <span style={{ fontSize: "var(--text-title)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
+              <span className="type-title-dialog" style={{ color: "var(--fx-text-primary)" }}>
                 {t("plugins", "Plugins")}
               </span>
               <code
+                className="type-mono-meta"
                 style={{
-                  fontSize: "var(--text-meta)",
                   color: "var(--fx-text-secondary)",
-                  fontFamily: "var(--font-mono)",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
                   whiteSpace: "nowrap",
@@ -122,13 +121,12 @@ export function PluginsConfig({
             </div>
             <button
               onClick={onClose}
+              className="type-title-page"
               style={{
                 background: "none",
                 border: "none",
                 color: "var(--fx-text-secondary)",
                 cursor: "pointer",
-                fontSize: "var(--text-display)",
-                lineHeight: 1,
                 padding: "2px 8px",
               }}
             >
@@ -185,13 +183,13 @@ export function PluginsConfig({
               />
             ) : (
               <div
+                className="type-body-default"
                 style={{
                   height: "100%",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   color: "var(--fx-text-tertiary)",
-                  fontSize: "var(--text-body)",
                 }}
               >
                 {t("selectPackage", "Select a package")}
@@ -212,13 +210,8 @@ export function PluginsConfig({
           }}
         >
           <div
-            style={{
-              minWidth: 0,
-              flex: 1,
-              fontSize: "var(--text-meta)",
-              color: "var(--fx-text-tertiary)",
-              overflow: "hidden",
-            }}
+            className="type-meta-default"
+            style={{ minWidth: 0, flex: 1, color: "var(--fx-text-tertiary)", overflow: "hidden" }}
           >
             {data?.diagnostics.length ? (
               <span

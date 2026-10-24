@@ -223,6 +223,7 @@ async function run() {
     await waitFor(() => exists("navigation", "Main navigation"), "the official Main navigation");
     await click("button", "Plugins & Skills");
     await waitFor(() => exists("heading", "Plugins & Skills"), "Resources as the main page");
+    await click("button", "Manage sources");
     await waitFor(
       async () => (await page("text")).includes("production-navigation-plugin"),
       "the real locally configured plugin",
@@ -235,6 +236,7 @@ async function run() {
     await waitFor(() => exists("button", "Enable package"), "the disabled plugin");
     await reloadPage();
     await click("button", "Plugins & Skills");
+    await click("button", "Manage sources");
     await waitFor(() => exists("button", "Enable package"), "the disabled plugin after a real renderer reload");
     assert.equal(await attribute("button", "Enable package", "aria-pressed"), "false");
     return { persistedDisabled: true, readBackAfterRendererReload: true };
@@ -259,6 +261,7 @@ async function run() {
     );
     await reloadPage();
     await click("button", "Plugins & Skills");
+    await click("button", "Manage sources");
     await waitFor(() => exists("tab", "Skills"), "resource tabs after a real renderer reload");
     await click("tab", "Skills");
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the reopened skill list");

@@ -24,7 +24,7 @@ import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
-import { ResourcePage, type ResourceTab } from "./app-nav/resource-page";
+import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useDepartureGuard } from "./app-shell/use-departure-guard";
 
@@ -46,10 +46,15 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [page, setPage] = useState<NavPage>("chat");
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
+  const [resourceView, setResourceView] = useState<ResourceView>("overview");
   const [remoteOpen, setRemoteOpen] = useState(false);
   const { leaveRef, requestDeparture } = useDepartureGuard();
   const changeResourceTab = useCallback(
     (tab: ResourceTab) => requestDeparture(() => setResourceTab(tab)),
+    [requestDeparture],
+  );
+  const changeResourceView = useCallback(
+    (view: ResourceView) => requestDeparture(() => setResourceView(view)),
     [requestDeparture],
   );
 
@@ -165,9 +170,10 @@ export function AppShell({
       if (isMobile) setSidebarOpen(false);
       closeSettings();
       setRemoteOpen(false);
+      if (target === "resources" && page !== "resources") setResourceView("overview");
       setPage(target);
     },
-    [isMobile, closeSettings],
+    [isMobile, closeSettings, page],
   );
   const handleOpenSettings = useCallback(() => {
     setActiveTopPanel(null);
@@ -375,6 +381,8 @@ export function AppShell({
                 <ResourcePage
                   cwd={activeCwd ?? coordination.spaceCwd ?? ""}
                   sessionId={selectedSession?.id ?? null}
+                  view={resourceView}
+                  onViewChange={changeResourceView}
                   activeTab={resourceTab}
                   onTabChange={changeResourceTab}
                   skillsRef={leaveRef}

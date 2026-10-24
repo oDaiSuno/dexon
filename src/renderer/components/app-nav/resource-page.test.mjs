@@ -56,15 +56,81 @@ function externalResources() {
 }
 
 const noChannels = { accounts: [], statuses: [], pairings: [], bindings: [], activities: [] };
-const props = (activeTab = "plugins", onTabChange = () => {}) => ({
+const props = (activeTab = "plugins", onTabChange = () => {}, view = "manage", onViewChange = () => {}) => ({
   cwd: "/workspace",
+  view,
+  onViewChange,
   activeTab,
   onTabChange,
   channelSnapshot: noChannels,
   onOpenRemote: () => {},
 });
 
-test("the active resource tab displays its real configuration, not the other one", async (t) => {
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test("the overview shows skills and the plugin's sources together on one page, without tabs", async (t) => {
+  const host = externalResources();
+  const view = await mount(
+    t,
+    api.ResourcePage,
+    props("plugins", () => {}, "overview"),
+    { release: host.close },
+  );
+  await settle();
+  const page = view.container;
+  assert.equal(page.querySelector("h1").textContent, "Plugins & Skills");
+  assert.match(page.textContent, /fixture-skill/);
+  assert.match(page.textContent, /Fixture skill/);
+  assert.match(page.textContent, /These capabilities come from 1 installed packages/);
+  assert.equal(page.querySelectorAll('[role="tab"]').length, 0);
+  assert.equal(page.querySelectorAll('[role="tabpanel"]').length, 0);
+});
+
+test("Manage sources asks the parent to show the package manager on the current tab", async (t) => {
+  const host = externalResources();
+  const requested = [];
+  const view = await mount(
+    t,
+    api.ResourcePage,
+    props(
+      "plugins",
+      (tab) => requested.push(["tab", tab]),
+      "overview",
+      (next) => requested.push(["view", next]),
+    ),
+    { release: host.close },
+  );
+  await settle();
+  const manage = [...view.container.querySelectorAll("button")].find(
+    (element) => element.getAttribute("aria-label") === "Manage sources",
+  );
+  await click(manage);
+  assert.deepEqual(requested, [
+    ["tab", "plugins"],
+    ["view", "manage"],
+  ]);
+});
+
+test("opening a skill card from the overview selects that skill in the Skills manager", async (t) => {
+  const host = externalResources();
+  function ControlledPage() {
+    const [tab, setTab] = useState("plugins");
+    const [view, setView] = useState("overview");
+    return createElement(api.ResourcePage, props(tab, setTab, view, setView));
+  }
+  const view = await mount(t, ControlledPage, {}, { release: host.close });
+  await settle();
+  const card = [...view.container.querySelectorAll("button")].find(
+    (element) => element.textContent.trim() === "fixture-skill",
+  );
+  await click(card);
+  await settle();
+  const skills = [...view.container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Skills");
+  assert.equal(skills.getAttribute("aria-selected"), "true");
+  assert.match(view.container.querySelector('[role="tabpanel"]').textContent, /fixture-skill/);
+});
+
+test("the active manager tab displays its real configuration, not the other one", async (t) => {
   const host = externalResources();
   const view = await mount(t, api.ResourcePage, props(), { release: host.close });
   const panel = () => view.container.querySelector('[role="tabpanel"]');
@@ -75,7 +141,7 @@ test("the active resource tab displays its real configuration, not the other one
   assert.doesNotMatch(panel().textContent, /npm:fixture-plugin/);
 });
 
-test("the resource page exposes exactly Plugins and Skills with the correct selected state", async (t) => {
+test("the manager exposes exactly Plugins and Skills with the correct selected state", async (t) => {
   const host = externalResources();
   const view = await mount(t, api.ResourcePage, props(), { release: host.close });
   const tabs = [...view.container.querySelectorAll('[role="tab"]')];
@@ -89,6 +155,27 @@ test("the resource page exposes exactly Plugins and Skills with the correct sele
   );
   assert.equal(view.container.querySelectorAll('[role="tablist"]').length, 1);
   assert.equal(view.container.querySelectorAll('[role="tabpanel"]').length, 1);
+});
+
+test("the manager's back button asks the parent to return to the overview", async (t) => {
+  const host = externalResources();
+  const requested = [];
+  const view = await mount(
+    t,
+    api.ResourcePage,
+    props(
+      "plugins",
+      () => {},
+      "manage",
+      (next) => requested.push(next),
+    ),
+    { release: host.close },
+  );
+  const back = [...view.container.querySelectorAll("button")].find(
+    (element) => element.getAttribute("aria-label") === "Back to Plugins & Skills",
+  );
+  await click(back);
+  assert.deepEqual(requested, ["overview"]);
 });
 
 test("clicks and keyboard arrows request the next resource tab from the parent", async (t) => {

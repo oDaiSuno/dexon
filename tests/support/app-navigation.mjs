@@ -207,12 +207,19 @@ export async function startNavigation(t, options = {}, external = navigationBoun
         if (Date.now() >= deadline) throw new Error("Host requests did not settle");
       }
     },
-    async resources() {
+    async overview() {
       await click(control(scene.navigation(), "button", labels.resources));
       return waitFor(() => {
         control(view.container, "heading", labels.resources);
-        return scene.resourcePanel();
+        return control(view.container, "button", labels.manageSources);
       });
+    },
+    async resources() {
+      await click(control(scene.navigation(), "button", labels.resources));
+      await waitFor(() => control(view.container, "heading", labels.resources));
+      const manage = roles(view.container, "button", labels.manageSources);
+      if (manage.length) await click(manage[0]);
+      return waitFor(() => scene.resourcePanel());
     },
     async skills(name = "personal-checklist") {
       await scene.resources();

@@ -1,36 +1,136 @@
 import { useEffect, useRef, type Ref } from "react";
 import { useI18n } from "@/i18n";
-import { SkillsConfig, type SkillsConfigHandle } from "../SkillsConfig";
-import { PluginsConfig } from "../PluginsConfig";
+import type { PluginPackageInfo } from "@/lib/api-types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
-import { RemoteEntryCard } from "./remote-entry-card";
-
-// Phase 4: the resource main page — one sidebar entry opening a page with the
-// two approved tabs. The embedded configs provide the full management
-// capabilities; the tab switch is a controlled local decision here, and the
-// leave protection (Phase 10) plus the production entry (Phase 11) hook into
-// the same onTabChange path.
+import { SkillsManager, type SkillsConfigHandle } from "../SkillsConfig";
+import { PluginsManager } from "../PluginsConfig";
+import { Button } from "../form-controls";
+import { usePluginLibrary } from "../plugins/use-plugin-library";
+import { packageKey } from "../plugins/plugin-shared";
+import { useSkillDirectory } from "../skills/use-skill-directory";
+import { ResourcesOverview } from "../resources/resources-overview";
+import { ChevronLeftIcon, ChevronRightIcon } from "../resources/overview-icons";
 
 export type ResourceTab = "plugins" | "skills";
+export type ResourceView = "overview" | "manage";
 
-export function ResourcePage({
-  cwd,
-  sessionId = null,
-  activeTab,
-  onTabChange,
-  onPluginsReloaded,
-  skillsRef,
-  channelSnapshot,
-  onOpenRemote,
-}: {
+interface ResourcePageProps {
   cwd: string;
   sessionId?: string | null;
+  view: ResourceView;
+  onViewChange: (view: ResourceView) => void;
   activeTab: ResourceTab;
   onTabChange: (tab: ResourceTab) => void;
   onPluginsReloaded?: () => void;
   skillsRef?: Ref<SkillsConfigHandle>;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
+}
+
+export function ResourcePage(props: ResourcePageProps) {
+  return <ResourceWorkspace key={props.cwd} {...props} />;
+}
+
+function ResourceWorkspace({
+  cwd,
+  sessionId = null,
+  view,
+  onViewChange,
+  activeTab,
+  onTabChange,
+  onPluginsReloaded,
+  skillsRef,
+  channelSnapshot,
+  onOpenRemote,
+}: ResourcePageProps) {
+  const library = usePluginLibrary({ cwd, sessionId, onReloaded: onPluginsReloaded });
+  const directory = useSkillDirectory(cwd);
+  const skillsAddRef = useRef(false);
+
+  const manage = (tab: ResourceTab) => {
+    onTabChange(tab);
+    onViewChange("manage");
+  };
+  const openPackage = (pkg: PluginPackageInfo) => {
+    library.selectPackage(packageKey(pkg));
+    manage("plugins");
+  };
+
+  return (
+    <div
+      className="app-nav-resource"
+      style={{
+        flex: 1,
+        minWidth: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "var(--fx-surface-main)",
+      }}
+    >
+      {view === "overview" ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-[24px] py-[32px]">
+          <ResourcesOverview
+            library={library}
+            directory={directory}
+            channelSnapshot={channelSnapshot}
+            onOpenRemote={onOpenRemote}
+            onAdd={() => {
+              library.openAddMode();
+              manage("plugins");
+            }}
+            onOpenSkill={(skill) => {
+              skillsAddRef.current = false;
+              directory.setSelected(skill.filePath);
+              manage("skills");
+            }}
+            onDiscoverSkills={() => {
+              skillsAddRef.current = true;
+              manage("skills");
+            }}
+            onOpenPackage={openPackage}
+            onManageSources={() => manage(activeTab)}
+          />
+        </div>
+      ) : (
+        <>
+          <ManageHeader
+            activeTab={activeTab}
+            onTabChange={(tab) => {
+              skillsAddRef.current = false;
+              onTabChange(tab);
+            }}
+            onBack={() => onViewChange("overview")}
+          />
+          <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
+            {activeTab === "plugins" ? (
+              <PluginsManager cwd={cwd} sessionId={sessionId} embedded onClose={() => undefined} library={library} />
+            ) : (
+              <SkillsManager
+                ref={skillsRef}
+                cwd={cwd}
+                embedded
+                initialAddMode={skillsAddRef.current}
+                onClose={() => undefined}
+                directory={directory}
+              />
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function ManageHeader({
+  activeTab,
+  onTabChange,
+  onBack,
+}: {
+  activeTab: ResourceTab;
+  onTabChange: (tab: ResourceTab) => void;
+  onBack: () => void;
 }) {
   const { t } = useI18n();
   const tabs: { id: ResourceTab; label: string }[] = [
@@ -38,19 +138,14 @@ export function ResourcePage({
     { id: "skills", label: t("skillsTab", "Skills") },
   ];
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
-  // Keyboard arrow switches must keep focus on the newly selected tab once
-  // the controlled parent accepts the change (review R4). The ref-based
-  // effect only fires when the requested tab actually became active, so a
-  // rejected transition (future leave protection) leaves focus untouched.
   const pendingFocusRef = useRef<ResourceTab | null>(null);
-  const tabRefsRef = useRef(new Map<ResourceTab, unknown>());
+  const tabRefsRef = useRef(new Map<ResourceTab, HTMLButtonElement>());
 
   useEffect(() => {
     const pending = pendingFocusRef.current;
     if (!pending || pending !== activeTab) return;
     pendingFocusRef.current = null;
-    const element = tabRefsRef.current.get(pending) as { focus?: () => void } | undefined;
-    element?.focus?.();
+    tabRefsRef.current.get(pending)?.focus();
   }, [activeTab]);
 
   const move = (delta: -1 | 1) => {
@@ -62,97 +157,71 @@ export function ResourcePage({
   };
 
   return (
-    <div
-      className="app-nav-resource"
-      style={{
-        flex: 1,
-        minWidth: 0,
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: "var(--fx-surface-main)",
-      }}
-    >
-      <header
+    <header className="flex shrink-0 items-center gap-[12px] px-[20px] pt-[14px] pb-[10px]">
+      <Button
+        variant="ghost"
+        onClick={onBack}
+        aria-label={t("resourcesBackToOverview", "Back to Plugins & Skills")}
+        className="w-[32px] px-0"
+      >
+        <ChevronLeftIcon size={16} />
+      </Button>
+      <h1 className="type-body-large m-0 text-[var(--fx-text-secondary)]">
+        {t("navPluginsSkills", "Plugins & Skills")}
+      </h1>
+      <ChevronRightIcon size={14} className="text-[var(--fx-text-tertiary)]" />
+      <span className="type-body-large-medium min-w-0 flex-1 truncate text-[var(--fx-text-primary)]">
+        {t("resourcesManageSources", "Manage sources")}
+      </span>
+      <div
+        role="tablist"
+        aria-label={t("navPluginsSkills", "Plugins & Skills")}
         style={{
-          padding: "14px 20px 10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          flexShrink: 0,
+          display: "inline-flex",
+          border: "1px solid var(--fx-line-default)",
+          borderRadius: "var(--radius-card)",
+          overflow: "hidden",
         }}
       >
-        <h1 className="type-title-dialog" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
-          {t("navPluginsSkills", "Plugins & Skills")}
-        </h1>
-        <div
-          role="tablist"
-          aria-label={t("navPluginsSkills", "Plugins & Skills")}
-          style={{
-            display: "inline-flex",
-            border: "1px solid var(--fx-line-default)",
-            borderRadius: "var(--radius-card)",
-            overflow: "hidden",
-          }}
-        >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              ref={(element) => {
-                if (element) tabRefsRef.current.set(tab.id, element);
-                else tabRefsRef.current.delete(tab.id);
-              }}
-              aria-selected={activeTab === tab.id}
-              tabIndex={activeTab === tab.id ? 0 : -1}
-              className={activeTab === tab.id ? "type-label-medium" : "type-label-default"}
-              onClick={() => onTabChange(tab.id)}
-              onKeyDown={(event) => {
-                if (event.key === "ArrowLeft") {
-                  event.preventDefault();
-                  move(-1);
-                }
-                if (event.key === "ArrowRight") {
-                  event.preventDefault();
-                  move(1);
-                }
-              }}
-              style={{
-                height: 28,
-                padding: "0 14px",
-                background: activeTab === tab.id ? "var(--fx-surface-selected)" : "transparent",
-                border: tab.id === "plugins" ? "none" : "none",
-                borderLeft: tab.id === "skills" ? "1px solid var(--fx-line-default)" : "none",
-                color: activeTab === tab.id ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-                cursor: "pointer",
-                transition:
-                  "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-              }}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </header>
-      <div style={{ flexShrink: 0, padding: "0 20px 16px" }}>
-        <RemoteEntryCard snapshot={channelSnapshot} onOpen={onOpenRemote} />
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            type="button"
+            role="tab"
+            ref={(element) => {
+              if (element) tabRefsRef.current.set(tab.id, element);
+              else tabRefsRef.current.delete(tab.id);
+            }}
+            aria-selected={activeTab === tab.id}
+            tabIndex={activeTab === tab.id ? 0 : -1}
+            className={activeTab === tab.id ? "type-label-medium" : "type-label-default"}
+            onClick={() => onTabChange(tab.id)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                move(-1);
+              }
+              if (event.key === "ArrowRight") {
+                event.preventDefault();
+                move(1);
+              }
+            }}
+            style={{
+              height: 28,
+              padding: "0 14px",
+              background: activeTab === tab.id ? "var(--fx-surface-selected)" : "transparent",
+              border: "none",
+              borderLeft: tab.id === "skills" ? "1px solid var(--fx-line-default)" : "none",
+              color: activeTab === tab.id ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+              cursor: "pointer",
+              transition:
+                "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out)",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
-      <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        {activeTab === "plugins" ? (
-          <PluginsConfig
-            key={cwd}
-            cwd={cwd}
-            sessionId={sessionId}
-            embedded
-            onClose={() => undefined}
-            onReloaded={onPluginsReloaded}
-          />
-        ) : (
-          <SkillsConfig ref={skillsRef} cwd={cwd} embedded onClose={() => undefined} />
-        )}
-      </div>
-    </div>
+    </header>
   );
 }

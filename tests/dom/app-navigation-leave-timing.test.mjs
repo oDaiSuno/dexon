@@ -178,8 +178,8 @@ test("a plugin action that completes after a space switch reports nothing in the
 
 test("a skill list for the previous space that answers after a space switch does not replace the new space's skills", async (t) => {
   const scene = await startNavigation(t);
-  await scene.resources();
   const late = scene.external.hold("skills.list", forCwd(navigationPaths.personal));
+  await scene.resources();
   await click(control(scene.container, "tab", "Skills"));
   await waitFor(() => assert.ok(late.reached()));
   await switchSpace(scene, navigationPaths.project);
@@ -194,8 +194,8 @@ test("a skill list for the previous space that answers after a space switch does
 
 test("a skill list failure for the previous space does not show an error in the new space", async (t) => {
   const scene = await startNavigation(t);
-  await scene.resources();
   const late = scene.external.hold("skills.list", forCwd(navigationPaths.personal));
+  await scene.resources();
   await click(control(scene.container, "tab", "Skills"));
   await waitFor(() => assert.ok(late.reached()));
   await switchSpace(scene, navigationPaths.project);
@@ -211,9 +211,9 @@ test("a skill list failure for the previous space does not show an error in the 
 
 test("the previous space's skill list finishing late does not end the new space's loading with stale content", async (t) => {
   const scene = await startNavigation(t);
-  await scene.resources();
   const personal = scene.external.hold("skills.list", forCwd(navigationPaths.personal));
   const project = scene.external.hold("skills.list", forCwd(navigationPaths.project));
+  await scene.resources();
   await click(control(scene.container, "tab", "Skills"));
   await waitFor(() => assert.ok(personal.reached()));
   await switchSpace(scene, navigationPaths.project);
