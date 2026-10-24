@@ -9,18 +9,30 @@ export const toggleHitAreaStyle: React.CSSProperties = {
 
 export function SettingGroup({
   title,
+  action,
   notes,
   children,
 }: {
   title: string;
+  action?: React.ReactNode;
   notes?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const heading = (
+    <h2 className="type-body-medium" style={{ flex: 1, minWidth: 0, margin: 0, color: "var(--fx-text-secondary)" }}>
+      {title}
+    </h2>
+  );
   return (
     <section style={{ display: "grid", gap: 10 }}>
-      <h2 className="type-body-medium" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
-        {title}
-      </h2>
+      {action ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {heading}
+          {action}
+        </div>
+      ) : (
+        heading
+      )}
       <div
         style={{
           display: "grid",

@@ -10,7 +10,7 @@ import { NetworkSection } from "./settings/network-section";
 import { AgentSection } from "./settings/agent-section";
 import { DownloadsProxySection } from "./settings/downloads-proxy-section";
 import { ProfilesSection } from "./settings/profiles-section";
-import { AdvancedModeSection, DiagnosticsSection } from "./settings/diagnostics-section";
+import { DiagnosticsSection } from "./settings/diagnostics-section";
 import { HeaderRulesSection, SnippetSection } from "./settings/developer-section";
 
 const ADVANCED_PHRASE = "ENABLE ADVANCED BROWSER";
@@ -114,7 +114,6 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
           <AgentSection model={model} sessionId={sessionId} />
           <DownloadsProxySection model={model} label={t("browserDownloadsProxy", "Downloads and proxy")} />
           <ProfilesSection model={model} />
-          <AdvancedModeSection model={model} />
           <DiagnosticsSection model={model} />
           <HeaderRulesSection
             profiles={model.state.profiles.filter((profile) => profile.mode !== "unsafe" || model.advancedEnabled)}

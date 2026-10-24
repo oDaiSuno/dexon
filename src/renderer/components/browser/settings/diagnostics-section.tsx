@@ -1,213 +1,133 @@
-import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n";
 import { Button } from "../../form-controls";
 import { SettingGroup } from "../../settings/setting-row";
-import {
-  ActionsRow,
-  InputRow,
-  NoticeRow,
-  NumberRow,
-  RowSpacer,
-  SelectRow,
-  ToggleRow,
-  formatBytes,
-  formatMessage,
-  profileModeLabel,
-  withSettings,
-  type BrowserSettingsModel,
-} from "./shared";
+import { BrowserIcon } from "../browser-icons";
+import { AdvancedModeFields } from "./advanced-mode-fields";
+import { ActionsRow, RowSpacer, ToggleRow, type BrowserSettingsModel } from "./shared";
 
-type IdentityMode = "native" | "chrome-compatible" | "custom";
-
-export function AdvancedModeSection({ model }: { model: BrowserSettingsModel }) {
-  const { t } = useI18n();
-  const { state, settings, advancedEnabled, update, setState } = model;
-  const advanced = settings.advancedBrowserMode;
-  const edit = (patch: Partial<typeof advanced>) => setState(withSettings(state, "advancedBrowserMode", patch));
-  return (
-    <SettingGroup title={t("browserAdvancedMode", "Advanced Browser Mode")}>
-      <ToggleRow
-        label={t("browserEnableAdvancedForLaunch", "Enable Advanced Browser Mode for this launch")}
-        description={t(
-          "browserAdvancedModeWarning",
-          "One launch-only switch enables JavaScript, three-layer browser identity, trusted humanized input, full CDP network capture, confirmed write replay, the JavaScript experience library, security-header removal, advanced Profiles, certificate bypass, and unrestricted CDP. Full Cookie values remain blocked by Gate A.",
-        )}
-        checked={advancedEnabled}
-        onChange={(enabled) => void update({ advancedBrowserMode: { enabled } })}
-      />
-      <NoticeRow tone="warning">
-        {t(
-          "browserAdvancedRuntimeConfirmations",
-          "POST/PUT/PATCH/DELETE replay and existing sensitive actions still require one local confirmation per action; these are action confirmations, not extra settings.",
-        )}
-      </NoticeRow>
-      <SelectRow
-        label={t("browserIdentityMode", "Browser identity")}
-        value={advanced.identityMode}
-        onChange={(value) => void update({ advancedBrowserMode: { identityMode: value as IdentityMode } })}
-      >
-        <option value="chrome-compatible">
-          {t("browserIdentityChromeCompatible", "Chromium-compatible (recommended)")}
-        </option>
-        <option value="native">{t("browserIdentityNative", "Electron native")}</option>
-        <option value="custom">{t("browserIdentityCustom", "Custom consistent identity")}</option>
-      </SelectRow>
-      {advanced.identityMode === "custom" && (
-        <>
-          <InputRow
-            label={t("browserCustomUserAgent", "Custom User-Agent")}
-            value={advanced.customUserAgentValue}
-            placeholder="Mozilla/5.0 … Chrome/142.0.0.0 …"
-            onChange={(customUserAgentValue) => edit({ customUserAgentValue })}
-            onBlur={(customUserAgentValue) => void update({ advancedBrowserMode: { customUserAgentValue } })}
-          />
-          <InputRow
-            label={t("browserClientHintsPlatform", "Client Hints platform")}
-            value={advanced.customUserAgentPlatform}
-            placeholder="macOS, Windows, Linux…"
-            onChange={(customUserAgentPlatform) => edit({ customUserAgentPlatform })}
-            onBlur={(customUserAgentPlatform) => void update({ advancedBrowserMode: { customUserAgentPlatform } })}
-          />
-          <InputRow
-            label={t("browserChromiumFullVersion", "Chromium full version")}
-            value={advanced.customUserAgentFullVersion}
-            placeholder="142.0.0.0"
-            onChange={(customUserAgentFullVersion) => edit({ customUserAgentFullVersion })}
-            onBlur={(customUserAgentFullVersion) =>
-              void update({ advancedBrowserMode: { customUserAgentFullVersion } })
-            }
-          />
-        </>
-      )}
-      <InputRow
-        label={t("browserCertificateDomains", "Certificate bypass domains (comma separated)")}
-        value={advanced.certificateBypassDomains.join(", ")}
-        onChange={(value) => edit({ certificateBypassDomains: value.split(",").map((entry) => entry.trim()) })}
-        onBlur={(value) =>
-          void update({
-            advancedBrowserMode: {
-              certificateBypassDomains: value
-                .split(",")
-                .map((entry) => entry.trim())
-                .filter(Boolean),
-            },
-          })
-        }
-      />
-      <NumberRow
-        label={t("browserNetworkRequestCapacity", "Captured requests per tab")}
-        fields={[
-          {
-            label: t("browserNetworkRequestCapacity", "Captured requests per tab"),
-            value: advanced.maxRequestsPerTab,
-            min: 50,
-            max: 5000,
-            onCommit: (maxRequestsPerTab) => void update({ advancedBrowserMode: { maxRequestsPerTab } }),
-          },
-        ]}
-      />
-      <NumberRow
-        label={t("browserNetworkBodyCapacity", "Captured body capacity per tab (MiB)")}
-        fields={[
-          {
-            label: t("browserNetworkBodyCapacity", "Captured body capacity per tab (MiB)"),
-            value: Math.round(advanced.maxBodyBytesPerTab / (1024 * 1024)),
-            min: 1,
-            max: 256,
-            onCommit: (value) => void update({ advancedBrowserMode: { maxBodyBytesPerTab: value * 1024 * 1024 } }),
-          },
-        ]}
-      />
-      <NumberRow
-        label={t("browserSnippetCapacity", "JavaScript experiences per host")}
-        fields={[
-          {
-            label: t("browserSnippetCapacity", "JavaScript experiences per host"),
-            value: advanced.maxPerHost,
-            min: 5,
-            max: 200,
-            onCommit: (maxPerHost) => void update({ advancedBrowserMode: { maxPerHost } }),
-          },
-        ]}
-      />
-    </SettingGroup>
-  );
-}
+const MEBIBYTE = 1024 * 1024;
 
 export function DiagnosticsSection({ model }: { model: BrowserSettingsModel }) {
-  const { t } = useI18n();
-  const { state } = model;
+  const { language, t } = useI18n();
+  const { state, advancedEnabled, update } = model;
   const diagnostics = state.diagnostics;
-  const count = (template: string, value: number) => formatMessage(template, { count: value });
-  const facts = [
-    `Electron ${diagnostics.electronVersion}`,
-    `Chromium ${diagnostics.chromiumVersion}`,
-    count(t("browserTabsCount", "{count} tabs"), diagnostics.activeTabCount),
-    count(t("browserCdpConnections", "{count} CDP connections"), diagnostics.attachedDebuggerCount),
-    count(t("browserCrashedTabs", "{count} crashed tabs"), diagnostics.crashedTabCount),
-    count(t("browserAdvancedTabs", "{count} advanced tabs"), diagnostics.advancedTabCount),
-    count(t("browserCapturedRequests", "{count} captured requests"), diagnostics.capturedRequestCount),
-    count(t("browserJavascriptExperiences", "{count} JavaScript experiences"), diagnostics.snippetCount),
-    count(t("browserRendererProcesses", "{count} renderer processes"), diagnostics.rendererProcessCount),
-    formatMessage(t("browserRendererWorkingSet", "Renderer working set {size}"), {
-      size: formatBytes(diagnostics.rendererWorkingSetBytes),
-    }),
+  const number = new Intl.NumberFormat(language);
+  const stats = [
+    { key: "tabs", label: t("browserStatTabs", "Tabs"), value: number.format(diagnostics.activeTabCount) },
+    {
+      key: "renderers",
+      label: t("browserRendererProcesses", "Renderer processes"),
+      value: number.format(diagnostics.rendererProcessCount),
+    },
+    {
+      key: "working-set",
+      label: t("browserRendererWorkingSet", "Working set"),
+      value: `${number.format(Math.round(diagnostics.rendererWorkingSetBytes / MEBIBYTE))} MB`,
+    },
+    {
+      key: "requests",
+      label: t("browserCapturedRequests", "Captured requests"),
+      value: number.format(diagnostics.capturedRequestCount),
+    },
   ];
   const reset = () => {
     if (!window.confirm(t("browserResetConfirm", "Reset Browser settings and revoke all Browser capabilities?")))
       return;
     void window.piBridge.browserReset().then(model.setState).catch(model.report);
   };
+  const clearAll = () =>
+    model.run(() =>
+      Promise.all(state.profiles.map((profile) => window.piBridge.browserClearProfileData(profile.id, "all"))),
+    );
+
   return (
-    <SettingGroup title={t("browserDiagnosticsReset", "Diagnostics and reset")}>
-      <ActionsRow>
-        <div className="type-label-default" style={factsStyle}>
-          {facts.map((fact) => (
-            <span key={fact}>{fact}</span>
-          ))}
-        </div>
-      </ActionsRow>
-      <NoticeRow>
-        {diagnostics.profilePartitions
-          .map((profile) => `${profileModeLabel(t, profile.mode)}: ${profile.partition}`)
-          .join(" · ")}
-      </NoticeRow>
-      <NoticeRow>
-        {t(
-          "browserWorkflowGuardScope",
-          "Workflow guard blocks obvious Browser route bypasses; it is not an OS network sandbox.",
+    <SettingGroup title={t("browserDiagnosticsReset", "Advanced and diagnostics")}>
+      <ToggleRow
+        label={t("browserEnableAdvancedForLaunch", "Enable Advanced Browser Mode for this launch")}
+        description={t(
+          "browserAdvancedModeWarning",
+          "Turns on JavaScript execution, identity overrides, network bodies and request replay, certificate bypass, and unrestricted CDP together. Lasts for this launch only.",
         )}
-      </NoticeRow>
-      <ActionsRow>
-        <Button onClick={() => void window.piBridge.exportDiagnostics()}>
-          {t("browserExportDiagnostics", "Export redacted diagnostics")}
-        </Button>
-        <Button onClick={() => model.run(() => window.piBridge.browserCloseAllTabs())}>
-          {t("browserCloseAllTabs", "Close all tabs")}
-        </Button>
-        <RowSpacer />
-        <Button
-          variant="danger"
-          onClick={() =>
-            model.run(() =>
-              Promise.all(state.profiles.map((profile) => window.piBridge.browserClearProfileData(profile.id, "all"))),
-            )
-          }
-        >
-          {t("browserClearAllData", "Clear all browser data")}
-        </Button>
-        <Button variant="danger" onClick={reset}>
-          {t("browserReset", "Reset Browser")}
-        </Button>
+        checked={advancedEnabled}
+        onChange={(enabled) => void update({ advancedBrowserMode: { enabled } })}
+      />
+      <div className="ui-setting-row type-body-default" data-divider style={noticeStyle}>
+        <span style={{ display: "flex", paddingTop: "1px", color: "var(--fx-status-warning)" }}>
+          <BrowserIcon name="triangle-alert" size={15} strokeWidth={2} />
+        </span>
+        <span style={{ flex: 1, minWidth: 0, textWrap: "pretty" }}>
+          {t(
+            "browserAdvancedRuntimeConfirmations",
+            "You type a confirmation phrase before turning it on; even then, high-risk actions still ask every time.",
+          )}
+        </span>
+      </div>
+      {advancedEnabled && <AdvancedModeFields model={model} />}
+      <ActionsRow style={summaryRowStyle}>
+        <dl style={statsStyle}>
+          {stats.map((stat) => (
+            <div key={stat.key} style={statCardStyle}>
+              <dt className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
+                {stat.label}
+              </dt>
+              <dd className="type-mono-number" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
+                {stat.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        <div style={actionsStyle}>
+          <Button onClick={() => void window.piBridge.exportDiagnostics()}>
+            <BrowserIcon name="download" size={14} strokeWidth={2} />
+            {t("browserExportDiagnostics", "Export redacted diagnostics")}
+          </Button>
+          <Button onClick={() => model.run(() => window.piBridge.browserCloseAllTabs())}>
+            <BrowserIcon name="x" size={14} strokeWidth={2} />
+            {t("browserCloseAllTabs", "Close all tabs")}
+          </Button>
+          <RowSpacer />
+          <Button variant="danger" onClick={clearAll}>
+            <BrowserIcon name="trash-2" size={14} strokeWidth={2} />
+            {t("browserClearAllData", "Clear all browser data")}
+          </Button>
+          <Button variant="danger" onClick={reset}>
+            <BrowserIcon name="rotate-ccw" size={14} strokeWidth={2} />
+            {t("browserReset", "Reset Browser")}
+          </Button>
+        </div>
       </ActionsRow>
     </SettingGroup>
   );
 }
 
-const factsStyle: CSSProperties = {
-  flex: 1,
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: "var(--space-2) var(--space-3)",
+const noticeStyle = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "10px",
+  padding: "12px 20px",
+  background: "var(--fx-status-warning-soft)",
   color: "var(--fx-text-secondary)",
-};
+} as const;
+const summaryRowStyle = {
+  flexDirection: "column",
+  alignItems: "stretch",
+  flexWrap: "nowrap",
+  gap: "14px",
+  padding: "16px 20px",
+} as const;
+const statsStyle = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(50px, 1fr))",
+  gap: "12px",
+  margin: 0,
+} as const;
+const statCardStyle = {
+  display: "grid",
+  alignContent: "start",
+  gap: "4px",
+  padding: "12px",
+  border: "1px solid var(--fx-line-default)",
+  borderRadius: "var(--radius-card)",
+  background: "var(--fx-surface-raised)",
+} as const;
+const actionsStyle = { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px" } as const;

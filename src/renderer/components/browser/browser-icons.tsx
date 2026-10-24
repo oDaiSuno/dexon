@@ -31,7 +31,13 @@ export type BrowserIconName =
   | "maximize"
   | "mouse-pointer"
   | "clipboard"
-  | "container";
+  | "container"
+  | "user-round"
+  | "flask-conical"
+  | "ellipsis"
+  | "download"
+  | "trash-2"
+  | "rotate-ccw";
 
 const PATHS: Record<BrowserIconName, ReactNode> = {
   "arrow-left": (
@@ -215,6 +221,48 @@ const PATHS: Record<BrowserIconName, ReactNode> = {
       <path d="m10 14 11.9-6.9" />
       <path d="M14 19.8v-8.1" />
       <path d="M18 17.5V9.4" />
+    </>
+  ),
+  "user-round": (
+    <>
+      <circle cx="12" cy="8" r="5" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
+    </>
+  ),
+  "flask-conical": (
+    <>
+      <path d="M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2" />
+      <path d="M6.453 15h11.094" />
+      <path d="M8.5 2h7" />
+    </>
+  ),
+  ellipsis: (
+    <>
+      <circle cx="12" cy="12" r="1" />
+      <circle cx="19" cy="12" r="1" />
+      <circle cx="5" cy="12" r="1" />
+    </>
+  ),
+  download: (
+    <>
+      <path d="M12 15V3" />
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <path d="m7 10 5 5 5-5" />
+    </>
+  ),
+  "trash-2": (
+    <>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <path d="M10 11v6" />
+      <path d="M14 11v6" />
+    </>
+  ),
+  "rotate-ccw": (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
     </>
   ),
 };

@@ -1,0 +1,30 @@
+{
+  "browserNewProfile": {
+    "enUS": "New Profile ({mode})",
+    "zhCN": "新建 Profile（{mode}）"
+  },
+  "browserDiagnosticsReset": {
+    "enUS": "Diagnostics and reset",
+    "zhCN": "诊断与重置"
+  },
+  "browserAdvancedModeWarning": {
+    "enUS": "One launch-only switch enables JavaScript, three-layer browser identity, trusted humanized input, full CDP network capture, confirmed write replay, the JavaScript experience library, security-header removal, advanced Profiles, certificate bypass, and unrestricted CDP. Full Cookie values remain blocked by Gate A.",
+    "zhCN": "此单一开关会同时启用 JavaScript、身份覆盖、可信输入、网络正文与写请求重放、站点安全限制移除、证书放行和不受限 CDP。它仅在本次启动有效。"
+  },
+  "browserAdvancedRuntimeConfirmations": {
+    "enUS": "POST/PUT/PATCH/DELETE replay and existing sensitive actions still require one local confirmation per action; these are action confirmations, not extra settings.",
+    "zhCN": "高风险操作仍会在执行时单独确认。"
+  },
+  "browserRendererProcesses": {
+    "enUS": "{count} renderer processes",
+    "zhCN": "{count} 个 Renderer 进程"
+  },
+  "browserRendererWorkingSet": {
+    "enUS": "Renderer working set {size}",
+    "zhCN": "Renderer 工作集 {size}"
+  },
+  "browserCapturedRequests": {
+    "enUS": "{count} captured requests",
+    "zhCN": "{count} 个已抓取请求"
+  }
+}
