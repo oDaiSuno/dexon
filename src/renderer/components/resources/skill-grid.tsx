@@ -1,8 +1,8 @@
 import { useState } from "react";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import { useI18n } from "@/i18n";
-import { Toggle } from "../form-controls";
 import type { Skill } from "../skills/skill-shared";
+import { SkillToggle } from "../skills/skill-toggle";
 import { matchesSkillQuery, skillOriginText } from "./overview-model";
 import { SectionHeader } from "./resource-sections";
 import { SkillIcon, SparklesIcon } from "./overview-icons";
@@ -40,17 +40,7 @@ function SkillCard({
         >
           {skill.name}
         </button>
-        <Toggle
-          className="relative z-[1]"
-          checked={visible}
-          disabled={toggling}
-          onChange={onToggle}
-          aria-label={
-            visible
-              ? t("disableSkillInModelPrompt", "Disable skill in model prompt")
-              : t("enableSkillInModelPrompt", "Enable skill in model prompt")
-          }
-        />
+        <SkillToggle className="relative z-[1]" enabled={visible} loading={toggling} onToggle={onToggle} />
       </div>
       {skill.description && (
         <p className="type-body-relaxed m-0 text-pretty text-[var(--fx-text-secondary)]">{skill.description}</p>
@@ -128,7 +118,7 @@ export function SkillGrid({
           <button
             type="button"
             onClick={onDiscover}
-            className={`flex w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-[8px] rounded-[var(--radius-resource-tile)] border border-dashed border-[var(--fx-line-strong)] bg-[var(--fx-surface-hover-clear)] p-[16px] hover:bg-[var(--fx-surface-hover-overlay)] ${TILE_HOVER}`}
+            className={`flex h-full w-full min-w-0 cursor-pointer flex-col items-center justify-center gap-[8px] rounded-[var(--radius-resource-tile)] border border-dashed border-[var(--fx-line-strong)] bg-[var(--fx-surface-hover-clear)] p-[16px] hover:bg-[var(--fx-surface-hover-overlay)] ${TILE_HOVER}`}
           >
             <SparklesIcon size={18} className="text-[var(--fx-text-secondary)]" />
             <span className="type-body-medium text-[var(--fx-text-primary)]">

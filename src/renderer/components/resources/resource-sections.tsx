@@ -111,9 +111,6 @@ export function PromptsSection({
               <span className="type-mono-label flex h-[22px] shrink-0 items-center rounded-[var(--radius-chip)] bg-[var(--fx-surface-card)] px-[7px] text-[var(--fx-text-primary)]">
                 /{prompt.name}
               </span>
-              <span className="type-body-default min-w-0 flex-1 truncate text-[var(--fx-text-secondary)]">
-                {t("resourcesFromPackage", "From {name}").replace("{name}", prompt.origin)}
-              </span>
             </button>
           </li>
         ))}

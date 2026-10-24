@@ -120,9 +120,7 @@ export function SkillList({
                           width: 7,
                           height: 7,
                           borderRadius: "50%",
-                          background: disabled ? "var(--fx-line-default)" : "var(--fx-accent-blue)",
-                          boxShadow: disabled ? "none" : "0 0 4px var(--fx-accent-blue)",
-                          transition: "background 0.15s, box-shadow 0.15s",
+                          background: disabled ? "var(--fx-text-faint)" : "var(--fx-data-blue)",
                         }}
                       />
                       <span

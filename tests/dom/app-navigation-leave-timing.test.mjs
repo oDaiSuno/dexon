@@ -164,7 +164,7 @@ test("a plugin action that completes after a space switch reports nothing in the
   await scene.resources();
   await click(await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin")));
   const disable = scene.external.hold("plugins.set", forCwd(navigationPaths.personal));
-  await click(control(scene.resourcePanel(), "button", "Disable package"));
+  await click(control(scene.resourcePanel(), "switch", "Disable package"));
   await waitFor(() => assert.ok(disable.reached()));
   await switchSpace(scene, navigationPaths.project);
   await waitFor(() => visibleText(scene.resourcePanel(), "npm:project-navigation-plugin"));
@@ -173,7 +173,7 @@ test("a plugin action that completes after a space switch reports nothing in the
   assert.doesNotMatch(scene.resourcePanel().textContent, /Package disabled\.|npm:personal-navigation-plugin/);
   await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
   await click(await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin")));
-  await waitFor(() => control(scene.resourcePanel(), "button", "Enable package"));
+  await waitFor(() => control(scene.resourcePanel(), "switch", "Enable package"));
 });
 
 test("a skill list for the previous space that answers after a space switch does not replace the new space's skills", async (t) => {

@@ -39,10 +39,13 @@ export function findInstalledPackage(
 }
 
 export function statusColor(status: PluginPackageInfo["status"]): string {
-  if (status === "loaded") return "var(--fx-accent-blue)";
-  if (status === "installed") return "var(--fx-status-warning)";
-  if (status === "disabled") return "var(--fx-text-tertiary)";
-  return "var(--fx-status-danger)";
+  if (status === "loaded") return "var(--fx-data-blue)";
+  if (status === "disabled") return "var(--fx-text-faint)";
+  return "var(--fx-status-warning)";
+}
+
+export function statusDotOpacity(status: PluginPackageInfo["status"]): number {
+  return status === "missing" || status === "installed" ? 0.7 : 1;
 }
 
 export function safePluginError(message: string | undefined, fallback: string, t: Translate): string {

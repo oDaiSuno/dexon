@@ -71,13 +71,13 @@ test("disabling a plugin from the new resource page remains visible after reload
   await scene.resources();
   await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
   await click(visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
-  await click(control(scene.resourcePanel(), "button", "Disable package"));
-  await waitFor(() => control(scene.resourcePanel(), "button", "Enable package"));
+  await click(control(scene.resourcePanel(), "switch", "Disable package"));
+  await waitFor(() => control(scene.resourcePanel(), "switch", "Enable package"));
   const reopened = await scene.reload();
   await reopened.resources();
   await waitFor(() => visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
   await click(visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
-  assert.equal(control(reopened.resourcePanel(), "button", "Enable package").getAttribute("aria-pressed"), "false");
+  assert.equal(control(reopened.resourcePanel(), "switch", "Enable package").getAttribute("aria-checked"), "false");
 });
 
 test("explicit plugin reload from Resources refreshes the same conversation when returning to Chat", async (t) => {

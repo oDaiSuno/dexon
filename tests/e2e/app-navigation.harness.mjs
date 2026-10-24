@@ -235,13 +235,13 @@ async function run() {
     return navigationWidth(224);
   });
   await scene("03-plugin-persistence", async () => {
-    await click("button", "Disable package");
-    await waitFor(() => exists("button", "Enable package"), "the disabled plugin");
+    await click("switch", "Disable package");
+    await waitFor(() => exists("switch", "Enable package"), "the disabled plugin");
     await reloadPage();
     await click("button", "Plugins & Skills");
     await click("button", "Manage sources");
-    await waitFor(() => exists("button", "Enable package"), "the disabled plugin after a real renderer reload");
-    assert.equal(await attribute("button", "Enable package", "aria-pressed"), "false");
+    await waitFor(() => exists("switch", "Enable package"), "the disabled plugin after a real renderer reload");
+    assert.equal(await attribute("switch", "Enable package", "aria-checked"), "false");
     return { persistedDisabled: true, readBackAfterRendererReload: true };
   });
   await scene("04-skill-persistence", async () => {

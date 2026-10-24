@@ -63,7 +63,7 @@ export function skillOriginText(skill: Skill, packages: PluginPackageInfo[], t: 
   return `${origin} · ${t("resourcesHiddenFromModel", "Hidden from the model")}`;
 }
 
-function scopeText(label: string, t: Translate): string {
+export function scopeText(label: string, t: Translate): string {
   if (label === "project") return t("resourcesSkillProject", "This project");
   if (label === "global") return t("resourcesSkillGlobal", "Global");
   return t("resourcesSkillPath", "Path");

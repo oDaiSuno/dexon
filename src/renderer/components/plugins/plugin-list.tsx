@@ -3,7 +3,7 @@ import { Button } from "../form-controls";
 import { PlusIcon } from "../resources/overview-icons";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import { pluginResourceSummary, pluginVersionSummary } from "@/lib/plugin-presentation";
-import { packageKey, pluginScopeLabel, statusColor, type PluginScope } from "./plugin-shared";
+import { packageKey, pluginScopeLabel, statusColor, statusDotOpacity, type PluginScope } from "./plugin-shared";
 
 export function PluginList({
   groupedPackages,
@@ -97,6 +97,7 @@ export function PluginList({
                         height: 7,
                         borderRadius: "50%",
                         background: statusColor(pkg.status),
+                        opacity: statusDotOpacity(pkg.status),
                       }}
                     />
                     <div style={{ minWidth: 0, flex: 1 }}>
