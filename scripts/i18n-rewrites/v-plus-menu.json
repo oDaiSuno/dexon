@@ -1,0 +1,8 @@
+{
+  "skillPickerNoMatch": { "enUS": "No skills match this search", "zhCN": "没有匹配的技能" },
+  "skillPickerEmpty": {
+    "enUS": "No skills installed yet. Add them from Plugins & Skills.",
+    "zhCN": "尚未安装技能，可在“插件与技能”中添加。"
+  },
+  "skillPickerLoadFailed": { "enUS": "Failed to load skills. Try again.", "zhCN": "技能列表加载失败，请重试。" }
+}

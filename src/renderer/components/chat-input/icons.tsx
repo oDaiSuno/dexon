@@ -47,12 +47,14 @@ export function PackageIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-export function ImageIcon({ size = 15 }: { size?: number }) {
+export function ImagePlusIcon({ size = 13 }: { size?: number }) {
   return (
     <Icon size={size}>
-      <rect x="3" y="3" width="18" height="18" rx="2.5" />
-      <circle cx="8.8" cy="8.8" r="1.7" />
-      <path d="m21 15.5-4.2-4.2a1.5 1.5 0 0 0-2.1 0L5 21" />
+      <path d="M16 5h6" />
+      <path d="M19 2v6" />
+      <path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+      <circle cx="9" cy="9" r="2" />
     </Icon>
   );
 }
@@ -200,6 +202,53 @@ export function ChevronDownIcon({ size = 11 }: { size?: number }) {
   return (
     <Icon size={size} strokeWidth={2}>
       <path d="M6 9l6 6 6-6" />
+    </Icon>
+  );
+}
+
+export function ChevronLeftIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="m15 18-6-6 6-6" />
+    </Icon>
+  );
+}
+
+export function ArrowUpRightIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M7 7h10v10" />
+      <path d="M7 17 17 7" />
+    </Icon>
+  );
+}
+
+export function PuzzleIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" />
+    </Icon>
+  );
+}
+
+export function RefreshCwIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </Icon>
+  );
+}
+
+export function PackageOpenIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M12 22v-9" />
+      <path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.66 1.66 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z" />
+      <path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13" />
+      <path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.64 1.64 0 0 0 1.63 0z" />
     </Icon>
   );
 }

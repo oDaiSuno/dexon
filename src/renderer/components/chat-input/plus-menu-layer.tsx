@@ -56,14 +56,14 @@ export function PlusMenuLayer({
       key: "files",
       name: t("plusAttachFiles", "Add files"),
       desc: t("plusAttachFilesDesc", "Pick files or images from your computer, or paste a screenshot"),
-      icon: <PaperclipIcon size={15} />,
+      icon: <PaperclipIcon size={16} />,
       onSelect: onOpenPicker,
     },
     {
       key: "skill",
       name: t("plusUseSkill", "Use a skill"),
       desc: t("plusUseSkillDesc", "Search and invoke installed skills"),
-      icon: <PackageIcon size={15} />,
+      icon: <PackageIcon size={16} />,
       count: skillCount > 0 ? String(skillCount) : undefined,
       submenu: true,
       onSelect: onOpenSkillPicker,
@@ -84,5 +84,5 @@ export function PlusMenuLayer({
       onSelect: onOpenRemotePanel,
     });
   }
-  return <PlusMenu rows={rows} />;
+  return <PlusMenu rows={rows} defaultKey="skill" />;
 }

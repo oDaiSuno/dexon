@@ -381,6 +381,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       skillsLoading={skills.skillsState.loading}
       skillsError={skills.skillsState.error}
       onPickSkill={skills.pickSkill}
+      onRetrySkills={skills.loadSkills}
       skillPickerOpen={skills.skillPickerOpen}
       skillRevealName={skills.skillRevealName}
       skillRecordsRef={skills.skillRecordsRef}

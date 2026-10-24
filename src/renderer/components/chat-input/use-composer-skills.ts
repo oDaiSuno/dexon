@@ -38,8 +38,7 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
     setPlusMenuOpen(false);
     setSkillRevealName(null);
     setSkillPickerOpen(true);
-    loadSkills();
-  }, [loadSkills, visible]);
+  }, [visible]);
 
   const pickSkill = useCallback(
     (skill: SkillRecord) => {
@@ -66,6 +65,7 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
 
   const backToPlusMenu = useCallback(() => {
     setRemotePanelOpen(false);
+    setSkillPickerOpen(false);
     setPlusMenuOpen(true);
     if (visible) editableRef.current?.focus();
   }, [editableRef, visible]);
@@ -105,11 +105,12 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
 
   const openPlusMenu = useCallback(() => {
     if (!visible) return;
-    setPlusMenuOpen((open) => !open);
+    if (!plusMenuOpen) loadSkills();
+    setPlusMenuOpen(!plusMenuOpen);
     setSkillPickerOpen(false);
     setRemotePanelOpen(false);
     setSkillRevealName(null);
-  }, [visible]);
+  }, [loadSkills, plusMenuOpen, visible]);
   const closePlusMenu = useCallback(() => setPlusMenuOpen(false), []);
 
   return {
@@ -119,6 +120,7 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
     skillsState,
     skillRecordsRef,
     skillRevealName: visible ? skillRevealName : null,
+    loadSkills,
     openPlusMenu,
     closePlusMenu,
     openSkillPicker,

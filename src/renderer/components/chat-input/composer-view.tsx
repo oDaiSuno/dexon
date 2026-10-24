@@ -8,7 +8,8 @@ import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote, Compos
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
 import { ModelPicker, type ModelOption } from "./ModelPicker";
 import { PlusMenuLayer } from "./plus-menu-layer";
-import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
+import { SkillPickerPanel } from "./SkillPickerPanel";
+import { SkillRevealCard } from "./SkillRevealCard";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
 import { SlashMenu } from "./SlashMenu";
@@ -59,6 +60,7 @@ export interface ComposerViewProps {
   skillsLoading: boolean;
   skillsError: boolean;
   onPickSkill: (skill: SkillRecord) => void;
+  onRetrySkills: () => void;
   skillPickerOpen: boolean;
   skillRevealName: string | null;
   skillRecordsRef: MutableRefObject<Map<string, SkillRecord>>;
@@ -165,6 +167,7 @@ export function ComposerView(props: ComposerViewProps) {
     skillsLoading,
     skillsError,
     onPickSkill,
+    onRetrySkills,
     skillPickerOpen,
     skillRevealName,
     skillRecordsRef,
@@ -226,6 +229,13 @@ export function ComposerView(props: ComposerViewProps) {
     onSoundToggle,
     workspace,
   } = props;
+
+  const openResourcesPage = navigation
+    ? () => {
+        onCloseMenus();
+        navigation.openResources();
+      }
+    : undefined;
 
   return (
     <div
@@ -293,6 +303,9 @@ export function ComposerView(props: ComposerViewProps) {
               error={skillsError ? "load-failed" : null}
               onPick={onPickSkill}
               onClose={onCloseSkillPicker}
+              onBack={onBackToPlusMenu}
+              onRetry={onRetrySkills}
+              onManage={openResourcesPage}
             />
           )}
           {skillRevealName && (

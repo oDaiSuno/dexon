@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Icon } from "./icons";
+import { ArrowUpRightIcon, ChevronLeftIcon, Icon } from "./icons";
 import { KeyHint } from "./SendControls";
 
 export interface MenuKeyHint {
@@ -130,7 +130,7 @@ export function MenuHeader({
   );
 }
 
-export function MenuFooter({ hints, note }: { hints: MenuKeyHint[]; note?: string }) {
+export function MenuFooter({ hints, note, trailing }: { hints: MenuKeyHint[]; note?: string; trailing?: ReactNode }) {
   return (
     <div
       style={{
@@ -152,7 +152,72 @@ export function MenuFooter({ hints, note }: { hints: MenuKeyHint[]; note?: strin
           {note}
         </span>
       )}
+      {trailing}
     </div>
+  );
+}
+
+export function MenuDivider() {
+  return <span aria-hidden style={{ width: 1, height: 16, flexShrink: 0, background: "var(--fx-line-default)" }} />;
+}
+
+export function MenuBackButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      style={{
+        width: 28,
+        height: 28,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 0,
+        border: "none",
+        borderRadius: "var(--radius-row)",
+        background: "var(--fx-surface-hover-clear)",
+        color: "var(--fx-text-secondary)",
+        cursor: "pointer",
+        transition: "background var(--duration-quick) var(--ease-smooth-out)",
+      }}
+      onMouseEnter={(event) => {
+        event.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
+      }}
+      onMouseLeave={(event) => {
+        event.currentTarget.style.background = "var(--fx-surface-hover-clear)";
+      }}
+    >
+      <ChevronLeftIcon size={16} />
+    </button>
+  );
+}
+
+export function MenuLinkButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="type-label-default"
+      style={{
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: 0,
+        border: "none",
+        background: "none",
+        color: "var(--fx-text-secondary)",
+        cursor: "pointer",
+      }}
+    >
+      {label}
+      <span aria-hidden style={{ display: "flex", color: "var(--fx-text-tertiary)" }}>
+        <ArrowUpRightIcon size={12} />
+      </span>
+    </button>
   );
 }
 
@@ -161,11 +226,13 @@ export function MenuState({
   title,
   description,
   tone = "default",
+  action,
 }: {
   icon: ReactNode;
   title: string;
   description?: string;
   tone?: "default" | "danger";
+  action?: ReactNode;
 }) {
   return (
     <div
@@ -184,7 +251,6 @@ export function MenuState({
         style={{
           width: 32,
           height: 32,
-          marginBottom: 6,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -197,6 +263,7 @@ export function MenuState({
       >
         {icon}
       </span>
+      <span aria-hidden style={{ width: 1, height: 6, flexShrink: 0 }} />
       <span className="type-body-medium" style={{ color: "var(--fx-text-primary)" }}>
         {title}
       </span>
@@ -204,6 +271,12 @@ export function MenuState({
         <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
           {description}
         </span>
+      )}
+      {action && (
+        <>
+          <span aria-hidden style={{ width: 1, height: 8, flexShrink: 0 }} />
+          {action}
+        </>
       )}
     </div>
   );

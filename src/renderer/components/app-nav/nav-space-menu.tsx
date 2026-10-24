@@ -30,7 +30,6 @@ export function NavSpaceMenu({
   const [menuOpen, setMenuOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const rootRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -183,7 +182,7 @@ export function NavSpaceMenu({
           <div aria-hidden="true" style={{ padding: "5px 4px", flexShrink: 0 }}>
             <div style={{ height: 1, background: "var(--fx-line-default)" }} />
           </div>
-          <div ref={listRef} style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2 }}>
             {actions.map((action, index) => (
               <button
                 key={action.label}
@@ -227,7 +226,6 @@ export function NavSpaceMenu({
               </button>
             ))}
             <GlideHighlight
-              containerRef={listRef}
               rowSelector='[role="menuitem"]'
               activeIndex={activeIndex}
               visible={activeIndex >= 0}

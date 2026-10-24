@@ -1,7 +1,7 @@
-import { useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import { GlideHighlight } from "./GlideHighlight";
-import { Icon, ImageIcon } from "./icons";
+import { Icon, ImagePlusIcon } from "./icons";
 import { MenuPanel } from "./menu-chrome";
 import { KeyHint } from "./SendControls";
 
@@ -16,29 +16,49 @@ export interface PlusMenuRow {
   onSelect: () => void;
 }
 
-export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
+export function PlusMenu({ rows, defaultKey }: { rows: PlusMenuRow[]; defaultKey?: string }) {
   const { t } = useI18n();
-  const rowsRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
-  const [engaged, setEngaged] = useState(false);
+  const [active, setActive] = useState(() =>
+    Math.max(
+      0,
+      rows.findIndex((row) => row.key === defaultKey),
+    ),
+  );
+  const current = Math.min(active, rows.length - 1);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || rows.length === 0) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        const down = event.key === "ArrowDown";
+        setActive((index) => (down ? Math.min(index + 1, rows.length - 1) : Math.max(0, index - 1)));
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        rows[current]?.onSelect();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [current, rows]);
 
   return (
     <MenuPanel role="menu">
-      <div
-        ref={rowsRef}
-        onMouseLeave={() => setEngaged(false)}
-        style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2, padding: 6 }}
-      >
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2, padding: 6 }}>
         <GlideHighlight
-          containerRef={rowsRef}
           rowSelector='[role="menuitem"]'
-          activeIndex={active}
-          visible={engaged && rows.length > 0}
+          activeIndex={current}
+          visible={rows.length > 0}
+          layoutKey={rows.length}
           insetX={6}
           radius="var(--radius-menu-row)"
         />
         {rows.map((row, index) => {
-          const lit = engaged && index === active;
+          const lit = index === current;
           return (
             <button
               key={row.key}
@@ -50,7 +70,6 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
               }}
               onMouseEnter={() => {
                 setActive(index);
-                setEngaged(true);
               }}
               style={{
                 position: "relative",
@@ -132,7 +151,7 @@ export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
         }}
       >
         <span aria-hidden style={{ flexShrink: 0, display: "flex", color: "var(--fx-text-tertiary)" }}>
-          <ImageIcon size={13} />
+          <ImagePlusIcon size={13} />
         </span>
         <span
           className="type-meta-default"
