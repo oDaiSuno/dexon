@@ -37,9 +37,10 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
 
   const worktrees = worktreeState?.worktrees ?? [];
   const currentPath = selectedCwd ?? worktreeState?.projectRoot ?? null;
-  const branch =
-    (worktrees.find((entry) => entry.path === currentPath) ?? worktrees.find((entry) => entry.isMain))?.branch ?? null;
   const canPickCheckout = state.showWorktreeSwitcher && worktrees.length > 0;
+  const checkout =
+    worktrees.find((entry) => entry.path === selectedCwd) ?? (canPickCheckout ? worktrees.find((e) => e.isMain) : null);
+  const branch = checkout?.branch ?? null;
   const title = canPickCheckout
     ? currentPath
       ? t("switchWorktreePath", "Switch worktree: {path}").replace("{path}", currentPath)
