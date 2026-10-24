@@ -331,6 +331,7 @@ export function useChatWindow({
       isAutoModelSelection={isAutoModelSelection}
       modelNames={modelNames}
       modelList={modelList}
+      modelThinkingLevels={modelThinkingLevels}
       modelCatalog={modelCatalog}
       modelRefreshing={modelRefreshing}
       onModelChange={handleModelChange}

@@ -6,7 +6,8 @@ import type { SkillRecord } from "@/lib/api-types";
 import { ComposerEditable } from "./ComposerEditable";
 import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote, ComposerWorkspace } from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
-import { ModelPicker, type ModelOption } from "./ModelPicker";
+import { ModelPicker } from "./ModelPicker";
+import type { ModelGroup } from "./model-catalog";
 import { PlusMenuLayer } from "./plus-menu-layer";
 import { SkillPickerPanel } from "./SkillPickerPanel";
 import { SkillRevealCard } from "./SkillRevealCard";
@@ -92,7 +93,7 @@ export interface ComposerViewProps {
   compactResult?: CompactResultInfo | null;
   onDismissCompactResult: () => void;
   model?: { provider: string; modelId: string } | null;
-  modelOptionsByProvider: { provider: string; options: ModelOption[] }[];
+  modelOptionsByProvider: ModelGroup[];
   currentModelName: string | null;
   modelCatalog?: ModelCatalogStatus;
   modelRefreshing?: boolean;
@@ -105,6 +106,8 @@ export interface ComposerViewProps {
   onModelChange?: (provider: string, modelId: string) => void;
   onModelsRefresh?: () => Promise<void> | void;
   onModelPick: (provider: string, modelId: string, isActive: boolean) => void;
+  onCloseModelDropdown: () => void;
+  onManageModels?: () => void;
   isAutoModelSelection?: boolean;
   onCompact?: () => void;
   onAbortCompaction?: () => void;
@@ -212,6 +215,8 @@ export function ComposerView(props: ComposerViewProps) {
     onModelChange,
     onModelsRefresh,
     onModelPick,
+    onCloseModelDropdown,
+    onManageModels,
     onCompact,
     onAbortCompaction,
     isCompacting,
@@ -452,6 +457,8 @@ export function ComposerView(props: ComposerViewProps) {
               onModelChange={onModelChange}
               onModelsRefresh={onModelsRefresh}
               onModelPick={onModelPick}
+              onClose={onCloseModelDropdown}
+              onManageModels={onManageModels}
             />
           </div>
           <SessionControls

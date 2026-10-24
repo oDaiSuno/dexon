@@ -20,6 +20,7 @@ export interface ChatInputProps {
   isAutoModelSelection?: boolean;
   modelNames?: Record<string, string>;
   modelList?: { id: string; name: string; provider: string; input?: ("text" | "image")[] }[];
+  modelThinkingLevels?: Record<string, string[]>;
   modelCatalog?: ModelCatalogStatus;
   modelRefreshing?: boolean;
   onModelChange?: (provider: string, modelId: string) => void;

@@ -3,7 +3,7 @@ import { useI18n } from "@/i18n";
 import type { SkillRecord } from "@/lib/api-types";
 import { Button } from "../form-controls";
 import { GlideHighlight } from "./GlideHighlight";
-import { CircleAlertIcon, Icon, PackageIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon } from "./icons";
+import { CircleAlertIcon, PackageIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon, SearchIcon } from "./icons";
 import { MenuBackButton, MenuDivider, MenuFooter, MenuLinkButton, MenuState, SearchXIcon } from "./menu-chrome";
 import { KeyHint } from "./SendControls";
 
@@ -150,10 +150,7 @@ export function SkillPickerPanel({
         <MenuBackButton label={t("menuBack", "Back")} onClick={onBack} />
         <MenuDivider />
         <span style={{ display: "flex", flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
-          <Icon size={15} strokeWidth={2}>
-            <circle cx="11" cy="11" r="8" />
-            <path d="m21 21-4.3-4.3" />
-          </Icon>
+          <SearchIcon size={15} strokeWidth={2} />
         </span>
         <input
           ref={inputRef}

@@ -239,14 +239,84 @@ export function PuzzleIcon({ size = 14 }: { size?: number }) {
   );
 }
 
-export function RefreshCwIcon({ size = 14 }: { size?: number }) {
+export function RefreshCwIcon({ size = 14, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
   return (
-    <Icon size={size} strokeWidth={2}>
+    <Icon size={size} strokeWidth={strokeWidth}>
       <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
       <path d="M21 3v5h-5" />
       <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
       <path d="M8 16H3v5" />
     </Icon>
+  );
+}
+
+export function SearchIcon({ size = 15, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </Icon>
+  );
+}
+
+export function ArrowRightIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </Icon>
+  );
+}
+
+export function ImageIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </Icon>
+  );
+}
+
+export function BrainIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+      <path d="M6 18a4 4 0 0 1-1.967-.516" />
+      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+    </Icon>
+  );
+}
+
+export function PlugsConnectedIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={16}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <rect x="63.03" y="88.4" width="129.94" height="79.2" rx="24" transform="translate(-53.02 128) rotate(-45)" />
+      <line x1="88" y1="88" x2="168" y2="168" />
+      <line x1="232" y1="24" x2="173.94" y2="82.06" />
+      <line x1="82.06" y1="173.94" x2="24" y2="232" />
+      <line x1="96" y1="32" x2="104" y2="52" />
+      <line x1="32" y1="96" x2="52" y2="104" />
+      <line x1="204" y1="152" x2="224" y2="160" />
+      <line x1="152" y1="204" x2="160" y2="224" />
+    </svg>
   );
 }
 

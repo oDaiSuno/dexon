@@ -13,7 +13,7 @@ import { useI18n } from "@/i18n";
 import { captureComposerSubmission, type ComposerSubmissionSnapshot } from "@/lib/composer-submission";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
-import { compareModelOptions, type ModelOption } from "./chat-input/ModelPicker";
+import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
 import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
@@ -23,6 +23,10 @@ import type { ChatInputHandle, ChatInputProps, ComposerEditableHandle } from "./
 
 export type { ChatInputHandle } from "./chat-input/types";
 export type { ChatInputProps as Props } from "./chat-input/types";
+
+function supportsReasoning(levels?: string[]): boolean {
+  return levels?.some((level) => level !== "off") ?? false;
+}
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
   {
@@ -35,6 +39,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     isAutoModelSelection,
     modelNames,
     modelList,
+    modelThinkingLevels,
     modelCatalog,
     modelRefreshing,
     onModelChange,
@@ -258,24 +263,24 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   }, [commitCurrentDraft, visible]);
   const modelOptions = useMemo<ModelOption[]>(() => {
     if (modelList && modelList.length > 0) {
-      return modelList
-        .map((entry) => ({ provider: entry.provider, modelId: entry.id, name: entry.name }))
-        .sort(compareModelOptions);
+      return modelList.map((entry) => ({
+        provider: entry.provider,
+        modelId: entry.id,
+        name: entry.name,
+        image: entry.input?.includes("image") ?? false,
+        reasoning: supportsReasoning(modelThinkingLevels?.[`${entry.provider}:${entry.id}`]),
+      }));
     }
-    return Object.entries(modelNames ?? {})
-      .map(([modelId, name]) => ({ provider: model?.provider ?? "unknown", modelId, name }))
-      .sort(compareModelOptions);
-  }, [model, modelList, modelNames]);
+    return Object.entries(modelNames ?? {}).map(([modelId, name]) => ({
+      provider: model?.provider ?? "unknown",
+      modelId,
+      name,
+      image: false,
+      reasoning: supportsReasoning(modelThinkingLevels?.[`${model?.provider ?? "unknown"}:${modelId}`]),
+    }));
+  }, [model, modelList, modelNames, modelThinkingLevels]);
 
-  const modelOptionsByProvider = useMemo(() => {
-    const groups: { provider: string; options: ModelOption[] }[] = [];
-    for (const option of modelOptions) {
-      const group = groups.find((candidate) => candidate.provider === option.provider);
-      if (group) group.options.push(option);
-      else groups.push({ provider: option.provider, options: [option] });
-    }
-    return groups;
-  }, [modelOptions]);
+  const modelOptionsByProvider = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
 
   const currentModelName = model
     ? (modelOptions.find((option) => option.modelId === model.modelId && option.provider === model.provider)?.name ??
@@ -310,6 +315,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       if (!isActive || isAutoModelSelection) onModelChange?.(provider, modelId);
     },
     [isAutoModelSelection, onModelChange, setModelDropdownOpen, visible],
+  );
+
+  const closeModelDropdown = useCallback(() => setModelDropdownOpen(false), [setModelDropdownOpen]);
+
+  const openModelSettings = navigation?.openModelSettings;
+  const handleManageModels = useMemo(
+    () =>
+      openModelSettings
+        ? () => {
+            setModelDropdownOpen(false);
+            openModelSettings();
+          }
+        : undefined,
+    [openModelSettings, setModelDropdownOpen],
   );
 
   useImperativeHandle(
@@ -426,6 +445,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onModelChange={onModelChange}
       onModelsRefresh={onModelsRefresh}
       onModelPick={handleModelPick}
+      onCloseModelDropdown={closeModelDropdown}
+      onManageModels={handleManageModels}
       isAutoModelSelection={isAutoModelSelection}
       onCompact={onCompact}
       onAbortCompaction={onAbortCompaction}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import AnthropicIcon from "@lobehub/icons/es/Anthropic/components/Mono";
 import OpenAIIcon from "@lobehub/icons/es/OpenAI/components/Mono";
 import GoogleIcon from "@lobehub/icons/es/Google/components/Mono";
@@ -115,10 +116,20 @@ function GatewayIcon({ size }: { size: number }) {
   );
 }
 
-export function ProviderIcon({ id, size }: { id: string; size: number }) {
+export function ProviderIcon({
+  id,
+  size,
+  color = "var(--fx-text-primary)",
+  fallback,
+}: {
+  id: string;
+  size: number;
+  color?: string;
+  fallback?: ReactNode;
+}) {
   const Icon = PROVIDER_ICONS[id] ?? PROVIDER_ICONS[id.split(/[-_.]/).find((part) => PROVIDER_ICONS[part]) ?? ""];
-  if (!Icon) return <GatewayIcon size={size} />;
-  return <Icon size={size} style={{ color: "var(--fx-text-primary)" }} />;
+  if (!Icon) return <>{fallback ?? <GatewayIcon size={size} />}</>;
+  return <Icon size={size} style={{ color }} />;
 }
 
 export function ProviderLogoTile({ id, dimmed = false }: { id: string; dimmed?: boolean }) {
