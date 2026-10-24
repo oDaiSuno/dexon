@@ -15,23 +15,13 @@
       "file": "src/renderer/components/FileExplorer.tsx",
       "name": "--text-label",
       "count": 3
-    },
-    {
-      "file": "src/renderer/components/FileExplorer.tsx",
-      "name": "--text-meta",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/FileExplorer.tsx",
-      "name": "--text-micro",
-      "count": 1
     }
   ],
   "typography": [
     {
       "file": "src/renderer/components/FileExplorer.tsx",
       "property": "fontSize",
-      "count": 8
+      "count": 4
     },
     {
       "file": "src/renderer/components/FileExplorer.tsx",
