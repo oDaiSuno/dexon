@@ -1,51 +1,6 @@
 {
   "lane": "对齐 v-workspace-menu 工作区菜单：分组标题、当前项目行、分支行、访达与复制路径",
-  "legacy": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "name": "--bg-hover",
-      "count": 0
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "name": "--text-meta",
-      "count": 0
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "name": "--text-micro",
-      "count": 0
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "property": "fontSize",
-      "count": 0
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "property": "fontWeight",
-      "count": 0
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "property": "lineHeight",
-      "count": 0
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "color": "rgba(0,0,0,0.10)",
-      "count": 0,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-      "color": "rgba(239,68,68,0.08)",
-      "count": 0,
-      "hint": "改用 var(--fx-status-danger-soft)；悬停加深用 var(--fx-status-danger-soft-strong)"
-    }
-  ]
+  "legacy": [],
+  "typography": [],
+  "colors": []
 }
