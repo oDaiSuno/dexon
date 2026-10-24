@@ -37,7 +37,7 @@ function spaceMenuProps(overrides = {}) {
   return {
     props: {
       spaceName: "dexon",
-      spacePath: "/Users/tester/Developer/personal/btron/dexon",
+      projectPath: "/Users/tester/Developer/personal/btron/dexon",
       homeDir: "/Users/tester",
       onChooseFolder: () => {
         calls.chooseFolder += 1;
