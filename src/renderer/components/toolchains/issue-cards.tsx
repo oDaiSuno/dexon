@@ -5,7 +5,8 @@ import { DownloadIcon, RefreshIcon } from "./icons";
 import { LogoTile, OperationProgress, SectionHeader, StatusDot } from "./section-parts";
 import {
   CAPABILITY_LABELS,
-  TOOL_COUNT,
+  TONE_GLOW_STRENGTH,
+  countedToolTotal,
   componentFor,
   formatBytes,
   friendlyErrorCode,
@@ -45,7 +46,10 @@ export function IssueSection({
           {issues.length}
         </span>
         <span className="type-label-default" style={{ flex: 1, textAlign: "right", color: "var(--fx-text-tertiary)" }}>
-          {t("toolIssuesHint", "All {count} tools will be ready once resolved").replace("{count}", String(TOOL_COUNT))}
+          {t("toolIssuesHint", "All {count} tools will be ready once resolved").replace(
+            "{count}",
+            String(countedToolTotal(state)),
+          )}
         </span>
       </SectionHeader>
       <div
@@ -119,7 +123,7 @@ function IssueCard({
           width: 260,
           height: 200,
           pointerEvents: "none",
-          background: `radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, ${toneColor(tone)} 16%, transparent) 0%, transparent 100%)`,
+          background: `radial-gradient(50% 50% at 50% 50%, color-mix(in srgb, ${toneColor(tone)} ${TONE_GLOW_STRENGTH[tone]}%, transparent) 0%, transparent 100%)`,
         }}
       />
       <div style={{ position: "relative", display: "flex", alignItems: "center", gap: "var(--space-3)" }}>

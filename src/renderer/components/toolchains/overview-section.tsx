@@ -5,8 +5,8 @@ import { RefreshIcon } from "./icons";
 import { LogoTile, Notice, SectionHeader } from "./section-parts";
 import {
   TOOL_CATEGORIES,
+  countedCapabilities,
   healthTone,
-  isNotNeeded,
   toneBorderColor,
   toneColor,
   toneTextColor,
@@ -97,9 +97,7 @@ export function OverviewSection({
 }
 
 function CategoryCard({ category, state, t }: { category: ToolCategoryId; state: PublicToolchainState; t: Translate }) {
-  const capabilities = TOOL_CATEGORIES.find((entry) => entry.id === category)!.capabilities.filter(
-    (capability) => !isNotNeeded(capability, state),
-  );
+  const capabilities = countedCapabilities(TOOL_CATEGORIES.find((entry) => entry.id === category)!.capabilities, state);
   const tones = capabilities.map((capability) => healthTone(state.capabilities[capability]?.health ?? "missing"));
   const ready = tones.filter((tone) => tone === "success").length;
   const danger = tones.filter((tone) => tone === "danger").length;

@@ -30,8 +30,6 @@ export const TOOL_CATEGORIES: ReadonlyArray<{ id: ToolCategoryId; capabilities: 
   },
 ];
 
-export const TOOL_COUNT = TOOL_CATEGORIES.reduce((sum, category) => sum + category.capabilities.length, 0);
-
 const CAPABILITY_COMPONENTS: Partial<Record<ToolCapabilityId, ManagedComponentId>> = {
   "js.node": "node-lts",
   "js.npm": "node-lts",
@@ -149,6 +147,24 @@ export function isNotNeeded(capability: ToolCapabilityId, state: PublicToolchain
   );
 }
 
+export function isCounted(capability: ToolCapabilityId, state: PublicToolchainState | null): boolean {
+  return !isNotNeeded(capability, state) && state?.capabilities[capability]?.health !== "unsupported";
+}
+
+export function countedCapabilities(
+  capabilities: readonly ToolCapabilityId[],
+  state: PublicToolchainState | null,
+): ToolCapabilityId[] {
+  return capabilities.filter((capability) => isCounted(capability, state));
+}
+
+export function countedToolTotal(state: PublicToolchainState | null): number {
+  return countedCapabilities(
+    TOOL_CATEGORIES.flatMap((category) => category.capabilities),
+    state,
+  ).length;
+}
+
 export function isReady(capability: ToolCapabilityId, state: PublicToolchainState | null): boolean {
   return state?.capabilities[capability]?.health === "healthy" || isNotNeeded(capability, state);
 }
@@ -176,6 +192,8 @@ export function healthTone(health: ToolHealth): ToolTone {
   if (health === "modified" || health === "incomplete" || health === "unverified") return "warning";
   return "danger";
 }
+
+export const TONE_GLOW_STRENGTH: Record<ToolTone, number> = { success: 14, warning: 14, danger: 16 };
 
 const TONE_COLORS: Record<ToolTone, { fill: string; text: string; border: string }> = {
   success: {
@@ -364,12 +382,12 @@ export function providerLabel(provider: ToolProvider, t: Translate): string {
 export function healthLabel(health: ToolHealth, t: Translate): string {
   const labels: Record<ToolHealth, string> = {
     healthy: t("toolHealthHealthy", "Ready"),
-    missing: t("toolHealthMissing", "Missing"),
+    missing: t("toolHealthMissing", "Unavailable"),
     incomplete: t("toolHealthIncomplete", "Incomplete"),
     unsupported: t("toolHealthUnsupported", "Unsupported"),
     unverified: t("toolHealthUnverified", "Unverified"),
     broken: t("toolHealthBroken", "Broken"),
-    modified: t("toolHealthModified", "Modified"),
+    modified: t("toolHealthModified", "Paused"),
     "blocked-by-trust": t("toolHealthBlockedByTrust", "Trust required"),
   };
   return labels[health];
