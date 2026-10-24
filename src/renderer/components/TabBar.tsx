@@ -25,7 +25,7 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
         return (
           <div
             key={tab.id}
-            className={`group flex h-[28px] max-w-[168px] shrink-0 items-center gap-[6px] rounded-[var(--radius-chip)] py-0 pr-[4px] pl-[8px] transition-[background-color,box-shadow] ${MOTION} ${
+            className={`group flex h-[28px] max-w-[168px] shrink-0 items-center rounded-[var(--radius-chip)] py-0 pr-[4px] transition-[background-color,box-shadow] ${MOTION} ${
               isActive
                 ? "bg-[var(--fx-surface-raised)] shadow-[var(--shadow-tab)]"
                 : "bg-[var(--fx-surface-hover-clear)] hover:bg-[var(--fx-surface-hover-overlay)]"
@@ -36,7 +36,7 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
               aria-current={isActive ? "page" : undefined}
               title={tab.filePath}
               onClick={() => onSelectTab(tab.id)}
-              className={`flex h-full min-w-0 flex-1 cursor-pointer items-center gap-[6px] border-none bg-transparent p-0 text-left transition-colors ${MOTION} ${
+              className={`flex h-full min-w-0 flex-1 cursor-pointer items-center gap-[6px] border-none bg-transparent py-0 pr-[6px] pl-[8px] text-left transition-colors ${MOTION} ${
                 isActive
                   ? "text-[var(--fx-text-primary)]"
                   : "text-[var(--fx-text-secondary)] group-hover:text-[var(--fx-text-primary)]"
