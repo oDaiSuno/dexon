@@ -1,11 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
-import { getRecentProjects } from "@/lib/session-list";
-import { abbreviateHomePath } from "@/lib/display-path";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
-import { worktreePathsEqual } from "@shared/worktree-path";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
 import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
@@ -29,8 +26,6 @@ export function NavigationSidebar({
   homeDir,
   refreshKey,
   workspace,
-  spacePickerOpen,
-  onSpacePickerOpenChange,
   onReturnToPersonalSpace,
   shownSessionId,
   onSelectSession,
@@ -53,8 +48,6 @@ export function NavigationSidebar({
   homeDir: string;
   refreshKey: number;
   workspace: ProjectWorkspaceState;
-  spacePickerOpen: boolean;
-  onSpacePickerOpenChange: (open: boolean) => void;
   onReturnToPersonalSpace: () => void;
   shownSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
@@ -83,7 +76,6 @@ export function NavigationSidebar({
     resetWorktreeDropdownForOutsideClick,
     selectDirectoryFromPicker,
   } = workspace;
-  const { openCurrentFolder } = coordination;
 
   useInitialSessionRestore({
     sessions,
@@ -97,18 +89,14 @@ export function NavigationSidebar({
 
   const expanded = isMobile || open;
   const hidden = isMobile && !open;
-  const closePicker = useCallback(() => onSpacePickerOpenChange(false), [onSpacePickerOpenChange]);
   const updatePhase = softwareUpdate.state?.phase;
   const updateAvailable = updatePhase === "available" || updatePhase === "downloading" || updatePhase === "downloaded";
   const openUpdate = useCallback(() => onOpenSettings("about"), [onOpenSettings]);
 
   const handleToggle = useCallback(() => {
-    if (expanded) {
-      onSpacePickerOpenChange(false);
-      resetWorktreeDropdownForOutsideClick();
-    }
+    if (expanded) resetWorktreeDropdownForOutsideClick();
     onToggle();
-  }, [expanded, onToggle, onSpacePickerOpenChange, resetWorktreeDropdownForOutsideClick]);
+  }, [expanded, onToggle, resetWorktreeDropdownForOutsideClick]);
 
   const toggleFold = useCallback((sessionId: string) => {
     setFoldedSessionIds((current) => {
@@ -144,23 +132,6 @@ export function NavigationSidebar({
     });
   }, [selectDirectoryFromPicker]);
 
-  const openFolder = useCallback(() => {
-    openCurrentFolder().catch((error: unknown) => {
-      setSpaceError(error instanceof Error ? error.message : String(error));
-    });
-  }, [openCurrentFolder]);
-
-  const selectSpace = useCallback(
-    (path: string) => {
-      onSpacePickerOpenChange(false);
-      requestDeparture(() => {
-        setSpaceError(null);
-        setSelectedCwd(path);
-      });
-    },
-    [requestDeparture, setSelectedCwd, onSpacePickerOpenChange],
-  );
-
   const backToPersonalSpace = useCallback(() => {
     requestDeparture(() => {
       setSpaceError(null);
@@ -174,9 +145,6 @@ export function NavigationSidebar({
 
   const projectName = (path: string) =>
     spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Personal space"));
-  const spaces = getRecentProjects(sessions)
-    .filter((path) => !selectedProject || !worktreePathsEqual(path, selectedProject))
-    .map((path) => ({ path, name: projectName(path), detail: abbreviateHomePath(path, homeDir) }));
 
   const phase = coordination.spacePhase;
   const notice: SpaceNotice | null =
@@ -247,21 +215,11 @@ export function NavigationSidebar({
             onSessionDeleted(id);
             void refreshSessions();
           }}
-          onOpenFolder={openFolder}
           onChooseFolder={chooseFolder}
-          onSwitchSpace={() => onSpacePickerOpenChange(true)}
           onBackToPersonalSpace={backToPersonalSpace}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={toggleFold}
-          spacePanel={
-            <NavSpacePanel
-              notice={notice}
-              pickerOpen={spacePickerOpen}
-              spaces={spaces}
-              onSelectSpace={selectSpace}
-              onClosePicker={closePicker}
-            />
-          }
+          spacePanel={<NavSpacePanel notice={notice} />}
         />
       </div>
     </>

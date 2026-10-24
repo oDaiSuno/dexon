@@ -51,9 +51,7 @@ export function NavSidebar({
   onOpenUpdate,
   updateAvailable = false,
   onSessionDeleted,
-  onOpenFolder,
   onChooseFolder,
-  onSwitchSpace,
   onBackToPersonalSpace,
   spacePanel,
   foldedSessionIds,
@@ -86,9 +84,7 @@ export function NavSidebar({
   onOpenUpdate: () => void;
   updateAvailable?: boolean;
   onSessionDeleted?: (id: string) => void;
-  onOpenFolder: () => void;
   onChooseFolder: () => void;
-  onSwitchSpace: () => void;
   onBackToPersonalSpace: () => void;
   spacePanel?: ReactNode;
   foldedSessionIds?: ReadonlySet<string>;
@@ -293,11 +289,10 @@ export function NavSidebar({
             renderCurrentActions: (name, revealed) => (
               <NavSpaceMenu
                 spaceName={name}
-                spacePath={spacePath}
+                projectPath={spacePath}
+                homeDir={homeDir}
                 revealed={revealed}
-                onOpenFolder={onOpenFolder}
                 onChooseFolder={onChooseFolder}
-                onSwitchSpace={onSwitchSpace}
                 onBackToPersonalSpace={onBackToPersonalSpace}
               />
             ),

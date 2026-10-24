@@ -287,8 +287,6 @@ export function AppShell({
           homeDir={space.homeDir}
           refreshKey={refreshKey}
           workspace={space.workspace}
-          spacePickerOpen={space.spacePickerOpen}
-          onSpacePickerOpenChange={space.setSpacePickerOpen}
           onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}

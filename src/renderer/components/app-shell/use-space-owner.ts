@@ -25,7 +25,6 @@ export function useSpaceOwner({
   onOpenSidebar: () => void;
 }) {
   const { t } = useI18n();
-  const [spacePickerOpen, setSpacePickerOpen] = useState(false);
   const [homeDir, setHomeDir] = useState("");
   useEffect(() => {
     fetch("/api/home")
@@ -75,17 +74,16 @@ export function useSpaceOwner({
         : null,
     [projectPath, coordination.personalCwd, homeDir, personalLabel],
   );
-  const openPicker = useCallback(() => {
+  const openProjectTree = useCallback(() => {
     closeWorktreeMenu();
     onOpenSidebar();
-    setSpacePickerOpen(true);
   }, [closeWorktreeMenu, onOpenSidebar]);
 
   const copyPath = useCallback(() => (projectPath ? copyText(projectPath) : Promise.resolve()), [projectPath]);
   const composerWorkspace = useComposerWorkspace({
     workspace,
     project,
-    onSwitchProject: openPicker,
+    onSwitchProject: openProjectTree,
     onOpenInFinder: coordination.openCurrentFolder,
     onCopyPath: copyPath,
   });
@@ -95,8 +93,6 @@ export function useSpaceOwner({
     workspace,
     project,
     composerWorkspace,
-    spacePickerOpen,
-    setSpacePickerOpen,
     handleReturnToPersonalSpace,
   };
 }
