@@ -75,6 +75,14 @@ export function ArrowUpIcon({ size = 16 }: { size?: number }) {
   );
 }
 
+export function ArrowDownIcon({ size = 15 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M12 5v14M19 12l-7 7-7-7" />
+    </Icon>
+  );
+}
+
 export function StopIcon({ size = 10 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">

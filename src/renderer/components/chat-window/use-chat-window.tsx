@@ -15,7 +15,7 @@ import {
   type EditDraftHandlers,
   type OutgoingImage,
 } from "../messages/user-message-editor";
-import { Props, toMinimapMessage } from "./shared";
+import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
 
@@ -234,12 +234,7 @@ export function useChatWindow({
     .fill(null)
     .map((_, index) => messageRefs.current[index] ?? null);
 
-  const minimapMessages = useMemo(() => messages.flatMap((message) => toMinimapMessage(message) ?? []), [messages]);
-
-  const minimapStreamingMessage = useMemo(
-    () => (streamState.streamingMessage ? toMinimapMessage(streamState.streamingMessage) : null),
-    [streamState.streamingMessage],
-  );
+  const navigatorTurns = useMemo(() => toNavigatorTurns(messages), [messages]);
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
 
@@ -423,8 +418,7 @@ export function useChatWindow({
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,
-    minimapMessages,
-    minimapStreamingMessage,
+    navigatorTurns,
     isAwayFromBottom,
     reattachAutoFollow,
     belowEditorWidgets,

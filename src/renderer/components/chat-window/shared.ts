@@ -6,7 +6,7 @@ import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } fro
 import { type ChatInputHandle } from "../ChatInput";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { ComposerNavigation, ComposerWorkspace } from "../chat-input/types";
-import { type ChatMinimapMessage } from "../ChatMinimap";
+import { parseExpandedSkillMessage, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
 export interface Props {
   session: SessionInfo | null;
   newSessionCwd: string | null;
@@ -50,29 +50,31 @@ export function phaseLabel(phase: AgentPhase, t: (key: string, fallback: string)
   if (phase?.kind === "running_command") return t("runningCommand", "Running command…");
   return t("thinking", "Thinking…");
 }
-export const CHAT_MINIMAP_WIDTH = 36;
 export const CHAT_COLUMN_PADDING = 16;
-export const CHAT_INPUT_RIGHT_PADDING = CHAT_COLUMN_PADDING + CHAT_MINIMAP_WIDTH;
-export function toMinimapMessage(message: AgentMessage | Partial<AgentMessage>): ChatMinimapMessage | null {
-  if (message.role !== "user" && message.role !== "assistant") return null;
-  const content = message.content;
-  if (message.role === "user") {
-    const preview =
-      typeof content === "string"
-        ? content
-        : Array.isArray(content)
-          ? content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(" ")
-          : "";
-    return { role: "user", preview: preview.slice(0, 200), hasText: true };
+export interface NavigatorTurn {
+  refIndex: number;
+  title: string;
+}
+export function turnTitleOf(content: AgentMessage["content"]): string {
+  const text =
+    typeof content === "string"
+      ? content
+      : Array.isArray(content)
+        ? content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(" ")
+        : "";
+  const skill = splitLeadingSkillCommand(text) ?? parseExpandedSkillMessage(text);
+  const visible = skill ? `${skillCommandText(skill.name)} ${skill.rest}` : text;
+  return visible.replace(/\s+/g, " ").trim().slice(0, 200);
+}
+export function toNavigatorTurns(messages: AgentMessage[]): NavigatorTurn[] {
+  const turns: NavigatorTurn[] = [];
+  let refIndex = 0;
+  for (const message of messages) {
+    if (message.role !== "user" && message.role !== "assistant") continue;
+    if (message.role === "user") turns.push({ refIndex, title: turnTitleOf(message.content) });
+    refIndex += 1;
   }
-  const blocks = Array.isArray(content) ? content : [];
-  const text = blocks.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(" ");
-  const toolNames = blocks.flatMap((block) => (block.type === "toolCall" ? [block.toolName] : []));
-  return {
-    role: "assistant",
-    preview: (text || toolNames.join(", ")).slice(0, 200),
-    hasText: text.length > 0,
-  };
+  return turns;
 }
 export function findRetriedFailureIndices(messages: AgentMessage[]): Set<number> {
   const retried = new Set<number>();

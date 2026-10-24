@@ -1,46 +1,6 @@
 {
   "lane": "对齐 v-turn-nav 轮次导航与回到底部按钮",
   "legacy": [],
-  "typography": [
-    {
-      "file": "src/renderer/components/ChatMinimap.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ChatMinimap.tsx",
-      "property": "lineHeight",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ChatWindow.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/ChatWindow.tsx",
-      "property": "fontWeight",
-      "count": 1
-    }
-  ],
-  "colors": [
-    {
-      "file": "src/renderer/components/ChatMinimap.tsx",
-      "color": "rgba(100,100,100,0.1)",
-      "count": 1,
-      "hint": "小地图视口框底色改用 var(--fx-surface-hover-overlay)，上下边线改用 var(--fx-line-default)"
-    },
-    {
-      "file": "src/renderer/components/ChatMinimap.tsx",
-      "color": "rgba(100,100,100,0.2)",
-      "count": 2,
-      "hint": "小地图视口框底色改用 var(--fx-surface-hover-overlay)，上下边线改用 var(--fx-line-default)"
-    },
-    {
-      "file": "src/renderer/components/ChatWindow.tsx",
-      "color": "text-red-400",
-      "count": 1,
-      "hint": "改用 var(--fx-status-danger-text)"
-    }
-  ]
+  "typography": [],
+  "colors": []
 }

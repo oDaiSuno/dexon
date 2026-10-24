@@ -244,7 +244,7 @@ export function ComposerView(props: ComposerViewProps) {
       hidden={!visible}
       aria-hidden={!visible}
       inert={!visible ? true : undefined}
-      style={{ flexShrink: 0, background: "transparent", padding: "12px 16px", paddingRight: isMobile ? 16 : 52 }}
+      style={{ flexShrink: 0, background: "transparent", padding: "12px 16px", paddingRight: 16 }}
     >
       <input
         ref={fileInputRef}

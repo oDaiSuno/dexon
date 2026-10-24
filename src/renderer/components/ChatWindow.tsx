@@ -2,17 +2,12 @@ import type { AgentMessage } from "@/lib/types";
 import { DragOverlay } from "./chat-window/drag-overlay";
 import { ChatMessages } from "./chat-window/messages";
 import { OlderHistoryZone } from "./chat-window/older-history-zone";
-import {
-  CHAT_COLUMN_PADDING,
-  CHAT_INPUT_RIGHT_PADDING,
-  CHAT_MINIMAP_WIDTH,
-  Props,
-  phaseLabel,
-} from "./chat-window/shared";
+import { ScrollToBottomButton } from "./chat-window/scroll-to-bottom";
+import { CHAT_COLUMN_PADDING, Props, phaseLabel } from "./chat-window/shared";
 import { ExtensionStatusBar, ExtensionWidgets, NoticeShelf } from "./chat-window/status";
+import { TurnNavigator } from "./chat-window/turn-navigator";
 import { useChatWindow } from "./chat-window/use-chat-window";
 import { Welcome } from "./chat-window/welcome";
-import { ChatMinimap } from "./ChatMinimap";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { MessageView } from "./MessageView";
 import { RetryCountdownLine } from "./messages/FailureLine";
@@ -74,8 +69,7 @@ export function ChatWindow(props: Props) {
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,
-    minimapMessages,
-    minimapStreamingMessage,
+    navigatorTurns,
     isAwayFromBottom,
     reattachAutoFollow,
     belowEditorWidgets,
@@ -95,7 +89,9 @@ export function ChatWindow(props: Props) {
   if (error) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
-        <div className="flex h-full items-center justify-center text-red-400">{error}</div>
+        <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-status-danger-text)" }}>
+          {error}
+        </div>
       </div>
     );
   }
@@ -126,7 +122,7 @@ export function ChatWindow(props: Props) {
                 position: "absolute",
                 top: 12,
                 left: 0,
-                right: isMobile ? 0 : CHAT_MINIMAP_WIDTH,
+                right: 0,
                 zIndex: 40,
                 padding: `0 ${CHAT_COLUMN_PADDING}px`,
                 pointerEvents: "none",
@@ -208,10 +204,8 @@ export function ChatWindow(props: Props) {
                   )}
 
                   {agentRunning && !retryInfo?.waiting && !streamState.streamingMessage && (
-                    <div className="py-2" style={{ fontSize: 13 }}>
-                      <span className="chat-shimmer-text" style={{ fontWeight: 500 }}>
-                        {phaseLabel(agentPhase, t)}
-                      </span>
+                    <div className="py-2">
+                      <span className="chat-shimmer-text type-body-medium">{phaseLabel(agentPhase, t)}</span>
                     </div>
                   )}
 
@@ -224,65 +218,24 @@ export function ChatWindow(props: Props) {
               </div>
             </div>
             {isMobile ? null : (
-              <SessionProfiler id="ChatMinimap">
-                <ChatMinimap
-                  messages={minimapMessages}
-                  streamingMessage={minimapStreamingMessage}
+              <SessionProfiler id="TurnNavigator">
+                <TurnNavigator
+                  turns={navigatorTurns}
                   scrollContainer={scrollContainerRef}
                   messageRefs={messageRefs}
-                  historyTruncated={hasOlder}
                   visible={visible}
                 />
               </SessionProfiler>
             )}
 
-            {/* Floating "scroll to bottom" badge: appears when the chat has
-                scrolled away from the newest content. Clicking it snaps to the
-                bottom and re-magnets the viewport so streaming thinking/tool
-                output keeps the view attached until the user scrolls away. */}
             {isAwayFromBottom && (
-              <button
-                type="button"
-                className="chat-scroll-to-bottom"
+              <ScrollToBottomButton
+                label={t("scrollToBottom", "Scroll to bottom")}
+                title={agentRunning ? t("jumpToLatest", "Jump to latest") : t("scrollToBottom", "Scroll to bottom")}
                 onClick={() => {
                   if (visible) reattachAutoFollow();
                 }}
-                aria-label={t("scrollToBottom", "Scroll to bottom")}
-                title={agentRunning ? t("jumpToLatest", "Jump to latest") : t("scrollToBottom", "Scroll to bottom")}
-                style={{
-                  bottom: 12,
-                  right: isMobile ? 12 : CHAT_MINIMAP_WIDTH + 12,
-                }}
-              >
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="3.5 6 8 10.5 12.5 6" />
-                </svg>
-                {agentRunning && (
-                  <span
-                    aria-hidden="true"
-                    className="chat-scroll-to-bottom-live-dot"
-                    style={{
-                      position: "absolute",
-                      top: 2,
-                      right: 2,
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "var(--fx-accent-blue)",
-                    }}
-                  />
-                )}
-              </button>
+              />
             )}
           </div>
         </>
@@ -296,7 +249,7 @@ export function ChatWindow(props: Props) {
           <div
             style={{
               padding: `0 ${CHAT_COLUMN_PADDING}px`,
-              paddingRight: isMobile ? CHAT_COLUMN_PADDING : CHAT_INPUT_RIGHT_PADDING,
+              paddingRight: CHAT_COLUMN_PADDING,
             }}
           >
             <div className="chat-content-column">
@@ -307,7 +260,7 @@ export function ChatWindow(props: Props) {
         <div
           style={{
             paddingLeft: CHAT_COLUMN_PADDING,
-            paddingRight: isMobile ? CHAT_COLUMN_PADDING : CHAT_INPUT_RIGHT_PADDING,
+            paddingRight: CHAT_COLUMN_PADDING,
           }}
         >
           <div className="chat-content-column">
