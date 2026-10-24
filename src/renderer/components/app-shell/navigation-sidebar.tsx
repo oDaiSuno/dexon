@@ -7,11 +7,13 @@ import { isPersonalSpace, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
+import { useSoftwareUpdate } from "../settings/use-software-update";
 import type { SpaceOwner } from "./use-space-owner";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { RequestDeparture } from "./use-departure-guard";
+import type { SettingsTab } from "../SettingsConfig";
 
 export function NavigationSidebar({
   isMobile,
@@ -44,7 +46,7 @@ export function NavigationSidebar({
   page: NavPage;
   settingsOpen: boolean;
   onNavigate: (page: NavPage) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (tab?: SettingsTab) => void;
   coordination: SpaceCoordination;
   directory: SpaceOwner["directory"];
   workspace: SpaceOwner["workspace"];
@@ -59,6 +61,7 @@ export function NavigationSidebar({
   onSessionDeleted: (sessionId: string) => void;
 }) {
   const { t } = useI18n();
+  const softwareUpdate = useSoftwareUpdate();
   const [mobileReady, setMobileReady] = useState(false);
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [openProjects, setOpenProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
@@ -91,6 +94,9 @@ export function NavigationSidebar({
   const expanded = isMobile || open;
   const hidden = isMobile && !open;
   const closePicker = useCallback(() => onSpacePickerOpenChange(false), [onSpacePickerOpenChange]);
+  const updatePhase = softwareUpdate.state?.phase;
+  const updateAvailable = updatePhase === "available" || updatePhase === "downloading" || updatePhase === "downloaded";
+  const openUpdate = useCallback(() => onOpenSettings("about"), [onOpenSettings]);
 
   const handleToggle = useCallback(() => {
     if (expanded) {
@@ -229,7 +235,9 @@ export function NavigationSidebar({
           onSelectSession={selectSession}
           onNewSession={createSession}
           onRefreshSessions={() => void refreshSessions(false)}
-          onOpenSettings={onOpenSettings}
+          onOpenSettings={() => onOpenSettings("general")}
+          onOpenUpdate={openUpdate}
+          updateAvailable={updateAvailable}
           onSessionDeleted={(id) => {
             onSessionDeleted(id);
             void refreshSessions();

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ChatWindow } from "./ChatWindow";
-import { SettingsConfig } from "./SettingsConfig";
+import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { getFileName } from "@/lib/file-paths";
@@ -159,11 +159,14 @@ export function AppShell({
     },
     [isMobile, closeSettings, page],
   );
-  const handleOpenSettings = useCallback(() => {
-    setActiveTopPanel(null);
-    if (isMobile) setSidebarOpen(false);
-    openSettings("general");
-  }, [isMobile, openSettings]);
+  const handleOpenSettings = useCallback(
+    (tab: SettingsTab = "general") => {
+      setActiveTopPanel(null);
+      if (isMobile) setSidebarOpen(false);
+      openSettings(tab);
+    },
+    [isMobile, openSettings],
+  );
   const openRemote = useCallback(() => {
     requestDeparture(() => {
       setActiveTopPanel(null);

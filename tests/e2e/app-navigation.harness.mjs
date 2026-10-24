@@ -232,7 +232,7 @@ async function run() {
       "the real locally configured plugin",
     );
     assert.equal(await exists("region", "Settings"), false);
-    return navigationWidth(224);
+    return navigationWidth(272);
   });
   await scene("03-plugin-persistence", async () => {
     await click("switch", "Disable package");
@@ -330,7 +330,7 @@ async function run() {
     assert.equal(await exists("heading", "Plugins & Skills"), false);
     await click("button", "Show sidebar");
     await waitFor(() => exists("button", "Personal space"), "restored friendly workspace controls");
-    const measurement = await navigationWidth(224);
+    const measurement = await navigationWidth(272);
     assert.deepEqual(measurement.currentPage, [], "an empty session marks no navigation entry as the current page");
     await waitFor(() => exists("button", nativeHistoryTitle), "the original conversation after expansion");
     return { ...measurement, restoredHistory: nativeHistoryTitle };
@@ -351,7 +351,7 @@ async function run() {
   await scene("10-minimum-window-width", async () => {
     window.setContentSize(900, 760);
     await waitFor(async () => (await page("navigation"))?.documentWidth <= 900, "the 900px minimum window");
-    const measurement = await navigationWidth(224);
+    const measurement = await navigationWidth(272);
     await waitFor(() => exists("group", "Message input"), "the chat composer beside the navigation");
     return { ...measurement, viewport: window.getContentSize() };
   });

@@ -43,3 +43,13 @@ export function SettingsIcon({ size }: { size: number }) {
     </NavIcon>
   );
 }
+
+export function CircleArrowUpIcon({ size }: { size: number }) {
+  return (
+    <NavIcon size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m16 12-4-4-4 4" />
+      <path d="M12 16V8" />
+    </NavIcon>
+  );
+}

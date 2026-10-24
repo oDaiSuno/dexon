@@ -125,7 +125,7 @@ export function NavHistory({
         minHeight: 80,
         display: "flex",
         flexDirection: "column",
-        padding: "0 var(--space-3) var(--space-3)",
+        gap: 4,
       }}
     >
       <SectionHeader onAdd={tree.onChooseFolder} />

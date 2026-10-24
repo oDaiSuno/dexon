@@ -72,7 +72,7 @@ async function measure(config, name) {
       fontFaces:[...document.fonts].map(face=>({family:face.family,status:face.status})),controls};
   })()`);
   assert.ok(
-    Math.abs(measurement.nav.width - (config.expanded === false ? 52 : 224)) <= 0.5,
+    Math.abs(measurement.nav.width - (config.expanded === false ? 52 : 272)) <= 0.5,
     `${name}: approved navigation width`,
   );
   assert.ok(measurement.scrollWidth <= measurement.clientWidth + 1, `${name}: navigation has no horizontal overflow`);

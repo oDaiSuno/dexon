@@ -3,7 +3,7 @@ export const RIGHT_PANEL_MIN_WIDTH = 280;
 export const RIGHT_PANEL_DEFAULT_WIDTH = 360;
 export const RIGHT_PANEL_MAX_VIEWPORT_RATIO = 0.4;
 export const CHAT_MIN_WIDTH = 420;
-export const NAV_EXPANDED_WIDTH = 224;
+export const NAV_EXPANDED_WIDTH = 272;
 export const NAV_RAIL_WIDTH = 52;
 
 const RIGHT_PANEL_KEYBOARD_STEP = 16;

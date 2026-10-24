@@ -29,6 +29,14 @@ test("a deep link resolving with startup restore keeps the requested session and
     openDirectory: async () => {},
     onMenu: () => () => {},
     onHostRestarted: () => () => {},
+    getUpdateState: async () => ({
+      phase: "idle",
+      currentVersion: "0.0.0",
+      automaticChecksEnabled: false,
+      installBlockedByActiveSessions: false,
+      canRetry: false,
+    }),
+    onUpdateState: () => () => {},
     onDeepLinkSession: (listener) => {
       deepLink = listener;
       return () => {

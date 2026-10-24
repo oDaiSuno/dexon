@@ -24,7 +24,7 @@ export function NavSpacePanel({
   if (!notice && !pickerOpen) return null;
 
   return (
-    <div style={{ position: "relative", padding: "0 10px 8px", flexShrink: 0 }}>
+    <div style={{ position: "relative", padding: "0 0 var(--space-2)", flexShrink: 0 }}>
       <NavSpacePicker open={pickerOpen} spaces={spaces} onSelect={onSelectSpace} onClose={onClosePicker} />
       {notice && (
         <div

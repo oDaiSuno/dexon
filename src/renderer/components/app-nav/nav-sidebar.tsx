@@ -7,7 +7,8 @@ import { NavHistory } from "./nav-history";
 import { NavTopBar } from "./nav-top-bar";
 import { spaceFolderName } from "@/lib/space-identity";
 import { worktreePathsEqual } from "@shared/worktree-path";
-import { NewSessionIcon, PluginsIcon, SettingsIcon } from "./nav-icons";
+import { NewSessionIcon, PluginsIcon } from "./nav-icons";
+import { RailButton, SettingsButton, UpdateButton } from "./nav-sidebar-buttons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
@@ -18,90 +19,6 @@ export type NavPage = "chat" | "resources";
 
 const ENTRY_ROW_HEIGHT = 36;
 const NAV_ICON_SIZE = 18;
-
-function RailButton({
-  label,
-  onClick,
-  active = false,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  active?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 36,
-        height: 36,
-        padding: 0,
-        flexShrink: 0,
-        background: active ? "var(--fx-surface-selected)" : "transparent",
-        border: `1px solid ${active ? "var(--fx-line-strong)" : "transparent"}`,
-        borderRadius: "var(--radius-control)",
-        color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-        cursor: "pointer",
-        transition:
-          "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "var(--fx-surface-hover)";
-        e.currentTarget.style.color = "var(--fx-text-primary)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = active ? "var(--fx-surface-selected)" : "transparent";
-        e.currentTarget.style.color = active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)";
-      }}
-    >
-      {children}
-    </button>
-  );
-}
-
-function SettingsButton({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
-  const restingBackground = active ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-current={active ? "page" : undefined}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 32,
-        height: 32,
-        padding: 0,
-        flexShrink: 0,
-        background: restingBackground,
-        border: `1px solid ${active ? "var(--fx-line-strong)" : "transparent"}`,
-        borderRadius: "var(--radius-control)",
-        color: active ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-        cursor: "pointer",
-        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-      }}
-      onMouseEnter={(e) => {
-        if (!active) e.currentTarget.style.background = "var(--fx-surface-hover-overlay)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = restingBackground;
-      }}
-    >
-      <SettingsIcon size={NAV_ICON_SIZE} />
-    </button>
-  );
-}
 
 type MainEntry = {
   id: string;
@@ -131,6 +48,8 @@ export function NavSidebar({
   onNewSession,
   onRefreshSessions,
   onOpenSettings,
+  onOpenUpdate,
+  updateAvailable = false,
   onSessionDeleted,
   onOpenFolder,
   onChooseFolder,
@@ -164,6 +83,8 @@ export function NavSidebar({
   onNewSession: () => void;
   onRefreshSessions: () => void;
   onOpenSettings: () => void;
+  onOpenUpdate: () => void;
+  updateAvailable?: boolean;
   onSessionDeleted?: (id: string) => void;
   onOpenFolder: () => void;
   onChooseFolder: () => void;
@@ -269,12 +190,14 @@ export function NavSidebar({
       style={{
         width: NAV_EXPANDED_WIDTH,
         background: "var(--fx-surface-sidebar)",
-        borderRight: "1px solid var(--fx-line-subtle)",
+        boxShadow: "inset -1px 0 0 var(--fx-line-subtle)",
         display: "flex",
         flexDirection: "column",
         height: "100%",
         overflow: "hidden",
         flexShrink: 0,
+        padding: "16px 12px",
+        gap: 4,
       }}
     >
       <NavTopBar query={query} onQueryChange={setQuery} onToggleExpanded={onToggleExpanded} />
@@ -282,7 +205,7 @@ export function NavSidebar({
 
       <div
         style={{
-          padding: "var(--space-1) var(--space-3) var(--space-4)",
+          padding: "12px 0 16px 0",
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -394,8 +317,7 @@ export function NavSidebar({
 
       <div
         style={{
-          margin: "0 var(--space-3)",
-          padding: "var(--space-3) var(--space-1) var(--space-4)",
+          padding: "12px 4px 0 4px",
           borderTop: "1px solid var(--fx-line-subtle)",
           display: "flex",
           alignItems: "center",
@@ -419,6 +341,15 @@ export function NavSidebar({
         >
           {`v${APP_VERSION}`}
         </span>
+        <UpdateButton
+          label={
+            updateAvailable
+              ? t("sidebarUpdateAvailable", "Update available")
+              : t("checkForUpdates", "Check for updates")
+          }
+          available={updateAvailable}
+          onClick={onOpenUpdate}
+        />
       </div>
     </nav>
   );

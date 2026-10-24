@@ -220,7 +220,6 @@ export function NavTopBar({
         display: "flex",
         alignItems: "center",
         gap: "var(--space-2)",
-        padding: "var(--space-3) var(--space-3) var(--space-2)",
         flexShrink: 0,
       }}
     >
