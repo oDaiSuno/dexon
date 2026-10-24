@@ -50,6 +50,8 @@ export function RightPanelDock({
   onOpenFile,
   onAtMention,
   activeCwd,
+  personalCwd,
+  homeDir,
   headerAction,
   suspended = false,
 }: {
@@ -77,11 +79,16 @@ export function RightPanelDock({
   onOpenFile: (filePath: string, fileName: string, sourceSessionId?: string | null) => void;
   onAtMention: (relativePath: string, isDir: boolean) => void;
   activeCwd: string | null;
+  personalCwd: string | null;
+  homeDir: string;
   headerAction?: ReactNode;
   suspended?: boolean;
 }) {
   const { language, t } = useI18n();
-  const activeFileTab = fileTabs.find((t) => t.id === activeFileTabId) ?? null;
+  const activeFileTab = fileTabs.find((tab) => tab.id === activeFileTabId) ?? null;
+  const [lastFileTabId, setLastFileTabId] = useState<string | null>(null);
+  if (activeFileTab && activeFileTab.id !== lastFileTabId) setLastFileTabId(activeFileTab.id);
+  const explorerFilePath = fileTabs.find((tab) => tab.id === lastFileTabId)?.filePath ?? null;
 
   const widthLimit = getRightPanelWidthLimit(rightPanelWidth, rightPanelBounds);
 
@@ -173,9 +180,19 @@ export function RightPanelDock({
           />
         ) : activeFileTabId === EXPLORER_TAB_ID ? (
           explorerCwd ? (
-            <div style={{ height: "100%", overflowY: "auto", overflowX: "hidden", paddingTop: 4 }}>
+            <div
+              style={{
+                height: "100%",
+                overflowY: "auto",
+                overflowX: "hidden",
+                background: "var(--fx-surface-sidebar)",
+              }}
+            >
               <FileExplorer
                 cwd={explorerCwd}
+                personalCwd={personalCwd}
+                homeDir={homeDir}
+                activeFilePath={explorerFilePath}
                 onOpenFile={onOpenFile}
                 refreshKey={explorerRefreshKey}
                 onAtMention={onAtMention}

@@ -1,0 +1,4 @@
+{
+  "changedPathCount": { "enUS": "{count} changed paths", "zhCN": "{count} 个变更路径" },
+  "gitClean": { "enUS": "clean", "zhCN": "干净" }
+}

@@ -2,9 +2,11 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { getFileIcon, FolderIcon } from "./FileIcons";
 import { encodeFilePathForApi, getRelativeFilePath, joinFilePath } from "@/lib/file-paths";
 import { directoryRefreshAction, shouldLoadDirectoryOnExpand } from "@/lib/directory-refresh";
+import { worktreePathsEqual } from "@shared/worktree-path";
 import type { GitStatusResult } from "@shared/api-types";
 import { useI18n } from "@/i18n";
-import { formatNumber } from "@/lib/locale-format";
+import { FileTreeSkeleton, FilesSectionHeader } from "./file-explorer/files-section";
+import { WorkspaceSummary, type WatchState } from "./file-explorer/workspace-summary";
 
 type Translate = (key: string, fallback: string) => string;
 
@@ -26,6 +28,9 @@ interface FileNode {
 
 interface Props {
   cwd: string;
+  personalCwd: string | null;
+  homeDir: string;
+  activeFilePath: string | null;
   onOpenFile: (filePath: string, fileName: string) => void;
   refreshKey?: number;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
@@ -62,6 +67,7 @@ function TreeNode({
   node,
   depth,
   cwd,
+  activeFilePath,
   onOpenFile,
   onAtMention,
   expandedPaths,
@@ -71,6 +77,7 @@ function TreeNode({
   node: FileNode;
   depth: number;
   cwd: string;
+  activeFilePath: string | null;
   onOpenFile: (filePath: string, fileName: string) => void;
   onAtMention?: (relativePath: string, isDir: boolean) => void;
   expandedPaths: Set<string>;
@@ -79,6 +86,7 @@ function TreeNode({
 }) {
   const { t } = useI18n();
   const open = expandedPaths.has(node.fullPath);
+  const current = !node.isDir && activeFilePath !== null && worktreePathsEqual(node.fullPath, activeFilePath);
   const [children, setChildren] = useState<FileNode[]>(node.children ?? []);
   const [loaded, setLoaded] = useState(node.loaded ?? false);
   const [stale, setStale] = useState(false);
@@ -146,6 +154,7 @@ function TreeNode({
         <button
           type="button"
           onClick={handleClick}
+          aria-current={current ? "true" : undefined}
           aria-expanded={node.isDir ? open : undefined}
           aria-label={
             node.isDir
@@ -164,7 +173,11 @@ function TreeNode({
             paddingRight: (hovered || focusedWithin) && onAtMention ? (node.isDir ? 88 : 122) : 8,
             height: 40,
             cursor: "pointer",
-            background: hovered || focusedWithin ? "var(--bg-hover)" : "transparent",
+            background: current
+              ? "var(--fx-surface-selected)"
+              : hovered || focusedWithin
+                ? "var(--bg-hover)"
+                : "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
             userSelect: "none",
@@ -188,12 +201,15 @@ function TreeNode({
             </svg>
           )}
           {!node.isDir && <span style={{ width: 10, flexShrink: 0 }} />}
-          <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+          <span
+            className={current ? "[&_svg]:[stroke:var(--fx-text-primary)]" : undefined}
+            style={{ flexShrink: 0, display: "flex", alignItems: "center" }}
+          >
             {node.isDir ? <FolderIcon size={14} open={open} /> : getFileIcon(node.name, 14)}
           </span>
           <span
+            className={current ? "type-body-medium" : "type-body-default"}
             style={{
-              fontSize: "var(--text-body)",
               color: "var(--fx-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
@@ -322,6 +338,7 @@ function TreeNode({
               node={child}
               depth={depth + 1}
               cwd={cwd}
+              activeFilePath={activeFilePath}
               onOpenFile={onOpenFile}
               onAtMention={onAtMention}
               expandedPaths={expandedPaths}
@@ -349,14 +366,22 @@ function TreeNode({
   );
 }
 
-export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props) {
-  const { language, t } = useI18n();
+export function FileExplorer({
+  cwd,
+  personalCwd,
+  homeDir,
+  activeFilePath = null,
+  onOpenFile,
+  refreshKey,
+  onAtMention,
+}: Props) {
+  const { t } = useI18n();
   const [roots, setRoots] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null);
-  const [watching, setWatching] = useState(false);
+  const [watch, setWatch] = useState<WatchState>("connecting");
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const prevCwdRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
@@ -406,11 +431,11 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
   }, [cwd, refreshKey, loadProject]);
 
   useEffect(() => {
-    setWatching(false);
+    setWatch("connecting");
     const encoded = encodeFilePathForApi(cwd);
     const events = new EventSource(`/api/files/${encoded}?type=watch`);
     let timer: ReturnType<typeof setTimeout> | null = null;
-    events.addEventListener("connected", () => setWatching(true));
+    events.addEventListener("connected", () => setWatch("live"));
     events.addEventListener("change", () => {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
@@ -418,124 +443,56 @@ export function FileExplorer({ cwd, onOpenFile, refreshKey, onAtMention }: Props
         void loadProject(false);
       }, 200);
     });
-    events.addEventListener("error", () => setWatching(false));
-    events.onerror = () => setWatching(false);
+    events.addEventListener("error", () => setWatch("static"));
+    events.onerror = () => setWatch("static");
     return () => {
       if (timer) clearTimeout(timer);
       events.close();
     };
   }, [cwd, loadProject]);
 
-  if (loading) {
-    return (
-      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
-        {t("loadingFiles", "Loading files…")}
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-status-danger)" }}>{error}</div>
-    );
-  }
-
   return (
-    <div style={{ padding: "2px 4px" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "4px 8px 8px",
-          fontSize: "var(--text-micro)",
-          color: "var(--fx-text-tertiary)",
-          borderBottom: "1px solid var(--fx-line-default)",
-          marginBottom: 4,
-        }}
-      >
-        <span
-          title={
-            watching
-              ? t("projectChangesMonitored", "Project changes are monitored")
-              : t("projectWatcherUnavailable", "Project watcher unavailable")
-          }
-          style={{
-            width: 7,
-            height: 7,
-            borderRadius: "50%",
-            background: watching ? "var(--fx-status-success)" : "var(--fx-line-default)",
-            flexShrink: 0,
-          }}
-        />
-        {gitStatus?.isGit ? (
-          <>
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                color: "var(--fx-text-secondary)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {gitStatus.branch ?? "detached"}
-            </span>
-            {gitStatus.clean ? (
-              <span style={{ color: "var(--fx-status-success)" }}>{t("gitClean", "clean")}</span>
-            ) : (
-              <span
-                title={t("changedPathCount", "{count} changed paths").replace(
-                  "{count}",
-                  formatNumber(gitStatus.entries.length, language),
-                )}
-              >
-                {gitStatus.staged
-                  ? t("gitStagedCount", "+{count} staged ").replace("{count}", formatNumber(gitStatus.staged, language))
-                  : ""}
-                {gitStatus.modified
-                  ? t("gitModifiedCount", "{count} modified ").replace(
-                      "{count}",
-                      formatNumber(gitStatus.modified, language),
-                    )
-                  : ""}
-                {gitStatus.untracked
-                  ? t("gitUntrackedCount", "{count} untracked ").replace(
-                      "{count}",
-                      formatNumber(gitStatus.untracked, language),
-                    )
-                  : ""}
-                {gitStatus.conflicted
-                  ? t("gitConflictedCount", "{count} conflicted").replace(
-                      "{count}",
-                      formatNumber(gitStatus.conflicted, language),
-                    )
-                  : ""}
-              </span>
-            )}
-          </>
+    <div className="flex flex-col gap-[16px] px-[8px] pt-[12px] pb-[16px]">
+      <WorkspaceSummary
+        cwd={cwd}
+        personalCwd={personalCwd}
+        homeDir={homeDir}
+        watch={watch}
+        gitStatus={error ? null : gitStatus}
+        loading={loading}
+      />
+      <div className="flex flex-col gap-[4px]">
+        <FilesSectionHeader />
+        {loading ? (
+          <FileTreeSkeleton />
+        ) : error ? (
+          <div role="alert" className="type-meta-default px-[12px] py-[8px] text-[var(--fx-status-danger)]">
+            {error}
+          </div>
         ) : (
-          <span>{watching ? t("live", "live") : t("static", "static")}</span>
+          <div>
+            {roots.map((node) => (
+              <TreeNode
+                key={node.fullPath}
+                node={node}
+                depth={0}
+                cwd={cwd}
+                activeFilePath={activeFilePath}
+                onOpenFile={onOpenFile}
+                onAtMention={onAtMention}
+                expandedPaths={expandedPaths}
+                onToggleExpanded={handleToggleExpanded}
+                refreshKey={(refreshKey ?? 0) + liveRefreshKey}
+              />
+            ))}
+            {roots.length === 0 && (
+              <div className="type-meta-default px-[12px] py-[8px] text-[var(--fx-text-tertiary)]">
+                {t("noFilesFound", "No files found")}
+              </div>
+            )}
+          </div>
         )}
       </div>
-      {roots.map((node) => (
-        <TreeNode
-          key={node.fullPath}
-          node={node}
-          depth={0}
-          cwd={cwd}
-          onOpenFile={onOpenFile}
-          onAtMention={onAtMention}
-          expandedPaths={expandedPaths}
-          onToggleExpanded={handleToggleExpanded}
-          refreshKey={(refreshKey ?? 0) + liveRefreshKey}
-        />
-      ))}
-      {roots.length === 0 && (
-        <div style={{ padding: "8px 12px", fontSize: "var(--text-meta)", color: "var(--fx-text-tertiary)" }}>
-          {t("noFilesFound", "No files found")}
-        </div>
-      )}
     </div>
   );
 }
