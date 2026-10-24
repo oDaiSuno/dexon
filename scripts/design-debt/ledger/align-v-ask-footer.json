@@ -1,28 +1,6 @@
 {
   "lane": "对齐 v-ask-footer 提问卡底栏：发送中、失败条、放弃确认与按钮",
-  "legacy": [
-    {
-      "file": "src/renderer/styles/tool-cards.css",
-      "name": "--bg-hover",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/styles/tool-cards.css",
-      "name": "--text-body",
-      "count": 1
-    }
-  ],
-  "typography": [
-    {
-      "file": "src/renderer/styles/tool-cards.css",
-      "property": "font-size",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/styles/tool-cards.css",
-      "property": "line-height",
-      "count": 1
-    }
-  ],
+  "legacy": [],
+  "typography": [],
   "colors": []
 }

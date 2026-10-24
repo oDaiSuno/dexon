@@ -82,3 +82,11 @@ export function ArrowUpRightIcon({ size = 13 }: { size?: number }) {
     </Icon>
   );
 }
+
+export function LoaderCircleIcon({ size = 13 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </Icon>
+  );
+}

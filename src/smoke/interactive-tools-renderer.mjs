@@ -92,7 +92,7 @@ window.fixture = {
     if (mode === "collapsed") store.setCollapsed(req.id, true);
     if (mode === "failed") await store.respond(req.id, { answers: store.getSnapshot().entries[0].draft.answers });
     render();
-    if (mode === "abandon") button("放弃本次回答").click();
+    if (mode === "abandon") button("放弃回答").click();
     if (mode === "preview") flushSync(() => document.querySelector(".tool-preview-toggle").click());
     await paint();
     return this.inspect();
@@ -116,7 +116,7 @@ window.fixture = {
   inspect() {
     const card = document.querySelector(".tool-card");
     const body = document.querySelector(".tool-body-scroll");
-    const primary = document.querySelector(".tool-primary");
+    const primary = document.querySelector('.tool-card .ui-button[data-variant="primary"]');
     const rect = card?.getBoundingClientRect();
     const overflow = [...document.querySelectorAll(".tool-card *")]
       .filter((e) => {

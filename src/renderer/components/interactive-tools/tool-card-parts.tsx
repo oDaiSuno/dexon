@@ -19,7 +19,7 @@ export function statusLabel(t: Translate, status: CardStatus): string {
   if (status === "cancelled") return t("toolAbandoned", "Answering abandoned");
   if (status === "completed") return t("toolCompleted", "Interaction ended");
   if (status === "expired") return t("toolExpired", "This question has expired");
-  if (status === "sending") return t("toolSending", "Sending…");
+  if (status === "sending") return t("toolSending", "Sending");
   if (status === "checking") return t("toolChecking", "Checking whether this request is still active…");
   if (status === "failed") return t("toolSendFailed", "Not delivered");
   return t("toolWaiting", "Waiting for your answer");
@@ -79,7 +79,17 @@ export function IconButton({
   );
 }
 
-export function CardHeader({ lead, nav, onCollapse }: { lead: ReactNode; nav?: ReactNode; onCollapse: () => void }) {
+export function CardHeader({
+  lead,
+  nav,
+  collapseDisabled,
+  onCollapse,
+}: {
+  lead: ReactNode;
+  nav?: ReactNode;
+  collapseDisabled?: boolean;
+  onCollapse: () => void;
+}) {
   const { t } = useI18n();
   return (
     <header className="tool-card-header">
@@ -87,7 +97,11 @@ export function CardHeader({ lead, nav, onCollapse }: { lead: ReactNode; nav?: R
       <span className="tool-spacer" />
       {nav}
       {nav ? <span className="tool-divider" aria-hidden="true" /> : null}
-      <IconButton label={t("toolCollapse", "Collapse — your answers stay")} onClick={onCollapse}>
+      <IconButton
+        label={t("toolCollapse", "Collapse — your answers stay")}
+        disabled={collapseDisabled}
+        onClick={onCollapse}
+      >
         <MinusIcon size={14} />
       </IconButton>
     </header>

@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { Button } from "@/components/form-controls";
 import { useI18n } from "@/i18n";
 import { isPendingCard, type InteractiveToolStore, type ToolCardEntry } from "@/lib/interactive-tool-store";
 import { answerSummary } from "./answer-summary";
 import { OrdinaryForm } from "./ordinary-form";
 import { Questionnaire } from "./questionnaire";
 import { TerminalContent } from "./terminal-content";
+import { CardFooter } from "./tool-card-footer";
 import { CardHeader, Receipt, ResumeRow, StatusLead } from "./tool-card-parts";
 
 export function ToolCardDock({ store, visible = true }: { store: InteractiveToolStore; visible?: boolean }) {
@@ -81,7 +83,7 @@ function ToolCard({
   const pending = isPendingCard(entry);
   const collapsed = entry.draft.collapsed;
   const collapse = () => {
-    if (!visible) return;
+    if (!visible || status === "sending") return;
     store.setCollapsed(request.id, true);
     setAbandoning(false);
     focusAfterPaint(resume);
@@ -108,6 +110,7 @@ function ToolCard({
         </StatusLead>
       }
       nav={nav}
+      collapseDisabled={status === "sending"}
       onCollapse={collapse}
     />
   );
@@ -116,32 +119,37 @@ function ToolCard({
       ? t("toolExpiredDetail", "The agent stopped waiting; your draft wasn't sent")
       : (status === "submitted" && answerSummary(request, entry.draft, language, t("toolSummarySeparator", "; "))) ||
         title;
+  const startAbandon = () => {
+    if (visible) setAbandoning(true);
+  };
   const abandonConfirm = (
-    <div className="tool-abandon-confirm">
-      <h3 className="tool-question-title type-title-dialog">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
-      <p>{t("toolAbandonDescription", "The tool will stop waiting. Draft answers will not be sent to the model.")}</p>
-      <div className="tool-footer-actions">
-        <button
-          type="button"
-          className="tool-pill tool-primary"
-          onClick={() => {
-            if (visible) setAbandoning(false);
-          }}
-        >
-          {t("toolKeepAnswering", "Keep answering")}
-        </button>
-        <button
-          type="button"
-          className="tool-pill"
+    <>
+      <div className="tool-abandon-confirm">
+        <h3 className="tool-question-title type-title-dialog">{t("toolAbandonTitle", "Abandon this answer?")}</h3>
+        <p className="tool-subtle type-label-default">
+          {t("toolAbandonDescription", "The agent will stop waiting, and nothing you picked will be sent to it.")}
+        </p>
+      </div>
+      <CardFooter status={status}>
+        <Button
+          variant="danger"
           disabled={status === "sending"}
           onClick={() => {
             if (visible) void store.respond(request.id, { cancelled: true });
           }}
         >
-          {t("toolConfirmAbandon", "Abandon without sending")}
-        </button>
-      </div>
-    </div>
+          {t("toolConfirmAbandon", "Abandon, don't send")}
+        </Button>
+        <Button
+          variant="primary"
+          onClick={() => {
+            if (visible) setAbandoning(false);
+          }}
+        >
+          {t("toolKeepAnswering", "Keep answering")}
+        </Button>
+      </CardFooter>
+    </>
   );
   return (
     <section
@@ -185,6 +193,7 @@ function ToolCard({
               visible={visible}
               header={header}
               replaceBody={abandoning ? abandonConfirm : undefined}
+              onAbandon={startAbandon}
             />
           ) : (
             <>
@@ -192,25 +201,11 @@ function ToolCard({
               {abandoning ? (
                 abandonConfirm
               ) : request.method === "custom" ? (
-                <TerminalContent entry={entry} store={store} visible={visible} />
+                <TerminalContent entry={entry} store={store} visible={visible} onAbandon={startAbandon} />
               ) : (
-                <OrdinaryForm entry={entry} store={store} visible={visible} />
+                <OrdinaryForm entry={entry} store={store} visible={visible} onAbandon={startAbandon} />
               )}
             </>
-          )}
-          {!abandoning && (
-            <div className="tool-abandon-row">
-              <button
-                type="button"
-                className="tool-text-button"
-                disabled={status === "sending"}
-                onClick={() => {
-                  if (visible) setAbandoning(true);
-                }}
-              >
-                {t("toolAbandon", "Abandon this answer")}
-              </button>
-            </div>
           )}
         </>
       )}

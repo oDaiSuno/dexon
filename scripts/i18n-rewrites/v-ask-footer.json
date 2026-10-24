@@ -1,0 +1,14 @@
+{
+  "toolSending": { "enUS": "Sending…", "zhCN": "正在发送…" },
+  "toolAnsweredCount": { "enUS": "{answered} of {total} answered", "zhCN": "已回答 {answered} / {total} 题" },
+  "toolSendPartial": { "enUS": "Send answered questions", "zhCN": "发送已答内容" },
+  "toolSendAnswers": { "enUS": "Send answers", "zhCN": "发送全部答案" },
+  "toolAbandonTitle": { "enUS": "Abandon this answer?", "zhCN": "放弃本次回答？" },
+  "toolAbandonDescription": {
+    "enUS": "The tool will stop waiting. Draft answers will not be sent to the model.",
+    "zhCN": "工具将不再等待；草稿答案不会发送给模型。"
+  },
+  "toolKeepAnswering": { "enUS": "Keep answering", "zhCN": "继续作答" },
+  "toolConfirmAbandon": { "enUS": "Abandon without sending", "zhCN": "放弃，不发送答案" },
+  "toolAbandon": { "enUS": "Abandon this answer", "zhCN": "放弃本次回答" }
+}

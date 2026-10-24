@@ -3,6 +3,8 @@ import { useI18n } from "@/i18n";
 import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool-store";
 import { hasQuestionAnswer, type QuestionnaireRequest } from "@shared/interactive-tools";
 import { ChevronDownIcon, ChevronUpIcon } from "./tool-card-icons";
+import { Button } from "@/components/form-controls";
+import { CardFooter, FailureBar } from "./tool-card-footer";
 import { IconButton } from "./tool-card-parts";
 import { OwnAnswer, QuestionChoice } from "./question-fields";
 import { AutoHeight } from "./tool-motion";
@@ -13,12 +15,14 @@ export function Questionnaire({
   visible = true,
   header,
   replaceBody,
+  onAbandon,
 }: {
   entry: ToolCardEntry & { request: QuestionnaireRequest };
   store: InteractiveToolStore;
   visible?: boolean;
   header: (group: ReactNode, nav: ReactNode) => ReactNode;
   replaceBody?: ReactNode;
+  onAbandon: () => void;
 }) {
   const { t } = useI18n();
   const { request, draft } = entry;
@@ -204,36 +208,36 @@ export function Questionnaire({
               />
             </div>
           </AutoHeight>
-          <footer className="tool-question-footer">
-            <span className="tool-subtle">
-              {t("toolAnsweredCount", "{answered} of {total} answered")
-                .replace("{answered}", String(answered))
-                .replace("{total}", String(request.questions.length))}
-            </span>
-            <div className="tool-footer-actions">
-              {index < request.questions.length - 1 && (
-                <button type="button" className="tool-pill" disabled={busy} onClick={() => navigate(index + 1)}>
-                  {hasQuestionAnswer(answer) ? t("toolContinue", "Continue") : t("toolSkip", "Skip for now")}
-                </button>
-              )}
-              <button
-                type="button"
-                className="tool-pill tool-primary"
-                disabled={busy || answered === 0}
-                onClick={() => {
-                  if (!visible) return;
-                  cancelAdvance();
-                  void store.respond(request.id, { answers: draft.answers });
-                }}
-              >
-                {busy
-                  ? t("toolSending", "Sending…")
-                  : answered < request.questions.length
-                    ? t("toolSendPartial", "Send answered questions")
-                    : t("toolSendAnswers", "Send answers")}
-              </button>
-            </div>
-          </footer>
+          {entry.status === "failed" && <FailureBar />}
+          <CardFooter
+            status={entry.status}
+            meta={t("toolAnsweredCount", "Answered {answered} / {total}")
+              .replace("{answered}", String(answered))
+              .replace("{total}", String(total))}
+            onAbandon={onAbandon}
+          >
+            {index < total - 1 && (
+              <Button disabled={busy} onClick={() => navigate(index + 1)}>
+                {hasQuestionAnswer(answer) ? t("toolContinue", "Continue") : t("toolSkip", "Skip for now")}
+              </Button>
+            )}
+            <Button
+              variant="primary"
+              busy={busy}
+              disabled={busy || answered === 0}
+              onClick={() => {
+                if (!visible) return;
+                cancelAdvance();
+                void store.respond(request.id, { answers: draft.answers });
+              }}
+            >
+              {entry.status === "failed"
+                ? t("toolResend", "Resend")
+                : answered < total
+                  ? t("toolSendPartial", "Send what's answered")
+                  : t("toolSendAnswers", "Send answers")}
+            </Button>
+          </CardFooter>
         </>
       )}
     </div>

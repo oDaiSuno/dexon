@@ -1,16 +1,20 @@
+import { Button } from "@/components/form-controls";
 import { useI18n } from "@/i18n";
 import type { InteractiveToolStore, ToolCardEntry } from "@/lib/interactive-tool-store";
 import { QuestionChoice } from "./question-fields";
+import { CardFooter, FailureBar } from "./tool-card-footer";
 import { AutoHeight } from "./tool-motion";
 
 export function OrdinaryForm({
   entry,
   store,
   visible = true,
+  onAbandon,
 }: {
   entry: ToolCardEntry;
   store: InteractiveToolStore;
   visible?: boolean;
+  onAbandon: () => void;
 }) {
   const { t } = useI18n();
   const { request, draft } = entry;
@@ -43,7 +47,7 @@ export function OrdinaryForm({
   return (
     <>
       <AutoHeight visible={visible}>
-        <div className="tool-form-body">
+        <div className="tool-form-body type-body-default">
           <h3 className="tool-question-title type-title-dialog">{request.title}</h3>
           {request.method === "confirm" && <p className="tool-description">{request.message}</p>}
           {request.method === "select" && (
@@ -70,32 +74,31 @@ export function OrdinaryForm({
           {request.method === "editor" && <textarea {...field} aria-label={request.title} rows={6} />}
         </div>
       </AutoHeight>
-      <footer className="tool-question-footer tool-footer-end">
+      {entry.status === "failed" && <FailureBar />}
+      <CardFooter status={entry.status} onAbandon={onAbandon}>
         {request.method === "confirm" && (
-          <button
-            type="button"
-            className="tool-pill"
+          <Button
             disabled={busy}
             onClick={() => {
               if (visible) void store.respond(request.id, { confirmed: false });
             }}
           >
             {t("toolDecline", "Decline")}
-          </button>
+          </Button>
         )}
-        <button
-          type="button"
-          className="tool-pill tool-primary"
+        <Button
+          variant="primary"
+          busy={busy}
           disabled={busy || (request.method === "select" && draft.selected === null)}
           onClick={submit}
         >
-          {busy
-            ? t("toolSending", "Sending…")
+          {entry.status === "failed"
+            ? t("toolResend", "Resend")
             : request.method === "confirm"
               ? t("toolConfirm", "Confirm")
               : t("toolSendAnswer", "Send answer")}
-        </button>
-      </footer>
+        </Button>
+      </CardFooter>
     </>
   );
 }
