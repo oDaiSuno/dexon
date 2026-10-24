@@ -1,46 +1,42 @@
 import { useI18n } from "@/i18n";
-import { buttonStyle } from "./control-styles";
+import { Badge } from "../../form-controls";
+import { SmartphoneIcon } from "./channel-icons";
 
-export function ChannelsHeader({
-  busy,
-  onConnectFeishu,
-  onConnectTelegram,
-  onConnectWeixin,
-}: {
-  busy: boolean;
-  onConnectFeishu: () => void;
-  onConnectTelegram: () => void;
-  onConnectWeixin: () => void;
-}) {
+export function ChannelsHeader() {
   const { t } = useI18n();
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-      <div>
-        <h2 style={{ margin: 0, color: "var(--fx-text-primary)", fontSize: "var(--text-title)" }}>
-          {t("messagingChannels", "Messaging channels")}
-        </h2>
-        <p
-          style={{
-            margin: "8px 0 0",
-            color: "var(--fx-text-tertiary)",
-            fontSize: "var(--text-label)",
-            lineHeight: 1.6,
-          }}
-        >
-          {t("channelsDescription", "Connect IM accounts, control access, and bind conversations to Pi sessions.")}
+    <header style={{ display: "flex", alignItems: "center", gap: 16, width: "100%" }}>
+      <span
+        aria-hidden="true"
+        style={{
+          width: 48,
+          height: 48,
+          flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          border: "1px solid var(--fx-line-default)",
+          borderRadius: "var(--radius-plugin-tile)",
+          background: "var(--fx-surface-raised)",
+          color: "var(--fx-text-primary)",
+        }}
+      >
+        <SmartphoneIcon />
+      </span>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <h1 className="type-title-page" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
+            {t("channels", "Remote chat")}
+          </h1>
+          <Badge tone="neutral">{t("builtInPlugin", "Built-in plugin")}</Badge>
+        </div>
+        <p className="type-body-large" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
+          {t(
+            "channelsDescription",
+            "Connect Dexon sessions to WeChat, Telegram, or Feishu, and keep the Agent working from your phone while you're away.",
+          )}
         </p>
       </div>
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
-        <button type="button" disabled={busy} style={buttonStyle()} onClick={onConnectFeishu}>
-          {t("connectFeishu", "Connect Feishu / Lark")}
-        </button>
-        <button type="button" disabled={busy} style={buttonStyle()} onClick={onConnectTelegram}>
-          {t("connectTelegram", "Connect Telegram")}
-        </button>
-        <button type="button" disabled={busy} style={buttonStyle()} onClick={onConnectWeixin}>
-          {t("connectWeixin", "Connect WeChat")}
-        </button>
-      </div>
-    </div>
+    </header>
   );
 }

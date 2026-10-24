@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type {
   ChannelAccountConfig,
   ChannelAccountView,
@@ -6,11 +6,22 @@ import type {
   ChannelStatus,
 } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { AccountActions } from "./account-actions";
+import { AccountActions, AccountFooter, confirmSave } from "./account-actions";
 import { AccountCardHeader } from "./account-card-header";
 import { FeishuCredentialFields, TelegramCredentialFields } from "./account-credential-fields";
 import { ProbeFeedbackNotice, TestSendRow, type ProbeFeedback } from "./account-feedback";
 import { AccountSettingsGrid } from "./account-settings-grid";
+
+function DetailSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <h3 className="type-body-large-medium" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
+        {title}
+      </h3>
+      {children}
+    </section>
+  );
+}
 
 export function AccountCard({
   account,
@@ -25,6 +36,7 @@ export function AccountCard({
   onUpdateFeishuCredential,
   onTestSend,
   onDelete,
+  onClose = () => undefined,
 }: {
   account: ChannelAccountView;
   status?: ChannelStatus;
@@ -38,6 +50,7 @@ export function AccountCard({
   onUpdateFeishuCredential: (account: ChannelAccountConfig, appSecret: string) => Promise<ChannelProbeResult>;
   onTestSend: (peerId: string, message: string) => void;
   onDelete: () => void;
+  onClose?: () => void;
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<ChannelAccountConfig>(account);
@@ -55,6 +68,9 @@ export function AccountCard({
     return () => clearTimeout(timer);
   }, [probeFeedback]);
 
+  const reportFailure = (cause: unknown) =>
+    setProbeFeedback({ ok: false, message: cause instanceof Error ? cause.message : String(cause), at: Date.now() });
+
   const handleProbe = async () => {
     setProbing(true);
     setProbeFeedback(null);
@@ -66,11 +82,7 @@ export function AccountCard({
         at: Date.now(),
       });
     } catch (cause) {
-      setProbeFeedback({
-        ok: false,
-        message: cause instanceof Error ? cause.message : String(cause),
-        at: Date.now(),
-      });
+      reportFailure(cause);
     } finally {
       setProbing(false);
     }
@@ -86,7 +98,7 @@ export function AccountCard({
       setTelegramToken("");
       setProbeFeedback({ ok: result.ok, message: result.message, at: Date.now() });
     } catch (cause) {
-      setProbeFeedback({ ok: false, message: cause instanceof Error ? cause.message : String(cause), at: Date.now() });
+      reportFailure(cause);
     } finally {
       setUpdatingToken(false);
     }
@@ -106,77 +118,81 @@ export function AccountCard({
       setFeishuAppSecret("");
       setProbeFeedback({ ok: result.ok, message: result.message, at: Date.now() });
     } catch (cause) {
-      setProbeFeedback({ ok: false, message: cause instanceof Error ? cause.message : String(cause), at: Date.now() });
+      reportFailure(cause);
     } finally {
       setUpdatingToken(false);
     }
   };
 
   return (
-    <div
-      style={{
-        border: "1px solid var(--fx-line-default)",
-        borderRadius: "var(--radius-card)",
-        background: "var(--fx-surface-raised)",
-        padding: 16,
-      }}
-    >
-      <AccountCardHeader account={account} status={status} draft={draft} setDraft={setDraft} />
-
-      {status?.lastError && (
-        <div style={{ color: "var(--fx-status-danger)", fontSize: "var(--text-meta)", marginTop: 12 }}>
-          {status.lastError}
-        </div>
-      )}
-
-      <AccountSettingsGrid draft={draft} setDraft={setDraft} />
-
-      {account.channel === "telegram" && (
-        <TelegramCredentialFields
-          busy={busy}
-          updatingToken={updatingToken}
-          telegramToken={telegramToken}
-          setTelegramToken={setTelegramToken}
-          onUpdate={handleTokenUpdate}
-        />
-      )}
-
-      {account.channel === "feishu" && (
-        <FeishuCredentialFields
-          busy={busy}
-          updatingToken={updatingToken}
-          draft={draft}
-          setDraft={setDraft}
-          feishuAppSecret={feishuAppSecret}
-          setFeishuAppSecret={setFeishuAppSecret}
-          onUpdate={handleFeishuCredentialUpdate}
-        />
-      )}
-
-      <AccountActions
-        draft={draft}
-        status={status}
+    <>
+      <div
+        data-testid="channel-account-detail"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 24,
+          padding: 20,
+        }}
+      >
+        <DetailSection title={t("channelDetailConnection", "Connection")}>
+          <AccountCardHeader account={account} status={status} draft={draft} setDraft={setDraft} />
+          {account.channel === "telegram" && (
+            <TelegramCredentialFields
+              busy={busy}
+              updatingToken={updatingToken}
+              telegramToken={telegramToken}
+              setTelegramToken={setTelegramToken}
+              onUpdate={handleTokenUpdate}
+            />
+          )}
+          {account.channel === "feishu" && (
+            <FeishuCredentialFields
+              busy={busy}
+              updatingToken={updatingToken}
+              draft={draft}
+              setDraft={setDraft}
+              feishuAppSecret={feishuAppSecret}
+              setFeishuAppSecret={setFeishuAppSecret}
+              onUpdate={handleFeishuCredentialUpdate}
+            />
+          )}
+          <AccountActions
+            draft={draft}
+            status={status}
+            busy={busy}
+            probing={probing}
+            onStart={onStart}
+            onStop={onStop}
+            onRestart={onRestart}
+            onProbe={handleProbe}
+          />
+          {probeFeedback && <ProbeFeedbackNotice feedback={probeFeedback} />}
+          <TestSendRow
+            account={account}
+            busy={busy}
+            testPeer={testPeer}
+            setTestPeer={setTestPeer}
+            testMessage={testMessage}
+            setTestMessage={setTestMessage}
+            onTestSend={onTestSend}
+          />
+        </DetailSection>
+        <DetailSection title={t("channelDetailAccess", "Access & permissions")}>
+          <AccountSettingsGrid draft={draft} setDraft={setDraft} />
+        </DetailSection>
+      </div>
+      <AccountFooter
         busy={busy}
-        probing={probing}
-        onSave={onSave}
-        onStart={onStart}
-        onStop={onStop}
-        onRestart={onRestart}
-        onProbe={handleProbe}
         onDelete={onDelete}
+        onCancel={onClose}
+        onSave={() => {
+          if (confirmSave(draft, t)) onSave(draft);
+        }}
       />
-
-      {probeFeedback && <ProbeFeedbackNotice feedback={probeFeedback} />}
-
-      <TestSendRow
-        account={account}
-        busy={busy}
-        testPeer={testPeer}
-        setTestPeer={setTestPeer}
-        testMessage={testMessage}
-        setTestMessage={setTestMessage}
-        onTestSend={onTestSend}
-      />
-    </div>
+    </>
   );
 }

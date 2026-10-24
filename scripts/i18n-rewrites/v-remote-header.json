@@ -1,0 +1,22 @@
+{
+  "approve": {
+    "enUS": "Approve",
+    "zhCN": "批准"
+  },
+  "channelOverview": {
+    "enUS": "Overview",
+    "zhCN": "渠道总览"
+  },
+  "channelsDescription": {
+    "enUS": "Connect IM accounts, control access, and bind conversations to Pi sessions.",
+    "zhCN": "连接即时通信账号、控制访问权限，并将对话绑定到 Pi 会话。"
+  },
+  "messagingChannels": {
+    "enUS": "Messaging channels",
+    "zhCN": "消息渠道"
+  },
+  "restart": {
+    "enUS": "Restart",
+    "zhCN": "重新启动"
+  }
+}

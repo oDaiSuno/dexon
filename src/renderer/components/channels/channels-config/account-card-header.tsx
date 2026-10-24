@@ -1,7 +1,7 @@
 import type { ChannelAccountConfig, ChannelAccountView, ChannelStatus } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { ChannelBrandMark } from "../channel-brand-mark";
-import { channelLabel, channelStatusLabel, statusColor } from "./channel-labels";
+import { Badge, Toggle } from "../../form-controls";
+import { accountPresence } from "./channel-presentation";
 
 export function AccountCardHeader({
   account,
@@ -15,44 +15,43 @@ export function AccountCardHeader({
   setDraft: (draft: ChannelAccountConfig) => void;
 }) {
   const { t } = useI18n();
-  const label = channelLabel(account.channel, t, account.domain);
+  const presence = accountPresence(status, t);
+  const identity = [
+    account.credentialFingerprint ?? t("notConfigured", "not configured"),
+    account.providerUsername,
+    account.providerAccountId,
+  ].filter(Boolean);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <ChannelBrandMark channel={account.channel} size={36} />
-        <div>
-          <div style={{ color: "var(--fx-text-primary)", fontSize: "var(--text-body)", fontWeight: 700 }}>
-            {account.name}
-          </div>
-          <div style={{ color: statusColor(status), fontSize: "var(--text-meta)", marginTop: 2 }}>
-            {channelStatusLabel(status?.state ?? "stopped", t)} ·{" "}
-            {account.credentialFingerprint ?? t("notConfigured", "not configured")}
-          </div>
-          <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-micro)", marginTop: 2 }}>
-            {label}
-            {account.providerUsername ? ` · ${account.providerUsername}` : ""}
-            {account.providerAccountId ? ` · ${account.providerAccountId}` : ""}
-          </div>
-        </div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <Badge tone={presence.tone}>{presence.label}</Badge>
+        <span
+          className="type-mono-meta"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            color: "var(--fx-text-tertiary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {identity.join(" · ")}
+        </span>
+        <label
+          className="type-body-medium"
+          style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--fx-text-primary)", cursor: "pointer" }}
+        >
+          <Toggle checked={draft.enabled} onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })} />
+          {t("enabled", "Enabled")}
+        </label>
       </div>
-      <label
-        style={{
-          fontSize: "var(--text-meta)",
-          color: "var(--fx-text-secondary)",
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={draft.enabled}
-          onChange={(event) => setDraft({ ...draft, enabled: event.target.checked })}
-          style={{ width: 18, height: 18, margin: 0, accentColor: "var(--fx-accent-blue)", cursor: "pointer" }}
-        />{" "}
-        {t("enabled", "Enabled")}
-      </label>
+      {status?.lastError && (
+        <div className="type-label-default" role="status" style={{ color: "var(--fx-status-warning-text)" }}>
+          {status.lastError}
+        </div>
+      )}
     </div>
   );
 }

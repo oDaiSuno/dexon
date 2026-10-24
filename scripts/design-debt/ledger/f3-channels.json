@@ -2,16 +2,6 @@
   "lane": "F3 远程对话页与渠道详情",
   "legacy": [
     {
-      "file": "src/renderer/components/channels/channels-config/account-credential-fields.tsx",
-      "name": "--text-micro",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-feedback.tsx",
-      "name": "--text-meta",
-      "count": 1
-    },
-    {
       "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
       "name": "--text-label",
       "count": 1
@@ -73,21 +63,6 @@
     }
   ],
   "typography": [
-    {
-      "file": "src/renderer/components/channels/channels-config/account-credential-fields.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-credential-fields.tsx",
-      "property": "lineHeight",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/channels/channels-config/account-feedback.tsx",
-      "property": "fontSize",
-      "count": 1
-    },
     {
       "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
       "property": "fontSize",

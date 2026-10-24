@@ -154,7 +154,7 @@ test("Remote chat is not a Settings category and opens its real configuration fr
   await click(control(scene.navigation(), "button", "Plugins & Skills"));
   await click(await waitFor(() => control(scene.container, "button", "Remote chat")));
   const remote = await waitFor(() => control(scene.container, "region", "Remote chat"));
-  await waitFor(() => assert.match(remote.textContent, /Messaging channels/));
+  await waitFor(() => assert.match(remote.textContent, /Chat apps/));
   assert.equal(roles(scene.container, "region", "Settings").length, 0);
   await keyDown(remote, "Escape");
   await waitFor(() => assert.equal(roles(scene.container, "region", "Remote chat").length, 0));

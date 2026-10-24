@@ -1,88 +1,109 @@
 import type { ChannelAccountConfig, ChannelStatus } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
-import { buttonStyle } from "./control-styles";
+import { Button } from "../../form-controls";
+import { PlugIcon, RefreshIcon, TrashIcon } from "./channel-icons";
+import type { Translate } from "./channel-labels";
+
+export function isElevated(draft: ChannelAccountConfig): boolean {
+  return (
+    draft.dmPolicy === "open" ||
+    draft.groupPolicy === "open" ||
+    draft.commandsEnabled === true ||
+    draft.toolNames.includes("bash") ||
+    draft.toolNames.includes("write")
+  );
+}
+
+export function confirmSave(draft: ChannelAccountConfig, t: Translate): boolean {
+  return (
+    !isElevated(draft) ||
+    window.confirm(
+      t(
+        "elevatedChannelConfirm",
+        "This configuration allows remote messages to reach powerful local capabilities. Confirm that the account and allowed users are trusted.",
+      ),
+    )
+  );
+}
 
 export function AccountActions({
   draft,
   status,
   busy,
   probing,
-  onSave,
   onStart,
   onStop,
   onRestart,
   onProbe,
-  onDelete,
 }: {
   draft: ChannelAccountConfig;
   status?: ChannelStatus;
   busy: boolean;
   probing: boolean;
-  onSave: (account: ChannelAccountConfig) => void;
   onStart: () => void;
   onStop: () => void;
   onRestart: () => void;
   onProbe: () => Promise<void>;
-  onDelete: () => void;
 }) {
   const { t } = useI18n();
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-      <button
-        type="button"
-        disabled={busy}
-        style={buttonStyle(true)}
-        onClick={() => {
-          const elevated =
-            draft.dmPolicy === "open" ||
-            draft.groupPolicy === "open" ||
-            draft.commandsEnabled === true ||
-            draft.toolNames.includes("bash") ||
-            draft.toolNames.includes("write");
-          if (
-            elevated &&
-            !window.confirm(
-              t(
-                "elevatedChannelConfirm",
-                "This configuration allows remote messages to reach powerful local capabilities. Confirm that the account and allowed users are trusted.",
-              ),
-            )
-          ) {
-            return;
-          }
-          onSave(draft);
-        }}
-      >
-        {t("save", "Save")}
-      </button>
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
       {status?.state === "running" ? (
-        <button type="button" disabled={busy} style={buttonStyle()} onClick={onStop}>
+        <Button disabled={busy} onClick={onStop}>
           {t("stop", "Stop")}
-        </button>
+        </Button>
       ) : (
-        <button type="button" disabled={busy || !draft.enabled} style={buttonStyle()} onClick={onStart}>
+        <Button disabled={busy || !draft.enabled} onClick={onStart}>
           {t("start", "Start")}
-        </button>
+        </Button>
       )}
-      <button type="button" disabled={busy} style={buttonStyle()} onClick={onRestart}>
-        {t("restart", "Restart")}
-      </button>
-      <button
-        type="button"
-        disabled={busy || probing}
-        style={{ ...buttonStyle(), opacity: probing ? 0.65 : 1 }}
-        onClick={() => void onProbe()}
-      >
+      <Button disabled={busy} onClick={onRestart}>
+        <RefreshIcon />
+        {t("restart", "Reconnect")}
+      </Button>
+      <Button disabled={busy || probing} busy={probing} onClick={() => void onProbe()}>
+        <PlugIcon />
         {probing ? t("testingConnection", "Testing…") : t("testConnection", "Test connection")}
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        style={{ ...buttonStyle(), color: "var(--fx-status-danger)" }}
-        onClick={onDelete}
-      >
-        {t("delete", "Delete")}
-      </button>
+      </Button>
     </div>
+  );
+}
+
+export function AccountFooter({
+  busy,
+  onDelete,
+  onCancel,
+  onSave,
+}: {
+  busy: boolean;
+  onDelete: () => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const { t } = useI18n();
+  return (
+    <footer
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        padding: "12px 16px 12px 12px",
+        borderTop: "1px solid var(--fx-line-default)",
+        background: "var(--fx-surface-raised)",
+        flexShrink: 0,
+      }}
+    >
+      <Button variant="ghost" disabled={busy} onClick={onDelete}>
+        <TrashIcon />
+        {t("delete", "Delete")}
+      </Button>
+      <span style={{ flex: 1 }} />
+      <Button variant="ghost" onClick={onCancel}>
+        {t("cancel", "Cancel")}
+      </Button>
+      <Button variant="primary" disabled={busy} onClick={onSave}>
+        {t("save", "Save")}
+      </Button>
+    </footer>
   );
 }

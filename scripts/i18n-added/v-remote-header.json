@@ -1,0 +1,20 @@
+[
+  "addChatApp",
+  "builtInPlugin",
+  "channelDetailAccess",
+  "channelDetailConnection",
+  "channelHeroFromApps",
+  "channelHeroThisComputer",
+  "channelLastMessage_days",
+  "channelLastMessage_hours",
+  "channelLastMessage_minutes",
+  "channelLastMessage_now",
+  "channelMethod_feishu",
+  "channelMethod_telegram",
+  "channelMethod_weixin",
+  "channelOffline",
+  "channelOnline",
+  "channelOpenDetail",
+  "pairingRequestHint",
+  "pairingRequestTitle"
+]

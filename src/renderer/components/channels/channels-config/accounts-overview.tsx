@@ -1,52 +1,46 @@
 import type { ChannelsSnapshot } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
-import { AccountCard } from "./account-card";
-import { updateFeishuCredential, updateTelegramToken } from "./account-credentials";
+import { AccountRow } from "./account-row";
+import { AddAppMenu, type AddAppActions } from "./add-app-menu";
 import { statusFor } from "./channel-labels";
+import { SectionCard, SectionHeader } from "./section-layout";
 
 export function AccountsOverview({
   snapshot,
   loading,
   busy,
-  run,
-  refresh,
+  onOpenAccount,
+  onReconnect,
+  ...addActions
 }: {
   snapshot: ChannelsSnapshot;
   loading: boolean;
   busy: boolean;
-  run: (task: () => Promise<unknown>) => Promise<void>;
-  refresh: () => Promise<void>;
-}) {
+  onOpenAccount: (accountId: string) => void;
+  onReconnect: (accountId: string) => void;
+} & AddAppActions) {
   const { t } = useI18n();
-  const configuredCount = snapshot.accounts.filter((account) => account.configured).length;
 
   return (
-    <section>
-      <div
-        style={{
-          fontSize: "var(--text-meta)",
-          color: "var(--fx-text-tertiary)",
-          textTransform: "uppercase",
-          letterSpacing: ".08em",
-          marginBottom: 8,
-        }}
-      >
-        {t("channelOverview", "Overview")} · {configuredCount} {t("configuredAccounts", "accounts configured")}
-      </div>
+    <section style={{ display: "flex", flexDirection: "column", gap: 12, width: "100%" }}>
+      <SectionHeader
+        title={t("messagingChannels", "Chat apps")}
+        count={snapshot.accounts.length}
+        aside={<AddAppMenu busy={busy} {...addActions} />}
+      />
       {loading ? (
-        <div style={{ color: "var(--fx-text-tertiary)", fontSize: "var(--text-label)" }}>
+        <div className="type-body-default" style={{ color: "var(--fx-text-tertiary)" }}>
           {t("loading", "Loading…")}
         </div>
       ) : snapshot.accounts.length === 0 ? (
         <div
+          className="type-body-default"
           style={{
-            border: "1px dashed var(--fx-line-default)",
-            borderRadius: "var(--radius-card)",
             padding: 28,
-            textAlign: "center",
+            border: "1px dashed var(--fx-line-default)",
+            borderRadius: "var(--radius-resource-card)",
             color: "var(--fx-text-tertiary)",
-            fontSize: "var(--text-label)",
+            textAlign: "center",
           }}
         >
           {t(
@@ -55,35 +49,22 @@ export function AccountsOverview({
           )}
         </div>
       ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {snapshot.accounts.map((account) => (
-            <AccountCard
-              key={account.id}
-              account={account}
-              status={statusFor(snapshot, account.id)}
-              busy={busy}
-              onSave={(next) => run(() => call("channels.accountUpsert", { account: next }))}
-              onStart={() => run(() => call("channels.start", { accountId: account.id }))}
-              onStop={() => run(() => call("channels.stop", { accountId: account.id }))}
-              onRestart={() => run(() => call("channels.restart", { accountId: account.id }))}
-              onProbe={() => call("channels.probe", { accountId: account.id })}
-              onUpdateToken={(token) => updateTelegramToken(account, token)}
-              onUpdateFeishuCredential={async (nextAccount, appSecret) => {
-                const probe = await updateFeishuCredential(account, nextAccount, appSecret, t);
-                await refresh();
-                return probe;
-              }}
-              onTestSend={(peerId, message) =>
-                run(() => call("channels.testSend", { accountId: account.id, peerId, message }))
-              }
-              onDelete={() => {
-                if (window.confirm(t("deleteChannelConfirm", "Delete this messaging account and its bindings?"))) {
-                  void run(() => call("channels.accountDelete", { accountId: account.id }));
-                }
-              }}
-            />
-          ))}
-        </div>
+        <SectionCard>
+          <ul style={{ margin: 0, padding: 0, listStyle: "none" }}>
+            {snapshot.accounts.map((account, index) => (
+              <AccountRow
+                key={account.id}
+                account={account}
+                status={statusFor(snapshot, account.id)}
+                snapshot={snapshot}
+                divider={index > 0}
+                busy={busy}
+                onOpen={() => onOpenAccount(account.id)}
+                onReconnect={() => onReconnect(account.id)}
+              />
+            ))}
+          </ul>
+        </SectionCard>
       )}
     </section>
   );

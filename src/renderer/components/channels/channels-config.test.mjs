@@ -16,6 +16,7 @@ const { AccountCard, FEISHU_PERMISSION_IMPORT_JSON, FeishuCredentialDialog, Logi
     },
     tsconfig: path.join(import.meta.dirname, "../../../../tsconfig.renderer.json"),
     external: ["react", "react-dom", "react-dom/*", "@rc-component/qrcode"],
+    loader: { ".png": "dataurl" },
   });
 
 test("Telegram token dialog renders connection failures without closing", () => {

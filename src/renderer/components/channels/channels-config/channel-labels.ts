@@ -11,13 +11,6 @@ export function statusFor(snapshot: ChannelsSnapshot, accountId: string): Channe
   return snapshot.statuses.find((status) => status.accountId === accountId);
 }
 
-export function statusColor(status?: ChannelStatus): string {
-  if (status?.state === "running") return "var(--fx-status-success)";
-  if (status?.state === "starting" || status?.state === "reconnecting") return "var(--fx-status-warning)";
-  if (status?.state === "error") return "var(--fx-status-danger)";
-  return "var(--fx-text-tertiary)";
-}
-
 export type Translate = (key: string, fallback: string) => string;
 
 export function channelStatusLabel(status: ChannelRuntimeState, t: Translate): string {
