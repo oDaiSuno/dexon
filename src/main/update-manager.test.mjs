@@ -479,3 +479,43 @@ test("available or downloaded updates and a disabled preference pause background
   await clock.advanceBy(1);
   assert.equal(adapter.checkCalls, 2, "enabling checks starts a new initial delay");
 });
+
+const releaseFiles = [
+  { url: "Dexon-0.2.0-arm64.zip", sha512: "arm-zip", size: 102_760_448 },
+  { url: "Dexon-0.2.0-arm64.dmg", sha512: "arm-dmg", size: 110_100_480 },
+  { url: "Dexon-0.2.0-x64.zip", sha512: "x64-zip", size: 107_479_040 },
+  { url: "Dexon-0.2.0-x64.dmg", sha512: "x64-dmg", size: 115_343_360 },
+];
+
+async function foundUpdate(target, files) {
+  const adapter = new FakeUpdateAdapter();
+  const manager = packagedManager(adapter, target);
+  adapter.checkImplementation = async () => adapter.emit("update-available", updateInfo({ files }));
+  const state = await manager.checkForUpdates();
+  manager.dispose();
+  return state;
+}
+
+test("as soon as an update is found, its state carries the size of the package this computer will download", async () => {
+  assert.equal((await foundUpdate({ platform: "darwin", arch: "arm64" }, releaseFiles)).total, 102_760_448);
+  assert.equal((await foundUpdate({ platform: "darwin", arch: "x64" }, releaseFiles)).total, 107_479_040);
+  const intelOnly = releaseFiles.filter((file) => !file.url.includes("arm64"));
+  assert.equal((await foundUpdate({ platform: "darwin", arch: "arm64" }, intelOnly)).total, 107_479_040);
+  const installer = [{ url: "Dexon-Unsigned-Beta-Setup-0.2.0.exe", sha512: "setup", size: 94_371_840 }];
+  assert.equal((await foundUpdate({ platform: "win32", arch: "x64" }, installer)).total, 94_371_840);
+});
+
+test("an update whose information has no usable package size reports no size", async () => {
+  const mac = { platform: "darwin", arch: "arm64" };
+  for (const files of [
+    [],
+    [{ url: "Dexon-0.2.0-arm64.zip", sha512: "arm-zip" }],
+    [{ url: "Dexon-0.2.0-arm64.zip", sha512: "arm-zip", size: 0 }],
+    [{ url: "Dexon-0.2.0-arm64.zip", sha512: "arm-zip", size: Number.NaN }],
+    [{ url: "Dexon-0.2.0-arm64.dmg", sha512: "arm-dmg", size: 110_100_480 }],
+  ]) {
+    const state = await foundUpdate(mac, files);
+    assert.equal(state.phase, "available");
+    assert.equal(state.total, undefined, JSON.stringify(files));
+  }
+});
