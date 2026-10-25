@@ -16,6 +16,7 @@ import {
   dom,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { accessibleName } from "../support/dom-queries.mjs";
 import {
   createdWorktreeBranch,
   navigationPaths,
@@ -50,7 +51,7 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.ok(blocks.includes("~"), "the personal folder lives in the home folder, shown as ~");
   assert.ok(!menu.textContent.includes(navigationPaths.home), "the card does not spell out the home folder");
   assert.deepEqual(
-    roles(menu, "menuitem").map((item) => item.textContent.trim()),
+    roles(menu, "menuitem").map((item) => accessibleName(item)),
     ["Add project space from folder…", "Back to personal space"],
   );
   await keyDown(menu, "Escape");
