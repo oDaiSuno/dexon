@@ -60,7 +60,7 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
         "the skill list",
       );
       await click(undefined, undefined, "production-checklist");
-      await waitFor(() => exists("region", "Skill markdown content"), "the skill preview");
+      await waitFor(() => exists("button", "Open in editor"), "the skill preview");
     },
   };
   const files = [];
