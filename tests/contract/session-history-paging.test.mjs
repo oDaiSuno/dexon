@@ -138,6 +138,8 @@ test("sessions.get reports usage and message counts for the whole session file r
     totalMessages: 5,
     tokens: { input: 650, output: 70, cacheRead: 30, cacheWrite: 5, total: 755 },
     cost: 1.875,
+    costs: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    lastCompactionAt: timestamp,
   });
   assert.equal(paged.info.messageCount, paged.stats.totalMessages);
 

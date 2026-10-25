@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { byRole, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
+import { button, byRole, click, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
 import { installApiHostBridge } from "../support/api-host.mjs";
 
 const { TopBar, resetRpc } = await loadRenderer(
@@ -76,6 +76,7 @@ async function mountPanel(t, overrides) {
 test("when the session panel is open with whole-session counts, it shows those counts for the session", async (t) => {
   const view = await mountPanel(t, { sessionStats: WHOLE_SESSION_STATS });
   const panel = sessionPanel(view);
+  await click(button(panel, "Details"));
   assert.ok(text(panel, "194 messages · 17 tool calls"), "the message and tool call totals are the whole session's");
   assert.ok(text(panel, "1.2k"), "the input size is the whole session's usage");
   assert.ok(text(panel, "567"), "the output size is the whole session's usage");
@@ -85,6 +86,7 @@ test("when the session panel is open with whole-session counts, it shows those c
 test("when the counts are not available yet, the session panel still names the session it belongs to", async (t) => {
   const view = await mountPanel(t, {});
   const panel = sessionPanel(view);
+  await click(button(panel, "Details"));
   assert.ok(panel.textContent.includes("session-one"), "the session ID is on screen");
   assert.ok(panel.textContent.includes("/workspace/notes.jsonl"), "the session file is on screen");
   assert.ok(panel.textContent.includes("Release notes"), "the session name is on screen");

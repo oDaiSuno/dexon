@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { byRole, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
+import { button, byRole, click, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
 import { installApiHostBridge } from "../support/api-host.mjs";
 
 const { TopBar, resetRpc, setAppLanguage } = await loadRenderer(
@@ -105,8 +105,9 @@ test("when the usage card is open, the cost part shows the session cost, the siz
   assert.ok(text(card, "按服务商公开价格估算，实际以账单为准。"), "the note says the cost is an estimate");
 });
 
-test("when the usage card is open, its bottom line sums up the messages and tool calls", async (t) => {
+test("when the usage card's details are opened, they sum up the messages and tool calls", async (t) => {
   const card = await openCard(t);
+  await click(button(card, "详细信息"));
   assert.ok(text(card, "47 条消息 · 128 次工具调用"), "the summary reads 47 条消息 · 128 次工具调用");
 });
 
@@ -122,8 +123,9 @@ test("when the context share is not known yet, the card says when it will appear
   );
 });
 
-test("when the usage card is open in English, the cost part and the bottom line are written in English", async (t) => {
+test("when the usage card is open in English, the cost part and the details are written in English", async (t) => {
   const card = await openCard(t, { language: "en-US" });
+  await click(button(card, "Details"));
   assert.ok(text(card, "Session cost"), "the cost part is titled Session cost");
   assert.ok(text(card, "47 messages · 128 tool calls"), "the bottom line reads 47 messages · 128 tool calls");
 });
