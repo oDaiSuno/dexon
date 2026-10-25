@@ -38,13 +38,12 @@ const GIT_REPO_LIST = {
   ],
 };
 
-function SwitcherScene({ departure, cwd }) {
+function SwitcherScene({ cwd }) {
   const workspace = useProjectWorkspace({
     sessions: [],
     selectedCwdProp: cwd,
     onCwdChange: () => {},
     refreshKey: 0,
-    requestDeparture: departure,
   });
   const composer = useComposerWorkspace({
     workspace,
@@ -56,10 +55,7 @@ function SwitcherScene({ departure, cwd }) {
   return composer ? createElement(WorkspaceTrigger, { workspace: composer, isMobile: false }) : null;
 }
 
-async function renderSwitcher(
-  t,
-  { removeWorktreeImpl, createWorktreeImpl, departure, cwd = "/repo", list = GIT_REPO_LIST } = {},
-) {
+async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl, cwd = "/repo", list = GIT_REPO_LIST } = {}) {
   const calls = { listed: 0, removed: [], created: [] };
   const replies = {
     async call(method, params) {
@@ -79,12 +75,7 @@ async function renderSwitcher(
     },
   };
   const host = installApiHostBridge(dom.window, () => replies, resetRpc);
-  const view = await mount(
-    t,
-    SwitcherScene,
-    { departure: departure ?? ((action) => action()), cwd },
-    { release: () => host.close() },
-  );
+  const view = await mount(t, SwitcherScene, { cwd }, { release: () => host.close() });
   await waitFor(() => assert.ok(calls.listed > 0));
   await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   return { ...view, calls };
@@ -116,20 +107,15 @@ async function openNewWorktree(view) {
   return view.container.querySelector("input");
 }
 
-test("a checkout switch and a worktree creation both wait for the departure owner before anything moves", async (t) => {
-  const departures = [];
-  const view = await renderSwitcher(t, { departure: (action) => departures.push(action) });
+test("a checkout switch and a worktree creation take effect at once", async (t) => {
+  const view = await renderSwitcher(t);
   await openWorktreeDropdown(view);
   await click([...view.container.querySelectorAll("button")].find((control) => control.title === "/repo/wt"));
-  assert.equal(departures.length, 1, "the checkout switch waits for the departure owner");
-  await act(async () => departures[0]());
   await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt"));
 
   const branch = await openNewWorktree(view);
   await input(branch, "feat-2");
   await keyDown(branch, "Enter");
-  assert.deepEqual(view.calls.created, [], "creating a worktree waits for the departure owner");
-  await act(async () => departures[1]());
   await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt2"));
   assert.deepEqual(view.calls.created, ["feat-2"]);
 });
@@ -210,8 +196,8 @@ test("in a folder outside Git the footer trigger shows only the project", async 
   assert.doesNotMatch(view.container.textContent, /main|feat/);
 });
 
-test("removing another worktree is sent at once, even while a departure is still undecided", async (t) => {
-  const view = await renderSwitcher(t, { departure: () => {} });
+test("removing another worktree is sent at once", async (t) => {
+  const view = await renderSwitcher(t);
   await openWorktreeDropdown(view);
   await click(
     [...view.container.querySelectorAll("button")].find((control) =>
