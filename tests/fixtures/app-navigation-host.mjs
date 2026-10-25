@@ -125,6 +125,17 @@ export function navigationBoundary({
         detail.info.name = params.name;
         return { ok: true };
       }
+      case "sessions.descendants": {
+        const found = [];
+        for (let frontier = [params.id]; frontier.length > 0;) {
+          const children = details
+            .filter((item) => frontier.includes(item.info.parentSessionId) && !found.includes(item.sessionId))
+            .map((item) => item.sessionId);
+          found.push(...children);
+          frontier = children;
+        }
+        return { sessionIds: found, runningSessionIds: found.filter((id) => runningSessions.has(id)) };
+      }
       case "sessions.delete": {
         const index = details.findIndex((item) => item.sessionId === params.id);
         if (index < 0) throw new Error(`Cannot delete unknown session ${params.id}`);

@@ -184,37 +184,46 @@ test(
   },
 );
 
-test("stopping or deleting the creator leaves the sessions it started running", { timeout: 120_000 }, async () => {
-  const parent = await host.createUserSession({ cwd: host.workspace("independent-parent") });
-  const childMessage = "Independent worker";
-  const child = host.model.script(childMessage, [{ hold: true, partial: "Working alone", rest: " and finished" }]);
-  const parentTurn = host.model.script("Start a worker that outlives you", [
-    toolCall("session_new", { message: childMessage, wait: false }),
-    { hold: true, partial: "The creator keeps thinking", rest: " and then finishes" },
-  ]);
-  const results = resultReader(host);
+test(
+  "stopping the creator leaves its workers running, and the creator cannot be deleted while a worker runs",
+  { timeout: 120_000 },
+  async () => {
+    const parent = await host.createUserSession({ cwd: host.workspace("independent-parent") });
+    const childMessage = "Independent worker";
+    const child = host.model.script(childMessage, [{ hold: true, partial: "Working alone", rest: " and finished" }]);
+    const parentTurn = host.model.script("Start a worker that outlives you", [
+      toolCall("session_new", { message: childMessage, wait: false }),
+      { hold: true, partial: "The creator keeps thinking", rest: " and then finishes" },
+    ]);
+    const results = resultReader(host);
 
-  await host.prompt(parent, "Start a worker that outlives you");
-  const childId = expectToolPayload((await results.next())[0], "the worker must be created").sessionId;
-  await child.partialSent(0);
-  await waitForRunning(childId);
-  await parentTurn.partialSent(1);
-  await waitForRunning(parent);
+    await host.prompt(parent, "Start a worker that outlives you");
+    const childId = expectToolPayload((await results.next())[0], "the worker must be created").sessionId;
+    await child.partialSent(0);
+    await waitForRunning(childId);
+    await parentTurn.partialSent(1);
+    await waitForRunning(parent);
 
-  await host.command(parent, { type: "abort" });
-  await waitUntil(async () => (await host.state(parent)).state?.isPromptRunning === false, {
-    timeoutMs: 15_000,
-    label: "the creator's turn to stop",
-  });
-  const afterStop = await host.state(childId);
-  assert.equal(afterStop.running, true, "the worker stays alive when its creator's turn is stopped");
-  assert.equal(afterStop.state.isPromptRunning, true);
+    await host.command(parent, { type: "abort" });
+    await waitUntil(async () => (await host.state(parent)).state?.isPromptRunning === false, {
+      timeoutMs: 15_000,
+      label: "the creator's turn to stop",
+    });
+    const afterStop = await host.state(childId);
+    assert.equal(afterStop.running, true, "the worker stays alive when its creator's turn is stopped");
+    assert.equal(afterStop.state.isPromptRunning, true);
 
-  await host.client.call("sessions.delete", { id: parent });
-  const afterDelete = await host.state(childId);
-  assert.equal(afterDelete.running, true, "the worker stays alive when its creator is deleted");
+    await assert.rejects(
+      host.client.call("sessions.delete", { id: parent }),
+      (error) => error.code === "CONFLICT",
+      "deleting the creator would delete its running worker too, so it is refused",
+    );
+    const afterDelete = await host.state(childId);
+    assert.equal(afterDelete.running, true, "the worker stays alive when deleting its creator is refused");
+    assert.ok(await host.sessionRow(parent), "the creator stays in the history");
 
-  child.release(0);
-  await waitForReply(childId, "Working alone and finished");
-  assert.ok(await host.sessionRow(childId));
-});
+    child.release(0);
+    await waitForReply(childId, "Working alone and finished");
+    assert.ok(await host.sessionRow(childId));
+  },
+);
