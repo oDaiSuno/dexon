@@ -138,6 +138,10 @@ export interface Api {
     result: { content: string; suggestedName: string };
   };
   "sessions.delete": { params: { id: string; force?: boolean }; result: { ok: true } };
+  "sessions.descendants": {
+    params: { id: string };
+    result: { sessionIds: string[]; runningSessionIds: string[] };
+  };
   "sessions.rename": {
     params: { id: string; name: string };
     result: { ok: true };

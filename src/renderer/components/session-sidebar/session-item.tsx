@@ -18,6 +18,7 @@ import {
 } from "./session-row-status";
 import { ExpandChevronGlyph } from "./session-relation-glyphs";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
+import { useSessionDelete } from "./use-session-delete";
 
 export function SessionItem({
   session,
@@ -52,22 +53,23 @@ export function SessionItem({
 }) {
   const { language, t } = useI18n();
   const [hovered, setHovered] = useState(false);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
   const naming = useSessionNaming(session.id);
   const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const actionsSummaryRef = useRef<HTMLButtonElement>(null);
+  const pointerFocusRef = useRef(false);
   const restoreFocusFrameRef = useRef<number | null>(null);
   const selectInputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const closeActionsMenu = useCallback((restoreFocus = false) => {
     setActionsOpen(false);
+    setMenuAt(null);
     if (restoreFocus) {
       if (restoreFocusFrameRef.current !== null) window.cancelAnimationFrame(restoreFocusFrameRef.current);
       restoreFocusFrameRef.current = window.requestAnimationFrame(() => {
@@ -76,6 +78,14 @@ export function SessionItem({
       });
     }
   }, []);
+
+  const deletion = useSessionDelete({
+    sessionId: session.id,
+    isRunning: Boolean(isRunning),
+    onDeleted,
+    onOpen: closeActionsMenu,
+    returnFocusRef: actionsSummaryRef,
+  });
 
   useEffect(
     () => () => {
@@ -136,57 +146,10 @@ export function SessionItem({
     }
   }, [renameValue, session.id, session.name, onRenamed]);
 
-  const handleDeleteClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      closeActionsMenu();
-      setDeleteError(null);
-      setConfirmDelete(true);
-    },
-    [closeActionsMenu],
-  );
-
-  const handleDeleteConfirm = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isRunning || deleting) return;
-      setDeleteError(null);
-      setDeleting(true);
-      try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setDeleteError(
-            body.error ??
-              t("deleteSessionFailedStatus", "Delete failed ({status})").replace("{status}", String(res.status)),
-          );
-          setDeleting(false);
-          return;
-        }
-        setConfirmDelete(false);
-        setDeleting(false);
-        onDeleted?.(session.id);
-      } catch (err) {
-        setDeleteError(err instanceof Error ? err.message : String(err));
-        setDeleting(false);
-      }
-    },
-    [session.id, onDeleted, isRunning, deleting, t],
-  );
-
-  const handleDeleteCancel = useCallback((e: React.MouseEvent | React.KeyboardEvent) => {
-    e.stopPropagation();
-    setConfirmDelete(false);
-    setDeleteError(null);
-    actionsSummaryRef.current?.focus();
-  }, []);
-
   const ITEM_HEIGHT = 30;
   const rowBackground = renaming
     ? "var(--fx-surface-raised)"
-    : isSelected || actionsOpen || confirmDelete
+    : isSelected || actionsOpen || deletion.open
       ? "var(--fx-surface-selected)"
       : hovered
         ? "var(--fx-surface-hover)"
@@ -195,6 +158,7 @@ export function SessionItem({
   const indicated = sessionRowIndicatedActivity(activity, foldedDescendants);
   const showTime = !naming && sessionRowShowsTime(indicated);
   const agentDone = relation === "delegate" && activity === "idle";
+  const revealed = hovered || keyboardFocus || actionsOpen;
 
   return (
     <div
@@ -204,6 +168,26 @@ export function SessionItem({
       onMouseLeave={() => {
         setHovered(false);
       }}
+      onMouseDown={() => {
+        pointerFocusRef.current = true;
+      }}
+      onFocus={() => {
+        setKeyboardFocus(!pointerFocusRef.current);
+        pointerFocusRef.current = false;
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardFocus(false);
+      }}
+      onContextMenu={
+        renaming
+          ? undefined
+          : (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenuAt({ x: event.clientX, y: event.clientY });
+              setActionsOpen(true);
+            }
+      }
       style={{
         height: ITEM_HEIGHT,
         position: "relative",
@@ -274,12 +258,14 @@ export function SessionItem({
               alignItems: "center",
               gap: 8,
               padding: 0,
+              paddingRight: revealed ? 28 : 0,
               border: 0,
               background: "transparent",
               color: "inherit",
               cursor: "pointer",
               font: "inherit",
               textAlign: "left",
+              transition: "padding-right var(--duration-quick) var(--ease-smooth-out)",
             }}
           >
             <SessionRowLead activity={activity} relation={relation} naming={naming} />
@@ -364,6 +350,7 @@ export function SessionItem({
               aria-expanded={actionsOpen}
               onClick={(event) => {
                 event.stopPropagation();
+                setMenuAt(null);
                 setActionsOpen((open) => !open);
               }}
               style={{
@@ -373,13 +360,13 @@ export function SessionItem({
                 width: 24,
                 height: 24,
                 padding: 0,
-                background: actionsOpen || hovered ? rowBackground : "transparent",
+                background: revealed ? rowBackground : "transparent",
                 border: "1px solid transparent",
                 borderRadius: "var(--radius-chip)",
                 color: actionsOpen ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                 cursor: "pointer",
-                opacity: actionsOpen || hovered ? 1 : 0,
-                pointerEvents: actionsOpen || hovered ? "auto" : "none",
+                opacity: revealed ? 1 : 0,
+                pointerEvents: revealed ? "auto" : "none",
                 transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
               }}
             >
@@ -389,17 +376,25 @@ export function SessionItem({
                 <circle cx="19" cy="12" r="1.7" />
               </svg>
             </button>
-            {actionsOpen && <SessionItemActionsMenu onRename={startRename} onDelete={handleDeleteClick} />}
+            {actionsOpen && (
+              <SessionItemActionsMenu
+                at={menuAt}
+                sessionPath={session.path}
+                onRename={startRename}
+                onDelete={deletion.requestDelete}
+              />
+            )}
           </div>
-          {confirmDelete && (
+          {deletion.open && (
             <SessionItemDeleteConfirm
               title={title}
               anchorRef={rowRef}
               blocked={Boolean(isRunning)}
-              busy={deleting}
-              error={deleteError}
-              onConfirm={handleDeleteConfirm}
-              onCancel={handleDeleteCancel}
+              subtree={deletion.subtree}
+              busy={deletion.busy}
+              error={deletion.error}
+              onConfirm={deletion.confirm}
+              onCancel={deletion.cancel}
             />
           )}
         </>

@@ -301,6 +301,14 @@ function listenPort(port: AnyMessagePort, onData: (data: unknown) => void): () =
   throw new Error("MessagePort has neither addEventListener nor on()");
 }
 
+function rpcErrorShapeOf(err: unknown): RpcErrorShape | null {
+  if (err instanceof RpcError) return { code: err.code, message: err.message, detail: err.detail };
+  if (!(err instanceof Error) || err.name !== "RpcError") return null;
+  const candidate = err as Error & { code?: unknown; detail?: unknown };
+  if (typeof candidate.code !== "string") return null;
+  return { code: candidate.code, message: err.message, detail: candidate.detail };
+}
+
 export function createRpcServer(): RpcServer {
   const handlers = new Map<string, (params: unknown, context: RpcRequestContext) => Promise<unknown> | unknown>();
   const ports = new Set<AnyMessagePort>();
@@ -393,18 +401,17 @@ export function createRpcServer(): RpcServer {
       response = { kind: "response", id: msg.id, ok: true, result };
     } catch (err) {
       const error: RpcErrorShape =
-        err instanceof RpcError
-          ? { code: err.code, message: err.message, detail: err.detail }
-          : err instanceof ToolchainError
-            ? {
-                code: err.code,
-                message: err.message,
-                detail: { capability: err.capability, causeCode: err.causeCode },
-              }
-            : {
-                code: "INTERNAL",
-                message: err instanceof Error ? err.message : String(err),
-              };
+        rpcErrorShapeOf(err) ??
+        (err instanceof ToolchainError
+          ? {
+              code: err.code,
+              message: err.message,
+              detail: { capability: err.capability, causeCode: err.causeCode },
+            }
+          : {
+              code: "INTERNAL",
+              message: err instanceof Error ? err.message : String(err),
+            });
       response = { kind: "response", id: msg.id, ok: false, error };
     }
     try {

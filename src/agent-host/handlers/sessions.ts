@@ -83,6 +83,82 @@ export interface SessionHandlerDeps {
 export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerDeps): () => Promise<void> {
   const { managedProcesses } = deps;
 
+  function sessionIsRunning(id: string): boolean {
+    const session = getRpcSession(id);
+    return Boolean(session?.isAlive() && session.isRunning());
+  }
+
+  async function collectDescendantIds(rootId: string): Promise<string[]> {
+    const sessions = await listHistorySessions();
+    const childrenByParent = new Map<string, string[]>();
+    for (const session of sessions) {
+      const parentId = session.parentSessionId;
+      if (!parentId) continue;
+      const siblings = childrenByParent.get(parentId);
+      if (siblings) siblings.push(session.id);
+      else childrenByParent.set(parentId, [session.id]);
+    }
+    const visited = new Set<string>([rootId]);
+    const collected: string[] = [];
+    let frontier = [rootId];
+    while (frontier.length > 0) {
+      const next: string[] = [];
+      for (const parentId of frontier) {
+        for (const childId of childrenByParent.get(parentId) ?? []) {
+          if (visited.has(childId)) continue;
+          visited.add(childId);
+          collected.push(childId);
+          next.push(childId);
+        }
+      }
+      frontier = next;
+    }
+    return collected;
+  }
+
+  async function deleteOneSession(id: string, force: boolean): Promise<void> {
+    const savedPath = await resolveSessionPath(id);
+    const unsaved = savedPath ? null : findUnsavedSession(id);
+    if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
+    const existing = getRpcSession(id);
+    const activeProcesses = managedProcesses.activeForSession(id);
+    if (activeProcesses.length > 0 && !force) {
+      throw new RpcError({
+        code: "CONFLICT",
+        message: "Session still owns managed processes. Stop them before deleting.",
+        detail: { managedProcessCount: activeProcesses.length },
+      });
+    }
+    if (activeProcesses.length > 0) {
+      await Promise.all(
+        activeProcesses.map((process) => managedProcesses.stop(process.processId, process.runId, "graceful", "user")),
+      );
+    }
+    if (existing?.isAlive()) {
+      if (existing.isRunning() && !force) {
+        throw new RpcError({
+          code: "CONFLICT",
+          message: "Session is still running. Stop it before deleting.",
+        });
+      }
+      // ISSUE-001: fully stop agent before unlinking session file
+      await existing.abortAndDispose();
+      clearSessionEventBinding(existing.sessionId || id);
+    }
+    const filePath = savedPath ?? (await resolveSessionPath(id));
+    const deletedSession = filePath ? removeSessionFile(filePath) : null;
+    deleteSessionOrigin(id);
+    deleteSessionLeafChoice(id);
+    removeSessionTranscript(id);
+    invalidateSessionPathCache(id);
+    void callMain("browser.sessionEnded", { sessionId: id }).catch(() => undefined);
+    server.emit("sessions.changed", id, {
+      cwd: deletedSession?.cwd ?? unsaved?.manager.getCwd() ?? null,
+      sessionId: id,
+      deleted: true,
+    });
+  }
+
   server.handle({
     "sessions.list": async (params) => {
       const traceId = resolveSessionTraceId();
@@ -316,44 +392,39 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const savedPath = await resolveSessionPath(id);
       const unsaved = savedPath ? null : findUnsavedSession(id);
       if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
-      const existing = getRpcSession(id);
-      const activeProcesses = managedProcesses.activeForSession(id);
-      if (activeProcesses.length > 0 && !force) {
-        throw new RpcError({
-          code: "CONFLICT",
-          message: "Session still owns managed processes. Stop them before deleting.",
-          detail: { managedProcessCount: activeProcesses.length },
-        });
-      }
-      if (activeProcesses.length > 0) {
-        await Promise.all(
-          activeProcesses.map((process) => managedProcesses.stop(process.processId, process.runId, "graceful", "user")),
-        );
-      }
-      if (existing?.isAlive()) {
-        if (existing.isRunning() && !force) {
+      const descendants = await collectDescendantIds(id);
+      if (!force) {
+        const runningDescendants = descendants.filter(sessionIsRunning);
+        if (runningDescendants.length > 0) {
           throw new RpcError({
             code: "CONFLICT",
-            message: "Session is still running. Stop it before deleting.",
+            message: "A sub-session is still running. Stop it before deleting.",
+            detail: { sessionIds: runningDescendants },
           });
         }
-        // ISSUE-001: fully stop agent before unlinking session file
-        await existing.abortAndDispose();
-        clearSessionEventBinding(existing.sessionId || id);
+        const busyDescendants = descendants.filter(
+          (descendant) => managedProcesses.activeForSession(descendant).length > 0,
+        );
+        if (busyDescendants.length > 0) {
+          throw new RpcError({
+            code: "CONFLICT",
+            message: "A sub-session still owns managed processes. Stop them before deleting.",
+            detail: { sessionIds: busyDescendants },
+          });
+        }
       }
-      const filePath = savedPath ?? (await resolveSessionPath(id));
-      const deletedSession = filePath ? removeSessionFile(filePath) : null;
-      deleteSessionOrigin(id);
-      deleteSessionLeafChoice(id);
-      removeSessionTranscript(id);
-      invalidateSessionPathCache(id);
-      void callMain("browser.sessionEnded", { sessionId: id }).catch(() => undefined);
-      server.emit("sessions.changed", id, {
-        cwd: deletedSession?.cwd ?? unsaved?.manager.getCwd() ?? null,
-        sessionId: id,
-        deleted: true,
-      });
+      for (const descendant of [...descendants].reverse()) await deleteOneSession(descendant, Boolean(force));
+      await deleteOneSession(id, Boolean(force));
       return { ok: true as const };
+    },
+
+    "sessions.descendants": async (params) => {
+      const { id } = params as { id: string };
+      const savedPath = await resolveSessionPath(id);
+      const unsaved = savedPath ? null : findUnsavedSession(id);
+      if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
+      const sessionIds = await collectDescendantIds(id);
+      return { sessionIds, runningSessionIds: sessionIds.filter(sessionIsRunning) };
     },
 
     "sessions.rename": async (params) => {

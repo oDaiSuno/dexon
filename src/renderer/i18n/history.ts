@@ -62,6 +62,10 @@ export const enUS: Record<string, string> = {
   sessionNaming: "Naming…",
   sessionChildCount: "{count} sub-sessions",
   sessionAgentDone: "Done",
+  copySessionPath: "Copy session path",
+  deleteSessionWithChildren: "“{title}” and its {count} sub-sessions will be deleted together. This can’t be undone.",
+  deleteSessionWithChild: "“{title}” and its sub-session will be deleted together. This can’t be undone.",
+  deleteRunningChildBlocked: "A sub-session is still running. Stop it before deleting.",
 };
 
 export const zhCN: Record<string, string> = {
@@ -128,4 +132,8 @@ export const zhCN: Record<string, string> = {
   sessionNaming: "正在命名…",
   sessionChildCount: "{count} 个子会话",
   sessionAgentDone: "已完成",
+  copySessionPath: "复制会话路径",
+  deleteSessionWithChildren: "“{title}”及其 {count} 个子会话会一并删除，且无法恢复。",
+  deleteSessionWithChild: "“{title}”及其 1 个子会话会一并删除，且无法恢复。",
+  deleteRunningChildBlocked: "有子会话仍在运行，请先停止再删除。",
 };

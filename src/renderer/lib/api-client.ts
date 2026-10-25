@@ -201,6 +201,10 @@ export async function deleteSession(id: string) {
   return call("sessions.delete", { id });
 }
 
+export async function getSessionDescendants(id: string) {
+  return call("sessions.descendants", { id });
+}
+
 export async function renameSession(id: string, name: string) {
   return call("sessions.rename", { id, name });
 }

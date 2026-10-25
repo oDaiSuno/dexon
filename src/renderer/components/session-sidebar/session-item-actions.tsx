@@ -1,13 +1,18 @@
 import { useI18n } from "@/i18n";
+import { formatNumber } from "@/lib/locale-format";
+import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import {
   useLayoutEffect,
+  useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
 import { Button } from "../form-controls";
+import { CopyGlyph } from "../processes/process-icons";
 import { RowIcon } from "./session-relation-glyphs";
+import type { SessionSubtree } from "./use-session-delete";
 
 function PencilLineGlyph() {
   return (
@@ -31,19 +36,55 @@ function TrashGlyph() {
   );
 }
 
+const MENU_WIDTH = 216;
+const VIEWPORT_MARGIN = 8;
+
 export function SessionItemActionsMenu({
+  at,
+  sessionPath,
   onRename,
   onDelete,
 }: {
+  at: { x: number; y: number } | null;
+  sessionPath: string;
   onRename: (event: ReactMouseEvent) => void;
   onDelete: (event: ReactMouseEvent) => void;
 }) {
   const { t } = useI18n();
+  const { copied, copy } = useCopyFeedback();
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [measuredTop, setMeasuredTop] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!at) {
+      setMeasuredTop(null);
+      return;
+    }
+    const menu = menuRef.current;
+    if (!menu) return;
+    const height = menu.getBoundingClientRect().height;
+    setMeasuredTop(
+      at.y + height > window.innerHeight - VIEWPORT_MARGIN ? window.innerHeight - VIEWPORT_MARGIN - height : at.y,
+    );
+    menu.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+  }, [at]);
+
+  const left = at ? Math.max(VIEWPORT_MARGIN, Math.min(at.x, window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN)) : 0;
+  const top = at ? Math.max(VIEWPORT_MARGIN, measuredTop ?? at.y) : 0;
+  const copyLabel = copied
+    ? t("copied", "Copied")
+    : copyFailed
+      ? t("copyFailed", "Copy failed")
+      : t("copySessionPath", "Copy session path");
+
   return (
     <div
+      ref={menuRef}
       role="menu"
       aria-label={t("sessionActions", "Session actions")}
       className="session-menu-card session-menu-card--menu composer-pop-in"
+      style={at ? { position: "fixed", left, top, right: "auto", transformOrigin: "top left" } : undefined}
     >
       <div className="session-menu-list">
         <button type="button" role="menuitem" className="session-menu-item type-body-large" onClick={onRename}>
@@ -51,6 +92,21 @@ export function SessionItemActionsMenu({
             <PencilLineGlyph />
           </span>
           <span className="session-menu-item-label">{t("rename", "Rename")}</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="session-menu-item type-body-large"
+          disabled={!sessionPath}
+          onClick={(event) => {
+            event.stopPropagation();
+            void copy(sessionPath).then((ok) => setCopyFailed(!ok));
+          }}
+        >
+          <span className="session-menu-item-icon">
+            <CopyGlyph size={15} />
+          </span>
+          <span className="session-menu-item-label">{copyLabel}</span>
         </button>
         <div aria-hidden="true" className="session-menu-separator">
           <div />
@@ -73,7 +129,6 @@ export function SessionItemActionsMenu({
 
 const CONFIRM_CARD_WIDTH = 264;
 const CONFIRM_CARD_OFFSET = 4;
-const VIEWPORT_MARGIN = 8;
 
 function useAnchoredPosition(anchorRef: RefObject<HTMLElement | null>) {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
@@ -105,6 +160,7 @@ export function SessionItemDeleteConfirm({
   blocked,
   busy,
   error,
+  subtree,
   onConfirm,
   onCancel,
 }: {
@@ -113,14 +169,29 @@ export function SessionItemDeleteConfirm({
   blocked: boolean;
   busy: boolean;
   error: string | null;
+  subtree: SessionSubtree;
   onConfirm: (event: ReactMouseEvent) => void;
   onCancel: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const position = useAnchoredPosition(anchorRef);
+  const subtreeError = subtree.status === "error" ? subtree.message : null;
+  const runsWithChild = subtree.status === "ready" && subtree.running;
   const notice =
     error ??
-    (blocked ? t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting.") : null);
+    (blocked ? t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting.") : null) ??
+    subtreeError ??
+    (runsWithChild ? t("deleteRunningChildBlocked", "A sub-session is still running. Stop it before deleting.") : null);
+  const childrenSentence =
+    subtree.status === "ready" && subtree.count > 0
+      ? (subtree.count === 1
+          ? t("deleteSessionWithChild", "“{title}” and its sub-session will be deleted together. This can’t be undone.")
+          : t(
+              "deleteSessionWithChildren",
+              "“{title}” and its {count} sub-sessions will be deleted together. This can’t be undone.",
+            ).replace("{count}", formatNumber(subtree.count, language))
+        ).replace("{title}", title)
+      : null;
   return (
     <div
       role="alertdialog"
@@ -140,11 +211,12 @@ export function SessionItemDeleteConfirm({
         </span>
         <div className="session-menu-confirm-text">
           <div className="type-body-large-medium">{t("deleteSessionTitle", "Delete this session?")}</div>
+          {childrenSentence && <p className="session-menu-confirm-notice type-label-default">{childrenSentence}</p>}
           {notice && (
             <p
               role="alert"
               className="session-menu-confirm-notice type-label-default"
-              data-tone={error ? "danger" : undefined}
+              data-tone={error || subtreeError ? "danger" : undefined}
             >
               {notice}
             </p>
@@ -152,7 +224,12 @@ export function SessionItemDeleteConfirm({
         </div>
       </div>
       <div className="session-menu-confirm-footer">
-        <Button variant="danger" busy={busy} disabled={blocked || busy} onClick={onConfirm}>
+        <Button
+          variant="danger"
+          busy={busy}
+          disabled={blocked || busy || subtree.status !== "ready" || subtree.running}
+          onClick={onConfirm}
+        >
           {t("delete", "Delete")}
         </Button>
         <Button autoFocus disabled={busy} onClick={onCancel}>

@@ -41,6 +41,7 @@ export const getSessionContextPage = unsupported("getSessionContextPage");
 export const getSessionEntryContent = unsupported("getSessionEntryContent");
 export const exportSession = unsupported("exportSession");
 export const deleteSession = unsupported("deleteSession");
+export const getSessionDescendants = unsupported("getSessionDescendants");
 export const renameSession = unsupported("renameSession");
 export const newAgent = unsupported("newAgent");
 export const agentCommand = unsupported("agentCommand");
