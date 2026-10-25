@@ -38,6 +38,10 @@ if (
     "show-update",
     "switch-session",
     "export-diagnostics",
+    "toggle-sidebar",
+    "open-processes",
+    "open-project-switcher",
+    "add-project",
   ] as const satisfies readonly DesktopMenuEvent[];
   const menuEventSet = new Set<string>(menuEvents);
   const menuEventReplays = new Map(menuEvents.map((event) => [event, new EarlyEventReplay<void>()]));

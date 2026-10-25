@@ -227,6 +227,15 @@ export function useRightPanelDock({
 
   useEffect(
     () =>
+      window.piBridge?.onMenu?.("open-processes", () => {
+        dispatchFileTab({ type: "select", tabId: PROCESSES_TAB_ID });
+        openRightPanel();
+      }),
+    [openRightPanel],
+  );
+
+  useEffect(
+    () =>
       window.piBridge.onBrowserEvent((event) => {
         if (event.type !== "tab-created" || !event.tab.ownerSessionId) return;
         void window.piBridge.browserGetSettings().then((settings) => {

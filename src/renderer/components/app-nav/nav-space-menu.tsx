@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, ty
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
+import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
 import { getParentFilePath } from "@shared/file-paths";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
 
@@ -112,13 +113,14 @@ export function NavSpaceMenu({
   onBackToPersonalSpace: () => void;
 }) {
   const { t } = useI18n();
+  const mac = window.piBridge?.platform === "darwin";
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const [activeIndex, setActiveIndex] = useState(-1);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = position !== null;
 
-  const actions: { label: string; icon: ReactNode; run: () => void }[] = [
+  const actions: { label: string; icon: ReactNode; run: () => void; shortcut?: { label: string; aria: string } }[] = [
     {
       label: t("addProjectSpace", "Add project space from folder…"),
       icon: (
@@ -129,6 +131,7 @@ export function NavSpaceMenu({
         </MenuIcon>
       ),
       run: onChooseFolder,
+      shortcut: mac ? { label: "⌘O", aria: "Meta+O" } : { label: "Ctrl O", aria: "Control+O" },
     },
     {
       label: t("backToPersonalSpace", "Back to personal space"),
@@ -163,6 +166,11 @@ export function NavSpaceMenu({
     close();
     run();
   };
+
+  const showRef = useRef(show);
+  showRef.current = show;
+
+  useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
 
   useEffect(() => {
     if (!open) return;
@@ -292,6 +300,8 @@ export function NavSpaceMenu({
                   type="button"
                   role="menuitem"
                   className="type-body-default"
+                  aria-label={action.label}
+                  aria-keyshortcuts={action.shortcut?.aria}
                   onMouseEnter={() => setActiveIndex(index)}
                   onFocus={() => setActiveIndex(index)}
                   onClick={() => choose(action.run)}
@@ -317,6 +327,15 @@ export function NavSpaceMenu({
                   >
                     {action.label}
                   </span>
+                  {action.shortcut && (
+                    <span
+                      aria-hidden="true"
+                      className="type-mono-meta"
+                      style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+                    >
+                      {action.shortcut.label}
+                    </span>
+                  )}
                 </button>
               ))}
               <GlideHighlight

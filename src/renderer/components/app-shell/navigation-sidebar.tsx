@@ -3,6 +3,7 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
+import { requestProjectSwitcher } from "@/lib/project-switcher-request";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
 import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
@@ -131,6 +132,20 @@ export function NavigationSidebar({
       if (result.status === "selected") setSpaceError(null);
     });
   }, [selectDirectoryFromPicker]);
+
+  useEffect(() => {
+    const offToggle = window.piBridge?.onMenu?.("toggle-sidebar", handleToggle);
+    const offSwitcher = window.piBridge?.onMenu?.("open-project-switcher", () => {
+      if (!open) onToggle();
+      requestProjectSwitcher();
+    });
+    const offAdd = window.piBridge?.onMenu?.("add-project", chooseFolder);
+    return () => {
+      offToggle?.();
+      offSwitcher?.();
+      offAdd?.();
+    };
+  }, [handleToggle, open, onToggle, chooseFolder]);
 
   const backToPersonalSpace = useCallback(() => {
     requestDeparture(() => {

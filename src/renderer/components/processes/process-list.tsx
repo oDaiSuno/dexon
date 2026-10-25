@@ -16,6 +16,7 @@ import {
   SquareGlyph,
   SquareTerminalGlyph,
 } from "./process-icons";
+import { KeyHint } from "../chat-input/SendControls";
 
 const SUMMARY_DOT = {
   running: "var(--fx-accent-blue)",
@@ -314,6 +315,7 @@ export function ProcessList({
 
 export function ProcessEmpty() {
   const { t } = useI18n();
+  const mac = window.piBridge?.platform === "darwin";
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-[10px] px-[48px] text-center">
       <span
@@ -334,6 +336,9 @@ export function ProcessEmpty() {
           "managedProcessEmptyDescription",
           "Dev servers and watchers started by the Agent show up here. View their logs, restart, or stop them anytime.",
         )}
+      </span>
+      <span className="pt-[4px]">
+        <KeyHint keyLabel={mac ? "⌘J" : "Ctrl J"} label={t("managedProcessOpenAnytime", "Open this anytime")} />
       </span>
     </div>
   );
