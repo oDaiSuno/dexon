@@ -160,11 +160,7 @@ export function FileExplorer({
           </div>
         ) : (
           <>
-            <div
-              className="flex flex-col gap-[1px]"
-              hidden={showingChanges}
-              style={{ display: showingChanges ? "none" : undefined }}
-            >
+            <div className="flex flex-col gap-[1px]" hidden={showingChanges}>
               {roots.map((node) => (
                 <TreeNode key={node.fullPath} node={node} depth={0} tree={tree} />
               ))}

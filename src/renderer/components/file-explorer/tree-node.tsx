@@ -5,8 +5,13 @@ import { encodeFilePathForApi, getRelativeFilePath, joinFilePath } from "@/lib/f
 import { directoryRefreshAction, shouldLoadDirectoryOnExpand } from "@/lib/directory-refresh";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { useI18n } from "@/i18n";
-import type { FolderChange, GitTreeMarks, Translate } from "./git-marks";
-import { CHANGE_LETTER_CLASS, fileChangeLabel } from "./git-marks";
+import {
+  CHANGE_LETTER_CLASS,
+  fileChangeLabel,
+  type FolderChange,
+  type GitTreeMarks,
+  type Translate,
+} from "./git-marks";
 
 interface FileEntry {
   name: string;
