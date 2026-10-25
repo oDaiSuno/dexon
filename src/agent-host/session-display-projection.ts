@@ -72,7 +72,7 @@ export function projectDisplayMessages(path: SessionEntry[]): ProjectedMessage[]
   return projected;
 }
 
-export interface RetryOutcome {
+interface RetryOutcome {
   attempt: number;
   maxAttempts: number;
 }
@@ -90,7 +90,7 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
-export function retryOutcomesByEntryId(path: SessionEntry[]): Map<string, RetryOutcome> {
+function retryOutcomesByEntryId(path: SessionEntry[]): Map<string, RetryOutcome> {
   const outcomes = new Map<string, RetryOutcome>();
   for (const entry of path) {
     if (entry.type !== "custom" || !isRetryOutcomeType(entry.customType) || !entry.parentId) continue;
