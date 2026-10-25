@@ -7,6 +7,7 @@ import test, { after } from "node:test";
 // module-level feature detection sees a realistic browser (fixture contract).
 import { dom, createManagedDomRoot, restoreGlobals } from "../resource-dom-environment.mjs";
 import { click, keyDown } from "../../../../tests/support/dom-events.mjs";
+import { accessibleName } from "../../../../tests/support/dom-queries.mjs";
 import { createElement } from "react";
 import { act } from "react";
 
@@ -91,7 +92,7 @@ test("the card is closed by default and opens with the current project group, th
     assert.ok(!(menu.textContent ?? "").includes("/Users/tester"), "the card does not spell out the home folder");
     const items = queryAll(menu, '[role="menuitem"]');
     assert.deepEqual(
-      items.map((item) => item.textContent ?? ""),
+      items.map((item) => accessibleName(item)),
       MENU_ITEMS,
       "the card must present the two approved space actions in order",
     );
@@ -108,7 +109,7 @@ test("choosing a space action fires exactly its callback and closes the menu", a
     await openMenu(root);
 
     const items = queryAll(dom.window.document.body, '[role="menuitem"]');
-    const addFolder = items.find((item) => item.textContent === "Add project space from folder…");
+    const addFolder = items.find((item) => accessibleName(item) === "Add project space from folder…");
     await click(addFolder);
 
     assert.equal(calls.chooseFolder, 1, "the add-from-folder action must fire once");
@@ -181,13 +182,13 @@ test("the keyboard reaches the actions: opening moves focus into the card, arrow
     const focused = () => dom.window.document.activeElement;
     assert.ok(menu.contains(focused()), "opening the card moves keyboard focus into it");
     await keyDown(focused(), "ArrowDown");
-    assert.equal(focused().textContent, MENU_ITEMS[0], "ArrowDown reaches the first action");
+    assert.equal(accessibleName(focused()), MENU_ITEMS[0], "ArrowDown reaches the first action");
     await keyDown(focused(), "ArrowDown");
-    assert.equal(focused().textContent, MENU_ITEMS[1], "ArrowDown moves to the next action");
+    assert.equal(accessibleName(focused()), MENU_ITEMS[1], "ArrowDown moves to the next action");
     await keyDown(focused(), "ArrowDown");
-    assert.equal(focused().textContent, MENU_ITEMS[0], "ArrowDown wraps to the first action");
+    assert.equal(accessibleName(focused()), MENU_ITEMS[0], "ArrowDown wraps to the first action");
     await keyDown(focused(), "ArrowUp");
-    assert.equal(focused().textContent, MENU_ITEMS[1], "ArrowUp wraps to the last action");
+    assert.equal(accessibleName(focused()), MENU_ITEMS[1], "ArrowUp wraps to the last action");
     await keyDown(focused(), "Escape");
     assert.equal(trigger.getAttribute("aria-expanded"), "false", "Escape closes the card");
     assert.equal(focused(), trigger, "Escape returns keyboard focus to the actions button");
