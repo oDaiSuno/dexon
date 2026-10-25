@@ -129,26 +129,38 @@ export function useProjectWorkspace({
     };
   }, [selectedCwd, wtRefreshKey, refreshKey]);
 
+  const openDirectory = useCallback(
+    async (dir: string): Promise<WorkspaceSelectResult> => {
+      try {
+        const res = await fetch("/api/cwd/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cwd: dir }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
+        if (!res.ok || data.error) {
+          return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
+        }
+        requestDeparture(() => setSelectedCwd(data.cwd ?? dir));
+        return { status: "selected" };
+      } catch (e) {
+        return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+    [t, requestDeparture],
+  );
+
   /** Desktop-native directory picker (design §6.1). Falls back to path input. */
   const selectDirectoryFromPicker = useCallback(async (): Promise<WorkspaceSelectResult> => {
+    let dir: string | null | undefined;
     try {
-      const dir = await window.piBridge?.selectDirectory?.();
-      if (!dir) return { status: "cancelled" };
-      const res = await fetch("/api/cwd/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: dir }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
-      if (!res.ok || data.error) {
-        return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
-      }
-      requestDeparture(() => setSelectedCwd(data.cwd ?? dir));
-      return { status: "selected" };
+      dir = await window.piBridge?.selectDirectory?.();
     } catch (e) {
       return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
     }
-  }, [t, requestDeparture]);
+    if (!dir) return { status: "cancelled" };
+    return openDirectory(dir);
+  }, [openDirectory]);
 
   const createWorktree = useCallback(async () => {
     const branch = wtNewBranch.trim();
@@ -284,6 +296,7 @@ export function useProjectWorkspace({
     selectedProject,
     showWorktreeSwitcher,
     selectDirectoryFromPicker,
+    openDirectory,
     wtDropdownOpen,
     toggleWorktreeDropdown,
     resetWorktreeDropdownForOutsideClick,

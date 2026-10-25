@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
+import { call } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { subscribeModelSettingsRequest } from "@/lib/model-settings-request";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
-import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
+import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-sidebar/project-workspace";
 import { useSessionDirectory } from "../session-sidebar/session-directory";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
@@ -77,6 +78,7 @@ export function NavigationSidebar({
     selectedProject,
     resetWorktreeDropdownForOutsideClick,
     selectDirectoryFromPicker,
+    openDirectory,
   } = workspace;
 
   useInitialSessionRestore({
@@ -127,12 +129,24 @@ export function NavigationSidebar({
     requestDeparture(() => onNewSession(createTemporarySessionId(), selectedCwd));
   }, [requestDeparture, selectedCwd, onNewSession]);
 
+  const reportSpaceResult = useCallback((result: WorkspaceSelectResult) => {
+    if (result.status === "invalid") setSpaceError(result.error);
+    if (result.status === "selected") setSpaceError(null);
+  }, []);
+
   const chooseFolder = useCallback(() => {
-    void selectDirectoryFromPicker().then((result) => {
-      if (result.status === "invalid") setSpaceError(result.error);
-      if (result.status === "selected") setSpaceError(null);
-    });
-  }, [selectDirectoryFromPicker]);
+    void selectDirectoryFromPicker().then(reportSpaceResult);
+  }, [selectDirectoryFromPicker, reportSpaceResult]);
+
+  const openFolder = useCallback(
+    (folder: string) => void openDirectory(folder).then(reportSpaceResult),
+    [openDirectory, reportSpaceResult],
+  );
+
+  const inspectFolder = useCallback(async (typed: string) => {
+    const result = await call("projects.inspectFolder", { path: typed });
+    return result.ok && result.path ? result.path : null;
+  }, []);
 
   useEffect(() => subscribeModelSettingsRequest(() => onOpenSettings("models")), [onOpenSettings]);
 
@@ -234,6 +248,8 @@ export function NavigationSidebar({
             void refreshSessions();
           }}
           onChooseFolder={chooseFolder}
+          onOpenFolder={openFolder}
+          inspectFolder={inspectFolder}
           onBackToPersonalSpace={backToPersonalSpace}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={toggleFold}

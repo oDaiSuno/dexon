@@ -169,6 +169,10 @@ export interface Api {
     params: { path: string };
     result: GitStatusResult;
   };
+  "projects.inspectFolder": {
+    params: { path: string };
+    result: { ok: boolean; path?: string; error?: string };
+  };
 
   // Agent lifecycle
   "agent.new": {

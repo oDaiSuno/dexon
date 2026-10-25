@@ -4,6 +4,7 @@ import { useI18n } from "@/i18n";
 import { filterSessionsForQuery, groupSessionsByProject, sessionProjectKey } from "@/lib/session-list";
 import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
 import { ProjectRow } from "./project-row";
+import type { SwitcherProject } from "./project-switcher-card";
 
 export interface ProjectTreeOptions {
   currentProject: string;
@@ -12,7 +13,7 @@ export interface ProjectTreeOptions {
   openProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
   onChooseFolder: () => void;
-  renderCurrentActions?: (name: string, revealed: boolean) => ReactNode;
+  renderCurrentActions?: (name: string, revealed: boolean, projects: readonly SwitcherProject[]) => ReactNode;
 }
 
 function PlusGlyph() {
@@ -110,10 +111,16 @@ export function NavHistory({
 
   const searching = query.trim().length > 0;
   const currentKey = tree.currentProject ? sessionProjectKey(tree.currentProject) : "";
-  const projects = groupSessionsByProject(sessions, tree.currentProject, tree.isPinnedProject)
-    .map((project) => ({ ...project, key: sessionProjectKey(project.root) }))
+  const grouped = groupSessionsByProject(sessions, tree.currentProject, tree.isPinnedProject).map((project) => ({
+    ...project,
+    key: sessionProjectKey(project.root),
+  }));
+  const projects = grouped
     .map((project) => ({ ...project, visible: filterSessionsForQuery(project.sessions, query) }))
     .filter((project) => !searching || project.visible.length > 0);
+  const switchTargets = grouped
+    .filter((project) => project.key !== currentKey)
+    .map((project) => ({ root: project.root, name: tree.projectName(project.root) }));
   const nothingMatches = searching && projects.length === 0;
 
   return (
@@ -147,7 +154,7 @@ export function NavHistory({
               onToggle={() => toggleProject(project.key, !open)}
               actions={
                 current && tree.renderCurrentActions
-                  ? (revealed) => tree.renderCurrentActions?.(name, revealed)
+                  ? (revealed) => tree.renderCurrentActions?.(name, revealed, switchTargets)
                   : undefined
               }
             />
