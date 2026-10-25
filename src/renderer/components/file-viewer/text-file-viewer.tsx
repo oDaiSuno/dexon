@@ -1,7 +1,8 @@
-import type { MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { useI18n } from "@/i18n";
 import { PathCrumbs } from "./path-crumbs";
+import type { SourceCursor } from "./source-view";
 import { StatusBar } from "./status-bar";
 import { TextFileContent } from "./text-file-content";
 import { TextModeToggles, type TextModeTogglesProps } from "./text-mode-toggles";
@@ -90,8 +91,11 @@ export function TextFileReady({
   watching,
 }: TextFileReadyProps) {
   const { language } = useI18n();
+  const [cursor, setCursor] = useState<SourceCursor | null>(null);
   const previewable = data.language === "html" || data.language === "markdown";
   const mode = viewMode === "diff" && hasDiff ? "diff" : previewable && previewMode ? "preview" : "source";
+  const lineCount = data.content.split("\n").length;
+  const visibleCursor = mode === "source" && cursor && cursor.line <= lineCount ? cursor : null;
 
   const openFileMenu = (event: MouseEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || !window.piBridge?.showFileContextMenu) return;
@@ -128,13 +132,16 @@ export function TextFileReady({
         viewMode={viewMode}
         previewMode={previewMode}
         wrapLines={wrapLines}
+        cursorLine={visibleCursor?.line ?? null}
+        onCursorChange={setCursor}
       />
       <StatusBar
         filePath={filePath}
         data={data}
-        lineCount={data.content.split("\n").length}
+        lineCount={lineCount}
         mode={mode}
         diffSummary={diffSummary}
+        cursor={visibleCursor}
       />
     </div>
   );

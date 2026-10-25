@@ -1,4 +1,5 @@
 import type { RpcServer } from "../../contract/rpc";
+import { isManagedProcessActiveState } from "../../contract/processes";
 import type {
   ManagedProcessReadParams,
   ManagedProcessWaitParams,
@@ -72,6 +73,15 @@ export function registerProcessHandlers(server: RpcServer, deps: ProcessHandlerD
       };
       return managedCall(() => managedProcesses.exportLogs(body.processId, body.runId, body.streams));
     },
+
+    "processes.clearFinished": () =>
+      managedCall(() => {
+        const finished = managedProcesses
+          .list(true)
+          .processes.filter((info) => !isManagedProcessActiveState(info.state) && info.state !== "lost");
+        for (const info of finished) managedProcesses.dismiss(info.processId);
+        return { ok: true as const, cleared: finished.length };
+      }),
   });
 
   // Host-level shutdown stops processes it owns; user-requested stops are explicit.

@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+import { CheckmarkIcon } from "./chat-input/icons";
 
 export type ActionMenuItem = {
   key: string;
   label: string;
+  title?: string;
+  checked?: boolean;
   danger?: boolean;
   disabled?: boolean;
   onSelect: () => void;
@@ -19,6 +22,8 @@ export type ActionMenuTriggerProps = {
 const MENU_GAP = 8;
 const ITEM_HEIGHT = 33;
 const LIST_PADDING = 10;
+const MAX_LIST_HEIGHT = 330;
+const ITEM_SELECTOR = "[role='menuitem']:not(:disabled), [role='menuitemradio']:not(:disabled)";
 
 export function ActionMenu({
   label,
@@ -36,15 +41,13 @@ export function ActionMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const open = position !== null;
 
-  const enabledItems = () => [
-    ...(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']:not(:disabled)") ?? []),
-  ];
+  const enabledItems = () => [...(menuRef.current?.querySelectorAll<HTMLButtonElement>(ITEM_SELECTOR) ?? [])];
   const focusTrigger = () => rootRef.current?.querySelector<HTMLElement>("[aria-haspopup='menu']")?.focus();
 
   const show = () => {
     const rect = rootRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const height = items.length * ITEM_HEIGHT + LIST_PADDING;
+    const height = Math.min(items.length * ITEM_HEIGHT, MAX_LIST_HEIGHT) + LIST_PADDING;
     const right = window.innerWidth - rect.right;
     const fitsBelow = rect.bottom + MENU_GAP + height <= window.innerHeight;
     setPosition(
@@ -60,7 +63,8 @@ export function ActionMenu({
 
   useEffect(() => {
     if (!open) return;
-    enabledItems()[0]?.focus();
+    const checked = menuRef.current?.querySelector<HTMLButtonElement>("[aria-checked='true']:not(:disabled)");
+    (checked ?? enabledItems()[0])?.focus();
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
@@ -126,12 +130,14 @@ export function ActionMenu({
             style={{ ...menuStyle, zIndex, ...position }}
             onKeyDown={onMenuKeyDown}
           >
-            <div className="session-menu-list">
+            <div className="session-menu-list" style={listStyle}>
               {items.map((item) => (
                 <button
                   key={item.key}
                   type="button"
-                  role="menuitem"
+                  role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+                  aria-checked={item.checked === undefined ? undefined : item.checked}
+                  title={item.title}
                   disabled={item.disabled}
                   className={
                     item.danger
@@ -142,6 +148,11 @@ export function ActionMenu({
                   onClick={() => choose(item)}
                 >
                   <span className="session-menu-item-label">{item.label}</span>
+                  {item.checked && (
+                    <span className="session-menu-item-icon">
+                      <CheckmarkIcon size={14} />
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -153,6 +164,7 @@ export function ActionMenu({
 }
 
 const menuStyle: CSSProperties = { position: "fixed" };
+const listStyle: CSSProperties = { maxHeight: MAX_LIST_HEIGHT, overflowY: "auto" };
 const disabledItemStyle: CSSProperties = {
   background: "var(--fx-surface-hover-clear)",
   color: "var(--fx-text-faint)",

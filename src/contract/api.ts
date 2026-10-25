@@ -107,6 +107,10 @@ export interface Api {
     params: { processId: string; runId: string; streams?: ManagedProcessLogStream[] };
     result: { saved: boolean; fileName?: string };
   };
+  "processes.clearFinished": {
+    params: void;
+    result: { ok: true; cleared: number };
+  };
 
   // Sessions & projects
   "sessions.list": {

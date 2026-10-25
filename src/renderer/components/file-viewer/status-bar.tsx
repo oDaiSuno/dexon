@@ -2,6 +2,7 @@ import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { getLanguageDisplayName } from "@/lib/file-types";
 import { useI18n } from "@/i18n";
 import { formatFileSize, formatNumber } from "@/lib/locale-format";
+import type { SourceCursor } from "./source-view";
 import type { DiffSummary } from "./use-text-file";
 
 export type StatusMode = "source" | "diff" | "preview";
@@ -21,12 +22,14 @@ export function StatusBar({
   lineCount,
   mode,
   diffSummary,
+  cursor,
 }: {
   filePath: string;
   data: TextFileData;
   lineCount: number;
   mode: StatusMode;
   diffSummary: DiffSummary | null;
+  cursor: SourceCursor | null;
 }) {
   const { language, t } = useI18n();
   const languageName = getLanguageDisplayName(filePath, data.language);
@@ -48,6 +51,13 @@ export function StatusBar({
       <span className="file-viewer-status-spacer" />
       <span className="type-mono-meta">{ending ? `UTF-8 \u00b7 ${ending}` : "UTF-8"}</span>
       {modeInfo && <span className="type-mono-meta">{modeInfo}</span>}
+      {cursor && (
+        <span className="type-mono-meta">
+          {t("sourceCursorPosition", "Ln {line}, Col {column}")
+            .replace("{line}", formatNumber(cursor.line, language))
+            .replace("{column}", formatNumber(cursor.column, language))}
+        </span>
+      )}
     </div>
   );
 }

@@ -75,6 +75,7 @@ export const enUS: Record<string, string> = {
   managedProcessSummaryIdle: "No processes running",
   managedProcessMoreActions: "More actions",
   managedProcessForceStopAll: "Force stop all",
+  managedProcessClearFinished: "Clear finished",
   managedProcessEmptyDescription:
     "Dev servers and watchers started by the Agent show up here. View their logs, restart, or stop them anytime.",
   forceStop: "Force Stop",
@@ -236,6 +237,7 @@ export const zhCN: Record<string, string> = {
   managedProcessSummaryIdle: "没有进程在运行",
   managedProcessMoreActions: "更多操作",
   managedProcessForceStopAll: "全部强制停止",
+  managedProcessClearFinished: "清除已结束的",
   managedProcessEmptyDescription: "Agent 启动的开发服务器、监听任务会出现在这里，你可以随时查看日志、重启或停止。",
   forceStop: "强制停止",
   dismiss: "移除记录",

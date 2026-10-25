@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import type { ManagedProcessPublicInfo } from "@contract/processes";
+import { type MouseEvent } from "react";
+import { isManagedProcessActiveState, type ManagedProcessPublicInfo } from "@contract/processes";
 import { useI18n } from "@/i18n";
+import { ActionMenu } from "../action-menu";
 import {
   endpointPort,
   formatDuration,
@@ -42,102 +43,25 @@ function SummaryItem({ tone, label }: { tone: "running" | "exited" | "failed"; l
   );
 }
 
-function MoreMenu({
-  busy,
-  onForceStopAll,
-  onExportDiagnostics,
-}: {
-  busy: boolean;
-  onForceStopAll: () => void;
-  onExportDiagnostics: () => void;
-}) {
-  const { t } = useI18n();
-  const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onMouseDown = (event: globalThis.MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      setOpen(false);
-      triggerRef.current?.focus();
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  const choose = (action: () => void) => {
-    setOpen(false);
-    action();
-  };
-
-  return (
-    <div ref={rootRef} className="relative">
-      <button
-        ref={triggerRef}
-        type="button"
-        className="process-summary-button flex size-[26px] shrink-0 items-center justify-center rounded-[var(--radius-chip)] p-0"
-        style={{ color: "var(--fx-text-tertiary)" }}
-        aria-label={t("managedProcessMoreActions", "More actions")}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <EllipsisGlyph />
-      </button>
-      {open && (
-        <div
-          role="menu"
-          aria-label={t("managedProcessMoreActions", "More actions")}
-          className="session-menu-card session-menu-card--menu composer-pop-in"
-        >
-          <div className="session-menu-list">
-            <button
-              type="button"
-              role="menuitem"
-              disabled={busy}
-              className="session-menu-item type-body-large"
-              onClick={() => choose(onExportDiagnostics)}
-            >
-              <span className="session-menu-item-label">{t("exportDiagnostics", "Export Diagnostics")}</span>
-            </button>
-            <button
-              type="button"
-              role="menuitem"
-              disabled={busy}
-              className="session-menu-item session-menu-item--danger type-body-large"
-              onClick={() => choose(onForceStopAll)}
-            >
-              <span className="session-menu-item-label">{t("managedProcessForceStopAll", "Force stop all")}</span>
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function ProcessSummary({
   processes,
   busy,
   onStopAll,
   onExportDiagnostics,
+  onClearFinished,
 }: {
   processes: ManagedProcessPublicInfo[];
   busy: boolean;
   onStopAll: (mode: "graceful" | "force") => void;
   onExportDiagnostics: () => void;
+  onClearFinished: () => void;
 }) {
   const { t } = useI18n();
   const summary = summarizeProcesses(processes);
+  const moreLabel = t("managedProcessMoreActions", "More actions");
+  const stopAll = () => onStopAll(summary.lost ? "force" : "graceful");
+  const stopAllDisabled = busy || (summary.running === 0 && !summary.lost);
+  const clearable = processes.some((p) => !isManagedProcessActiveState(p.state) && p.state !== "lost");
 
   return (
     <div
@@ -177,13 +101,48 @@ export function ProcessSummary({
             type="button"
             className="process-summary-button type-label-medium flex h-[26px] shrink-0 items-center gap-[6px] rounded-[var(--radius-chip)] px-[8px]"
             style={{ color: "var(--fx-text-secondary)" }}
-            disabled={busy || (summary.running === 0 && !summary.lost)}
-            onClick={() => onStopAll(summary.lost ? "force" : "graceful")}
+            disabled={stopAllDisabled}
+            onClick={stopAll}
           >
             <SquareGlyph />
             {t("stopAll", "Stop All")}
           </button>
-          <MoreMenu busy={busy} onForceStopAll={() => onStopAll("force")} onExportDiagnostics={onExportDiagnostics} />
+          <ActionMenu
+            label={moreLabel}
+            items={[
+              {
+                key: "export",
+                label: t("exportDiagnostics", "Export Diagnostics"),
+                disabled: busy,
+                onSelect: onExportDiagnostics,
+              },
+              { key: "stop", label: t("stopAll", "Stop All"), disabled: stopAllDisabled, onSelect: stopAll },
+              {
+                key: "force",
+                label: t("managedProcessForceStopAll", "Force stop all"),
+                danger: true,
+                disabled: busy,
+                onSelect: () => onStopAll("force"),
+              },
+              {
+                key: "clear",
+                label: t("managedProcessClearFinished", "Clear finished"),
+                disabled: busy || !clearable,
+                onSelect: onClearFinished,
+              },
+            ]}
+            trigger={(props) => (
+              <button
+                type="button"
+                className="process-summary-button flex size-[26px] shrink-0 items-center justify-center rounded-[var(--radius-chip)] p-0"
+                style={{ color: "var(--fx-text-tertiary)" }}
+                aria-label={moreLabel}
+                {...props}
+              >
+                <EllipsisGlyph />
+              </button>
+            )}
+          />
         </>
       )}
     </div>

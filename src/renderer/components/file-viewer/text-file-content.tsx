@@ -3,7 +3,7 @@ import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { MarkdownBody } from "../MarkdownBody";
 import { DiffView } from "./diff-view";
 import { HtmlPreview } from "./html-preview";
-import { SourceView } from "./source-view";
+import { SourceView, type SourceCursor } from "./source-view";
 import type { TextViewMode } from "./use-text-file";
 
 const JSX_FLAVORS: Readonly<Record<string, string>> = { javascript: "jsx", typescript: "tsx" };
@@ -24,6 +24,8 @@ export interface TextFileContentProps {
   viewMode: TextViewMode;
   previewMode: boolean;
   wrapLines: boolean;
+  cursorLine: number | null;
+  onCursorChange: (cursor: SourceCursor) => void;
 }
 
 export function TextFileContent({
@@ -36,6 +38,8 @@ export function TextFileContent({
   viewMode,
   previewMode,
   wrapLines,
+  cursorLine,
+  onCursorChange,
 }: TextFileContentProps) {
   const isHtml = data.language === "html";
   const isMarkdown = data.language === "markdown";
@@ -64,7 +68,13 @@ export function TextFileContent({
           </MarkdownBody>
         </div>
       ) : (
-        <SourceView code={data.content} language={sourceLanguage(data.language, filePath)} wrapLines={wrapLines} />
+        <SourceView
+          code={data.content}
+          language={sourceLanguage(data.language, filePath)}
+          wrapLines={wrapLines}
+          cursorLine={cursorLine}
+          onCursorChange={onCursorChange}
+        />
       )}
     </div>
   );

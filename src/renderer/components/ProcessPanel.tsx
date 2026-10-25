@@ -94,6 +94,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
           busy={busy}
           onStopAll={(mode) => void invoke(() => call("processes.stopAll", { mode }))}
           onExportDiagnostics={exportDiagnostics}
+          onClearFinished={() => void invoke(() => call("processes.clearFinished"))}
         />
       )}
       {error && (

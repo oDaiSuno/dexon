@@ -1,4 +1,5 @@
 export const enUS: Record<string, string> = {
+  allFileTabs: "All tabs",
   fileContextMenuUnavailable: "The file menu could not be opened.",
   fileIndexTruncated: "index truncated",
   fileSearchDegraded: "limited to this folder",
@@ -65,12 +66,14 @@ export const enUS: Record<string, string> = {
   projectChangesMonitored: "Project changes are monitored",
   projectWatcherUnavailable: "Project watcher unavailable",
   source: "Source",
+  sourceCursorPosition: "Ln {line}, Col {column}",
   static: "static",
   unchangedLines: "… {count} unchanged lines …",
   wrap: "Word wrap",
 };
 
 export const zhCN: Record<string, string> = {
+  allFileTabs: "全部标签",
   fileContextMenuUnavailable: "无法打开文件菜单。",
   fileIndexTruncated: "索引已截断",
   fileSearchDegraded: "仅显示当前文件夹",
@@ -135,6 +138,7 @@ export const zhCN: Record<string, string> = {
   projectChangesMonitored: "正在监控项目变更",
   projectWatcherUnavailable: "项目监听器不可用",
   source: "源码",
+  sourceCursorPosition: "第 {line} 行，第 {column} 列",
   static: "静态",
   unchangedLines: "… {count} 行未更改 …",
   wrap: "自动换行",
