@@ -193,6 +193,8 @@ export function navigationBoundary({
         return { config: { providers: {} }, version: "navigation-fixture-v1" };
       case "models.preferences.get":
         return { enabledModels: null, models: [] };
+      case "models.defaults.get":
+        return { model: null, thinkingLevel: "medium" };
       case "auth.providers":
       case "auth.allProviders":
         return { providers: [] };

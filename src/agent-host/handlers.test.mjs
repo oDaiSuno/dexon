@@ -74,6 +74,8 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "models.refreshCancel",
     "models.preferences.get",
     "models.preferences.set",
+    "models.defaults.get",
+    "models.defaults.set",
     "auth.providers",
     "skills.list",
     "plugins.list",
