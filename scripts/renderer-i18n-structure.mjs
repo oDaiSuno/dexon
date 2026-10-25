@@ -25,9 +25,6 @@ const PHASE_4_NAV_KEYS = new Set([
   "navPluginsSkills",
   "navHistory",
   "personalSpace",
-  "openCurrentFolder",
-  "chooseOtherFolder",
-  "switchSpace",
   "backToPersonalSpace",
   "pluginsTab",
   "skillsTab",
@@ -59,13 +56,7 @@ const MESSAGE_VERSION_KEYS = new Set([
   "messageEditFailed",
 ]);
 
-const NAVIGATION_INTEGRATION_KEYS = new Set([
-  "switchSpaceList",
-  "noOtherSpaces",
-  "spaceUnavailable",
-  "personalSpaceUnavailable",
-  "retry",
-]);
+const NAVIGATION_INTEGRATION_KEYS = new Set(["spaceUnavailable", "personalSpaceUnavailable", "retry"]);
 
 const SETTINGS_MIGRATION_KEYS = new Set([
   "settingsDescription",
