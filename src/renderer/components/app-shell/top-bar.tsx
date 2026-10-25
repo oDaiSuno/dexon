@@ -1,12 +1,12 @@
 import { useI18n } from "@/i18n";
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode, type RefObject } from "react";
 import { formatTokenCount } from "../chat-input/SessionControls";
 import { PathChevron, ProjectGlyph, SessionBreadcrumb, SessionTitle } from "./session-breadcrumb";
 import { UsageCard } from "./session-info-popover";
 import { formatUsageCost, formatUsagePercent } from "./usage-format";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
-import type { SessionCopyFeedback, SessionCopyField, ContextUsageState } from "./use-session-info";
+import type { SessionCopyFeedback, SessionCopyField, ContextUsageState, UsageCompaction } from "./use-session-info";
 
 const ICON_BUTTON: CSSProperties = {
   display: "flex",
@@ -109,6 +109,7 @@ function UsageCapsule({
   usedTokens,
   contextWindow,
   showWindow,
+  buttonRef,
 }: {
   open: boolean;
   onToggle: () => void;
@@ -121,12 +122,14 @@ function UsageCapsule({
   usedTokens: number | null;
   contextWindow: number | null;
   showWindow: boolean;
+  buttonRef: RefObject<HTMLButtonElement | null>;
 }) {
   const meterTone = alertTone ?? "var(--fx-text-body)";
   const resting = open ? "var(--fx-surface-selected)" : "var(--fx-surface-hover-clear)";
 
   return (
     <button
+      ref={buttonRef}
       type="button"
       onClick={onToggle}
       title={title}
@@ -244,6 +247,7 @@ export function TopBar({
   modelId,
   copyFeedback,
   onCopyField,
+  compaction,
   trailing,
   showChat,
 }: {
@@ -260,10 +264,41 @@ export function TopBar({
   modelId: string | null;
   copyFeedback: SessionCopyFeedback | null;
   onCopyField: (field: SessionCopyField, value: string) => void;
+  compaction?: UsageCompaction | null;
   trailing?: ReactNode;
   showChat: boolean;
 }) {
   const { language, t } = useI18n();
+  const usageRef = useRef<HTMLDivElement | null>(null);
+  const capsuleRef = useRef<HTMLButtonElement | null>(null);
+  const restoreFocusRef = useRef(false);
+
+  useEffect(() => {
+    if (activeTopPanel !== "session") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      restoreFocusRef.current = true;
+      onToggleTopPanel();
+    };
+    const onMouseDown = (event: MouseEvent) => {
+      if (usageRef.current?.contains(event.target as Node)) return;
+      onToggleTopPanel();
+    };
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("mousedown", onMouseDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("mousedown", onMouseDown);
+    };
+  }, [activeTopPanel, onToggleTopPanel]);
+
+  useEffect(() => {
+    if (activeTopPanel === "session" || !restoreFocusRef.current) return;
+    restoreFocusRef.current = false;
+    capsuleRef.current?.focus();
+  }, [activeTopPanel]);
 
   const percent = contextUsage?.percent ?? null;
   const contextWindow = contextUsage?.contextWindow ?? null;
@@ -348,8 +383,9 @@ export function TopBar({
       <span style={{ flex: "1 1 auto" }} />
 
       {showChat && (
-        <div style={{ position: "relative", display: "flex", flexShrink: 0 }}>
+        <div ref={usageRef} style={{ position: "relative", display: "flex", flexShrink: 0 }}>
           <UsageCapsule
+            buttonRef={capsuleRef}
             open={activeTopPanel === "session"}
             onToggle={onToggleTopPanel}
             label={t("contextAndCost", "View context and cost")}
@@ -370,6 +406,7 @@ export function TopBar({
               selectedSession={selectedSession}
               copyFeedback={copyFeedback}
               onCopyField={onCopyField}
+              compaction={compaction ?? null}
             />
           )}
         </div>

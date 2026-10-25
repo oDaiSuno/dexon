@@ -32,6 +32,7 @@ export function useChatWindow({
   onSessionStatsChange,
   onSessionStatsPanelOpen,
   onContextUsageChange,
+  onCompactionChange,
   onModelIdChange,
   onOpenFile,
   thinkingExpansionStore,
@@ -167,6 +168,8 @@ export function useChatWindow({
         sessionStats.tokens.cacheWrite,
         sessionStats.tokens.total,
         sessionStats.cost ?? 0,
+        JSON.stringify(sessionStats.costs ?? null),
+        sessionStats.lastCompactionAt ?? "",
       ].join("|")
     : null;
 
@@ -186,9 +189,7 @@ export function useChatWindow({
   );
 
   // Push context usage up to AppShell as well.
-  const ctxKey = contextUsage
-    ? `${contextUsage.percent ?? "null"}|${contextUsage.contextWindow}|${contextUsage.tokens ?? "null"}`
-    : null;
+  const ctxKey = contextUsage ? JSON.stringify(contextUsage) : null;
 
   const contextUsageRef = useRef(contextUsage);
 
@@ -203,6 +204,31 @@ export function useChatWindow({
       onContextUsageChange?.(null);
     },
     [onContextUsageChange],
+  );
+
+  const compaction = useMemo(
+    () =>
+      session || isNew
+        ? {
+            isCompacting,
+            disabled: agentRunning && !isCompacting,
+            error: compactError,
+            compact: () => void handleCompact(),
+            abort: handleAbortCompaction,
+          }
+        : null,
+    [session, isNew, isCompacting, agentRunning, compactError, handleCompact, handleAbortCompaction],
+  );
+
+  useEffect(() => {
+    onCompactionChange?.(compaction);
+  }, [compaction, onCompactionChange]);
+
+  useEffect(
+    () => () => {
+      onCompactionChange?.(null);
+    },
+    [onCompactionChange],
   );
 
   const displayModelId = displayModelValue?.modelId ?? null;
@@ -337,8 +363,7 @@ export function useChatWindow({
       onModelChange={handleModelChange}
       onModelsRefresh={refreshModels}
       onModelsRefreshCancel={cancelModelRefresh}
-      onCompact={session || isNew ? handleCompact : undefined}
-      onAbortCompaction={handleAbortCompaction}
+      onOpenUsage={onSessionStatsPanelOpen}
       isCompacting={isCompacting}
       compactError={compactError}
       compactResult={compactResult}

@@ -26,8 +26,7 @@ export interface ChatInputProps {
   onModelChange?: (provider: string, modelId: string) => void;
   onModelsRefresh?: () => Promise<void> | void;
   onModelsRefreshCancel?: () => void;
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   compactResult?: CompactResultInfo | null;

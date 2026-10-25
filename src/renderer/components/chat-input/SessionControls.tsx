@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from "react";
 import { useI18n } from "@/i18n";
+import { formatUsagePercent } from "../app-shell/usage-format";
 import { ChevronDownIcon, CompactIcon, Icon } from "./icons";
 import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import {
@@ -45,8 +46,7 @@ export interface SessionControlsProps {
   thinkingContainerRef: { current: HTMLDivElement | null };
   thinkingButtonRef: { current: HTMLButtonElement | null };
   /* compaction */
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
@@ -113,8 +113,7 @@ export function SessionControls(props: SessionControlsProps) {
     onThinkingToggle,
     thinkingContainerRef,
     thinkingButtonRef,
-    onCompact,
-    onAbortCompaction,
+    onOpenUsage,
     isCompacting,
     compactError,
     contextUsage,
@@ -184,23 +183,15 @@ export function SessionControls(props: SessionControlsProps) {
   });
 
   const contextPct = contextUsage?.percent ?? null;
-  const contextWindowTokens = contextUsage?.contextWindow ?? null;
   const compactUrgency = compactUrgencyOf(contextPct);
-  const compactRest = isCompacting ? tint("var(--fx-status-danger)", 8) : CLEAR;
-  const compactHover = isCompacting ? tint("var(--fx-status-danger)", 16) : mixWarning(compactUrgency, 24, HOVER);
+  const usageHintVisible =
+    onOpenUsage !== undefined && (isCompacting === true || (contextPct !== null && contextPct > 80));
+  const usageHintText = isCompacting
+    ? t("compacting", "Compacting…")
+    : t("contextUsageHint", "Context {percent}").replace("{percent}", formatUsagePercent(contextPct ?? 0));
   const soundLabel = soundEnabled
     ? t("disableCompletionSound", "Disable completion sound")
     : t("enableCompletionSound", "Enable completion sound");
-  // Option A: keep the capacity visible and mark the usage explicitly unknown
-  // (e.g. right after compaction) instead of hiding the numbers entirely.
-  const compactTitle = isCompacting
-    ? t("stopCompaction", "Stop compaction")
-    : contextPct === null && contextWindowTokens !== null
-      ? t(
-          "contextUsagePendingHint",
-          "Context usage updates after the next model response (e.g. right after compaction)",
-        )
-      : t("compact", "Compact context");
 
   return (
     <div
@@ -265,7 +256,7 @@ export function SessionControls(props: SessionControlsProps) {
         </div>
       )}
 
-      {onCompact && (
+      {(compactError || usageHintVisible) && (
         <div className="relative">
           {compactError && (
             <div
@@ -287,43 +278,34 @@ export function SessionControls(props: SessionControlsProps) {
               {compactError}
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              if (!visible) return;
-              closeDropdowns();
-              if (isCompacting) onAbortCompaction?.();
-              else onCompact();
-            }}
-            disabled={isStreaming && !isCompacting}
-            title={compactTitle}
-            aria-label={compactTitle}
-            className={`type-label-default ${GHOST_CLASS}`}
-            style={{
-              ...GHOST,
-              minWidth: 30,
-              padding: isMobile ? 0 : "0 var(--space-2)",
-              background: compactRest,
-              color: isCompacting
-                ? "var(--fx-status-danger)"
-                : mixWarning(compactUrgency, 100, "var(--fx-text-secondary)"),
-              cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
-              opacity: isStreaming && !isCompacting ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => !(isStreaming && !isCompacting) && paint(e, compactHover)}
-            onMouseLeave={(e) => paint(e, compactRest)}
-          >
-            {isCompacting ? <span className="size-2.5 rounded-[2px] bg-current" /> : <CompactIcon size={13} />}
-            {!isMobile && (
-              <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                {isCompacting
-                  ? t("compacting", "Compacting…")
-                  : contextWindowTokens !== null
-                    ? `${contextPct !== null ? `${contextPct.toFixed(1)}%` : "?"}/${formatTokenCount(contextWindowTokens)} · ${t("compactAction", "Compact")}`
-                    : t("compactAction", "Compact")}
-              </span>
-            )}
-          </button>
+          {usageHintVisible && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!visible) return;
+                closeDropdowns();
+                onOpenUsage?.();
+              }}
+              title={t("contextAndCost", "View context and cost")}
+              className={`type-label-default ${GHOST_CLASS}`}
+              style={{
+                ...GHOST,
+                gap: 4,
+                padding: "0 var(--space-2)",
+                color: isCompacting
+                  ? "var(--fx-status-danger)"
+                  : mixWarning(compactUrgency, 100, "var(--fx-text-secondary)"),
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) =>
+                paint(e, isCompacting ? tint("var(--fx-status-danger)", 16) : mixWarning(compactUrgency, 24, HOVER))
+              }
+              onMouseLeave={(e) => paint(e, CLEAR)}
+            >
+              <CompactIcon size={13} />
+              <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{usageHintText}</span>
+            </button>
+          )}
         </div>
       )}
 

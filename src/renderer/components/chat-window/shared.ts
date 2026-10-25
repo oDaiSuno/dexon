@@ -4,8 +4,10 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import { type ChatInputHandle } from "../ChatInput";
+import type { ContextUsageInfo } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { ComposerNavigation, ComposerWorkspace } from "../chat-input/types";
+import type { UsageCompaction } from "../app-shell/use-session-info";
 import { parseExpandedSkillMessage, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
 export interface Props {
   session: SessionInfo | null;
@@ -23,9 +25,8 @@ export interface Props {
   onSystemPromptChange?: (prompt: string | null) => void;
   onSessionStatsChange?: (stats: SessionStatsInfo | null) => void;
   onSessionStatsPanelOpen?: () => void;
-  onContextUsageChange?: (
-    usage: { percent: number | null; contextWindow: number; tokens: number | null } | null,
-  ) => void;
+  onContextUsageChange?: (usage: ContextUsageInfo | null) => void;
+  onCompactionChange?: (compaction: UsageCompaction | null) => void;
   onModelIdChange?: (modelId: string | null) => void;
   onOpenFile?: (filePath: string) => void;
   /** True while this chat surface is the page currently shown to the user. */

@@ -355,6 +355,7 @@ export function AppShell({
               sessionStats={info.sessionStats}
               contextUsage={info.contextUsage}
               modelId={info.modelId}
+              compaction={info.compaction}
               copyFeedback={info.sessionCopyFeedback}
               onCopyField={info.handleCopySessionField}
               trailing={
@@ -400,6 +401,7 @@ export function AppShell({
                     onSessionStatsChange={info.setSessionStats}
                     onSessionStatsPanelOpen={openSessionStatsPanel}
                     onContextUsageChange={info.setContextUsage}
+                    onCompactionChange={info.setCompaction}
                     onModelIdChange={info.setModelId}
                     onOpenFile={handleOpenLinkedFile}
                     channelSnapshot={channels.channelSnapshot}

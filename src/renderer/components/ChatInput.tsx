@@ -45,8 +45,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onModelChange,
     onModelsRefresh,
     onModelsRefreshCancel,
-    onCompact,
-    onAbortCompaction,
+    onOpenUsage,
     isCompacting,
     compactError,
     compactResult,
@@ -448,8 +447,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onCloseModelDropdown={closeModelDropdown}
       onManageModels={handleManageModels}
       isAutoModelSelection={isAutoModelSelection}
-      onCompact={onCompact}
-      onAbortCompaction={onAbortCompaction}
+      onOpenUsage={onOpenUsage}
       isCompacting={isCompacting}
       compactError={compactError}
       contextUsage={contextUsage}

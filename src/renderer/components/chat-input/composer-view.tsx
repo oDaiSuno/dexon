@@ -109,8 +109,7 @@ export interface ComposerViewProps {
   onCloseModelDropdown: () => void;
   onManageModels?: () => void;
   isAutoModelSelection?: boolean;
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
@@ -217,8 +216,7 @@ export function ComposerView(props: ComposerViewProps) {
     onModelPick,
     onCloseModelDropdown,
     onManageModels,
-    onCompact,
-    onAbortCompaction,
+    onOpenUsage,
     isCompacting,
     compactError,
     contextUsage,
@@ -474,8 +472,7 @@ export function ComposerView(props: ComposerViewProps) {
             onThinkingToggle={onToggleThinkingDropdown}
             thinkingContainerRef={thinkingContainerRef}
             thinkingButtonRef={thinkingButtonRef}
-            onCompact={onCompact}
-            onAbortCompaction={onAbortCompaction}
+            onOpenUsage={onOpenUsage}
             isCompacting={isCompacting}
             compactError={compactError}
             contextUsage={contextUsage}

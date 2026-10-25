@@ -30,10 +30,20 @@ export interface SessionInfo {
   worktreeBranch?: string;
 }
 
+export interface ContextUsageBreakdown {
+  systemPrompt: number;
+  tools: number;
+  agentsAndSkills: number;
+  conversation: number;
+  toolResults: number;
+}
+
 export interface ContextUsageInfo {
   percent: number | null;
   contextWindow: number;
   tokens: number | null;
+  reserveTokens?: number;
+  breakdown?: ContextUsageBreakdown;
 }
 
 export interface SessionDetail {
@@ -71,6 +81,8 @@ export interface SessionStatsSummary {
     total: number;
   };
   cost: number;
+  costs: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  lastCompactionAt: string | null;
 }
 
 export interface ContextInfo {
