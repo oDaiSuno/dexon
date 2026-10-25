@@ -269,9 +269,15 @@ export function ProviderTree({
               status={labels.oauthStatus(p)}
               action={
                 p.loggedIn ? undefined : (
-                  <span aria-hidden="true" className="ui-button type-body-medium">
+                  <Button
+                    aria-label={t("modelLoginTo", "Log in to {name}").replace("{name}", p.name)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpen({ type: "oauth", providerId: p.id, startLogin: true });
+                    }}
+                  >
                     {t("modelLogin", "Login")}
-                  </span>
+                  </Button>
                 )
               }
               divider={index > 0}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Button } from "../form-controls";
 import { useI18n } from "@/i18n";
 
@@ -26,6 +27,7 @@ export function TrashIcon() {
 export function DialogFooter({
   padding,
   deleteLabel,
+  deleteDanger = false,
   onDelete,
   onCancel,
   onSave,
@@ -33,9 +35,12 @@ export function DialogFooter({
   deleting = false,
   saveDisabled,
   cancelLabel,
+  leading,
+  actions,
 }: {
   padding: string;
   deleteLabel?: string;
+  deleteDanger?: boolean;
   onDelete?: () => void;
   onCancel: () => void;
   onSave?: () => void;
@@ -43,6 +48,8 @@ export function DialogFooter({
   deleting?: boolean;
   saveDisabled?: boolean;
   cancelLabel?: string;
+  leading?: ReactNode;
+  actions?: ReactNode;
 }) {
   const { t } = useI18n();
   return (
@@ -58,12 +65,25 @@ export function DialogFooter({
       }}
     >
       {deleteLabel && onDelete && (
-        <Button variant="ghost" onClick={onDelete} disabled={saving || deleting} busy={deleting}>
-          <TrashIcon />
+        <Button
+          variant="ghost"
+          onClick={onDelete}
+          disabled={saving || deleting}
+          busy={deleting}
+          style={deleteDanger ? { color: "var(--fx-status-danger)" } : undefined}
+        >
+          {deleteDanger ? (
+            <span aria-hidden="true" style={{ display: "inline-flex", color: "var(--fx-status-danger)" }}>
+              <TrashIcon />
+            </span>
+          ) : (
+            <TrashIcon />
+          )}
           {deleting ? t("modelRemoving", "Removing…") : deleteLabel}
         </Button>
       )}
-      <span style={{ flex: 1 }} />
+      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>{leading}</div>
+      {actions}
       <Button variant="ghost" onClick={onCancel} disabled={saving || deleting}>
         {cancelLabel ?? t("cancel", "Cancel")}
       </Button>

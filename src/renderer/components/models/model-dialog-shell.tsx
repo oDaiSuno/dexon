@@ -51,7 +51,7 @@ export function ModelDialogShell({
   elevated?: boolean;
   layer?: number;
   dirty: boolean;
-  title: string;
+  title: ReactNode;
   subtitle?: string;
   leading?: ReactNode;
   trailing?: ReactNode;

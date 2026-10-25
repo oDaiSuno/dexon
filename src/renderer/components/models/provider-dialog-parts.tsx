@@ -1,5 +1,6 @@
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { Toggle } from "../form-controls";
+import { useI18n } from "@/i18n";
 import { ProviderIcon } from "./provider-icon";
 
 const iconProps = {
@@ -37,6 +38,96 @@ export const rowStyle: CSSProperties = {
   cursor: "pointer",
   transition: "background-color var(--duration-quick) var(--ease-smooth-out)",
 };
+
+export function EditableDialogTitle({ value, onCommit }: { value: string; onCommit: (name: string) => void }) {
+  const { t } = useI18n();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const focusBackRef = useRef(false);
+  const label = t("modelRenameChannel", "Rename {name}").replace("{name}", value);
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+      return;
+    }
+    if (focusBackRef.current) {
+      focusBackRef.current = false;
+      buttonRef.current?.focus();
+    }
+  }, [editing]);
+
+  const start = () => {
+    focusBackRef.current = true;
+    setDraft(value);
+    setEditing(true);
+  };
+  const commit = () => {
+    const next = draft.trim();
+    if (next && next !== value) onCommit(next);
+    setEditing(false);
+  };
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        aria-label={t("modelChannelName", "Channel name")}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={commit}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            commit();
+            return;
+          }
+          if (event.key === "Escape") {
+            event.preventDefault();
+            event.stopPropagation();
+            setEditing(false);
+          }
+        }}
+        className="ui-input type-title-dialog"
+        spellCheck={false}
+        style={{ width: "100%", height: 28, minHeight: 28 }}
+      />
+    );
+  }
+
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      aria-label={label}
+      title={label}
+      onClick={start}
+      className="type-title-dialog"
+      {...rowHover}
+      style={{
+        maxWidth: "100%",
+        margin: "0 -4px",
+        padding: "0 4px",
+        border: "none",
+        borderRadius: "var(--radius-chip)",
+        background: "var(--fx-surface-hover-clear)",
+        color: "var(--fx-text-primary)",
+        font: "inherit",
+        textAlign: "left",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        cursor: "text",
+        transition: "background-color var(--duration-quick) var(--ease-smooth-out)",
+      }}
+    >
+      {value}
+    </button>
+  );
+}
 
 export function DialogLogoTile({ id }: { id: string }) {
   return (

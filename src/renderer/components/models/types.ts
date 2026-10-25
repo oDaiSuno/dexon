@@ -39,7 +39,7 @@ export type ModelTestState =
   | { phase: "error"; message: string; latencyMs?: number; status?: number };
 
 export type DialogTarget =
-  | { type: "oauth"; providerId: string }
+  | { type: "oauth"; providerId: string; startLogin?: boolean }
   | { type: "apikey"; providerId: string }
   | { type: "provider"; name: string | null };
 

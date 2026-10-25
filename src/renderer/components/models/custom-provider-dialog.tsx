@@ -13,7 +13,7 @@ import { ModelDialog } from "./model-dialog";
 import { ModelDialogShell, useSaveNotice } from "./model-dialog-shell";
 import { DialogFooter } from "./models-footer";
 import { ProviderDetail } from "./provider-detail";
-import { DialogLogoTile } from "./provider-dialog-parts";
+import { DialogLogoTile, EditableDialogTitle } from "./provider-dialog-parts";
 import { useProviderLabels } from "./provider-tree";
 import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
 
@@ -90,7 +90,7 @@ export function CustomProviderDialog({
         width={560}
         divided
         dirty={dirty}
-        title={name.trim() || initial.name}
+        title={<EditableDialogTitle value={name.trim() || initial.name} onCommit={setName} />}
         subtitle={labels.customMeta(entry)}
         leading={<DialogLogoTile id={name} />}
         notice={notice}
@@ -110,10 +110,8 @@ export function CustomProviderDialog({
       >
         <div style={{ padding: "20px 20px 8px" }}>
           <ProviderDetail
-            name={name}
             savedName={originalName}
             provider={entry}
-            onNameChange={setName}
             onChange={setEntry}
             modelSelection={modelSelectionOf(editor)}
             onOpenModel={(index) => setModelTarget({ index })}

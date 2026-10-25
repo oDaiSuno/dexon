@@ -112,11 +112,13 @@ export function TextInput({
   onChange,
   placeholder,
   mono,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   mono?: boolean;
+  onBlur?: () => void;
 }) {
   const controlId = useFieldControlId();
 
@@ -125,6 +127,7 @@ export function TextInput({
       id={controlId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       placeholder={placeholder}
       className={inputClassName(mono)}
       data-mono={mono || undefined}
@@ -141,6 +144,7 @@ export function SecretTextInput({
   autoComplete = "off",
   spellCheck = false,
   style,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -150,6 +154,7 @@ export function SecretTextInput({
   autoComplete?: string;
   spellCheck?: boolean;
   style?: CSSProperties;
+  onBlur?: () => void;
 }) {
   const { t } = useI18n();
   const [visible, setVisible] = useState(false);
@@ -161,7 +166,14 @@ export function SecretTextInput({
   }, [value]);
 
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", ...style }}>
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", ...style }}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (next?.nodeType && event.currentTarget.contains(next)) return;
+        onBlur?.();
+      }}
+    >
       <input
         id={controlId}
         type={visible ? "text" : "password"}

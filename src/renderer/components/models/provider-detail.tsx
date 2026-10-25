@@ -189,19 +189,15 @@ function CustomModelsSection({
 }
 
 export function ProviderDetail({
-  name,
   savedName,
   provider,
-  onNameChange,
   onChange,
   modelSelection,
   onOpenModel,
   onAddModel,
 }: {
-  name: string;
   savedName: string | null;
   provider: ProviderEntry;
-  onNameChange: (n: string) => void;
   onChange: (p: ProviderEntry) => void;
   modelSelection: ModelSelectionControl;
   onOpenModel: (index: number) => void;
@@ -218,10 +214,6 @@ export function ProviderDetail({
   return (
     <DetailSections>
       <DetailSection title={t("modelProvider", "Connection")} gap={14}>
-        <Field labelSize="body" label={t("modelProviderName", "Provider name")}>
-          <TextInput value={name} onChange={onNameChange} placeholder="provider-name" mono />
-        </Field>
-
         <ProtocolSegmented
           label={t("modelApi", "Protocol")}
           value={provider.api ?? "openai-completions"}

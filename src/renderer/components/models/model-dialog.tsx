@@ -3,6 +3,7 @@ import { useI18n } from "@/i18n";
 import type { ModelEntry, ProviderEntry } from "@/lib/models-config-state";
 import { ModelDetail } from "./model-detail";
 import { ModelDialogShell } from "./model-dialog-shell";
+import { ModelTestButton, ModelTestStatus, useModelConnectionTest } from "./model-connection-test";
 import { DialogFooter } from "./models-footer";
 
 function compactTokens(value: number): string {
@@ -41,6 +42,7 @@ export function ModelDialog({
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<ModelEntry>(model);
+  const test = useModelConnectionTest({ providerName, provider, model: draft });
   const dirty = JSON.stringify(draft) !== JSON.stringify(model);
 
   return (
@@ -56,7 +58,10 @@ export function ModelDialog({
         <DialogFooter
           padding="var(--space-3) var(--space-5) var(--space-3) var(--space-4)"
           deleteLabel={isNew ? undefined : t("modelRemove", "Delete model")}
+          deleteDanger
           onDelete={onDelete}
+          leading={<ModelTestStatus state={test.state} summary={test.summary} />}
+          actions={<ModelTestButton state={test.state} disabled={test.disabled} onTest={() => void test.run()} />}
           onCancel={onClose}
           onSave={() => onSave(draft)}
           saving={false}
@@ -65,7 +70,7 @@ export function ModelDialog({
       }
     >
       <div style={{ padding: "var(--space-4) var(--space-5) var(--space-5)" }}>
-        <ModelDetail providerName={providerName} provider={provider} model={draft} onChange={setDraft} />
+        <ModelDetail model={draft} onChange={setDraft} />
       </div>
     </ModelDialogShell>
   );

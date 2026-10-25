@@ -4,21 +4,34 @@ import { ManagedModelsControl } from "./managed-models-control";
 import { DetailSection, DetailSections, FieldHint } from "./provider-dialog-parts";
 import type { ApiKeyProvider, ModelSelectionControl } from "./types";
 
+function SavedNote() {
+  const { t } = useI18n();
+  return (
+    <span role="status" className="type-label-default" style={{ color: "var(--fx-status-success-text)" }}>
+      {t("saved", "Saved")}
+    </span>
+  );
+}
+
 export function ApiKeyDetail({
   provider,
   baseUrl,
   onBaseUrlChange,
+  onBaseUrlBlur,
   apiKey,
   onApiKeyChange,
-  onSubmit,
+  onApiKeySave,
+  savedField,
   modelSelection,
 }: {
   provider: ApiKeyProvider;
   baseUrl: string;
   onBaseUrlChange: (baseUrl: string) => void;
+  onBaseUrlBlur: () => void;
   apiKey: string;
   onApiKeyChange: (apiKey: string) => void;
-  onSubmit: () => void;
+  onApiKeySave: () => void;
+  savedField: "baseUrl" | "apiKey" | null;
   modelSelection: ModelSelectionControl;
 }) {
   const { t } = useI18n();
@@ -26,39 +39,31 @@ export function ApiKeyDetail({
   return (
     <DetailSections>
       <DetailSection title={t("modelProvider", "Connection")} gap={14}>
-        <p className="sr-only">
-          {provider.configured
-            ? t(
-                "modelApiKeyStored",
-                "API key is stored. Enter a new key below to replace it, or disconnect to remove it.",
-              )
-            : t("modelEnterApiKey", "Enter your {provider} API key to enable {count} models.")
-                .replace("{provider}", provider.displayName)
-                .replace("{count}", String(provider.modelCount))}{" "}
-          {t("modelBaseUrlHint", "Overrides the endpoint for this provider. Takes effect after you click Save.")}
-        </p>
-
         <Field labelSize="body" label={t("modelBaseUrl", "Base URL")}>
           <TextInput
             value={baseUrl}
             onChange={onBaseUrlChange}
+            onBlur={onBaseUrlBlur}
             placeholder={t("modelBaseUrlPlaceholder", "Leave empty to use the provider default")}
             mono
           />
+          {savedField === "baseUrl" && <SavedNote />}
         </Field>
 
         <Field labelSize="body" label={t("modelApiKey", "API Key")}>
           <SecretTextInput
             value={apiKey}
             onChange={onApiKeyChange}
+            onBlur={onApiKeySave}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && apiKey.trim()) onSubmit();
+              if (e.key === "Enter" && apiKey.trim()) onApiKeySave();
             }}
             placeholder={provider.configured ? t("modelReplaceApiKey", "Enter new key to replace…") : "sk-…"}
             autoComplete="off"
             spellCheck={false}
             mono
           />
+          {savedField === "apiKey" && <SavedNote />}
           <FieldHint>
             {t(
               "modelApiKeyStorageHint",

@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Button } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { ManagedModelsControl } from "./managed-models-control";
@@ -8,10 +9,12 @@ import { useOAuthLogin } from "./use-oauth-login";
 
 export function OAuthDetail({
   provider,
+  autoStart = false,
   onRefresh,
   modelSelection,
 }: {
   provider: OAuthProvider;
+  autoStart?: boolean;
   onRefresh: () => void;
   modelSelection: ModelSelectionControl;
 }) {
@@ -28,6 +31,12 @@ export function OAuthDetail({
     submitSelection,
     isWorking,
   } = useOAuthLogin(provider, onRefresh);
+  const [autoStartPending, setAutoStartPending] = useState(autoStart);
+  useEffect(() => {
+    if (!autoStartPending) return;
+    setAutoStartPending(false);
+    void handleLogin();
+  }, [autoStartPending, handleLogin]);
 
   return (
     <DetailSections>

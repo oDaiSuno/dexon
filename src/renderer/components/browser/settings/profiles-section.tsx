@@ -3,7 +3,7 @@ import type { BrowserDataType, BrowserProfileInfo } from "../../../../contract/b
 import { Badge, Button } from "../../form-controls";
 import { SettingGroup } from "../../settings/setting-row";
 import { BrowserIcon } from "../browser-icons";
-import { ActionMenu } from "./action-menu";
+import { ActionMenu } from "../../action-menu";
 import {
   ActionsRow,
   TextPromptDialog,

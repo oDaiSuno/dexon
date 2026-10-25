@@ -16,7 +16,13 @@ export function SelectionDetail({
   if (target.type === "oauth") {
     const provider = editor.oauthProviders.find((p) => p.id === target.providerId);
     return provider ? (
-      <OAuthProviderDialog key={provider.id} editor={editor} provider={provider} onClose={onClose} />
+      <OAuthProviderDialog
+        key={provider.id}
+        editor={editor}
+        provider={provider}
+        startLogin={target.startLogin ?? false}
+        onClose={onClose}
+      />
     ) : null;
   }
   if (target.type === "apikey") {

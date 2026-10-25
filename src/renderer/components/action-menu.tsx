@@ -24,10 +24,12 @@ export function ActionMenu({
   label,
   items,
   trigger,
+  zIndex = 1000,
 }: {
   label: string;
   items: ActionMenuItem[];
   trigger: (props: ActionMenuTriggerProps) => ReactNode;
+  zIndex?: number;
 }) {
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -64,7 +66,9 @@ export function ActionMenu({
       if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
     };
     const onScroll = (event: Event) => {
-      if (!menuRef.current?.contains(event.target as Node)) setPosition(null);
+      const target = event.target as Node | null;
+      if (target?.nodeType && menuRef.current?.contains(target)) return;
+      setPosition(null);
     };
     document.addEventListener("mousedown", onPointerDown);
     document.addEventListener("scroll", onScroll, true);
@@ -119,7 +123,7 @@ export function ActionMenu({
             role="menu"
             aria-label={label}
             className="session-menu-card session-menu-card--menu composer-pop-in"
-            style={{ ...menuStyle, ...position }}
+            style={{ ...menuStyle, zIndex, ...position }}
             onKeyDown={onMenuKeyDown}
           >
             <div className="session-menu-list">
@@ -148,7 +152,7 @@ export function ActionMenu({
   );
 }
 
-const menuStyle: CSSProperties = { position: "fixed", zIndex: 1000 };
+const menuStyle: CSSProperties = { position: "fixed" };
 const disabledItemStyle: CSSProperties = {
   background: "var(--fx-surface-hover-clear)",
   color: "var(--fx-text-faint)",

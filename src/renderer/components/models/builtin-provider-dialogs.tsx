@@ -46,58 +46,65 @@ export function ApiKeyProviderDialog({
 }) {
   const { t } = useI18n();
   const labels = useProviderLabels(editor.modelPreferences);
-  const initialBaseUrl = editor.config.providers?.[provider.id]?.baseUrl ?? "";
-  const [baseUrl, setBaseUrl] = useState(initialBaseUrl);
+  const [savedBaseUrl, setSavedBaseUrl] = useState(editor.config.providers?.[provider.id]?.baseUrl ?? "");
+  const [baseUrl, setBaseUrl] = useState(savedBaseUrl);
   const [apiKey, setApiKey] = useState("");
-  const [busy, setBusy] = useState<"save" | "remove" | null>(null);
+  const [keySaving, setKeySaving] = useState(false);
+  const [baseUrlSaving, setBaseUrlSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [savedField, setSavedField] = useState<"baseUrl" | "apiKey" | null>(null);
   const { notice, setNotice, report } = useSaveNotice(editor.loadModelsConfig);
-  const baseUrlChanged = baseUrl.trim() !== initialBaseUrl.trim();
+  const baseUrlChanged = baseUrl.trim() !== savedBaseUrl.trim();
   const dirty = baseUrlChanged || apiKey.trim() !== "";
 
-  const finish = (warning: string | undefined) => {
-    editor.refreshApiKeyProviders();
-    if (warning) setNotice({ tone: "warning", text: warning });
-    else onClose();
-  };
-
-  const save = async () => {
-    if (!dirty || busy) return;
-    setBusy("save");
+  const saveBaseUrl = async () => {
+    if (!baseUrlChanged || baseUrlSaving) return;
+    setBaseUrlSaving(true);
     setNotice(null);
     try {
-      if (baseUrlChanged) {
-        const persisted = await editor.persist(setProviderBaseUrl(editor.config, provider.id, baseUrl));
-        report(persisted);
-        if (!persisted.ok) return;
-      }
-      let warning: string | undefined;
-      if (apiKey.trim()) {
-        const d = await sendApiKey(provider.id, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ apiKey: apiKey.trim() }),
-        });
-        setApiKey("");
-        warning = d.warning?.message;
-      }
-      finish(warning);
+      const persisted = await editor.persist(setProviderBaseUrl(editor.config, provider.id, baseUrl));
+      report(persisted);
+      if (!persisted.ok) return;
+      setSavedBaseUrl(baseUrl);
+      setSavedField("baseUrl");
+    } finally {
+      setBaseUrlSaving(false);
+    }
+  };
+
+  const saveApiKey = async () => {
+    if (!apiKey.trim() || keySaving) return;
+    setKeySaving(true);
+    setNotice(null);
+    try {
+      const d = await sendApiKey(provider.id, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: apiKey.trim() }),
+      });
+      setApiKey("");
+      editor.refreshApiKeyProviders();
+      if (d.warning) setNotice({ tone: "warning", text: d.warning.message });
+      setSavedField("apiKey");
     } catch (e) {
       setNotice({ tone: "danger", text: e instanceof Error ? e.message : String(e) });
     } finally {
-      setBusy(null);
+      setKeySaving(false);
     }
   };
 
   const remove = async () => {
-    setBusy("remove");
+    setRemoving(true);
     setNotice(null);
     try {
       const d = await sendApiKey(provider.id, { method: "DELETE" });
-      finish(d.warning?.message);
+      editor.refreshApiKeyProviders();
+      if (d.warning) setNotice({ tone: "warning", text: d.warning.message });
+      else onClose();
     } catch (e) {
       setNotice({ tone: "danger", text: e instanceof Error ? e.message : String(e) });
     } finally {
-      setBusy(null);
+      setRemoving(false);
     }
   };
 
@@ -121,10 +128,9 @@ export function ApiKeyProviderDialog({
           deleteLabel={provider.configured ? t("modelDisconnect", "Disconnect") : undefined}
           onDelete={() => void remove()}
           onCancel={onClose}
-          onSave={() => void save()}
-          saving={busy === "save"}
-          deleting={busy === "remove"}
-          saveDisabled={!dirty}
+          cancelLabel={t("close", "Close")}
+          saving={keySaving || baseUrlSaving}
+          deleting={removing}
         />
       }
     >
@@ -132,10 +138,18 @@ export function ApiKeyProviderDialog({
         <ApiKeyDetail
           provider={provider}
           baseUrl={baseUrl}
-          onBaseUrlChange={setBaseUrl}
+          onBaseUrlChange={(v) => {
+            setBaseUrl(v);
+            setSavedField(null);
+          }}
+          onBaseUrlBlur={() => void saveBaseUrl()}
           apiKey={apiKey}
-          onApiKeyChange={setApiKey}
-          onSubmit={() => void save()}
+          onApiKeyChange={(v) => {
+            setApiKey(v);
+            setSavedField(null);
+          }}
+          onApiKeySave={() => void saveApiKey()}
+          savedField={savedField}
           modelSelection={modelSelectionOf(editor)}
         />
       </div>
@@ -146,10 +160,12 @@ export function ApiKeyProviderDialog({
 export function OAuthProviderDialog({
   editor,
   provider,
+  startLogin,
   onClose,
 }: {
   editor: ModelsConfigEditor;
   provider: OAuthProvider;
+  startLogin: boolean;
   onClose: () => void;
 }) {
   const { t } = useI18n();
@@ -182,6 +198,7 @@ export function OAuthProviderDialog({
       <div style={{ padding: "20px 20px 8px" }}>
         <OAuthDetail
           provider={provider}
+          autoStart={startLogin}
           onRefresh={editor.refreshOAuthProviders}
           modelSelection={modelSelectionOf(editor)}
         />

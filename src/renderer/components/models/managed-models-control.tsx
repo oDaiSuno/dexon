@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { ActionMenu } from "../action-menu";
 import { Button } from "../form-controls";
+import { EllipsisGlyph } from "../processes/process-icons";
 import { useI18n } from "@/i18n";
 import { isModelEnabled, setProviderModelsEnabled, toggleModelEnabled } from "@/lib/model-selection";
 import { DetailSection, ModelToggleRow, SectionCount } from "./provider-dialog-parts";
@@ -30,7 +32,7 @@ export function ManagedModelsControl({
     ? providerModels.filter((model) => isModelEnabled(model, preferences.enabledModels)).length
     : 0;
   const ready = !loading && preferences !== null;
-  const allEnabled = enabledCount === providerModels.length;
+  const moreLabel = t("modelMoreModelActions", "More model actions");
 
   return (
     <DetailSection
@@ -52,17 +54,41 @@ export function ManagedModelsControl({
               </span>
             </SectionCount>
             {providerModels.length > 0 && (
-              <Button
-                variant="ghost"
-                disabled={saving}
-                onClick={() =>
-                  void onChange(
-                    setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, !allEnabled),
-                  )
-                }
-              >
-                {allEnabled ? t("modelDisableAll", "Disable all") : t("modelEnableAll", "Enable all")}
-              </Button>
+              <ActionMenu
+                label={moreLabel}
+                zIndex={1200}
+                items={[
+                  {
+                    key: "enable",
+                    label: t("modelEnableAll", "Enable all"),
+                    disabled: saving || enabledCount === providerModels.length,
+                    onSelect: () =>
+                      void onChange(
+                        setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, true),
+                      ),
+                  },
+                  {
+                    key: "disable",
+                    label: t("modelDisableAll", "Disable all"),
+                    disabled: saving || enabledCount === 0,
+                    onSelect: () =>
+                      void onChange(
+                        setProviderModelsEnabled(preferences.models, preferences.enabledModels, providerId, false),
+                      ),
+                  },
+                ]}
+                trigger={(props) => (
+                  <Button
+                    {...props}
+                    variant="ghost"
+                    aria-label={moreLabel}
+                    title={moreLabel}
+                    style={{ width: 28, minHeight: 28, height: 28, padding: 0, borderRadius: "var(--radius-chip)" }}
+                  >
+                    <EllipsisGlyph />
+                  </Button>
+                )}
+              />
             )}
           </>
         )
@@ -79,19 +105,19 @@ export function ManagedModelsControl({
         </p>
       )}
 
-      {ready && providerModels.length > 8 && (
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder={t("modelSearchModels", "Search models…")}
-          aria-label={t("modelSearchProviderModels", "Search provider models")}
-          className="ui-input type-body-default"
-        />
-      )}
-
       {ready && providerModels.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column" }}>
+          {providerModels.length > 8 && (
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={t("modelSearchModels", "Search models…")}
+              aria-label={t("modelSearchProviderModels", "Search provider models")}
+              className="ui-input type-body-default"
+              style={{ marginBottom: 8 }}
+            />
+          )}
           {visibleModels.map((model, index) => (
             <ModelToggleRow
               key={`${model.provider}/${model.id}`}
