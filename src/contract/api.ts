@@ -8,6 +8,8 @@ import type {
   FileMeta,
   HistoryWindow,
   LoginProgressEvent,
+  DefaultThinkingLevel,
+  ModelDefaultsResult,
   ModelPreferencesResult,
   ModelsConfig,
   ModelsConfigSnapshot,
@@ -327,6 +329,11 @@ export interface Api {
   "models.preferences.set": {
     params: { cwd?: string; enabledModels: string[] | null };
     result: ModelPreferencesResult;
+  };
+  "models.defaults.get": { params: { cwd?: string } | void; result: ModelDefaultsResult };
+  "models.defaults.set": {
+    params: { cwd?: string; model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel };
+    result: ModelDefaultsResult;
   };
   "modelsConfig.get": { params: void; result: ModelsConfigSnapshot };
   "modelsConfig.set": {

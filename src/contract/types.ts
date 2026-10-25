@@ -200,6 +200,13 @@ export interface ModelPreferencesResult {
   enabledModels: string[] | null;
 }
 
+export type DefaultThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+export interface ModelDefaultsResult {
+  model: { provider: string; modelId: string } | null;
+  thinkingLevel: DefaultThinkingLevel;
+}
+
 export interface ModelsConfig {
   [key: string]: unknown;
 }

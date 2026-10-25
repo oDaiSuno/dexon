@@ -1,10 +1,11 @@
-import { useMemo, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
+import { useCallback, useMemo, useState, type CSSProperties, type KeyboardEvent, type RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { ModelCatalogStatus } from "@contract/types";
 import { ArrowRightIcon, RefreshCwIcon, SearchIcon } from "./icons";
 import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import { filterModelGroups, providerDisplayName, type ModelGroup } from "./model-catalog";
-import { ModelGroupList } from "./model-picker-list";
+import { ModelGroupList, RecentModelGroup } from "./model-picker-list";
+import { readRecentModels, rememberRecentModel } from "./recent-models";
 
 const FOOTER_BUTTON: CSSProperties = {
   display: "flex",
@@ -44,8 +45,30 @@ export function ModelPickerCard({
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
+  const [recent] = useState(readRecentModels);
   const label = t("modelSearchModels", "Search models…");
   const visible = useMemo(() => filterModelGroups(groups, query), [groups, query]);
+  const recentOptions = useMemo(() => {
+    const found: { option: ModelGroup["options"][number]; custom: boolean }[] = [];
+    for (const entry of recent) {
+      for (const group of groups) {
+        const option = group.options.find(
+          (candidate) => candidate.provider === entry.provider && candidate.modelId === entry.modelId,
+        );
+        if (!option) continue;
+        found.push({ option, custom: group.custom });
+        break;
+      }
+    }
+    return found;
+  }, [groups, recent]);
+  const pick = useCallback(
+    (provider: string, modelId: string, isActive: boolean) => {
+      rememberRecentModel({ provider, modelId });
+      onModelPick(provider, modelId, isActive);
+    },
+    [onModelPick],
+  );
   const warnings = modelCatalog?.warnings;
   const groupProviders = useMemo(() => new Set(groups.map((group) => group.provider)), [groups]);
   const failedProviders = useMemo(
@@ -61,11 +84,7 @@ export function ModelPickerCard({
     event.preventDefault();
     const option = visible[0]?.options[0];
     if (!option) return;
-    onModelPick(
-      option.provider,
-      option.modelId,
-      option.modelId === model?.modelId && option.provider === model?.provider,
-    );
+    pick(option.provider, option.modelId, option.modelId === model?.modelId && option.provider === model?.provider);
   };
 
   return (
@@ -174,7 +193,10 @@ export function ModelPickerCard({
           boxSizing: "border-box",
         }}
       >
-        <ModelGroupList groups={visible} model={model} failedProviders={failedProviders} onModelPick={onModelPick} />
+        {query.trim().length === 0 && recentOptions.length > 0 && (
+          <RecentModelGroup options={recentOptions} model={model} onModelPick={pick} />
+        )}
+        <ModelGroupList groups={visible} model={model} failedProviders={failedProviders} onModelPick={pick} />
         {showEmpty && (
           <div className="type-body-default" style={{ padding: "12px 10px", color: "var(--fx-text-tertiary)" }}>
             {t("modelNoMatchingModels", "No matching models.")}

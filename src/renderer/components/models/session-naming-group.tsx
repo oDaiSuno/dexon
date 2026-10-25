@@ -7,7 +7,7 @@ import {
   setAutoSessionTitleEnabled,
   setSessionNamingModel,
 } from "../../lib/auto-session-title";
-import { isModelEnabled, modelRef } from "../../lib/model-selection";
+import { enabledModelList, modelRef } from "../../lib/model-selection";
 import { Badge, NativeSelect, Toggle } from "../form-controls";
 import { SettingRow, toggleHitAreaStyle } from "../settings/setting-row";
 import { SessionNamingPreview } from "./session-naming-preview";
@@ -19,10 +19,7 @@ export function SessionNamingGroup({ preferences }: { preferences: ModelPreferen
   const controlId = useId();
   const modelControlId = useId();
 
-  const enabledModels = useMemo(
-    () => (preferences ? preferences.models.filter((model) => isModelEnabled(model, preferences.enabledModels)) : []),
-    [preferences],
-  );
+  const enabledModels = useMemo(() => enabledModelList(preferences), [preferences]);
   const selectedRef = namingModel ? modelRef({ provider: namingModel.provider, id: namingModel.modelId }) : "";
   const storedChoiceMissing = selectedRef !== "" && !enabledModels.some((model) => modelRef(model) === selectedRef);
 

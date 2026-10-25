@@ -3,6 +3,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { Button } from "./form-controls";
 import { AddProviderPicker } from "./models/add-provider-picker";
+import { DefaultModelGroup } from "./models/default-model-group";
 import { ProviderTree } from "./models/provider-tree";
 import { SessionNamingGroup } from "./models/session-naming-group";
 import { SelectionDetail } from "./models/selection-detail";
@@ -128,6 +129,7 @@ export function ModelsConfig({
             }}
           >
             <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
+              <DefaultModelGroup preferences={editor.modelPreferences} cwd={cwd} onChanged={onChanged} />
               <SessionNamingGroup preferences={editor.modelPreferences} />
               <ProviderTree
                 loading={editor.loading}
