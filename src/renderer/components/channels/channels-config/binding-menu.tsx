@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } f
 import { createPortal } from "react-dom";
 import type { SessionInfo } from "@contract/types";
 import { useI18n } from "@/i18n";
+import { Button } from "../../form-controls";
 import { sessionTitle } from "./binding-presentation";
 import { CheckIcon, EllipsisIcon, MenuTrashIcon } from "./channel-icons";
 
@@ -11,6 +12,7 @@ const MENU_MAX_HEIGHT = 320;
 
 export function BindingMenu({
   label,
+  name,
   sessionId,
   sessions,
   busy,
@@ -18,6 +20,7 @@ export function BindingMenu({
   onDisconnect,
 }: {
   label: string;
+  name: string;
   sessionId?: string;
   sessions: SessionInfo[];
   busy: boolean;
@@ -26,6 +29,7 @@ export function BindingMenu({
 }) {
   const { t } = useI18n();
   const [position, setPosition] = useState<CSSProperties | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = position !== null;
@@ -39,6 +43,7 @@ export function BindingMenu({
     if (!rect) return;
     const right = window.innerWidth - rect.right;
     const fitsBelow = rect.bottom + MENU_GAP + MENU_MAX_HEIGHT <= window.innerHeight;
+    setConfirming(false);
     setPosition(
       fitsBelow
         ? { top: rect.bottom + MENU_GAP, right }
@@ -132,56 +137,97 @@ export function BindingMenu({
       </button>
       {position &&
         createPortal(
-          <div
-            ref={menuRef}
-            role="menu"
-            aria-label={label}
-            className="session-menu-card composer-pop-in"
-            style={{ ...menuStyle, ...position }}
-            onKeyDown={onMenuKeyDown}
-          >
-            <div className="session-menu-list" style={{ maxHeight: MENU_MAX_HEIGHT - 48, overflowY: "auto" }}>
-              {targets.map((target) => {
-                const checked = target.id === sessionId;
-                return (
-                  <button
-                    key={target.id ?? ""}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={checked}
-                    disabled={busy}
-                    className="session-menu-item type-body-large"
-                    onClick={() => choose(() => onAttach(target.id))}
-                  >
-                    <span className="session-menu-item-label">{target.title}</span>
-                    <span
-                      className="session-menu-item-icon"
-                      style={{ color: "var(--fx-accent-blue-text)", visibility: checked ? "visible" : "hidden" }}
-                    >
-                      <CheckIcon />
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="session-menu-separator">
-              <div />
-            </div>
-            <div className="session-menu-list">
-              <button
-                type="button"
-                role="menuitem"
-                disabled={busy}
-                className="session-menu-item session-menu-item--danger type-body-large"
-                onClick={() => choose(onDisconnect)}
-              >
-                <span className="session-menu-item-icon">
+          confirming ? (
+            <div
+              ref={menuRef}
+              role="alertdialog"
+              aria-label={t("disconnectBindingConfirm", "Disconnect “{name}”?").replace("{name}", name)}
+              className="session-menu-card session-menu-card--confirm composer-pop-in"
+              style={{ ...menuStyle, ...position }}
+              onKeyDown={(event) => {
+                if (event.key !== "Escape") return;
+                event.preventDefault();
+                event.stopPropagation();
+                close();
+              }}
+            >
+              <div className="session-menu-confirm-body">
+                <span className="session-menu-confirm-icon">
                   <MenuTrashIcon />
                 </span>
-                <span className="session-menu-item-label">{t("deleteBinding", "Disconnect this conversation")}</span>
-              </button>
+                <div className="session-menu-confirm-text">
+                  <div className="type-body-large-medium">
+                    {t("disconnectBindingTitle", "Disconnect this conversation?")}
+                  </div>
+                  <p className="session-menu-confirm-notice type-label-default">
+                    {t("disconnectBindingNotice", "New messages from {name} will go to a separate session.").replace(
+                      "{name}",
+                      name,
+                    )}
+                  </p>
+                </div>
+              </div>
+              <div className="session-menu-confirm-footer">
+                <Button variant="danger" busy={busy} disabled={busy} onClick={() => choose(onDisconnect)}>
+                  {t("unbind", "Disconnect")}
+                </Button>
+                <Button autoFocus disabled={busy} onClick={close}>
+                  {t("cancel", "Cancel")}
+                </Button>
+              </div>
             </div>
-          </div>,
+          ) : (
+            <div
+              ref={menuRef}
+              role="menu"
+              aria-label={label}
+              className="session-menu-card composer-pop-in"
+              style={{ ...menuStyle, ...position }}
+              onKeyDown={onMenuKeyDown}
+            >
+              <div className="session-menu-list" style={{ maxHeight: MENU_MAX_HEIGHT - 48, overflowY: "auto" }}>
+                {targets.map((target) => {
+                  const checked = target.id === sessionId;
+                  return (
+                    <button
+                      key={target.id ?? ""}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={checked}
+                      disabled={busy}
+                      className="session-menu-item type-body-large"
+                      onClick={() => choose(() => onAttach(target.id))}
+                    >
+                      <span className="session-menu-item-label">{target.title}</span>
+                      <span
+                        className="session-menu-item-icon"
+                        style={{ color: "var(--fx-accent-blue-text)", visibility: checked ? "visible" : "hidden" }}
+                      >
+                        <CheckIcon />
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="session-menu-separator">
+                <div />
+              </div>
+              <div className="session-menu-list">
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={busy}
+                  className="session-menu-item session-menu-item--danger type-body-large"
+                  onClick={() => setConfirming(true)}
+                >
+                  <span className="session-menu-item-icon">
+                    <MenuTrashIcon />
+                  </span>
+                  <span className="session-menu-item-label">{t("deleteBinding", "Disconnect this conversation")}</span>
+                </button>
+              </div>
+            </div>
+          ),
           document.body,
         )}
     </>

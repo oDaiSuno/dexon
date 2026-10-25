@@ -337,7 +337,7 @@ export async function sendSessionCommand(
     }
 
     case "get_commands": {
-      const commands: SlashCommandInfo[] = [];
+      const commands: (SlashCommandInfo & { argumentHint?: string })[] = [];
       for (const registered of context.inner.extensionRunner.getRegisteredCommands()) {
         commands.push({
           name: registered.invocationName,
@@ -350,6 +350,7 @@ export async function sendSessionCommand(
         commands.push({
           name: template.name,
           description: template.description,
+          ...(template.argumentHint ? { argumentHint: template.argumentHint } : {}),
           source: "prompt",
           sourceInfo: template.sourceInfo,
         });

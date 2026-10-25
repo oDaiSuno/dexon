@@ -151,6 +151,7 @@ export function BindingRow({
       </span>
       <BindingMenu
         label={t("bindingMoreActions", "More actions for {name}").replace("{name}", name)}
+        name={name}
         sessionId={binding.sessionId}
         sessions={sessions}
         busy={busy}

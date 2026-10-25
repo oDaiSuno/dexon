@@ -11,6 +11,13 @@ export function WorkspaceMenu({ id, workspace }: { id: string; workspace: Compos
   const { t } = useI18n();
   const { project } = workspace;
   const [actionError, setActionError] = useState<string | null>(null);
+  const platform = window.piBridge?.platform;
+  const revealLabel =
+    platform === "win32"
+      ? t("openInExplorer", "Open in File Explorer")
+      : platform === "linux"
+        ? t("openInFileManager", "Open in File Manager")
+        : t("openInFinder", "Open in Finder");
 
   const runAction = (action: () => Promise<void>, failure: (error: unknown) => string) => {
     setActionError(null);
@@ -111,7 +118,7 @@ export function WorkspaceMenu({ id, workspace }: { id: string; workspace: Compos
           </Icon>
         </span>
         <span className="type-body-default" style={{ ...ELLIPSIS, flex: 1 }}>
-          {t("openInFinder", "Open in Finder")}
+          {revealLabel}
         </span>
       </button>
       <button

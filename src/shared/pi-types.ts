@@ -53,6 +53,7 @@ export interface SessionStatsInfo {
 interface PromptTemplateLike {
   name: string;
   description?: string;
+  argumentHint?: string;
   sourceInfo: SlashCommandInfo["sourceInfo"];
 }
 

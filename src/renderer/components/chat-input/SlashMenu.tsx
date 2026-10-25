@@ -82,7 +82,7 @@ export function SlashMenu({
         icon={<SearchXIcon />}
         title={
           filtering
-            ? t("noSlashCommandsFound", "No commands start with “/{query}”").replace("{query}", query)
+            ? t("noSlashCommandsFound", "No commands match “/{query}”").replace("{query}", query)
             : t("slashNoCommands", "No commands available")
         }
         description={t(
@@ -204,10 +204,19 @@ function SlashCommandCard({
       <span style={{ width: "100%", minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
         <span
           className="type-mono-label"
-          style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+          style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
         >
           <HighlightedName name={command.name} query={query} />
         </span>
+        {command.argumentHint && (
+          <span
+            className="type-mono-meta"
+            style={{ flexShrink: 0, whiteSpace: "nowrap", color: "var(--fx-text-tertiary)" }}
+          >
+            {command.argumentHint}
+          </span>
+        )}
+        <span aria-hidden style={{ flex: 1, minWidth: 0 }} />
         {active && <KeyHint keyLabel="↵" label={completeLabel} />}
       </span>
       {command.description && (

@@ -5,6 +5,7 @@ export type SlashCommandPaletteItem =
   | {
       name: string;
       description: string;
+      argumentHint?: string;
       source: "builtin";
     };
 
@@ -24,6 +25,7 @@ export function builtinSlashCommands(t: Translate): SlashCommandPaletteItem[] {
     {
       name: "compact",
       description: t("slashCompactDescription", "Compress context, optionally with instructions"),
+      argumentHint: t("slashCompactArgument", "‹instructions›"),
       source: "builtin",
     },
     {
@@ -31,7 +33,12 @@ export function builtinSlashCommands(t: Translate): SlashCommandPaletteItem[] {
       description: t("slashReloadDescription", "Reload extensions, skills, prompts, and tools"),
       source: "builtin",
     },
-    { name: "name", description: t("slashNameDescription", "Set the session display name"), source: "builtin" },
+    {
+      name: "name",
+      description: t("slashNameDescription", "Set the session display name"),
+      argumentHint: t("slashNameArgument", "‹name›"),
+      source: "builtin",
+    },
     {
       name: "session",
       description: t("slashSessionDescription", "Show session message, token, and cost stats"),
