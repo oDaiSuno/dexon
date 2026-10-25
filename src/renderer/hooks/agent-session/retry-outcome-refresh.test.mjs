@@ -42,7 +42,10 @@ test("when automatic retries give up, the chat reloads so the failure shows how 
   await h.env.flushRafUntilSettled();
   assert.equal(h.state.messages.at(-1).retry, undefined);
 
-  saved = createSessionDetail("s-retry", { messages: failedTurn({ attempt: 3, maxAttempts: 3 }) });
+  saved = createSessionDetail("s-retry", {
+    messages: failedTurn({ attempt: 3, maxAttempts: 3 }),
+    historyRevision: "s-retry-after-retries",
+  });
   h.emit({ type: "auto_retry_end", success: false, attempt: 3, finalError: "503 overloaded" });
   await h.flush();
   await h.flush();
