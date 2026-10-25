@@ -23,6 +23,8 @@ export function browserState(tabs = []) {
           allowHttp: false,
           allowPrivateNetwork: false,
           networkIsolation: "best-effort",
+          searchEngine: "bing",
+          customSearchTemplate: "",
         },
         automation: {
           enabled: false,

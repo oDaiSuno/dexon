@@ -150,3 +150,53 @@ test("BrowserSettingsStore writes atomically with private mode, recovers corrupt
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("the address bar searches with Bing until another engine is chosen", () => {
+  const settings = createDefaultBrowserSettings();
+  assert.equal(settings.navigation.searchEngine, "bing");
+  assert.equal(settings.navigation.customSearchTemplate, "");
+  const chosen = applyBrowserSettingsPatch(settings, { navigation: { searchEngine: "duckduckgo" } });
+  assert.equal(chosen.navigation.searchEngine, "duckduckgo");
+  assert.equal(chosen.navigation.homepage, "about:blank");
+});
+
+test("a custom search engine needs an https address containing {query}", () => {
+  const defaults = createDefaultBrowserSettings();
+  const custom = applyBrowserSettingsPatch(defaults, {
+    navigation: { searchEngine: "custom", customSearchTemplate: "https://search.example/find?term={query}" },
+  });
+  assert.equal(custom.navigation.customSearchTemplate, "https://search.example/find?term={query}");
+  assert.throws(
+    () => applyBrowserSettingsPatch(defaults, { navigation: { searchEngine: "custom" } }),
+    /customSearchTemplate/,
+  );
+  for (const template of [
+    "https://search.example/find",
+    "http://search.example/find?q={query}",
+    "file:///tmp/{query}",
+    "https://name:secret" + "@search.example/?q={query}",
+    "not a url {query}",
+  ]) {
+    assert.throws(
+      () =>
+        applyBrowserSettingsPatch(defaults, { navigation: { searchEngine: "custom", customSearchTemplate: template } }),
+      /customSearchTemplate/,
+      template,
+    );
+  }
+  assert.throws(() => applyBrowserSettingsPatch(defaults, { navigation: { searchEngine: "yahoo" } }), /searchEngine/);
+});
+
+test("saved settings from before search engines existed keep their values and search with Bing", () => {
+  const saved = createDefaultBrowserSettings();
+  saved.navigation.homepage = "https://start.example/";
+  saved.automation.enabled = true;
+  delete saved.navigation.searchEngine;
+  delete saved.navigation.customSearchTemplate;
+  const parsed = parseBrowserSettings(saved);
+  assert.equal(parsed.recoveredFromInvalid, false);
+  assert.equal(parsed.settings.navigation.homepage, "https://start.example/");
+  assert.equal(parsed.settings.automation.enabled, true);
+  assert.equal(parsed.settings.navigation.searchEngine, "bing");
+  assert.equal(parsed.settings.navigation.customSearchTemplate, "");
+});
