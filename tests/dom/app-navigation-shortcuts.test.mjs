@@ -52,7 +52,7 @@ test("the project switcher card shows ⌘O next to adding a project from a folde
   const card = await scene.menu();
   const add = control(card, "menuitem", ADD_FROM_FOLDER);
   assert.equal(add.getAttribute("aria-keyshortcuts"), "Meta+O");
-  visibleText(add, "⌘O");
+  assert.match(add.textContent, /⌘O/);
 });
 
 test("the desktop Add Project command (⌘O) asks for a folder and opens it as the current project", async (t) => {
