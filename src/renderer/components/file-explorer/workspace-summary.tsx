@@ -7,17 +7,9 @@ import { useI18n } from "@/i18n";
 import { CircleCheckIcon, Icon } from "../chat-input/icons";
 import { GitBranchGlyph } from "../chat-input/workspace-chrome";
 import { FolderIcon } from "../FileIcons";
+import { CHANGE_SWATCH_COLOR, FILE_CHANGES, type FileChange } from "./git-marks";
 
 export type WatchState = "connecting" | "live" | "static";
-
-const CHANGE_KINDS = [
-  { kind: "staged", color: "var(--fx-status-success)" },
-  { kind: "modified", color: "var(--fx-status-warning)" },
-  { kind: "untracked", color: "var(--fx-text-faint)" },
-  { kind: "conflicted", color: "var(--fx-status-danger)" },
-] as const;
-
-type ChangeKind = (typeof CHANGE_KINDS)[number];
 
 export function WorkspaceSummary({
   cwd,
@@ -172,25 +164,23 @@ function GitCard({ gitStatus }: { gitStatus: GitStatusResult | null }) {
 function Distribution({ gitStatus }: { gitStatus: GitStatusResult }) {
   return (
     <div aria-hidden className="flex items-center gap-[2px] px-[12px] pb-[10px]">
-      {CHANGE_KINDS.filter(({ kind }) => gitStatus[kind] > 0).map(({ kind, color }) => (
+      {FILE_CHANGES.filter((kind) => gitStatus[kind] > 0).map((kind) => (
         <span
           key={kind}
           className="h-[4px] min-w-0 rounded-[var(--radius-bar)]"
-          style={{ flex: `${gitStatus[kind]} 1 0`, background: color }}
+          style={{ flex: `${gitStatus[kind]} 1 0`, background: CHANGE_SWATCH_COLOR[kind] }}
         />
       ))}
     </div>
   );
 }
 
-function Stats({ gitStatus, labels }: { gitStatus: GitStatusResult; labels: Record<ChangeKind["kind"], string> }) {
+function Stats({ gitStatus, labels }: { gitStatus: GitStatusResult; labels: Record<FileChange, string> }) {
   const { language } = useI18n();
-  const columns: readonly ChangeKind[] = CHANGE_KINDS.filter(
-    ({ kind }) => kind !== "conflicted" || gitStatus.conflicted > 0,
-  );
+  const columns = FILE_CHANGES.filter((kind) => kind !== "conflicted" || gitStatus.conflicted > 0);
   return (
     <dl className="m-0 flex border-0 border-t border-solid border-[var(--fx-line-subtle)]">
-      {columns.map(({ kind, color }, index) => (
+      {columns.map((kind, index) => (
         <div
           key={kind}
           className={`flex min-w-0 flex-1 flex-col-reverse gap-[4px] px-[12px] py-[10px] ${
@@ -198,7 +188,10 @@ function Stats({ gitStatus, labels }: { gitStatus: GitStatusResult; labels: Reco
           }`}
         >
           <dt className="type-meta-default m-0 flex items-center gap-[6px] text-[var(--fx-text-secondary)]">
-            <span className="size-[6px] shrink-0 rounded-[var(--radius-bar)]" style={{ background: color }} />
+            <span
+              className="size-[6px] shrink-0 rounded-[var(--radius-bar)]"
+              style={{ background: CHANGE_SWATCH_COLOR[kind] }}
+            />
             {labels[kind]}
           </dt>
           <dd

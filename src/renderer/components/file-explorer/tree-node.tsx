@@ -5,9 +5,8 @@ import { encodeFilePathForApi, getRelativeFilePath, joinFilePath } from "@/lib/f
 import { directoryRefreshAction, shouldLoadDirectoryOnExpand } from "@/lib/directory-refresh";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { useI18n } from "@/i18n";
-import type { FileChange, FolderChange, GitTreeMarks } from "./git-marks";
-
-type Translate = (key: string, fallback: string) => string;
+import type { FolderChange, GitTreeMarks, Translate } from "./git-marks";
+import { CHANGE_LETTER_CLASS, fileChangeLabel } from "./git-marks";
 
 interface FileEntry {
   name: string;
@@ -36,25 +35,11 @@ export interface TreeShared {
   marks: GitTreeMarks;
 }
 
-const FILE_MARK_CLASS: Record<FileChange, string> = {
-  staged: "text-[var(--fx-status-success-text)]",
-  modified: "text-[var(--fx-status-warning-text)]",
-  untracked: "text-[var(--fx-text-tertiary)]",
-  conflicted: "text-[var(--fx-status-danger-text)]",
-};
-
 const FOLDER_DOT_CLASS: Record<FolderChange, string> = {
   changed: "bg-[var(--fx-status-warning)]",
   untracked: "bg-[var(--fx-text-tertiary)]",
   conflicted: "bg-[var(--fx-status-danger)]",
 };
-
-function fileChangeLabel(t: Translate, change: FileChange): string {
-  if (change === "staged") return t("gitStaged", "Staged");
-  if (change === "modified") return t("gitModified", "Modified");
-  if (change === "untracked") return t("gitUntracked", "Untracked");
-  return t("gitConflicted", "Conflicted");
-}
 
 function folderChangeLabel(t: Translate, change: FolderChange): string {
   if (change === "changed") return t("explorerFolderChanged", "Contains changes");
@@ -255,7 +240,7 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
                 {folderChange ? (
                   <span className={`size-[6px] rounded-[var(--radius-pill)] ${FOLDER_DOT_CLASS[folderChange]}`} />
                 ) : fileMark ? (
-                  <span className={`type-mono-meta ${FILE_MARK_CLASS[fileMark.change]}`}>{fileMark.letter}</span>
+                  <span className={`type-mono-meta ${CHANGE_LETTER_CLASS[fileMark.change]}`}>{fileMark.letter}</span>
                 ) : null}
               </span>
             )}

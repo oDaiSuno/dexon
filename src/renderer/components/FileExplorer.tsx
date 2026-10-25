@@ -4,7 +4,8 @@ import type { GitStatusResult } from "@shared/api-types";
 import { useI18n } from "@/i18n";
 import { FileTreeSkeleton, FilesSectionHeader } from "./file-explorer/files-section";
 import { WorkspaceSummary, type WatchState } from "./file-explorer/workspace-summary";
-import { gitTreeMarks } from "./file-explorer/git-marks";
+import { gitChangeGroups, gitTreeMarks } from "./file-explorer/git-marks";
+import { ChangesList, useChangesOnlyPreference } from "./file-explorer/changes-list";
 import { fetchEntries, TreeNode, type FileNode, type TreeShared } from "./file-explorer/tree-node";
 
 interface Props {
@@ -34,6 +35,7 @@ export function FileExplorer({
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null);
   const [watch, setWatch] = useState<WatchState>("connecting");
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
+  const [changesOnly, toggleChangesOnly] = useChangesOnlyPreference();
   const prevCwdRef = useRef<string | null>(null);
   const loadGenerationRef = useRef(0);
 
@@ -49,6 +51,9 @@ export function FileExplorer({
   const handleCollapseAll = useCallback(() => setExpandedPaths(new Set()), []);
 
   const marks = useMemo(() => gitTreeMarks(gitStatus), [gitStatus]);
+  const changeGroups = useMemo(() => gitChangeGroups(gitStatus), [gitStatus]);
+  const isGit = !error && gitStatus?.isGit === true;
+  const showingChanges = changesOnly && isGit;
 
   const loadProject = useCallback(
     async (showLoading: boolean) => {
@@ -141,7 +146,12 @@ export function FileExplorer({
         loading={loading}
       />
       <div className="flex flex-col gap-[4px]">
-        <FilesSectionHeader onCollapseAll={handleCollapseAll} />
+        <FilesSectionHeader
+          onCollapseAll={handleCollapseAll}
+          filterable={isGit}
+          showingChanges={showingChanges}
+          onToggleChangesOnly={toggleChangesOnly}
+        />
         {loading ? (
           <FileTreeSkeleton />
         ) : error ? (
@@ -149,16 +159,25 @@ export function FileExplorer({
             {error}
           </div>
         ) : (
-          <div className="flex flex-col gap-[1px]">
-            {roots.map((node) => (
-              <TreeNode key={node.fullPath} node={node} depth={0} tree={tree} />
-            ))}
-            {roots.length === 0 && (
-              <div className="type-meta-default px-[12px] py-[8px] text-[var(--fx-text-tertiary)]">
-                {t("noFilesFound", "No files found")}
-              </div>
+          <>
+            <div
+              className="flex flex-col gap-[1px]"
+              hidden={showingChanges}
+              style={{ display: showingChanges ? "none" : undefined }}
+            >
+              {roots.map((node) => (
+                <TreeNode key={node.fullPath} node={node} depth={0} tree={tree} />
+              ))}
+              {roots.length === 0 && (
+                <div className="type-meta-default px-[12px] py-[8px] text-[var(--fx-text-tertiary)]">
+                  {t("noFilesFound", "No files found")}
+                </div>
+              )}
+            </div>
+            {showingChanges && (
+              <ChangesList cwd={cwd} groups={changeGroups} activeFilePath={activeFilePath} onOpenFile={onOpenFile} />
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
