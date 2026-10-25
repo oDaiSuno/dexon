@@ -223,14 +223,54 @@ test("choosing another session in the more menu moves the conversation there wit
   assert.equal(upsert.params.binding.sessionId, "s-weekly");
 });
 
-test("disconnecting from the more menu removes that conversation's connection", async (t) => {
+test("disconnecting from the more menu first asks which conversation will be cut off, and only removes the connection after the user agrees", async (t) => {
   const { container, requests } = await remotePage(t);
   await click(moreButton(container, "Product team"));
   await click(byRole(menu(), "menuitem", "Disconnect this conversation"));
+  const confirm = byRole(dom.window.document.body, "alertdialog", "Disconnect “Product team”?");
+  assert.ok(confirm, "a confirmation names the conversation before anything is removed");
+  assert.match(confirm.textContent, /Disconnect this conversation\?/);
+  assert.match(confirm.textContent, /New messages from Product team will go to a separate session/);
+  assert.equal(dom.window.document.activeElement, byRole(confirm, "button", "Cancel"));
+  assert.equal(
+    requests.some((request) => request.method === "channels.bindingDelete"),
+    false,
+  );
+  await click(byRole(confirm, "button", "Disconnect"));
   await waitFor(() => assert.ok(requests.some((request) => request.method === "channels.bindingDelete")));
   assert.deepEqual(requests.find((request) => request.method === "channels.bindingDelete").params, {
     bindingId: "b-team",
   });
+  assert.equal(dom.window.document.querySelector('[role="alertdialog"]'), null);
+});
+
+test("cancelling the disconnect confirmation keeps the connection and puts focus back on the more button", async (t) => {
+  const { container, requests } = await remotePage(t);
+  const trigger = moreButton(container, "Product team");
+  await click(trigger);
+  await click(byRole(menu(), "menuitem", "Disconnect this conversation"));
+  const confirm = byRole(dom.window.document.body, "alertdialog", "Disconnect “Product team”?");
+  await click(byRole(confirm, "button", "Cancel"));
+  assert.equal(dom.window.document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(dom.window.document.activeElement, trigger);
+  assert.equal(
+    requests.some((request) => request.method === "channels.bindingDelete"),
+    false,
+  );
+});
+
+test("pressing Escape in the disconnect confirmation keeps the connection and puts focus back on the more button", async (t) => {
+  const { container, requests } = await remotePage(t);
+  const trigger = moreButton(container, "Lin Xia");
+  await click(trigger);
+  await click(byRole(menu(), "menuitem", "Disconnect this conversation"));
+  await keyDown(dom.window.document.activeElement, "Escape");
+  assert.equal(dom.window.document.querySelector('[role="alertdialog"]'), null);
+  assert.equal(dom.window.document.activeElement, trigger);
+  assert.equal(
+    requests.some((request) => request.method === "channels.bindingDelete"),
+    false,
+  );
 });
 
 test("recent activity is shown without expanding and each entry reads as one sentence with a short time", async (t) => {
