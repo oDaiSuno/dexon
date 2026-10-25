@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { dom, act, click, input, button, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
+import { dom, act, byRole, click, input, button, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
 import { installHostBridge } from "../support/host-bridge.mjs";
 import { createManagedProcessHost } from "../support/managed-process-host.mjs";
 
@@ -214,4 +214,53 @@ test("a lost process offers diagnostics and stops other active processes without
   assert.match(view.processButton("Fixture server").textContent, /Killed/);
   assert.match(view.processButton("Other server").textContent, /Lost/);
   assert.match(view.container.querySelector('[role="alert"]').textContent, /could not be safely confirmed as stopped/);
+});
+
+const menuItem = (name) => byRole(dom.window.document.body, "menuitem", name);
+const openMore = (view) => click(button(view.container, "More actions"));
+
+test("the summary More menu offers export, stop all, force stop all and clear finished", async (t) => {
+  const view = await panel(t, twoServers("killed"));
+  await openMore(view);
+  const menu = byRole(dom.window.document.body, "menu", "More actions");
+  assert.deepEqual(
+    [...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent.trim()),
+    ["Export Diagnostics", "Stop All", "Force stop all", "Clear finished"],
+  );
+});
+
+test("Stop All in the More menu gracefully stops every running server", async (t) => {
+  const view = await panel(t, twoServers());
+  await openMore(view);
+  await click(menuItem("Stop All"));
+  assert.match(view.processButton("Fixture server").textContent, /Exited/);
+  assert.match(view.processButton("Other server").textContent, /Exited/);
+  assertHealthy(view);
+});
+
+test("Clear finished removes finished processes from the list and keeps the running one", async (t) => {
+  const view = await panel(t, twoServers("killed"));
+  await openMore(view);
+  await click(menuItem("Clear finished"));
+  assert.equal(view.processButton("Other server"), undefined);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
+  assertHealthy(view);
+});
+
+test("Clear finished is unavailable while nothing has finished", async (t) => {
+  const view = await panel(t, twoServers());
+  await openMore(view);
+  assert.equal(menuItem("Clear finished").disabled, true);
+});
+
+test("Clear finished keeps a lost process and its warning, because it may still be running", async (t) => {
+  const view = await panel(t, [
+    processInfo("lost"),
+    processInfo("exited", { processId: "process-two", runId: "second-run-one", label: "Other server", endpoints: [] }),
+  ]);
+  await openMore(view);
+  await click(menuItem("Clear finished"));
+  assert.equal(view.processButton("Other server"), undefined);
+  assert.match(view.processButton("Fixture server").textContent, /Lost/);
+  assert.match(view.container.textContent, /could not be safely confirmed as stopped/);
 });

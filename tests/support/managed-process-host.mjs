@@ -55,6 +55,14 @@ export function createManagedProcessHost(initialProcesses) {
         for (const info of active) stop(info, mode);
         return { ok: true, stopped: active.length };
       }
+      if (method === "processes.clearFinished") {
+        const finished = [...processes.values()].filter(
+          (info) => !activeStates.has(info.state) && info.state !== "lost",
+        );
+        for (const info of finished) processes.delete(info.processId);
+        if (finished.length) revision++;
+        return { ok: true, cleared: finished.length };
+      }
       const info = requireProcess(
         params,
         ["processes.stop", "processes.restart", "processes.write", "processes.export"].includes(method),

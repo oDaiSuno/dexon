@@ -104,7 +104,7 @@ function waitUntil(predicate, timeoutMs, message) {
   });
 }
 
-function harness() {
+function harness({ treeClean = true } = {}) {
   const events = [];
   const parentCalls = [];
   const workers = [];
@@ -119,7 +119,7 @@ function harness() {
         workers.push(worker);
         return worker;
       },
-      terminateProcessGroup: async () => true,
+      terminateProcessGroup: async () => treeClean,
       parentCall: async (method, params) => {
         parentCalls.push({ method, params });
         if (method === "managedProcesses.getSettings") return { enabled: true, reaperReady: true };
@@ -600,3 +600,37 @@ test(
     }
   },
 );
+
+test("clearing finished processes removes exited and stopped runs but keeps running ones", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "pi-managed-clear-"));
+  const { service, events } = harness();
+  const kept = await service.startForAgent("session-a", cwd, true, { command: "npm run dev", label: "kept" });
+  const done = await service.startForAgent("session-a", cwd, true, { command: "npm test", label: "done" });
+  await service.stop(done.process.processId, done.runId, "graceful", "user");
+  const before = events.length;
+
+  assert.deepEqual(service.clearFinished(), { ok: true, cleared: 1 });
+
+  assert.deepEqual(
+    service.list(true).processes.map((info) => info.label),
+    ["kept"],
+  );
+  assert.equal(
+    events.slice(before).some((event) => event.topic === "processes.changed" && event.data.reason === "dismissed"),
+    true,
+    "the panel is told that a finished process went away",
+  );
+  assert.deepEqual(service.clearFinished(), { ok: true, cleared: 0 });
+  await service.stop(kept.process.processId, kept.runId, "force", "user");
+});
+
+test("clearing finished processes keeps a run whose cleanup could not be confirmed", async () => {
+  const cwd = await mkdtemp(path.join(tmpdir(), "pi-managed-clear-lost-"));
+  const { service, workers } = harness({ treeClean: false });
+  const started = await service.startForAgent("session-a", cwd, true, { command: "npm run dev", label: "orphan" });
+  workers.at(-1).emit("close", 1, null);
+  await waitUntil(() => service.get(started.process.processId).state === "lost", 2_000, "process never became lost");
+
+  assert.deepEqual(service.clearFinished(), { ok: true, cleared: 0 });
+  assert.equal(service.get(started.process.processId).state, "lost");
+});

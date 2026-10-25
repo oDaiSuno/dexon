@@ -83,6 +83,7 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "processes.stop",
     "processes.restart",
     "processes.export",
+    "processes.clearFinished",
     "system.allowRoot",
   ]) {
     assert.equal(typeof handlers[method], "function", `${method} must be registered`);
