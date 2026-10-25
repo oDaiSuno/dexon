@@ -1,5 +1,16 @@
 import type { GitStatusEntry, GitStatusResult } from "./api-types";
 
+export type GitEntryKind = "untracked" | "conflicted" | "tracked";
+
+const CONFLICT_CODES = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
+
+export function gitEntryKind(entry: GitStatusEntry): GitEntryKind {
+  const code = `${entry.index}${entry.workingTree}`;
+  if (code === "??") return "untracked";
+  if (CONFLICT_CODES.has(code) || entry.index === "U" || entry.workingTree === "U") return "conflicted";
+  return "tracked";
+}
+
 export function parseGitStatusPorcelain(output: string, branch: string | null): GitStatusResult {
   const entries: GitStatusEntry[] = [];
   const records = output.split("\0");
@@ -17,14 +28,11 @@ export function parseGitStatusPorcelain(output: string, branch: string | null): 
   let modified = 0;
   let untracked = 0;
   let conflicted = 0;
-  const conflictCodes = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
   for (const entry of entries) {
-    const code = `${entry.index}${entry.workingTree}`;
-    if (code === "??") {
-      untracked += 1;
-    } else if (conflictCodes.has(code) || entry.index === "U" || entry.workingTree === "U") {
-      conflicted += 1;
-    } else {
+    const kind = gitEntryKind(entry);
+    if (kind === "untracked") untracked += 1;
+    else if (kind === "conflicted") conflicted += 1;
+    else {
       if (entry.index !== " ") staged += 1;
       if (entry.workingTree !== " ") modified += 1;
     }
