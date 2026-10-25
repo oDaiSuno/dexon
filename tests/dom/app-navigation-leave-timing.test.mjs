@@ -1,30 +1,8 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import {
-  startNavigation,
-  control,
-  roles,
-  visibleText,
-  click,
-  keyDown,
-  act,
-  dom,
-  waitFor,
-  historyRow,
-  onChatPage,
-  restoreGlobals,
-} from "../support/app-navigation.mjs";
-import {
-  dirtySkill,
-  answer,
-  leavePrompt,
-  promptClosed,
-  retainedEdit,
-  chatRegion,
-  openSwitchSpace,
-  switchSpace,
-} from "../support/app-navigation-leave.mjs";
-import { navigationPaths, savedSkillContent } from "../fixtures/app-navigation-data.mjs";
+import { startNavigation, control, visibleText, click, waitFor, restoreGlobals } from "../support/app-navigation.mjs";
+import { switchSpace } from "../support/app-navigation-leave.mjs";
+import { navigationPaths } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
 
@@ -34,84 +12,6 @@ after(restoreGlobals);
 const forCwd = (cwd) => (params) => params.cwd === cwd;
 const personalSkillFile = "/Users/navigation-fixture/.dexon/.pi/skills/personal-checklist/SKILL.md";
 const lateSkillContent = "# Personal checklist\n\nOnly the personal space has this text.\n";
-
-async function personalEditor(t) {
-  const scene = await startNavigation(t, { initialSession: "personal-history" });
-  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
-  await dirtySkill(scene);
-  return scene;
-}
-
-test("while a departure save is still writing, its prompt cannot be answered a second time", async (t) => {
-  const scene = await personalEditor(t);
-  const save = scene.external.hold("skills.set");
-  await click(historyRow(scene, "Personal release notes"));
-  await answer(scene, "Save");
-  await waitFor(() => assert.ok(save.reached(), "the save reached the Host"));
-  const prompt = control(scene.container, "dialog", "Unsaved skill changes");
-  for (const name of ["Discard", "Cancel", "Save"]) assert.equal(control(prompt, "button", name).disabled, true);
-  await keyDown(prompt, "Escape");
-  await scene.settled({ held: 1 });
-  control(scene.container, "dialog", "Unsaved skill changes");
-  control(scene.container, "heading", "Plugins & Skills");
-  save.release();
-  await waitFor(() => visibleText(chatRegion(scene), "Personal conversation marker"));
-  assert.equal(scene.external.skillWrites(), 1, "the skill file was written exactly once");
-});
-
-test("a session link that arrives while a departure save is writing does not override the requested destination", async (t) => {
-  const scene = await personalEditor(t);
-  const save = scene.external.hold("skills.set");
-  await click(historyRow(scene, "Personal release notes"));
-  await answer(scene, "Save");
-  await waitFor(() => assert.ok(save.reached()));
-  await act(async () => scene.external.deepLink("personal-other"));
-  await scene.settled({ held: 1 });
-  control(scene.container, "heading", "Plugins & Skills");
-  assert.equal(dom.window.location.search, "?session=personal-history");
-  save.release();
-  // Whether the link is dropped or opened once the requested departure has
-  // completed is not yet a decided product rule; both are accepted, as long as
-  // the shown conversation matches the address.
-  await waitFor(() => onChatPage(scene));
-  await scene.settled();
-  const search = dom.window.location.search;
-  assert.ok(["?session=personal-history", "?session=personal-other"].includes(search), `unexpected address ${search}`);
-  const marker = search === "?session=personal-other" ? "Other conversation marker" : "Personal conversation marker";
-  await waitFor(() => visibleText(chatRegion(scene), marker));
-});
-
-test("a session link that arrives while the unsaved-changes prompt is still unanswered does not bypass it", async (t) => {
-  const scene = await personalEditor(t);
-  await click(historyRow(scene, "Personal release notes"));
-  await leavePrompt(scene);
-  await act(async () => scene.external.deepLink("personal-other"));
-  await scene.settled();
-  assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 1, "still exactly one prompt");
-  retainedEdit(scene);
-  await answer(scene, "Cancel");
-  await promptClosed(scene);
-  await scene.settled();
-  retainedEdit(scene);
-  assert.equal(scene.external.skillWrites(), 0);
-});
-
-test("a history click made while a departure save is writing does not leave the resource page early", async (t) => {
-  const scene = await personalEditor(t);
-  const save = scene.external.hold("skills.set");
-  await click(historyRow(scene, "Personal release notes"));
-  await answer(scene, "Save");
-  await waitFor(() => assert.ok(save.reached()));
-  await click(control(scene.history(), "button", "Another personal conversation"));
-  await scene.settled({ held: 1 });
-  control(scene.container, "heading", "Plugins & Skills");
-  assert.equal(control(scene.resourcePanel(), "textbox", "Skill markdown content").value, savedSkillContent);
-  save.fail("Fixture refused to save the skill file");
-  await waitFor(() => assert.match(scene.resourcePanel().textContent, /Fixture refused to save the skill file/));
-  await scene.settled();
-  control(scene.container, "heading", "Plugins & Skills");
-  assert.equal(dom.window.location.search, "?session=personal-history");
-});
 
 test("a plugin list for the previous space that answers after a space switch does not replace the new space's plugins", async (t) => {
   const scene = await startNavigation(t);
@@ -187,8 +87,6 @@ test("a skill list for the previous space that answers after a space switch does
   await scene.settled();
   visibleText(scene.resourcePanel(), "project-checklist");
   assert.ok(!scene.resourcePanel().textContent.includes("personal-checklist"));
-  assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0);
-  await promptClosed(scene);
 });
 
 test("a skill list failure for the previous space does not show an error in the new space", async (t) => {
@@ -238,30 +136,5 @@ test("a skill file that finishes loading after a space switch is not shown in th
   content.release();
   await scene.settled();
   assert.ok(!scene.resourcePanel().textContent.includes("personal-checklist"));
-  for (const editor of roles(scene.resourcePanel(), "textbox", "Skill markdown content"))
-    assert.notEqual(editor.value, lateSkillContent, "the personal file is not shown in the project");
-});
-
-// "Save changes" pressed directly, then a space switch before the write ends.
-// The switch may wait or ask; either way the save belongs to the old space.
-test("a direct save still writing when the space switches lands in the original file and leaves nothing in the new space", async (t) => {
-  const scene = await startNavigation(t);
-  await dirtySkill(scene);
-  const save = scene.external.hold("skills.set");
-  await click(control(scene.resourcePanel(), "button", "Save changes"));
-  await waitFor(() => assert.ok(save.reached()));
-  scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await openSwitchSpace(scene)();
-  save.release();
-  await scene.settled();
-  if (roles(scene.container, "dialog", "Unsaved skill changes").length) await answer(scene, "Discard");
-  await waitFor(() => visibleText(scene.resourcePanel(), "project-checklist"));
-  await scene.settled();
-  assert.ok(!scene.resourcePanel().textContent.includes("personal-checklist"));
-  for (const editor of roles(scene.resourcePanel(), "textbox", "Skill markdown content"))
-    assert.notEqual(editor.value, savedSkillContent, "the personal edit is not shown in the project");
-  assert.doesNotMatch(scene.resourcePanel().textContent, /Failed to save skill file/);
-  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
-  await waitFor(() => control(scene.workspace(), "button", "Personal space"));
-  assert.equal((await scene.skills()).value, savedSkillContent, "the save went to the original personal file");
+  assert.ok(!scene.resourcePanel().textContent.includes("Only the personal space has this text."));
 });

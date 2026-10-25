@@ -59,7 +59,7 @@ export function navigationBoundary({
   const failures = { skillSave: null, openDirectory: null };
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
-  const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0 };
+  const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0, openedFiles: [] };
   const unexpected = [];
   const activity = { pending: 0, started: 0 };
   const runningListeners = new Set();
@@ -257,6 +257,8 @@ export function navigationBoundary({
         pkg.status = pkg.disabled ? "disabled" : "loaded";
         return pluginList(params.cwd);
       }
+      case "plugins.markReloaded":
+        return pluginList(params.cwd);
       case "skills.list":
         return { skills: structuredClone(resourceFor(params?.cwd).skills) };
       case "skills.getContent":
@@ -267,9 +269,9 @@ export function navigationBoundary({
         skillWrites++;
         if (!resourceFor(params.cwd).skills.some((item) => item.filePath === params.filePath))
           throw new Error("Skill belongs to a different space");
-        if (typeof params.content !== "string") throw new Error("Fixture expects a content edit");
-        if (failures.skillSave) throw new Error(failures.skillSave);
-        files.set(params.filePath, params.content);
+        if (typeof params.disableModelInvocation !== "boolean") throw new Error("Fixture expects a visibility change");
+        resourceFor(params.cwd).skills.find((item) => item.filePath === params.filePath).disableModelInvocation =
+          params.disableModelInvocation;
         return { ok: true };
       default:
         unexpected.push(method);
@@ -325,6 +327,9 @@ export function navigationBoundary({
     openDirectory: async (directory) => {
       if (failures.openDirectory) throw new Error(failures.openDirectory);
       desktop.openedDirectory = directory;
+    },
+    openFile: async (filePath) => {
+      desktop.openedFiles.push(filePath);
     },
     selectDirectory: async () => {
       desktop.directoryRequests++;

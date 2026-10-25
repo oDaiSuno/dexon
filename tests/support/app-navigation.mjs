@@ -236,7 +236,7 @@ export async function startNavigation(t, options = {}, external = navigationBoun
       await click(control(view.container, "tab", labels.skills));
       await waitFor(() => visibleText(scene.resourcePanel(), name));
       await click(visibleText(scene.resourcePanel(), name));
-      return waitFor(() => control(scene.resourcePanel(), "textbox", labels.skillContent));
+      return waitFor(() => control(scene.resourcePanel(), "region", labels.skillContent));
     },
     // The project card floats above the page, so it is looked up in the whole
     // document rather than inside the navigation it was opened from.

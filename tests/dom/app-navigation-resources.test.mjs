@@ -15,7 +15,7 @@ import {
   currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
-import { initialSkillContent, savedSkillContent, reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
+import { reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
 
@@ -60,8 +60,8 @@ test("with no history or selected session, the official Resources entry opens pe
 
 test("the Skills tab reached from the official entry reads a personal skill and its file without needing a session", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const editor = await scene.skills();
-  assert.equal(editor.value, initialSkillContent);
+  const preview = await scene.skills();
+  await waitFor(() => assert.ok(preview.textContent.includes("Keep the review scoped to the current space.")));
   assert.equal(control(scene.container, "tab", "Skills").getAttribute("aria-selected"), "true");
   visibleText(scene.resourcePanel(), "shared-checklist");
 });
@@ -125,13 +125,12 @@ for (const [language, unsettled, obsoleteGuidance] of [
   });
 }
 
-test("saving a skill through the official resource page is read back after reloading the application", async (t) => {
+test("Open in editor from Manage sources hands the skill file to the desktop's default editor", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const editor = await scene.skills();
-  await input(editor, savedSkillContent);
-  await click(control(scene.resourcePanel(), "button", "Save changes"));
-  await waitFor(() => assert.equal(control(scene.resourcePanel(), "button", "Save changes").disabled, true));
-  const reopened = await scene.reload();
-  const savedEditor = await reopened.skills();
-  assert.equal(savedEditor.value, savedSkillContent);
+  await scene.skills();
+  await click(control(scene.resourcePanel(), "button", "Open in editor"));
+  assert.deepEqual(scene.external.desktop.openedFiles, [
+    "/Users/navigation-fixture/.dexon/.pi/skills/personal-checklist/SKILL.md",
+  ]);
+  assert.equal(roles(scene.resourcePanel(), "button", "Save changes").length, 0);
 });

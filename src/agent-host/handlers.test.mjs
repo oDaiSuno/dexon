@@ -55,7 +55,7 @@ async function waitFor(predicate, timeoutMs, stepMs = 50) {
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
   // Keep in sync with src/contract/api.ts: one handler per contract method.
-  assert.equal(Object.keys(handlers).length, 86);
+  assert.equal(Object.keys(handlers).length, 87);
   for (const method of [
     "host.ping",
     "host.toolchain",
@@ -79,6 +79,7 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "auth.providers",
     "skills.list",
     "plugins.list",
+    "plugins.markReloaded",
     "processes.list",
     "processes.read",
     "processes.wait",

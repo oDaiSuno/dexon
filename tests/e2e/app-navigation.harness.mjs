@@ -9,7 +9,6 @@ import {
   nativeNavigationScenes as requiredScenes,
   nativeHistoryTitle,
   nativeSkillInitial,
-  nativeSkillSaved,
   seedNativeNavigation,
 } from "../fixtures/app-navigation-native.mjs";
 import { remainingSettings, railEntries } from "../fixtures/app-navigation-data.mjs";
@@ -262,19 +261,13 @@ async function run() {
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the real personal skill");
     await click(undefined, undefined, "production-checklist");
     await waitFor(
-      async () => (await page("value", { role: "textbox", name: "Skill markdown content" })) === nativeSkillInitial,
-      "the original skill file content",
+      async () => (await page("text")).includes("Read the original fixture."),
+      "the original skill file content in the read-only preview",
     );
-    await replaceText("Skill markdown content", nativeSkillSaved);
-    await waitFor(
-      async () => (await attribute("button", "Save changes", "disabled")) === null,
-      "an enabled Save changes button",
-    );
-    await click("button", "Save changes");
-    await waitFor(
-      async () => (await attribute("button", "Save changes", "disabled")) !== null,
-      "a completed skill save",
-    );
+    assert.equal(await exists("button", "Save changes"), false, "in-app editing is gone");
+    assert.equal(await exists("button", "Open in editor"), true, "editing is handed to the system editor");
+    await click("switch", "Disable skill in model prompt");
+    await waitFor(() => exists("switch", "Enable skill in model prompt"), "the hidden skill");
     await reloadPage();
     await click("button", "Plugins & Skills");
     await click("button", "Manage sources");
@@ -283,11 +276,13 @@ async function run() {
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the reopened skill list");
     await click(undefined, undefined, "production-checklist");
     await waitFor(
-      async () => (await page("value", { role: "textbox", name: "Skill markdown content" })) === nativeSkillSaved,
-      "the saved file read back through the real Host",
+      () => exists("switch", "Enable skill in model prompt"),
+      "the visibility read back through the real Host",
     );
+    await click("switch", "Enable skill in model prompt");
+    await waitFor(() => exists("switch", "Disable skill in model prompt"), "the skill visible again");
     assert.ok((await page("text")).includes("shared-checklist"));
-    return { savedFileReadBack: true, readBackAfterRendererReload: true, globalSkillVisible: true };
+    return { visibilityReadBack: true, readBackAfterRendererReload: true, globalSkillVisible: true };
   });
   await scene("05-resource-keyboard", async () => {
     await click("tab", "Plugins");
