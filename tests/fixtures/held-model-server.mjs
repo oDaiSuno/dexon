@@ -202,6 +202,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
           defaultProvider: heldModel.provider,
           defaultModel: heldModel.modelId,
           ...(retry === false ? { retry: { enabled: false } } : {}),
+          ...(retry && typeof retry === "object" ? { retry } : {}),
         }),
       );
     },
