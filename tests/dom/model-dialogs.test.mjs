@@ -74,6 +74,8 @@ async function openModels(t) {
               enabledModels: null,
               models: [...COPILOT_MODELS, { id: "x", name: "x", provider: "other" }],
             };
+          case "modelsConfig.channels.get":
+            return { channels: {} };
           case "models.defaults.get":
             return { model: null, thinkingLevel: "medium" };
           case "models.preferences.set":

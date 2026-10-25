@@ -191,6 +191,8 @@ export function navigationBoundary({
         return modelList;
       case "modelsConfig.get":
         return { config: { providers: {} }, version: "navigation-fixture-v1" };
+      case "modelsConfig.channels.get":
+        return { channels: {} };
       case "models.preferences.get":
         return { enabledModels: null, models: [] };
       case "models.defaults.get":

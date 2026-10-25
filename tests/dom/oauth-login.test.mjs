@@ -27,6 +27,7 @@ async function models(t, cancel) {
           };
         if (method === "auth.allProviders") return { providers: [] };
         if (method === "models.preferences.get") return { enabledModels: null, models: [] };
+        if (method === "modelsConfig.channels.get") return { channels: {} };
         if (method === "models.defaults.get") return { model: null, thinkingLevel: "medium" };
         if (method === "auth.loginCancel") return Promise.resolve(cancel(params.provider)).then(() => ({ ok: true }));
         if (method === "auth.loginStart") {
