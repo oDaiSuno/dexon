@@ -46,6 +46,17 @@ export interface GitStatusResult {
   untracked: number;
   conflicted: number;
   entries: GitStatusEntry[];
+  upstream: { ahead: number; behind: number } | null;
+}
+
+export interface GitBranchResult {
+  isGit: boolean;
+  branch: string | null;
+}
+
+export interface GitHeadContentResult {
+  comparable: boolean;
+  content: string;
 }
 
 export type PluginScope = "global" | "project";

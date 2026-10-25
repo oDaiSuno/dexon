@@ -23,6 +23,8 @@ import type {
   WorktreeInfo,
 } from "./types";
 import type {
+  GitBranchResult,
+  GitHeadContentResult,
   GitStatusResult,
   PluginActionParams,
   PluginsResponse,
@@ -174,6 +176,14 @@ export interface Api {
   "git.status": {
     params: { path: string };
     result: GitStatusResult;
+  };
+  "git.branch": {
+    params: { path: string };
+    result: GitBranchResult;
+  };
+  "git.headContent": {
+    params: { path: string; sourceSessionId?: string };
+    result: GitHeadContentResult;
   };
   "projects.inspectFolder": {
     params: { path: string };

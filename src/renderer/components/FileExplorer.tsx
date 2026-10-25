@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { encodeFilePathForApi } from "@/lib/file-paths";
+import { call } from "@/lib/api-client";
 import type { GitStatusResult } from "@shared/api-types";
 import { useI18n } from "@/i18n";
 import { FileTreeSkeleton, FilesSectionHeader } from "./file-explorer/files-section";
@@ -33,6 +34,7 @@ export function FileExplorer({
   const [error, setError] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null);
+  const [quickBranch, setQuickBranch] = useState<{ cwd: string; branch: string } | null>(null);
   const [watch, setWatch] = useState<WatchState>("connecting");
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
   const [changesOnly, toggleChangesOnly] = useChangesOnlyPreference();
@@ -58,7 +60,16 @@ export function FileExplorer({
   const loadProject = useCallback(
     async (showLoading: boolean) => {
       const generation = ++loadGenerationRef.current;
-      if (showLoading) setLoading(true);
+      if (showLoading) {
+        setLoading(true);
+        void call("git.branch", { path: cwd })
+          .then((result) => {
+            if (generation === loadGenerationRef.current && result.isGit) {
+              setQuickBranch({ cwd, branch: result.branch ?? "detached" });
+            }
+          })
+          .catch(() => undefined);
+      }
       setError(null);
       try {
         const [entries, statusResponse] = await Promise.all([
@@ -144,6 +155,7 @@ export function FileExplorer({
         watch={watch}
         gitStatus={error ? null : gitStatus}
         loading={loading}
+        loadingBranch={quickBranch?.cwd === cwd ? quickBranch.branch : null}
       />
       <div className="flex flex-col gap-[4px]">
         <FilesSectionHeader

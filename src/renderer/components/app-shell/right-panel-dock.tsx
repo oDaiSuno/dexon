@@ -8,6 +8,7 @@ import {
 } from "@/lib/layout-preferences";
 import {
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -16,8 +17,10 @@ import {
   type ReactNode,
 } from "react";
 import type { AppLanguage } from "@/i18n";
+import { getRelativeFilePath } from "@/lib/file-paths";
 import { BrowserDock } from "../browser/BrowserDock";
 import { FileExplorer } from "../FileExplorer";
+import { isPathChanged, useChangedPaths } from "../file-explorer/use-changed-paths";
 import { FileViewer } from "../FileViewer";
 import { ProcessPanel } from "../ProcessPanel";
 import { TabBar } from "../TabBar";
@@ -89,6 +92,16 @@ export function RightPanelDock({
   const [lastFileTabId, setLastFileTabId] = useState<string | null>(null);
   if (activeFileTab && activeFileTab.id !== lastFileTabId) setLastFileTabId(activeFileTab.id);
   const explorerFilePath = fileTabs.find((tab) => tab.id === lastFileTabId)?.filePath ?? null;
+  const changed = useChangedPaths(fileTabs.length > 0 ? explorerCwd : null, explorerRefreshKey);
+  const changedTabIds = useMemo(
+    () =>
+      new Set(
+        fileTabs
+          .filter((tab) => explorerCwd && isPathChanged(changed, getRelativeFilePath(tab.filePath, explorerCwd)))
+          .map((tab) => tab.id),
+      ),
+    [fileTabs, changed, explorerCwd],
+  );
 
   const widthLimit = getRightPanelWidthLimit(rightPanelWidth, rightPanelBounds);
 
@@ -161,6 +174,7 @@ export function RightPanelDock({
           <TabBar
             tabs={fileTabs}
             activeTabId={activeFileTabId}
+            changedTabIds={changedTabIds}
             onSelectTab={(tabId) => dispatchFileTab({ type: "select", tabId })}
             onCloseTab={(tabId) => dispatchFileTab({ type: "close", tabId, fallbackTabId: EXPLORER_TAB_ID })}
           />

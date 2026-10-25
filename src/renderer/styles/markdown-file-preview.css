@@ -62,8 +62,28 @@
   overflow-wrap: anywhere;
 }
 
-.file-diff {
+.file-diff-hunks {
   padding: var(--space-2) 0;
+}
+
+.file-diff-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 var(--space-4);
+  border-bottom: 1px solid var(--fx-line-subtle);
+}
+
+.file-diff-ratio {
+  display: flex;
+  gap: 2px;
+}
+
+.file-diff-ratio > span {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-bar);
 }
 
 .file-diff-row.is-removed {

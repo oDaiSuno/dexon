@@ -8,15 +8,17 @@ import type { FileTab } from "@/lib/file-tab-state";
 interface Props {
   tabs: FileTab[];
   activeTabId: string;
+  changedTabIds?: ReadonlySet<string>;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
 }
 
 const MOTION = "duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] motion-reduce:transition-none";
 
-export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
+export function TabBar({ tabs, activeTabId, changedTabIds, onSelectTab, onCloseTab }: Props) {
   const { t } = useI18n();
   const closeLabel = t("closeFileTab", "Close {name}");
+  const changedLabel = t("fileTabChanged", "Changed");
   const allTabsLabel = t("allFileTabs", "All tabs");
   const menuItems = useMemo(
     () =>
@@ -36,6 +38,7 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
         {tabs.map((tab) => {
           const isActive = tab.id === activeTabId;
           const closeName = closeLabel.replace("{name}", tab.label);
+          const isChanged = changedTabIds?.has(tab.id) === true;
 
           return (
             <div
@@ -66,17 +69,29 @@ export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
                   {tab.label}
                 </span>
               </button>
-              <button
-                type="button"
-                aria-label={closeName}
-                title={closeName}
-                onClick={() => onCloseTab(tab.id)}
-                className={`flex size-[16px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-xs)] border-none bg-[var(--fx-surface-hover-clear)] p-0 text-[var(--fx-text-secondary)] transition-[background-color,opacity] hover:bg-[var(--fx-surface-hover-overlay-strong)] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 ${MOTION} ${
-                  isActive ? "opacity-100" : "opacity-0"
-                }`}
-              >
-                <XGlyph size={11} strokeWidth={2} />
-              </button>
+              <span className="relative flex size-[16px] shrink-0 items-center justify-center">
+                {isChanged && (
+                  <span
+                    role="img"
+                    aria-label={changedLabel}
+                    title={changedLabel}
+                    className={`pointer-events-none absolute size-[6px] rounded-[3px] bg-[var(--fx-status-warning)] transition-opacity ${MOTION} group-hover:opacity-0 group-focus-within:opacity-0 ${
+                      isActive ? "opacity-0" : "opacity-100"
+                    }`}
+                  />
+                )}
+                <button
+                  type="button"
+                  aria-label={closeName}
+                  title={closeName}
+                  onClick={() => onCloseTab(tab.id)}
+                  className={`relative flex size-[16px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-xs)] border-none bg-[var(--fx-surface-hover-clear)] p-0 text-[var(--fx-text-secondary)] transition-[background-color,opacity] hover:bg-[var(--fx-surface-hover-overlay-strong)] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 ${MOTION} ${
+                    isActive ? "opacity-100" : "opacity-0"
+                  }`}
+                >
+                  <XGlyph size={11} strokeWidth={2} />
+                </button>
+              </span>
             </div>
           );
         })}

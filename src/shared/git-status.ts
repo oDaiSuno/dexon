@@ -11,7 +11,17 @@ export function gitEntryKind(entry: GitStatusEntry): GitEntryKind {
   return "tracked";
 }
 
-export function parseGitStatusPorcelain(output: string, branch: string | null): GitStatusResult {
+export function parseAheadBehind(output: string): { ahead: number; behind: number } | null {
+  const match = /^(\d+)\s+(\d+)$/.exec(output.trim());
+  if (!match) return null;
+  return { behind: Number(match[1]), ahead: Number(match[2]) };
+}
+
+export function parseGitStatusPorcelain(
+  output: string,
+  branch: string | null,
+  upstream: GitStatusResult["upstream"] = null,
+): GitStatusResult {
   const entries: GitStatusEntry[] = [];
   const records = output.split("\0");
   for (let index = 0; index < records.length; index += 1) {
@@ -47,5 +57,6 @@ export function parseGitStatusPorcelain(output: string, branch: string | null): 
     untracked,
     conflicted,
     entries,
+    upstream,
   };
 }

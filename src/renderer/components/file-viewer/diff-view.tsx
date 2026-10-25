@@ -1,13 +1,20 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, Fragment } from "react";
 import { createBoundedTextDiff, type DiffLine, type TextDiffResult } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
 import { formatNumber } from "@/lib/locale-format";
 import { CodeLineText } from "./code-line";
-import { layoutDiff } from "./diff-segments";
+import { layoutDiff, ratioSquares, type RatioSquare } from "./diff-segments";
 import { useHighlightedLines, type CodeLineTokens } from "./highlighted-lines";
+import type { DiffSummary } from "./use-text-file";
 
 const NO_FOLDS: ReadonlySet<number> = new Set();
 const SIGN: Record<DiffLine["type"], string> = { added: "+", removed: "\u2212", unchanged: "" };
+
+const RATIO_COLOR: Record<RatioSquare, string> = {
+  added: "var(--fx-status-success)",
+  removed: "var(--fx-status-danger)",
+  track: "var(--fx-surface-track)",
+};
 
 function DiffRow({ line, tokens }: { line: DiffLine; tokens: CodeLineTokens | undefined }) {
   return (
@@ -52,11 +59,13 @@ export function DiffView({
   newContent,
   language,
   wrapLines,
+  summary = null,
 }: {
   oldContent: string;
   newContent: string;
   language: string;
   wrapLines: boolean;
+  summary?: DiffSummary | null;
 }) {
   const { language: locale, t } = useI18n();
   const result = useMemo(() => createBoundedTextDiff(oldContent, newContent), [oldContent, newContent]);
@@ -66,7 +75,13 @@ export function DiffView({
   const oldTokens = useHighlightedLines(oldContent, language, diff !== null);
   const newTokens = useHighlightedLines(newContent, language, diff !== null);
   const layout = useMemo(() => (diff ? layoutDiff(diff, expandedFolds) : null), [diff, expandedFolds]);
-  const expandFold = (start: number) => setExpansion({ result, folds: new Set(expandedFolds).add(start) });
+
+  const toggleFold = (start: number) => {
+    const folds = new Set(expandedFolds);
+    if (folds.has(start)) folds.delete(start);
+    else folds.add(start);
+    setExpansion({ result, folds });
+  };
 
   if (result.kind === "fallback") {
     return (
@@ -81,7 +96,7 @@ export function DiffView({
     );
   }
 
-  if (!layout?.header) {
+  if (!layout?.hasChanges) {
     return <div className="file-diff-note type-mono-code">{t("noChanges", "No changes")}</div>;
   }
 
@@ -90,25 +105,54 @@ export function DiffView({
 
   return (
     <div className={`file-diff prismjs type-mono-code${wrapLines ? " is-wrapped" : ""}`}>
-      <div className="file-diff-hunk type-mono-meta">
-        <span>{layout.header}</span>
-      </div>
-      {layout.blocks.map((block) =>
-        block.kind === "fold" ? (
-          <button
-            key={`fold-${block.start}`}
-            type="button"
-            className="file-diff-fold type-meta-default"
-            title={t("expandUnchangedLines", "Show unchanged lines")}
-            onClick={() => expandFold(block.start)}
-          >
-            <FoldIcon />
-            {t("unchangedLines", "… {count} unchanged lines …").replace("{count}", formatNumber(block.count, locale))}
-          </button>
-        ) : (
-          block.lines.map((line, offset) => <DiffRow key={block.start + offset} line={line} tokens={tokensOf(line)} />)
-        ),
+      {summary && (
+        <div className="file-diff-summary">
+          <span className="type-mono-label text-[var(--fx-text-primary)]">
+            {`+${formatNumber(summary.added, locale)}  \u2212${formatNumber(summary.removed, locale)}`}
+          </span>
+          <span className="file-diff-ratio" aria-hidden="true">
+            {ratioSquares(summary.added, summary.removed).map((square, index) => (
+              <span key={index} style={{ background: RATIO_COLOR[square] }} />
+            ))}
+          </span>
+          <span className="flex-1" />
+          <span className="type-meta-default text-[var(--fx-text-tertiary)]">
+            {t("diffComparedWithHead", "Compared with HEAD")}
+          </span>
+        </div>
       )}
+      <div className="file-diff-hunks">
+        {layout.blocks.map((block) =>
+          block.kind === "fold" ? (
+            <button
+              key={`fold-${block.start}`}
+              type="button"
+              className="file-diff-fold type-meta-default"
+              aria-expanded={block.expanded}
+              title={
+                block.expanded
+                  ? t("collapseUnchangedLines", "Hide unchanged lines")
+                  : t("expandUnchangedLines", "Show unchanged lines")
+              }
+              onClick={() => toggleFold(block.start)}
+            >
+              <FoldIcon />
+              {t("unchangedLines", "… {count} unchanged lines …").replace("{count}", formatNumber(block.count, locale))}
+            </button>
+          ) : (
+            <Fragment key={`lines-${block.start}`}>
+              {block.header && (
+                <div className="file-diff-hunk type-mono-meta">
+                  <span>{block.header}</span>
+                </div>
+              )}
+              {block.lines.map((line, offset) => (
+                <DiffRow key={block.start + offset} line={line} tokens={tokensOf(line)} />
+              ))}
+            </Fragment>
+          ),
+        )}
+      </div>
     </div>
   );
 }

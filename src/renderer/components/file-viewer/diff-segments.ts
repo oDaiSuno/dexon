@@ -5,14 +5,19 @@ const DECLARATION =
   /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(function\*?|class|interface|enum|type|def|fn|func|struct|impl|const|let|var)\s+([A-Za-z_$][\w$]*)/;
 
 export type DiffBlock =
-  { kind: "lines"; start: number; lines: DiffLine[] } | { kind: "fold"; start: number; count: number };
+  | { kind: "lines"; start: number; lines: DiffLine[]; header: string | null }
+  | { kind: "fold"; start: number; count: number; expanded: boolean };
 
 export type DiffSegment = { hidden: true; count: number } | { hidden: false; lines: DiffLine[] };
 
 export interface DiffLayout {
-  header: string | null;
   blocks: DiffBlock[];
+  hasChanges: boolean;
 }
+
+export type RatioSquare = "added" | "removed" | "track";
+
+const RATIO_SQUARES = 6;
 
 function visibleMask(diff: DiffLine[], expandedFolds: ReadonlySet<number>): boolean[] {
   const visible = diff.map(() => false);
@@ -69,16 +74,34 @@ function runs(visible: boolean[]): { shown: boolean; start: number; end: number 
 }
 
 export function layoutDiff(diff: DiffLine[], expandedFolds: ReadonlySet<number>): DiffLayout {
-  const blocks = runs(visibleMask(diff, expandedFolds)).flatMap<DiffBlock>(({ shown, start, end }) => {
-    if (shown) return [{ kind: "lines", start, lines: diff.slice(start, end) }];
-    return start > 0 && end < diff.length ? [{ kind: "fold", start, count: end - start }] : [];
+  const blocks = runs(visibleMask(diff, new Set())).flatMap<DiffBlock>(({ shown, start, end }) => {
+    const lines = diff.slice(start, end);
+    if (shown) return [{ kind: "lines", start, lines, header: hunkHeader(diff, start, lines) }];
+    if (start === 0 || end === diff.length) return [];
+    const expanded = expandedFolds.has(start);
+    const fold: DiffBlock = { kind: "fold", start, count: end - start, expanded };
+    return expanded ? [fold, { kind: "lines", start, lines, header: null }] : [fold];
   });
-  const first = blocks.find((block) => block.kind === "lines");
-  return { header: first ? hunkHeader(diff, first.start, first.lines) : null, blocks };
+  return { blocks, hasChanges: diff.some((line) => line.type !== "unchanged") };
 }
 
 export function collapseDiff(diff: DiffLine[]): DiffSegment[] {
   return runs(visibleMask(diff, new Set())).map(({ shown, start, end }) =>
     shown ? { hidden: false, lines: diff.slice(start, end) } : { hidden: true, count: end - start },
   );
+}
+
+export function ratioSquares(added: number, removed: number): RatioSquare[] {
+  const total = added + removed;
+  if (total <= 0) return Array.from({ length: RATIO_SQUARES }, () => "track" as const);
+  let green = Math.round((RATIO_SQUARES * added) / total);
+  let red = Math.round((RATIO_SQUARES * removed) / total);
+  if (green + red > RATIO_SQUARES) red = RATIO_SQUARES - green;
+  if (added > 0 && green === 0 && green + red < RATIO_SQUARES) green = 1;
+  if (removed > 0 && red === 0 && green + red < RATIO_SQUARES) red = 1;
+  const squares: RatioSquare[] = [];
+  for (let index = 0; index < green; index++) squares.push("added");
+  for (let index = 0; index < red; index++) squares.push("removed");
+  while (squares.length < RATIO_SQUARES) squares.push("track");
+  return squares;
 }

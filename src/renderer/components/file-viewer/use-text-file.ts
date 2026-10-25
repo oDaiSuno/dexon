@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { INITIAL_TEXT_FILE_LOAD_STATE, textFileLoadReducer, type TextFileData } from "@/lib/file-viewer-load-state";
 import { createBoundedTextDiff } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
+import { call } from "@/lib/api-client";
 import { collapseDiff } from "./diff-segments";
 import { getFileApiUrl } from "./file-api-url";
 
@@ -26,6 +27,7 @@ function summarizeDiff(oldContent: string, newContent: string): DiffSummary | nu
 export function useTextFile(filePath: string, sourceSessionId?: string | null) {
   const { t } = useI18n();
   const [loadState, dispatchLoad] = useReducer(textFileLoadReducer, INITIAL_TEXT_FILE_LOAD_STATE);
+  const [head, setHead] = useState<{ filePath: string; content: string } | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [viewMode, setViewMode] = useState<TextViewMode>("source");
   const [wrapLines, setWrapLines] = useState(false);
@@ -35,7 +37,7 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
   const loadGen = useRef(0);
 
   const fetchContent = useCallback(
-    (targetPath: string, isRefresh = false) => {
+    (targetPath: string) => {
       const gen = ++loadGen.current;
       return import("@/lib/file-blob")
         .then(({ readFilePayload }) => readFilePayload(targetPath, sourceSessionId))
@@ -61,7 +63,7 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
             language: d.language ?? "text",
             size: d.size ?? d.content.length,
           };
-          dispatchLoad({ type: "succeeded", data: payload, refresh: isRefresh });
+          dispatchLoad({ type: "succeeded", data: payload });
           return payload;
         })
         .catch((e) => {
@@ -73,8 +75,20 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     [sourceSessionId, t],
   );
 
+  const fetchHead = useCallback(() => {
+    const gen = loadGen.current;
+    return call("git.headContent", { path: filePath, sourceSessionId: sourceSessionId ?? undefined })
+      .then((r) => {
+        if (gen === loadGen.current) setHead(r.comparable ? { filePath, content: r.content } : null);
+      })
+      .catch(() => {
+        if (gen === loadGen.current) setHead(null);
+      });
+  }, [filePath, sourceSessionId]);
+
   useEffect(() => {
     dispatchLoad({ type: "reset" });
+    setHead(null);
     setPreviewMode(false);
     setViewMode("source");
     setWrapLines(false);
@@ -88,6 +102,7 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     void fetchContent(filePath).then((data) => {
       if (data?.language === "markdown") setPreviewMode(true);
     });
+    void fetchHead();
 
     const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
     esRef.current = es;
@@ -97,7 +112,8 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     });
 
     es.addEventListener("change", () => {
-      void fetchContent(filePath, true);
+      void fetchContent(filePath);
+      void fetchHead();
     });
 
     es.addEventListener("error", () => {
@@ -113,19 +129,20 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
       es.close();
       esRef.current = null;
     };
-  }, [filePath, fetchContent, sourceSessionId]);
+  }, [filePath, fetchContent, fetchHead, sourceSessionId]);
 
   const content = loadState.status === "ready" ? loadState.data.content : null;
-  const prevContent = loadState.status === "ready" ? loadState.prevContent : null;
-  const hasDiff = content !== null && prevContent !== null && prevContent !== content;
+  const headContent = head && head.filePath === filePath ? head.content : null;
+  const hasDiff = content !== null && headContent !== null;
   const diffSummary = useMemo(
-    () => (hasDiff ? summarizeDiff(prevContent!, content!) : null),
-    [hasDiff, prevContent, content],
+    () => (hasDiff && headContent !== content ? summarizeDiff(headContent!, content!) : null),
+    [hasDiff, headContent, content],
   );
 
   return {
     loadState,
     hasDiff,
+    headContent,
     diffSummary,
     previewMode,
     setPreviewMode,

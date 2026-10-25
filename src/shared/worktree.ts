@@ -3,8 +3,8 @@ import { existsSync, mkdirSync, realpathSync } from "fs";
 import { basename, dirname, join, resolve } from "path";
 import { promisify } from "util";
 import { allowFileRoot } from "./allowed-roots.ts";
-import type { GitStatusResult } from "./api-types";
-import { parseGitStatusPorcelain } from "./git-status.ts";
+import type { GitBranchResult, GitHeadContentResult, GitStatusResult } from "./api-types";
+import { parseAheadBehind, parseGitStatusPorcelain } from "./git-status.ts";
 import { worktreePathsEqual } from "./worktree-path.ts";
 export { parseGitStatusPorcelain } from "./git-status.ts";
 export { normalizeWorktreePathForComparison, worktreePathsEqual } from "./worktree-path.ts";
@@ -118,22 +118,59 @@ export async function listGitFiles(cwd: string): Promise<string[]> {
 
 export async function getGitStatus(cwd: string): Promise<GitStatusResult> {
   try {
-    const [branchRaw, status] = await Promise.all([
-      git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]),
+    const branch = await getGitBranch(cwd);
+    if (!branch.isGit) return notGitStatus();
+    const [status, aheadBehind] = await Promise.all([
       gitRaw(cwd, ["status", "--porcelain=v1", "-z", "--untracked-files=normal"]),
+      git(cwd, ["rev-list", "--left-right", "--count", "@{upstream}...HEAD"]).catch(() => ""),
     ]);
-    return parseGitStatusPorcelain(status, branchRaw && branchRaw !== "HEAD" ? branchRaw : null);
+    return parseGitStatusPorcelain(status, branch.branch, parseAheadBehind(aheadBehind));
   } catch {
-    return {
-      isGit: false,
-      branch: null,
-      clean: true,
-      staged: 0,
-      modified: 0,
-      untracked: 0,
-      conflicted: 0,
-      entries: [],
-    };
+    return notGitStatus();
+  }
+}
+
+function notGitStatus(): GitStatusResult {
+  return {
+    isGit: false,
+    branch: null,
+    clean: true,
+    staged: 0,
+    modified: 0,
+    untracked: 0,
+    conflicted: 0,
+    entries: [],
+    upstream: null,
+  };
+}
+
+export async function getGitBranch(cwd: string): Promise<GitBranchResult> {
+  try {
+    const raw = await git(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+    return { isGit: true, branch: raw && raw !== "HEAD" ? raw : null };
+  } catch {
+    return { isGit: false, branch: null };
+  }
+}
+
+export async function getGitHeadContent(filePath: string): Promise<GitHeadContentResult> {
+  try {
+    const dir = dirname(filePath);
+    const name = basename(filePath);
+    const ignored = await git(dir, ["check-ignore", "-q", "--", name]).then(
+      () => true,
+      () => false,
+    );
+    if (ignored) return { comparable: false, content: "" };
+    const insideWorkTree = await git(dir, ["rev-parse", "--is-inside-work-tree"]).then(
+      () => true,
+      () => false,
+    );
+    if (!insideWorkTree) return { comparable: false, content: "" };
+    const content = await gitRaw(dir, ["cat-file", "--filters", `HEAD:./${name}`]).catch(() => "");
+    return { comparable: true, content };
+  } catch {
+    return { comparable: false, content: "" };
   }
 }
 

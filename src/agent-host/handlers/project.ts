@@ -8,6 +8,8 @@ import { validateExistingDirectory } from "../file-access-core";
 import type { ManagedProcessService } from "../managed-process/service";
 import {
   addWorktree,
+  getGitBranch,
+  getGitHeadContent,
   getGitStatus,
   isDirtyWorktreeError,
   listWorktrees,
@@ -91,6 +93,18 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
       const { path: cwd } = params as { path: string };
       await assertPathAllowed(cwd);
       return getGitStatus(cwd);
+    },
+
+    "git.branch": async (params) => {
+      const { path: cwd } = params as { path: string };
+      await assertPathAllowed(cwd);
+      return getGitBranch(cwd);
+    },
+
+    "git.headContent": async (params) => {
+      const { path: filePath, sourceSessionId } = params as { path: string; sourceSessionId?: string };
+      await assertPathAllowed(filePath, sourceSessionId);
+      return getGitHeadContent(filePath);
     },
 
     "projects.inspectFolder": async (params) => {

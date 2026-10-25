@@ -22,6 +22,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
   const {
     loadState,
     hasDiff,
+    headContent,
     diffSummary,
     previewMode,
     setPreviewMode,
@@ -54,7 +55,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
       cwd={cwd}
       sourceSessionId={sourceSessionId}
       data={loadState.data}
-      prevContent={loadState.prevContent}
+      headContent={headContent}
       hasDiff={hasDiff}
       diffSummary={diffSummary}
       viewMode={viewMode}
@@ -70,7 +71,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
 
 export interface TextFileReadyProps extends FileViewerProps, Omit<TextModeTogglesProps, "data"> {
   data: TextFileData;
-  prevContent: string | null;
+  headContent: string | null;
   watching: boolean;
 }
 
@@ -79,7 +80,7 @@ export function TextFileReady({
   cwd,
   sourceSessionId,
   data,
-  prevContent,
+  headContent,
   hasDiff,
   diffSummary,
   viewMode,
@@ -127,8 +128,9 @@ export function TextFileReady({
         cwd={cwd}
         sourceSessionId={sourceSessionId}
         data={data}
-        prevContent={prevContent}
+        headContent={headContent}
         hasDiff={hasDiff}
+        diffSummary={diffSummary}
         viewMode={viewMode}
         previewMode={previewMode}
         wrapLines={wrapLines}

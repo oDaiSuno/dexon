@@ -5,19 +5,17 @@ export interface TextFileData {
 }
 
 export type TextFileLoadState =
-  | { status: "loading"; data: null; error: null; prevContent: null; changeCount: 0 }
-  | { status: "error"; data: null; error: string; prevContent: null; changeCount: number }
-  | { status: "ready"; data: TextFileData; error: null; prevContent: string | null; changeCount: number };
+  | { status: "loading"; data: null; error: null }
+  | { status: "error"; data: null; error: string }
+  | { status: "ready"; data: TextFileData; error: null };
 
 export type TextFileLoadAction =
-  { type: "reset" } | { type: "failed"; error: string } | { type: "succeeded"; data: TextFileData; refresh: boolean };
+  { type: "reset" } | { type: "failed"; error: string } | { type: "succeeded"; data: TextFileData };
 
 export const INITIAL_TEXT_FILE_LOAD_STATE: TextFileLoadState = {
   status: "loading",
   data: null,
   error: null,
-  prevContent: null,
-  changeCount: 0,
 };
 
 export function textFileLoadReducer(state: TextFileLoadState, action: TextFileLoadAction): TextFileLoadState {
@@ -25,21 +23,9 @@ export function textFileLoadReducer(state: TextFileLoadState, action: TextFileLo
     case "reset":
       return INITIAL_TEXT_FILE_LOAD_STATE;
     case "failed":
-      return {
-        status: "error",
-        data: null,
-        error: action.error,
-        prevContent: null,
-        changeCount: state.changeCount,
-      };
+      return { status: "error", data: null, error: action.error };
     case "succeeded":
-      return {
-        status: "ready",
-        data: action.data,
-        error: null,
-        prevContent: action.refresh && state.status === "ready" ? state.data.content : null,
-        changeCount: action.refresh ? state.changeCount + 1 : 0,
-      };
+      return { status: "ready", data: action.data, error: null };
     default:
       return state;
   }

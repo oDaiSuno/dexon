@@ -3,7 +3,7 @@ import { getParentFilePath } from "@shared/file-paths";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { formatNumber } from "@/lib/locale-format";
 import { isPersonalSpace, spaceDisplayName } from "@/lib/space-identity";
-import { useI18n } from "@/i18n";
+import { useI18n, type AppLanguage } from "@/i18n";
 import { CircleCheckIcon, Icon } from "../chat-input/icons";
 import { GitBranchGlyph } from "../chat-input/workspace-chrome";
 import { FolderIcon } from "../FileIcons";
@@ -18,6 +18,7 @@ export function WorkspaceSummary({
   watch,
   gitStatus,
   loading,
+  loadingBranch,
 }: {
   cwd: string;
   personalCwd: string | null;
@@ -25,6 +26,7 @@ export function WorkspaceSummary({
   watch: WatchState;
   gitStatus: GitStatusResult | null;
   loading: boolean;
+  loadingBranch: string | null;
 }) {
   return (
     <div className="flex flex-col gap-[8px]">
@@ -36,11 +38,11 @@ export function WorkspaceSummary({
         isGit={gitStatus ? gitStatus.isGit : null}
       />
       {loading ? (
-        <GitCard gitStatus={null} />
+        <GitCard gitStatus={null} loadingBranch={loadingBranch} />
       ) : gitStatus === null ? null : !gitStatus.isGit ? (
         <NotGitNotice />
       ) : (
-        <GitCard gitStatus={gitStatus} />
+        <GitCard gitStatus={gitStatus} loadingBranch={null} />
       )}
     </div>
   );
@@ -114,9 +116,27 @@ function FolderGitIcon() {
   );
 }
 
-function GitCard({ gitStatus }: { gitStatus: GitStatusResult | null }) {
+function syncText(
+  upstream: GitStatusResult["upstream"],
+  language: AppLanguage,
+  t: (key: string, fallback: string) => string,
+): string | null {
+  if (!upstream) return null;
+  if (upstream.ahead === 0 && upstream.behind === 0) return t("gitSyncedWithRemote", "In sync with remote");
+  const parts: string[] = [];
+  if (upstream.ahead > 0) {
+    parts.push(t("gitAheadOfRemote", "{count} ahead").replace("{count}", formatNumber(upstream.ahead, language)));
+  }
+  if (upstream.behind > 0) {
+    parts.push(t("gitBehindRemote", "{count} behind").replace("{count}", formatNumber(upstream.behind, language)));
+  }
+  return parts.join(" \u00b7 ");
+}
+
+function GitCard({ gitStatus, loadingBranch }: { gitStatus: GitStatusResult | null; loadingBranch: string | null }) {
   const { language, t } = useI18n();
-  const branch = gitStatus ? (gitStatus.branch ?? "detached") : null;
+  const branch = gitStatus ? (gitStatus.branch ?? "detached") : loadingBranch;
+  const sync = gitStatus && gitStatus.clean ? syncText(gitStatus.upstream, language, t) : null;
   const labels = {
     staged: t("gitStaged", "Staged"),
     modified: t("gitModified", "Modified"),
@@ -129,12 +149,17 @@ function GitCard({ gitStatus }: { gitStatus: GitStatusResult | null }) {
         <span className="flex shrink-0 text-[var(--fx-text-secondary)]">
           <GitBranchGlyph size={14} />
         </span>
-        {gitStatus && branch !== null ? (
+        {branch !== null ? (
           <>
             <span className="type-mono-label min-w-0 flex-1 truncate text-[var(--fx-text-primary)]" title={branch}>
               {branch}
             </span>
-            {!gitStatus.clean && (
+            {!gitStatus && (
+              <span className="type-meta-default shrink-0 text-[var(--fx-text-tertiary)]">
+                {t("gitReadingStatus", "Reading…")}
+              </span>
+            )}
+            {gitStatus && !gitStatus.clean && (
               <span className="type-meta-default shrink-0 text-[var(--fx-text-tertiary)]">
                 {t("changedPathCount", "{count} changes").replace(
                   "{count}",
@@ -142,6 +167,7 @@ function GitCard({ gitStatus }: { gitStatus: GitStatusResult | null }) {
                 )}
               </span>
             )}
+            {sync && <span className="type-meta-default shrink-0 text-[var(--fx-text-tertiary)]">{sync}</span>}
           </>
         ) : (
           <span

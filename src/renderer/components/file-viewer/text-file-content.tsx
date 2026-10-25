@@ -4,7 +4,7 @@ import { MarkdownBody } from "../MarkdownBody";
 import { DiffView } from "./diff-view";
 import { HtmlPreview } from "./html-preview";
 import { SourceView, type SourceCursor } from "./source-view";
-import type { TextViewMode } from "./use-text-file";
+import type { DiffSummary, TextViewMode } from "./use-text-file";
 
 const JSX_FLAVORS: Readonly<Record<string, string>> = { javascript: "jsx", typescript: "tsx" };
 
@@ -19,8 +19,9 @@ export interface TextFileContentProps {
   cwd?: string;
   sourceSessionId?: string | null;
   data: TextFileData;
-  prevContent: string | null;
+  headContent: string | null;
   hasDiff: boolean;
+  diffSummary: DiffSummary | null;
   viewMode: TextViewMode;
   previewMode: boolean;
   wrapLines: boolean;
@@ -33,8 +34,9 @@ export function TextFileContent({
   cwd,
   sourceSessionId,
   data,
-  prevContent,
+  headContent,
   hasDiff,
+  diffSummary,
   viewMode,
   previewMode,
   wrapLines,
@@ -48,10 +50,11 @@ export function TextFileContent({
     <div className="file-viewer-scroll">
       {viewMode === "diff" && hasDiff ? (
         <DiffView
-          oldContent={prevContent!}
+          oldContent={headContent!}
           newContent={data.content}
           language={sourceLanguage(data.language, filePath)}
           wrapLines={wrapLines}
+          summary={diffSummary}
         />
       ) : isHtml && previewMode ? (
         <HtmlPreview content={data.content} filePath={filePath} sourceSessionId={sourceSessionId} />
