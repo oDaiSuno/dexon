@@ -13,6 +13,7 @@ import {
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { accessibleName } from "../support/dom-queries.mjs";
+import { hover } from "../support/dom-events.mjs";
 import { navigationLabels, remainingSettings, remainingSettingsZhCN } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
@@ -180,4 +181,15 @@ test("Manage permanent permission from a browser authorization request still rea
   assert.equal(control(dialog, "tab", "Browser").getAttribute("aria-selected"), "true");
   await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Built-in Browser/));
   expectSettingsTabs(dialog);
+});
+
+test("Go to settings on a greyed-out Regenerate name opens Settings on the Models page", async (t) => {
+  const scene = await startNavigation(t);
+  await hover(await waitFor(() => control(scene.history(), "button", "Another personal conversation")));
+  await click(control(scene.history(), "button", "Session actions for Another personal conversation"));
+  const menu = await waitFor(() => control(scene.history(), "menu", "Session actions"));
+  await click(control(menu, "menuitem", "Regenerate name: choose a naming model in Settings"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
+  await waitFor(() => assert.equal(accessibleName(selectedTab(dialog)), "Models"));
+  assert.equal(roles(scene.history(), "menu", "Session actions").length, 0);
 });
