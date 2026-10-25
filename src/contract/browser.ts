@@ -1,3 +1,5 @@
+import type { BrowserSearchEngine } from "./browser-search";
+
 export const BROWSER_SETTINGS_VERSION = 3 as const;
 
 export type BrowserProfileMode = "ephemeral" | "persistent" | "unsafe";
@@ -106,6 +108,8 @@ export interface BrowserNavigationSettings {
   allowHttp: boolean;
   allowPrivateNetwork: boolean;
   networkIsolation: BrowserNetworkIsolation;
+  searchEngine: BrowserSearchEngine;
+  customSearchTemplate: string;
 }
 
 export interface BrowserAutomationSettings {

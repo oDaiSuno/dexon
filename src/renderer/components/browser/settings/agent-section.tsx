@@ -51,6 +51,11 @@ export function AgentSection({ model, sessionId }: { model: BrowserSettingsModel
         onChange={(showActionHighlight) => void update({ automation: { showActionHighlight } })}
       />
       <ToggleRow
+        label={t("browserUsePersistentProfiles", "Use persistent Profiles by default when creating a Profile")}
+        checked={settings.panel.saveLoginState}
+        onChange={(saveLoginState) => void update({ panel: { saveLoginState } })}
+      />
+      <ToggleRow
         label={t("browserAllowApprovedChannels", "Allow specifically approved channel sessions")}
         checked={settings.automation.allowChannelSessions}
         onChange={(allowChannelSessions) => void update({ automation: { allowChannelSessions } })}

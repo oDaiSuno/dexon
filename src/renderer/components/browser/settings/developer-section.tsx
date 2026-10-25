@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
 import { browserErrorMessage as messageOf } from "../browser-error-message";
+import { BrowserIcon } from "../browser-icons";
 import type {
   BrowserHeaderRule,
   BrowserHeaderRuleDirection,
@@ -20,9 +21,54 @@ import {
   formatMessage,
   headerOperationLabel,
   profileModeLabel,
+  type BrowserSettingsModel,
 } from "./shared";
 
-export function HeaderRulesSection({
+export function DeveloperOptions({
+  model,
+  snippets,
+}: {
+  model: BrowserSettingsModel;
+  snippets: BrowserPageSnippetSummary[];
+}) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
+  const profiles = useMemo(
+    () => model.state.profiles.filter((profile) => profile.mode !== "unsafe" || model.advancedEnabled),
+    [model.state.profiles, model.advancedEnabled],
+  );
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <Button
+        variant="ghost"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((value) => !value)}
+        style={{ justifySelf: "start", gap: 6, padding: "0 8px", margin: "0 -8px", color: "var(--fx-text-secondary)" }}
+      >
+        <span
+          style={{
+            display: "flex",
+            transform: open ? "rotate(90deg)" : undefined,
+            transition: "transform var(--duration-quick) var(--ease-smooth-out)",
+          }}
+        >
+          <BrowserIcon name="chevron-right" size={14} strokeWidth={2} />
+        </span>
+        {t("browserDeveloperOptions", "Developer options")}
+      </Button>
+      {open && (
+        <div id={panelId} style={{ display: "grid", gap: 28 }}>
+          <HeaderRulesSection profiles={profiles} enabled={model.advancedEnabled} setError={model.setError} />
+          <SnippetSection snippets={snippets} refresh={model.refresh} setError={model.setError} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HeaderRulesSection({
   profiles,
   enabled,
   setError,
@@ -220,7 +266,7 @@ export function HeaderRulesSection({
   );
 }
 
-export function SnippetSection({
+function SnippetSection({
   snippets,
   refresh,
   setError,
@@ -242,39 +288,35 @@ export function SnippetSection({
           "Only successful scripts saved with remember=true and an explicit purpose appear here. Saved code is never executed automatically.",
         )}
       </NoticeRow>
-      {snippets.length === 0 ? (
-        <NoticeRow>{t("browserNoJavascriptExperience", "No saved JavaScript experiences.")}</NoticeRow>
-      ) : (
-        snippets.map((snippet) => (
-          <ActionsRow key={snippet.id} style={{ flexWrap: "nowrap" }}>
-            <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
-              <span
-                className="type-body-large-medium"
-                style={{ color: snippet.enabled ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)" }}
-              >
-                {snippet.label}
-              </span>
-              <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
-                {snippet.host}
-                {formatMessage(t("browserJavascriptExperienceUsage", "{path} · {size} · used {count} times"), {
-                  path: snippet.pathPattern,
-                  size: formatBytes(snippet.codeBytes),
-                  count: snippet.useCount,
-                })}
-              </span>
-            </div>
-            <Button
-              variant="ghost"
-              onClick={() => run(() => window.piBridge.browserSetPageSnippetEnabled(snippet.id, !snippet.enabled))}
+      {snippets.map((snippet) => (
+        <ActionsRow key={snippet.id} style={{ flexWrap: "nowrap" }}>
+          <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 2 }}>
+            <span
+              className="type-body-large-medium"
+              style={{ color: snippet.enabled ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)" }}
             >
-              {snippet.enabled ? t("browserDisable", "Disable") : t("browserEnable", "Enable")}
-            </Button>
-            <Button variant="ghost" onClick={() => run(() => window.piBridge.browserDeletePageSnippet(snippet.id))}>
-              {t("browserDelete", "Delete")}
-            </Button>
-          </ActionsRow>
-        ))
-      )}
+              {snippet.label}
+            </span>
+            <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
+              {snippet.host}
+              {formatMessage(t("browserJavascriptExperienceUsage", "{path} · {size} · used {count} times"), {
+                path: snippet.pathPattern,
+                size: formatBytes(snippet.codeBytes),
+                count: snippet.useCount,
+              })}
+            </span>
+          </div>
+          <Button
+            variant="ghost"
+            onClick={() => run(() => window.piBridge.browserSetPageSnippetEnabled(snippet.id, !snippet.enabled))}
+          >
+            {snippet.enabled ? t("browserDisable", "Disable") : t("browserEnable", "Enable")}
+          </Button>
+          <Button variant="ghost" onClick={() => run(() => window.piBridge.browserDeletePageSnippet(snippet.id))}>
+            {t("browserDelete", "Delete")}
+          </Button>
+        </ActionsRow>
+      ))}
       <ActionsRow>
         <RowSpacer />
         <Button

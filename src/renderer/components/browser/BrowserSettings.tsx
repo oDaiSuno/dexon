@@ -11,7 +11,7 @@ import { AgentSection } from "./settings/agent-section";
 import { DownloadsProxySection } from "./settings/downloads-proxy-section";
 import { ProfilesSection } from "./settings/profiles-section";
 import { DiagnosticsSection } from "./settings/diagnostics-section";
-import { HeaderRulesSection, SnippetSection } from "./settings/developer-section";
+import { DeveloperOptions } from "./settings/developer-section";
 
 const ADVANCED_PHRASE = "ENABLE ADVANCED BROWSER";
 
@@ -115,12 +115,7 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
           <DownloadsProxySection model={model} label={t("browserDownloadsProxy", "Downloads and proxy")} />
           <ProfilesSection model={model} />
           <DiagnosticsSection model={model} />
-          <HeaderRulesSection
-            profiles={model.state.profiles.filter((profile) => profile.mode !== "unsafe" || model.advancedEnabled)}
-            enabled={model.advancedEnabled}
-            setError={setError}
-          />
-          <SnippetSection snippets={snippets} refresh={refresh} setError={setError} />
+          <DeveloperOptions model={model} snippets={snippets} />
         </div>
       </div>
       {prompt && <TextPromptDialog prompt={prompt} cancelLabel={t("cancel", "Cancel")} onRespond={respondToPrompt} />}

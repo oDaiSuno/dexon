@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { useI18n } from "@/i18n";
+import { isBrowserSearchTemplate, type BrowserSearchEngine } from "@contract/browser-search";
 import { SettingGroup } from "../../settings/setting-row";
 import { NumberPillsRow, type NumberPillSpec } from "./number-pills";
 import {
@@ -48,6 +50,7 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
         onChange={(homepage) => setState(withSettings(state, "navigation", { homepage }))}
         onBlur={(homepage) => void update({ navigation: { homepage } })}
       />
+      <SearchEngineRows model={model} />
       <SelectRow
         label={t("browserDefaultProfile", "Profile for new tabs")}
         description={t(
@@ -109,11 +112,62 @@ export function BasicsSection({ model }: { model: BrowserSettingsModel }) {
           },
         ]}
       />
-      <ToggleRow
-        label={t("browserUsePersistentProfiles", "Use persistent Profiles by default when creating a Profile")}
-        checked={settings.panel.saveLoginState}
-        onChange={(saveLoginState) => void update({ panel: { saveLoginState } })}
-      />
     </SettingGroup>
+  );
+}
+
+function SearchEngineRows({ model }: { model: BrowserSettingsModel }) {
+  const { t } = useI18n();
+  const [pendingCustom, setPendingCustom] = useState(false);
+  const navigation = model.settings.navigation;
+  const selected = pendingCustom ? "custom" : navigation.searchEngine;
+  return (
+    <>
+      <SelectRow
+        label={t("browserSearchEngine", "Address bar search engine")}
+        description={t(
+          "browserSearchEngineDescription",
+          "Used when what you type in the address bar isn't a web address.",
+        )}
+        value={selected}
+        onChange={(value) => {
+          if (value === "custom" && !isBrowserSearchTemplate(navigation.customSearchTemplate)) {
+            setPendingCustom(true);
+            return;
+          }
+          setPendingCustom(false);
+          void model.update({ navigation: { searchEngine: value as BrowserSearchEngine } });
+        }}
+      >
+        <option value="bing">{t("browserSearchEngineBing", "Bing")}</option>
+        <option value="google">{t("browserSearchEngineGoogle", "Google")}</option>
+        <option value="duckduckgo">{t("browserSearchEngineDuckDuckGo", "DuckDuckGo")}</option>
+        <option value="baidu">{t("browserSearchEngineBaidu", "Baidu")}</option>
+        <option value="custom">{t("browserSearchEngineCustom", "Custom")}</option>
+      </SelectRow>
+      {selected === "custom" && (
+        <InputRow
+          label={t("browserCustomSearchTemplate", "Custom search address")}
+          description={t(
+            "browserCustomSearchTemplateDescription",
+            "An https address with {query} where the search words go.",
+          )}
+          width={320}
+          value={navigation.customSearchTemplate}
+          onChange={(customSearchTemplate) =>
+            model.setState(withSettings(model.state, "navigation", { customSearchTemplate }))
+          }
+          onBlur={(value) => {
+            const template = value.trim();
+            if (!isBrowserSearchTemplate(template)) {
+              model.setError(t("browserCustomSearchTemplateInvalid", "Enter an https address that contains {query}."));
+              return;
+            }
+            setPendingCustom(false);
+            void model.update({ navigation: { searchEngine: "custom", customSearchTemplate: template } });
+          }}
+        />
+      )}
+    </>
   );
 }

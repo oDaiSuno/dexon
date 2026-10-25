@@ -1,4 +1,8 @@
 export const enUS: Record<string, string> = {
+  browserCustomSearchTemplate: "Custom search address",
+  browserCustomSearchTemplateDescription: "An https address with {query} where the search words go.",
+  browserCustomSearchTemplateInvalid: "Enter an https address that contains {query}.",
+  browserDeveloperOptions: "Developer options",
   browserNewModeProfile: "New {mode} Profile",
   browserOneTab: "1 tab",
   browserProfileClearsOnClose: "Cleared when closed",
@@ -6,10 +10,21 @@ export const enUS: Record<string, string> = {
   browserProfileMoreActions: "More actions for {name}",
   browserProfileThisLaunch: "This launch only",
   browserProfileUnused: "Not in use",
+  browserSearchEngine: "Address bar search engine",
+  browserSearchEngineBaidu: "Baidu",
+  browserSearchEngineBing: "Bing",
+  browserSearchEngineCustom: "Custom",
+  browserSearchEngineDescription: "Used when what you type in the address bar isn't a web address.",
+  browserSearchEngineDuckDuckGo: "DuckDuckGo",
+  browserSearchEngineGoogle: "Google",
   browserStatTabs: "Tabs",
 };
 
 export const zhCN: Record<string, string> = {
+  browserCustomSearchTemplate: "自定义搜索地址",
+  browserCustomSearchTemplateDescription: "以 https 开头，用 {query} 表示搜索词所在的位置。",
+  browserCustomSearchTemplateInvalid: "请输入以 https 开头并包含 {query} 的地址。",
+  browserDeveloperOptions: "开发者选项",
   browserNewModeProfile: "新建{mode} Profile",
   browserOneTab: "1 个标签页",
   browserProfileClearsOnClose: "关闭后清空",
@@ -17,5 +32,12 @@ export const zhCN: Record<string, string> = {
   browserProfileMoreActions: "{name} 的更多操作",
   browserProfileThisLaunch: "仅本次启动",
   browserProfileUnused: "未使用",
+  browserSearchEngine: "地址栏搜索引擎",
+  browserSearchEngineBaidu: "百度",
+  browserSearchEngineBing: "Bing",
+  browserSearchEngineCustom: "自定义",
+  browserSearchEngineDescription: "在地址栏输入的不是网址时，用它来搜索。",
+  browserSearchEngineDuckDuckGo: "DuckDuckGo",
+  browserSearchEngineGoogle: "Google",
   browserStatTabs: "标签页",
 };
