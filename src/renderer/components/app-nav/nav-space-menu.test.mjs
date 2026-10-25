@@ -368,6 +368,21 @@ test("a folder path that does not exist is not offered", async () => {
   }
 });
 
+test("after a folder was found, changing the text removes the offer at once, so Enter never opens the old folder", async () => {
+  const root = createManagedDomRoot();
+  try {
+    const { props } = spaceMenuProps();
+    await root.render(createElement(NavSpaceMenu, props));
+    await openMenu(root);
+    await input(searchBox(), "~/code/new-app");
+    await waitFor(() => assert.equal(menuItemNames()[0], "Open ~/code/new-app"));
+    await input(searchBox(), "alpha");
+    assert.deepEqual(menuItemNames(), ["alpha-site", ...MENU_ITEMS], "the earlier folder is no longer offered");
+  } finally {
+    await root.unmount();
+  }
+});
+
 test("a late answer for an earlier path does not offer to open it after the search changed", async () => {
   const root = createManagedDomRoot();
   try {
