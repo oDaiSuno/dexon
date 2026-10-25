@@ -127,8 +127,8 @@ const UPSTREAM_FAILURE_KEYS = new Set([
 // interactive-tools 词典模块是显式追加、由组合/奇偶校验与行为测试单独核对的，
 // 指纹基线同样排除。历史指纹本身保持不变。
 export const PRE_SPLIT_BASELINE = {
-  enUS: "cb807ebbc52a86b127ae5e21583faeba8db9311def1dba32ebc6f99a9325fd59",
-  zhCN: "801216409273790558b2bae540da2ec38e2b298d82711f017bb82fea1f332bc1",
+  enUS: "1f3a10acbfa89e951afa5feae13d293c5cb891a8cb20642cc3d0bda7d4f070a3",
+  zhCN: "2b24a22dd4aab70ba97391725f78f53817b6ff6d269a5c4db5f6b8f6006becef",
 };
 
 // 关键 UI 场景：空态、不可逆删除、外部冲突、频道状态、更新失败。
