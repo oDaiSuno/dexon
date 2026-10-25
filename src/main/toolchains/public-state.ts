@@ -22,7 +22,7 @@ const MISSING_REASON: Partial<Record<ToolCapabilityId, PublicCapabilityState["re
   "python.uvx": "TOOLCHAIN_UV_REQUIRED",
 };
 
-export const CAPABILITY_LEADERS: Partial<Record<ToolCapabilityId, ToolCapabilityId>> = {
+const CAPABILITY_LEADERS: Partial<Record<ToolCapabilityId, ToolCapabilityId>> = {
   "js.npm": "js.node",
   "js.npx": "js.node",
   "python.uvx": "python.uv",
