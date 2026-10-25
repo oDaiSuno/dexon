@@ -134,14 +134,14 @@ test("when the model card opens, its search box has focus and typing keeps only 
   assert.deepEqual(rowNames(card), ["Claude Sonnet 4.5"]);
   assert.deepEqual(groupNames(card), ["Anthropic"]);
 
-  await input(search, "gemini");
+  await input(search, "google gemini");
   assert.deepEqual(rowNames(card), ["Gemini 2.5 Pro"], "the provider name Google Gemini also matches");
 
   await input(search, "magpie");
   assert.deepEqual(rowNames(card), ["claude-opus-5-5", "gpt-5-codex"]);
 
-  await input(search, "codex");
-  assert.deepEqual(rowNames(card), ["gpt-5-codex"], "the model id is searched too");
+  await input(search, "opus-4-5");
+  assert.deepEqual(rowNames(card), ["Claude Opus 4.5"], "the model id is searched too");
 
   await input(search, "zzz");
   assert.deepEqual(rowNames(card), []);
