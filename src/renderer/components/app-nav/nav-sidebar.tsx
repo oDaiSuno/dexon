@@ -343,15 +343,9 @@ export function NavSidebar({
         >
           {`v${APP_VERSION}`}
         </span>
-        <UpdateButton
-          label={
-            updateAvailable
-              ? t("sidebarUpdateAvailable", "Update available")
-              : t("checkForUpdates", "Check for updates")
-          }
-          available={updateAvailable}
-          onClick={onOpenUpdate}
-        />
+        {updateAvailable && (
+          <UpdateButton label={t("sidebarUpdateAvailable", "Update available")} onClick={onOpenUpdate} />
+        )}
       </div>
     </nav>
   );

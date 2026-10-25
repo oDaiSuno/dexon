@@ -89,15 +89,7 @@ export function SettingsButton({ label, active, onClick }: { label: string; acti
   );
 }
 
-export function UpdateButton({
-  label,
-  available,
-  onClick,
-}: {
-  label: string;
-  available: boolean;
-  onClick: () => void;
-}) {
+export function UpdateButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -116,7 +108,7 @@ export function UpdateButton({
         background: "var(--fx-surface-hover-clear)",
         border: "none",
         borderRadius: "var(--radius-control)",
-        color: available ? "var(--fx-accent-blue-text)" : "var(--fx-text-secondary)",
+        color: "var(--fx-accent-blue-text)",
         cursor: "pointer",
         transition: BUTTON_TRANSITION,
       }}
@@ -128,21 +120,19 @@ export function UpdateButton({
       }}
     >
       <CircleArrowUpIcon size={NAV_ICON_SIZE} />
-      {available && (
-        <span
-          aria-hidden="true"
-          style={{
-            position: "absolute",
-            top: 4,
-            right: 4,
-            width: 9,
-            height: 9,
-            borderRadius: "50%",
-            background: "var(--fx-accent-blue)",
-            border: "1.5px solid var(--fx-surface-sidebar)",
-          }}
-        />
-      )}
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: 4,
+          right: 4,
+          width: 9,
+          height: 9,
+          borderRadius: "50%",
+          background: "var(--fx-accent-blue)",
+          border: "1.5px solid var(--fx-surface-sidebar)",
+        }}
+      />
     </button>
   );
 }
