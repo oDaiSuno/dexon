@@ -101,7 +101,7 @@ test("a file that cannot be compared with Git offers no Changes view, even after
   content = "second\n";
   await boundary.changed();
   await waitFor(() => assert.ok(text(view.container, "second"), "the new text is shown"));
-  assert.equal(modeButton(view.container, "改动"), undefined, "changes since opening are no longer offered");
+  assert.equal(Boolean(modeButton(view.container, "改动")), false, "changes since opening are no longer offered");
 });
 
 const lines = (edit) => Array.from({ length: 40 }, (_, index) => edit(index + 1) ?? `line ${index + 1}`).join("\n");
@@ -129,12 +129,12 @@ test("the unchanged lines between two change blocks can be expanded and then fol
   const fold = () => button(view.container, /23 行未更改/);
   assert.ok(fold(), "the 23 hidden lines between the blocks are announced");
   assert.equal(fold().getAttribute("aria-expanded"), "false");
-  assert.equal(text(view.container, "line 20"), undefined);
+  assert.equal(Boolean(text(view.container, "line 20")), false);
   await click(fold());
   assert.ok(text(view.container, "line 20"), "expanding shows the hidden lines");
   assert.equal(fold().getAttribute("aria-expanded"), "true", "the fold row stays so it can be folded again");
   await click(fold());
-  assert.equal(text(view.container, "line 20"), undefined, "folding hides them again");
+  assert.equal(Boolean(text(view.container, "line 20")), false, "folding hides them again");
   assert.equal(fold().getAttribute("aria-expanded"), "false");
 });
 
@@ -189,8 +189,8 @@ test("a clean branch without a remote branch claims no sync state", async (t) =>
   host(t, explorerReplies());
   const view = await mount(t, api.FileExplorer, explorerProps);
   await waitFor(() => assert.ok(text(view.container, "README.md")));
-  assert.equal(text(view.container, "已与远端同步"), undefined);
-  assert.equal(text(view.container, "读取中…"), undefined);
+  assert.equal(Boolean(text(view.container, "已与远端同步")), false);
+  assert.equal(Boolean(text(view.container, "读取中…")), false);
 });
 
 const noop = () => {};
@@ -248,6 +248,6 @@ test("file tabs of files that differ from the last commit carry a changed mark, 
   const holder = (label) => byRole(view.container, "button", label).parentElement;
   await waitFor(() => assert.ok(byRole(holder("changed.ts"), "img", "已改动"), "the modified file is marked"));
   assert.ok(byRole(holder("idea.md"), "img", "已改动"), "a file inside a new folder is marked");
-  assert.equal(byRole(holder("clean.ts"), "img", "已改动"), undefined, "an unchanged file is not marked");
+  assert.equal(Boolean(byRole(holder("clean.ts"), "img", "已改动")), false, "an unchanged file is not marked");
   assert.ok(button(holder("changed.ts"), "关闭 changed.ts"), "the close button is still there for a changed file");
 });
