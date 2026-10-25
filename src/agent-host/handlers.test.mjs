@@ -1,7 +1,7 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { MessageChannel } from "node:worker_threads";
@@ -55,7 +55,7 @@ async function waitFor(predicate, timeoutMs, stepMs = 50) {
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
   // Keep in sync with src/contract/api.ts: one handler per contract method.
-  assert.equal(Object.keys(handlers).length, 82);
+  assert.equal(Object.keys(handlers).length, 83);
   for (const method of [
     "host.ping",
     "host.toolchain",
@@ -791,5 +791,25 @@ test("host cleanup releases the file watch it owns and silences its events", asy
     changeEvents.length,
     eventsBeforeSilence,
     "the host-owned watch must not emit after the composition cleanup releases it",
+  );
+});
+
+test("checking a typed folder for the project switcher resolves ~ and existing folders without granting file access", async (t) => {
+  const base = mkdtempSync(path.join(tmpdir(), "pi-inspect-folder-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const folder = path.join(base, "typed-project");
+  mkdirSync(folder);
+  const file = path.join(base, "notes.txt");
+  writeFileSync(file, "not a folder\n");
+
+  const { handlers } = await captureHandlers();
+  assert.deepEqual(await handlers["projects.inspectFolder"]({ path: folder }), { ok: true, path: folder });
+  assert.deepEqual(await handlers["projects.inspectFolder"]({ path: "~" }), { ok: true, path: homedir() });
+  assert.equal((await handlers["projects.inspectFolder"]({ path: file })).ok, false);
+  assert.equal((await handlers["projects.inspectFolder"]({ path: path.join(base, "missing") })).ok, false);
+  await assert.rejects(
+    handlers["files.list"]({ path: folder }),
+    (error) => error.code === "FORBIDDEN",
+    "only checking a folder must not open it for file access",
   );
 });

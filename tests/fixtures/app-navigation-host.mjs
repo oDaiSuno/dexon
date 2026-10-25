@@ -114,6 +114,10 @@ export function navigationBoundary({
       case "system.validateCwd":
         if (Object.hasOwn(unavailableSpaces, params.path)) return { ok: false, error: unavailableSpaces[params.path] };
         return { ok: true, path: params.path };
+      case "projects.inspectFolder":
+        return params.path === navigationPaths.project
+          ? { ok: true, path: navigationPaths.project }
+          : { ok: false, error: "Directory does not exist" };
       case "sessions.list":
         return {
           sessions: structuredClone(details.map((detail) => detail.info)),
