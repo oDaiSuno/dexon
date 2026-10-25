@@ -29,16 +29,6 @@ export default tseslint.config(
         URL: "readonly",
       },
     },
-    rules: {
-      "no-unused-vars": [
-        "error",
-        {
-          argsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-        },
-      ],
-    },
   },
   ...tseslint.configs.recommended.map((config) => ({
     ...config,

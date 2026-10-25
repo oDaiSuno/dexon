@@ -122,7 +122,7 @@ test("when the usage card is open, the legend lists each part of the context wit
 });
 
 test("when automatic compaction is off, the legend has no compaction reserve and all unused room counts as free", async (t) => {
-  const { reserveTokens: _reserve, ...withoutReserve } = USAGE;
+  const withoutReserve = { ...USAGE, reserveTokens: undefined };
   const { card } = await openCard(t, { contextUsage: withoutReserve });
   assert.ok(!card.textContent.includes("压缩预留"), "no reserve row");
   assert.ok(rowWith(card, "可用空间", "76.0k", "38.0%"), "free space is the window minus what is used");
