@@ -139,7 +139,8 @@ test("renders verified providers, incomplete Node distributions, and the no-netw
   assert.ok(html.indexOf("Python") < html.indexOf("Command line tools"));
   assert.match(html, /Node\.js · Tool resolution/);
   assert.match(html, /Detected providers/);
-  assert.match(html, /Managed runtime/);
+  assert.doesNotMatch(html, /Managed runtime/);
+  assert.match(html, /Custom path…/);
   assert.match(html, /Downloading/);
   assert.match(html, /<button[^>]*>Cancel<\/button>/);
   assert.match(html, /12 MB/);
