@@ -55,7 +55,7 @@ export function ApiKeyProviderDialog({
   const [savedField, setSavedField] = useState<"baseUrl" | "apiKey" | null>(null);
   const { notice, setNotice, report } = useSaveNotice(editor.loadModelsConfig);
   const baseUrlChanged = baseUrl.trim() !== savedBaseUrl.trim();
-  const dirty = baseUrlChanged || apiKey.trim() !== "";
+  const dirty = (baseUrlChanged && !baseUrlSaving) || (apiKey.trim() !== "" && !keySaving);
 
   const saveBaseUrl = async () => {
     if (!baseUrlChanged || baseUrlSaving) return;
