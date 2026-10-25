@@ -124,6 +124,16 @@ export const enUS: Record<string, string> = {
   sessionNamingGroup: "Session naming",
   sessionNamingAutoDescription:
     "After the first reply finishes, reads the conversation and replaces the “New session” placeholder name.",
+  sessionNamingModel: "Naming model",
+  sessionNamingModelDescription:
+    "A title is only a few dozen characters, so a fast, inexpensive model is enough. Regenerate name in the session menu uses it too.",
+  sessionNamingModelUnset: "Not set",
+  sessionNamingPreviewFirstMessage: "First message",
+  sessionNamingPreviewMessage:
+    "Sidebar sessions can only be opened right now. I want a right-click menu to rename and delete them, and ideally have AI pick a new name for me.",
+  sessionNamingPreviewResult: "Shown in the sidebar as",
+  sessionNamingPreviewTitle: "Sidebar session menu",
+  sessionNamingPreviewLength: "{count} chars",
   modelApiProviderKind: "API provider",
   modelApiKeyStorageHint:
     "Stored only in auth.json on this computer. You can also enter $ENV_VAR_NAME, or start with ! to run a command.",
@@ -252,6 +262,15 @@ export const zhCN: Record<string, string> = {
   modelsConfigFootnote: "配置保存在 ~/.pi/agent/models.json，只影响本机。",
   sessionNamingGroup: "会话命名",
   sessionNamingAutoDescription: "第一轮回答结束后，读一遍对话，换掉“新会话”这个占位名。",
+  sessionNamingModel: "命名模型",
+  sessionNamingModelDescription: "起名只需几十个字，选一个又快又便宜的模型就够了。右键“重新生成名称”也用它。",
+  sessionNamingModelUnset: "未设置",
+  sessionNamingPreviewFirstMessage: "第一条消息",
+  sessionNamingPreviewMessage:
+    "侧栏的会话现在只能点开，想加一个右键菜单，能改名、删除，最好还能让 AI 帮我重新起个名字。",
+  sessionNamingPreviewResult: "侧栏里显示为",
+  sessionNamingPreviewTitle: "侧栏会话右键菜单",
+  sessionNamingPreviewLength: "{count} 字",
   modelApiProviderKind: "API 服务商",
   modelApiKeyStorageHint: "只保存在本机的 auth.json。也可以填 $环境变量名，或以 ! 开头运行命令。",
   modelToggleAfterSave: "保存渠道后才能开关这个模型",

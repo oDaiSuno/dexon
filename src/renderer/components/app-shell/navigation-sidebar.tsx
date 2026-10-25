@@ -3,6 +3,7 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
+import { subscribeModelSettingsRequest } from "@/lib/model-settings-request";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
@@ -132,6 +133,8 @@ export function NavigationSidebar({
       if (result.status === "selected") setSpaceError(null);
     });
   }, [selectDirectoryFromPicker]);
+
+  useEffect(() => subscribeModelSettingsRequest(() => onOpenSettings("models")), [onOpenSettings]);
 
   useEffect(() => {
     const offToggle = window.piBridge?.onMenu?.("toggle-sidebar", handleToggle);

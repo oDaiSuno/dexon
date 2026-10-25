@@ -70,6 +70,28 @@
 .session-menu-item--danger .session-menu-item-icon {
   color: var(--fx-status-danger);
 }
+.session-menu-item-icon--accent {
+  color: var(--fx-accent-blue-text);
+}
+.session-menu-item--muted,
+.session-menu-item--muted .session-menu-item-icon,
+.session-menu-item:disabled,
+.session-menu-item:disabled .session-menu-item-icon {
+  color: var(--fx-text-tertiary);
+}
+.session-menu-item:disabled {
+  cursor: default;
+}
+.session-menu-item:disabled:hover {
+  background: var(--fx-surface-hover-clear);
+}
+.session-menu-item-hint {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  color: var(--fx-text-tertiary);
+}
 
 .session-menu-separator {
   padding: var(--space-1) 6px;

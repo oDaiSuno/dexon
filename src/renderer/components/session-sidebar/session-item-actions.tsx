@@ -11,7 +11,7 @@ import {
 } from "react";
 import { Button } from "../form-controls";
 import { CopyGlyph } from "../processes/process-icons";
-import { RowIcon } from "./session-relation-glyphs";
+import { RowIcon, SessionNamingGlyph } from "./session-relation-glyphs";
 import type { SessionSubtree } from "./use-session-delete";
 
 function PencilLineGlyph() {
@@ -36,6 +36,14 @@ function TrashGlyph() {
   );
 }
 
+function ChevronRightGlyph() {
+  return (
+    <RowIcon size={14} strokeWidth={2}>
+      <path d="m9 18 6-6-6-6" />
+    </RowIcon>
+  );
+}
+
 const MENU_WIDTH = 216;
 const VIEWPORT_MARGIN = 8;
 
@@ -43,11 +51,17 @@ export function SessionItemActionsMenu({
   at,
   sessionPath,
   onRename,
+  regenerate,
+  onRegenerate,
+  onOpenNamingSettings,
   onDelete,
 }: {
   at: { x: number; y: number } | null;
   sessionPath: string;
   onRename: (event: ReactMouseEvent) => void;
+  regenerate: "ready" | "unavailable" | "needs-model";
+  onRegenerate: (event: ReactMouseEvent) => void;
+  onOpenNamingSettings: (event: ReactMouseEvent) => void;
   onDelete: (event: ReactMouseEvent) => void;
 }) {
   const { t } = useI18n();
@@ -93,6 +107,37 @@ export function SessionItemActionsMenu({
           </span>
           <span className="session-menu-item-label">{t("rename", "Rename")}</span>
         </button>
+        {regenerate === "needs-model" ? (
+          <button
+            type="button"
+            role="menuitem"
+            className="session-menu-item session-menu-item--muted type-body-large"
+            aria-label={t("regenerateSessionNameNeedsModel", "Regenerate name: choose a naming model in Settings")}
+            onClick={onOpenNamingSettings}
+          >
+            <span className="session-menu-item-icon">
+              <SessionNamingGlyph size={15} />
+            </span>
+            <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
+            <span className="session-menu-item-hint type-label-default">
+              {t("sessionNamingGoToSettings", "Go to settings")}
+              <ChevronRightGlyph />
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            className="session-menu-item type-body-large"
+            disabled={regenerate === "unavailable"}
+            onClick={onRegenerate}
+          >
+            <span className="session-menu-item-icon session-menu-item-icon--accent">
+              <SessionNamingGlyph size={15} />
+            </span>
+            <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
+          </button>
+        )}
         <button
           type="button"
           role="menuitem"

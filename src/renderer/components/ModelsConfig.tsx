@@ -128,7 +128,7 @@ export function ModelsConfig({
             }}
           >
             <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
-              <SessionNamingGroup />
+              <SessionNamingGroup preferences={editor.modelPreferences} />
               <ProviderTree
                 loading={editor.loading}
                 loadError={editor.loadError}

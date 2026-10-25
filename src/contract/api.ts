@@ -199,6 +199,7 @@ export interface Api {
       message: string;
       provider?: string;
       modelId?: string;
+      replace?: boolean;
     };
     result: { title: string | null };
   };
