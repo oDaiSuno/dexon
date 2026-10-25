@@ -171,7 +171,7 @@ export function BrowserAuthorizationDialog({
             <BrowserIcon name="x" size={16} strokeWidth={2} />
           </button>
         </div>
-        <BrowserAuthorizationFacts sessionTitle={sessionTitle} source={request.source} />
+        <BrowserAuthorizationFacts sessionTitle={sessionTitle} source={request.source} channel={request.channel} />
         <BrowserAuthorizationLadder permission={request.minimumPermission} />
         <div
           className="type-label-default"

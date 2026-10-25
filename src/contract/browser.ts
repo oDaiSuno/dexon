@@ -1,3 +1,4 @@
+import type { ChannelId } from "../shared/channel-types";
 import type { BrowserSearchEngine } from "./browser-search";
 
 export const BROWSER_SETTINGS_VERSION = 3 as const;
@@ -279,6 +280,7 @@ export interface BrowserTabInfo {
   canGoBack: boolean;
   canGoForward: boolean;
   crashed: boolean;
+  favicon: string | null;
   control: BrowserControlState;
   /** True only while an Agent advanced action is executing. */
   advanced: boolean;
@@ -327,6 +329,7 @@ export interface BrowserAgentAuthorizationRequest {
   id: string;
   sessionId: string;
   source: "local" | "channel";
+  channel?: ChannelId;
   methodCategory: "read" | "interact" | "advanced";
   minimumPermission: "read" | "interact" | "advanced";
   createdAt: number;
@@ -738,6 +741,7 @@ export interface BrowserHostRpc {
     params: {
       sessionId: string;
       source: "local" | "channel";
+      channel?: ChannelId;
       targetMethod: string;
       requestId: string;
     };

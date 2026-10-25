@@ -334,6 +334,24 @@
 .browser-spin {
   animation: chat-spin 900ms var(--ease-linear) infinite;
 }
+.browser-live-dot {
+  animation: browser-live-pulse 0.9s var(--ease-in-out) infinite alternate;
+}
+@keyframes browser-live-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.35;
+  }
+}
+.browser-takeover-chip {
+  background: color-mix(in srgb, var(--fx-text-tertiary) 22%, transparent);
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+}
+.browser-takeover-pill:hover .browser-takeover-chip {
+  background: color-mix(in srgb, var(--fx-text-tertiary) 36%, transparent);
+}
 @media (prefers-reduced-motion: reduce) {
   .browser-tab,
   .browser-tab-close,
@@ -347,6 +365,12 @@
   .browser-spin {
     transition: none;
     animation: none;
+  }
+  .browser-live-dot {
+    animation: none;
+  }
+  .browser-takeover-chip {
+    transition: none;
   }
 }
 .browser-authorization-manage {

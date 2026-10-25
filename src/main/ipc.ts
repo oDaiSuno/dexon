@@ -362,6 +362,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   browserHandler("desktop:browser:navigate-user", (browser, tabId: string, url: string) =>
     browser.navigateUser(tabId, url),
   );
+  browserHandler("desktop:browser:take-over", (browser, tabId: string) => browser.takeOver(tabId));
   browserHandler("desktop:browser:go-back", (browser, tabId: string) => browser.goBack(tabId));
   browserHandler("desktop:browser:go-forward", (browser, tabId: string) => browser.goForward(tabId));
   browserHandler("desktop:browser:reload", (browser, tabId: string) => browser.reload(tabId));

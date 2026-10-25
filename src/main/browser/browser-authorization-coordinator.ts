@@ -5,6 +5,7 @@ import type {
   BrowserPermissionLevel,
   BrowserPersistentSessionPermission,
 } from "../../contract/browser.ts";
+import type { ChannelId } from "../../shared/channel-types.ts";
 import { BrowserError } from "./browser-error.ts";
 
 const RANK: Record<BrowserPermissionLevel | "ask" | "deny" | "inherit", number> = {
@@ -68,7 +69,12 @@ export class BrowserAuthorizationCoordinator {
     this.maxDeniedCooldowns = Math.max(1, options.maxDeniedCooldowns ?? DEFAULT_MAX_DENIED_COOLDOWNS);
   }
 
-  async request(sessionId: string, source: "local" | "channel", minimumPermission: RequiredPermission): Promise<void> {
+  async request(
+    sessionId: string,
+    source: "local" | "channel",
+    minimumPermission: RequiredPermission,
+    channel?: ChannelId,
+  ): Promise<void> {
     const persistent = this.options.getPersistentPermission(sessionId);
     if (persistent === "deny") {
       throw new BrowserError("USER_DENIED", "Browser access is denied by the persistent policy");
@@ -98,7 +104,7 @@ export class BrowserAuthorizationCoordinator {
         // A higher-tier request is independently evaluated after the current
         // dialog resolves; it never stacks a second dialog.
       }
-      return this.request(sessionId, source, minimumPermission);
+      return this.request(sessionId, source, minimumPermission, channel);
     }
 
     const createdAt = this.now();
@@ -106,6 +112,7 @@ export class BrowserAuthorizationCoordinator {
       id: this.createId(),
       sessionId,
       source,
+      ...(channel ? { channel } : {}),
       methodCategory: minimumPermission,
       minimumPermission,
       createdAt,

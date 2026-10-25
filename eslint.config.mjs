@@ -27,6 +27,7 @@ export default tseslint.config(
         setImmediate: "readonly",
         structuredClone: "readonly",
         URL: "readonly",
+        queueMicrotask: "readonly",
       },
     },
   },

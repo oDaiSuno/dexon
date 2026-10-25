@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n";
+import { channelLabel } from "../channels/channels-config/channel-labels";
 import { BrowserIcon, type BrowserIconName } from "./browser-icons";
 import type { BrowserAgentAuthorizationRequest } from "../../../contract/browser";
+import type { ChannelId } from "../../../shared/channel-types";
 
 type BrowserPermission = BrowserAgentAuthorizationRequest["minimumPermission"];
 
@@ -16,11 +18,20 @@ const LEVEL_ICONS: Record<BrowserPermission, BrowserIconName> = {
 export function BrowserAuthorizationFacts({
   sessionTitle,
   source,
+  channel,
 }: {
   sessionTitle: string;
   source: BrowserAgentAuthorizationRequest["source"];
+  channel?: ChannelId;
 }) {
   const { t } = useI18n();
+  const sourceLabel =
+    source === "channel"
+      ? [
+          t("browserAuthorizationSourceChannel", "Approved messaging channel"),
+          ...(channel ? [channelLabel(channel, t)] : []),
+        ].join(" · ")
+      : t("browserAuthorizationSourceLocal", "Local desktop session");
   return (
     <div style={{ padding: "var(--space-4) var(--space-5) 0" }}>
       <dl
@@ -52,9 +63,7 @@ export function BrowserAuthorizationFacts({
             <span style={factIconStyle}>
               <BrowserIcon name={source === "channel" ? "send" : "laptop"} size={13} />
             </span>
-            {source === "channel"
-              ? t("browserAuthorizationSourceChannel", "Approved messaging channel")
-              : t("browserAuthorizationSourceLocal", "Local desktop session")}
+            {sourceLabel}
           </dd>
         </div>
       </dl>

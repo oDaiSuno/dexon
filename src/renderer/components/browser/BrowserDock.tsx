@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
 import { BrowserCrashedState, BrowserEmptyState, BrowserNoTabState } from "./browser-empty-state";
 import { BrowserNotice, BrowserPermissionBar, activeDownload } from "./browser-notices";
 import { BrowserStatusBar } from "./browser-status-bar";
+import { BrowserTakeoverPill } from "./browser-takeover-pill";
 import { BrowserTabStrip } from "./browser-tab-strip";
 import { BrowserToolbar } from "./browser-toolbar";
 import type { BrowserEvent, BrowserRendererState } from "../../../contract/browser";
@@ -168,12 +169,20 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
   }
 
   const agentControl = activeTab?.control === "agent";
+  const takeOver = () => {
+    if (activeTab) void window.piBridge.browserTakeOver(activeTab.id).catch(reportError);
+  };
+  const onDockKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" || !agentControl || !activeTab || event.defaultPrevented) return;
+    event.preventDefault();
+    takeOver();
+  };
   const tabOwnerId = activeTab?.ownerSessionId ?? null;
   const resolvedTitle = tabOwnerId ? resolveSessionTitle(tabOwnerId, undefined, sessionCatalog) : null;
   const sessionTitle = resolvedTitle && resolvedTitle !== tabOwnerId ? resolvedTitle : null;
 
   return (
-    <div style={columnStyle}>
+    <div style={columnStyle} onKeyDown={onDockKeyDown}>
       <BrowserTabStrip
         tabs={visibleTabs}
         activeTabId={state.activeTabId}
@@ -206,6 +215,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
         <div
           data-agent-control={agentControl || undefined}
           style={{
+            position: "relative",
             display: "flex",
             flex: 1,
             minHeight: 1,
@@ -218,6 +228,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
             data-browser-surface
             style={{ flex: 1, minWidth: 0, minHeight: 1, position: "relative", background: "#fff" }}
           />
+          {agentControl && <BrowserTakeoverPill onTakeOver={takeOver} />}
         </div>
       )}
 

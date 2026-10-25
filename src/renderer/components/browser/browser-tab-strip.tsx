@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { BrowserIcon } from "./browser-icons";
 import type { BrowserTabInfo } from "../../../contract/browser";
@@ -65,7 +66,9 @@ function BrowserTab({
   onClose: () => void;
 }) {
   const { t } = useI18n();
+  const [failedFavicon, setFailedFavicon] = useState<string | null>(null);
   const title = tab.title || t("browserNewTab", "New tab");
+  const favicon = !tab.loading && tab.favicon && failedFavicon !== tab.favicon ? tab.favicon : null;
   const titleColor = tab.crashed
     ? "var(--fx-status-danger-text)"
     : active
@@ -116,7 +119,7 @@ function BrowserTab({
             width: 14,
             height: 14,
             borderRadius: "var(--radius-xs)",
-            background: "var(--fx-surface-inset)",
+            background: favicon ? "transparent" : "var(--fx-surface-inset)",
             color: "var(--fx-text-tertiary)",
           }}
         >
@@ -124,6 +127,21 @@ function BrowserTab({
             <span role="img" aria-label={t("browserLoading", "Loading")}>
               <BrowserIcon name="loader" size={10} strokeWidth={2} className="browser-spin" />
             </span>
+          ) : favicon ? (
+            <img
+              src={favicon}
+              alt=""
+              width={14}
+              height={14}
+              onError={() => setFailedFavicon(favicon)}
+              style={{
+                display: "block",
+                width: 14,
+                height: 14,
+                borderRadius: "var(--radius-xs)",
+                objectFit: "cover",
+              }}
+            />
           ) : (
             <BrowserIcon name="globe" size={10} strokeWidth={2} />
           )}

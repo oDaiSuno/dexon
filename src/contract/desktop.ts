@@ -213,6 +213,7 @@ export interface PiBridge {
   browserCreateUserTab: (input: BrowserCreateTabInput) => Promise<BrowserTabInfo>;
   browserActivateTab: (tabId: string) => Promise<void>;
   browserNavigateUser: (tabId: string, url: string) => Promise<void>;
+  browserTakeOver: (tabId: string) => Promise<void>;
   browserGoBack: (tabId: string) => Promise<void>;
   browserGoForward: (tabId: string) => Promise<void>;
   browserReload: (tabId: string) => Promise<void>;

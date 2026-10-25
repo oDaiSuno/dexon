@@ -115,6 +115,7 @@ if (
     browserCreateUserTab: (input) => ipcRenderer.invoke("desktop:browser:create-user-tab", input),
     browserActivateTab: (tabId) => ipcRenderer.invoke("desktop:browser:activate-tab", tabId),
     browserNavigateUser: (tabId, url) => ipcRenderer.invoke("desktop:browser:navigate-user", tabId, url),
+    browserTakeOver: (tabId) => ipcRenderer.invoke("desktop:browser:take-over", tabId),
     browserGoBack: (tabId) => ipcRenderer.invoke("desktop:browser:go-back", tabId),
     browserGoForward: (tabId) => ipcRenderer.invoke("desktop:browser:go-forward", tabId),
     browserReload: (tabId) => ipcRenderer.invoke("desktop:browser:reload", tabId),

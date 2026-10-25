@@ -372,7 +372,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
           this.externalTurnChannel = null;
           this.externalTurnAttachments = null;
         },
-        setBrowserSource: (source) => setBrowserSessionSource(this.inner.sessionManager, source),
+        setBrowserSource: (source, channel) => setBrowserSessionSource(this.inner.sessionManager, source, channel),
       },
       params,
     );
