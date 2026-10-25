@@ -182,7 +182,6 @@ export interface PiBridge {
   selectDirectory: () => Promise<string | null>;
   /** Truly open a directory in the system file manager (validated in main). */
   openDirectory: (fsPath: string) => Promise<void>;
-  /** Hand a Markdown file to the system's default editor (validated in main). */
   openFile: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;

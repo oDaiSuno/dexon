@@ -4,7 +4,6 @@ import path from "node:path";
 export type OpenFileDeps = {
   realpath?: typeof realpath;
   stat?: typeof stat;
-  /** Electron's shell.openPath resolves with "" on success or an error message. */
   openPath: (target: string) => Promise<string>;
 };
 
