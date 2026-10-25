@@ -60,7 +60,9 @@ function installMain() {
       sent.push(message);
       const result = reply(message.method);
       for (const listener of listeners)
-        globalThis.queueMicrotask(() => listener({ data: { type: "host-rpc-result", id: message.id, ok: true, result } }));
+        globalThis.queueMicrotask(() =>
+          listener({ data: { type: "host-rpc-result", id: message.id, ok: true, result } }),
+        );
     },
   };
   return sent;
