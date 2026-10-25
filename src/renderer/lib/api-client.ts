@@ -245,6 +245,7 @@ export async function setModelPreferences(cwd: string | undefined, enabledModels
 export async function getModelDefaults(cwd?: string) {
   return call("models.defaults.get", cwd ? { cwd } : undefined);
 }
+
 export async function setModelDefaults(
   cwd: string | undefined,
   change: { model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel },
