@@ -215,7 +215,7 @@ test(
 
     await assert.rejects(
       host.client.call("sessions.delete", { id: parent }),
-      (error) => error.code === "CONFLICT",
+      /A sub-session is still running\. Stop it before deleting\./,
       "deleting the creator would delete its running worker too, so it is refused",
     );
     const afterDelete = await host.state(childId);

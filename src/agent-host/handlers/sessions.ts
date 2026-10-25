@@ -141,7 +141,6 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           message: "Session is still running. Stop it before deleting.",
         });
       }
-      // ISSUE-001: fully stop agent before unlinking session file
       await existing.abortAndDispose();
       clearSessionEventBinding(existing.sessionId || id);
     }
