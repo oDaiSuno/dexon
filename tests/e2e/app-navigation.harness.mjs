@@ -65,21 +65,6 @@ async function key(keyCode, modifiers = []) {
   window.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
 }
 
-async function replaceText(name, value) {
-  await click("textbox", name);
-  await waitFor(async () => {
-    const selection = await page("selection");
-    return selection.focused && selection.name === name;
-  }, `${name} focused before editing`);
-  window.webContents.selectAll();
-  await waitFor(async () => {
-    const selection = await page("selection");
-    return selection.start === 0 && selection.end === selection.length;
-  }, `${name} fully selected before replacement`);
-  await window.webContents.insertText(value);
-  await waitFor(async () => (await page("value", { role: "textbox", name })) === value, `${name} replacement text`);
-}
-
 async function click(role, name, text) {
   if (role) await waitFor(() => exists(role, name), `${name} ready for native input`);
   const point = await settledPoint({ role, name, text });

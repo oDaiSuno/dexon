@@ -7,7 +7,6 @@ import {
   visibleText,
   textBlocks,
   click,
-  input,
   mouseDown,
   dom,
   waitFor,
