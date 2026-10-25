@@ -17,7 +17,7 @@ function viewer(patch = {}) {
     filePath: "/workspace/src/sample.txt",
     cwd: "/workspace",
     data: { content: CONTENT, language: "text", size: CONTENT.length },
-    prevContent: null,
+    headContent: null,
     hasDiff: false,
     diffSummary: null,
     viewMode: "source",
@@ -89,7 +89,7 @@ test("the line and column are not shown while the changes view is open", async (
   assert.match(view.container.textContent, /第 2 行，第 3 列/);
   await view.update(
     viewer({
-      prevContent: "const a = 1;\n",
+      headContent: "const a = 1;\n",
       hasDiff: true,
       diffSummary: { added: 2, removed: 0, hunks: 1 },
       viewMode: "diff",

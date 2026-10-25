@@ -213,6 +213,10 @@ export function navigationBoundary({
           conflicted: 0,
           entries: [],
         };
+      case "git.branch":
+        return { isGit: false, branch: null };
+      case "git.headContent":
+        return { comparable: false, content: "" };
       case "files.list":
         return { entries: [] };
       case "files.watchStart":

@@ -8,44 +8,19 @@ const second = { content: "second", language: "text", size: 6 };
 
 test("a successful load structurally clears an earlier error", () => {
   const failed = textFileLoadReducer(INITIAL_TEXT_FILE_LOAD_STATE, { type: "failed", error: "missing" });
-  assert.deepEqual(failed, {
-    status: "error",
-    data: null,
-    error: "missing",
-    prevContent: null,
-    changeCount: 0,
-  });
+  assert.deepEqual(failed, { status: "error", data: null, error: "missing" });
 
-  const recovered = textFileLoadReducer(failed, { type: "succeeded", data: first, refresh: true });
-  assert.deepEqual(recovered, {
-    status: "ready",
-    data: first,
-    error: null,
-    prevContent: null,
-    changeCount: 1,
-  });
+  const recovered = textFileLoadReducer(failed, { type: "succeeded", data: first });
+  assert.deepEqual(recovered, { status: "ready", data: first, error: null });
 });
 
-test("a refresh keeps the prior content as the diff baseline", () => {
-  const loaded = textFileLoadReducer(INITIAL_TEXT_FILE_LOAD_STATE, {
-    type: "succeeded",
-    data: first,
-    refresh: false,
-  });
-  const refreshed = textFileLoadReducer(loaded, { type: "succeeded", data: second, refresh: true });
-
-  assert.equal(refreshed.status, "ready");
-  assert.equal(refreshed.prevContent, first.content);
-  assert.equal(refreshed.data, second);
-  assert.equal(refreshed.error, null);
-  assert.equal(refreshed.changeCount, 1);
+test("a later load replaces the shown content without keeping the earlier text", () => {
+  const loaded = textFileLoadReducer(INITIAL_TEXT_FILE_LOAD_STATE, { type: "succeeded", data: first });
+  const refreshed = textFileLoadReducer(loaded, { type: "succeeded", data: second });
+  assert.deepEqual(refreshed, { status: "ready", data: second, error: null });
 });
 
 test("reset removes every prior terminal state", () => {
-  const loaded = textFileLoadReducer(INITIAL_TEXT_FILE_LOAD_STATE, {
-    type: "succeeded",
-    data: first,
-    refresh: false,
-  });
+  const loaded = textFileLoadReducer(INITIAL_TEXT_FILE_LOAD_STATE, { type: "succeeded", data: first });
   assert.equal(textFileLoadReducer(loaded, { type: "reset" }), INITIAL_TEXT_FILE_LOAD_STATE);
 });

@@ -69,6 +69,7 @@ test("a deep link resolving with startup restore keeps the requested session and
         conflicted: 0,
         entries: [],
       };
+    if (method === "git.branch") return { isGit: false, branch: null };
     if (method === "files.list") return { entries: [] };
     if (method === "files.watchStart" || method === "files.watchStop") return { ok: true };
     if (method === "worktrees.list")
