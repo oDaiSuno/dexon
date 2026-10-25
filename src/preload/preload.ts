@@ -73,6 +73,7 @@ if (
     getToolchainState: (cwd) => ipcRenderer.invoke("desktop:toolchains:get-state", cwd),
     rescanToolchains: (cwd) => ipcRenderer.invoke("desktop:toolchains:rescan", cwd),
     performToolchainAction: (request) => ipcRenderer.invoke("desktop:toolchains:action", request),
+    openManagedToolsFolder: () => ipcRenderer.invoke("desktop:toolchains:open-managed-folder"),
     requestHostPort: () => {
       ipcRenderer.send("desktop:connect-host");
     },

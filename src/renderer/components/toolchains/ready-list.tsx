@@ -8,7 +8,6 @@ import { ToolDetail, detailId } from "./tool-detail";
 import {
   CAPABILITY_LABELS,
   TOOL_CATEGORIES,
-  followedLeader,
   isNotNeeded,
   isReady,
   platformName,
@@ -110,7 +109,7 @@ function ReadyRow({
   const capabilityState = state.capabilities[capability];
   const name = CAPABILITY_LABELS[capability];
   const notNeeded = isNotNeeded(capability, state);
-  const leader = followedLeader(capability, state);
+  const leader = capabilityState?.follows;
   const source = notNeeded
     ? t("toolNotNeeded", "Not needed on {platform}").replace("{platform}", platformName(state.platform))
     : leader

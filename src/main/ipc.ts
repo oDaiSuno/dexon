@@ -18,7 +18,7 @@ import { openValidatedMarkdownFile } from "./open-file";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
-import { realpath } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import {
   isToolchainActionRequest,
   type PublicToolchainState,
@@ -56,6 +56,7 @@ export type DesktopIpcOptions = {
     capability: Extract<ToolchainActionRequest, { action: "choose-custom-tool" }>["capability"],
     executable: string,
   ) => Promise<PublicToolchainState>;
+  getManagedToolsRoot: () => string | undefined;
   setChannelCredential: (payload: ChannelCredentialWrite) => void;
   getBrowserService: () => BrowserService | null;
   getManagedProcessCapability: () => ManagedProcessCapability;
@@ -78,6 +79,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     rescanToolchains,
     performToolchainAction,
     chooseCustomTool,
+    getManagedToolsRoot,
     setChannelCredential,
     getBrowserService,
     getManagedProcessCapability,
@@ -175,6 +177,13 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
       appendMainLog(`toolchain action=${request.action} failed code=TOOLCHAIN_INTERNAL`);
       throw new Error("TOOLCHAIN_INTERNAL: Developer tool operation failed");
     }
+  });
+
+  trustedHandle("desktop:toolchains:open-managed-folder", async () => {
+    const root = getManagedToolsRoot();
+    if (!root) throw new Error("TOOLCHAIN_INTERNAL: Managed tools folder is unavailable");
+    await mkdir(root, { recursive: true });
+    await openValidatedDirectory(root, { openPath: (target) => shell.openPath(target) });
   });
 
   trustedOn("desktop:connect-host", (event) => {

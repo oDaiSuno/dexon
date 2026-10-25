@@ -169,6 +169,7 @@ export interface PiBridge {
   getToolchainState: (cwd?: string) => Promise<PublicToolchainState>;
   rescanToolchains: (cwd?: string) => Promise<PublicToolchainState>;
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
+  openManagedToolsFolder: () => Promise<void>;
   requestHostPort: () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;

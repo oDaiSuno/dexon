@@ -1,6 +1,7 @@
 import type { PublicToolchainState, ToolchainCacheId } from "@shared/toolchains/types";
 import { useI18n } from "@/i18n";
 import { Button } from "../form-controls";
+import { FolderOpenIcon } from "./icons";
 import { SectionHeader } from "./section-parts";
 import { CACHE_ORDER, cacheLabel, formatBytes } from "./shared";
 
@@ -16,11 +17,13 @@ export function StorageSection({
   pendingAction,
   disabled,
   onClearAll,
+  onOpenManagedFolder,
 }: {
   state: PublicToolchainState;
   pendingAction: string | null;
   disabled: boolean;
   onClearAll?: (cacheIds: ToolchainCacheId[]) => void;
+  onOpenManagedFolder?: () => void;
 }) {
   const { t } = useI18n();
   const caches = CACHE_ORDER.flatMap((cacheId) => {
@@ -43,16 +46,31 @@ export function StorageSection({
           background: "var(--fx-surface-raised)",
         }}
       >
-        <div style={{ display: "grid", gap: 3, padding: "var(--space-4) var(--space-5)" }}>
-          <span className="type-body-large-medium" style={{ color: "var(--fx-text-primary)" }}>
-            {t("toolManagedLocation", "Managed tools location")}
-          </span>
-          <span className="type-body-relaxed" style={{ color: "var(--fx-text-tertiary)", textWrap: "pretty" }}>
-            {t(
-              "toolManagedLocationHint",
-              "Tools installed by Dexon live only here and are never added to the system PATH.",
-            )}
-          </span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-4)",
+            padding: "var(--space-4) var(--space-5)",
+          }}
+        >
+          <div style={{ flex: 1, minWidth: 0, display: "grid", gap: 3 }}>
+            <span className="type-body-large-medium" style={{ color: "var(--fx-text-primary)" }}>
+              {t("toolManagedLocation", "Managed tools location")}
+            </span>
+            <span className="type-body-relaxed" style={{ color: "var(--fx-text-tertiary)", textWrap: "pretty" }}>
+              {t(
+                "toolManagedLocationHint",
+                "Tools installed by Dexon live only here and are never added to the system PATH.",
+              )}
+            </span>
+          </div>
+          {state.managedRootLabel && (
+            <Button title={state.managedRootLabel} onClick={onOpenManagedFolder}>
+              <FolderOpenIcon />
+              {t("toolOpenManagedFolder", "Open folder")}
+            </Button>
+          )}
         </div>
         {caches.length > 0 && (
           <div

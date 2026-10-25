@@ -286,6 +286,10 @@ export class ToolchainManager {
     return this.snapshot.publicState;
   }
 
+  getManagedRoot(): string | undefined {
+    return this.paths?.root;
+  }
+
   async getPublicStateForProject(cwd: string): Promise<PublicToolchainState> {
     const resolution = await this.resolveForProject(cwd, { intent: "project-command", trusted: false });
     const state = structuredClone(this.getPublicState());
@@ -899,6 +903,7 @@ export class ToolchainManager {
         operations: [...this.operations.values()],
         lastScanAt,
         lastErrorCode: effectiveLastErrorCode,
+        managedRoot: this.paths?.root,
       }),
     };
   }
@@ -922,6 +927,7 @@ export class ToolchainManager {
         operations: [...this.operations.values()],
         lastScanAt: this.snapshot.publicState.lastScanAt,
         lastErrorCode: this.snapshot.publicState.lastErrorCode,
+        managedRoot: this.paths?.root,
       }),
     };
     this.emitSnapshot();

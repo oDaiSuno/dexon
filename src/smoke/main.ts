@@ -147,6 +147,7 @@ void app.whenReady().then(async () => {
     rescanToolchains: async (cwd) => (await toolchainManager.rescan({ cwd })).publicState,
     performToolchainAction: (request) => toolchainManager.performAction(request),
     chooseCustomTool: (capability, executable) => toolchainManager.registerCustomTool(capability, executable),
+    getManagedToolsRoot: () => toolchainManager.getManagedRoot(),
     setChannelCredential: (payload) =>
       credentialVault.set(`channel:${payload.channel}:${payload.accountId}`, payload.credential),
     getBrowserService: () => null,

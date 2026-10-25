@@ -186,16 +186,6 @@ function IssueCard({
             {t("chooseCustomTool", "Choose path")}
           </Button>
         )}
-        {componentId && component.canRemove && (
-          <Button
-            variant="ghost"
-            disabled={disabled}
-            busy={pendingAction === `component:${componentId}:remove`}
-            onClick={() => void onAction?.({ action: "remove-component", componentId })}
-          >
-            {t("removeManagedTool", "Remove")}
-          </Button>
-        )}
         {componentId && isCancellable(operation) && (
           <Button onClick={() => void onAction?.({ action: "cancel-component-install", componentId })}>
             {t("cancel", "Cancel")}

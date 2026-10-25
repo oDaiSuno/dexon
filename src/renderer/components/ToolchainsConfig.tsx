@@ -73,6 +73,15 @@ export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
     }
   };
 
+  const openManagedFolder = async (): Promise<void> => {
+    setActionError(null);
+    try {
+      await window.piBridge.openManagedToolsFolder();
+    } catch {
+      setActionError(t("toolOpenManagedFolderFailed", "Couldn't open the managed tools folder."));
+    }
+  };
+
   return (
     <ToolchainStateView
       state={state}
@@ -82,6 +91,7 @@ export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
       actionError={actionError}
       onRescan={() => void performAction({ action: "rescan" })}
       onAction={performAction}
+      onOpenManagedFolder={() => void openManagedFolder()}
     />
   );
 }
@@ -94,6 +104,7 @@ export function ToolchainStateView({
   actionError = null,
   onRescan,
   onAction,
+  onOpenManagedFolder,
 }: {
   state: PublicToolchainState | null;
   failed: boolean;
@@ -102,6 +113,7 @@ export function ToolchainStateView({
   actionError?: string | null;
   onRescan: () => void;
   onAction?: ToolAction;
+  onOpenManagedFolder?: () => void;
 }) {
   const isMobile = useIsMobile();
   const { language, t } = useI18n();
@@ -161,6 +173,7 @@ export function ToolchainStateView({
             pendingAction={pendingAction}
             disabled={disabled}
             onClearAll={(cacheIds) => void clearCaches(cacheIds)}
+            onOpenManagedFolder={onOpenManagedFolder}
           />
         )}
         <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-tertiary)", textWrap: "pretty" }}>

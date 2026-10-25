@@ -50,12 +50,6 @@ export const CAPABILITY_CACHES: Partial<Record<ToolCapabilityId, ToolchainCacheI
   "python.uv": "uv",
 };
 
-const CAPABILITY_LEADERS: Partial<Record<ToolCapabilityId, ToolCapabilityId>> = {
-  "js.npm": "js.node",
-  "js.npx": "js.node",
-  "python.uvx": "python.uv",
-};
-
 export const CAPABILITY_LABELS: Record<ToolCapabilityId, string> = {
   "shell.bash": "Bash",
   "shell.powershell": "PowerShell",
@@ -88,17 +82,6 @@ export const CAPABILITY_GLYPHS: Record<ToolCapabilityId, string> = {
   "search.fd": "fd",
   "data.jq": "jq",
   "network.curl": "curl",
-};
-
-export const COMPONENT_LABELS: Record<ManagedComponentId, string> = {
-  "portable-git": "PortableGit",
-  "node-lts": "Node.js LTS + npm",
-  cpython: "CPython",
-  uv: "uv + uvx",
-  ripgrep: "ripgrep",
-  fd: "fd",
-  jq: "jq",
-  bun: "Bun",
 };
 
 export const CACHE_ORDER: readonly ToolchainCacheId[] = ["npm", "uv", "bun", "downloads"];
@@ -174,17 +157,6 @@ export function issueCapabilities(state: PublicToolchainState | null): ToolCapab
   return TOOL_CATEGORIES.flatMap((category) => category.capabilities).filter(
     (capability) => !isReady(capability, state),
   );
-}
-
-export function followedLeader(
-  capability: ToolCapabilityId,
-  state: PublicToolchainState | null,
-): ToolCapabilityId | undefined {
-  const leader = CAPABILITY_LEADERS[capability];
-  if (!leader) return undefined;
-  const own = state?.capabilities[capability];
-  const lead = state?.capabilities[leader];
-  return lead?.health === "healthy" && own?.provider === lead.provider ? leader : undefined;
 }
 
 export function healthTone(health: ToolHealth): ToolTone {
