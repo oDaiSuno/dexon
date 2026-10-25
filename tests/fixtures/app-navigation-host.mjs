@@ -310,6 +310,7 @@ export function navigationBoundary({
     for (const listener of browserListeners) listener(event);
   };
   const desktopBridge = {
+    platform: "darwin",
     getUiState: async () => structuredClone(uiState),
     setUiState: async (patch) => {
       Object.assign(uiState, patch);
@@ -367,7 +368,9 @@ export function navigationBoundary({
   // asynchronous Main-process work too; settled() must wait for them as well.
   const bridge = Object.fromEntries(
     Object.entries(desktopBridge).map(([name, value]) =>
-      name.startsWith("on") ? [name, value] : [name, (...args) => tracked(() => value(...args))],
+      typeof value !== "function" || name.startsWith("on")
+        ? [name, value]
+        : [name, (...args) => tracked(() => value(...args))],
     ),
   );
   return {
