@@ -111,23 +111,30 @@ test("Manage sources asks the parent to show the package manager on the current 
   ]);
 });
 
-test("opening a skill card from the overview selects that skill in the Skills manager", async (t) => {
+test("opening a skill card from the overview shows its details without leaving the overview", async (t) => {
   const host = externalResources();
-  function ControlledPage() {
-    const [tab, setTab] = useState("plugins");
-    const [view, setView] = useState("overview");
-    return createElement(api.ResourcePage, props(tab, setTab, view, setView));
-  }
-  const view = await mount(t, ControlledPage, {}, { release: host.close });
+  const requested = [];
+  const view = await mount(
+    t,
+    api.ResourcePage,
+    props(
+      "plugins",
+      (tab) => requested.push(["tab", tab]),
+      "overview",
+      (next) => requested.push(["view", next]),
+    ),
+    { release: host.close },
+  );
   await settle();
   const card = [...view.container.querySelectorAll("button")].find(
     (element) => element.textContent.trim() === "fixture-skill",
   );
   await click(card);
   await settle();
-  const skills = [...view.container.querySelectorAll('[role="tab"]')].find((tab) => tab.textContent === "Skills");
-  assert.equal(skills.getAttribute("aria-selected"), "true");
-  assert.match(view.container.querySelector('[role="tabpanel"]').textContent, /fixture-skill/);
+  assert.deepEqual(requested, []);
+  const panel = dom.window.document.body.querySelector('[role="dialog"]');
+  assert.ok(panel, "the details panel is open");
+  assert.match(panel.textContent, /fixture-skill/);
 });
 
 test("the active manager tab displays its real configuration, not the other one", async (t) => {
