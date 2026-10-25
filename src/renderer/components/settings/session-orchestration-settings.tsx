@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { useI18n } from "@/i18n";
 import { listModels } from "@/lib/api-client";
+import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 import {
   DEFAULT_SESSION_ORCHESTRATION_SETTINGS,
   SESSION_ORCHESTRATION_LIMITS,
@@ -212,23 +213,4 @@ export function SessionOrchestrationSettings() {
       )}
     </SettingGroup>
   );
-}
-
-function thinkingLevelLabel(level: SessionThinkingLevel, t: (key: string, fallback: string) => string): string {
-  switch (level) {
-    case "off":
-      return t("thinkingOff", "Off");
-    case "minimal":
-      return t("thinkingMinimal", "Minimal");
-    case "low":
-      return t("thinkingLow", "Low");
-    case "medium":
-      return t("thinkingMedium", "Medium");
-    case "high":
-      return t("thinkingHigh", "High");
-    case "xhigh":
-      return t("thinkingXHigh", "Extra high");
-    default:
-      return t("thinkingMax", "Max");
-  }
 }

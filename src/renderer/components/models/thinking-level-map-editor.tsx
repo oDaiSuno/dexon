@@ -1,26 +1,8 @@
 import { useI18n } from "@/i18n";
+import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 type ThinkingLevel = (typeof THINKING_LEVELS)[number];
-
-function thinkingLevelLabel(level: ThinkingLevel, t: (key: string, fallback: string) => string): string {
-  switch (level) {
-    case "off":
-      return t("thinkingOff", "Off");
-    case "minimal":
-      return t("thinkingMinimal", "Minimal");
-    case "low":
-      return t("thinkingLow", "Low");
-    case "medium":
-      return t("thinkingMedium", "Medium");
-    case "high":
-      return t("thinkingHigh", "High");
-    case "xhigh":
-      return t("thinkingXHigh", "Extra high");
-    case "max":
-      return t("thinkingMax", "Max");
-  }
-}
 
 const LEVEL_COLORS: Record<ThinkingLevel, string> = {
   off: "var(--fx-text-tertiary)",

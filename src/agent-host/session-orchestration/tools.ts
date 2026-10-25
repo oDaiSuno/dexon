@@ -139,7 +139,11 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
               status: created.status,
               ...(created.wait ? waitResultPayload(created.wait) : {}),
             },
-            { targetSessionId: created.sessionId, ...(created.name ? { targetTitle: created.name } : {}) },
+            {
+              targetSessionId: created.sessionId,
+              ...(created.name ? { targetTitle: created.name } : {}),
+              launch: created.launch,
+            },
           );
         } catch (error) {
           return toolError(error);

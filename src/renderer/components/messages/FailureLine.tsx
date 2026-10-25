@@ -57,7 +57,15 @@ function UpstreamErrorMessage({ code, children }: { code: string | null; childre
   );
 }
 
-export function FailureLine({ detail, retried }: { detail: string | null; retried?: boolean }) {
+export function FailureLine({
+  detail,
+  retried,
+  retry,
+}: {
+  detail: string | null;
+  retried?: boolean;
+  retry?: { attempt: number; maxAttempts: number };
+}) {
   const { t } = useI18n();
   const { copied, copy } = useCopyFeedback();
   const textRef = useRef<HTMLSpanElement>(null);
@@ -79,7 +87,8 @@ export function FailureLine({ detail, retried }: { detail: string | null; retrie
     <UpstreamErrorCard
       role="alert"
       data-testid="assistant-error-message"
-      title={retried ? t("failureRetried", "Retry failed") : t("upstreamRequestFailed", "Request failed")}
+      title={retried || retry ? t("failureRetried", "Retry failed") : t("upstreamRequestFailed", "Request failed")}
+      attempts={retry ? `${retry.attempt}/${retry.maxAttempts}` : undefined}
     >
       <UpstreamErrorMessage code={code}>
         <span

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   SESSION_ORCHESTRATION_LIMITS,
+  type SessionLaunchReport,
   type SessionLiveStatus,
   type SessionModelRef,
   type SessionSourceRef,
@@ -75,7 +76,13 @@ export class SessionOrchestrationService {
       timeoutSeconds?: number;
     },
     signal?: AbortSignal,
-  ): Promise<{ sessionId: string; name?: string; status: SessionLiveStatus | "idle"; wait?: SessionWaitResult }> {
+  ): Promise<{
+    sessionId: string;
+    name?: string;
+    status: SessionLiveStatus | "idle";
+    wait?: SessionWaitResult;
+    launch: SessionLaunchReport;
+  }> {
     throwIfAborted(signal);
     const settings = getSessionOrchestrationSettings();
     const caller = getRpcSession(callerId);
@@ -93,8 +100,8 @@ export class SessionOrchestrationService {
       throw new SessionOrchestrationError(runningLimitRefusal(settings.maxRunning));
     }
 
-    const model = input.model ?? settings.model ?? callerModel(caller);
-    const thinkingLevel = input.thinkingLevel ?? settings.thinkingLevel ?? callerThinkingLevel(caller);
+    const model = input.model ?? settings.model ?? sessionModel(caller);
+    const thinkingLevel = input.thinkingLevel ?? settings.thinkingLevel ?? sessionThinkingLevel(caller);
     const name = input.name?.trim();
     const launched = await this.launchDelegate(callerId, {
       cwd,
@@ -105,6 +112,14 @@ export class SessionOrchestrationService {
       firstMessage: { text: input.message, source: this.callerSource(callerId) },
     });
 
+    const launchModel = sessionModel(launched.session);
+    const launchThinking = sessionThinkingLevel(launched.session);
+    const launch: SessionLaunchReport = {
+      ...(launchModel ? { model: launchModel } : {}),
+      ...(launchThinking ? { thinkingLevel: launchThinking } : {}),
+      cwd: launched.session.cwd || cwd,
+    };
+
     throwIfAborted(signal);
     const wait = input.wait
       ? await this.waitOn(callerId, launched.sessionId, input.timeoutSeconds, launched.turn, signal)
@@ -114,6 +129,7 @@ export class SessionOrchestrationService {
       ...(name ? { name } : {}),
       status: liveStatusOf(launched.sessionId),
       ...(wait ? { wait } : {}),
+      launch,
     };
   }
 
@@ -284,12 +300,12 @@ export class SessionOrchestrationService {
   }
 }
 
-function callerModel(caller: AgentSessionWrapper): SessionModelRef | undefined {
+function sessionModel(caller: AgentSessionWrapper): SessionModelRef | undefined {
   const model = caller.inner.model;
   return model ? { provider: model.provider, modelId: model.id } : undefined;
 }
 
-function callerThinkingLevel(caller: AgentSessionWrapper): string | undefined {
+function sessionThinkingLevel(caller: AgentSessionWrapper): string | undefined {
   const level = caller.inner.agent.state?.thinkingLevel;
   return typeof level === "string" && level ? level : undefined;
 }

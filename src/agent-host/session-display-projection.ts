@@ -1,6 +1,7 @@
-import { isChannelSourceCancelledType, isChannelSourceType } from "./session-entry-compat";
+import { isChannelSourceCancelledType, isChannelSourceType, isRetryOutcomeType } from "./session-entry-compat";
 import type {
   AgentMessage,
+  AssistantMessage,
   ImageContent,
   SessionEntry,
   TextContent,
@@ -40,6 +41,7 @@ export function withoutModelOnlyFields(message: AgentMessage): AgentMessage {
 }
 
 export function projectDisplayMessages(path: SessionEntry[]): ProjectedMessage[] {
+  const retryByEntryId = retryOutcomesByEntryId(path);
   const projected: ProjectedMessage[] = [];
   let pendingChannelSource: ReturnType<typeof parseChannelSourceMarker> = null;
   path.forEach((entry, pathIndex) => {
@@ -59,7 +61,65 @@ export function projectDisplayMessages(path: SessionEntry[]): ProjectedMessage[]
       message = withUserMessageSource(message, pendingChannelSource?.channel, pendingChannelSource?.attachments);
       pendingChannelSource = null;
     }
-    projected.push({ message: withoutModelOnlyFields(message), entryId: entry.id, pathIndex });
+    const retry = retryByEntryId.get(entry.id);
+    const stripped = withoutModelOnlyFields(message);
+    projected.push({
+      message: retry ? withRetry(stripped, retry) : stripped,
+      entryId: entry.id,
+      pathIndex,
+    });
   });
   return projected;
+}
+
+export interface RetryOutcome {
+  attempt: number;
+  maxAttempts: number;
+}
+
+function readRetryOutcome(data: unknown): RetryOutcome | null {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const record = data as Record<string, unknown>;
+  const attempt = record.attempt;
+  const maxAttempts = record.maxAttempts;
+  if (!isPositiveInteger(attempt) || !isPositiveInteger(maxAttempts)) return null;
+  return { attempt, maxAttempts };
+}
+
+function isPositiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
+export function retryOutcomesByEntryId(path: SessionEntry[]): Map<string, RetryOutcome> {
+  const outcomes = new Map<string, RetryOutcome>();
+  for (const entry of path) {
+    if (entry.type !== "custom" || !isRetryOutcomeType(entry.customType) || !entry.parentId) continue;
+    const outcome = readRetryOutcome(entry.data);
+    if (outcome) outcomes.set(entry.parentId, outcome);
+  }
+  return outcomes;
+}
+
+function withRetry(message: AgentMessage, retry: RetryOutcome): AgentMessage {
+  if (message.role !== "assistant" || (message as AssistantMessage).stopReason !== "error") return message;
+  return { ...(message as AssistantMessage), retry };
+}
+
+export function attachRetryOutcomes(
+  messages: AgentMessage[],
+  entryIds: string[],
+  path: SessionEntry[],
+): AgentMessage[] {
+  const outcomes = retryOutcomesByEntryId(path);
+  if (outcomes.size === 0) return messages;
+  let patched = messages;
+  messages.forEach((message, index) => {
+    const retry = outcomes.get(entryIds[index]);
+    if (!retry) return;
+    const next = withRetry(message, retry);
+    if (next === message) return;
+    if (patched === messages) patched = [...messages];
+    patched[index] = next;
+  });
+  return patched;
 }

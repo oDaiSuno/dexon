@@ -4,7 +4,7 @@ import { useSessionActivity } from "@/lib/session-catalog";
 import { readSessionToolTarget } from "@shared/session-orchestration";
 import { SessionTargetLink, type SessionCardTarget } from "./session-links";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
-import { sessionToolDetail } from "./session-tool-detail";
+import { sessionLaunchMeta, sessionToolDetail } from "./session-tool-detail";
 import { formatToolDuration, useElapsedSince } from "./tool-elapsed";
 import {
   reportedSessionStatus,
@@ -48,6 +48,7 @@ export function SessionToolRow({
   const meta = isRunning ? elapsed : duration;
   const failure = isError ? (resultText ?? "").trim() : "";
   const detail = failure ? firstLine(failure) : sessionToolDetail(block, resultText, t);
+  const launchMeta = block.toolName === "session_new" ? sessionLaunchMeta(block, result?.details, t) : "";
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"}>
@@ -81,6 +82,7 @@ export function SessionToolRow({
             <SessionBrief
               brief={handsOffTask(block.toolName) ? stringInput(block, "message") : ""}
               failure={failure}
+              meta={launchMeta}
               raw={handsOffTask(block.toolName) ? "" : (resultText ?? "")}
             />
           )}
@@ -91,7 +93,7 @@ export function SessionToolRow({
   );
 }
 
-function SessionBrief({ brief, failure, raw }: { brief: string; failure: string; raw: string }) {
+function SessionBrief({ brief, failure, raw, meta }: { brief: string; failure: string; raw: string; meta: string }) {
   const { t } = useI18n();
   if (!brief && !failure && !raw) return null;
   return (
@@ -99,9 +101,16 @@ function SessionBrief({ brief, failure, raw }: { brief: string; failure: string;
       <div className="chat-session-brief-box">
         {brief && (
           <>
-            <span className="chat-session-brief-label type-label-medium">
-              {t("sessionBriefLabel", "Task handed to it")}
-            </span>
+            <div className="chat-session-brief-header">
+              <span className="chat-session-brief-label type-label-medium">
+                {t("sessionBriefLabel", "Task handed to it")}
+              </span>
+              {meta && (
+                <span className="chat-session-brief-meta type-mono-meta" title={meta}>
+                  {meta}
+                </span>
+              )}
+            </div>
             <p className="chat-session-brief-body type-body-relaxed">{brief}</p>
           </>
         )}

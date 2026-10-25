@@ -375,6 +375,7 @@ export function useSessionEvents(context: Dependencies) {
           break;
         case "auto_retry_end":
           setRetryInfo(null);
+          if (event.success === false && sessionIdRef.current) void loadSession(sessionIdRef.current);
           break;
         case "auto_compaction_start":
         case "compaction_start":

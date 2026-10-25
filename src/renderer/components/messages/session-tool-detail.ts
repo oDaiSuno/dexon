@@ -1,8 +1,23 @@
-import { SESSION_ORCHESTRATION_LIMITS } from "@shared/session-orchestration";
+import { SESSION_ORCHESTRATION_LIMITS, readSessionLaunch } from "@shared/session-orchestration";
 import type { ToolCallContent } from "@/lib/types";
+import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 import { isRecord } from "./shared";
 
 type Translate = (key: string, fallback: string) => string;
+
+export function sessionLaunchMeta(block: ToolCallContent, details: unknown, t: Translate): string {
+  const launch = readSessionLaunch(details);
+  if (!launch) return "";
+  const input = isRecord(block.input) ? block.input : {};
+  const choseDirectory = typeof input.cwd === "string" && input.cwd.trim() !== "";
+  return joinParts([
+    launch.model?.modelId ?? "",
+    launch.thinkingLevel
+      ? t("sessionLaunchThinking", "Thinking {level}").replace("{level}", thinkingLevelLabel(launch.thinkingLevel, t))
+      : "",
+    choseDirectory ? directoryName(launch.cwd) : t("sessionLaunchCurrentDirectory", "Current directory"),
+  ]);
+}
 
 export function sessionToolDetail(block: ToolCallContent, resultText: string | null, t: Translate): string {
   const input = isRecord(block.input) ? block.input : {};
@@ -24,13 +39,15 @@ function joinParts(parts: string[]): string {
   return parts.filter(Boolean).join(" · ");
 }
 
+function directoryName(cwd: string): string {
+  const trimmed = cwd.trim();
+  const segments = trimmed.split(/[\\/]+/).filter(Boolean);
+  return segments[segments.length - 1] ?? trimmed;
+}
+
 function scopeLabel(cwd: unknown, t: Translate): string {
   if (typeof cwd !== "string" || !cwd.trim()) return t("sessionDetailThisProject", "This project");
-  const segments = cwd
-    .trim()
-    .split(/[\\/]+/)
-    .filter(Boolean);
-  return segments[segments.length - 1] ?? cwd.trim();
+  return directoryName(cwd);
 }
 
 function pacingLabel(input: Record<string, unknown>, t: Translate): string {

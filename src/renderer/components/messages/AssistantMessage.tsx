@@ -132,7 +132,7 @@ export function AssistantMessageView({
 
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
   if (failed && blocks.length === 0 && !isStreaming) {
-    return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />;
+    return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />;
   }
 
   return (
@@ -220,7 +220,9 @@ export function AssistantMessageView({
           />
         ))}
         <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
-        {failed && !isStreaming && <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />}
+        {failed && !isStreaming && (
+          <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />
+        )}
       </div>
     </div>
   );

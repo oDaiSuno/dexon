@@ -4,7 +4,12 @@ import type { HistoryWindow, PagedContextInfo } from "../contract/types";
 import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
-import { projectDisplayMessages, withoutModelOnlyBlock, type ProjectedMessage } from "./session-display-projection";
+import {
+  attachRetryOutcomes,
+  projectDisplayMessages,
+  withoutModelOnlyBlock,
+  type ProjectedMessage,
+} from "./session-display-projection";
 import { versionsByEntryId } from "./session-versions";
 
 const DEFAULT_MAX_TURNS = 20;
@@ -166,6 +171,7 @@ export function buildSessionHistoryPage(options: {
     const context = buildSessionContext(entries, options.leafId);
     return {
       ...context,
+      messages: attachRetryOutcomes(context.messages, context.entryIds, path),
       totalMessages: context.messages.length,
       loadedMessages: context.messages.length,
       truncatedBefore: false,
