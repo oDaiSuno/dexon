@@ -1,9 +1,11 @@
 import type { ReactNode } from "react";
-import { Button } from "../form-controls";
+import { Button, Toggle } from "../form-controls";
+import { toggleHitAreaStyle } from "../settings/setting-row";
 import { useI18n } from "@/i18n";
 import type { ProviderEntry } from "@/lib/models-config-state";
-import type { ModelPreferencesResult } from "@contract/types";
+import type { ModelPreferencesResult, ProviderChannelState } from "@contract/types";
 import framerTokens from "../../styles/framer-tokens.json";
+import { useChannelStatus } from "./channel-status";
 import { ProviderLogoTile } from "./provider-icon";
 import type { ApiKeyProvider, DialogTarget, OAuthProvider } from "./types";
 
@@ -59,6 +61,7 @@ export function ProviderRow({
   status,
   tone = "success",
   disabled = false,
+  toggle,
   action,
   divider = false,
   onSelect,
@@ -69,6 +72,7 @@ export function ProviderRow({
   status?: string;
   tone?: ProviderRowTone;
   disabled?: boolean;
+  toggle?: { label: string; checked: boolean; disabled: boolean; onChange: (enabled: boolean) => void };
   action?: ReactNode;
   divider?: boolean;
   onSelect: () => void;
@@ -144,6 +148,16 @@ export function ProviderRow({
           </span>
         </div>
       )}
+      {toggle && (
+        <span onClick={(e) => e.stopPropagation()} style={toggleHitAreaStyle}>
+          <Toggle
+            aria-label={toggle.label}
+            checked={toggle.checked}
+            disabled={toggle.disabled}
+            onChange={(e) => toggle.onChange(e.target.checked)}
+          />
+        </span>
+      )}
       {action ?? <Chevron />}
     </div>
   );
@@ -216,9 +230,6 @@ export function useProviderLabels(modelPreferences: ModelPreferencesResult | nul
         : signedIn;
     },
     apiKeyMeta: (p: ApiKeyProvider) => `${apiKeySource(p.source)} · ${countLabel(p.modelCount)}`,
-    apiKeyStatus: (p: ApiKeyProvider) =>
-      p.configured ? t("configured", "Active") : t("notConfigured", "not configured"),
-    oauthStatus: (p: OAuthProvider) => (p.loggedIn ? t("configured", "Active") : undefined),
     customMeta: (provider: ProviderEntry) => {
       const host = hostOf(provider.baseUrl);
       const count = countLabel(provider.models?.length ?? 0);
@@ -235,6 +246,10 @@ export function ProviderTree({
   oauthProviders,
   activeApiKey,
   modelPreferences,
+  channels,
+  channelSaving,
+  channelError,
+  onToggleChannel,
   onOpen,
   onAddProvider,
 }: {
@@ -245,12 +260,32 @@ export function ProviderTree({
   oauthProviders: OAuthProvider[];
   activeApiKey: ApiKeyProvider[];
   modelPreferences: ModelPreferencesResult | null;
+  channels: Record<string, ProviderChannelState>;
+  channelSaving: string | null;
+  channelError: string | null;
+  onToggleChannel: (provider: string, enabled: boolean) => void;
   onOpen: (target: DialogTarget) => void;
   onAddProvider: () => void;
 }) {
   const { t } = useI18n();
   const labels = useProviderLabels(modelPreferences);
+  const channelStatus = useChannelStatus();
   const subscriptions = [...oauthProviders].sort((a, b) => Number(b.loggedIn) - Number(a.loggedIn));
+  const channelProps = (id: string, name: string) => {
+    const channel = channels[id];
+    const state = channelStatus.status(channel);
+    return {
+      status: state.label,
+      tone: state.tone,
+      disabled: channel?.enabled === false,
+      toggle: {
+        label: t("modelEnableChannel", "Enable {name}").replace("{name}", name),
+        checked: channel?.enabled !== false,
+        disabled: channelSaving === id,
+        onChange: (enabled: boolean) => onToggleChannel(id, enabled),
+      },
+    };
+  };
 
   return (
     <div
@@ -258,6 +293,11 @@ export function ProviderTree({
       aria-label={t("selectProviderOrModel", "Select a provider or model")}
       style={{ display: "grid", gap: 28 }}
     >
+      {channelError && (
+        <p role="alert" className="type-body-default" style={{ margin: 0, color: "var(--fx-status-danger)" }}>
+          {channelError}
+        </p>
+      )}
       {subscriptions.length > 0 && (
         <ProviderGroup title={t("modelSubscription", "Subscription")}>
           {subscriptions.map((p, index) => (
@@ -266,7 +306,7 @@ export function ProviderTree({
               iconId={p.id}
               name={p.name}
               meta={labels.oauthMeta(p)}
-              status={labels.oauthStatus(p)}
+              {...(p.loggedIn ? channelProps(p.id, p.name) : {})}
               action={
                 p.loggedIn ? undefined : (
                   <Button
@@ -295,8 +335,7 @@ export function ProviderTree({
               iconId={p.id}
               name={p.displayName}
               meta={labels.apiKeyMeta(p)}
-              status={labels.apiKeyStatus(p)}
-              tone={p.configured ? "success" : "muted"}
+              {...channelProps(p.id, p.displayName)}
               divider={index > 0}
               onSelect={() => onOpen({ type: "apikey", providerId: p.id })}
             />
@@ -349,6 +388,7 @@ export function ProviderTree({
               iconId={pName}
               name={pName}
               meta={labels.customMeta(pData)}
+              {...channelProps(pName, pName)}
               divider={index > 0}
               onSelect={() => onOpen({ type: "provider", name: pName })}
             />

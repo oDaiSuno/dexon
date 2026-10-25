@@ -1,4 +1,4 @@
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import { Field, SecretTextInput, TextInput } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { isModelEnabled, toggleModelEnabled } from "@/lib/model-selection";
@@ -195,6 +195,7 @@ export function ProviderDetail({
   modelSelection,
   onOpenModel,
   onAddModel,
+  connectionTest,
 }: {
   savedName: string | null;
   provider: ProviderEntry;
@@ -202,6 +203,7 @@ export function ProviderDetail({
   modelSelection: ModelSelectionControl;
   onOpenModel: (index: number) => void;
   onAddModel: () => void;
+  connectionTest?: ReactNode;
 }) {
   const { t } = useI18n();
   const set = <K extends keyof ProviderEntry>(k: K, v: ProviderEntry[K]) => onChange({ ...provider, [k]: v });
@@ -243,6 +245,7 @@ export function ProviderDetail({
             )}
           </FieldHint>
         </Field>
+        {connectionTest}
       </DetailSection>
 
       <CustomModelsSection

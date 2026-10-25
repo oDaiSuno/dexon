@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type MouseEvent, type 
 import { Toggle } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { ProviderIcon } from "./provider-icon";
+import { StatusDot, type ProviderRowTone } from "./provider-tree";
 
 const iconProps = {
   "aria-hidden": true,
@@ -147,6 +148,18 @@ export function DialogLogoTile({ id }: { id: string }) {
       }}
     >
       <ProviderIcon id={id} size={20} />
+    </span>
+  );
+}
+
+export function HeaderStatus({ label, tone, hint }: { label?: string; tone: ProviderRowTone; hint?: string }) {
+  if (!label) return null;
+  return (
+    <span title={hint} style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+      <StatusDot tone={tone} />
+      <span className="type-body-default" style={{ color: "var(--fx-text-secondary)" }}>
+        {label}
+      </span>
     </span>
   );
 }

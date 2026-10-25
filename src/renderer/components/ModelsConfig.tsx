@@ -139,6 +139,10 @@ export function ModelsConfig({
                 oauthProviders={editor.oauthProviders}
                 activeApiKey={editor.activeApiKey}
                 modelPreferences={editor.modelPreferences}
+                channels={editor.channels}
+                channelSaving={editor.channelSaving}
+                channelError={editor.channelError}
+                onToggleChannel={(id, enabled) => void editor.setChannelEnabled(id, enabled)}
                 onOpen={setTarget}
                 onAddProvider={() => setPickerOpen(true)}
               />

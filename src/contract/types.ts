@@ -222,6 +222,26 @@ export interface TestResult {
   [key: string]: unknown;
 }
 
+export type ProviderChannelTestResult =
+  | { ok: true; latencyMs: number; status?: number; testedAt: string }
+  | {
+      ok: false;
+      reason: "timeout" | "error";
+      error: string;
+      latencyMs?: number;
+      status?: number;
+      testedAt: string;
+    };
+
+export interface ProviderChannelState {
+  enabled: boolean;
+  lastTest: ProviderChannelTestResult | null;
+}
+
+export interface ProviderChannelsResult {
+  channels: Record<string, ProviderChannelState>;
+}
+
 export interface ProviderStatus {
   id: string;
   name: string;

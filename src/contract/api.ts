@@ -15,6 +15,8 @@ import type {
   ModelsConfigSnapshot,
   ModelsListResult,
   PagedContextInfo,
+  ProviderChannelTestResult,
+  ProviderChannelsResult,
   ProviderStatus,
   RunningStateEvent,
   SessionDetail,
@@ -359,6 +361,12 @@ export interface Api {
     };
     result: TestResult;
   };
+  "modelsConfig.channels.get": { params: void; result: ProviderChannelsResult };
+  "modelsConfig.channels.setEnabled": {
+    params: { provider: string; enabled: boolean };
+    result: ProviderChannelsResult;
+  };
+  "modelsConfig.channels.test": { params: { provider: string }; result: ProviderChannelTestResult };
 
   "auth.providers": { params: void; result: { providers: ProviderStatus[] } };
   "auth.allProviders": { params: void; result: { providers: ProviderStatus[] } };

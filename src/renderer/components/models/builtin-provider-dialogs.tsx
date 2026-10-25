@@ -2,11 +2,13 @@ import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { setProviderBaseUrl } from "@/lib/models-config-state";
 import { ApiKeyDetail } from "./api-key-detail";
+import { ChannelTestRow } from "./channel-test-row";
+import { useChannelStatus } from "./channel-status";
 import { ModelDialogShell, useSaveNotice } from "./model-dialog-shell";
 import { DialogFooter } from "./models-footer";
 import { OAuthDetail } from "./oauth-detail";
-import { DialogLogoTile } from "./provider-dialog-parts";
-import { StatusDot, useProviderLabels } from "./provider-tree";
+import { DialogLogoTile, HeaderStatus } from "./provider-dialog-parts";
+import { useProviderLabels } from "./provider-tree";
 import type { ApiKeyProvider, OAuthProvider } from "./types";
 import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
 
@@ -23,18 +25,6 @@ async function sendApiKey(providerId: string, init: RequestInit): Promise<Creden
   return d;
 }
 
-function HeaderStatus({ label, tone, hint }: { label?: string; tone: "success" | "muted"; hint?: string }) {
-  if (!label) return null;
-  return (
-    <span title={hint} style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-      <StatusDot tone={tone} />
-      <span className="type-body-default" style={{ color: "var(--fx-text-secondary)" }}>
-        {label}
-      </span>
-    </span>
-  );
-}
-
 export function ApiKeyProviderDialog({
   editor,
   provider,
@@ -45,7 +35,7 @@ export function ApiKeyProviderDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const labels = useProviderLabels(editor.modelPreferences);
+  const channelStatus = useChannelStatus();
   const [savedBaseUrl, setSavedBaseUrl] = useState(editor.config.providers?.[provider.id]?.baseUrl ?? "");
   const [baseUrl, setBaseUrl] = useState(savedBaseUrl);
   const [apiKey, setApiKey] = useState("");
@@ -119,7 +109,13 @@ export function ApiKeyProviderDialog({
         String(provider.modelCount),
       )}`}
       leading={<DialogLogoTile id={provider.id} />}
-      trailing={<HeaderStatus label={labels.apiKeyStatus(provider)} tone={provider.configured ? "success" : "muted"} />}
+      trailing={
+        <HeaderStatus
+          {...(provider.configured
+            ? channelStatus.status(editor.channels[provider.id])
+            : { tone: "muted", label: t("notConfigured", "not configured") })}
+        />
+      }
       notice={notice}
       onClose={onClose}
       footer={
@@ -151,6 +147,15 @@ export function ApiKeyProviderDialog({
           onApiKeySave={() => void saveApiKey()}
           savedField={savedField}
           modelSelection={modelSelectionOf(editor)}
+          connectionTest={
+            provider.configured ? (
+              <ChannelTestRow
+                channel={editor.channels[provider.id]}
+                onTest={() => editor.testChannel(provider.id)}
+                blockedReason={dirty ? t("modelSaveBeforeTest", "Save your changes before testing") : undefined}
+              />
+            ) : undefined
+          }
         />
       </div>
     </ModelDialogShell>
@@ -170,6 +175,7 @@ export function OAuthProviderDialog({
 }) {
   const { t } = useI18n();
   const labels = useProviderLabels(editor.modelPreferences);
+  const channelStatus = useChannelStatus();
   return (
     <ModelDialogShell
       width={560}
@@ -180,8 +186,9 @@ export function OAuthProviderDialog({
       leading={<DialogLogoTile id={provider.id} />}
       trailing={
         <HeaderStatus
-          label={labels.oauthStatus(provider) ?? t("modelNotConnected", "not connected")}
-          tone={provider.loggedIn ? "success" : "muted"}
+          {...(provider.loggedIn
+            ? channelStatus.status(editor.channels[provider.id])
+            : { tone: "muted", label: t("modelNotConnected", "not connected") })}
           hint={provider.loggedIn ? t("modelConnected", "connected") : undefined}
         />
       }

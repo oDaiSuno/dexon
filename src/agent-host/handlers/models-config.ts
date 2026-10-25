@@ -4,8 +4,9 @@ import { tmpdir } from "os";
 import path from "path";
 import { ModelRuntime, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
-import { RpcError } from "../../contract/types";
-import { reloadSharedModelRuntimeConfig } from "../model-runtime";
+import { RpcError, type ProviderChannelTestResult } from "../../contract/types";
+import { getSharedModelRuntime, reloadSharedModelRuntimeConfig } from "../model-runtime";
+import { readProviderChannels, updateProviderChannel } from "../provider-channels";
 
 function getModelsPath(): string {
   return path.join(getAgentDir(), "models.json");
@@ -78,6 +79,107 @@ function writeModelsJson(data: Record<string, unknown>, expectedVersion: string)
   return modelsContentVersion(serialized);
 }
 
+type ProbeModelResult =
+  | { ok: true; latencyMs: number; status?: number; responseText: string }
+  | { ok: false; reason: "timeout" | "error"; error: string; latencyMs?: number; status?: number };
+
+const TEST_TIMEOUT_MS = 20_000;
+
+async function probeModel(
+  modelRuntime: ModelRuntime,
+  model: NonNullable<ReturnType<ModelRuntime["getModel"]>>,
+): Promise<ProbeModelResult> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS);
+  const failureReason = (): "timeout" | "error" => (controller.signal.aborted ? "timeout" : "error");
+  let status: number | undefined;
+  const startedAt = Date.now();
+  try {
+    const message = await modelRuntime.completeSimple(
+      model,
+      {
+        messages: [
+          {
+            role: "user",
+            content: "Reply with OK only.",
+            timestamp: Date.now(),
+          },
+        ],
+      },
+      {
+        maxTokens: 16,
+        timeoutMs: TEST_TIMEOUT_MS,
+        maxRetries: 0,
+        cacheRetention: "none",
+        signal: controller.signal,
+        onResponse: (response: { status: number }) => {
+          status = response.status;
+        },
+      },
+    );
+
+    const latencyMs = Date.now() - startedAt;
+    if (message.stopReason === "error" || message.stopReason === "aborted") {
+      return {
+        ok: false,
+        reason: failureReason(),
+        error: message.errorMessage ?? (controller.signal.aborted ? "Test timed out" : "Model returned an error"),
+        latencyMs,
+        ...(status !== undefined ? { status } : {}),
+      };
+    }
+    const responseText = message.content
+      .filter((b) => b.type === "text")
+      .map((b) => (b as { text: string }).text)
+      .join("")
+      .slice(0, 300);
+    return { ok: true, latencyMs, ...(status !== undefined ? { status } : {}), responseText };
+  } catch (e) {
+    return {
+      ok: false,
+      reason: failureReason(),
+      error: e instanceof Error ? e.message : String(e),
+      latencyMs: Date.now() - startedAt,
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function channelResultOf(probe: ProbeModelResult): ProviderChannelTestResult {
+  const testedAt = new Date().toISOString();
+  return probe.ok
+    ? {
+        ok: true,
+        latencyMs: probe.latencyMs,
+        ...(probe.status !== undefined ? { status: probe.status } : {}),
+        testedAt,
+      }
+    : {
+        ok: false,
+        reason: probe.reason,
+        error: probe.error,
+        ...(probe.latencyMs !== undefined ? { latencyMs: probe.latencyMs } : {}),
+        ...(probe.status !== undefined ? { status: probe.status } : {}),
+        testedAt,
+      };
+}
+
+function requireProviderName(value: unknown): string {
+  const provider = typeof value === "string" ? value.trim() : "";
+  if (!provider || provider.length > 200) {
+    throw new RpcError({ code: "BAD_REQUEST", message: "provider must be a channel name" });
+  }
+  return provider;
+}
+
+async function requireKnownProvider(provider: string): Promise<void> {
+  const runtime = await getSharedModelRuntime();
+  if (!runtime.getProvider(provider)) {
+    throw new RpcError({ code: "BAD_REQUEST", message: `Unknown channel: ${provider}` });
+  }
+}
+
 export function registerModelsConfigHandlers(server: RpcServer): void {
   server.handle({
     "modelsConfig.get": () => readModelsJsonSnapshot(),
@@ -145,53 +247,10 @@ export function registerModelsConfigHandlers(server: RpcServer): void {
         const auth = await modelRuntime.getAuth(model);
         if (!auth) return { ok: false, error: `No authentication found for "${providerName}"` };
 
-        const TEST_TIMEOUT_MS = 20_000;
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), TEST_TIMEOUT_MS);
-        let status: number | undefined;
-        const startedAt = Date.now();
-        try {
-          const message = await modelRuntime.completeSimple(
-            model,
-            {
-              messages: [
-                {
-                  role: "user",
-                  content: "Reply with OK only.",
-                  timestamp: Date.now(),
-                },
-              ],
-            },
-            {
-              maxTokens: 16,
-              timeoutMs: TEST_TIMEOUT_MS,
-              maxRetries: 0,
-              cacheRetention: "none",
-              signal: controller.signal,
-              onResponse: (response: { status: number }) => {
-                status = response.status;
-              },
-            },
-          );
-
-          const latencyMs = Date.now() - startedAt;
-          if (message.stopReason === "error" || message.stopReason === "aborted") {
-            return {
-              ok: false,
-              error: message.errorMessage ?? (controller.signal.aborted ? "Test timed out" : "Model returned an error"),
-              latencyMs,
-              status,
-            };
-          }
-          const responseText = message.content
-            .filter((b) => b.type === "text")
-            .map((b) => (b as { text: string }).text)
-            .join("")
-            .slice(0, 300);
-          return { ok: true, latencyMs, status, responseText };
-        } finally {
-          clearTimeout(timeout);
-        }
+        const probe = await probeModel(modelRuntime, model);
+        return probe.ok
+          ? { ok: true, latencyMs: probe.latencyMs, status: probe.status, responseText: probe.responseText }
+          : { ok: false, error: probe.error, latencyMs: probe.latencyMs, status: probe.status };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
       } finally {
@@ -203,6 +262,39 @@ export function registerModelsConfigHandlers(server: RpcServer): void {
           }
         }
       }
+    },
+
+    "modelsConfig.channels.get": () => ({ channels: readProviderChannels() }),
+
+    "modelsConfig.channels.setEnabled": async (params) => {
+      const provider = requireProviderName((params as { provider?: unknown })?.provider);
+      const enabled = (params as { enabled?: unknown })?.enabled;
+      if (typeof enabled !== "boolean") {
+        throw new RpcError({ code: "BAD_REQUEST", message: "enabled must be a boolean" });
+      }
+      await requireKnownProvider(provider);
+      return { channels: updateProviderChannel(provider, { enabled }) };
+    },
+
+    "modelsConfig.channels.test": async (params) => {
+      const provider = requireProviderName((params as { provider?: unknown })?.provider);
+      await requireKnownProvider(provider);
+      let result: ProviderChannelTestResult;
+      try {
+        const runtime = await getSharedModelRuntime();
+        const model = (await runtime.getAvailable(provider))[0];
+        result = model
+          ? channelResultOf(await probeModel(runtime, model))
+          : channelResultOf({
+              ok: false,
+              reason: "error",
+              error: "No model of this channel has working credentials",
+            });
+      } catch (e) {
+        result = channelResultOf({ ok: false, reason: "error", error: e instanceof Error ? e.message : String(e) });
+      }
+      updateProviderChannel(provider, { lastTest: result });
+      return result;
     },
   });
 }

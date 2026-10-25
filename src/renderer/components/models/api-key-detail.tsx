@@ -1,3 +1,4 @@
+import { type ReactNode } from "react";
 import { Field, SecretTextInput, TextInput } from "../form-controls";
 import { useI18n } from "@/i18n";
 import { ManagedModelsControl } from "./managed-models-control";
@@ -23,6 +24,7 @@ export function ApiKeyDetail({
   onApiKeySave,
   savedField,
   modelSelection,
+  connectionTest,
 }: {
   provider: ApiKeyProvider;
   baseUrl: string;
@@ -33,6 +35,7 @@ export function ApiKeyDetail({
   onApiKeySave: () => void;
   savedField: "baseUrl" | "apiKey" | null;
   modelSelection: ModelSelectionControl;
+  connectionTest?: ReactNode;
 }) {
   const { t } = useI18n();
 
@@ -71,6 +74,7 @@ export function ApiKeyDetail({
             )}
           </FieldHint>
         </Field>
+        {connectionTest}
       </DetailSection>
 
       {provider.configured && <ManagedModelsControl providerId={provider.id} {...modelSelection} />}

@@ -12,8 +12,10 @@ import {
 import { ModelDialog } from "./model-dialog";
 import { ModelDialogShell, useSaveNotice } from "./model-dialog-shell";
 import { DialogFooter } from "./models-footer";
+import { ChannelTestRow } from "./channel-test-row";
+import { useChannelStatus } from "./channel-status";
 import { ProviderDetail } from "./provider-detail";
-import { DialogLogoTile, EditableDialogTitle } from "./provider-dialog-parts";
+import { DialogLogoTile, EditableDialogTitle, HeaderStatus } from "./provider-dialog-parts";
 import { useProviderLabels } from "./provider-tree";
 import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
 
@@ -28,6 +30,7 @@ export function CustomProviderDialog({
 }) {
   const { t } = useI18n();
   const labels = useProviderLabels(editor.modelPreferences);
+  const channelStatus = useChannelStatus();
   const [initial] = useState(() => ({
     name: originalName ?? nextCustomProviderName(editor.config),
     entry: {
@@ -93,6 +96,9 @@ export function CustomProviderDialog({
         title={<EditableDialogTitle value={name.trim() || initial.name} onCommit={setName} />}
         subtitle={labels.customMeta(entry)}
         leading={<DialogLogoTile id={name} />}
+        trailing={
+          originalName === null ? undefined : <HeaderStatus {...channelStatus.status(editor.channels[originalName])} />
+        }
         notice={notice}
         onClose={onClose}
         footer={
@@ -116,6 +122,15 @@ export function CustomProviderDialog({
             modelSelection={modelSelectionOf(editor)}
             onOpenModel={(index) => setModelTarget({ index })}
             onAddModel={() => setModelTarget({ index: null })}
+            connectionTest={
+              originalName === null ? undefined : (
+                <ChannelTestRow
+                  channel={editor.channels[originalName]}
+                  onTest={() => editor.testChannel(originalName)}
+                  blockedReason={dirty ? t("modelSaveBeforeTest", "Save your changes before testing") : undefined}
+                />
+              )
+            }
           />
         </div>
       </ModelDialogShell>

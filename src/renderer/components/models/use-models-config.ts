@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { ModelsJson } from "@/lib/models-config-state";
-import { getModelPreferences, setModelPreferences } from "@/lib/api-client";
-import type { ModelPreferencesResult } from "@contract/types";
+import {
+  getModelPreferences,
+  getProviderChannels,
+  setModelPreferences,
+  setProviderChannelEnabled,
+  testProviderChannel,
+} from "@/lib/api-client";
+import type { ModelPreferencesResult, ProviderChannelState } from "@contract/types";
 import type { ApiKeyProvider, ModelSelectionControl, OAuthProvider } from "./types";
 
 export type PersistResult = { ok: true } | { ok: false; error: string; conflict: boolean };
@@ -21,6 +27,9 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
   const [modelPreferencesLoading, setModelPreferencesLoading] = useState(true);
   const [modelPreferencesSaving, setModelPreferencesSaving] = useState(false);
   const [modelPreferencesError, setModelPreferencesError] = useState<string | null>(null);
+  const [channels, setChannels] = useState<Record<string, ProviderChannelState>>({});
+  const [channelSaving, setChannelSaving] = useState<string | null>(null);
+  const [channelError, setChannelError] = useState<string | null>(null);
 
   const loadOAuthProviders = useCallback(() => {
     fetch("/api/auth/providers")
@@ -33,6 +42,12 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     fetch("/api/auth/all-providers")
       .then((r) => r.json())
       .then((d: { providers: ApiKeyProvider[] }) => setApiKeyProviders(d.providers))
+      .catch(() => {});
+  }, []);
+
+  const loadChannels = useCallback(() => {
+    getProviderChannels()
+      .then((result) => setChannels(result.channels))
       .catch(() => {});
   }, []);
 
@@ -101,7 +116,8 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     void loadModelsConfig();
     loadOAuthProviders();
     loadApiKeyProviders();
-  }, [loadApiKeyProviders, loadModelsConfig, loadOAuthProviders]);
+    loadChannels();
+  }, [loadApiKeyProviders, loadChannels, loadModelsConfig, loadOAuthProviders]);
 
   useEffect(() => {
     void loadModelPreferences();
@@ -155,6 +171,31 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     [configVersion, loadModelPreferences, onChanged, t],
   );
 
+  const setChannelEnabled = useCallback(
+    async (provider: string, enabled: boolean) => {
+      setChannelSaving(provider);
+      setChannelError(null);
+      try {
+        const result = await setProviderChannelEnabled(provider, enabled);
+        setChannels(result.channels);
+        onChanged?.();
+      } catch (error) {
+        setChannelError(error instanceof Error ? error.message : String(error));
+      } finally {
+        setChannelSaving(null);
+      }
+    },
+    [onChanged],
+  );
+
+  const testChannel = useCallback(async (provider: string) => {
+    const result = await testProviderChannel(provider);
+    setChannels((current) => ({
+      ...current,
+      [provider]: { enabled: current[provider]?.enabled ?? true, lastTest: result },
+    }));
+  }, []);
+
   return {
     config,
     configVersion,
@@ -173,6 +214,11 @@ export function useModelsConfig({ cwd, onChanged }: { cwd: string | null; onChan
     refreshApiKeyProviders,
     loadModelsConfig,
     persist,
+    channels,
+    channelSaving,
+    channelError,
+    setChannelEnabled,
+    testChannel,
     providers: Object.entries(config.providers ?? {}),
     activeApiKey: apiKeyProviders.filter((p) => p.configured),
   };

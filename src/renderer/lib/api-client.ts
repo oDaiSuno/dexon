@@ -245,12 +245,23 @@ export async function setModelPreferences(cwd: string | undefined, enabledModels
 export async function getModelDefaults(cwd?: string) {
   return call("models.defaults.get", cwd ? { cwd } : undefined);
 }
-
 export async function setModelDefaults(
   cwd: string | undefined,
   change: { model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel },
 ) {
   return call("models.defaults.set", { ...(cwd ? { cwd } : {}), ...change });
+}
+
+export async function getProviderChannels() {
+  return call("modelsConfig.channels.get");
+}
+
+export async function setProviderChannelEnabled(provider: string, enabled: boolean) {
+  return call("modelsConfig.channels.setEnabled", { provider, enabled });
+}
+
+export async function testProviderChannel(provider: string) {
+  return call("modelsConfig.channels.test", { provider });
 }
 
 export async function listWorktrees(projectRoot: string) {

@@ -18,6 +18,7 @@ import {
   type ModelsListResult,
 } from "../../contract/types";
 import { modelCatalogRefreshCoordinator } from "../model-runtime";
+import { disabledProviderIds } from "../provider-channels";
 
 const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const DEFAULT_THINKING_LEVEL = "medium";
@@ -199,7 +200,8 @@ export async function projectModelsList(
   const availability = options.cachedOnly
     ? { models: [...modelRuntime.getAvailableSnapshot()], warnings: [] }
     : await resolveAvailableModels(modelRuntime, options.signal);
-  const available = availability.models;
+  const disabled = disabledProviderIds();
+  const available = availability.models.filter((model) => !disabled.has(model.provider));
   const enabledModels = settings.getEnabledModels();
   const visible = filterByExactEnabledModels(available, enabledModels);
   const models = visible
