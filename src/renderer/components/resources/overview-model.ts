@@ -18,8 +18,8 @@ export interface CapabilitySummary {
   unavailable: number;
 }
 
-export function packageDisplayName(pkg: PluginPackageInfo): string {
-  return pkg.packageName ?? pkg.source.replace(/^npm:/, "");
+export function packageDisplayName(pkg: { displayName?: string; packageName?: string; source: string }): string {
+  return pkg.displayName ?? pkg.packageName ?? pkg.source.replace(/^npm:/, "");
 }
 
 export function packageResources(packages: PluginPackageInfo[], kind: PluginResourceKind): PackageResource[] {
@@ -33,6 +33,10 @@ export function packageResources(packages: PluginPackageInfo[], kind: PluginReso
         pkg,
       })),
   );
+}
+
+export function pendingReloadPackages(packages: PluginPackageInfo[]): PluginPackageInfo[] {
+  return packages.filter((pkg) => pkg.pendingReloadVersion !== undefined);
 }
 
 export function missingPackages(packages: PluginPackageInfo[]): PluginPackageInfo[] {
@@ -54,10 +58,9 @@ export function capabilitySummary(
   return { ready: readySkills + extensions + prompts, readySkills, extensions, prompts, hidden, unavailable };
 }
 
-export function skillOriginText(skill: Skill, packages: PluginPackageInfo[], t: Translate): string {
-  const pkg = packages.find((candidate) => candidate.source === skill.sourceInfo?.source);
-  const origin = pkg
-    ? t("resourcesFromPackage", "From {name}").replace("{name}", packageDisplayName(pkg))
+export function skillOriginText(skill: Skill, t: Translate): string {
+  const origin = skill.plugin
+    ? t("resourcesFromPackage", "From {name}").replace("{name}", packageDisplayName(skill.plugin))
     : scopeText(sourceLabel(skill), t);
   if (!skill.disableModelInvocation) return origin;
   return `${origin} · ${t("resourcesHiddenFromModel", "Hidden from the model")}`;

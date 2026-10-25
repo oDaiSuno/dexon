@@ -1,16 +1,8 @@
+import type { SkillRecord } from "@/lib/api-types";
+
 export type Translate = (key: string, fallback: string) => string;
 
-export interface Skill {
-  name: string;
-  description: string;
-  filePath: string;
-  baseDir: string;
-  disableModelInvocation: boolean;
-  sourceInfo: {
-    source?: string;
-    scope?: string;
-  };
-}
+export type Skill = SkillRecord;
 
 export function shortenPath(p: string): string {
   // Match common home dir patterns: /Users/xxx, /home/xxx

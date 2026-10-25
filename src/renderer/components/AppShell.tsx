@@ -25,7 +25,6 @@ import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
-import { useDepartureGuard } from "./app-shell/use-departure-guard";
 import { useSpaceOwner } from "./app-shell/use-space-owner";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
@@ -48,15 +47,6 @@ export function AppShell({
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
   const [resourceView, setResourceView] = useState<ResourceView>("overview");
   const [remoteOpen, setRemoteOpen] = useState(false);
-  const { leaveRef, requestDeparture } = useDepartureGuard();
-  const changeResourceTab = useCallback(
-    (tab: ResourceTab) => requestDeparture(() => setResourceTab(tab)),
-    [requestDeparture],
-  );
-  const changeResourceView = useCallback(
-    (view: ResourceView) => requestDeparture(() => setResourceView(view)),
-    [requestDeparture],
-  );
 
   // On mobile the sidebar is an overlay drawer; hide it by default so the chat
   // is visible on load. Runs once the breakpoint resolves after hydration.
@@ -108,7 +98,6 @@ export function AppShell({
     onTopPanelDismiss: dismissTopPanel,
     onSwitchSessionRequested: openSidebarForSwitchSession,
     onShowChat: showChatPage,
-    requestDeparture,
     onBeforeSessionDeleted: useCallback((sessionId: string) => {
       thinkingExpansionRegistryRef.current.delete(sessionId);
       processDetailsExpansionRegistryRef.current.delete(sessionId);
@@ -167,13 +156,11 @@ export function AppShell({
     [isMobile, openSettings],
   );
   const openRemote = useCallback(() => {
-    requestDeparture(() => {
-      setActiveTopPanel(null);
-      closeSettings();
-      setPage("resources");
-      setRemoteOpen(true);
-    });
-  }, [requestDeparture, closeSettings]);
+    setActiveTopPanel(null);
+    closeSettings();
+    setPage("resources");
+    setRemoteOpen(true);
+  }, [closeSettings]);
   const openResources = useCallback(() => handleNavigate("resources"), [handleNavigate]);
   const openModelSettings = useCallback(() => {
     setActiveTopPanel(null);
@@ -194,7 +181,6 @@ export function AppShell({
     coordination,
     onCwdCommitted: handleCwdChange,
     onCoordinatorCwd: noteCoordinatorCwd,
-    requestDeparture,
     onOpenSidebar: openSidebarForSwitchSession,
   });
 
@@ -294,7 +280,6 @@ export function AppShell({
           initialSessionId={initialSessionId}
           onInitialRestoreDone={handleInitialRestoreDone}
           onSessionDeleted={handleSessionDeleted}
-          requestDeparture={requestDeparture}
         />
 
         {/* Center: chat */}
@@ -378,10 +363,9 @@ export function AppShell({
                   cwd={activeCwd ?? coordination.spaceCwd ?? ""}
                   sessionId={selectedSession?.id ?? null}
                   view={resourceView}
-                  onViewChange={changeResourceView}
+                  onViewChange={setResourceView}
                   activeTab={resourceTab}
-                  onTabChange={changeResourceTab}
-                  skillsRef={leaveRef}
+                  onTabChange={setResourceTab}
                   onPluginsReloaded={bumpSessionKey}
                   channelSnapshot={channels.channelSnapshot}
                   onOpenRemote={openRemote}

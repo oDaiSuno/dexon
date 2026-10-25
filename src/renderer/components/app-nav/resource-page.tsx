@@ -1,8 +1,8 @@
-import { useEffect, useRef, type Ref } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
-import { SkillsManager, type SkillsConfigHandle } from "../SkillsConfig";
+import { SkillsManager } from "../SkillsConfig";
 import { PluginsManager } from "../PluginsConfig";
 import { Button } from "../form-controls";
 import { usePluginLibrary } from "../plugins/use-plugin-library";
@@ -22,7 +22,6 @@ interface ResourcePageProps {
   activeTab: ResourceTab;
   onTabChange: (tab: ResourceTab) => void;
   onPluginsReloaded?: () => void;
-  skillsRef?: Ref<SkillsConfigHandle>;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
 }
@@ -39,13 +38,18 @@ function ResourceWorkspace({
   activeTab,
   onTabChange,
   onPluginsReloaded,
-  skillsRef,
   channelSnapshot,
   onOpenRemote,
 }: ResourcePageProps) {
   const library = usePluginLibrary({ cwd, sessionId, onReloaded: onPluginsReloaded });
   const directory = useSkillDirectory(cwd);
   const skillsAddRef = useRef(false);
+  const { loadPlugins } = library;
+  const { loadSkills } = directory;
+  const refresh = useCallback(() => {
+    void loadPlugins();
+    void loadSkills();
+  }, [loadPlugins, loadSkills]);
 
   const manage = (tab: ResourceTab) => {
     onTabChange(tab);
@@ -75,17 +79,14 @@ function ResourceWorkspace({
             cwd={cwd}
             library={library}
             directory={directory}
+            canReload={sessionId !== null}
             channelSnapshot={channelSnapshot}
             onOpenRemote={onOpenRemote}
             onAdd={() => {
               library.openAddMode();
               manage("plugins");
             }}
-            onOpenSkill={(skill) => {
-              skillsAddRef.current = false;
-              directory.setSelected(skill.filePath);
-              manage("skills");
-            }}
+            onRefresh={refresh}
             onDiscoverSkills={() => {
               skillsAddRef.current = true;
               manage("skills");
@@ -106,10 +107,16 @@ function ResourceWorkspace({
           />
           <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
             {activeTab === "plugins" ? (
-              <PluginsManager cwd={cwd} sessionId={sessionId} embedded onClose={() => undefined} library={library} />
+              <PluginsManager
+                cwd={cwd}
+                sessionId={sessionId}
+                embedded
+                onClose={() => undefined}
+                library={library}
+                onRefresh={refresh}
+              />
             ) : (
               <SkillsManager
-                ref={skillsRef}
                 cwd={cwd}
                 embedded
                 initialAddMode={skillsAddRef.current}

@@ -40,7 +40,8 @@ export function PluginsManager({
   onClose,
   embedded = false,
   library,
-}: Omit<PluginsConfigProps, "onReloaded"> & { library: PluginLibrary }) {
+  onRefresh,
+}: Omit<PluginsConfigProps, "onReloaded"> & { library: PluginLibrary; onRefresh?: () => void }) {
   const isMobile = useIsMobile();
   const { language, t } = useI18n();
 
@@ -255,7 +256,7 @@ export function PluginsManager({
               </span>
             )}
           </div>
-          <Button onClick={() => void loadPlugins()} disabled={loading || busyKey !== null}>
+          <Button onClick={onRefresh ?? (() => void loadPlugins())} disabled={loading || busyKey !== null}>
             {t("refresh", "Refresh")}
           </Button>
           {!embedded && <Button onClick={onClose}>{t("close", "Close")}</Button>}

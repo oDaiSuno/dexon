@@ -18,6 +18,7 @@ import type {
   PluginResourceInfo,
   PluginScope,
   PluginsResponse,
+  SkillPluginOrigin,
 } from "../shared/api-types";
 import { RpcError } from "../contract/types";
 import { toolchainRuntime } from "./toolchain-runtime";
@@ -41,29 +42,58 @@ function disabledBackupPath(): string {
   return join(getAgentDir(), "dexon-plugin-filters.json");
 }
 
-function readDisabledBackups(): Record<string, PackageSource> {
+function pendingReloadPath(): string {
+  return join(getAgentDir(), "dexon-plugin-pending-reload.json");
+}
+
+function readJsonFile<T>(filePath: string, fallback: T): T {
   try {
-    return JSON.parse(readFileSync(disabledBackupPath(), "utf8")) as Record<string, PackageSource>;
+    return JSON.parse(readFileSync(filePath, "utf8")) as T;
   } catch {
-    return {};
+    return fallback;
   }
 }
 
-function writeDisabledBackups(backups: Record<string, PackageSource>): void {
-  const filePath = disabledBackupPath();
+function readDisabledBackups(): Record<string, PackageSource> {
+  return readJsonFile<Record<string, PackageSource>>(disabledBackupPath(), {});
+}
+
+function writeJsonAtomically(filePath: string, value: unknown): void {
   const tmp = `${filePath}.${process.pid}.tmp`;
   mkdirSync(dirname(filePath), { recursive: true });
-  writeFileSync(tmp, JSON.stringify(backups, null, 2), "utf8");
+  writeFileSync(tmp, JSON.stringify(value, null, 2), "utf8");
   try {
     renameSync(tmp, filePath);
   } catch (error) {
     try {
       unlinkSync(tmp);
     } catch {
-      /* ignore cleanup failure */
+      throw error;
     }
     throw error;
   }
+}
+
+function readPendingReload(): Record<string, string> {
+  return readJsonFile<Record<string, string>>(pendingReloadPath(), {});
+}
+
+function writePendingReload(store: Record<string, string>): void {
+  writeJsonAtomically(pendingReloadPath(), store);
+}
+
+function writeDisabledBackups(backups: Record<string, PackageSource>): void {
+  writeJsonAtomically(disabledBackupPath(), backups);
+}
+
+function pendingReloadKey(pkg: PluginPackageInfo): string {
+  return `${pkg.scope}\0${pkg.installedPath ?? pkg.source}`;
+}
+
+function withPendingReload(packages: PluginPackageInfo[], store: Record<string, string>): PluginPackageInfo[] {
+  return packages.map((pkg) =>
+    pkg.version && store[pendingReloadKey(pkg)] === pkg.version ? { ...pkg, pendingReloadVersion: pkg.version } : pkg,
+  );
 }
 
 function clearDisabledBackup(source: string, scope: PluginScope): void {
@@ -169,7 +199,11 @@ function getRelativePath(resource: ResolvedResource): string {
   return rel && !rel.startsWith("..") ? rel : resource.path;
 }
 
-function readPackageMetadata(installedPath?: string): { packageName?: string; version?: string } {
+function readPackageMetadata(installedPath?: string): {
+  packageName?: string;
+  displayName?: string;
+  version?: string;
+} {
   if (!installedPath) return {};
   try {
     const stats = statSync(installedPath);
@@ -179,10 +213,12 @@ function readPackageMetadata(installedPath?: string): { packageName?: string; ve
     if (!existsSync(packageJsonPath)) return {};
     const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
       name?: unknown;
+      displayName?: unknown;
       version?: unknown;
     };
     return {
       packageName: typeof parsed.name === "string" ? parsed.name : undefined,
+      displayName: typeof parsed.displayName === "string" ? parsed.displayName : undefined,
       version: typeof parsed.version === "string" ? parsed.version : undefined,
     };
   } catch {
@@ -282,6 +318,7 @@ export async function readPlugins(cwd: string, npmCommand?: string[]): Promise<P
       disabled,
       installedPath: pkg.installedPath,
       packageName: packageMetadata.packageName,
+      displayName: packageMetadata.displayName,
       version: packageMetadata.version,
       configuredVersion: getConfiguredPluginVersion(pkg.source),
       counts,
@@ -290,7 +327,61 @@ export async function readPlugins(cwd: string, npmCommand?: string[]): Promise<P
     } satisfies PluginPackageInfo;
   });
 
-  return { packages, totals, diagnostics };
+  return { packages: withPendingReload(packages, readPendingReload()), totals, diagnostics };
+}
+
+export function notePluginUpdates(_cwd: string, before: PluginsResponse, after: PluginsResponse): PluginsResponse {
+  const store = readPendingReload();
+  let changed = false;
+  for (const pkg of after.packages) {
+    if (!pkg.version) continue;
+    const previous = before.packages.find(
+      (candidate) => candidate.source === pkg.source && candidate.scope === pkg.scope,
+    );
+    if (!previous?.version || previous.version === pkg.version) continue;
+    const key = pendingReloadKey(pkg);
+    if (store[key] === pkg.version) continue;
+    store[key] = pkg.version;
+    changed = true;
+  }
+  if (changed) writePendingReload(store);
+  return { ...after, packages: withPendingReload(after.packages, store) };
+}
+
+export async function markPluginsReloaded(cwd: string): Promise<PluginsResponse> {
+  const current = await readPlugins(cwd);
+  const store = readPendingReload();
+  let changed = false;
+  for (const pkg of current.packages) {
+    const key = pendingReloadKey(pkg);
+    if (!(key in store)) continue;
+    delete store[key];
+    changed = true;
+  }
+  if (changed) writePendingReload(store);
+  return readPlugins(cwd);
+}
+
+export async function attachSkillPlugins<
+  T extends { sourceInfo?: { source?: string; scope?: string; origin?: string } },
+>(skills: T[], cwd: string): Promise<(T & { plugin?: SkillPluginOrigin })[]> {
+  let packages: PluginPackageInfo[];
+  try {
+    packages = (await readPlugins(cwd)).packages;
+  } catch {
+    return skills;
+  }
+  return skills.map((skill) => {
+    if (skill.sourceInfo?.origin !== "package") return skill;
+    const source = skill.sourceInfo.source;
+    const scope = toPluginScope(skill.sourceInfo.scope ?? "global");
+    const pkg = packages.find((candidate) => candidate.source === source && candidate.scope === scope);
+    if (!pkg) return skill;
+    const plugin: SkillPluginOrigin = { source: pkg.source, scope: pkg.scope };
+    if (pkg.packageName) plugin.packageName = pkg.packageName;
+    if (pkg.displayName) plugin.displayName = pkg.displayName;
+    return { ...skill, plugin };
+  });
 }
 
 export async function applyPluginAction(body: PluginActionBody): Promise<PluginsResponse> {
@@ -311,6 +402,10 @@ export async function applyPluginAction(body: PluginActionBody): Promise<Plugins
   if (needsGit) toolchainRuntime.requireFromContext("vcs.git", context);
   const npm = context.commands["js.npm"];
   const npmCommand = npm ? [npm.executable, ...npm.argvPrefix] : undefined;
+  if (body.action === "update") {
+    const before = await readPlugins(body.cwd);
+    return notePluginUpdates(body.cwd, before, await runPluginWorker({ body, npmCommand }, context));
+  }
   return runPluginWorker({ body, npmCommand }, context);
 }
 

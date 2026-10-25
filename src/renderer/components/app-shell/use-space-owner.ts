@@ -7,21 +7,18 @@ import { useSessionProjectRoots } from "@/lib/session-catalog";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
 import { useComposerWorkspace } from "./composer-workspace";
 import type { SpaceCoordination } from "./use-space-coordination";
-import type { RequestDeparture } from "./use-departure-guard";
 
 export function useSpaceOwner({
   refreshKey,
   coordination,
   onCwdCommitted,
   onCoordinatorCwd,
-  requestDeparture,
   onOpenSidebar,
 }: {
   refreshKey: number;
   coordination: SpaceCoordination;
   onCwdCommitted: (cwd: string | null, projectRoot?: string | null) => void;
   onCoordinatorCwd: (cwd: string | null) => void;
-  requestDeparture: RequestDeparture;
   onOpenSidebar: () => void;
 }) {
   const { t } = useI18n();
@@ -52,7 +49,6 @@ export function useSpaceOwner({
     selectedCwdProp: coordination.spaceCwd,
     onCwdChange: handleCwdChange,
     refreshKey,
-    requestDeparture,
   });
   const handleReturnToPersonalSpace = useCallback(() => {
     void coordination.returnToPersonalSpace().then((cwd) => {

@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { PluginPackageInfo } from "@/lib/api-types";
 import { useI18n } from "@/i18n";
 import type { Skill } from "../skills/skill-shared";
 import { SkillToggle } from "../skills/skill-toggle";
@@ -12,13 +11,11 @@ const TILE_HOVER =
 
 function SkillCard({
   skill,
-  packages,
   toggling,
   onOpen,
   onToggle,
 }: {
   skill: Skill;
-  packages: PluginPackageInfo[];
   toggling: boolean;
   onOpen: () => void;
   onToggle: () => void;
@@ -45,14 +42,13 @@ function SkillCard({
       {skill.description && (
         <p className="type-body-relaxed m-0 text-pretty text-[var(--fx-text-secondary)]">{skill.description}</p>
       )}
-      <p className="type-label-default m-0 text-[var(--fx-text-tertiary)]">{skillOriginText(skill, packages, t)}</p>
+      <p className="type-label-default m-0 text-[var(--fx-text-tertiary)]">{skillOriginText(skill, t)}</p>
     </li>
   );
 }
 
 export function SkillGrid({
   skills,
-  packages,
   loading,
   error,
   toggling,
@@ -62,7 +58,6 @@ export function SkillGrid({
   onDiscover,
 }: {
   skills: Skill[];
-  packages: PluginPackageInfo[];
   loading: boolean;
   error: string | null;
   toggling: Set<string>;
@@ -108,7 +103,6 @@ export function SkillGrid({
             <SkillCard
               key={skill.filePath}
               skill={skill}
-              packages={packages}
               toggling={toggling.has(skill.filePath)}
               onOpen={() => onOpenSkill(skill)}
               onToggle={() => onToggle(skill)}

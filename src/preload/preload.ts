@@ -84,6 +84,7 @@ if (
     getPathForFile: (file: File) => (webUtils ? webUtils.getPathForFile(file) : null),
     selectDirectory: () => ipcRenderer.invoke("desktop:select-directory"),
     openDirectory: (fsPath) => ipcRenderer.invoke("desktop:open-directory", fsPath),
+    openFile: (fsPath) => ipcRenderer.invoke("desktop:open-file", fsPath),
     setChannelCredential: (payload) => ipcRenderer.invoke("desktop:set-channel-credential", payload),
     saveFile: (opts) => ipcRenderer.invoke("desktop:save-file", opts),
     saveBinaryFile: (opts) => ipcRenderer.invoke("desktop:save-binary-file", opts),

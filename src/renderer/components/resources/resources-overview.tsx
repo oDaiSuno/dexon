@@ -6,23 +6,30 @@ import { CapabilityRequired } from "../CapabilityRequired";
 import { Button } from "../form-controls";
 import type { PluginLibrary } from "../plugins/use-plugin-library";
 import type { SkillDirectory } from "../skills/use-skill-directory";
-import type { Skill } from "../skills/skill-shared";
 import { AttentionCard } from "./attention-card";
 import { OverviewHero } from "./overview-hero";
-import { capabilitySummary, missingPackages, packageResources, type PackageResource } from "./overview-model";
-import { PlusIcon } from "./overview-icons";
+import {
+  capabilitySummary,
+  missingPackages,
+  packageResources,
+  pendingReloadPackages,
+  type PackageResource,
+} from "./overview-model";
+import { PlusIcon, RefreshCwIcon } from "./overview-icons";
 import { RemoteEntryCard } from "./remote-entry-card";
 import { ExtensionsSection, PromptsSection, SourcesBar } from "./resource-sections";
+import { SkillDrawer } from "./skill-drawer";
 import { SkillGrid } from "./skill-grid";
 
 export function ResourcesOverview({
   cwd,
   library,
   directory,
+  canReload,
   channelSnapshot,
   onOpenRemote,
   onAdd,
-  onOpenSkill,
+  onRefresh,
   onDiscoverSkills,
   onOpenPackage,
   onManageSources,
@@ -30,10 +37,11 @@ export function ResourcesOverview({
   cwd: string;
   library: PluginLibrary;
   directory: SkillDirectory;
+  canReload: boolean;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
   onAdd: () => void;
-  onOpenSkill: (skill: Skill) => void;
+  onRefresh: () => void;
   onDiscoverSkills: () => void;
   onOpenPackage: (pkg: PluginPackageInfo) => void;
   onManageSources: () => void;
@@ -44,20 +52,38 @@ export function ResourcesOverview({
   const prompts = packageResources(packages, "prompt");
   const summary = capabilitySummary(directory.skills, packages, extensions.length, prompts.length);
   const openResource = (resource: PackageResource) => onOpenPackage(resource.pkg);
-  const [reinstallTried, setReinstallTried] = useState(false);
-  const reinstallError = reinstallTried && library.busyKey === null ? library.actionError : null;
+  const [attentionTried, setAttentionTried] = useState(false);
+  const attentionError = attentionTried && library.busyKey === null ? library.actionError : null;
+  const [openSkillPath, setOpenSkillPath] = useState<string | null>(null);
+  const openSkill = directory.skills.find((skill) => skill.filePath === openSkillPath) ?? null;
   const reinstall = (pkg: PluginPackageInfo) => {
-    setReinstallTried(true);
+    setAttentionTried(true);
     void library.installPluginSource(pkg.source, pkg.scope);
+  };
+  const reload = () => {
+    setAttentionTried(true);
+    void library.reloadSession();
   };
 
   return (
     <div className="mx-auto flex w-full max-w-[760px] flex-col items-stretch gap-[36px]">
       <header className="flex w-full items-end gap-[16px]">
         <div className="flex min-w-0 flex-1 flex-col gap-[8px]">
-          <h1 className="type-title-page m-0 text-[var(--fx-text-primary)]">
-            {t("navPluginsSkills", "Plugins & Skills")}
-          </h1>
+          <div className="flex items-center gap-[8px]">
+            <h1 className="type-title-page m-0 text-[var(--fx-text-primary)]">
+              {t("navPluginsSkills", "Plugins & Skills")}
+            </h1>
+            <Button
+              variant="ghost"
+              aria-label={t("refresh", "Refresh")}
+              title={t("refresh", "Refresh")}
+              disabled={library.loading || directory.loading}
+              onClick={onRefresh}
+              className="h-[28px] w-[28px] px-0"
+            >
+              <RefreshCwIcon size={16} />
+            </Button>
+          </div>
           <p className="type-body-large m-0 text-[var(--fx-text-secondary)]">
             {t("resourcesSubtitle", "Skills, tool extensions and prompt templates the Agent can use.")}
           </p>
@@ -69,12 +95,15 @@ export function ResourcesOverview({
       </header>
       <OverviewHero summary={summary} />
       <AttentionCard
-        packages={missingPackages(packages)}
+        updated={pendingReloadPackages(packages)}
+        missing={missingPackages(packages)}
         busyKey={library.busyKey}
-        error={reinstallError}
+        error={attentionError}
+        canReload={canReload}
         onReinstall={reinstall}
+        onReload={reload}
       >
-        {reinstallTried && library.capabilityIssue && library.hasPendingCapabilityOperation && (
+        {attentionTried && library.capabilityIssue && library.hasPendingCapabilityOperation && (
           <CapabilityRequired
             issue={library.capabilityIssue}
             cwd={cwd}
@@ -86,18 +115,27 @@ export function ResourcesOverview({
       <RemoteEntryCard snapshot={channelSnapshot} onOpen={onOpenRemote} />
       <SkillGrid
         skills={directory.skills}
-        packages={packages}
         loading={directory.loading}
         error={directory.error}
         toggling={directory.toggling}
         saveError={directory.saveError}
-        onOpenSkill={onOpenSkill}
+        onOpenSkill={(skill) => setOpenSkillPath(skill.filePath)}
         onToggle={(skill) => void directory.toggle(skill)}
         onDiscover={onDiscoverSkills}
       />
       <ExtensionsSection extensions={extensions} onOpen={openResource} />
       <PromptsSection prompts={prompts} onOpen={openResource} />
       <SourcesBar packageCount={packages.length} onOpen={onManageSources} />
+      {openSkill && (
+        <SkillDrawer
+          skill={openSkill}
+          cwd={cwd}
+          toggling={directory.toggling.has(openSkill.filePath)}
+          saveError={directory.saveError}
+          onToggle={(skill) => void directory.toggle(skill)}
+          onClose={() => setOpenSkillPath(null)}
+        />
+      )}
     </div>
   );
 }

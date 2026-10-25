@@ -60,16 +60,6 @@
       "file": "src/renderer/components/skills/add-skill-panel.tsx",
       "name": "--text-meta",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "name": "--text-body-lg",
-      "count": 1
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "name": "--text-label",
-      "count": 2
     }
   ],
   "typography": [
@@ -112,16 +102,6 @@
       "file": "src/renderer/components/skills/add-skill-panel.tsx",
       "property": "lineHeight",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "property": "fontSize",
-      "count": 3
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "property": "lineHeight",
-      "count": 1
     }
   ],
   "colors": [
@@ -142,18 +122,6 @@
       "color": "rgba(34,197,94,0.1)",
       "count": 1,
       "hint": "改用 var(--fx-status-success-soft)"
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "color": "rgba(0,0,0,0.3)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
-      "file": "src/renderer/components/skills/unsaved-skill-prompt.tsx",
-      "color": "rgba(0,0,0,0.35)",
-      "count": 1,
-      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
     }
   ]
 }

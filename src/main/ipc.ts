@@ -14,6 +14,7 @@ import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
 import { stageClipboardImage } from "./attachment-staging";
 import { openValidatedDirectory } from "./open-directory";
+import { openValidatedMarkdownFile } from "./open-file";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
@@ -202,6 +203,10 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   // reveal-only channel above. Same trust wrapper and path validation style.
   trustedHandle("desktop:open-directory", async (_event, fsPath: string) => {
     await openValidatedDirectory(fsPath, { openPath: (target) => shell.openPath(target) });
+  });
+
+  trustedHandle("desktop:open-file", async (_event, fsPath: string) => {
+    await openValidatedMarkdownFile(fsPath, { openPath: (target) => shell.openPath(target) });
   });
 
   // Rich file context menu, built in main from a real path (Chromium does not

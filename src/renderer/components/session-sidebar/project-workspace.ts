@@ -30,20 +30,16 @@ export interface WorktreeState {
 export type WorkspaceSelectResult =
   { status: "cancelled" } | { status: "selected" } | { status: "invalid"; error: string };
 
-const proceed = (action: () => void) => action();
-
 export function useProjectWorkspace({
   sessions,
   selectedCwdProp,
   onCwdChange,
   refreshKey,
-  requestDeparture = proceed,
 }: {
   sessions: readonly Pick<SessionInfo, "cwd" | "projectRoot">[];
   selectedCwdProp: string | null | undefined;
   onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   refreshKey?: number;
-  requestDeparture?: (action: () => void) => void;
 }) {
   const { t } = useI18n();
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
@@ -141,13 +137,13 @@ export function useProjectWorkspace({
         if (!res.ok || data.error) {
           return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
         }
-        requestDeparture(() => setSelectedCwd(data.cwd ?? dir));
+        setSelectedCwd(data.cwd ?? dir);
         return { status: "selected" };
       } catch (e) {
         return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
       }
     },
-    [t, requestDeparture],
+    [t],
   );
 
   /** Desktop-native directory picker (design §6.1). Falls back to path input. */
@@ -200,8 +196,8 @@ export function useProjectWorkspace({
 
   const handleCreateWorktree = useCallback(() => {
     if (!wtNewBranch.trim() || wtBusy || !worktreeState) return;
-    requestDeparture(() => void createWorktree());
-  }, [wtNewBranch, wtBusy, worktreeState, requestDeparture, createWorktree]);
+    void createWorktree();
+  }, [wtNewBranch, wtBusy, worktreeState, createWorktree]);
 
   const handleRemoveWorktree = useCallback(
     async (path: string, force: boolean) => {
@@ -233,14 +229,11 @@ export function useProjectWorkspace({
 
   // Clicking a worktree row moves the effective cwd and closes the dropdown —
   // verbatim from the original monolith.
-  const handleSelectWorktree = useCallback(
-    (path: string) => {
-      setWtDropdownOpen(false);
-      setWtError(null);
-      requestDeparture(() => setSelectedCwd(path));
-    },
-    [requestDeparture],
-  );
+  const handleSelectWorktree = useCallback((path: string) => {
+    setWtDropdownOpen(false);
+    setWtError(null);
+    setSelectedCwd(path);
+  }, []);
 
   // Outside click closes the dropdown and resets its entry/confirm/error state —
   // verbatim from the original monolith's shared document listener.

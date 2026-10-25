@@ -13,7 +13,6 @@ import { useSessionDirectory } from "../session-sidebar/session-directory";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
-import type { RequestDeparture } from "./use-departure-guard";
 import type { SettingsTab } from "../SettingsConfig";
 
 export function NavigationSidebar({
@@ -36,9 +35,7 @@ export function NavigationSidebar({
   initialSessionId,
   onInitialRestoreDone,
   onSessionDeleted,
-  requestDeparture,
 }: {
-  requestDeparture: RequestDeparture;
   isMobile: boolean;
   open: boolean;
   onToggle: () => void;
@@ -116,18 +113,16 @@ export function NavigationSidebar({
 
   const selectSession = useCallback(
     (session: SessionInfo) => {
-      requestDeparture(() => {
-        if (session.cwd) setSelectedCwd(session.cwd);
-        onSelectSession(session);
-      });
+      if (session.cwd) setSelectedCwd(session.cwd);
+      onSelectSession(session);
     },
-    [requestDeparture, setSelectedCwd, onSelectSession],
+    [setSelectedCwd, onSelectSession],
   );
 
   const createSession = useCallback(() => {
     if (!selectedCwd) return;
-    requestDeparture(() => onNewSession(createTemporarySessionId(), selectedCwd));
-  }, [requestDeparture, selectedCwd, onNewSession]);
+    onNewSession(createTemporarySessionId(), selectedCwd);
+  }, [selectedCwd, onNewSession]);
 
   const reportSpaceResult = useCallback((result: WorkspaceSelectResult) => {
     if (result.status === "invalid") setSpaceError(result.error);
@@ -165,11 +160,9 @@ export function NavigationSidebar({
   }, [handleToggle, open, onToggle, chooseFolder]);
 
   const backToPersonalSpace = useCallback(() => {
-    requestDeparture(() => {
-      setSpaceError(null);
-      onReturnToPersonalSpace();
-    });
-  }, [requestDeparture, onReturnToPersonalSpace]);
+    setSpaceError(null);
+    onReturnToPersonalSpace();
+  }, [onReturnToPersonalSpace]);
 
   const spacePath = selectedCwd ?? coordination.attemptedCwd ?? "";
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);

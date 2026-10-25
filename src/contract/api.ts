@@ -404,6 +404,10 @@ export interface Api {
     params: PluginActionParams;
     result: PluginsResponse;
   };
+  "plugins.markReloaded": {
+    params: { cwd: string };
+    result: PluginsResponse;
+  };
 
   // System / desktop helpers exposed via Host (or main-bridged)
   "system.home": { params: void; result: { home: string } };

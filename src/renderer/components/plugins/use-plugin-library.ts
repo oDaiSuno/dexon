@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { call } from "@/lib/api-client";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo, PluginsResponse } from "@/lib/api-types";
@@ -239,14 +240,14 @@ export function usePluginLibrary({
     try {
       await sendAgentCommand(sessionId, { type: "reload" });
       onReloaded?.();
-      await loadPlugins();
+      setData(await call("plugins.markReloaded", { cwd }));
       setActionMessage(t("pluginSessionReloaded", "Session reloaded."));
     } catch (err) {
       setActionError(pluginRequestError(err, t("pluginSessionReloadFailed", "Failed to reload session.")));
     } finally {
       setBusyKey(null);
     }
-  }, [loadPlugins, onReloaded, sessionId, t]);
+  }, [cwd, onReloaded, sessionId, t]);
 
   const selectPackage = useCallback((key: string | null) => {
     setSelected(key);
