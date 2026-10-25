@@ -109,6 +109,9 @@ app.on("login", (event, webContents, _details, authInfo, callback) => {
   callback(credentials.username, credentials.password);
 });
 
+const FIXTURE_ICON_PNG =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+
 function fixtureHtml(): string {
   return `<!doctype html>
   <html><head><meta charset="utf-8"><title>Browser Fixture</title></head>
@@ -209,6 +212,18 @@ async function startFixture(): Promise<{ origin: string; corsOrigin: string; sec
           if (event.data?.fixture === 'cross-click') output.textContent = 'cross-click:' + (event.data.trusted ? 'trusted' : 'untrusted');
           if (event.data?.fixture === 'cross-input') output.textContent = 'cross-input:' + event.data.value + ':' + (event.data.trusted ? 'trusted' : 'untrusted');
         })</script>`);
+      return;
+    }
+    if (request.url === "/favicon-page") {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end(
+        '<!doctype html><title>Favicon fixture</title><link rel="icon" href="/fixture-icon.png"><body>favicon</body>',
+      );
+      return;
+    }
+    if (request.url === "/fixture-icon.png") {
+      response.writeHead(200, { "content-type": "image/png" });
+      response.end(Buffer.from(FIXTURE_ICON_PNG, "base64"));
       return;
     }
     if (request.url === "/network") {
@@ -956,6 +971,44 @@ async function run(): Promise<void> {
     assert.equal(result.status, "rejected");
     if (result.status === "rejected") assert.equal(result.reason?.code, "USER_TOOK_CONTROL");
   }
+
+  const explicitTakeoverWait = call("browser.wait", {
+    tabId: tab.id,
+    condition: "text",
+    value: "never-present-explicit-takeover",
+    timeoutMs: 30_000,
+  }).then(
+    () => ({ status: "fulfilled" as const }),
+    (error: unknown) => ({ status: "rejected" as const, error }),
+  );
+  await waitFor(
+    () => service!.listTabs("fixture-session").find((candidate) => candidate.id === tab.id)?.control === "agent",
+    "Browser action did not start before the takeover button",
+  );
+  service.takeOver(tab.id);
+  const explicitTakeoverResult = await explicitTakeoverWait;
+  assert.equal(explicitTakeoverResult.status, "rejected");
+  if (explicitTakeoverResult.status === "rejected") {
+    assert.equal((explicitTakeoverResult.error as { code?: string })?.code, "USER_TOOK_CONTROL");
+  }
+  assert.equal(service.listTabs("fixture-session").find((candidate) => candidate.id === tab.id)?.control, "user");
+  assert.doesNotThrow(() => service!.takeOver(tab.id));
+  stage("explicit-takeover-ready");
+
+  const faviconTab = await service.createUserTab({ url: `${fixture.origin}/favicon-page`, activate: false });
+  await waitFor(
+    () =>
+      service!
+        .listTabs()
+        .find((candidate) => candidate.id === faviconTab.id)
+        ?.favicon?.startsWith("data:image/png;base64,") === true,
+    "page icon was not collected for the tab",
+  );
+  const plainTab = await service.createUserTab({ url: fixture.origin, activate: false });
+  assert.equal(service.listTabs().find((candidate) => candidate.id === plainTab.id)?.favicon, null);
+  service.closeTab(faviconTab.id);
+  service.closeTab(plainTab.id);
+  stage("favicon-ready");
 
   const queuedWaitOne = call("browser.wait", {
     tabId: tab.id,

@@ -89,6 +89,7 @@ export function browserTab(id, ownerSessionId = null) {
     canGoBack: false,
     canGoForward: false,
     crashed: false,
+    favicon: null,
     control: "user",
     advanced: false,
     advancedProfile: false,

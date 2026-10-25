@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { dom, act, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
+import { dom, act, button, byRole, click, keyDown, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
 import { browserState, browserTab } from "../support/browser-state.mjs";
 const { BrowserDock, RightPanelDock, setAppLanguage } = await loadRenderer(
   "browser-dock-behavior",
@@ -121,4 +121,67 @@ test("a tab removed by Main is refreshed rather than leaving a broken Browser pa
   assert.ok(reads >= 2);
   assert.match(view.container.textContent, /replacement page/);
   assert.doesNotMatch(view.container.textContent, /owned page/);
+});
+
+test("a tab shows the site's own icon once Main has one, and the globe placeholder otherwise", async (t) => {
+  const main = mainBridge(t);
+  main.state.tabs[0].favicon = "data:image/png;base64,AQID";
+  setAppLanguage("en-US");
+  const view = await mount(t, BrowserDock, { visible: true, ownerSessionId: "session-one" });
+  const icons = [...view.container.querySelectorAll("img")];
+  assert.equal(icons.length, 1);
+  assert.equal(icons[0].getAttribute("src"), "data:image/png;base64,AQID");
+  assert.equal(icons[0].getAttribute("alt"), "");
+});
+
+function agentBridge(t) {
+  const main = mainBridge(t);
+  main.state.tabs[0].control = "agent";
+  const takeovers = [];
+  dom.window.piBridge.browserTakeOver = async (tabId) => {
+    takeovers.push(tabId);
+  };
+  return { main, takeovers };
+}
+
+test("while the Agent is working the panel offers a takeover button that hands the tab back", async (t) => {
+  const { takeovers } = agentBridge(t);
+  setAppLanguage("en-US");
+  const view = await mount(t, BrowserDock, { visible: true, ownerSessionId: "session-one" });
+  const takeOver = button(view.container, /Take over/);
+  assert.ok(takeOver);
+  assert.match(takeOver.textContent, /Agent is working/);
+  assert.match(takeOver.textContent, /Esc/);
+  await click(takeOver);
+  assert.deepEqual(takeovers, ["owned"]);
+});
+
+test("pressing Esc inside the Browser panel takes over from the Agent", async (t) => {
+  const { takeovers } = agentBridge(t);
+  setAppLanguage("en-US");
+  const view = await mount(t, BrowserDock, { visible: true, ownerSessionId: "session-one" });
+  await keyDown(byRole(view.container, "textbox", "Browser address"), "Escape");
+  assert.deepEqual(takeovers, ["owned"]);
+});
+
+test("the takeover button reads in Chinese as the design writes it", async (t) => {
+  agentBridge(t);
+  setAppLanguage("zh-CN");
+  const view = await mount(t, BrowserDock, { visible: true, ownerSessionId: "session-one" });
+  const takeOver = button(view.container, /接管/);
+  assert.match(takeOver.textContent, /Agent 正在操作/);
+  assert.match(takeOver.textContent, /点一下接管/);
+});
+
+test("when the user is in control there is no takeover button and Esc does nothing", async (t) => {
+  mainBridge(t);
+  const takeovers = [];
+  dom.window.piBridge.browserTakeOver = async (tabId) => {
+    takeovers.push(tabId);
+  };
+  setAppLanguage("en-US");
+  const view = await mount(t, BrowserDock, { visible: true, ownerSessionId: "session-one" });
+  assert.equal(button(view.container, /Take over/), undefined);
+  await keyDown(byRole(view.container, "textbox", "Browser address"), "Escape");
+  assert.deepEqual(takeovers, []);
 });

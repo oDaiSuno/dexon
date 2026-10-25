@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { dom, act, click, keyDown, button, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
-const { BrowserAuthorizationDialog, useBrowserAuthorization, createElement } = await loadRenderer(
+const { BrowserAuthorizationDialog, useBrowserAuthorization, createElement, setAppLanguage } = await loadRenderer(
   "browser-authorization-behavior",
   [
     'export {BrowserAuthorizationDialog} from "./src/renderer/components/browser/BrowserAuthorizationDialog.tsx";',
@@ -126,4 +126,27 @@ test("the shell asks only after a request and sends only the user's temporary de
   assert.equal(view.container.querySelector('[role="dialog"]'), null);
   await view.unmount();
   assert.equal(receive, null);
+});
+
+test("a request from a messaging channel names that channel as its source", async (t) => {
+  setAppLanguage("en-US");
+  const view = await mount(t, BrowserAuthorizationDialog, {
+    request: { ...request, source: "channel", channel: "telegram" },
+    sessionTitle: "Fixture session",
+    onRespond() {},
+    onManage() {},
+  });
+  assert.match(view.container.textContent, /Approved messaging channel · Telegram/);
+});
+
+test("in Chinese the channel source reads 已批准的消息渠道 · Telegram", async (t) => {
+  setAppLanguage("zh-CN");
+  const view = await mount(t, BrowserAuthorizationDialog, {
+    request: { ...request, source: "channel", channel: "telegram" },
+    sessionTitle: "Fixture session",
+    onRespond() {},
+    onManage() {},
+  });
+  assert.match(view.container.textContent, /已批准的消息渠道 · Telegram/);
+  setAppLanguage("en-US");
 });
