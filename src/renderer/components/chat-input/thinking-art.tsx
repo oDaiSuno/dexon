@@ -14,7 +14,9 @@ export const THINKING_TONES: Record<ThinkingLevel, string> = {
   max: "var(--fx-data-fuchsia)",
 };
 
-const THINKING_FILL: Partial<Record<ThinkingLevel, number[]>> = {
+const THINKING_FILL: Record<Exclude<ThinkingLevel, "max">, [number, number]> = {
+  auto: [3, 30],
+  off: [3, 30],
   minimal: [3, 36],
   low: [3, 42],
   medium: [3, 55],
@@ -28,54 +30,55 @@ export const labelTone = (level: ThinkingLevel) => (level === "max" ? "var(--fx-
 
 export const tint = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 
-function thinkingFill(level: ThinkingLevel): string {
+const MIDPOINT = 0.55;
+
+function fillStops(level: ThinkingLevel): CSSProperties {
   if (level === "max") {
-    return `linear-gradient(90deg, ${tint("var(--fx-data-indigo)", 55)} 0%, ${tint("var(--fx-data-violet)", 65)} 55%, ${tint("var(--fx-data-fuchsia)", 75)} 100%)`;
+    return {
+      "--thinking-fill-a": tint("var(--fx-data-indigo)", 55),
+      "--thinking-fill-b": tint("var(--fx-data-violet)", 65),
+      "--thinking-fill-c": tint("var(--fx-data-fuchsia)", 75),
+    } as CSSProperties;
   }
-  const [from, to] = THINKING_FILL[level] ?? [0, 0];
-  return `linear-gradient(90deg, ${tint(THINKING_TONES[level], from)} 0%, ${tint(THINKING_TONES[level], to)} 100%)`;
+  const [from, to] = THINKING_FILL[level];
+  const tone = THINKING_TONES[level];
+  return {
+    "--thinking-fill-a": tint(tone, from),
+    "--thinking-fill-b": tint(tone, Math.round(from + (to - from) * MIDPOINT)),
+    "--thinking-fill-c": tint(tone, to),
+  } as CSSProperties;
 }
 
-const FILL: CSSProperties = {
-  position: "absolute",
-  inset: "0 auto 0 0",
-  overflow: "hidden",
-  borderRadius: "var(--radius-card)",
-  transition: "width var(--duration-glide, 220ms) var(--ease-smooth-out, ease)",
-  pointerEvents: "none",
-};
-
-const HALO: CSSProperties = {
-  position: "absolute",
-  left: 5,
-  top: 3,
-  width: 30,
-  height: 30,
-  borderRadius: 15,
-  opacity: 0.5,
-  filter: "blur(6px)",
-  pointerEvents: "none",
-};
-
 export function ThinkingFill({ level, width }: { level: ThinkingLevel; width: string }) {
-  const sparkles = level === "xhigh" || level === "max";
   return (
-    <span aria-hidden="true" style={{ ...FILL, width, background: thinkingFill(level) }}>
-      {sparkles && <span className="thinking-pixels thinking-pixels-a" />}
-      {level === "max" && <span className="thinking-pixels thinking-pixels-b" />}
-      {level === "max" && <span className="thinking-burst" />}
+    <span aria-hidden="true" className="thinking-fill" style={{ ...fillStops(level), width }}>
+      <span className="thinking-layer" data-on={level === "xhigh" || level === "max"}>
+        <span className="thinking-pixels thinking-pixels-a" />
+      </span>
+      <span className="thinking-layer" data-on={level === "max"}>
+        <span className="thinking-pixels thinking-pixels-b" />
+        <span className="thinking-burst" />
+      </span>
     </span>
   );
 }
 
-export function ThinkingThumb({ level }: { level: ThinkingLevel }) {
+export function ThinkingThumb({ level, offset }: { level: ThinkingLevel; offset: number }) {
   return (
-    <>
-      {HALO_LEVELS.has(level) && (
-        <span aria-hidden="true" className="thinking-halo" style={{ ...HALO, background: THINKING_TONES[level] }} />
-      )}
-      <BrainThumb alpha={level === "off" ? 0 : 0.45} />
-    </>
+    <span
+      aria-hidden="true"
+      className="thinking-thumb"
+      style={{
+        transform: `translateX(${offset}px)`,
+        color: THINKING_TONES[level],
+        opacity: level === "auto" ? 0 : 1,
+      }}
+    >
+      <span className="thinking-layer" data-on={HALO_LEVELS.has(level)}>
+        <span className="thinking-halo" />
+      </span>
+      <BrainThumb alpha={level === "off" || level === "auto" ? 0 : 0.45} />
+    </span>
   );
 }
 
@@ -90,6 +93,7 @@ function BrainThumb({ alpha }: { alpha: number }) {
       style={{ position: "relative" }}
     >
       <path
+        className="thinking-brain-fill"
         opacity={alpha}
         d="M240,124a48,48,0,0,1-32,45.27V176a40,40,0,0,1-80,0,40,40,0,0,1-80,0v-6.73a48,48,0,0,1,0-90.54V72a40,40,0,0,1,80,0,40,40,0,0,1,80,0v6.73A48,48,0,0,1,240,124Z"
       />

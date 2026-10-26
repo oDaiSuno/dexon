@@ -275,14 +275,155 @@
 }
 
 .thinking-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 15px;
+  background: currentColor;
+  opacity: 0.5;
+  filter: blur(6px);
   animation: thinking-halo 1.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+@property --thinking-card-tint {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --thinking-card-stop {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+
+@property --thinking-fill-a {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --thinking-fill-b {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@property --thinking-fill-c {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+
+@keyframes thinking-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-micro)) scale(var(--scale-medium));
+  }
+}
+
+@keyframes thinking-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(var(--distance-micro)) scale(var(--scale-medium));
+  }
+}
+
+.thinking-card {
+  background: linear-gradient(
+    160deg,
+    var(--fx-surface-raised) var(--thinking-card-stop),
+    var(--thinking-card-tint) 100%
+  );
+  transition:
+    --thinking-card-tint var(--duration-spring-glide) var(--ease-spring-glide),
+    --thinking-card-stop var(--duration-spring-glide) var(--ease-spring-glide),
+    border-color var(--duration-spring-glide) var(--ease-spring-glide),
+    box-shadow var(--duration-spring-glide) var(--ease-spring-glide);
+}
+
+.composer-pop-in.thinking-card {
+  animation: thinking-card-in var(--duration-spring-pop) var(--ease-spring-pop) both;
+}
+
+.thinking-card-closing {
+  pointer-events: none;
+  animation: thinking-card-out var(--duration-exit) var(--ease-in) both;
+}
+
+.thinking-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    var(--thinking-fill-a) 0%,
+    var(--thinking-fill-b) 55%,
+    var(--thinking-fill-c) 100%
+  );
+  transition:
+    width var(--duration-spring-glide) var(--ease-spring-glide),
+    --thinking-fill-a var(--duration-spring-glide) var(--ease-spring-glide),
+    --thinking-fill-b var(--duration-spring-glide) var(--ease-spring-glide),
+    --thinking-fill-c var(--duration-spring-glide) var(--ease-spring-glide);
+}
+
+.thinking-layer {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity var(--duration-spring-glide) var(--ease-spring-glide);
+}
+
+.thinking-layer[data-on="true"] {
+  opacity: 1;
+}
+
+.thinking-layer:not([data-on="true"]) > * {
+  animation-play-state: paused;
+}
+
+.thinking-thumb {
+  position: absolute;
+  top: 3px;
+  left: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  pointer-events: none;
+  transition:
+    transform var(--duration-spring-glide) var(--ease-spring-glide),
+    color var(--duration-spring-glide) var(--ease-spring-glide),
+    opacity var(--duration-spring-glide) var(--ease-spring-glide);
+}
+
+.thinking-brain-fill {
+  transition: opacity var(--duration-spring-glide) var(--ease-spring-glide);
+}
+
+.thinking-glide {
+  transition: color var(--duration-spring-glide) var(--ease-spring-glide);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .thinking-pixels-a,
   .thinking-pixels-b,
   .thinking-burst,
-  .thinking-halo {
+  .thinking-halo,
+  .composer-pop-in.thinking-card,
+  .thinking-card-closing {
     animation: none;
+  }
+
+  .thinking-card,
+  .thinking-fill,
+  .thinking-layer,
+  .thinking-thumb,
+  .thinking-brain-fill,
+  .thinking-glide {
+    transition: none;
   }
 }
