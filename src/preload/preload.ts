@@ -9,11 +9,15 @@ import type { DesktopMenuEvent, DesktopUpdateState, HostStatus, PiBridge } from 
 import type { BrowserEvent } from "../contract/browser";
 import { EarlyEventReplay } from "./early-event-replay";
 import { isTrustedPreloadLocation } from "./preload-location-policy";
+import { readDevRendererPortArgument } from "../shared/dev-renderer-origin";
 import { isValidDeepLinkSessionMessage, selectTransferredHostPort } from "./preload-message-policy";
 
 const preloadLocation = (globalThis as unknown as { location?: { href?: unknown } }).location?.href;
 
-if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocation)) {
+if (
+  typeof preloadLocation === "string" &&
+  isTrustedPreloadLocation(preloadLocation, readDevRendererPortArgument(process.argv))
+) {
   // Deliver MessagePort to the page via window.postMessage (transferable).
   ipcRenderer.on("desktop:host-port", (event) => {
     const port = selectTransferredHostPort(event.ports);
@@ -34,6 +38,10 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     "show-update",
     "switch-session",
     "export-diagnostics",
+    "toggle-sidebar",
+    "open-processes",
+    "open-project-switcher",
+    "add-project",
   ] as const satisfies readonly DesktopMenuEvent[];
   const menuEventSet = new Set<string>(menuEvents);
   const menuEventReplays = new Map(menuEvents.map((event) => [event, new EarlyEventReplay<void>()]));
@@ -65,6 +73,7 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     getToolchainState: (cwd) => ipcRenderer.invoke("desktop:toolchains:get-state", cwd),
     rescanToolchains: (cwd) => ipcRenderer.invoke("desktop:toolchains:rescan", cwd),
     performToolchainAction: (request) => ipcRenderer.invoke("desktop:toolchains:action", request),
+    openManagedToolsFolder: () => ipcRenderer.invoke("desktop:toolchains:open-managed-folder"),
     requestHostPort: () => {
       ipcRenderer.send("desktop:connect-host");
     },
@@ -76,6 +85,7 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     getPathForFile: (file: File) => (webUtils ? webUtils.getPathForFile(file) : null),
     selectDirectory: () => ipcRenderer.invoke("desktop:select-directory"),
     openDirectory: (fsPath) => ipcRenderer.invoke("desktop:open-directory", fsPath),
+    openFile: (fsPath) => ipcRenderer.invoke("desktop:open-file", fsPath),
     setChannelCredential: (payload) => ipcRenderer.invoke("desktop:set-channel-credential", payload),
     saveFile: (opts) => ipcRenderer.invoke("desktop:save-file", opts),
     saveBinaryFile: (opts) => ipcRenderer.invoke("desktop:save-binary-file", opts),
@@ -105,6 +115,7 @@ if (typeof preloadLocation === "string" && isTrustedPreloadLocation(preloadLocat
     browserCreateUserTab: (input) => ipcRenderer.invoke("desktop:browser:create-user-tab", input),
     browserActivateTab: (tabId) => ipcRenderer.invoke("desktop:browser:activate-tab", tabId),
     browserNavigateUser: (tabId, url) => ipcRenderer.invoke("desktop:browser:navigate-user", tabId, url),
+    browserTakeOver: (tabId) => ipcRenderer.invoke("desktop:browser:take-over", tabId),
     browserGoBack: (tabId) => ipcRenderer.invoke("desktop:browser:go-back", tabId),
     browserGoForward: (tabId) => ipcRenderer.invoke("desktop:browser:go-forward", tabId),
     browserReload: (tabId) => ipcRenderer.invoke("desktop:browser:reload", tabId),

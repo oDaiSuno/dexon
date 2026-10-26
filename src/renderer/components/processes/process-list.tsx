@@ -1,0 +1,315 @@
+import { type MouseEvent } from "react";
+import { isManagedProcessActiveState, type ManagedProcessPublicInfo } from "@contract/processes";
+import { useI18n } from "@/i18n";
+import { ActionMenu } from "../action-menu";
+import {
+  endpointPort,
+  formatDuration,
+  isFailedProcess,
+  processStatusText,
+  processTone,
+  summarizeProcesses,
+} from "./process-format";
+import {
+  CircleXGlyph,
+  EllipsisGlyph,
+  SquareArrowOutUpRightGlyph,
+  SquareGlyph,
+  SquareTerminalGlyph,
+} from "./process-icons";
+import { KeyHint } from "../chat-input/SendControls";
+
+const SUMMARY_DOT = {
+  running: "var(--fx-accent-blue)",
+  exited: "var(--fx-text-faint)",
+  failed: "var(--fx-status-danger)",
+} as const;
+
+const STATE_DOT = {
+  success: "var(--fx-status-success)",
+  running: "var(--fx-accent-blue)",
+  idle: "var(--fx-text-faint)",
+} as const;
+
+function SummaryItem({ tone, label }: { tone: "running" | "exited" | "failed"; label: string }) {
+  return (
+    <span
+      className="type-label-default inline-flex items-center gap-[6px] whitespace-nowrap"
+      style={{ color: "var(--fx-text-tertiary)" }}
+    >
+      <span className="size-[6px] rounded-[3px]" style={{ background: SUMMARY_DOT[tone] }} />
+      {label}
+    </span>
+  );
+}
+
+export function ProcessSummary({
+  processes,
+  busy,
+  onStopAll,
+  onExportDiagnostics,
+  onClearFinished,
+}: {
+  processes: ManagedProcessPublicInfo[];
+  busy: boolean;
+  onStopAll: (mode: "graceful" | "force") => void;
+  onExportDiagnostics: () => void;
+  onClearFinished: () => void;
+}) {
+  const { t } = useI18n();
+  const summary = summarizeProcesses(processes);
+  const moreLabel = t("managedProcessMoreActions", "More actions");
+  const stopAll = () => onStopAll(summary.lost ? "force" : "graceful");
+  const stopAllDisabled = busy || (summary.running === 0 && !summary.lost);
+  const clearable = processes.some((p) => !isManagedProcessActiveState(p.state) && p.state !== "lost");
+
+  return (
+    <div
+      className="flex h-[40px] shrink-0 items-center gap-[12px] pr-[12px] pl-[16px]"
+      style={{ background: "var(--fx-surface-sidebar)", borderBottom: "1px solid var(--fx-line-default)" }}
+    >
+      {processes.length === 0 ? (
+        <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
+          {t("managedProcessSummaryIdle", "No processes running")}
+        </span>
+      ) : (
+        <>
+          {summary.running > 0 && (
+            <SummaryItem
+              tone="running"
+              label={t("managedProcessSummaryRunning", "{count} running").replace("{count}", String(summary.running))}
+            />
+          )}
+          {summary.failed > 0 && (
+            <SummaryItem
+              tone="failed"
+              label={t("managedProcessSummaryFailed", "{count} failed").replace("{count}", String(summary.failed))}
+            />
+          )}
+          {summary.exited > 0 && (
+            <SummaryItem
+              tone="exited"
+              label={t("managedProcessSummaryExited", "{count} exited").replace("{count}", String(summary.exited))}
+            />
+          )}
+        </>
+      )}
+      <span className="flex-1" />
+      {processes.length > 0 && (
+        <>
+          <button
+            type="button"
+            className="process-summary-button type-label-medium flex h-[26px] shrink-0 items-center gap-[6px] rounded-[var(--radius-chip)] px-[8px]"
+            style={{ color: "var(--fx-text-secondary)" }}
+            disabled={stopAllDisabled}
+            onClick={stopAll}
+          >
+            <SquareGlyph />
+            {t("stopAll", "Stop All")}
+          </button>
+          <ActionMenu
+            label={moreLabel}
+            items={[
+              {
+                key: "export",
+                label: t("exportDiagnostics", "Export Diagnostics"),
+                disabled: busy,
+                onSelect: onExportDiagnostics,
+              },
+              { key: "stop", label: t("stopAll", "Stop All"), disabled: stopAllDisabled, onSelect: stopAll },
+              {
+                key: "force",
+                label: t("managedProcessForceStopAll", "Force stop all"),
+                danger: true,
+                disabled: busy,
+                onSelect: () => onStopAll("force"),
+              },
+              {
+                key: "clear",
+                label: t("managedProcessClearFinished", "Clear finished"),
+                disabled: busy || !clearable,
+                onSelect: onClearFinished,
+              },
+            ]}
+            trigger={(props) => (
+              <button
+                type="button"
+                className="process-summary-button flex size-[26px] shrink-0 items-center justify-center rounded-[var(--radius-chip)] p-0"
+                style={{ color: "var(--fx-text-tertiary)" }}
+                aria-label={moreLabel}
+                {...props}
+              >
+                <EllipsisGlyph />
+              </button>
+            )}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+function ProcessState({ process }: { process: ManagedProcessPublicInfo }) {
+  const tone = processTone(process);
+  return (
+    <span
+      className="flex size-[14px] shrink-0 items-center justify-center"
+      style={{ color: "var(--fx-status-danger-text)" }}
+    >
+      {tone === "danger" ? (
+        <CircleXGlyph />
+      ) : (
+        <span
+          className={tone === "idle" ? "size-[8px] rounded-[4px]" : "process-card-pulse size-[8px] rounded-[4px]"}
+          style={{ background: STATE_DOT[tone] }}
+        />
+      )}
+    </span>
+  );
+}
+
+function ProcessCard({
+  process,
+  selected,
+  now,
+  onSelect,
+  onOpenPort,
+}: {
+  process: ManagedProcessPublicInfo;
+  selected: boolean;
+  now: number;
+  onSelect: () => void;
+  onOpenPort: (url: string) => void;
+}) {
+  const { t } = useI18n();
+  const failed = isFailedProcess(process);
+  const endpoint = process.endpoints[0];
+  const port = endpoint ? endpointPort(endpoint.url) : null;
+  const openPort = (event: MouseEvent) => {
+    event.stopPropagation();
+    if (endpoint) onOpenPort(endpoint.url);
+  };
+
+  return (
+    <button
+      type="button"
+      className="process-card flex w-full flex-col gap-[4px] rounded-[var(--radius-control)] p-[10px] text-left"
+      aria-pressed={selected}
+      onClick={onSelect}
+    >
+      <span className="flex w-full min-w-0 items-center gap-[8px]">
+        <ProcessState process={process} />
+        <span className="type-body-medium min-w-0 flex-1 truncate" style={{ color: "var(--fx-text-primary)" }}>
+          {process.label}
+        </span>
+        {endpoint && port && (
+          <span
+            className="process-card-port type-mono-meta inline-flex h-[20px] shrink-0 items-center gap-[4px] rounded-[var(--radius-kbd)] px-[6px]"
+            style={{ background: "var(--fx-surface-inset)", color: "var(--fx-text-secondary)" }}
+            title={`${t("openInBrowser", "Open in Browser")}: ${endpoint.url}`}
+            onClick={openPort}
+          >
+            :{port}
+            <span className="flex" style={{ color: "var(--fx-text-tertiary)" }}>
+              <SquareArrowOutUpRightGlyph />
+            </span>
+          </span>
+        )}
+        <span className="type-mono-meta shrink-0 whitespace-nowrap" style={{ color: "var(--fx-text-tertiary)" }}>
+          {formatDuration(process.startedAt, process.stoppedAt, now)}
+        </span>
+      </span>
+      <span
+        className="flex w-full min-w-0 items-center gap-[6px] pl-[22px]"
+        style={{ color: "var(--fx-text-tertiary)" }}
+      >
+        <span
+          className="type-meta-default shrink-0 whitespace-nowrap"
+          style={failed ? { color: "var(--fx-status-danger-text)" } : undefined}
+        >
+          {processStatusText(process, t)}
+        </span>
+        <span className="type-meta-default shrink-0">·</span>
+        <span className="type-mono-meta min-w-0 flex-1 truncate" title={process.commandDisplay}>
+          {process.commandDisplay}
+        </span>
+      </span>
+      {!failed && process.lastOutput && (
+        <span className="type-mono-meta block w-full truncate pl-[22px]" style={{ color: "var(--fx-text-secondary)" }}>
+          {process.lastOutput.text}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export function ProcessList({
+  processes,
+  selectedId,
+  now,
+  onSelect,
+  onOpenPort,
+}: {
+  processes: ManagedProcessPublicInfo[];
+  selectedId: string | null;
+  now: number;
+  onSelect: (processId: string) => void;
+  onOpenPort: (process: ManagedProcessPublicInfo, url: string) => void;
+}) {
+  return (
+    <div className="flex shrink-0 flex-col gap-[2px] p-[8px]">
+      {processes.map((process) => (
+        <ProcessCard
+          key={process.processId}
+          process={process}
+          selected={process.processId === selectedId}
+          now={now}
+          onSelect={() => onSelect(process.processId)}
+          onOpenPort={(url) => onOpenPort(process, url)}
+        />
+      ))}
+    </div>
+  );
+}
+
+export function ProcessEmpty() {
+  const { t } = useI18n();
+  const mac = window.piBridge?.platform === "darwin";
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-[10px] px-[48px] text-center">
+      <span
+        className="flex size-[44px] items-center justify-center rounded-[var(--radius-menu)]"
+        style={{
+          border: "1px solid var(--fx-line-subtle)",
+          background: "var(--fx-surface-inset)",
+          color: "var(--fx-text-tertiary)",
+        }}
+      >
+        <SquareTerminalGlyph />
+      </span>
+      <span className="type-heading" style={{ color: "var(--fx-text-primary)" }}>
+        {t("noManagedProcesses", "No background processes")}
+      </span>
+      <span className="type-label-default text-balance" style={{ color: "var(--fx-text-tertiary)" }}>
+        {t(
+          "managedProcessEmptyDescription",
+          "Dev servers and watchers started by the Agent show up here. View their logs, restart, or stop them anytime.",
+        )}
+      </span>
+      <span className="pt-[4px]">
+        <KeyHint keyLabel={mac ? "⌘J" : "Ctrl J"} label={t("managedProcessOpenAnytime", "Open this anytime")} />
+      </span>
+    </div>
+  );
+}
+
+export function ProcessListMessage({ text, tone }: { text: string; tone?: "danger" }) {
+  return (
+    <div
+      className="type-label-default p-[16px]"
+      style={{ color: tone === "danger" ? "var(--fx-status-danger-text)" : "var(--fx-text-tertiary)" }}
+    >
+      {text}
+    </div>
+  );
+}

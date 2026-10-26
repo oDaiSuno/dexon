@@ -1,0 +1,6 @@
+{
+  "code": { "enUS": "Code", "zhCN": "代码" },
+  "diff": { "enUS": "Diff", "zhCN": "差异" },
+  "raw": { "enUS": "Raw", "zhCN": "原文" },
+  "wrap": { "enUS": "wrap", "zhCN": "换行" }
+}

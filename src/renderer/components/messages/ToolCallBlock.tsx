@@ -1,24 +1,26 @@
-import { useEffect, useRef, useState } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
+import { useState } from "react";
 import { useI18n } from "@/i18n";
-import { readSessionToolTarget, isSessionToolName, type SessionToolTargetDetails } from "@shared/session-orchestration";
-import { SessionTargetLink } from "./session-links";
+import { isSessionToolName } from "@shared/session-orchestration";
+import { SessionToolRow } from "./session-tool-row";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
 import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
+import { formatToolDuration, useElapsedSince } from "./tool-elapsed";
 import type { ToolCallContent, ToolResultMessage } from "@/lib/types";
 
-export function ToolCallBlock({
-  block,
-  result,
-  duration,
-  onLoadDeferredContent,
-}: {
+interface ToolCallBlockProps {
   block: ToolCallContent;
   result?: ToolResultMessage;
   duration?: number;
+  startedAt?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
-}) {
+}
+
+export function ToolCallBlock(props: ToolCallBlockProps) {
+  return isSessionToolName(props.block.toolName) ? <SessionToolRow {...props} /> : <GenericToolRow {...props} />;
+}
+
+function GenericToolRow({ block, result, duration, startedAt, onLoadDeferredContent }: ToolCallBlockProps) {
   const [expanded, setExpanded] = useState(false);
   const { t } = useI18n();
   const detailMounted = useDelayedUnmount(expanded);
@@ -37,60 +39,60 @@ export function ToolCallBlock({
   const isRunning = !result;
   const preview = getToolPreview(block);
   const browserTabId = isBrowserToolName(block.toolName) ? browserTabIdFromResult(resultText) : null;
-  const sessionTarget = sessionToolTarget(block, result);
   const diffCounts = resultDiff ? countDiffLines(resultDiff.text) : null;
   const label = toolVerbLabel(block.toolName, t);
+  const elapsed = useElapsedSince(isRunning ? startedAt : undefined);
+  const metaDuration = isRunning ? elapsed : diffCounts ? undefined : duration;
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"}>
       <div className="chat-tool-row-wrap">
         <button
           type="button"
-          className="chat-tool-row chat-quiet-head"
+          className={`chat-tool-row chat-quiet-head${isRunning ? " is-running" : ""}${isError ? " is-error" : ""}`}
           aria-expanded={expanded}
           onClick={() => setExpanded((v) => !v)}
         >
-          <span className="chat-tool-icon">
-            <ToolStatusIcon done={!isRunning} error={isError} toolName={block.toolName} />
+          <span className={`chat-tool-icon${isError ? " is-error" : ""}`} aria-hidden="true">
+            {isRunning ? <span className="chat-tool-spinner" /> : <ToolGlyph toolName={block.toolName} />}
           </span>
-          <span className="chat-tool-name" style={isError ? { color: "var(--bui-red)" } : undefined}>
-            {label}
+          <span className="chat-tool-name type-body-medium">{label}</span>
+          <span className="chat-tool-chip type-mono-label">
+            <span className="chat-tool-chip-text">{preview}</span>
           </span>
-          <span className="chat-tool-chip" style={isError ? { color: "var(--bui-red)" } : undefined}>
-            {preview}
-          </span>
-          <span className="chat-tool-meta">
-            {isRunning && <span className="chat-shimmer-text">{t("toolRunning", "running")}</span>}
+          <span className="chat-tool-meta type-mono-label">
+            {isRunning && (
+              <span className={elapsed === undefined ? "chat-tool-meta-running" : "sr-only"}>
+                {t("toolRunning", "running")}
+              </span>
+            )}
+            {isError && (
+              <span className={metaDuration === undefined ? "chat-tool-meta-failed" : "sr-only"}>
+                {t("toolFailed", "failed")}
+              </span>
+            )}
             {diffCounts && !isRunning && (
               <>
-                <span style={{ color: "var(--bui-green)" }}>+{diffCounts.added}</span>
-                {diffCounts.removed > 0 && <span style={{ color: "var(--bui-red)" }}>−{diffCounts.removed}</span>}
+                <span className="chat-tool-meta-added">+{diffCounts.added}</span>
+                {diffCounts.removed > 0 && <span className="chat-tool-meta-removed">−{diffCounts.removed}</span>}
               </>
             )}
-            {!isRunning && !diffCounts && !isError && duration !== undefined && (
-              <span>{formatToolDuration(duration)}</span>
+            {metaDuration !== undefined && (
+              <span className={isRunning ? "chat-tool-meta-running" : isError ? "chat-tool-meta-failed" : undefined}>
+                {formatToolDuration(metaDuration)}
+              </span>
             )}
-            {isError && <span style={{ color: "var(--bui-red)" }}>{t("toolFailed", "failed")}</span>}
           </span>
         </button>
       </div>
-      {sessionTarget && (
-        <div style={{ display: "flex", paddingLeft: 22 }}>
-          <SessionTargetLink target={sessionTarget} />
-        </div>
-      )}
       {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
           `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
           the accordion root (this nesting is what broke expansion once). */}
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
           {detailMounted && (
-            <div className="chat-tool-detail" style={{ fontSize: scaledChatFont(11.5) }}>
-              {!isEditTool && (
-                <pre className="chat-tool-input" style={{ fontSize: scaledChatFont(11) }}>
-                  {inputStr}
-                </pre>
-              )}
+            <div className="chat-tool-detail type-mono-code">
+              {!isEditTool && <pre className="chat-tool-input">{inputStr}</pre>}
               {resultDiff && <PairedDiffResult diff={resultDiff} />}
               {!resultDiff && result && (
                 <PairedResult text={resultText ?? ""} isEmpty={resultIsEmpty} isError={isError} />
@@ -98,7 +100,7 @@ export function ToolCallBlock({
               {browserTabId && (
                 <button
                   type="button"
-                  className="chat-tool-open-browser"
+                  className="chat-tool-open-browser type-label-default"
                   onClick={() =>
                     window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: browserTabId } }))
                   }
@@ -115,81 +117,8 @@ export function ToolCallBlock({
   );
 }
 
-/* transitions.dev 41-spinner-check-morph (adapted): running spinner blurs
-   into a drawn check on completion, then settles into the resting tool
-   glyph. Errors morph into a red ×. No auto-revert. Remounts after
-   completion never replay the morph (phase initialises at rest). */
-function ToolStatusIcon({ done, error, toolName }: { done: boolean; error: boolean; toolName: string }) {
-  const [phase, setPhase] = useState<"spin" | "check" | "rest">(!done ? "spin" : "rest");
-  const prevDoneRef = useRef(done);
-  const checkRef = useRef<SVGPathElement | null>(null);
-
-  useEffect(() => {
-    if (!prevDoneRef.current && done) {
-      prevDoneRef.current = true;
-      setPhase("check");
-      const timer = setTimeout(() => setPhase("rest"), 1100);
-      return () => clearTimeout(timer);
-    }
-    prevDoneRef.current = done;
-    return undefined;
-  }, [done]);
-
-  // Keep the stroke-draw exact for whichever path is mounted.
-  useEffect(() => {
-    const path = checkRef.current;
-    if (path) {
-      const len = Math.ceil(path.getTotalLength()) + 1;
-      path.style.setProperty("--chat-scmorph-check-len", String(len));
-    }
-  }, [phase, error]);
-
-  return (
-    <span
-      className={`chat-status-icon${error ? " is-error" : ""}${phase === "check" ? " is-crossing is-done" : ""}${
-        phase === "rest" ? " is-rest" : ""
-      }`}
-      aria-hidden="true"
-    >
-      {phase !== "rest" && <span className="chat-scmorph-spinring" />}
-      <span className="chat-scmorph-badge">
-        <span className="chat-scmorph-fill" />
-        {error ? (
-          <svg className="chat-scmorph-check" viewBox="0 0 24 24">
-            <path ref={checkRef} d="M7.5 7.5l9 9M16.5 7.5l-9 9" />
-          </svg>
-        ) : (
-          <svg className="chat-scmorph-check" viewBox="0 0 24 24">
-            <path ref={checkRef} d="M7 12.5l3 3 7-7" />
-          </svg>
-        )}
-      </span>
-      <span className="chat-scmorph-rest">
-        <ToolGlyph toolName={toolName} />
-      </span>
-    </span>
-  );
-}
-
 function isBrowserToolName(value: string): boolean {
   return value.startsWith("browser_");
-}
-
-function sessionToolTarget(
-  block: ToolCallContent,
-  result: ToolResultMessage | undefined,
-): SessionToolTargetDetails | null {
-  if (!isSessionToolName(block.toolName)) return null;
-  const reported = readSessionToolTarget(result?.details);
-  if (reported) return reported;
-  const named = block.input.sessionId;
-  return typeof named === "string" && named.length > 0 ? { targetSessionId: named } : null;
-}
-
-/* Sub-second tools still earn a mark: anything under half a second shows
-   "<1s" instead of silently disappearing from the row. */
-function formatToolDuration(elapsedMs: number): string {
-  return elapsedMs >= 500 ? `${Math.round(elapsedMs / 1000)}s` : "<1s";
 }
 
 function browserTabIdFromResult(value: string | null): string | null {
@@ -205,13 +134,7 @@ function browserTabIdFromResult(value: string | null): string | null {
 
 function PairedResult({ text, isEmpty, isError }: { text: string; isEmpty: boolean; isError: boolean }) {
   return (
-    <pre
-      className="chat-tool-result"
-      style={{
-        color: isError ? "var(--bui-red)" : isEmpty ? "var(--bui-ink-3)" : "var(--bui-ink-2)",
-        fontStyle: isEmpty ? "italic" : "normal",
-      }}
-    >
+    <pre className={`chat-tool-result${isError ? " is-error" : isEmpty ? " is-empty" : ""}`}>
       {isEmpty ? "(no output)" : text}
     </pre>
   );

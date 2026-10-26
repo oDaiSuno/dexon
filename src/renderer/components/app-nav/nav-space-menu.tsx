@@ -1,347 +1,171 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import appIconUrl from "../../../../build/icon.png";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
-import { AnimatedDropdown } from "../session-sidebar/animated-dropdown";
-import { GlideHighlight } from "../chat-input/GlideHighlight";
+import { abbreviateHomePath } from "@/lib/display-path";
+import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
+import { getParentFilePath } from "@shared/file-paths";
+import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-card";
 
-// Phase 4: top area of the new navigation — collapse toggle, app icon,
-// friendly space name, and the space menu holding the abbreviated path plus
-// the four space actions. Presentation only: the actions are callbacks owned
-// by the future space coordination (wired in Phase 6).
+const CARD_WIDTH = 280;
+const CARD_MARGIN = 8;
+const CARD_GAP = 4;
 
-interface SpaceActions {
-  onOpenFolder: () => void;
-  onChooseFolder: () => void;
-  onSwitchSpace: () => void;
-  onBackToPersonalSpace: () => void;
-}
-
-const MENU_ROW_HEIGHT = 28;
+const TRIGGER_STYLE: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: 24,
+  height: 24,
+  padding: 0,
+  border: "none",
+  borderRadius: "var(--radius-chip)",
+  cursor: "pointer",
+  transition:
+    "background var(--duration-quick) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out)",
+};
 
 export function NavSpaceMenu({
   spaceName,
-  spacePath,
-  onToggleExpanded,
+  projectPath,
+  homeDir,
+  revealed = true,
+  projects = [],
+  inspectFolder,
   onOpenFolder,
   onChooseFolder,
-  onSwitchSpace,
   onBackToPersonalSpace,
 }: {
   spaceName: string;
-  spacePath: string;
-  onToggleExpanded: () => void;
-} & SpaceActions) {
+  projectPath: string;
+  homeDir: string;
+  revealed?: boolean;
+  projects?: readonly SwitcherProject[];
+  inspectFolder?: (typed: string) => Promise<string | null>;
+  onOpenFolder?: (folder: string) => void;
+  onChooseFolder: () => void;
+  onBackToPersonalSpace: () => void;
+}) {
   const { t } = useI18n();
-  const spaceNameId = useId();
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const rootRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<CSSProperties | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = position !== null;
+
+  const show = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setPosition({
+      top: rect.bottom + CARD_GAP,
+      left: Math.max(CARD_MARGIN, Math.min(rect.right - CARD_WIDTH, window.innerWidth - CARD_WIDTH - CARD_MARGIN)),
+    });
+  };
+
+  const close = () => {
+    setPosition(null);
+    triggerRef.current?.focus();
+  };
+
+  const choose = (run: () => void) => {
+    close();
+    run();
+  };
+
+  const showRef = useRef(show);
+  showRef.current = show;
+
+  useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
 
   useEffect(() => {
-    if (!menuOpen) return;
-    const onMouseDown = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setMenuOpen(false);
+    if (!open) return;
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
     };
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMenuOpen(false);
+    const onDismiss = (event: Event) => {
+      if (!menuRef.current?.contains(event.target as Node)) setPosition(null);
     };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKeyDown);
+    const onResize = () => setPosition(null);
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("scroll", onDismiss, true);
+    window.addEventListener("resize", onResize);
     return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKeyDown);
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("scroll", onDismiss, true);
+      window.removeEventListener("resize", onResize);
     };
-  }, [menuOpen]);
+  }, [open]);
 
-  const actions: { label: string; icon: ReactNode; run: () => void }[] = [
-    {
-      label: t("openCurrentFolder", "Open current folder"),
-      icon: (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-        </svg>
-      ),
-      run: onOpenFolder,
-    },
-    {
-      label: t("chooseOtherFolder", "Choose another folder…"),
-      icon: (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-          <line x1="12" y1="11" x2="12" y2="17" />
-          <line x1="9" y1="14" x2="15" y2="14" />
-        </svg>
-      ),
-      run: onChooseFolder,
-    },
-    {
-      label: t("switchSpace", "Switch space…"),
-      icon: (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M17 3l4 4-4 4" />
-          <path d="M3 11V9a4 4 0 0 1 4-4h10" />
-          <path d="M7 21l-4-4 4-4" />
-          <path d="M21 13v2a2 2 0 0 1-2 2H7" />
-        </svg>
-      ),
-      run: onSwitchSpace,
-    },
-    {
-      label: t("backToPersonalSpace", "Back to personal space"),
-      icon: (
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M3 10.5 12 3l9 7.5" />
-          <path d="M5 9.5V21h14V9.5" />
-        </svg>
-      ),
-      run: onBackToPersonalSpace,
-    },
-  ];
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape" || event.key === "Tab") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+    }
+  };
 
   return (
-    <div ref={rootRef} style={{ position: "relative", padding: "10px 10px 8px", flexShrink: 0 }}>
-      <div
-        role="group"
-        aria-label={t("workspaceControls", "Workspace controls")}
-        style={{ display: "flex", alignItems: "center", gap: 6 }}
-      >
-        <button
-          type="button"
-          onClick={onToggleExpanded}
-          title={t("hideSidebar", "Hide sidebar")}
-          aria-label={t("hideSidebar", "Hide sidebar")}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 28,
-            height: 28,
-            padding: 0,
-            flexShrink: 0,
-            background: "transparent",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--text-muted)",
-            cursor: "pointer",
-            transition:
-              "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = "var(--text-muted)";
-          }}
-        >
-          <PanelLeftIcon />
-        </button>
-        <img
-          src={appIconUrl}
-          alt=""
-          aria-hidden="true"
-          width={18}
-          height={18}
-          style={{ borderRadius: "var(--radius-chip)", flexShrink: 0 }}
-        />
-        <button
-          type="button"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-          aria-labelledby={spaceNameId}
-          title={spacePath}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            height: 28,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            padding: "0 6px",
-            background: menuOpen ? "var(--bg-hover)" : "transparent",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--text)",
-            cursor: "pointer",
-            transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-          }}
-          onMouseEnter={(e) => {
-            if (!menuOpen) e.currentTarget.style.background = "var(--bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            if (!menuOpen) e.currentTarget.style.background = "transparent";
-          }}
-        >
-          <span
-            id={spaceNameId}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-              fontSize: "var(--text-body)",
-              fontWeight: 500,
-              textAlign: "left",
-            }}
-          >
-            {spaceName}
-          </span>
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-            style={{
-              flexShrink: 0,
-              color: "var(--text-dim)",
-              transform: menuOpen ? "rotate(180deg)" : "none",
-              transition: "transform var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-            }}
-          >
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </button>
-      </div>
-
-      <AnimatedDropdown
-        open={menuOpen}
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => (open ? close() : show())}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t("projectActionsFor", "Actions for {name}").replace("{name}", spaceName)}
+        title={projectPath}
         style={{
-          position: "absolute",
-          top: "calc(100% - 2px)",
-          left: 8,
-          right: 8,
-          zIndex: 40,
+          ...TRIGGER_STYLE,
+          background: open ? "var(--fx-surface-selected)" : "transparent",
+          color: open ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
+          opacity: revealed || open ? 1 : 0,
         }}
       >
-        <div
-          role="menu"
-          aria-label={spaceName}
-          className="composer-pop-in"
-          style={{
-            background: "var(--bg-panel)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-card)",
-            boxShadow: "var(--shadow-popover)",
-            padding: 4,
-          }}
-        >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.7" />
+          <circle cx="12" cy="12" r="1.7" />
+          <circle cx="19" cy="12" r="1.7" />
+        </svg>
+      </button>
+
+      {position &&
+        createPortal(
           <div
+            ref={menuRef}
+            role="menu"
+            aria-label={spaceName}
+            tabIndex={-1}
+            className="composer-pop-in"
+            onKeyDown={onMenuKeyDown}
             style={{
-              padding: "6px 8px 8px",
-              fontFamily: "var(--font-mono)",
-              fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              borderBottom: "1px solid var(--border)",
-              marginBottom: 4,
+              position: "fixed",
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              width: CARD_WIDTH,
+              padding: 6,
+              zIndex: 1000,
+              background: "var(--fx-surface-raised)",
+              border: "1px solid var(--fx-line-default)",
+              borderRadius: "var(--radius-dialog)",
+              boxShadow: "var(--shadow-popover)",
+              ...position,
             }}
           >
-            {spacePath}
-          </div>
-          <div ref={listRef} style={{ position: "relative" }}>
-            {actions.map((action, index) => (
-              <button
-                key={action.label}
-                type="button"
-                role="menuitem"
-                onMouseEnter={() => setActiveIndex(index)}
-                onFocus={() => setActiveIndex(index)}
-                onClick={() => {
-                  setMenuOpen(false);
-                  action.run();
-                }}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  width: "100%",
-                  height: MENU_ROW_HEIGHT,
-                  padding: "0 8px",
-                  background: "transparent",
-                  border: "none",
-                  borderRadius: "var(--radius-control)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontSize: "var(--text-label)",
-                  textAlign: "left",
-                  position: "relative",
-                  zIndex: 1,
-                }}
-              >
-                <span
-                  aria-hidden="true"
-                  style={{ display: "inline-flex", width: 14, height: 14, flexShrink: 0, color: "var(--text-dim)" }}
-                >
-                  {action.icon}
-                </span>
-                <span
-                  style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                >
-                  {action.label}
-                </span>
-              </button>
-            ))}
-            <GlideHighlight
-              containerRef={listRef}
-              rowSelector='[role="menuitem"]'
-              activeIndex={activeIndex}
-              visible={activeIndex >= 0}
+            <ProjectSwitcherCard
+              spaceName={spaceName}
+              folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
+              homeDir={homeDir}
+              projects={projects}
+              inspectFolder={inspectFolder}
+              onOpenFolder={onOpenFolder}
+              onChooseFolder={onChooseFolder}
+              onBackToPersonalSpace={onBackToPersonalSpace}
+              onChoose={choose}
             />
-          </div>
-        </div>
-      </AnimatedDropdown>
-    </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

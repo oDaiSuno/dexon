@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { byRole, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
+import { button, byRole, click, dom, loadRenderer, mount, restoreGlobals, text } from "../support/renderer.mjs";
 import { installApiHostBridge } from "../support/api-host.mjs";
 
 const { TopBar, resetRpc } = await loadRenderer(
@@ -56,6 +56,12 @@ function panelProps(overrides = {}) {
   };
 }
 
+function sessionPanel(view) {
+  const panel = byRole(view.container, "region", "Context and cost");
+  assert.ok(panel, "the open session panel is a region named Context and cost");
+  return panel;
+}
+
 async function mountPanel(t, overrides) {
   dom.window.piBridge = {};
   const boundary = installApiHostBridge(
@@ -69,17 +75,18 @@ async function mountPanel(t, overrides) {
 
 test("when the session panel is open with whole-session counts, it shows those counts for the session", async (t) => {
   const view = await mountPanel(t, { sessionStats: WHOLE_SESSION_STATS });
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
-  assert.ok(text(panel, "194"), "the total number of messages is the whole session's total");
-  assert.ok(text(panel, "96"), "the user message count is the whole session's count");
-  assert.ok(text(panel, "98"), "the assistant message count is the whole session's count");
-  assert.ok(text(panel, "1,801"), "the token total is the whole session's usage");
+  const panel = sessionPanel(view);
+  await click(button(panel, "Details"));
+  assert.ok(text(panel, "194 messages · 17 tool calls"), "the message and tool call totals are the whole session's");
+  assert.ok(text(panel, "1.2k"), "the input size is the whole session's usage");
+  assert.ok(text(panel, "567"), "the output size is the whole session's usage");
   assert.ok(!panel.textContent.includes(LOAD_HINT), "loaded counts replace the loading hint");
 });
 
 test("when the counts are not available yet, the session panel still names the session it belongs to", async (t) => {
   const view = await mountPanel(t, {});
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
+  const panel = sessionPanel(view);
+  await click(button(panel, "Details"));
   assert.ok(panel.textContent.includes("session-one"), "the session ID is on screen");
   assert.ok(panel.textContent.includes("/workspace/notes.jsonl"), "the session file is on screen");
   assert.ok(panel.textContent.includes("Release notes"), "the session name is on screen");
@@ -88,6 +95,6 @@ test("when the counts are not available yet, the session panel still names the s
 
 test("when no session is selected, the session panel explains how to load session information", async (t) => {
   const view = await mountPanel(t, { selectedSession: null });
-  const panel = byRole(view.container, "button", "Session info").parentElement.lastElementChild;
+  const panel = sessionPanel(view);
   assert.ok(panel.textContent.includes(LOAD_HINT), "the hint appears only when there is no session to describe");
 });

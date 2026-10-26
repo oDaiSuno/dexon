@@ -24,8 +24,8 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  background: var(--bg);
-  color: var(--text);
+  background: var(--fx-surface-main);
+  color: var(--fx-text-primary);
   font-family: var(--font-sans);
   font-size: 14px;
   overscroll-behavior: none;
@@ -40,11 +40,11 @@ body {
 }
 
 ::selection {
-  background: var(--selection);
+  background: var(--fx-accent-blue-selection);
 }
 
 :where(button, a, input, textarea, select, [tabindex]):focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 82%, white) !important;
+  outline: 2px solid var(--fx-accent-blue) !important;
   outline-offset: 2px;
 }
 ::-webkit-scrollbar {
@@ -55,14 +55,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
+  background: var(--fx-line-strong);
   border-radius: 4px;
 }
-html.dark ::-webkit-scrollbar-thumb {
-  background: var(--gray-400);
-}
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--text-dim);
+  background: var(--fx-text-tertiary);
 }
 pre,
 code {

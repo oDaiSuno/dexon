@@ -19,9 +19,6 @@ export const nativeHistoryTitle = "Production history before collapse";
 
 export const nativeSkillInitial =
   "---\nname: production-checklist\ndescription: Check the production navigation.\n---\n\n# Production checklist\n\nRead the original fixture.\n";
-export const nativeSkillSaved =
-  "---\nname: production-checklist\ndescription: Check the production navigation.\n---\n\n# Production checklist\n\nSaved through the production application.\n";
-
 export async function seedNativeNavigation() {
   const home = process.env.PI_DESKTOP_SMOKE_HOME;
   const agent = process.env.PI_CODING_AGENT_DIR;

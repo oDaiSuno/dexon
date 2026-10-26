@@ -31,8 +31,8 @@ const GROUPS = [
   {
     name: "shell 组合根与侧栏模块",
     dirs: ["src/renderer/components/app-shell", "src/renderer/components/session-sidebar"],
-    files: ["src/renderer/components/AppShell.tsx", "src/renderer/components/SessionSidebar.tsx"],
-    requiredRoots: ["src/renderer/components/AppShell.tsx", "src/renderer/components/SessionSidebar.tsx"],
+    files: ["src/renderer/components/AppShell.tsx"],
+    requiredRoots: ["src/renderer/components/AppShell.tsx"],
     extensionRe: /\.(?:ts|tsx|mjs)$/,
   },
   {
@@ -89,8 +89,7 @@ const GROUPS = [
     extensionRe: /\.(?:ts|tsx)$/,
   },
   {
-    // 行数卫生（建议级）：样式表。chat.css 是遗留文件（>500 行）不计入预算，
-    // 忠实原 css-structure 测试的豁免注释。
+    // 行数卫生（建议级）：样式表。
     name: "样式表",
     dirs: ["src/renderer/styles"],
     files: ["src/renderer/globals.css"],
@@ -151,10 +150,7 @@ const PATTERN_BANS = [
   },
   {
     name: "焦点延迟属主（侧栏）",
-    files: [
-      "src/renderer/components/session-sidebar/project-picker.tsx",
-      "src/renderer/components/session-sidebar/worktree-switcher.tsx",
-    ],
+    files: ["src/renderer/components/session-sidebar/worktree-switcher.tsx"],
     forbidden: /setTimeout\([^;]*\.focus\(/,
     message: "焦点请求必须经侧栏属主的 deferFocus，不得自建 setTimeout 焦点",
   },
@@ -212,13 +208,31 @@ function checkGroup(group) {
 const EXPECTED_CSS_IMPORT_ORDER = [
   "globals.css",
   "styles/tokens.css",
+  "styles/typography.css",
+  "styles/motion-tokens.css",
   "styles/base.css",
-  "styles/interactive.css",
+  "styles/controls.css",
+  "styles/session-row.css",
+  "styles/session-menu.css",
+  "styles/composer.css",
+  "styles/ref-chips.css",
+  "styles/popover-motion.css",
   "styles/markdown.css",
+  "styles/markdown-user.css",
+  "styles/markdown-system.css",
+  "styles/markdown-file-preview.css",
   "styles/motion.css",
   "styles/nav.css",
-  "styles/panels.css",
-  "chat.css",
+  "styles/sidebar-layout.css",
+  "styles/right-panel.css",
+  "styles/chat-scope.css",
+  "styles/chat-motion.css",
+  "styles/chat-window.css",
+  "styles/notice-shelf.css",
+  "styles/chat-shared.css",
+  "styles/messages-process.css",
+  "styles/messages-failure.css",
+  "styles/messages-stream.css",
   "styles/tool-cards.css",
 ];
 
@@ -229,18 +243,18 @@ function checkCssWiring() {
   const imports = rendererCssImportOrder();
   if (JSON.stringify(imports) !== JSON.stringify(EXPECTED_CSS_IMPORT_ORDER)) {
     failures.push(
-      `main.tsx 样式导入顺序必须匹配级联契约：\n    期望 ${JSON.stringify(EXPECTED_CSS_IMPORT_ORDER)}\n    实际 ${JSON.stringify(imports)}`,
+      `styles/index.ts 样式导入顺序必须匹配级联契约：\n    期望 ${JSON.stringify(EXPECTED_CSS_IMPORT_ORDER)}\n    实际 ${JSON.stringify(imports)}`,
     );
   }
 
   for (const file of imports) {
-    if (!existsSync(path.join(rendererDir, file))) failures.push(`main.tsx 引用的样式文件不存在: ${file}`);
+    if (!existsSync(path.join(rendererDir, file))) failures.push(`styles/index.ts 引用的样式文件不存在: ${file}`);
   }
   for (const name of stylePartialNames()) {
-    if (!imports.includes(`styles/${name}`)) failures.push(`孤儿样式分片未被 main.tsx 引用: styles/${name}`);
+    if (!imports.includes(`styles/${name}`)) failures.push(`孤儿样式分片未被 styles/index.ts 引用: styles/${name}`);
   }
 
-  // 渲染器树内只允许入口、chat.css 与已接线分片存在。
+  // 渲染器树内只允许入口与已接线分片存在。
   const onDisk = [];
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -260,11 +274,10 @@ function checkCssWiring() {
     const entry = readFileSync(entryPath, "utf8");
     if (!/^@import "tailwindcss";/.test(entry)) failures.push("globals.css: tailwind 必须先于所有应用样式加载");
     if (!/@font-face/.test(entry)) failures.push("globals.css: @font-face 必须留在入口（相对字体路径）");
-    if (!/url\("\.\/fonts\/GeistSans\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 GeistSans 字体文件引用");
+    if (!/url\("\.\/fonts\/InterLatin\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 Inter 字体文件引用");
     if (!/url\("\.\/fonts\/GeistMono\.woff2"\)/.test(entry)) failures.push("globals.css: 缺少 GeistMono 字体文件引用");
-    if (!/@theme\s*\{/.test(entry)) failures.push("globals.css: tailwind 主题映射必须留在入口");
     if (/@import\s+"\.\//.test(entry))
-      failures.push("globals.css: 应用样式分片必须由 main.tsx 引入，不得走 CSS @import");
+      failures.push("globals.css: 应用样式分片必须由 styles/index.ts 引入，不得走 CSS @import");
   } else {
     failures.push("缺少必备文件: src/renderer/globals.css");
   }

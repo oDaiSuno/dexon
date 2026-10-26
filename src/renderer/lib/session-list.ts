@@ -1,4 +1,10 @@
+import { normalizeWorktreePathForComparison } from "../../shared/worktree-path.ts";
 import type { SessionInfo } from "./types";
+
+export interface SessionProject {
+  root: string;
+  sessions: SessionInfo[];
+}
 
 export type SessionDateGroup = "today" | "recent" | "older";
 
@@ -55,6 +61,38 @@ export function getRecentProjects(sessions: SessionInfo[]): string[] {
     }
   }
   return [...latestByRoot.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([root]) => root);
+}
+
+export function sessionProjectKey(root: string): string {
+  return normalizeWorktreePathForComparison(root);
+}
+
+export function groupSessionsByProject(
+  sessions: SessionInfo[],
+  currentRoot: string,
+  pinned: (root: string) => boolean = () => false,
+): SessionProject[] {
+  const groups = new Map<string, SessionProject & { latest: string }>();
+  for (const session of sessions) {
+    const root = session.projectRoot ?? session.cwd;
+    if (!root) continue;
+    const key = sessionProjectKey(root);
+    const group = groups.get(key);
+    if (!group) groups.set(key, { root, sessions: [session], latest: session.modified });
+    else {
+      group.sessions.push(session);
+      if (session.modified > group.latest) group.latest = session.modified;
+    }
+  }
+  const currentKey = sessionProjectKey(currentRoot);
+  if (currentRoot && !groups.has(currentKey))
+    groups.set(currentKey, { root: currentRoot, sessions: [], latest: "\uffff" });
+  return [...groups.values()]
+    .sort(
+      (left, right) =>
+        Number(pinned(right.root)) - Number(pinned(left.root)) || right.latest.localeCompare(left.latest),
+    )
+    .map(({ root, sessions: members }) => ({ root, sessions: members }));
 }
 
 export function filterSessionsForQuery(sessions: SessionInfo[], rawQuery: string): SessionInfo[] {

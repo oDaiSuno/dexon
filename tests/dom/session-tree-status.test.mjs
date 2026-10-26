@@ -8,7 +8,7 @@ import { minutesAgo, treeSession } from "../fixtures/session-tree-data.mjs";
 after(restoreGlobals);
 
 const AWAITING = "Waiting for your answer";
-const FAILED = "Last turn failed";
+const FAILED = "Failed";
 
 function mixedTree() {
   return [

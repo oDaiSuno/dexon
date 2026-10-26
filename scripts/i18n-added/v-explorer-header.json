@@ -1,0 +1,11 @@
+[
+  "explorerConnecting",
+  "explorerFilesSection",
+  "gitCleanHint",
+  "gitStaged",
+  "gitModified",
+  "gitUntracked",
+  "gitConflicted",
+  "notGitRepository",
+  "notGitFilesOnly"
+]

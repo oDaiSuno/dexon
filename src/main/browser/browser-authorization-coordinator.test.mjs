@@ -174,3 +174,12 @@ test("denial cooldowns expire on read, clear with sessions, and remain bounded",
   value.coordinator.cancelSession("session-c");
   await assert.rejects(retried, (error) => error.code === "CAPABILITY_DISABLED");
 });
+
+test("a request from a messaging channel carries that channel's name to the dialog", async () => {
+  const value = fixture();
+  const pending = value.coordinator.request("session", "channel", "read", "telegram");
+  assert.equal(value.requests[0].source, "channel");
+  assert.equal(value.requests[0].channel, "telegram");
+  value.coordinator.respond(value.requests[0].id, "deny");
+  await assert.rejects(pending, (error) => error.code === "USER_DENIED");
+});

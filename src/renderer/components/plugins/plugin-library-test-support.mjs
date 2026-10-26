@@ -57,7 +57,7 @@ const TIMED_GLOBALS = ["window", "IS_REACT_ACT_ENVIRONMENT"];
 
 export function installEnvironment() {
   const originals = new Map(TIMED_GLOBALS.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
-  const deferredHost = createDeferredHost(["plugins.list", "plugins.set"]);
+  const deferredHost = createDeferredHost(["plugins.list", "plugins.set", "plugins.markReloaded"]);
   const pending = deferredHost.pending;
   const sentCommands = [];
   let reloaded = 0;

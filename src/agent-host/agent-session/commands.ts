@@ -5,8 +5,10 @@ import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
 import type { ExtensionUiResponse, ExtensionWidgetItem } from "../../shared/types";
 import type { SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
+import { describeLiveContextUsage } from "../session-context-usage";
 import { rememberLeafChoice } from "../session-leaf-store";
 import { cacheSessionPath } from "../session-reader";
+import { computeSessionStats } from "../session-stats";
 import {
   isUserMessageEntry,
   newestTipUnder,
@@ -180,7 +182,6 @@ export async function sendSessionCommand(
 
     case "get_state": {
       const model = context.inner.model;
-      const contextUsage = context.inner.getContextUsage();
       return {
         sessionId: context.inner.sessionId,
         sessionFile: context.inner.sessionFile ?? "",
@@ -197,9 +198,7 @@ export async function sendSessionCommand(
           steering: [...context.inner.getSteeringMessages()],
           followUp: [...context.inner.getFollowUpMessages()],
         },
-        contextUsage: contextUsage
-          ? { percent: contextUsage.percent, contextWindow: contextUsage.contextWindow, tokens: contextUsage.tokens }
-          : null,
+        contextUsage: describeLiveContextUsage(context.inner),
         systemPrompt: context.inner.agent.state?.systemPrompt ?? "",
         thinkingLevel: context.inner.agent.state?.thinkingLevel ?? "off",
         extensionUi: context.getInteractiveSnapshot(),
@@ -290,9 +289,13 @@ export async function sendSessionCommand(
     }
 
     case "get_session_stats": {
+      const stats = computeSessionStats(context.inner.sessionManager.getEntries() as unknown as SessionEntry[]);
       return {
         ...context.inner.getSessionStats(),
         sessionName: context.inner.sessionManager.getSessionName(),
+        costs: stats.costs,
+        lastCompactionAt: stats.lastCompactionAt,
+        contextUsage: describeLiveContextUsage(context.inner) ?? undefined,
       };
     }
 
@@ -334,7 +337,7 @@ export async function sendSessionCommand(
     }
 
     case "get_commands": {
-      const commands: SlashCommandInfo[] = [];
+      const commands: (SlashCommandInfo & { argumentHint?: string })[] = [];
       for (const registered of context.inner.extensionRunner.getRegisteredCommands()) {
         commands.push({
           name: registered.invocationName,
@@ -347,6 +350,7 @@ export async function sendSessionCommand(
         commands.push({
           name: template.name,
           description: template.description,
+          ...(template.argumentHint ? { argumentHint: template.argumentHint } : {}),
           source: "prompt",
           sourceInfo: template.sourceInfo,
         });

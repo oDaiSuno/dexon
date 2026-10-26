@@ -1,125 +1,173 @@
-import { useRef, useState } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
+import { useEffect, useState } from "react";
+import { useI18n } from "@/i18n";
 import { GlideHighlight } from "./GlideHighlight";
-
-/**
- * "＋" expand menu above the composer, styled after the PromptBar reference:
- * a full-width panel rising from the composer's top edge with one gliding
- * highlight (a single background pill that floats between rows) instead of
- * per-row background toggling. Rows are icon + name + description on one
- * line, with a muted footer strip for a static hint.
- */
+import { Icon, ImagePlusIcon } from "./icons";
+import { MenuPanel } from "./menu-chrome";
+import { KeyHint } from "./SendControls";
 
 export interface PlusMenuRow {
   key: string;
   name: string;
-  desc: string;
+  desc: React.ReactNode;
   icon: React.ReactNode;
+  count?: string;
+  trailing?: React.ReactNode;
+  submenu?: boolean;
   onSelect: () => void;
 }
 
-export function PlusMenu({ rows }: { rows: PlusMenuRow[] }) {
-  const panelRef = useRef<HTMLDivElement>(null);
-  const [active, setActive] = useState(0);
-  const [engaged, setEngaged] = useState(false);
+export function PlusMenu({ rows, defaultKey }: { rows: PlusMenuRow[]; defaultKey?: string }) {
+  const { t } = useI18n();
+  const [active, setActive] = useState(() =>
+    Math.max(
+      0,
+      rows.findIndex((row) => row.key === defaultKey),
+    ),
+  );
+  const current = Math.min(active, rows.length - 1);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || rows.length === 0) return;
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        event.stopPropagation();
+        const down = event.key === "ArrowDown";
+        setActive((index) => (down ? Math.min(index + 1, rows.length - 1) : Math.max(0, index - 1)));
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
+        rows[current]?.onSelect();
+      }
+    };
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
+  }, [current, rows]);
 
   return (
-    <div
-      ref={panelRef}
-      className="composer-pop-in"
-      role="menu"
-      onMouseLeave={() => setEngaged(false)}
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: "calc(100% + 8px)",
-        zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        boxShadow:
-          "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
-        padding: 4,
-        transformOrigin: "bottom center",
-      }}
-    >
-      {/* single gliding highlight — floats to the hovered row */}
-      <GlideHighlight
-        containerRef={panelRef}
-        rowSelector='[role="menuitem"]'
-        activeIndex={active}
-        visible={engaged && rows.length > 0}
-      />
-      {rows.map((row, index) => (
-        <button
-          key={row.key}
-          type="button"
-          role="menuitem"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            row.onSelect();
-          }}
-          onMouseEnter={() => {
-            setActive(index);
-            setEngaged(true);
-          }}
+    <MenuPanel role="menu">
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 2, padding: 6 }}>
+        <GlideHighlight
+          rowSelector='[role="menuitem"]'
+          activeIndex={current}
+          visible={rows.length > 0}
+          layoutKey={rows.length}
+          insetX={6}
+          radius="var(--radius-menu-row)"
+        />
+        {rows.map((row, index) => {
+          const lit = index === current;
+          return (
+            <button
+              key={row.key}
+              type="button"
+              role="menuitem"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                row.onSelect();
+              }}
+              onMouseEnter={() => {
+                setActive(index);
+              }}
+              style={{
+                position: "relative",
+                zIndex: 1,
+                width: "100%",
+                height: 40,
+                display: "flex",
+                alignItems: "center",
+                gap: "var(--space-3)",
+                padding: "0 var(--space-3) 0 10px",
+                border: "none",
+                borderRadius: "var(--radius-menu-row)",
+                background: "none",
+                cursor: "pointer",
+                textAlign: "left",
+                color: "inherit",
+              }}
+            >
+              <span
+                style={{
+                  flexShrink: 0,
+                  width: 20,
+                  height: 20,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: lit ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
+                }}
+              >
+                {row.icon}
+              </span>
+              <span className="type-body-medium" style={{ flexShrink: 0, color: "var(--fx-text-primary)" }}>
+                {row.name}
+              </span>
+              {typeof row.desc === "string" ? (
+                <span
+                  className="type-label-default"
+                  style={{
+                    minWidth: 0,
+                    flex: 1,
+                    color: "var(--fx-text-tertiary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {row.desc}
+                </span>
+              ) : (
+                row.desc
+              )}
+              {row.count && (
+                <span className="type-mono-meta" style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
+                  {row.count}
+                </span>
+              )}
+              {row.trailing}
+              {row.submenu && (
+                <span style={{ flexShrink: 0, display: "flex", color: "var(--fx-text-tertiary)" }}>
+                  <Icon size={14} strokeWidth={2}>
+                    <path d="m9 18 6-6-6-6" />
+                  </Icon>
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <div
+        style={{
+          height: 34,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: "var(--space-4)",
+          padding: "0 var(--space-3-5)",
+          borderTop: "1px solid var(--fx-line-default)",
+          background: "var(--fx-surface-inset)",
+        }}
+      >
+        <span aria-hidden style={{ flexShrink: 0, display: "flex", color: "var(--fx-text-tertiary)" }}>
+          <ImagePlusIcon size={13} />
+        </span>
+        <span
+          className="type-meta-default"
           style={{
-            position: "relative",
-            zIndex: 1,
-            width: "100%",
-            height: 36,
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            padding: "0 8px",
-            border: "none",
-            borderRadius: 6,
-            background: "none",
-            cursor: "pointer",
-            textAlign: "left",
-            font: "inherit",
-            color: "inherit",
+            minWidth: 0,
+            color: "var(--fx-text-tertiary)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          <span
-            style={{
-              flexShrink: 0,
-              width: 22,
-              height: 22,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "var(--text-muted)",
-            }}
-          >
-            {row.icon}
-          </span>
-          <span
-            style={{
-              flexShrink: 0,
-              fontSize: scaledChatFont(12.5),
-              fontWeight: 500,
-              color: "var(--text)",
-            }}
-          >
-            {row.name}
-          </span>
-          <span
-            style={{
-              minWidth: 0,
-              flex: 1,
-              fontSize: scaledChatFont(12),
-              color: "var(--text-dim)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {row.desc}
-          </span>
-        </button>
-      ))}
-    </div>
+          {t("plusMenuDragHint", "You can also drag files straight into the input box")}
+        </span>
+        <span style={{ flex: 1 }} />
+        <KeyHint keyLabel="esc" label={t("close", "Close")} />
+      </div>
+    </MenuPanel>
   );
 }

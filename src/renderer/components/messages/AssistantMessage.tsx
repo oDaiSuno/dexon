@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { MarkdownBody } from "../MarkdownBody";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import {
   getAssistantFailureDetail,
   hasRenderableAssistantMessage,
@@ -133,7 +132,7 @@ export function AssistantMessageView({
 
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
   if (failed && blocks.length === 0 && !isStreaming) {
-    return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />;
+    return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />;
   }
 
   return (
@@ -141,14 +140,13 @@ export function AssistantMessageView({
       {/* Streaming meta: token estimate + live t/s (quiet mono). */}
       {isStreaming && (
         <div
+          className="type-mono-label"
           style={{
-            fontSize: scaledChatFont(12),
-            color: "var(--bui-ink-3)",
+            color: "var(--fx-text-tertiary)",
             marginBottom: 6,
             display: "flex",
             alignItems: "center",
             gap: 8,
-            fontFamily: "var(--font-mono)",
           }}
         >
           {(() => {
@@ -167,7 +165,7 @@ export function AssistantMessageView({
                       display: "flex",
                       alignItems: "center",
                       gap: 5,
-                      color: "var(--bui-ink-3)",
+                      color: "var(--fx-text-tertiary)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                     title="Estimated token count while streaming"
@@ -183,7 +181,11 @@ export function AssistantMessageView({
                             height: 6,
                             borderRadius: "50%",
                             background:
-                              tps >= 50 ? "var(--bui-green)" : tps >= 15 ? "var(--bui-orange)" : "var(--bui-red)",
+                              tps >= 50
+                                ? "var(--fx-status-success-text)"
+                                : tps >= 15
+                                  ? "var(--fx-status-warning-text)"
+                                  : "var(--fx-status-danger-text)",
                           }}
                         />
                         <span>{tps.toFixed(1)} t/s</span>
@@ -209,6 +211,7 @@ export function AssistantMessageView({
               (block.type === "thinking" ? thinkingDurationFromFile : undefined)
             }
             toolCallDurations={toolCallDurations}
+            toolStartedAt={compact && !isStreaming ? message.timestamp : undefined}
             cwd={cwd}
             onOpenFile={onOpenFile}
             onLoadDeferredContent={onLoadDeferredContent}
@@ -217,7 +220,9 @@ export function AssistantMessageView({
           />
         ))}
         <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
-        {failed && !isStreaming && <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} />}
+        {failed && !isStreaming && (
+          <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />
+        )}
       </div>
     </div>
   );
@@ -229,6 +234,7 @@ function BlockView({
   isStreaming,
   streamingDuration,
   toolCallDurations,
+  toolStartedAt,
   cwd,
   onOpenFile,
   onLoadDeferredContent,
@@ -240,6 +246,7 @@ function BlockView({
   isStreaming?: boolean;
   streamingDuration?: number;
   toolCallDurations?: ReadonlyMap<string, number>;
+  toolStartedAt?: number;
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
@@ -269,7 +276,13 @@ function BlockView({
     const duration = toolCallDurations?.get(tc.toolCallId);
     return (
       <>
-        <ToolCallBlock block={tc} result={result} duration={duration} onLoadDeferredContent={onLoadDeferredContent} />
+        <ToolCallBlock
+          block={tc}
+          result={result}
+          duration={duration}
+          startedAt={toolStartedAt}
+          onLoadDeferredContent={onLoadDeferredContent}
+        />
         <DeferredContentActions content={[block]} onLoad={onLoadDeferredContent} />
       </>
     );
@@ -291,13 +304,7 @@ function TextBlock({
   const text = block.text ?? "";
   if (!isStreaming) {
     return (
-      <div
-        style={{
-          fontSize: scaledChatFont(13.5),
-          lineHeight: 1.7,
-          minWidth: 0,
-        }}
-      >
+      <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
         <MarkdownBody cwd={cwd} onOpenFile={onOpenFile}>
           {text}
         </MarkdownBody>
@@ -314,13 +321,7 @@ function TextBlock({
   const tailOffset = lastBreak >= 0 ? lastBreak + 1 : 0;
   const tokens = tokenizeStreamTail(tail, tailOffset);
   return (
-    <div
-      style={{
-        fontSize: scaledChatFont(13.5),
-        lineHeight: 1.7,
-        minWidth: 0,
-      }}
-    >
+    <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
       {settled && (
         <MarkdownBody isStreaming cwd={cwd} onOpenFile={onOpenFile}>
           {settled}

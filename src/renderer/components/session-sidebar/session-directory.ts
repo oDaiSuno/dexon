@@ -7,7 +7,12 @@ import {
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
 } from "@/lib/unread-session-storage";
 import { applySessionChangedEvent } from "@/lib/session-sidebar-state";
-import { clearSessionCatalog, publishSessionCatalog } from "@/lib/session-catalog";
+import {
+  clearSessionActivity,
+  clearSessionCatalog,
+  publishSessionActivity,
+  publishSessionCatalog,
+} from "@/lib/session-catalog";
 
 function loadUnreadSessionIds(): Set<string> {
   if (typeof window === "undefined") return new Set();
@@ -40,7 +45,6 @@ export function useSessionDirectory({
   const [allSessions, setAllSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [homeDir, setHomeDir] = useState<string>("");
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
   const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
   const [liveStatuses, setLiveStatuses] = useState<Record<string, SessionLiveStatus>>({});
@@ -50,24 +54,13 @@ export function useSessionDirectory({
   // running state; late session responses must not overwrite it.
   const streamAuthoritativeRef = useRef(false);
   const sessionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const deferredFocusTimersRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   const sidebarMountedRef = useRef(false);
-  const deferFocus = useCallback((focus: () => void) => {
-    const timer = setTimeout(() => {
-      deferredFocusTimersRef.current.delete(timer);
-      focus();
-    }, 0);
-    deferredFocusTimersRef.current.add(timer);
-  }, []);
 
   useEffect(() => {
-    const deferredFocusTimers = deferredFocusTimersRef.current;
     sidebarMountedRef.current = true;
     return () => {
       sidebarMountedRef.current = false;
       if (sessionRefreshTimerRef.current) clearTimeout(sessionRefreshTimerRef.current);
-      for (const timer of deferredFocusTimers) clearTimeout(timer);
-      deferredFocusTimers.clear();
     };
   }, []);
 
@@ -142,6 +135,12 @@ export function useSessionDirectory({
   }, [allSessions]);
 
   useEffect(() => clearSessionCatalog, []);
+
+  useEffect(() => {
+    publishSessionActivity({ liveStatuses, runningSessionIds, unreadSessionIds });
+  }, [liveStatuses, runningSessionIds, unreadSessionIds]);
+
+  useEffect(() => clearSessionActivity, []);
 
   // Persist unread markers so they survive a browser refresh before the user
   // has actually opened the completed session.
@@ -249,15 +248,6 @@ export function useSessionDirectory({
     });
   }, [selectedSessionId]);
 
-  useEffect(() => {
-    fetch("/api/home")
-      .then((r) => r.json())
-      .then((d: { home?: string }) => {
-        if (d.home) setHomeDir(d.home);
-      })
-      .catch(() => {});
-  }, []);
-
   return {
     sessions: allSessions,
     loading,
@@ -265,9 +255,7 @@ export function useSessionDirectory({
     runningSessionIds,
     liveStatuses,
     unreadSessionIds,
-    homeDir,
     sessionRefreshDone,
     refreshSessions: loadSessions,
-    deferFocus,
   };
 }

@@ -1,0 +1,18 @@
+{
+  "messageNotQueuedDraftRestored": {
+    "enUS": "Message could not be queued. Your draft was restored.",
+    "zhCN": "消息未能加入队列，草稿已恢复。"
+  },
+  "messageNotQueuedNewDraftKept": {
+    "enUS": "The previous message could not be queued. Your newer draft was kept.",
+    "zhCN": "上一条消息未能加入队列，已保留较新的草稿。"
+  },
+  "messageNotSentDraftRestored": {
+    "enUS": "Message was not sent. Your draft was restored.",
+    "zhCN": "消息未发送，草稿已恢复。"
+  },
+  "messageNotSentNewDraftKept": {
+    "enUS": "The previous message was not sent. Your newer draft was kept.",
+    "zhCN": "上一条消息未发送，已保留较新的草稿。"
+  }
+}

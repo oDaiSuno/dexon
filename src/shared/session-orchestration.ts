@@ -115,9 +115,16 @@ export interface SessionSourceRef {
   title?: string;
 }
 
+export interface SessionLaunchReport {
+  model?: SessionModelRef;
+  thinkingLevel?: string;
+  cwd: string;
+}
+
 export interface SessionToolTargetDetails {
   targetSessionId: string;
   targetTitle?: string;
+  launch?: SessionLaunchReport;
 }
 
 export function readSessionToolTarget(details: unknown): SessionToolTargetDetails | null {
@@ -127,5 +134,19 @@ export function readSessionToolTarget(details: unknown): SessionToolTargetDetail
   return {
     targetSessionId: record.targetSessionId,
     ...(typeof record.targetTitle === "string" && record.targetTitle ? { targetTitle: record.targetTitle } : {}),
+  };
+}
+
+export function readSessionLaunch(details: unknown): SessionLaunchReport | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  const launch = (details as Record<string, unknown>).launch;
+  if (!launch || typeof launch !== "object" || Array.isArray(launch)) return null;
+  const record = launch as Record<string, unknown>;
+  if (typeof record.cwd !== "string" || !record.cwd) return null;
+  const thinkingLevel = record.thinkingLevel;
+  return {
+    ...(isModelRef(record.model) ? { model: { provider: record.model.provider, modelId: record.model.modelId } } : {}),
+    ...(typeof thinkingLevel === "string" && thinkingLevel ? { thinkingLevel } : {}),
+    cwd: record.cwd,
   };
 }

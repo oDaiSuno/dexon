@@ -9,15 +9,19 @@ import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { RpcServer } from "../../contract/rpc";
 import {
   RpcError,
+  type DefaultThinkingLevel,
   type ModelCatalogStatus,
   type ModelCatalogWarning,
+  type ModelDefaultsResult,
   type ModelInfo,
   type ModelPreferencesResult,
   type ModelsListResult,
 } from "../../contract/types";
 import { modelCatalogRefreshCoordinator } from "../model-runtime";
+import { disabledProviderIds } from "../provider-channels";
 
 const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
+const DEFAULT_THINKING_LEVEL = "medium";
 
 function stripThinkingSuffix(modelRef: string): string {
   const trimmed = modelRef.trim();
@@ -96,6 +100,58 @@ function resolveModelsCwd(params: { cwd?: string } | void): string {
 
 type AvailableModel = Awaited<ReturnType<ModelRuntime["getAvailable"]>>[number];
 
+function projectModelDefaults(
+  available: readonly { id: string; provider: string }[],
+  settings: SettingsManager,
+): ModelDefaultsResult {
+  const provider = settings.getDefaultProvider();
+  const modelId = settings.getDefaultModel();
+  const saved =
+    provider && modelId && available.some((model) => model.provider === provider && model.id === modelId)
+      ? { provider, modelId }
+      : null;
+  return { model: saved, thinkingLevel: settings.getDefaultThinkingLevel() ?? DEFAULT_THINKING_LEVEL };
+}
+
+function normalizeModelDefaultsInput(
+  body: { model?: unknown; thinkingLevel?: unknown },
+  available: readonly { id: string; provider: string }[],
+): { model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel } {
+  const wantsModel = body.model !== undefined && body.model !== null;
+  const wantsThinking = body.thinkingLevel !== undefined && body.thinkingLevel !== null;
+  if (!wantsModel && !wantsThinking) {
+    throw new RpcError({ code: "BAD_REQUEST", message: "Provide a default model, a thinking level, or both" });
+  }
+
+  let model: { provider: string; modelId: string } | undefined;
+  if (wantsModel) {
+    const candidate = body.model as { provider?: unknown; modelId?: unknown } | null;
+    if (typeof candidate !== "object" || Array.isArray(candidate)) {
+      throw new RpcError({ code: "BAD_REQUEST", message: "model must be an object with provider and modelId" });
+    }
+    const provider = candidate?.provider;
+    const modelId = candidate?.modelId;
+    if (typeof provider !== "string" || typeof modelId !== "string" || !provider || !modelId) {
+      throw new RpcError({ code: "BAD_REQUEST", message: "model must be an object with provider and modelId" });
+    }
+    if (!available.some((entry) => entry.provider === provider && entry.id === modelId)) {
+      throw new RpcError({ code: "BAD_REQUEST", message: `Model is not available: ${provider}/${modelId}` });
+    }
+    model = { provider, modelId };
+  }
+
+  let thinkingLevel: DefaultThinkingLevel | undefined;
+  if (wantsThinking) {
+    const level = body.thinkingLevel;
+    if (typeof level !== "string" || !THINKING_SUFFIXES.has(level)) {
+      throw new RpcError({ code: "BAD_REQUEST", message: "thinkingLevel is not a thinking level Pi accepts" });
+    }
+    thinkingLevel = level as DefaultThinkingLevel;
+  }
+
+  return { ...(model ? { model } : {}), ...(thinkingLevel ? { thinkingLevel } : {}) };
+}
+
 async function resolveAvailableModels(
   modelRuntime: ModelRuntime,
   signal?: AbortSignal,
@@ -144,7 +200,8 @@ export async function projectModelsList(
   const availability = options.cachedOnly
     ? { models: [...modelRuntime.getAvailableSnapshot()], warnings: [] }
     : await resolveAvailableModels(modelRuntime, options.signal);
-  const available = availability.models;
+  const disabled = disabledProviderIds();
+  const available = availability.models.filter((model) => !disabled.has(model.provider));
   const enabledModels = settings.getEnabledModels();
   const visible = filterByExactEnabledModels(available, enabledModels);
   const models = visible
@@ -241,6 +298,31 @@ export function registerModelHandlers(server: RpcServer): () => Promise<void> {
       }
       services.settingsManager.setEnabledModels(enabledModels);
       return projectModelPreferences(available, enabledModels);
+    },
+
+    "models.defaults.get": async (params) => {
+      const cwd = resolveModelsCwd(params as { cwd?: string } | void);
+      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
+      const { models: available } = await resolveAvailableModels(services.modelRuntime);
+      return projectModelDefaults(available, services.settingsManager);
+    },
+
+    "models.defaults.set": async (params) => {
+      const body = params as { cwd?: string; model?: unknown; thinkingLevel?: unknown };
+      const cwd = resolveModelsCwd(body);
+      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
+      const { models: available } = await resolveAvailableModels(services.modelRuntime);
+      const defaults = normalizeModelDefaultsInput(body, available);
+      if (defaults.model) {
+        services.settingsManager.setDefaultModelAndProvider(defaults.model.provider, defaults.model.modelId);
+      }
+      if (defaults.thinkingLevel) services.settingsManager.setDefaultThinkingLevel(defaults.thinkingLevel);
+      await services.settingsManager.flush();
+      const errors = services.settingsManager.drainErrors();
+      if (errors.length > 0) {
+        throw new RpcError({ code: "INTERNAL", message: errors[0].error.message });
+      }
+      return projectModelDefaults(available, services.settingsManager);
     },
   });
 

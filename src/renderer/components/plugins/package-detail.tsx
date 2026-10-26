@@ -1,7 +1,8 @@
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import { pluginResourceSummary, pluginStatusLabel, pluginVersionSummary } from "@/lib/plugin-presentation";
-import { packageKey, shortenPath, statusColor, buttonStyle, type PluginAction } from "./plugin-shared";
+import { Button } from "../form-controls";
+import { packageKey, shortenPath, statusColor, type PluginAction } from "./plugin-shared";
 import { PluginToggle, ScopeTag } from "./plugin-controls";
 import { ResourceList } from "./resource-list";
 
@@ -59,7 +60,7 @@ export function PackageDetail({
                 padding: "1px 4px",
                 borderRadius: "var(--radius-chip)",
                 background: "rgba(120,120,120,0.12)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
               }}
             >
               {t("pluginStatusDisabled", "Disabled")}
@@ -72,7 +73,7 @@ export function PackageDetail({
                   padding: "1px 4px",
                   borderRadius: "var(--radius-chip)",
                   background: "rgba(245,158,11,0.12)",
-                  color: "var(--warning)",
+                  color: "var(--fx-status-warning)",
                 }}
               >
                 {t("pluginFiltered", "filtered")}
@@ -83,7 +84,7 @@ export function PackageDetail({
             style={{
               fontFamily: "var(--font-mono)",
               fontSize: "var(--text-label)",
-              color: "var(--text)",
+              color: "var(--fx-text-primary)",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -94,17 +95,17 @@ export function PackageDetail({
         </div>
 
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button
+          <Button
             onClick={() => onAction("update", pkg)}
             disabled={busy || reloadBusy}
-            style={buttonStyle(busy || reloadBusy)}
+            busy={busyKey === `update:${key}`}
           >
             {busyKey === `update:${key}` ? t("pluginUpdating", "Updating…") : t("pluginUpdate", "Update")}
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={onReloadSession}
             disabled={!sessionId || reloadBusy || busy}
-            style={buttonStyle(!sessionId || reloadBusy || busy)}
+            busy={reloadBusy}
             title={
               sessionId
                 ? t("pluginReloadCurrentSession", "Reload current session")
@@ -112,14 +113,15 @@ export function PackageDetail({
             }
           >
             {reloadBusy ? t("pluginReloading", "Reloading…") : t("pluginReloadSession", "Reload session")}
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="danger"
             onClick={() => onAction("remove", pkg)}
             disabled={busy || reloadBusy}
-            style={buttonStyle(busy || reloadBusy, true)}
+            busy={busyKey === `remove:${key}`}
           >
             {busyKey === `remove:${key}` ? t("pluginRemoving", "Removing…") : t("pluginRemove", "Remove")}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -132,42 +134,46 @@ export function PackageDetail({
           lineHeight: 1.45,
         }}
       >
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginStatus", "Status")}</div>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginStatus", "Status")}</div>
         <div style={{ color: statusColor(pkg.status) }}>{pluginStatusLabel(pkg.status, t)}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginVersion", "Version")}</div>
-        <div style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)" }}>{pluginVersionSummary(pkg, t)}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginPackage", "Package")}</div>
-        <div style={{ color: "var(--text-muted)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginVersion", "Version")}</div>
+        <div style={{ color: "var(--fx-text-secondary)", fontFamily: "var(--font-mono)" }}>
+          {pluginVersionSummary(pkg, t)}
+        </div>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginPackage", "Package")}</div>
+        <div style={{ color: "var(--fx-text-secondary)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
           {pkg.packageName ?? t("unknown", "unknown")}
         </div>
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginResources", "Resources")}</div>
-        <div style={{ color: "var(--text-muted)" }}>{pluginResourceSummary(pkg, language, t)}</div>
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginInstalledPath", "Installed path")}</div>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginResources", "Resources")}</div>
+        <div style={{ color: "var(--fx-text-secondary)" }}>{pluginResourceSummary(pkg, language, t)}</div>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginInstalledPath", "Installed path")}</div>
         <div
           style={{
-            color: pkg.installedPath ? "var(--text-muted)" : "var(--danger)",
+            color: pkg.installedPath ? "var(--fx-text-secondary)" : "var(--fx-status-danger)",
             fontFamily: "var(--font-mono)",
             overflowWrap: "anywhere",
           }}
         >
           {pkg.installedPath ? shortenPath(pkg.installedPath) : t("pluginNotFound", "Not found")}
         </div>
-        <div style={{ color: "var(--text-dim)" }}>{t("pluginCwd", "Cwd")}</div>
-        <div style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
+        <div style={{ color: "var(--fx-text-tertiary)" }}>{t("pluginCwd", "Cwd")}</div>
+        <div style={{ color: "var(--fx-text-tertiary)", fontFamily: "var(--font-mono)", overflowWrap: "anywhere" }}>
           {shortenPath(cwd)}
         </div>
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ fontSize: "var(--text-label)", fontWeight: 700, color: "var(--text)" }}>
+        <div style={{ fontSize: "var(--text-label)", fontWeight: 700, color: "var(--fx-text-primary)" }}>
           {t("pluginResolvedResources", "Resolved resources")}
         </div>
         <ResourceList pkg={pkg} />
       </div>
 
-      {actionMessage && <div style={{ fontSize: "var(--text-label)", color: "var(--success)" }}>{actionMessage}</div>}
+      {actionMessage && (
+        <div style={{ fontSize: "var(--text-label)", color: "var(--fx-status-success)" }}>{actionMessage}</div>
+      )}
       {actionError && (
-        <div style={{ fontSize: "var(--text-label)", color: "var(--danger)", whiteSpace: "pre-wrap" }}>
+        <div style={{ fontSize: "var(--text-label)", color: "var(--fx-status-danger)", whiteSpace: "pre-wrap" }}>
           {actionError}
         </div>
       )}

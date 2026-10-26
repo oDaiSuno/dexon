@@ -94,7 +94,7 @@ export function createTokenChip(path: string, visual: PillVisual): HTMLElement {
 }
 
 export function fillChipContent(chip: HTMLElement, path: string, visual: PillVisual): void {
-  chip.className = "token-chip" + (visual.missing ? " token-chip-missing" : "");
+  chip.className = "token-chip type-mono-label" + (visual.missing ? " token-chip-missing" : "");
   chip.title = visual.title;
   chip.innerHTML = "";
   const icon = document.createElement(visual.isImage && visual.previewUrl ? "img" : "span");
@@ -131,7 +131,7 @@ export function createSkillChip(name: string, visual: SkillChipVisual): HTMLElem
   chip.dataset.skillName = name;
   chip.contentEditable = "false";
   chip.setAttribute("role", "button");
-  chip.className = "skill-chip";
+  chip.className = "skill-chip type-label-medium";
   chip.title = visual.description ?? skillCommandText(name);
   const icon = document.createElement("span");
   icon.className = "skill-chip-glyph";

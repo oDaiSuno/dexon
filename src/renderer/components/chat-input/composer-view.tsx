@@ -4,17 +4,21 @@ import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession"
 import type { ModelCatalogStatus } from "@contract/types";
 import type { SkillRecord } from "@/lib/api-types";
 import { ComposerEditable } from "./ComposerEditable";
-import type { ComposerEditableHandle } from "./types";
+import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote, ComposerWorkspace } from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
-import { ModelPicker, type ModelOption } from "./ModelPicker";
-import { PlusMenu, type PlusMenuRow } from "./PlusMenu";
-import { SkillPickerPanel, SkillRevealCard } from "./SkillPickerPanel";
+import { ModelPicker } from "./ModelPicker";
+import type { ModelGroup } from "./model-catalog";
+import { PlusMenuLayer } from "./plus-menu-layer";
+import { SkillPickerPanel } from "./SkillPickerPanel";
+import { SkillRevealCard } from "./SkillRevealCard";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
-import { SlashMenu, type SlashCommandGroup } from "./SlashMenu";
-import { CompactResultBanner, NoticeBanner, QueuedMessagesPanel } from "./StatusBanners";
+import { SlashMenu } from "./SlashMenu";
+import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
+import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashCommandPaletteItem } from "./slash-commands";
-import { PackageIcon, PaperclipIcon, PlusIcon } from "./icons";
+import { PlusIcon } from "./icons";
+import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps {
@@ -47,19 +51,26 @@ export interface ComposerViewProps {
   plusMenuOpen: boolean;
   onTogglePlusMenu: () => void;
   onOpenSkillPicker: () => void;
+  remotePanelOpen: boolean;
+  onOpenRemotePanel: () => void;
+  onBackToPlusMenu: () => void;
+  onCloseMenus: () => void;
+  remote?: ComposerRemote | null;
+  navigation?: ComposerNavigation;
   skills: SkillRecord[];
   skillsLoading: boolean;
   skillsError: boolean;
   onPickSkill: (skill: SkillRecord) => void;
+  onRetrySkills: () => void;
   skillPickerOpen: boolean;
   skillRevealName: string | null;
   skillRecordsRef: MutableRefObject<Map<string, SkillRecord>>;
   onCloseSkillPicker: () => void;
   onCloseSkillReveal: () => void;
   slashMenuOpen: boolean;
-  slashGroups: SlashCommandGroup[];
+  slashCommands: SlashCommandPaletteItem[];
+  slashQuery: string;
   slashLoading?: boolean;
-  slashCountLabel: string;
   slashActiveIndex: number;
   slashItemRefs: MutableRefObject<(HTMLButtonElement | null)[]>;
   onApplySlash: (command: SlashCommandPaletteItem) => void;
@@ -74,13 +85,15 @@ export interface ComposerViewProps {
   onHoverAt: (index: number) => void;
   imageAttachNotice: string | null;
   onDismissImageNotice: () => void;
-  submissionNotice: string | null;
+  submissionNotice: SubmissionNotice | null;
   onDismissSubmissionNotice: () => void;
+  onResendSubmission: () => void;
   queuedMessages?: QueuedMessages | null;
   onRecallQueue?: () => void;
   compactResult?: CompactResultInfo | null;
+  onDismissCompactResult: () => void;
   model?: { provider: string; modelId: string } | null;
-  modelOptionsByProvider: { provider: string; options: ModelOption[] }[];
+  modelOptionsByProvider: ModelGroup[];
   currentModelName: string | null;
   modelCatalog?: ModelCatalogStatus;
   modelRefreshing?: boolean;
@@ -93,9 +106,10 @@ export interface ComposerViewProps {
   onModelChange?: (provider: string, modelId: string) => void;
   onModelsRefresh?: () => Promise<void> | void;
   onModelPick: (provider: string, modelId: string, isActive: boolean) => void;
+  onCloseModelDropdown: () => void;
+  onManageModels?: () => void;
   isAutoModelSelection?: boolean;
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
@@ -111,6 +125,7 @@ export interface ComposerViewProps {
   soundEnabled?: boolean;
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
+  workspace?: ComposerWorkspace | null;
 }
 
 export function ComposerView(props: ComposerViewProps) {
@@ -120,7 +135,6 @@ export function ComposerView(props: ComposerViewProps) {
     visible,
     isMobile,
     isStreaming,
-    hasSteering,
     onFollowUp,
     value,
     editableRef,
@@ -145,19 +159,26 @@ export function ComposerView(props: ComposerViewProps) {
     plusMenuOpen,
     onTogglePlusMenu,
     onOpenSkillPicker,
+    remotePanelOpen,
+    onOpenRemotePanel,
+    onBackToPlusMenu,
+    onCloseMenus,
+    remote,
+    navigation,
     skills,
     skillsLoading,
     skillsError,
     onPickSkill,
+    onRetrySkills,
     skillPickerOpen,
     skillRevealName,
     skillRecordsRef,
     onCloseSkillPicker,
     onCloseSkillReveal,
     slashMenuOpen,
-    slashGroups,
+    slashCommands,
+    slashQuery,
     slashLoading,
-    slashCountLabel,
     slashActiveIndex,
     slashItemRefs,
     onApplySlash,
@@ -174,9 +195,11 @@ export function ComposerView(props: ComposerViewProps) {
     onDismissImageNotice,
     submissionNotice,
     onDismissSubmissionNotice,
+    onResendSubmission,
     queuedMessages,
     onRecallQueue,
     compactResult,
+    onDismissCompactResult,
     model,
     modelOptionsByProvider,
     currentModelName,
@@ -191,8 +214,9 @@ export function ComposerView(props: ComposerViewProps) {
     onModelChange,
     onModelsRefresh,
     onModelPick,
-    onCompact,
-    onAbortCompaction,
+    onCloseModelDropdown,
+    onManageModels,
+    onOpenUsage,
     isCompacting,
     compactError,
     contextUsage,
@@ -206,7 +230,15 @@ export function ComposerView(props: ComposerViewProps) {
     thinkingButtonRef,
     closeControlDropdowns,
     onSoundToggle,
+    workspace,
   } = props;
+
+  const openResourcesPage = navigation
+    ? () => {
+        onCloseMenus();
+        navigation.openResources();
+      }
+    : undefined;
 
   return (
     <div
@@ -215,7 +247,7 @@ export function ComposerView(props: ComposerViewProps) {
       hidden={!visible}
       aria-hidden={!visible}
       inert={!visible ? true : undefined}
-      style={{ flexShrink: 0, background: "transparent", padding: "12px 16px", paddingRight: isMobile ? 16 : 52 }}
+      style={{ flexShrink: 0, background: "transparent", padding: "12px 16px", paddingRight: 16 }}
     >
       <input
         ref={fileInputRef}
@@ -228,49 +260,45 @@ export function ComposerView(props: ComposerViewProps) {
         }}
       />
       <div className="chat-content-column">
-        {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
-          <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
-        )}
         {imageAttachNotice && (
-          <NoticeBanner
+          <ComposerBanner
+            tone="error"
             message={imageAttachNotice}
             onDismiss={onDismissImageNotice}
-            dismissLabel="Dismiss image attachment error"
+            dismissLabel={t("dismissImageAttachError", "Dismiss image attachment error")}
           />
         )}
         {submissionNotice && (
-          <NoticeBanner
+          <ComposerBanner
             testId="composer-submission-error"
-            message={submissionNotice}
+            tone={submissionNotice.tone}
+            message={submissionNotice.message}
             onDismiss={onDismissSubmissionNotice}
             dismissLabel={t("dismissSubmissionError", "Dismiss submission error")}
+            action={
+              submissionNotice.canResend ? { label: t("resendMessage", "Resend"), onClick: onResendSubmission } : null
+            }
           />
         )}
-        {compactResult && <CompactResultBanner result={compactResult} />}
+        {compactResult && <CompactResultBanner result={compactResult} onDismiss={onDismissCompactResult} />}
+
+        {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
+          <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
+        )}
 
         <div data-composer-anchor style={{ position: "relative" }}>
-          {plusMenuOpen && (
-            <PlusMenu
-              rows={
-                [
-                  {
-                    key: "files",
-                    name: t("plusAttachFiles", "Add files"),
-                    desc: t("plusAttachFilesDesc", "Upload files from your computer"),
-                    icon: <PaperclipIcon size={15} />,
-                    onSelect: onOpenPicker,
-                  },
-                  {
-                    key: "skill",
-                    name: t("plusUseSkill", "Use a skill"),
-                    desc: t("plusUseSkillDesc", "Browse and invoke installed skills"),
-                    icon: <PackageIcon size={15} />,
-                    onSelect: onOpenSkillPicker,
-                  },
-                ] satisfies PlusMenuRow[]
-              }
-            />
-          )}
+          <PlusMenuLayer
+            plusMenuOpen={plusMenuOpen}
+            remotePanelOpen={remotePanelOpen}
+            skillCount={skills.length}
+            remote={remote}
+            navigation={navigation}
+            onOpenPicker={onOpenPicker}
+            onOpenSkillPicker={onOpenSkillPicker}
+            onOpenRemotePanel={onOpenRemotePanel}
+            onBackToPlusMenu={onBackToPlusMenu}
+            onCloseMenus={onCloseMenus}
+          />
           {skillPickerOpen && (
             <SkillPickerPanel
               skills={skills}
@@ -278,6 +306,9 @@ export function ComposerView(props: ComposerViewProps) {
               error={skillsError ? "load-failed" : null}
               onPick={onPickSkill}
               onClose={onCloseSkillPicker}
+              onBack={onBackToPlusMenu}
+              onRetry={onRetrySkills}
+              onManage={openResourcesPage}
             />
           )}
           {skillRevealName && (
@@ -290,9 +321,9 @@ export function ComposerView(props: ComposerViewProps) {
           )}
           {slashMenuOpen && (
             <SlashMenu
-              groups={slashGroups}
+              commands={slashCommands}
+              query={slashQuery}
               loading={slashLoading}
-              countLabel={slashCountLabel}
               activeIndex={slashActiveIndex}
               itemRefs={slashItemRefs}
               onApply={onApplySlash}
@@ -310,27 +341,12 @@ export function ComposerView(props: ComposerViewProps) {
             />
           )}
 
-          <div
-            role="group"
-            aria-label={t("messageComposer", "Message input")}
-            className="chat-composer-shell"
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 8,
-              background: "var(--assistant-bg)",
-              border: `1px solid ${isStreaming && (hasSteering || onFollowUp) ? "var(--warning-border)" : "var(--border)"}`,
-              borderRadius: "var(--radius-composer)",
-              padding: "10px 12px",
-              boxShadow: "0 8px 24px color-mix(in srgb, #000 8%, transparent)",
-              transition: "border-color 0.15s, background 0.15s, box-shadow 0.15s",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "flex-end", gap: 8, minWidth: 0 }}>
+          <div role="group" aria-label={t("messageComposer", "Message input")} className="chat-composer-shell">
+            <div className="chat-composer-row">
               <button
                 type="button"
                 aria-haspopup="menu"
-                aria-expanded={plusMenuOpen}
+                aria-expanded={plusMenuOpen || remotePanelOpen}
                 onClick={onTogglePlusMenu}
                 title={t(
                   "attachLocalFilesDescription",
@@ -339,35 +355,33 @@ export function ComposerView(props: ComposerViewProps) {
                 aria-label={t("attachLocalFiles", "Add images or local file references")}
                 style={{
                   flexShrink: 0,
-                  alignSelf: "flex-end",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  width: 28,
-                  height: 28,
+                  width: 30,
+                  height: 30,
+                  marginBottom: 1,
                   padding: 0,
-                  background: attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent",
+                  background:
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "var(--fx-surface-hover-clear)",
                   border: "none",
                   borderRadius: "var(--radius-control)",
-                  color: attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)",
+                  color: attachmentTokens.length > 0 ? "var(--fx-accent-blue)" : "var(--fx-text-secondary)",
                   cursor: "pointer",
-                  transition: "background 0.12s, color 0.12s, transform 0.12s",
+                  transition:
+                    "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out), transform var(--duration-micro)",
                 }}
                 onMouseEnter={(event) => {
                   event.currentTarget.style.background =
-                    attachmentTokens.length > 0
-                      ? "color-mix(in srgb, var(--accent) 14%, transparent)"
-                      : "var(--bg-hover)";
-                  event.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text)";
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-selection)" : "var(--fx-surface-hover-overlay)";
                 }}
                 onMouseLeave={(event) => {
                   event.currentTarget.style.background =
-                    attachmentTokens.length > 0 ? "var(--accent-soft)" : "transparent";
-                  event.currentTarget.style.color = attachmentTokens.length > 0 ? "var(--accent)" : "var(--text-muted)";
+                    attachmentTokens.length > 0 ? "var(--fx-accent-blue-soft)" : "var(--fx-surface-hover-clear)";
                 }}
                 className="tap-scale"
               >
-                <PlusIcon size={16} />
+                <PlusIcon size={17} />
               </button>
               <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
                 <ComposerEditable
@@ -407,7 +421,22 @@ export function ComposerView(props: ComposerViewProps) {
           </div>
         </div>
 
-        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: isMobile ? 2 : 6 }}>
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: isMobile ? 2 : "var(--space-3)",
+            padding: isMobile ? 0 : "0 6px",
+          }}
+        >
+          {workspace ? (
+            <div style={{ flex: "1 1 0", minWidth: 0, display: "flex" }}>
+              <WorkspaceTrigger workspace={workspace} isMobile={isMobile} />
+            </div>
+          ) : (
+            !isMobile && <div style={{ flex: "1 1 0", minWidth: 0 }} />
+          )}
           <div style={{ flex: isMobile ? "1 1 auto" : "0 0 auto", minWidth: 0, display: "flex" }}>
             <ModelPicker
               model={model}
@@ -426,6 +455,8 @@ export function ComposerView(props: ComposerViewProps) {
               onModelChange={onModelChange}
               onModelsRefresh={onModelsRefresh}
               onModelPick={onModelPick}
+              onClose={onCloseModelDropdown}
+              onManageModels={onManageModels}
             />
           </div>
           <SessionControls
@@ -441,8 +472,7 @@ export function ComposerView(props: ComposerViewProps) {
             onThinkingToggle={onToggleThinkingDropdown}
             thinkingContainerRef={thinkingContainerRef}
             thinkingButtonRef={thinkingButtonRef}
-            onCompact={onCompact}
-            onAbortCompaction={onAbortCompaction}
+            onOpenUsage={onOpenUsage}
             isCompacting={isCompacting}
             compactError={compactError}
             contextUsage={contextUsage}

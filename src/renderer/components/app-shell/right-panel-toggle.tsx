@@ -1,51 +1,64 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 
-export function RightPanelToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export type RightPanelTogglePlacement = "top-bar" | "panel";
+
+export function useRightPanelToggleFocus(onToggle: () => void) {
+  const [focusTarget, setFocusTarget] = useState<RightPanelTogglePlacement | null>(null);
+  const toggleFrom = useCallback(
+    (placement: RightPanelTogglePlacement) => {
+      setFocusTarget(placement === "panel" ? "top-bar" : "panel");
+      onToggle();
+    },
+    [onToggle],
+  );
+  const clearFocusTarget = useCallback(() => setFocusTarget(null), []);
+  return { focusTarget, toggleFrom, clearFocusTarget };
+}
+
+export function RightPanelToggle({
+  placement,
+  onToggle,
+  focusRequested = false,
+  onFocusHandled,
+}: {
+  placement: RightPanelTogglePlacement;
+  onToggle: () => void;
+  focusRequested?: boolean;
+  onFocusHandled?: () => void;
+}) {
   const { t } = useI18n();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const open = placement === "panel";
   const label = open ? t("hideFilePanel", "Hide file panel") : t("showFilePanel", "Show file panel");
+
+  useEffect(() => {
+    if (!focusRequested) return;
+    buttonRef.current?.focus();
+    onFocusHandled?.();
+  }, [focusRequested, onFocusHandled]);
+
   return (
     <button
+      ref={buttonRef}
+      type="button"
       onClick={onToggle}
       title={label}
       aria-label={label}
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        zIndex: 300,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        width: 36,
-        height: 36,
-        padding: 0,
-        background: "var(--bg-panel)",
-        border: "none",
-        borderLeft: "1px solid var(--border)",
-        borderBottom: "1px solid var(--border)",
-        color: open ? "var(--text)" : "var(--text-muted)",
-        cursor: "pointer",
-        transition: "color 0.12s",
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.color = "var(--text)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.color = open ? "var(--text)" : "var(--text-muted)";
-      }}
+      className={`right-panel-toggle right-panel-toggle-${placement}`}
+      data-open={open}
     >
       <svg
-        width="16"
-        height="16"
         viewBox="0 0 24 24"
         fill="none"
         stroke="currentColor"
-        strokeWidth="2"
+        strokeWidth="1.75"
         strokeLinecap="round"
         strokeLinejoin="round"
+        aria-hidden="true"
       >
-        <rect x="3" y="3" width="18" height="18" rx="2" />
-        <line x1="15" y1="3" x2="15" y2="21" />
+        <rect width="18" height="18" x="3" y="3" rx="2" />
+        <path d="M15 3v18" />
       </svg>
     </button>
   );

@@ -1,0 +1,10 @@
+[
+  "components/ToolchainsConfig.tsx",
+  "components/toolchains/issue-cards.tsx",
+  "components/toolchains/overview-section.tsx",
+  "components/toolchains/ready-list.tsx",
+  "components/toolchains/section-parts.tsx",
+  "components/toolchains/shared.ts",
+  "components/toolchains/storage-section.tsx",
+  "components/toolchains/tool-detail.tsx"
+]

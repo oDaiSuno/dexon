@@ -30,30 +30,21 @@ export interface WorktreeState {
 export type WorkspaceSelectResult =
   { status: "cancelled" } | { status: "selected" } | { status: "invalid"; error: string };
 
-const proceed = (action: () => void) => action();
-
 export function useProjectWorkspace({
   sessions,
   selectedCwdProp,
   onCwdChange,
   refreshKey,
-  requestDeparture = proceed,
 }: {
-  sessions: SessionInfo[];
+  sessions: readonly Pick<SessionInfo, "cwd" | "projectRoot">[];
   selectedCwdProp: string | null | undefined;
   onCwdChange?: (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => void;
   refreshKey?: number;
-  requestDeparture?: (action: () => void) => void;
 }) {
   const { t } = useI18n();
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [worktreeState, setWorktreeState] = useState<WorktreeState | null>(null);
-  const [worktreeLoadingCwd, setWorktreeLoadingCwd] = useState<string | null>(null);
   const [wtRefreshKey, setWtRefreshKey] = useState(0);
-  // Worktree switcher UI state. It lives here — NOT in the conditionally
-  // mounted WorktreeSwitcher view — so an in-flight operation and its feedback
-  // survive project switches exactly as they did in the original monolith,
-  // where this state belonged to the always-mounted sidebar.
   const [wtDropdownOpen, setWtDropdownOpen] = useState(false);
   const [wtNewOpen, setWtNewOpen] = useState(false);
   const [wtNewBranch, setWtNewBranch] = useState("");
@@ -107,16 +98,13 @@ export function useProjectWorkspace({
   useLayoutEffect(() => {
     if (!selectedCwd) {
       setWorktreeState(null);
-      setWorktreeLoadingCwd(null);
       return;
     }
     let cancelled = false;
-    setWorktreeLoadingCwd(selectedCwd);
     void import("@/lib/api-client")
       .then(({ call }) => call("worktrees.list", { projectRoot: selectedCwd }))
       .then((d) => {
         if (cancelled) return;
-        setWorktreeLoadingCwd(null);
         setWorktreeState({
           forCwd: selectedCwd,
           projectRoot: d.projectRoot,
@@ -130,70 +118,45 @@ export function useProjectWorkspace({
         });
       })
       .catch(() => {
-        if (!cancelled) {
-          setWorktreeLoadingCwd(null);
-          setWorktreeState(null);
-        }
+        if (!cancelled) setWorktreeState(null);
       });
     return () => {
       cancelled = true;
     };
   }, [selectedCwd, wtRefreshKey, refreshKey]);
 
-  const selectCustomCwd = useCallback(async (rawPath: string): Promise<WorkspaceSelectResult> => {
-    const path = rawPath.trim();
-    try {
-      const res = await fetch("/api/cwd/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: path }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
-      if (!res.ok || data.error) {
-        return { status: "invalid", error: data.error ?? `HTTP ${res.status}` };
+  const openDirectory = useCallback(
+    async (dir: string): Promise<WorkspaceSelectResult> => {
+      try {
+        const res = await fetch("/api/cwd/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cwd: dir }),
+        });
+        const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
+        if (!res.ok || data.error) {
+          return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
+        }
+        setSelectedCwd(data.cwd ?? dir);
+        return { status: "selected" };
+      } catch (e) {
+        return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
       }
-      setSelectedCwd(data.cwd ?? path);
-      return { status: "selected" };
-    } catch (e) {
-      return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
-    }
-  }, []);
-
-  const selectDefaultCwd = useCallback(async (): Promise<boolean> => {
-    try {
-      const res = await fetch("/api/default-cwd", { method: "POST" });
-      const data = (await res.json()) as { cwd?: string; error?: string };
-      if (data.cwd) {
-        setSelectedCwd(data.cwd);
-        return true;
-      }
-      return false;
-    } catch {
-      // ignore
-      return false;
-    }
-  }, []);
+    },
+    [t],
+  );
 
   /** Desktop-native directory picker (design §6.1). Falls back to path input. */
   const selectDirectoryFromPicker = useCallback(async (): Promise<WorkspaceSelectResult> => {
+    let dir: string | null | undefined;
     try {
-      const dir = await window.piBridge?.selectDirectory?.();
-      if (!dir) return { status: "cancelled" };
-      const res = await fetch("/api/cwd/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cwd: dir }),
-      });
-      const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
-      if (!res.ok || data.error) {
-        return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
-      }
-      requestDeparture(() => setSelectedCwd(data.cwd ?? dir));
-      return { status: "selected" };
+      dir = await window.piBridge?.selectDirectory?.();
     } catch (e) {
       return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
     }
-  }, [t, requestDeparture]);
+    if (!dir) return { status: "cancelled" };
+    return openDirectory(dir);
+  }, [openDirectory]);
 
   const createWorktree = useCallback(async () => {
     const branch = wtNewBranch.trim();
@@ -233,8 +196,8 @@ export function useProjectWorkspace({
 
   const handleCreateWorktree = useCallback(() => {
     if (!wtNewBranch.trim() || wtBusy || !worktreeState) return;
-    requestDeparture(() => void createWorktree());
-  }, [wtNewBranch, wtBusy, worktreeState, requestDeparture, createWorktree]);
+    void createWorktree();
+  }, [wtNewBranch, wtBusy, worktreeState, createWorktree]);
 
   const handleRemoveWorktree = useCallback(
     async (path: string, force: boolean) => {
@@ -266,14 +229,11 @@ export function useProjectWorkspace({
 
   // Clicking a worktree row moves the effective cwd and closes the dropdown —
   // verbatim from the original monolith.
-  const handleSelectWorktree = useCallback(
-    (path: string) => {
-      setWtDropdownOpen(false);
-      setWtError(null);
-      requestDeparture(() => setSelectedCwd(path));
-    },
-    [requestDeparture],
-  );
+  const handleSelectWorktree = useCallback((path: string) => {
+    setWtDropdownOpen(false);
+    setWtError(null);
+    setSelectedCwd(path);
+  }, []);
 
   // Outside click closes the dropdown and resets its entry/confirm/error state —
   // verbatim from the original monolith's shared document listener.
@@ -321,32 +281,6 @@ export function useProjectWorkspace({
     selectedProject &&
     worktreePathsEqual(selectedProject, worktreeState.projectRoot),
   );
-  const worktreeGuide =
-    selectedCwd &&
-    worktreeState &&
-    selectedProject &&
-    worktreePathsEqual(selectedProject, worktreeState.projectRoot) &&
-    !showWorktreeSwitcher
-      ? worktreeState.isGit
-        ? {
-            label: t("worktreeOpenRepoRoot", "Open repo root"),
-            title: t("worktreeOpenRepoRootHint", "Open the repository root to manage worktrees."),
-          }
-        : {
-            label: t("worktreeRepoRootOnly", "Git repo root only"),
-            title: t("worktreeRepoRootOnlyHint", "Worktrees are available in Git repository roots."),
-          }
-      : null;
-  const worktreeLoading = Boolean(selectedCwd && worktreeLoadingCwd === selectedCwd);
-  const inactiveWorktreeSelector =
-    worktreeGuide ??
-    (worktreeLoading && !showWorktreeSwitcher
-      ? {
-          label: t("worktrees", "Worktrees…"),
-          title: t("worktreeChecking", "Checking worktrees for this directory."),
-        }
-      : null);
-
   return {
     selectedCwd,
     setSelectedCwd,
@@ -354,12 +288,8 @@ export function useProjectWorkspace({
     projectRootFor,
     selectedProject,
     showWorktreeSwitcher,
-    worktreeGuide,
-    worktreeLoading,
-    inactiveWorktreeSelector,
-    selectCustomCwd,
-    selectDefaultCwd,
     selectDirectoryFromPicker,
+    openDirectory,
     wtDropdownOpen,
     toggleWorktreeDropdown,
     resetWorktreeDropdownForOutsideClick,
@@ -377,3 +307,5 @@ export function useProjectWorkspace({
     handleSelectWorktree,
   };
 }
+
+export type ProjectWorkspaceState = ReturnType<typeof useProjectWorkspace>;

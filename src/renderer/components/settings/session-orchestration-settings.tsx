@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import { useI18n } from "@/i18n";
 import { listModels } from "@/lib/api-client";
+import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 import {
   DEFAULT_SESSION_ORCHESTRATION_SETTINGS,
   SESSION_ORCHESTRATION_LIMITS,
@@ -9,7 +10,8 @@ import {
   type SessionOrchestrationSettings as Settings,
   type SessionThinkingLevel,
 } from "@shared/session-orchestration";
-import { SettingRow, selectStyle } from "./setting-row";
+import { SettingGroup, SettingNote, SettingRow, toggleHitAreaStyle } from "./setting-row";
+import { NativeSelect, Toggle } from "../form-controls";
 
 interface ModelOption {
   provider: string;
@@ -96,41 +98,49 @@ export function SessionOrchestrationSettings() {
   const enabled = settings.enabled;
 
   return (
-    <section style={{ maxWidth: 620 }}>
-      <h2 style={{ margin: 0, fontSize: "var(--text-body-lg)", color: "var(--text)" }}>
-        {t("sessionCollaboration", "Session collaboration")}
-      </h2>
-      <p style={{ margin: "8px 0 16px", fontSize: "var(--text-label)", lineHeight: 1.6, color: "var(--text-dim)" }}>
-        {t(
+    <SettingGroup
+      title={t("sessionCollaboration", "Session collaboration")}
+      notes={
+        <>
+          {loadFailed && (
+            <SettingNote alert>
+              {t(
+                "sessionCollaborationLoadFailed",
+                "Session collaboration settings could not be loaded. The feature stays off.",
+              )}
+            </SettingNote>
+          )}
+          {saveFailed && (
+            <SettingNote alert>
+              {t(
+                "sessionCollaborationSaveFailed",
+                "Session collaboration settings could not be saved. The previous setting was restored.",
+              )}
+            </SettingNote>
+          )}
+        </>
+      }
+    >
+      <SettingRow
+        label={t("sessionCollaborationEnable", "Enable session collaboration")}
+        description={t(
           "sessionCollaborationDescription",
           "Let a session's Agent open, message, wait for and close other sessions. Each one is a normal session you can watch or take over.",
         )}
-      </p>
-      <SettingRow label={t("sessionCollaborationEnable", "Enable session collaboration")} controlId={enableControlId}>
-        <label
-          htmlFor={enableControlId}
-          style={{
-            width: 36,
-            height: 36,
-            display: "grid",
-            placeItems: "center",
-            flexShrink: 0,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          <input
+        controlId={enableControlId}
+      >
+        <label htmlFor={enableControlId} style={{ ...toggleHitAreaStyle, cursor: loading ? "not-allowed" : "pointer" }}>
+          <Toggle
             id={enableControlId}
-            type="checkbox"
             checked={enabled}
             disabled={loading}
             onChange={(event) => save({ ...settings, enabled: event.target.checked })}
-            style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)" }}
           />
         </label>
       </SettingRow>
 
       {enabled && (
-        <div style={{ display: "grid", gap: 12, marginTop: 12 }}>
+        <>
           <SettingRow
             label={t("sessionCollaborationMaxRunning", "Maximum running sessions")}
             controlId={limitControlId}
@@ -150,29 +160,18 @@ export function SessionOrchestrationSettings() {
                 event.preventDefault();
                 commitLimit();
               }}
-              style={{
-                width: 88,
-                minHeight: 36,
-                padding: "8px 12px",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-control)",
-                background: "var(--bg)",
-                color: "var(--text)",
-                fontSize: "var(--text-body)",
-                fontVariantNumeric: "tabular-nums",
-                textAlign: "right",
-              }}
+              className="ui-input type-mono-label"
+              data-mono
             />
           </SettingRow>
           <SettingRow label={t("sessionCollaborationModel", "Session model")} controlId={modelControlId}>
-            <select
+            <NativeSelect
               id={modelControlId}
               value={settings.model ? `${settings.model.provider}:${settings.model.modelId}` : ""}
               onChange={(event) => {
                 const chosen = models.find((model) => modelValue(model) === event.target.value);
                 save({ ...settings, model: chosen ? { provider: chosen.provider, modelId: chosen.id } : null });
               }}
-              style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
               {models.map((model) => (
@@ -180,16 +179,15 @@ export function SessionOrchestrationSettings() {
                   {model.name}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </SettingRow>
           <SettingRow label={t("sessionCollaborationThinking", "Thinking level")} controlId={thinkingControlId}>
-            <select
+            <NativeSelect
               id={thinkingControlId}
               value={settings.thinkingLevel ?? ""}
               onChange={(event) =>
                 save({ ...settings, thinkingLevel: (event.target.value || null) as SessionThinkingLevel | null })
               }
-              style={selectStyle}
             >
               <option value="">{t("sessionCollaborationSameAsCreator", "Same as creator")}</option>
               {SESSION_THINKING_LEVELS.map((level) => (
@@ -197,69 +195,22 @@ export function SessionOrchestrationSettings() {
                   {thinkingLevelLabel(level, t)}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </SettingRow>
           <SettingRow
             label={t("sessionCollaborationAllowUserSessions", "Allow messaging any session")}
             controlId={allowUserSessionsControlId}
           >
-            <label
-              htmlFor={allowUserSessionsControlId}
-              style={{ width: 36, height: 36, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer" }}
-            >
-              <input
+            <label htmlFor={allowUserSessionsControlId} style={{ ...toggleHitAreaStyle, cursor: "pointer" }}>
+              <Toggle
                 id={allowUserSessionsControlId}
-                type="checkbox"
                 checked={settings.allowUserSessions}
                 onChange={(event) => save({ ...settings, allowUserSessions: event.target.checked })}
-                style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)" }}
               />
             </label>
           </SettingRow>
-        </div>
+        </>
       )}
-
-      {loadFailed && (
-        <p
-          role="alert"
-          style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
-        >
-          {t(
-            "sessionCollaborationLoadFailed",
-            "Session collaboration settings could not be loaded. The feature stays off.",
-          )}
-        </p>
-      )}
-      {saveFailed && (
-        <p
-          role="alert"
-          style={{ margin: "8px 0 0", fontSize: "var(--text-label)", lineHeight: 1.55, color: "var(--danger)" }}
-        >
-          {t(
-            "sessionCollaborationSaveFailed",
-            "Session collaboration settings could not be saved. The previous setting was restored.",
-          )}
-        </p>
-      )}
-    </section>
+    </SettingGroup>
   );
-}
-
-function thinkingLevelLabel(level: SessionThinkingLevel, t: (key: string, fallback: string) => string): string {
-  switch (level) {
-    case "off":
-      return t("thinkingOff", "Off");
-    case "minimal":
-      return t("thinkingMinimal", "Minimal");
-    case "low":
-      return t("thinkingLow", "Low");
-    case "medium":
-      return t("thinkingMedium", "Medium");
-    case "high":
-      return t("thinkingHigh", "High");
-    case "xhigh":
-      return t("thinkingXHigh", "Extra high");
-    default:
-      return t("thinkingMax", "Max");
-  }
 }

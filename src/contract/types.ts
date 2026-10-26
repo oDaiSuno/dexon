@@ -30,10 +30,20 @@ export interface SessionInfo {
   worktreeBranch?: string;
 }
 
+export interface ContextUsageBreakdown {
+  systemPrompt: number;
+  tools: number;
+  agentsAndSkills: number;
+  conversation: number;
+  toolResults: number;
+}
+
 export interface ContextUsageInfo {
   percent: number | null;
   contextWindow: number;
   tokens: number | null;
+  reserveTokens?: number;
+  breakdown?: ContextUsageBreakdown;
 }
 
 export interface SessionDetail {
@@ -71,6 +81,8 @@ export interface SessionStatsSummary {
     total: number;
   };
   cost: number;
+  costs: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  lastCompactionAt: string | null;
 }
 
 export interface ContextInfo {
@@ -188,6 +200,13 @@ export interface ModelPreferencesResult {
   enabledModels: string[] | null;
 }
 
+export type DefaultThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+
+export interface ModelDefaultsResult {
+  model: { provider: string; modelId: string } | null;
+  thinkingLevel: DefaultThinkingLevel;
+}
+
 export interface ModelsConfig {
   [key: string]: unknown;
 }
@@ -201,6 +220,26 @@ export interface TestResult {
   ok: boolean;
   error?: string;
   [key: string]: unknown;
+}
+
+export type ProviderChannelTestResult =
+  | { ok: true; latencyMs: number; status?: number; testedAt: string }
+  | {
+      ok: false;
+      reason: "timeout" | "error";
+      error: string;
+      latencyMs?: number;
+      status?: number;
+      testedAt: string;
+    };
+
+export interface ProviderChannelState {
+  enabled: boolean;
+  lastTest: ProviderChannelTestResult | null;
+}
+
+export interface ProviderChannelsResult {
+  channels: Record<string, ProviderChannelState>;
 }
 
 export interface ProviderStatus {

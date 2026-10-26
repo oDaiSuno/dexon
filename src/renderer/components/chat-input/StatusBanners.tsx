@@ -1,65 +1,67 @@
+import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
-import { scaledChatFont } from "@/lib/chat-appearance";
-import { splitLocalFileReferenceMarkdown } from "@/lib/file-url";
-import { RecallIcon } from "./icons";
+import { segmentByAttachmentTokens } from "@shared/attachment-tokens";
+import { AttachmentChip } from "../messages/message-chips";
+import { CircleAlertIcon, CircleCheckIcon, CloseIcon, Icon, RecallIcon, TriangleAlertIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
+
+function ListEndIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M16 12H3" />
+      <path d="M16 6H3" />
+      <path d="M10 18H3" />
+      <path d="M21 6v10a2 2 0 0 1-2 2h-5" />
+      <path d="m16 16-2 2 2 2" />
+    </Icon>
+  );
+}
+
+function SteerIcon({ size = 13 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="m15 10 5 5-5 5" />
+      <path d="M4 4v7a4 4 0 0 0 4 4h12" />
+    </Icon>
+  );
+}
+
+function FollowUpIcon({ size = 13 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M12 17V3" />
+      <path d="m6 11 6 6 6-6" />
+      <path d="M19 21H5" />
+    </Icon>
+  );
+}
 
 function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: string }) {
   const { t } = useI18n();
-  const segments = splitLocalFileReferenceMarkdown(text);
+  const isSteer = kind === "steer";
   return (
-    <div
-      title={text}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-        padding: "4px 12px",
-        fontSize: scaledChatFont(12),
-        color: "var(--text-muted)",
-        minWidth: 0,
-      }}
-    >
+    <div className="queue-tray-row" title={text}>
       <span
-        style={{
-          flexShrink: 0,
-          fontSize: scaledChatFont(10),
-          fontFamily: "var(--font-mono)",
-          padding: "1px 8px",
-          borderRadius: "var(--radius-pill)",
-          border: `1px solid ${
-            kind === "steer" ? "color-mix(in srgb, var(--accent) 45%, transparent)" : "var(--border)"
-          }`,
-          color: kind === "steer" ? "var(--accent)" : "var(--text-dim)",
-        }}
+        className="queue-tray-kind type-label-medium"
+        style={{ color: isSteer ? "var(--fx-status-warning-text)" : "var(--fx-text-secondary)" }}
       >
-        {kind === "steer" ? t("steer", "Steer") : t("followUp", "Follow-up")}
+        {isSteer ? <SteerIcon /> : <FollowUpIcon />}
+        {isSteer ? t("steer", "Steer") : t("followUp", "Follow-up")}
       </span>
-      <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {segments.map((seg, i) =>
-          seg.file === null ? (
-            <span key={i}>{seg.text}</span>
-          ) : (
-            <span
-              key={i}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "0 8px",
-                margin: "0 2px",
-                borderRadius: "var(--radius-chip)",
-                border: "1px solid var(--border)",
-                background: "var(--bg-subtle)",
-                color: "var(--text)",
-                fontSize: scaledChatFont(11),
-                verticalAlign: "baseline",
-              }}
-            >
-              {seg.text}
+      <div className="queue-tray-message type-body-default">
+        {segmentByAttachmentTokens(text).map((segment, index) =>
+          segment.type === "text" ? (
+            <span key={index} className="queue-tray-message-text">
+              {segment.text}
             </span>
+          ) : (
+            <AttachmentChip key={index} path={segment.token.path} previewUrl={null} />
           ),
         )}
+      </div>
+      <span className="queue-tray-when type-meta-default">
+        {isSteer ? t("queuedTimingNextStep", "Before next step") : t("queuedTimingAfterDone", "When done")}
       </span>
     </div>
   );
@@ -75,168 +77,107 @@ export function QueuedMessagesPanel({
   const { t } = useI18n();
   const total = queuedMessages.steering.length + queuedMessages.followUp.length;
   return (
-    <div
-      style={{
-        marginBottom: 8,
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-control)",
-        background: "var(--bg-panel)",
-        padding: "4px 0",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          padding: "2px 8px 4px 12px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: scaledChatFont(10),
-            fontFamily: "var(--font-mono)",
-            color: "var(--text-dim)",
-            textTransform: "uppercase",
-            letterSpacing: 0.4,
-          }}
-        >
-          {t("queued", "Queued")} · {total}
+    <div className="queue-tray">
+      <div className="queue-tray-header">
+        <span className="queue-tray-mark">
+          <ListEndIcon />
+        </span>
+        <span className="queue-tray-title type-label-medium">{t("queued", "Queued")}</span>
+        <span className="queue-tray-count type-mono-meta">{total}</span>
+        <span className="queue-tray-dot" aria-hidden="true" />
+        <span className="queue-tray-hint type-label-default">
+          {t("queuedHint", "Delivered in order; recall to rewrite and resend")}
         </span>
         {onRecallQueue && (
           <button
+            type="button"
+            className="queue-tray-recall type-label-medium"
             onClick={onRecallQueue}
-            title={t(
+            aria-label={t(
               "recallQueueDescription",
               "Remove all queued messages and put them back into the input box for editing",
             )}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "4px 12px",
-              fontSize: scaledChatFont(12),
-              color: "var(--text)",
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--radius-card)",
-              cursor: "pointer",
-              transition:
-                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-              whiteSpace: "nowrap",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = "var(--bg-hover)";
-              e.currentTarget.style.borderColor = "color-mix(in srgb, var(--accent) 45%, var(--border))";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = "transparent";
-              e.currentTarget.style.borderColor = "var(--border)";
-            }}
           >
-            <RecallIcon size={13} />
+            <span className="queue-tray-recall-glyph">
+              <RecallIcon size={13} />
+            </span>
             {t("recallToInput", "Recall to input")}
           </button>
         )}
       </div>
-      {queuedMessages.steering.map((text, i) => (
-        <QueuedMessageRow key={`steer-${i}`} kind="steer" text={text} />
-      ))}
-      {queuedMessages.followUp.map((text, i) => (
-        <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
-      ))}
+      <div className="queue-tray-list">
+        {queuedMessages.steering.map((text, i) => (
+          <QueuedMessageRow key={`steer-${i}`} kind="steer" text={text} />
+        ))}
+        {queuedMessages.followUp.map((text, i) => (
+          <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
+        ))}
+      </div>
     </div>
   );
 }
 
-export function NoticeBanner({
+export type ComposerBannerTone = "error" | "success" | "warning";
+
+const BANNER_ICONS: Record<ComposerBannerTone, ReactNode> = {
+  error: <CircleAlertIcon size={15} />,
+  success: <CircleCheckIcon size={15} />,
+  warning: <TriangleAlertIcon size={15} />,
+};
+
+export function ComposerBanner({
+  tone,
   message,
   onDismiss,
   dismissLabel,
+  action,
   testId,
 }: {
+  tone: ComposerBannerTone;
   message: string;
   onDismiss: () => void;
   dismissLabel: string;
+  action?: { label: string; onClick: () => void } | null;
   testId?: string;
 }) {
   return (
     <div
-      role="alert"
+      role={tone === "success" ? "status" : "alert"}
       data-testid={testId}
-      style={{
-        marginBottom: 8,
-        padding: "4px 12px",
-        background: "color-mix(in srgb, var(--danger) 8%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--danger) 28%, var(--border))",
-        borderRadius: "var(--radius-control)",
-        fontSize: scaledChatFont(12),
-        color: "var(--danger)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-      }}
+      data-tone={tone}
+      className="composer-banner"
     >
-      <span>{message}</span>
-      <button
-        type="button"
-        onClick={onDismiss}
-        aria-label={dismissLabel}
-        style={{
-          border: "none",
-          background: "transparent",
-          color: "inherit",
-          cursor: "pointer",
-          padding: 2,
-          lineHeight: 1,
-        }}
-      >
-        ×
+      <span className="composer-banner-icon">{BANNER_ICONS[tone]}</span>
+      <span className="composer-banner-message type-label-default">{message}</span>
+      {action && (
+        <button type="button" className="feedback-action type-label-medium" onClick={action.onClick}>
+          {action.label}
+        </button>
+      )}
+      <button type="button" className="feedback-close" data-size="banner" onClick={onDismiss} aria-label={dismissLabel}>
+        <CloseIcon size={14} />
       </button>
     </div>
   );
 }
 
-/** Success note after a finished compaction: tokens before → after, saved. */
-export function CompactResultBanner({ result }: { result?: CompactResultInfo | null }) {
-  if (!result) return null;
+export function CompactResultBanner({ result, onDismiss }: { result: CompactResultInfo; onDismiss: () => void }) {
+  const { t } = useI18n();
   const savedTokens = Math.max(0, result.tokensBefore - result.estimatedTokensAfter);
-  const verb =
+  const template =
     result.reason && result.reason !== "manual"
-      ? `${result.reason[0].toUpperCase()}${result.reason.slice(1)} compacted`
-      : "Compacted";
+      ? t("compactResultAuto", "Context compacted automatically: {before} → {after} tokens, {saved} saved")
+      : t("compactResultManual", "Context compacted: {before} → {after} tokens, {saved} saved");
+  const message = template
+    .replace("{before}", formatTokenCount(result.tokensBefore))
+    .replace("{after}", formatTokenCount(result.estimatedTokensAfter))
+    .replace("{saved}", formatTokenCount(savedTokens));
   return (
-    <div
-      style={{
-        marginBottom: 8,
-        padding: "4px 12px",
-        background: "var(--success-soft)",
-        border: "1px solid var(--success-border)",
-        borderRadius: "var(--radius-control)",
-        fontSize: scaledChatFont(12),
-        color: "var(--success)",
-        display: "flex",
-        alignItems: "center",
-        gap: 8,
-      }}
-    >
-      <svg
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ flexShrink: 0 }}
-        aria-hidden="true"
-      >
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-      {`${verb} ${formatTokenCount(result.tokensBefore)} -> ${formatTokenCount(result.estimatedTokensAfter)} tokens (${formatTokenCount(savedTokens)} saved)`}
-    </div>
+    <ComposerBanner
+      tone="success"
+      message={message}
+      onDismiss={onDismiss}
+      dismissLabel={t("dismissCompactResult", "Dismiss compaction result")}
+    />
   );
 }

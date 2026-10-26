@@ -69,6 +69,7 @@ export interface CompactResultInfo {
 export interface SlashCommandInfo {
   name: string;
   description?: string;
+  argumentHint?: string;
   source: "extension" | "prompt" | "skill";
   sourceInfo?: {
     path: string;

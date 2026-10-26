@@ -5,7 +5,7 @@ import { RpcError } from "../../contract/types";
 import { ToolchainError } from "../../shared/toolchains/errors";
 import { updateSkillModelInvocation } from "../skill-frontmatter";
 import { installSkill, searchSkills } from "../skills-service";
-import { applyPluginAction, readPlugins } from "../plugins-service";
+import { applyPluginAction, attachSkillPlugins, markPluginsReloaded, readPlugins } from "../plugins-service";
 
 async function resolveLoadedSkill(cwd: string, filePath: string) {
   if (!cwd || !filePath) {
@@ -50,7 +50,7 @@ export function registerResourceHandlers(server: RpcServer): void {
       const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
       await loader.reload();
       const { skills, diagnostics } = loader.getSkills();
-      return { skills, diagnostics };
+      return { skills: await attachSkillPlugins(skills, cwd), diagnostics };
     },
 
     "skills.search": async (params) => {
@@ -113,6 +113,12 @@ export function registerResourceHandlers(server: RpcServer): void {
 
     "plugins.set": async (params) => {
       return applyPluginAction(params);
+    },
+
+    "plugins.markReloaded": async (params) => {
+      const cwd = (params as { cwd?: string })?.cwd;
+      if (!cwd) throw new RpcError({ code: "BAD_REQUEST", message: "cwd required" });
+      return markPluginsReloaded(cwd);
     },
   });
 }

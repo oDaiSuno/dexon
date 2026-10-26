@@ -1,4 +1,3 @@
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { useI18n } from "@/i18n";
 
@@ -28,8 +27,8 @@ const arrowStyle = {
   height: 24,
   background: "none",
   border: "none",
-  borderRadius: "var(--bui-r-chip)",
-  color: "var(--bui-ink-3)",
+  borderRadius: "var(--radius-chip)",
+  color: "var(--fx-text-tertiary)",
   cursor: "pointer",
   transition: "color var(--duration-quick) var(--ease-out)",
 } as const;
@@ -95,17 +94,17 @@ export function UserMessageFooter({
             height: 24,
             background: "none",
             border: "none",
-            borderRadius: "var(--bui-r-chip)",
-            color: copied ? "var(--bui-green)" : "var(--bui-ink-3)",
+            borderRadius: "var(--radius-chip)",
+            color: copied ? "var(--fx-status-success-text)" : "var(--fx-text-tertiary)",
             cursor: copyableContent ? "pointer" : "not-allowed",
             opacity: copyableContent ? 1 : 0.55,
             transition: "color var(--duration-quick) var(--ease-out)",
           }}
           onMouseEnter={(e) => {
-            if (!copied) e.currentTarget.style.color = "var(--bui-ink-2)";
+            if (!copied) e.currentTarget.style.color = "var(--fx-text-secondary)";
           }}
           onMouseLeave={(e) => {
-            if (!copied) e.currentTarget.style.color = "var(--bui-ink-3)";
+            if (!copied) e.currentTarget.style.color = "var(--fx-text-tertiary)";
           }}
         >
           {copied ? (
@@ -144,6 +143,7 @@ export function UserMessageFooter({
             type="button"
             onClick={onEdit}
             title={t("editMessage", "Edit")}
+            className="type-meta-default"
             style={{
               display: "flex",
               alignItems: "center",
@@ -152,19 +152,17 @@ export function UserMessageFooter({
               height: 24,
               background: "none",
               border: "none",
-              borderRadius: "var(--bui-r-chip)",
-              color: "var(--bui-ink-3)",
+              borderRadius: "var(--radius-chip)",
+              color: "var(--fx-text-tertiary)",
               cursor: "pointer",
-              fontSize: scaledChatFont(11),
-              fontWeight: 400,
               whiteSpace: "nowrap",
               transition: "color var(--duration-quick) var(--ease-out)",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--bui-accent)";
+              e.currentTarget.style.color = "var(--fx-accent-blue-text)";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--bui-ink-3)";
+              e.currentTarget.style.color = "var(--fx-text-tertiary)";
             }}
           >
             {t("editMessage", "Edit")}
@@ -186,10 +184,9 @@ export function UserMessageFooter({
             <Chevron direction="previous" />
           </button>
           <span
+            className="type-mono-meta"
             style={{
-              fontSize: scaledChatFont(11),
-              color: "var(--bui-ink-3)",
-              fontFamily: "var(--font-mono)",
+              color: "var(--fx-text-tertiary)",
               minWidth: 28,
               textAlign: "center",
             }}
@@ -212,10 +209,9 @@ export function UserMessageFooter({
       )}
       {time && (
         <span
+          className="type-mono-meta"
           style={{
-            fontSize: scaledChatFont(11),
-            color: "var(--bui-ink-3)",
-            fontFamily: "var(--font-mono)",
+            color: "var(--fx-text-tertiary)",
             opacity: hovered ? 1 : 0,
             transition: "opacity var(--duration-quick) var(--ease-out)",
           }}

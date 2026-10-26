@@ -1,0 +1,160 @@
+{
+  "lane": "F3 远程对话页与渠道详情",
+  "legacy": [
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "name": "--text-title",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-dialog-error.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-manual-form.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-manual-form.tsx",
+      "name": "--text-micro",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "name": "--text-title",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "name": "--text-title",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-dialog-error.tsx",
+      "property": "fontSize",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-dialog-error.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-manual-form.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-manual-form.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-manual-form.tsx",
+      "property": "lineHeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "property": "fontSize",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "property": "lineHeight",
+      "count": 2
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "color": "rgba(0,0,0,.25)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/feishu-credential-dialog.tsx",
+      "color": "rgba(0,0,0,.45)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "color": "rgba(0,0,0,.25)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/login-dialog.tsx",
+      "color": "rgba(0,0,0,.45)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "color": "rgba(0,0,0,.25)",
+      "count": 1,
+      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
+    },
+    {
+      "file": "src/renderer/components/channels/channels-config/telegram-token-dialog.tsx",
+      "color": "rgba(0,0,0,.45)",
+      "count": 1,
+      "hint": "弹窗遮罩改用 var(--fx-surface-scrim)"
+    }
+  ]
+}

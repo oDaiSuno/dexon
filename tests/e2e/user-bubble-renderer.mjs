@@ -188,7 +188,13 @@ function render(theme) {
         { style: { display: "flex", flexDirection: "column", height: "100%" } },
         createElement(
           "div",
-          { style: { flexShrink: 0, background: "var(--bg-panel)", borderBottom: "1px solid var(--border)" } },
+          {
+            style: {
+              flexShrink: 0,
+              background: "var(--fx-surface-raised)",
+              borderBottom: "1px solid var(--fx-line-default)",
+            },
+          },
           createElement(SessionBreadcrumb, { session: leafSession }),
         ),
         createElement(

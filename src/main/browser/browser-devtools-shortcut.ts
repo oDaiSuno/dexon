@@ -6,12 +6,9 @@ export interface BrowserShortcutInput {
   alt: boolean;
 }
 
-const DEVTOOLS_KEYS = new Set(["i", "j", "c"]);
-
 export function isBrowserDevToolsShortcut(input: BrowserShortcutInput): boolean {
-  if (input.key.toLowerCase() === "f12") return true;
   const key = input.key.toLowerCase();
-  if (!DEVTOOLS_KEYS.has(key)) return false;
-  const primaryModifier = input.control || input.meta;
-  return primaryModifier && (input.shift || (input.meta && input.alt));
+  if (input.key.toLowerCase() === "f12") return true;
+  if (key !== "i") return false;
+  return (input.meta && input.alt) || (input.control && input.shift);
 }

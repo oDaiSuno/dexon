@@ -1,4 +1,6 @@
 import { useI18n } from "@/i18n";
+import { Button } from "../form-controls";
+import { PlusIcon } from "../resources/overview-icons";
 import { sourceLabel, sourceLabelText, type Skill } from "./skill-shared";
 
 export function SkillList({
@@ -26,12 +28,12 @@ export function SkillList({
       style={{
         width: isMobile ? "100%" : 210,
         maxHeight: isMobile ? "40vh" : undefined,
-        borderRight: isMobile ? "none" : "1px solid var(--border)",
-        borderBottom: isMobile ? "1px solid var(--border)" : "none",
+        borderRight: isMobile ? "none" : "1px solid var(--fx-line-default)",
+        borderBottom: isMobile ? "1px solid var(--fx-line-default)" : "none",
         display: "flex",
         flexDirection: "column",
         flexShrink: 0,
-        background: "var(--bg-panel)",
+        background: "var(--fx-surface-raised)",
       }}
     >
       <div style={{ flex: 1, overflowY: "auto", padding: "8px 8px" }}>
@@ -40,7 +42,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-label)",
-              color: "var(--text-muted)",
+              color: "var(--fx-text-secondary)",
             }}
           >
             {t("loading", "Loading…")}
@@ -50,7 +52,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-meta)",
-              color: "var(--danger)",
+              color: "var(--fx-status-danger)",
             }}
           >
             {error}
@@ -60,7 +62,7 @@ export function SkillList({
             style={{
               padding: "12px 8px",
               fontSize: "var(--text-meta)",
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
             }}
           >
             {t("noSkillsFound", "No skills found")}
@@ -79,7 +81,7 @@ export function SkillList({
                     padding: "4px 8px 4px",
                     fontSize: "var(--text-micro)",
                     fontWeight: 600,
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     textTransform: "uppercase",
                     letterSpacing: "0.06em",
                   }}
@@ -118,16 +120,14 @@ export function SkillList({
                           width: 7,
                           height: 7,
                           borderRadius: "50%",
-                          background: disabled ? "var(--border)" : "var(--accent)",
-                          boxShadow: disabled ? "none" : "0 0 4px var(--accent)",
-                          transition: "background 0.15s, box-shadow 0.15s",
+                          background: disabled ? "var(--fx-text-faint)" : "var(--fx-data-blue)",
                         }}
                       />
                       <span
                         style={{
                           fontSize: "var(--text-label)",
                           fontWeight: isSelected ? 600 : 400,
-                          color: disabled ? "var(--text-dim)" : "var(--text)",
+                          color: disabled ? "var(--fx-text-tertiary)" : "var(--fx-text-primary)",
                           fontFamily: "var(--font-mono)",
                           flex: 1,
                           overflow: "hidden",
@@ -145,49 +145,22 @@ export function SkillList({
           })()
         )}
       </div>
-      {/* Add skill button */}
       <div
         style={{
           padding: "8px 8px",
-          borderTop: "1px solid var(--border)",
+          borderTop: "1px solid var(--fx-line-default)",
           flexShrink: 0,
         }}
       >
-        <div
+        <Button
+          variant={addMode ? "secondary" : "ghost"}
+          aria-pressed={addMode}
           onClick={onAddSkill}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "8px 8px",
-            borderRadius: "var(--radius-control)",
-            cursor: "pointer",
-            background: addMode ? "var(--bg-selected)" : "none",
-            color: addMode ? "var(--accent)" : "var(--text-dim)",
-            fontSize: "var(--text-label)",
-          }}
-          onMouseEnter={(e) => {
-            if (!addMode) e.currentTarget.style.background = "var(--bg-hover)";
-          }}
-          onMouseLeave={(e) => {
-            if (!addMode) e.currentTarget.style.background = "none";
-          }}
+          className="w-full justify-start"
         >
-          <svg
-            width="13"
-            height="13"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="12" y1="5" x2="12" y2="19" />
-            <line x1="5" y1="12" x2="19" y2="12" />
-          </svg>
+          <PlusIcon size={14} />
           {t("addSkill", "Add skill")}
-        </div>
+        </Button>
       </div>
     </div>
   );

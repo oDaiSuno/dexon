@@ -276,7 +276,7 @@ test("a failed install keeps the form populated and reports the error", async ()
   });
 });
 
-test("reload session chains the agent command, the reloaded callback, and a refresh", async () => {
+test("reload session chains the agent command, the reloaded callback, and clears the waiting-for-reload reminders", async () => {
   await withEnvironment(async (env) => {
     const { state, Probe } = createProbe();
     const mounted = await mountProbe(Probe, { cwd: "/repo", sessionId: "session-1", onReloaded: env.onReloaded });
@@ -290,6 +290,8 @@ test("reload session chains the agent command, the reloaded callback, and a refr
       env.pending[1].deferred.resolve(pluginsResponse([pkg("npm:one", "project")]));
       await reload;
     });
+    assert.equal(env.pending[1].method, "plugins.markReloaded");
+    assert.deepEqual(env.pending[1].params, { cwd: "/repo" });
     assert.deepEqual(env.sentCommands, [["session-1", { type: "reload" }]]);
     assert.equal(env.reloadCount(), 1);
     assert.equal(state.value.actionMessage, "Session reloaded.");

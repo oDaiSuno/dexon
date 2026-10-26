@@ -92,22 +92,31 @@ export function CapabilityRequired({
       role="alert"
       style={{
         padding: 12,
-        border: "1px solid var(--warning-border)",
+        border: "1px solid var(--fx-status-warning-border)",
         borderRadius: "var(--radius-card)",
-        background: "var(--warning-soft)",
-        color: "var(--text)",
+        background: "var(--fx-status-warning-soft)",
+        color: "var(--fx-text-primary)",
       }}
     >
       <div style={{ fontSize: "var(--text-label)", fontWeight: 700 }}>
         {t("capabilityRequiredTitle", "{tool} is required for this operation.").replace("{tool}", label)}
       </div>
-      <p style={{ margin: "4px 0 12px", fontSize: "var(--text-meta)", lineHeight: 1.55, color: "var(--text-muted)" }}>
+      <p
+        style={{
+          margin: "4px 0 12px",
+          fontSize: "var(--text-meta)",
+          lineHeight: 1.55,
+          color: "var(--fx-text-secondary)",
+        }}
+      >
         {t(
           "capabilityRequiredDescription",
           "No verified tool satisfying this operation was found. Pi Desktop will not download one in the background.",
         )}
       </p>
-      {error && <p style={{ margin: "0 0 8px", fontSize: "var(--text-meta)", color: "var(--danger)" }}>{error}</p>}
+      {error && (
+        <p style={{ margin: "0 0 8px", fontSize: "var(--text-meta)", color: "var(--fx-status-danger)" }}>{error}</p>
+      )}
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
         {installAction && (
           <PromptButton primary disabled={pending !== null} onClick={() => void installAndContinue()}>
@@ -153,10 +162,10 @@ function PromptButton({
       style={{
         minHeight: 31,
         padding: "8px 12px",
-        border: `1px solid ${primary ? "var(--accent)" : "var(--border)"}`,
+        border: `1px solid ${primary ? "var(--fx-accent-blue)" : "var(--fx-line-default)"}`,
         borderRadius: "var(--radius-control)",
-        background: primary ? "var(--accent)" : "var(--bg)",
-        color: primary ? "white" : "var(--text)",
+        background: primary ? "var(--fx-accent-blue)" : "var(--fx-surface-main)",
+        color: primary ? "white" : "var(--fx-text-primary)",
         fontSize: "var(--text-meta)",
         fontWeight: 600,
         cursor: disabled ? "wait" : "pointer",

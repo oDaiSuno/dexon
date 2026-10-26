@@ -56,10 +56,10 @@ export function navigationBoundary({
   const menus = new Map();
   const browserListeners = new Set();
   const deepLinkListeners = new Set();
-  const failures = { skillSave: null };
+  const failures = { skillSave: null, openDirectory: null };
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
-  const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0 };
+  const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0, openedFiles: [] };
   const unexpected = [];
   const activity = { pending: 0, started: 0 };
   const runningListeners = new Set();
@@ -114,6 +114,10 @@ export function navigationBoundary({
       case "system.validateCwd":
         if (Object.hasOwn(unavailableSpaces, params.path)) return { ok: false, error: unavailableSpaces[params.path] };
         return { ok: true, path: params.path };
+      case "projects.inspectFolder":
+        return params.path === navigationPaths.project
+          ? { ok: true, path: navigationPaths.project }
+          : { ok: false, error: "Directory does not exist" };
       case "sessions.list":
         return {
           sessions: structuredClone(details.map((detail) => detail.info)),
@@ -124,6 +128,17 @@ export function navigationBoundary({
         if (!detail) throw new Error(`Cannot rename unknown session ${params.id}`);
         detail.info.name = params.name;
         return { ok: true };
+      }
+      case "sessions.descendants": {
+        const found = [];
+        for (let frontier = [params.id]; frontier.length > 0;) {
+          const children = details
+            .filter((item) => frontier.includes(item.info.parentSessionId) && !found.includes(item.sessionId))
+            .map((item) => item.sessionId);
+          found.push(...children);
+          frontier = children;
+        }
+        return { sessionIds: found, runningSessionIds: found.filter((id) => runningSessions.has(id)) };
       }
       case "sessions.delete": {
         const index = details.findIndex((item) => item.sessionId === params.id);
@@ -176,8 +191,12 @@ export function navigationBoundary({
         return modelList;
       case "modelsConfig.get":
         return { config: { providers: {} }, version: "navigation-fixture-v1" };
+      case "modelsConfig.channels.get":
+        return { channels: {} };
       case "models.preferences.get":
         return { enabledModels: null, models: [] };
+      case "models.defaults.get":
+        return { model: null, thinkingLevel: "medium" };
       case "auth.providers":
       case "auth.allProviders":
         return { providers: [] };
@@ -196,6 +215,10 @@ export function navigationBoundary({
           conflicted: 0,
           entries: [],
         };
+      case "git.branch":
+        return { isGit: false, branch: null };
+      case "git.headContent":
+        return { comparable: false, content: "" };
       case "files.list":
         return { entries: [] };
       case "files.watchStart":
@@ -240,6 +263,8 @@ export function navigationBoundary({
         pkg.status = pkg.disabled ? "disabled" : "loaded";
         return pluginList(params.cwd);
       }
+      case "plugins.markReloaded":
+        return pluginList(params.cwd);
       case "skills.list":
         return { skills: structuredClone(resourceFor(params?.cwd).skills) };
       case "skills.getContent":
@@ -250,9 +275,9 @@ export function navigationBoundary({
         skillWrites++;
         if (!resourceFor(params.cwd).skills.some((item) => item.filePath === params.filePath))
           throw new Error("Skill belongs to a different space");
-        if (typeof params.content !== "string") throw new Error("Fixture expects a content edit");
-        if (failures.skillSave) throw new Error(failures.skillSave);
-        files.set(params.filePath, params.content);
+        if (typeof params.disableModelInvocation !== "boolean") throw new Error("Fixture expects a visibility change");
+        resourceFor(params.cwd).skills.find((item) => item.filePath === params.filePath).disableModelInvocation =
+          params.disableModelInvocation;
         return { ok: true };
       default:
         unexpected.push(method);
@@ -299,13 +324,18 @@ export function navigationBoundary({
     for (const listener of browserListeners) listener(event);
   };
   const desktopBridge = {
+    platform: "darwin",
     getUiState: async () => structuredClone(uiState),
     setUiState: async (patch) => {
       Object.assign(uiState, patch);
     },
     getManagedProcessCapability: async () => ({ ready: false }),
     openDirectory: async (directory) => {
+      if (failures.openDirectory) throw new Error(failures.openDirectory);
       desktop.openedDirectory = directory;
+    },
+    openFile: async (filePath) => {
+      desktop.openedFiles.push(filePath);
     },
     selectDirectory: async () => {
       desktop.directoryRequests++;
@@ -355,7 +385,9 @@ export function navigationBoundary({
   // asynchronous Main-process work too; settled() must wait for them as well.
   const bridge = Object.fromEntries(
     Object.entries(desktopBridge).map(([name, value]) =>
-      name.startsWith("on") ? [name, value] : [name, (...args) => tracked(() => value(...args))],
+      typeof value !== "function" || name.startsWith("on")
+        ? [name, value]
+        : [name, (...args) => tracked(() => value(...args))],
     ),
   );
   return {
@@ -372,6 +404,7 @@ export function navigationBoundary({
     failures,
     unexpected,
     activity: () => ({ ...activity }),
+    rememberedSpace: () => uiState.lastSpaceCwd,
     hold(method, matches = () => true) {
       const entry = { method, matches, reached: false, released: createDeferred() };
       entry.released.promise.catch(() => {});

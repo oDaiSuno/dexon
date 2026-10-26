@@ -7,8 +7,8 @@ import { daysAgo, minutesAgo, treeSession } from "../fixtures/session-tree-data.
 
 after(restoreGlobals);
 
-const rowOf = (scene, title) => historyRow(scene, title).closest('[role="listitem"]');
-const indentOf = (scene, title) => rowOf(scene, title).style.paddingLeft;
+const branchOf = (scene, title) => historyRow(scene, title).closest("[data-session-branch]");
+const indentOf = (scene, title) => branchOf(scene, title).style.paddingLeft;
 
 function depthChain() {
   const sessions = [];

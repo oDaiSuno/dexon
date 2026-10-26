@@ -1,0 +1,5 @@
+{
+  "oneMatch": { "enUS": "1 match", "zhCN": "1 个匹配项" },
+  "matchCount": { "enUS": "{count} matches", "zhCN": "{count} 个匹配项" },
+  "noMatchingProjectFiles": { "enUS": "No matching files", "zhCN": "没有匹配的文件" }
+}

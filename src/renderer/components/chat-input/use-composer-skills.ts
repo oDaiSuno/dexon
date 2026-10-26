@@ -13,6 +13,7 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
   const { t } = useI18n();
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [remotePanelOpen, setRemotePanelOpen] = useState(false);
   const [skillsState, setSkillsState] = useState<{ skills: SkillRecord[]; loading: boolean; error: boolean }>({
     skills: [],
     loading: false,
@@ -37,8 +38,7 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
     setPlusMenuOpen(false);
     setSkillRevealName(null);
     setSkillPickerOpen(true);
-    loadSkills();
-  }, [loadSkills, visible]);
+  }, [visible]);
 
   const pickSkill = useCallback(
     (skill: SkillRecord) => {
@@ -52,8 +52,23 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
   const closeTransientMenus = useCallback(() => {
     setPlusMenuOpen(false);
     setSkillPickerOpen(false);
+    setRemotePanelOpen(false);
     setSkillRevealName(null);
   }, []);
+
+  const openRemotePanel = useCallback(() => {
+    if (!visible) return;
+    setPlusMenuOpen(false);
+    setSkillRevealName(null);
+    setRemotePanelOpen(true);
+  }, [visible]);
+
+  const backToPlusMenu = useCallback(() => {
+    setRemotePanelOpen(false);
+    setSkillPickerOpen(false);
+    setPlusMenuOpen(true);
+    if (visible) editableRef.current?.focus();
+  }, [editableRef, visible]);
 
   const revealSkill = useCallback((name: string) => {
     setSkillPickerOpen(false);
@@ -65,43 +80,52 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
     closeTransientMenus();
   }, [closeTransientMenus, visible]);
 
-  useEffect(() => {
-    if (!visible || !plusMenuOpen) return;
-    const close = (event: PointerEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element) || !target.closest("[data-composer-anchor]")) closeTransientMenus();
-    };
-    document.addEventListener("pointerdown", close);
-    return () => document.removeEventListener("pointerdown", close);
-  }, [closeTransientMenus, plusMenuOpen, visible]);
+  const transientMenuOpen = plusMenuOpen || skillPickerOpen || remotePanelOpen || Boolean(skillRevealName);
 
   useEffect(() => {
-    if (!visible || (!skillPickerOpen && !skillRevealName)) return;
+    if (!visible || !transientMenuOpen) return;
     const close = (event: PointerEvent) => {
       const target = event.target;
       if (!(target instanceof Element) || !target.closest("[data-composer-anchor]")) closeTransientMenus();
     };
     document.addEventListener("pointerdown", close);
     return () => document.removeEventListener("pointerdown", close);
-  }, [closeTransientMenus, skillPickerOpen, skillRevealName, visible]);
+  }, [closeTransientMenus, transientMenuOpen, visible]);
+
+  useEffect(() => {
+    if (!visible || !plusMenuOpen) return;
+    const close = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setPlusMenuOpen(false);
+    };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [plusMenuOpen, visible]);
 
   const openPlusMenu = useCallback(() => {
     if (!visible) return;
-    setPlusMenuOpen((open) => !open);
+    if (!plusMenuOpen) loadSkills();
+    setPlusMenuOpen(!plusMenuOpen);
     setSkillPickerOpen(false);
+    setRemotePanelOpen(false);
     setSkillRevealName(null);
-  }, [visible]);
+  }, [loadSkills, plusMenuOpen, visible]);
   const closePlusMenu = useCallback(() => setPlusMenuOpen(false), []);
 
   return {
     plusMenuOpen: visible && plusMenuOpen,
     skillPickerOpen: visible && skillPickerOpen,
+    remotePanelOpen: visible && remotePanelOpen,
     skillsState,
     skillRecordsRef,
     skillRevealName: visible ? skillRevealName : null,
+    loadSkills,
     openPlusMenu,
     closePlusMenu,
     openSkillPicker,
+    openRemotePanel,
+    backToPlusMenu,
     pickSkill,
     revealSkill,
     closeTransientMenus,

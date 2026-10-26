@@ -1,0 +1,12 @@
+[
+  "modelEnableChannel",
+  "modelChannelDisabled",
+  "modelChannelTimedOut",
+  "modelChannelFailed",
+  "modelChannelConnectionOk",
+  "modelTestedJustNow",
+  "modelTestedMinutesAgo",
+  "modelTestedHoursAgo",
+  "modelTestedDaysAgo",
+  "modelSaveBeforeTest"
+]

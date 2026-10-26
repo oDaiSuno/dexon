@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 import type { FileSuggestionDegradedReason } from "@/lib/file-suggestion-client";
 import { FolderIcon, getFileIcon } from "../FileIcons";
+import { CircleAlertIcon } from "./icons";
+import { FileSearchIcon, MenuFooter, MenuHeader, MenuPanel, MenuState } from "./menu-chrome";
+import { KeyHint } from "./SendControls";
 
 export interface AtSuggestionState {
   cwd: string;
@@ -13,6 +16,20 @@ export interface AtSuggestionState {
   degradedReason?: FileSuggestionDegradedReason;
   status: "loading" | "ready" | "error";
 }
+
+const SKELETON_BARS: [number, number][] = [
+  [220, 110],
+  [180, 90],
+  [260, 70],
+  [200, 120],
+];
+
+const LIST_STYLE = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 1,
+  padding: 6,
+} as const;
 
 /** @ file autocomplete list above the composer. Presentation only. */
 export function AtMenu({
@@ -32,116 +49,216 @@ export function AtMenu({
 }) {
   const { t } = useI18n();
   const loading = !suggestionState || suggestionState.status === "loading";
-  const matchCountLabel =
-    matches.length === 1
-      ? t("oneMatch", "1 match")
-      : t("matchCount", "{count} matches").replace("{count}", String(matches.length));
-  const resultHint = suggestionState?.degradedReason
-    ? ` · ${t("fileSearchDegraded", "limited to this folder")}`
-    : suggestionState?.truncated
-      ? ` · ${t("fileIndexTruncated", "index truncated")}`
-      : "";
+  const failed = suggestionState?.status === "error";
+  const query = suggestionState?.query ?? "";
+  const countLabel = loading
+    ? "…"
+    : failed
+      ? "—"
+      : matches.length === 0
+        ? t("noMatchCount", "0 matches")
+        : matches.length === 1
+          ? t("oneMatch", "1 match")
+          : t("matchCount", "{count} matches").replace("{count}", String(matches.length));
+  const showNotes = !loading && !failed;
+  const notes: ReactNode[] = [];
+  if (showNotes && suggestionState?.degradedReason) {
+    notes.push(
+      <HeaderNote
+        key="scope"
+        icon={<FolderIcon size={12} />}
+        label={t("fileSearchDegraded", "limited to this folder")}
+      />,
+    );
+  }
+  if (showNotes && suggestionState?.truncated) {
+    notes.push(<HeaderNote key="truncated" label={t("fileIndexTruncated", "index truncated")} />);
+  }
+  const needle = query.slice(query.lastIndexOf("/") + 1).toLowerCase();
+  const mentionLabel = t("menuKeyMention", "Mention");
+
+  let body: ReactNode;
+  if (loading) {
+    body = <FileSkeleton />;
+  } else if (failed) {
+    body = (
+      <MenuState
+        tone="danger"
+        icon={<CircleAlertIcon size={16} />}
+        title={t("fileSuggestionsUnavailable", "File suggestions are temporarily unavailable")}
+        description={t(
+          "fileSuggestionsUnavailableHint",
+          "Something went wrong reading project files. You can still type a full path by hand; sending is not affected.",
+        )}
+      />
+    );
+  } else if (matches.length === 0) {
+    body = (
+      <MenuState
+        icon={<FileSearchIcon />}
+        title={
+          query
+            ? t("noMatchingProjectFiles", "No files match “{query}”").replace("{query}", query)
+            : t("noFilesFound", "No files found")
+        }
+        description={t("fileNoMatchHint", "Try a shorter keyword, or separate folders with /, for example set/row.")}
+      />
+    );
+  } else {
+    body = (
+      <div style={{ ...LIST_STYLE, maxHeight: 224, overflowY: "auto", overscrollBehavior: "contain" }}>
+        {matches.map((entry, index) => (
+          <FileRow
+            key={`${entry.isDir ? "d" : "f"}:${entry.path}`}
+            entry={entry}
+            needle={needle}
+            active={index === activeIndex}
+            mentionLabel={mentionLabel}
+            buttonRef={(node) => {
+              itemRefs.current[index] = node;
+            }}
+            onApply={() => onApply(entry)}
+            onHover={() => onHover(index)}
+          />
+        ))}
+      </div>
+    );
+  }
+
+  const panelLabel = t("filesAndMatchCount", "Files · {count}").replace("{count}", countLabel);
+  const announcement = loading
+    ? t("loadingProjectFiles", "Loading files…")
+    : failed
+      ? t("fileSuggestionsUnavailable", "File suggestions are temporarily unavailable")
+      : panelLabel;
   return (
-    <div
-      className="composer-pop-in"
+    <MenuPanel label={panelLabel}>
+      <MenuHeader
+        announcement={announcement}
+        sigil="@"
+        title={t("atMenuTitle", "Files")}
+        query={query}
+        note={notes.length > 0 ? notes : undefined}
+        count={countLabel}
+      />
+      {body}
+      <MenuFooter
+        hints={[
+          { keyLabel: "↑↓", label: t("menuKeySelect", "Select") },
+          { keyLabel: "tab / ↵", label: mentionLabel },
+          { keyLabel: "esc", label: t("menuKeyClose", "Close") },
+        ]}
+        note={t("atFolderHint", "Paths ending in / are folders")}
+      />
+    </MenuPanel>
+  );
+}
+
+function HeaderNote({ icon, label }: { icon?: ReactNode; label: string }) {
+  return (
+    <>
+      <span style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 5, color: "var(--fx-text-tertiary)" }}>
+        {icon}
+        <span className="type-meta-default">{label}</span>
+      </span>
+      <span aria-hidden style={{ width: 1, height: 12, flexShrink: 0, background: "var(--fx-line-default)" }} />
+    </>
+  );
+}
+
+function FileRow({
+  entry,
+  needle,
+  active,
+  mentionLabel,
+  buttonRef,
+  onApply,
+  onHover,
+}: {
+  entry: FileIndexEntry;
+  needle: string;
+  active: boolean;
+  mentionLabel: string;
+  buttonRef: (node: HTMLButtonElement | null) => void;
+  onApply: () => void;
+  onHover: () => void;
+}) {
+  const name = entry.path.split("/").pop() ?? entry.path;
+  const dirPrefix = entry.path.slice(0, entry.path.length - name.length);
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onApply();
+      }}
+      onMouseEnter={onHover}
       style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: "calc(100% + 8px)",
-        zIndex: 120,
-        transformOrigin: "bottom center",
-        background: "var(--bg)",
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-card)",
-        boxShadow: "0 -6px 20px rgba(0,0,0,0.12)",
-        overflow: "hidden",
-        maxHeight: 300,
+        width: "100%",
+        height: 34,
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        padding: "0 10px",
+        border: "none",
+        borderRadius: "var(--radius-control)",
+        background: active ? "var(--fx-surface-hover-overlay)" : "var(--fx-surface-hover-clear)",
+        transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+        color: "var(--fx-text-primary)",
+        cursor: "pointer",
+        textAlign: "left",
       }}
     >
-      <div
-        aria-live="polite"
-        style={{
-          padding: "8px 12px",
-          borderBottom: "1px solid var(--border)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-          fontSize: scaledChatFont(11),
-          color: "var(--text-dim)",
-        }}
+      <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
+        {entry.isDir ? <FolderIcon size={14} /> : getFileIcon(name, 14)}
+      </span>
+      <span
+        className="type-mono-label"
+        style={{ minWidth: 0, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
       >
-        <span>
-          {loading
-            ? t("loadingProjectFiles", "Loading files…")
-            : `${t("filesAndMatchCount", "Files · {count}").replace("{count}", matchCountLabel)}${resultHint}`}
-        </span>
-        <span style={{ fontFamily: "var(--font-mono)" }}>Tab / Enter</span>
-      </div>
-      <div style={{ maxHeight: "calc(300px - 34px)", overflowY: "auto", padding: 4 }}>
-        {matches.length === 0 ? (
-          <div style={{ padding: "8px 8px", fontSize: scaledChatFont(12), color: "var(--text-dim)" }}>
-            {loading
-              ? t("searching", "Searching…")
-              : suggestionState?.status === "error"
-                ? t("fileSuggestionsUnavailable", "File suggestions are temporarily unavailable")
-                : t("noMatchingProjectFiles", "No matching files")}
-          </div>
-        ) : (
-          matches.map((entry, index) => {
-            const active = index === activeIndex;
-            const name = entry.path.split("/").pop() ?? entry.path;
-            const dirPrefix = entry.path.slice(0, entry.path.length - name.length);
-            return (
-              <button
-                key={`${entry.isDir ? "d" : "f"}:${entry.path}`}
-                ref={(node) => {
-                  itemRefs.current[index] = node;
-                }}
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  onApply(entry);
-                }}
-                onMouseEnter={() => onHover(index)}
-                style={{
-                  width: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "8px 8px",
-                  border: "none",
-                  borderRadius: "var(--radius-control)",
-                  background: active ? "var(--bg-selected)" : "none",
-                  transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  textAlign: "left",
-                  fontSize: scaledChatFont(12.5),
-                  fontFamily: "var(--font-mono)",
-                }}
-              >
-                <span style={{ flexShrink: 0, display: "flex", alignItems: "center" }}>
-                  {entry.isDir ? <FolderIcon size={14} /> : getFileIcon(name, 14)}
-                </span>
-                <span
-                  style={{
-                    minWidth: 0,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {dirPrefix && <span style={{ color: "var(--text-dim)" }}>{dirPrefix}</span>}
-                  {name}
-                  {entry.isDir && <span style={{ color: "var(--text-dim)" }}>/</span>}
-                </span>
-              </button>
-            );
-          })
-        )}
-      </div>
+        {dirPrefix && <span style={{ color: "var(--fx-text-tertiary)" }}>{dirPrefix}</span>}
+        <HighlightedName name={name} needle={needle} />
+        {entry.isDir && <span style={{ color: "var(--fx-text-tertiary)" }}>/</span>}
+      </span>
+      {active && <KeyHint keyLabel="↵" label={mentionLabel} />}
+    </button>
+  );
+}
+
+function HighlightedName({ name, needle }: { name: string; needle: string }) {
+  const at = needle ? name.toLowerCase().indexOf(needle) : -1;
+  const muted = { color: "var(--fx-text-secondary)" };
+  if (at < 0) return <span style={muted}>{name}</span>;
+  return (
+    <>
+      <span style={muted}>{name.slice(0, at)}</span>
+      <span className="type-mono-label-strong" style={{ color: "var(--fx-text-primary)" }}>
+        {name.slice(at, at + needle.length)}
+      </span>
+      <span style={muted}>{name.slice(at + needle.length)}</span>
+    </>
+  );
+}
+
+function FileSkeleton() {
+  return (
+    <div aria-hidden className="motion-safe:animate-pulse" style={LIST_STYLE}>
+      {SKELETON_BARS.map(([path, name], index) => (
+        <div key={index} style={{ height: 34, display: "flex", alignItems: "center", gap: 10, padding: "0 10px" }}>
+          <span style={{ ...BAR_STYLE, width: 14, height: 14, borderRadius: "var(--radius-xs)" }} />
+          <span style={{ ...BAR_STYLE, width: path, maxWidth: "50%", height: 10 }} />
+          <span style={{ ...BAR_STYLE, width: name, height: 10 }} />
+        </div>
+      ))}
     </div>
   );
 }
+
+const BAR_STYLE = {
+  display: "block",
+  flexShrink: 0,
+  borderRadius: "var(--radius-skeleton)",
+  background: "var(--fx-surface-subtle)",
+} as const;

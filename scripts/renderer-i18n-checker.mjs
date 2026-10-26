@@ -1,20 +1,15 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { fileURLToPath } from "node:url";
 
 const LOCALIZED_OWNER_SUFFIXES = [
-  "components/SessionSidebar.tsx",
-  "components/session-sidebar/sidebar-header.tsx",
-  "components/session-sidebar/project-picker.tsx",
   "components/session-sidebar/worktree-switcher.tsx",
-  "components/session-sidebar/worktree-inactive-hint.tsx",
   "components/session-sidebar/worktree-remove-confirm.tsx",
-  "components/session-sidebar/session-list.tsx",
   "components/session-sidebar/session-tree-item.tsx",
   "components/session-sidebar/session-item.tsx",
   "components/session-sidebar/session-item-actions.tsx",
   "components/session-sidebar/session-status-indicators.tsx",
-  "components/session-sidebar/pi-agent-title.tsx",
   "components/session-sidebar/path-label.tsx",
   "components/session-sidebar/animated-dropdown.tsx",
   "components/session-sidebar/session-groups.tsx",
@@ -27,8 +22,24 @@ const LOCALIZED_OWNER_SUFFIXES = [
   "components/app-nav/nav-history.tsx",
   "components/app-nav/resource-page.tsx",
   "components/FileViewer.tsx",
+  "components/file-viewer/audio-viewer.tsx",
+  "components/file-viewer/diff-segments.ts",
+  "components/file-viewer/diff-view.tsx",
+  "components/file-viewer/document-viewer.tsx",
+  "components/file-viewer/download-link.tsx",
+  "components/file-viewer/file-api-url.ts",
+  "components/file-viewer/html-preview.tsx",
+  "components/file-viewer/image-viewer.tsx",
+  "components/file-viewer/text-file-content.tsx",
+  "components/file-viewer/text-file-viewer.tsx",
+  "components/file-viewer/text-mode-toggles.tsx",
+  "components/file-viewer/types.ts",
+  "components/file-viewer/use-blob-src.ts",
+  "components/file-viewer/use-document-preview.ts",
+  "components/file-viewer/use-file-watch.ts",
+  "components/file-viewer/use-text-file.ts",
+  "components/file-viewer/watch-indicator.tsx",
   "components/FileExplorer.tsx",
-  "components/BranchNavigator.tsx",
   "components/AppShell.tsx",
   "components/app-shell/top-bar.tsx",
   "components/app-shell/session-info-popover.tsx",
@@ -299,9 +310,18 @@ function checkRetiredBrowserTerminology({ failures, root, file, sourceText }) {
   }
 }
 
+const OWNERS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-owners");
+const REGISTERED_OWNER_SUFFIXES = fs.existsSync(OWNERS_DIR)
+  ? fs
+      .readdirSync(OWNERS_DIR)
+      .filter((name) => name.endsWith(".json"))
+      .sort()
+      .flatMap((name) => JSON.parse(fs.readFileSync(path.join(OWNERS_DIR, name), "utf8")))
+  : [];
+
 function isLocalizedOwner(root, file) {
   const normalized = relative(root, file).split(path.sep).join("/");
-  return LOCALIZED_OWNER_SUFFIXES.some((suffix) => normalized.endsWith(suffix));
+  return [...LOCALIZED_OWNER_SUFFIXES, ...REGISTERED_OWNER_SUFFIXES].some((suffix) => normalized.endsWith(suffix));
 }
 
 function walk(node, visit) {

@@ -1,0 +1,40 @@
+{
+  "lane": "F4 快速接入远程与权限提示",
+  "legacy": [
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "name": "--text-label",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "name": "--text-meta",
+      "count": 3
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "property": "lineHeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/CapabilityRequired.tsx",
+      "color": "white",
+      "count": 1,
+      "hint": "主按钮上的白字改用 var(--fx-text-on-accent)"
+    }
+  ]
+}

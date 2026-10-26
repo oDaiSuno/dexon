@@ -1,6 +1,7 @@
 import { sendAgentCommand } from "@/lib/agent-client";
 import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
+import { trackSessionNaming } from "@/lib/session-naming-store";
 import { appendLocalHistoryMessage, removeLastHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage } from "@/lib/types";
 import { useCallback } from "react";
@@ -138,11 +139,13 @@ export function useSessionActions(context: Dependencies) {
             // applies it with a rename guard (a manual rename always wins).
             const titleModel = newSessionModel ?? newSessionDefaultModel;
             if (shouldAutoTitleMessage(trimmedMessage)) {
-              void requestAutoSessionTitle({
-                sessionId: sid,
-                message: trimmedMessage,
-                ...(titleModel ? { provider: titleModel.provider, modelId: titleModel.modelId } : {}),
-              });
+              void trackSessionNaming(sid, () =>
+                requestAutoSessionTitle({
+                  sessionId: sid,
+                  message: trimmedMessage,
+                  ...(titleModel ? { provider: titleModel.provider, modelId: titleModel.modelId } : {}),
+                }),
+              );
             }
           }
         } else if (session) {

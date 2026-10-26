@@ -157,6 +157,7 @@ export interface PublicCapabilityState {
   health: ToolHealth;
   reasonCode?: ToolchainErrorCode;
   candidates: PublicToolCandidate[];
+  follows?: ToolCapabilityId;
 }
 
 export interface PublicManagedComponentState {
@@ -222,6 +223,7 @@ export interface PublicToolchainState {
   operations: PublicToolchainOperation[];
   /** Path-free, project-aware requirement/provider hints for Developer Tools. */
   projectSummary?: string[];
+  managedRootLabel?: string;
   lastScanAt?: string;
   lastErrorCode?: ToolchainErrorCode;
 }

@@ -16,3 +16,9 @@ test("main-window navigation requires an exact trusted origin", () => {
   assert.equal(isAllowedMainNavigation("http://localhost:5173/settings", false), false);
   assert.equal(isAllowedMainNavigation("not a URL", true), false);
 });
+
+test("a dev copy on another port navigates only within its own port", () => {
+  assert.equal(isAllowedMainNavigation("http://localhost:5199/settings", true, 5199), true);
+  assert.equal(isAllowedMainNavigation("http://localhost:5173/settings", true, 5199), false);
+  assert.equal(isAllowedMainNavigation("http://localhost:5199/settings", false, 5199), false);
+});

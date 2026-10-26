@@ -3,7 +3,7 @@ export const RIGHT_PANEL_MIN_WIDTH = 280;
 export const RIGHT_PANEL_DEFAULT_WIDTH = 360;
 export const RIGHT_PANEL_MAX_VIEWPORT_RATIO = 0.4;
 export const CHAT_MIN_WIDTH = 420;
-export const NAV_EXPANDED_WIDTH = 224;
+export const NAV_EXPANDED_WIDTH = 272;
 export const NAV_RAIL_WIDTH = 52;
 
 const RIGHT_PANEL_KEYBOARD_STEP = 16;
@@ -17,7 +17,10 @@ export interface StorageLike {
 export interface RightPanelWidthBounds {
   minWidth: number;
   maxWidth: number;
+  maxLimitedBy: "window" | "chat";
 }
+
+export type RightPanelWidthLimit = "min" | "max";
 
 export type RightPanelResizeKey = "ArrowLeft" | "ArrowRight" | "Home" | "End";
 
@@ -42,7 +45,7 @@ export function saveRightPanelPreferredWidth(storage: StorageLike | null | undef
 
 export function getRightPanelWidthBounds(viewportWidth: number, sidebarOpen: boolean): RightPanelWidthBounds {
   if (!Number.isFinite(viewportWidth) || viewportWidth <= 0) {
-    return { minWidth: RIGHT_PANEL_MIN_WIDTH, maxWidth: RIGHT_PANEL_DEFAULT_WIDTH };
+    return { minWidth: RIGHT_PANEL_MIN_WIDTH, maxWidth: RIGHT_PANEL_DEFAULT_WIDTH, maxLimitedBy: "window" };
   }
 
   const ratioLimit = Math.floor(viewportWidth * RIGHT_PANEL_MAX_VIEWPORT_RATIO);
@@ -53,7 +56,15 @@ export function getRightPanelWidthBounds(viewportWidth: number, sidebarOpen: boo
   return {
     minWidth: Math.min(RIGHT_PANEL_MIN_WIDTH, maxWidth),
     maxWidth,
+    maxLimitedBy: ratioLimit <= availableLimit ? "window" : "chat",
   };
+}
+
+export function getRightPanelWidthLimit(width: number, bounds: RightPanelWidthBounds): RightPanelWidthLimit | null {
+  const rounded = Math.round(width);
+  if (rounded >= bounds.maxWidth) return "max";
+  if (rounded <= bounds.minWidth) return "min";
+  return null;
 }
 
 export function clampRightPanelWidth(width: number, viewportWidth: number, sidebarOpen: boolean): number {

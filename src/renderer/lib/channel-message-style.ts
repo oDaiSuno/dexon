@@ -1,4 +1,5 @@
 import type { UserMessage } from "@shared/types";
+import framerTokens from "../styles/framer-tokens.json";
 
 export type MessageSource = NonNullable<UserMessage["channelSource"]> | "local";
 export type MessageTheme = "light" | "dark";
@@ -8,29 +9,42 @@ export interface UserBubbleStyle {
   foreground: string;
 }
 
-const USER_BUBBLE_FOREGROUND = "#faf9f7";
+type FramerColorPath = keyof typeof framerTokens.colors;
 
-/* Channel bubbles keep their brand colors; the local bubble follows the
- * chat surface language (soft gray field + ink) defined in chat.css. */
+function framerHex(path: FramerColorPath, theme: MessageTheme): string {
+  const channels = framerTokens.colors[path][theme].match(/\d+/g) ?? [];
+  return `#${channels
+    .slice(0, 3)
+    .map((channel) => Number(channel).toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+const CHANNEL_BRAND: Record<Exclude<MessageSource, "local">, FramerColorPath> = {
+  weixin: "/Channel/WeChat",
+  telegram: "/Channel/Telegram",
+  feishu: "/Channel/Feishu",
+};
+
+function brandPalette(theme: MessageTheme): Record<Exclude<MessageSource, "local">, string> {
+  return {
+    weixin: framerHex(CHANNEL_BRAND.weixin, theme),
+    telegram: framerHex(CHANNEL_BRAND.telegram, theme),
+    feishu: framerHex(CHANNEL_BRAND.feishu, theme),
+  };
+}
+
 export const USER_BUBBLE_COLORS: Record<MessageTheme, Record<Exclude<MessageSource, "local">, string>> = {
-  light: {
-    weixin: "#08783e",
-    telegram: "#1677a8",
-    feishu: "#c2410c",
-  },
-  dark: {
-    weixin: "#0f6840",
-    telegram: "#176689",
-    feishu: "#a13d13",
-  },
+  light: brandPalette("light"),
+  dark: brandPalette("dark"),
 };
 
 export function getUserBubbleStyle(source: UserMessage["channelSource"] | undefined, isDark: boolean): UserBubbleStyle {
   if (!source) {
-    return { background: "var(--bui-bubble)", foreground: "var(--bui-ink)" };
+    return { background: "var(--fx-surface-card)", foreground: "var(--fx-text-primary)" };
   }
+  const theme = isDark ? "dark" : "light";
   return {
-    background: USER_BUBBLE_COLORS[isDark ? "dark" : "light"][source],
-    foreground: USER_BUBBLE_FOREGROUND,
+    background: USER_BUBBLE_COLORS[theme][source],
+    foreground: framerHex("/Channel/On Brand", theme),
   };
 }

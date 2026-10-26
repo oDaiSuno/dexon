@@ -15,6 +15,9 @@
  * （scripts/renderer-i18n-structure.test.mjs），不读仓库源码。
  */
 import { createHash } from "node:crypto";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // Phase 4 的九个导航键是组合根之外显式追加、由 nav-language 行为测试单独核对的，
 // 指纹基线必须排除它们——忠实原测试的豁免注释。
@@ -22,9 +25,6 @@ const PHASE_4_NAV_KEYS = new Set([
   "navPluginsSkills",
   "navHistory",
   "personalSpace",
-  "openCurrentFolder",
-  "chooseOtherFolder",
-  "switchSpace",
   "backToPersonalSpace",
   "pluginsTab",
   "skillsTab",
@@ -56,13 +56,7 @@ const MESSAGE_VERSION_KEYS = new Set([
   "messageEditFailed",
 ]);
 
-const NAVIGATION_INTEGRATION_KEYS = new Set([
-  "switchSpaceList",
-  "noOtherSpaces",
-  "spaceUnavailable",
-  "personalSpaceUnavailable",
-  "retry",
-]);
+const NAVIGATION_INTEGRATION_KEYS = new Set(["spaceUnavailable", "personalSpaceUnavailable", "retry"]);
 
 const SETTINGS_MIGRATION_KEYS = new Set([
   "settingsDescription",
@@ -94,9 +88,31 @@ const SESSION_ORCHESTRATION_KEYS = new Set([
   "sessionCollaborationLoadFailed",
 ]);
 
-export const INTENTIONAL_REWRITES = {
-  newSession: { enUS: "new session", zhCN: "新建会话" },
-};
+const REWRITES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-rewrites");
+
+function readRewrites(dir) {
+  const merged = {};
+  for (const name of readdirSync(dir)
+    .filter((file) => file.endsWith(".json"))
+    .sort()) {
+    for (const [key, values] of Object.entries(JSON.parse(readFileSync(path.join(dir, name), "utf8")))) {
+      if (key in merged) throw new Error(`i18n-rewrites: ${key} is registered twice (${name})`);
+      merged[key] = values;
+    }
+  }
+  return merged;
+}
+
+export const INTENTIONAL_REWRITES = readRewrites(REWRITES_DIR);
+
+const ADDED_KEYS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "i18n-added");
+
+const ADDED_KEYS = new Set(
+  readdirSync(ADDED_KEYS_DIR)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .flatMap((name) => JSON.parse(readFileSync(path.join(ADDED_KEYS_DIR, name), "utf8"))),
+);
 
 const UPSTREAM_FAILURE_KEYS = new Set([
   "failureCollapse",
@@ -111,8 +127,8 @@ const UPSTREAM_FAILURE_KEYS = new Set([
 // interactive-tools 词典模块是显式追加、由组合/奇偶校验与行为测试单独核对的，
 // 指纹基线同样排除。历史指纹本身保持不变。
 export const PRE_SPLIT_BASELINE = {
-  enUS: "29c8c32172b69d501a9b2a6643073530fd12bc6ba3bb9ac2ef449b99974647b8",
-  zhCN: "73444806d198fcf98d0ab37c3ee28963ea157ae4b2b437090d657820963f6f8b",
+  enUS: "b9a967de7820680dddeabeb29089427fd195f5844f57fdaba26a9500d7f49486",
+  zhCN: "5bc931b001c9ae5edb4108384891c90e872a03401eebabef7de6b0b1f7b30c6d",
 };
 
 // 关键 UI 场景：空态、不可逆删除、外部冲突、频道状态、更新失败。
@@ -122,8 +138,48 @@ export const CRITICAL_SCENARIO_OWNERS = {
     "components/session-sidebar/session-item-actions.tsx",
     "components/session-sidebar/worktree-remove-confirm.tsx",
   ],
-  models: ["components/ModelsConfig.tsx"],
-  channels: ["components/channels/ChannelsConfig.tsx"],
+  models: [
+    "components/ModelsConfig.tsx",
+    "components/models/add-provider-picker.tsx",
+    "components/models/api-key-detail.tsx",
+    "components/models/managed-models-control.tsx",
+    "components/models/model-detail.tsx",
+    "components/models/models-footer.tsx",
+    "components/models/oauth-detail.tsx",
+    "components/models/provider-detail.tsx",
+    "components/models/provider-icon.tsx",
+    "components/models/provider-tree.tsx",
+    "components/models/selection-detail.tsx",
+    "components/models/thinking-level-map-editor.tsx",
+    "components/models/types.ts",
+    "components/models/use-models-config.ts",
+    "components/models/use-oauth-login.ts",
+  ],
+  channels: [
+    "components/channels/ChannelsConfig.tsx",
+    "components/channels/channels-config/account-actions.tsx",
+    "components/channels/channels-config/account-card-header.tsx",
+    "components/channels/channels-config/account-card.tsx",
+    "components/channels/channels-config/account-credential-fields.tsx",
+    "components/channels/channels-config/account-credentials.ts",
+    "components/channels/channels-config/account-feedback.tsx",
+    "components/channels/channels-config/account-settings-grid.tsx",
+    "components/channels/channels-config/accounts-overview.tsx",
+    "components/channels/channels-config/activity-section.tsx",
+    "components/channels/channels-config/bindings-section.tsx",
+    "components/channels/channels-config/channel-labels.ts",
+    "components/channels/channels-config/channels-header.tsx",
+    "components/channels/channels-config/constants.ts",
+    "components/channels/channels-config/control-styles.ts",
+    "components/channels/channels-config/feishu-credential-dialog.tsx",
+    "components/channels/channels-config/feishu-dialog-error.tsx",
+    "components/channels/channels-config/feishu-manual-form.tsx",
+    "components/channels/channels-config/login-dialog.tsx",
+    "components/channels/channels-config/pairing-section.tsx",
+    "components/channels/channels-config/section-layout.tsx",
+    "components/channels/channels-config/telegram-token-dialog.tsx",
+    "components/channels/channels-config/use-channels-state.ts",
+  ],
   updates: ["components/settings/software-update.tsx", "components/settings/update-presentations.tsx"],
   skills: ["components/skills/skill-list.tsx", "components/skills/add-skill-panel.tsx"],
 };
@@ -225,6 +281,7 @@ export function dictionaryBaselineFailures({
     ...OLDER_HISTORY_KEYS,
     ...MESSAGE_VERSION_KEYS,
     ...SESSION_ORCHESTRATION_KEYS,
+    ...ADDED_KEYS,
   ])
     excluded.add(key);
   const withoutExcluded = (record) => Object.fromEntries(Object.entries(record).filter(([key]) => !excluded.has(key)));

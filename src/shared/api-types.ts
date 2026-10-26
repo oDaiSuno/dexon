@@ -4,12 +4,20 @@ export interface SkillSearchResult {
   url: string;
 }
 
+export interface SkillPluginOrigin {
+  source: string;
+  scope: PluginScope;
+  packageName?: string;
+  displayName?: string;
+}
+
 export interface SkillRecord {
   name: string;
   description: string;
   filePath: string;
   baseDir: string;
   disableModelInvocation: boolean;
+  plugin?: SkillPluginOrigin;
   sourceInfo: {
     source?: string;
     scope?: string;
@@ -38,6 +46,17 @@ export interface GitStatusResult {
   untracked: number;
   conflicted: number;
   entries: GitStatusEntry[];
+  upstream: { ahead: number; behind: number } | null;
+}
+
+export interface GitBranchResult {
+  isGit: boolean;
+  branch: string | null;
+}
+
+export interface GitHeadContentResult {
+  comparable: boolean;
+  content: string;
 }
 
 export type PluginScope = "global" | "project";
@@ -71,8 +90,10 @@ export interface PluginPackageInfo {
   disabled: boolean;
   installedPath?: string;
   packageName?: string;
+  displayName?: string;
   version?: string;
   configuredVersion?: string;
+  pendingReloadVersion?: string;
   counts: PluginResourceCounts;
   resources: PluginResourceInfo[];
   status: "loaded" | "installed" | "missing" | "disabled";

@@ -1,0 +1,9 @@
+[
+  "diffComparedWithHead",
+  "collapseUnchangedLines",
+  "fileTabChanged",
+  "gitReadingStatus",
+  "gitSyncedWithRemote",
+  "gitAheadOfRemote",
+  "gitBehindRemote"
+]

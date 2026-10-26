@@ -17,7 +17,10 @@ export type NoticeState = {
 };
 
 export type NoticeAction =
-  { type: "add"; notice: NoticeItem } | { type: "mark_oldest_exiting" } | { type: "remove"; id: string; now: number };
+  | { type: "add"; notice: NoticeItem }
+  | { type: "mark_oldest_exiting" }
+  | { type: "mark_exiting"; id: string }
+  | { type: "remove"; id: string; now: number };
 
 function markOldestNoticeExiting(notices: NoticeItem[]): NoticeItem[] {
   const index = notices.findIndex((notice) => !notice.exiting);
@@ -54,6 +57,11 @@ export function noticeReducer(state: NoticeState, action: NoticeAction): NoticeS
     }
     case "mark_oldest_exiting":
       return { ...state, visible: markOldestNoticeExiting(state.visible) };
+    case "mark_exiting":
+      return {
+        ...state,
+        visible: state.visible.map((notice) => (notice.id === action.id ? { ...notice, exiting: true } : notice)),
+      };
     case "remove": {
       const visible = state.visible.filter((notice) => notice.id !== action.id);
       return fillPendingNotices(visible, state.pending, action.now);

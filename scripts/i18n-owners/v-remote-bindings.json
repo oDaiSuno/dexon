@@ -1,0 +1,6 @@
+[
+  "components/channels/channels-config/activity-row.tsx",
+  "components/channels/channels-config/binding-menu.tsx",
+  "components/channels/channels-config/binding-row.tsx",
+  "components/channels/channels-config/binding-presentation.ts"
+]

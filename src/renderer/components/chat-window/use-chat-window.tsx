@@ -15,7 +15,7 @@ import {
   type EditDraftHandlers,
   type OutgoingImage,
 } from "../messages/user-message-editor";
-import { Props, toMinimapMessage } from "./shared";
+import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
 
@@ -32,10 +32,16 @@ export function useChatWindow({
   onSessionStatsChange,
   onSessionStatsPanelOpen,
   onContextUsageChange,
+  onCompactionChange,
+  onModelIdChange,
   onOpenFile,
   thinkingExpansionStore,
   processDetailsExpansionStore,
   visible = true,
+  channelSnapshot,
+  onChannelSnapshotChange,
+  navigation,
+  workspace,
 }: Props) {
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
 
@@ -122,6 +128,8 @@ export function useChatWindow({
     handleRecallQueue,
     handleBuiltinSlashCommand,
     handleThinkingLevelChange,
+    dismissNotice,
+    dismissCompactResult,
     loadSlashCommands,
     loadOlder,
     loadDeferredContent,
@@ -160,6 +168,8 @@ export function useChatWindow({
         sessionStats.tokens.cacheWrite,
         sessionStats.tokens.total,
         sessionStats.cost ?? 0,
+        JSON.stringify(sessionStats.costs ?? null),
+        sessionStats.lastCompactionAt ?? "",
       ].join("|")
     : null;
 
@@ -179,9 +189,7 @@ export function useChatWindow({
   );
 
   // Push context usage up to AppShell as well.
-  const ctxKey = contextUsage
-    ? `${contextUsage.percent ?? "null"}|${contextUsage.contextWindow}|${contextUsage.tokens ?? "null"}`
-    : null;
+  const ctxKey = contextUsage ? JSON.stringify(contextUsage) : null;
 
   const contextUsageRef = useRef(contextUsage);
 
@@ -196,6 +204,44 @@ export function useChatWindow({
       onContextUsageChange?.(null);
     },
     [onContextUsageChange],
+  );
+
+  const compaction = useMemo(
+    () =>
+      session || isNew
+        ? {
+            isCompacting,
+            disabled: agentRunning && !isCompacting,
+            error: compactError,
+            compact: () => void handleCompact(),
+            abort: handleAbortCompaction,
+          }
+        : null,
+    [session, isNew, isCompacting, agentRunning, compactError, handleCompact, handleAbortCompaction],
+  );
+
+  useEffect(() => {
+    onCompactionChange?.(compaction);
+  }, [compaction, onCompactionChange]);
+
+  useEffect(
+    () => () => {
+      onCompactionChange?.(null);
+    },
+    [onCompactionChange],
+  );
+
+  const displayModelId = displayModelValue?.modelId ?? null;
+
+  useEffect(() => {
+    onModelIdChange?.(displayModelId);
+  }, [displayModelId, onModelIdChange]);
+
+  useEffect(
+    () => () => {
+      onModelIdChange?.(null);
+    },
+    [onModelIdChange],
   );
 
   const onDrop = useCallback(
@@ -214,12 +260,7 @@ export function useChatWindow({
     .fill(null)
     .map((_, index) => messageRefs.current[index] ?? null);
 
-  const minimapMessages = useMemo(() => messages.flatMap((message) => toMinimapMessage(message) ?? []), [messages]);
-
-  const minimapStreamingMessage = useMemo(
-    () => (streamState.streamingMessage ? toMinimapMessage(streamState.streamingMessage) : null),
-    [streamState.streamingMessage],
-  );
+  const navigatorTurns = useMemo(() => toNavigatorTurns(messages), [messages]);
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
 
@@ -294,6 +335,15 @@ export function useChatWindow({
     ? (modelThinkingLevelMaps[`${displayModelValue.provider}:${displayModelValue.modelId}`] ?? null)
     : null;
 
+  const sessionId = session?.id;
+  const remote = useMemo(
+    () =>
+      sessionId && channelSnapshot && onChannelSnapshotChange
+        ? { sessionId, snapshot: channelSnapshot, onSnapshotChange: onChannelSnapshotChange }
+        : null,
+    [channelSnapshot, onChannelSnapshotChange, sessionId],
+  );
+
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
@@ -307,16 +357,17 @@ export function useChatWindow({
       isAutoModelSelection={isAutoModelSelection}
       modelNames={modelNames}
       modelList={modelList}
+      modelThinkingLevels={modelThinkingLevels}
       modelCatalog={modelCatalog}
       modelRefreshing={modelRefreshing}
       onModelChange={handleModelChange}
       onModelsRefresh={refreshModels}
       onModelsRefreshCancel={cancelModelRefresh}
-      onCompact={session || isNew ? handleCompact : undefined}
-      onAbortCompaction={handleAbortCompaction}
+      onOpenUsage={onSessionStatsPanelOpen}
       isCompacting={isCompacting}
       compactError={compactError}
       compactResult={compactResult}
+      onDismissCompactResult={dismissCompactResult}
       contextUsage={contextUsage}
       thinkingLevel={thinkingLevel}
       onThinkingLevelChange={session || isNew ? handleThinkingLevelChange : undefined}
@@ -334,6 +385,9 @@ export function useChatWindow({
       draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
       visible={visible}
+      remote={remote}
+      navigation={navigation}
+      workspace={workspace}
     />
   );
 
@@ -351,6 +405,7 @@ export function useChatWindow({
     isEmptyNew,
     t,
     notices,
+    dismissNotice,
     isMobile,
     scrollContainerRef,
     hasOlder,
@@ -389,8 +444,7 @@ export function useChatWindow({
     liveContentEndRef,
     chatViewportHeight,
     messagesEndRef,
-    minimapMessages,
-    minimapStreamingMessage,
+    navigatorTurns,
     isAwayFromBottom,
     reattachAutoFollow,
     belowEditorWidgets,

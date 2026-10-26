@@ -16,6 +16,7 @@ const { AccountCard, FEISHU_PERMISSION_IMPORT_JSON, FeishuCredentialDialog, Logi
     },
     tsconfig: path.join(import.meta.dirname, "../../../../tsconfig.renderer.json"),
     external: ["react", "react-dom", "react-dom/*", "@rc-component/qrcode"],
+    loader: { ".png": "dataurl" },
   });
 
 test("Telegram token dialog renders connection failures without closing", () => {
@@ -70,9 +71,10 @@ test("channel account settings expose the opt-in IM command switch", () => {
       onDelete() {},
     }),
   );
-  assert.match(html, /IM commands/);
-  assert.match(html, /Enable \/help, \/status, \/new, \/compact, and \/reload/);
-  assert.match(html, /Default tools/);
+  assert.match(html, /Chat commands/);
+  assert.match(html, /Allow \/new, \/status, \/compact and other commands in chat to control the session/);
+  assert.match(html, /role="switch"[^>]*>(?:<\/label>)?<\/div>/);
+  assert.match(html, /Tools the Agent can use/);
   assert.match(html, /synchronized to sessions currently bound to this account/);
 });
 

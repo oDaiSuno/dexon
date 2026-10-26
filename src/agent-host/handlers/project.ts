@@ -1,10 +1,15 @@
 import { existsSync } from "fs";
+import { homedir } from "os";
+import path from "path";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import { allowFileRoot, assertPathAllowed, getAllowedFileRoots, isFilePathAllowed } from "../file-access";
+import { validateExistingDirectory } from "../file-access-core";
 import type { ManagedProcessService } from "../managed-process/service";
 import {
   addWorktree,
+  getGitBranch,
+  getGitHeadContent,
   getGitStatus,
   isDirtyWorktreeError,
   listWorktrees,
@@ -88,6 +93,32 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
       const { path: cwd } = params as { path: string };
       await assertPathAllowed(cwd);
       return getGitStatus(cwd);
+    },
+
+    "git.branch": async (params) => {
+      const { path: cwd } = params as { path: string };
+      await assertPathAllowed(cwd);
+      return getGitBranch(cwd);
+    },
+
+    "git.headContent": async (params) => {
+      const { path: filePath, sourceSessionId } = params as { path: string; sourceSessionId?: string };
+      await assertPathAllowed(filePath, sourceSessionId);
+      return getGitHeadContent(filePath);
+    },
+
+    "projects.inspectFolder": async (params) => {
+      const { path: typed } = params as { path: string };
+      const expanded =
+        typed === "~"
+          ? homedir()
+          : typed.startsWith("~/") || typed.startsWith("~\\")
+            ? path.join(homedir(), typed.slice(2))
+            : typed;
+      if (!path.isAbsolute(expanded)) return { ok: false as const, error: "Not an absolute path" };
+      const validation = validateExistingDirectory(expanded);
+      if (!validation.ok) return { ok: false as const, error: validation.error };
+      return { ok: true as const, path: validation.path };
     },
   });
 }

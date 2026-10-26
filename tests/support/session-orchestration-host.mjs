@@ -162,7 +162,7 @@ export async function startSessionOrchestrationHost({
   const model = await startHeldModelServer();
   model.configure(agentDirectory, {
     models,
-    ...(retry === false ? { retry: false } : {}),
+    ...(retry === false || (retry && typeof retry === "object") ? { retry } : {}),
   });
   const mainPort = installMainProcessPort(settings ? { sessionOrchestration: settings } : {});
 

@@ -75,7 +75,7 @@ e2e/       现实验证（smoke 与真实流程，必须留下可检查的 artif
   - **不变量（阻断）**：结构契约——必备模块到岗、结构变更必须同步契约。改一个名字就该改一行契约，这是让架构决策显式化。
   - **卫生指标（只报告）**：行数预算。行数是复杂度的间接代理，不是危害本身——好文件可能超长，坏文件可能很短；把它绝对化会诱发为过检查而人为假拆分。超出预算触发审视而非直接失败；`--strict` 可临时强制。
 - 安全约束 → `npm run check:desktop-security`（含切片四批迁入的离线资产：零 CDN、KaTeX 本地字体、CSP 字体/样式源）
-- 设计令牌 → `npm run check:design`（`scripts/check-design.mjs`：令牌/对比度/字体栈/动效降级/主题启动顺序；不固定 JSX 拼写、样式出现次数或组件层级，外观效果改由设置行为与真实 Chromium 测量覆盖）
+- 设计令牌 → `npm run check:design`（`scripts/check-design.mjs`：颜色与文字样式只来自 Framer 导出（`tokens.css` 镜像区与 `typography.css` 由 `scripts/sync-framer-tokens.mjs` 生成）/写死颜色、退役名字、直写字体属性按工作线登记在 `scripts/design-debt/ledger/`，只减不增/引用不存在的设计名即阻断/对比度/字体栈/动效降级/令牌不重名/主题启动顺序；不固定 JSX 拼写、样式出现次数或组件层级，外观效果改由设置行为与真实 Chromium 测量覆盖）
 - i18n 完整性 → `npm run check:i18n`（切片四批起含词典组合结构：分片接线/键集互斥/合并等值/拆分前基准指纹/关键文案双语与属主消费）
 - CI 工作流不变量 → `npm run check:desktop-workflow`（切片四批建立：四目标矩阵、Windows 质量门、更新元数据核对、未签名 Beta 状态、SBOM/声明随包）
 - 测试基础设施 → `npm run check:test-infra`（真实 Electron 与 SDK 探针：核对 HOME、Agent、会话及平台配置/日志/临时路径都在一次性环境中，退出后确实可删除；不再读取启动器源码猜测隔离是否生效）

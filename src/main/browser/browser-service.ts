@@ -274,6 +274,10 @@ export class BrowserService {
     await this.tabs.navigate(tabId, url, undefined, true);
   }
 
+  takeOver(tabId: string): void {
+    this.tabs.takeOver(tabId);
+  }
+
   async goBack(tabId: string): Promise<void> {
     await this.tabs.goBack(tabId);
   }
@@ -733,7 +737,9 @@ export class BrowserService {
         !body.requestId ||
         body.requestId.length > 256 ||
         /[\0\r\n]/.test(body.requestId) ||
-        (body.source !== "local" && body.source !== "channel")
+        (body.source !== "local" && body.source !== "channel") ||
+        (body.channel !== undefined &&
+          (body.source !== "channel" || !["weixin", "telegram", "feishu"].includes(body.channel)))
       ) {
         throw new BrowserError("INVALID_BROWSER_REQUEST", "Browser authorization preflight is invalid");
       }
@@ -742,7 +748,7 @@ export class BrowserService {
       if (body.source === "channel" && !currentSettings.automation.allowChannelSessions) {
         throw new BrowserError("CAPABILITY_DISABLED", "Browser access for channel sessions is disabled");
       }
-      await this.authorization.request(body.sessionId, body.source, minimumPermission);
+      await this.authorization.request(body.sessionId, body.source, minimumPermission, body.channel);
       return {
         snapshot: this.policy.getSnapshot(),
         lease: this.policy.issueLease(body.sessionId),

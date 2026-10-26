@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownBody, type InlineChips } from "../MarkdownBody";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
 import { AttachmentChip, SkillChip } from "./message-chips";
@@ -92,17 +91,16 @@ export function UserMessageBubble({
     >
       <div
         data-message-source={message.channelSource ?? "local"}
+        className="chat-reading type-chat-body"
         style={{
           minWidth: 0,
           maxWidth: "100%",
           background: bubbleStyle.background,
-          borderRadius: "12px 12px 4px 12px",
-          padding: "8px 13px",
-          fontSize: scaledChatFont(13),
-          lineHeight: 1.55,
+          border: message.channelSource ? "none" : "1px solid var(--fx-line-default)",
+          borderRadius: "var(--radius-composer)",
+          padding: "var(--space-3) var(--space-4)",
           color: bubbleStyle.foreground,
           wordBreak: "break-word",
-          boxShadow: message.channelSource ? "none" : "var(--bui-shadow-btn)",
         }}
       >
         {message.sessionSource && (
@@ -130,7 +128,7 @@ export function UserMessageBubble({
                   borderRadius: "var(--radius-control)",
                   objectFit: "contain",
                   display: "block",
-                  border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
+                  border: "1px solid var(--fx-line-translucent)",
                 }}
               />
             ))}
@@ -154,7 +152,7 @@ export function UserMessageBubble({
                   borderRadius: "var(--radius-control)",
                   objectFit: "contain",
                   display: "block",
-                  border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
+                  border: "1px solid var(--fx-line-translucent)",
                 }}
               />
             ))}

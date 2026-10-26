@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ChatAppearanceController, applyChatAppearance, scaledChatFont } from "./chat-appearance.ts";
+import { ChatAppearanceController, applyChatAppearance } from "./chat-appearance.ts";
 
 function deferred() {
   let resolve;
@@ -16,7 +16,6 @@ test("DOM application writes only normalized, controlled data attributes", () =>
   const target = { dataset: {} };
   applyChatAppearance(target, { fontSize: "extra-large", layout: "wide" });
   assert.deepEqual(target.dataset, { chatFontSize: "extra-large", chatLayout: "wide" });
-  assert.equal(scaledChatFont(13.5), "calc(13.5px * var(--chat-font-scale, 1))");
 });
 
 test("controller loads defaults after a read failure without blocking startup", async () => {

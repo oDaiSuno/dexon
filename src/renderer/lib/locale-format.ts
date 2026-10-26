@@ -27,6 +27,35 @@ export function formatRelativeDateTime(
   return new Intl.DateTimeFormat(language, { dateStyle: "medium" }).format(date);
 }
 
+export function formatShortRelativeTime(
+  value: string | number | Date,
+  language: AppLanguage,
+  now: number | Date = Date.now(),
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const current = now instanceof Date ? now : new Date(now);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const elapsedSeconds = Math.max(0, Math.floor((current.getTime() - date.getTime()) / 1000));
+  if (elapsedSeconds < 60) return new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(0, "second");
+  if (elapsedSeconds < 3600) return `${Math.floor(elapsedSeconds / 60)}m`;
+  if (elapsedSeconds < 86_400) return `${Math.floor(elapsedSeconds / 3600)}h`;
+
+  const elapsedDays = calendarDaysBetween(date, current);
+  if (elapsedDays <= 1) return new Intl.RelativeTimeFormat(language, { numeric: "auto" }).format(-1, "day");
+  if (elapsedDays < 7) return `${elapsedDays}d`;
+  if (date.getFullYear() === current.getFullYear()) {
+    return new Intl.DateTimeFormat(language, { month: "short", day: "numeric" }).format(date);
+  }
+  return new Intl.DateTimeFormat(language, { year: "numeric", month: "numeric", day: "numeric" }).format(date);
+}
+
+export function calendarDaysBetween(earlier: Date, later: Date): number {
+  const start = new Date(earlier.getFullYear(), earlier.getMonth(), earlier.getDate()).getTime();
+  const end = new Date(later.getFullYear(), later.getMonth(), later.getDate()).getTime();
+  return Math.round((end - start) / 86_400_000);
+}
+
 export function formatFileSize(bytes: number, language: AppLanguage): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "";
   const units = ["B", "KB", "MB", "GB", "TB"];

@@ -1,5 +1,4 @@
 import { useMemo, useRef, useSyncExternalStore } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { useDelayedUnmount } from "./shared";
@@ -47,19 +46,17 @@ export function ThinkingBlock({
             <path d="M12 2l2.4 7.2L22 12l-7.6 2.8L12 22l-2.4-7.2L2 12l7.6-2.8z" />
           </svg>
         </span>
-        <span className={`chat-tool-name${isWorking ? " chat-shimmer-text" : ""}`}>
+        <span className={`chat-tool-name type-body-medium${isWorking ? " chat-shimmer-text" : ""}`}>
           {t("thinkingLabel", "Deep thinking")}
         </span>
-        <span className="chat-tool-chip">{preview}</span>
-        {duration !== undefined && <span className="chat-tool-meta">{duration}s</span>}
+        <span className="chat-tool-chip type-mono-label">
+          <span className="chat-tool-chip-text">{preview}</span>
+        </span>
+        {duration !== undefined && <span className="chat-tool-meta type-mono-label">{duration}s</span>}
       </button>
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
-          {traceMounted && (
-            <div className="chat-think-box" style={{ fontSize: scaledChatFont(12.5) }}>
-              {block.thinking}
-            </div>
-          )}
+          {traceMounted && <div className="chat-think-box type-body-relaxed">{block.thinking}</div>}
         </div>
       </div>
     </div>

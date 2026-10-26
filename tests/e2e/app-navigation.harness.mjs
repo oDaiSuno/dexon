@@ -9,7 +9,6 @@ import {
   nativeNavigationScenes as requiredScenes,
   nativeHistoryTitle,
   nativeSkillInitial,
-  nativeSkillSaved,
   seedNativeNavigation,
 } from "../fixtures/app-navigation-native.mjs";
 import { remainingSettings, railEntries } from "../fixtures/app-navigation-data.mjs";
@@ -66,27 +65,25 @@ async function key(keyCode, modifiers = []) {
   window.webContents.sendInputEvent({ type: "keyUp", keyCode, modifiers });
 }
 
-async function replaceText(name, value) {
-  await click("textbox", name);
-  await waitFor(async () => {
-    const selection = await page("selection");
-    return selection.focused && selection.name === name;
-  }, `${name} focused before editing`);
-  window.webContents.selectAll();
-  await waitFor(async () => {
-    const selection = await page("selection");
-    return selection.start === 0 && selection.end === selection.length;
-  }, `${name} fully selected before replacement`);
-  await window.webContents.insertText(value);
-  await waitFor(async () => (await page("value", { role: "textbox", name })) === value, `${name} replacement text`);
-}
-
 async function click(role, name, text) {
   if (role) await waitFor(() => exists(role, name), `${name} ready for native input`);
-  const point = await page("point", { role, name, text });
+  const point = await settledPoint({ role, name, text });
   window.webContents.sendInputEvent({ type: "mouseMove", ...point });
   window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
   window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+}
+
+const nextFrames = () => js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+
+async function settledPoint(target) {
+  const deadline = Date.now() + 8000;
+  let previous = await page("point", target);
+  for (;;) {
+    await nextFrames();
+    const current = await page("point", target);
+    if ((current.x === previous.x && current.y === previous.y) || Date.now() >= deadline) return current;
+    previous = current;
+  }
 }
 
 async function screenshot(name, { waitForFrames = true } = {}) {
@@ -148,8 +145,11 @@ function assertNavigationWidth(measurement, expected) {
   );
   if (measurement.resourceHeading) {
     assert.ok(measurement.resourceHeading.x >= measurement.rect.right - 1, "resources are not under the rail");
+    const centeredInset = measurement.resourceColumn
+      ? Math.max(0, (measurement.documentWidth - measurement.rect.right - measurement.resourceColumn.width) / 2)
+      : 0;
     assert.ok(
-      measurement.resourceHeading.x <= measurement.rect.right + 40,
+      measurement.resourceHeading.x <= measurement.rect.right + centeredInset + 40,
       "the former sidebar does not leave a hidden-width gap",
     );
   }
@@ -223,20 +223,22 @@ async function run() {
     await waitFor(() => exists("navigation", "Main navigation"), "the official Main navigation");
     await click("button", "Plugins & Skills");
     await waitFor(() => exists("heading", "Plugins & Skills"), "Resources as the main page");
+    await click("button", "Manage sources");
     await waitFor(
       async () => (await page("text")).includes("production-navigation-plugin"),
       "the real locally configured plugin",
     );
-    assert.equal(await exists("dialog", "Settings"), false);
-    return navigationWidth(224);
+    assert.equal(await exists("region", "Settings"), false);
+    return navigationWidth(272);
   });
   await scene("03-plugin-persistence", async () => {
-    await click("button", "Disable package");
-    await waitFor(() => exists("button", "Enable package"), "the disabled plugin");
+    await click("switch", "Disable package");
+    await waitFor(() => exists("switch", "Enable package"), "the disabled plugin");
     await reloadPage();
     await click("button", "Plugins & Skills");
-    await waitFor(() => exists("button", "Enable package"), "the disabled plugin after a real renderer reload");
-    assert.equal(await attribute("button", "Enable package", "aria-pressed"), "false");
+    await click("button", "Manage sources");
+    await waitFor(() => exists("switch", "Enable package"), "the disabled plugin after a real renderer reload");
+    assert.equal(await attribute("switch", "Enable package", "aria-checked"), "false");
     return { persistedDisabled: true, readBackAfterRendererReload: true };
   });
   await scene("04-skill-persistence", async () => {
@@ -244,31 +246,28 @@ async function run() {
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the real personal skill");
     await click(undefined, undefined, "production-checklist");
     await waitFor(
-      async () => (await page("value", { role: "textbox", name: "Skill markdown content" })) === nativeSkillInitial,
-      "the original skill file content",
+      async () => (await page("text")).includes("Read the original fixture."),
+      "the original skill file content in the read-only preview",
     );
-    await replaceText("Skill markdown content", nativeSkillSaved);
-    await waitFor(
-      async () => (await attribute("button", "Save changes", "disabled")) === null,
-      "an enabled Save changes button",
-    );
-    await click("button", "Save changes");
-    await waitFor(
-      async () => (await attribute("button", "Save changes", "disabled")) !== null,
-      "a completed skill save",
-    );
+    assert.equal(await exists("button", "Save changes"), false, "in-app editing is gone");
+    assert.equal(await exists("button", "Open in editor"), true, "editing is handed to the system editor");
+    await click("switch", "Disable skill in model prompt");
+    await waitFor(() => exists("switch", "Enable skill in model prompt"), "the hidden skill");
     await reloadPage();
     await click("button", "Plugins & Skills");
+    await click("button", "Manage sources");
     await waitFor(() => exists("tab", "Skills"), "resource tabs after a real renderer reload");
     await click("tab", "Skills");
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the reopened skill list");
     await click(undefined, undefined, "production-checklist");
     await waitFor(
-      async () => (await page("value", { role: "textbox", name: "Skill markdown content" })) === nativeSkillSaved,
-      "the saved file read back through the real Host",
+      () => exists("switch", "Enable skill in model prompt"),
+      "the visibility read back through the real Host",
     );
+    await click("switch", "Enable skill in model prompt");
+    await waitFor(() => exists("switch", "Disable skill in model prompt"), "the skill visible again");
     assert.ok((await page("text")).includes("shared-checklist"));
-    return { savedFileReadBack: true, readBackAfterRendererReload: true, globalSkillVisible: true };
+    return { visibilityReadBack: true, readBackAfterRendererReload: true, globalSkillVisible: true };
   });
   await scene("05-resource-keyboard", async () => {
     await click("tab", "Plugins");
@@ -312,10 +311,10 @@ async function run() {
   });
   await scene("07-rail-settings", async () => {
     await click("button", "Settings");
-    await waitFor(() => exists("dialog", "Settings"), "Settings from the rail");
+    await waitFor(() => exists("region", "Settings"), "Settings from the rail");
     assert.deepEqual((await page("settingsTabs")).sort(), [...remainingSettings].sort());
     await key("Escape");
-    await waitFor(async () => !(await exists("dialog", "Settings")), "Settings closed by Escape");
+    await waitFor(async () => !(await exists("region", "Settings")), "Settings closed by Escape");
     return { categories: remainingSettings };
   });
   await scene("08-new-session-and-expand", async () => {
@@ -324,17 +323,14 @@ async function run() {
     assert.equal(await exists("heading", "Plugins & Skills"), false);
     await click("button", "Show sidebar");
     await waitFor(() => exists("button", "Personal space"), "restored friendly workspace controls");
-    const measurement = await navigationWidth(224);
+    const measurement = await navigationWidth(272);
     assert.deepEqual(measurement.currentPage, [], "an empty session marks no navigation entry as the current page");
     await waitFor(() => exists("button", nativeHistoryTitle), "the original conversation after expansion");
     return { ...measurement, restoredHistory: nativeHistoryTitle };
   });
   await scene("09-space-menu-keyboard", async () => {
-    await focusByTab("Hide sidebar");
-    await key("Tab");
-    await waitFor(async () => (await page("focus")).name === "Personal space", "Personal space focused by Tab");
-    const focus = await page("focus");
-    assert.equal(focus.name, "Personal space");
+    const focus = await focusByTab("Actions for Personal space");
+    assert.equal(focus.name, "Actions for Personal space");
     assert.ok(
       focus.focusVisible && focus.outlineWidth > 0 && focus.outlineStyle !== "none",
       "workspace has a visible real-keyboard focus ring",
@@ -348,7 +344,7 @@ async function run() {
   await scene("10-minimum-window-width", async () => {
     window.setContentSize(900, 760);
     await waitFor(async () => (await page("navigation"))?.documentWidth <= 900, "the 900px minimum window");
-    const measurement = await navigationWidth(224);
+    const measurement = await navigationWidth(272);
     await waitFor(() => exists("group", "Message input"), "the chat composer beside the navigation");
     return { ...measurement, viewport: window.getContentSize() };
   });

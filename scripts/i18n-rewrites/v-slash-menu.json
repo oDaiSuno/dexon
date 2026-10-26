@@ -1,0 +1,9 @@
+{
+  "loadingCommands": { "enUS": "Loading commands…", "zhCN": "正在加载命令…" },
+  "oneCommand": { "enUS": "1 command", "zhCN": "1 个命令" },
+  "commandCount": { "enUS": "{count} commands", "zhCN": "{count} 个命令" },
+  "noSlashCommandsFound": {
+    "enUS": "No extension, prompt, or skill commands found",
+    "zhCN": "没有找到扩展、提示词或技能命令"
+  }
+}

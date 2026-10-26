@@ -1,3 +1,4 @@
+import { BROWSER_SEARCH_ENGINES } from "../../contract/browser-search.ts";
 import {
   BROWSER_SETTINGS_VERSION,
   type BrowserAdvancedBrowserModeSettings,
@@ -9,6 +10,13 @@ import {
   type BrowserSettingsPatch,
   type BrowserSettingsV2,
 } from "../../contract/browser.ts";
+import {
+  expectSafeSingleLine,
+  expectString,
+  validateDomains,
+  validateHomepage,
+  validateSearchTemplate,
+} from "./browser-settings-values.ts";
 
 const OBJECT_KEYS = new Set([
   "enabled",
@@ -35,6 +43,8 @@ const NAVIGATION_KEYS = new Set<keyof BrowserNavigationSettings>([
   "allowHttp",
   "allowPrivateNetwork",
   "networkIsolation",
+  "searchEngine",
+  "customSearchTemplate",
 ]);
 const AUTOMATION_KEYS = new Set<keyof BrowserAutomationSettings>([
   "enabled",
@@ -90,6 +100,8 @@ export function createDefaultBrowserSettings(): BrowserSettingsV2 {
       allowHttp: false,
       allowPrivateNetwork: false,
       networkIsolation: "best-effort",
+      searchEngine: "bing",
+      customSearchTemplate: "",
     },
     automation: {
       enabled: false,
@@ -144,7 +156,7 @@ export function parseBrowserSettings(value: unknown): ParsedBrowserSettings {
       };
     }
     return {
-      settings: validateBrowserSettings(value),
+      settings: validateBrowserSettings(isRecord(value) ? withSearchDefaults(value) : value),
       compatibilityReadOnly: false,
       recoveredFromInvalid: false,
     };
@@ -175,7 +187,7 @@ function migrateBrowserSettingsV1(value: Record<string, unknown>): BrowserSettin
     version: BROWSER_SETTINGS_VERSION,
     enabled: root.enabled,
     panel: root.panel,
-    navigation: root.navigation,
+    navigation: withSearchDefaults(root).navigation,
     automation: {
       ...expectRecord(root.automation, "Browser settings v1 automation"),
       // v1/v2 had no provenance for this implicit grant. Never carry it forward.
@@ -203,7 +215,7 @@ function migrateBrowserSettingsV2(value: Record<string, unknown>): BrowserSettin
   expectExactKeys(root, new Set(["version", ...OBJECT_KEYS]), "Browser settings v2");
   const defaults = createDefaultBrowserSettings();
   return validateBrowserSettings({
-    ...root,
+    ...withSearchDefaults(root),
     version: BROWSER_SETTINGS_VERSION,
     automation: {
       ...expectRecord(root.automation, "Browser settings v2 automation"),
@@ -265,6 +277,8 @@ export function validateBrowserSettings(value: unknown): BrowserSettingsV2 {
         ["best-effort", "strict"] as const,
         "navigation.networkIsolation",
       ),
+      searchEngine: expectEnum(navigation.searchEngine, BROWSER_SEARCH_ENGINES, "navigation.searchEngine"),
+      customSearchTemplate: validateSearchTemplate(navigation.customSearchTemplate),
     },
     automation: {
       enabled: expectBoolean(automation.enabled, "automation.enabled"),
@@ -358,6 +372,9 @@ export function validateBrowserSettings(value: unknown): BrowserSettingsV2 {
   if (settings.proxy.mode === "custom" && !settings.proxy.proxyRules) {
     throw new Error("proxy.proxyRules is required for custom proxy mode");
   }
+  if (settings.navigation.searchEngine === "custom" && !settings.navigation.customSearchTemplate) {
+    throw new Error("navigation.customSearchTemplate is required for the custom search engine");
+  }
   if (settings.advancedBrowserMode.identityMode === "custom") {
     if (
       !settings.advancedBrowserMode.customUserAgentValue ||
@@ -403,42 +420,13 @@ export function settingsForPersistence(settings: BrowserSettingsV2): BrowserSett
   return output;
 }
 
-function validateHomepage(value: string): string {
-  if (value === "about:blank") return value;
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    throw new Error("navigation.homepage must be an absolute URL or about:blank");
-  }
-  if (url.protocol !== "https:" && url.protocol !== "http:") {
-    throw new Error("navigation.homepage uses an unsupported protocol");
-  }
-  if (url.username || url.password) throw new Error("navigation.homepage must not contain credentials");
-  return url.toString();
-}
-
-function validateDomains(value: unknown): string[] {
-  if (!Array.isArray(value) || value.length > 128) {
-    throw new Error("advancedBrowserMode.certificateBypassDomains is invalid");
-  }
-  const domains = value.map((domain) =>
-    expectSafeSingleLine(domain, 253, "advancedBrowserMode.certificateBypassDomains[]"),
-  );
-  if (
-    domains.some(
-      (domain) =>
-        domain.startsWith(".") ||
-        domain.endsWith(".") ||
-        !domain
-          .toLowerCase()
-          .split(".")
-          .every((label) => /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label)),
-    )
-  ) {
-    throw new Error("advancedBrowserMode.certificateBypassDomains contains an invalid hostname");
-  }
-  return [...new Set(domains.map((domain) => domain.toLowerCase()))].sort();
+function withSearchDefaults(root: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...root,
+    navigation: isRecord(root.navigation)
+      ? { searchEngine: "bing", customSearchTemplate: "", ...root.navigation }
+      : root.navigation,
+  };
 }
 
 function validatePartialObject(value: unknown, allowed: ReadonlySet<PropertyKey>, label: string): void {
@@ -478,20 +466,6 @@ function expectAllowedKeys(value: Record<string, unknown>, allowed: ReadonlySet<
 function expectBoolean(value: unknown, label: string): boolean {
   if (typeof value !== "boolean") throw new Error(`${label} must be a boolean`);
   return value;
-}
-
-function expectString(value: unknown, maxLength: number, label: string): string {
-  if (typeof value !== "string" || value.length === 0 || value.length > maxLength || value.includes("\0")) {
-    throw new Error(`${label} must be a non-empty string of at most ${maxLength} characters`);
-  }
-  return value;
-}
-
-function expectSafeSingleLine(value: unknown, maxLength: number, label: string, allowEmpty = false): string {
-  if (allowEmpty && value === "") return "";
-  const stringValue = expectString(value, maxLength, label);
-  if (/[\r\n]/.test(stringValue)) throw new Error(`${label} must be a single line`);
-  return stringValue;
 }
 
 function expectSafeIdentifier(value: unknown, label: string): string {

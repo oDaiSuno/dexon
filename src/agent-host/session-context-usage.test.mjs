@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-const { computeSessionContextUsage, reconstructSessionContextUsage } = await importTestBundle(
+const { computeSessionContextUsage, describeLiveContextUsage, reconstructSessionContextUsage } = await importTestBundle(
   "src/agent-host/session-context-usage",
   {
     packages: "external",
@@ -131,4 +131,62 @@ test("reconstruction glues the session manager to the shared computation", async
     resolveContextWindow: async () => null,
   });
   assert.equal(unknownModel, null);
+});
+
+function liveSession({ tokens = 2000, autoCompaction = true, activeTools = ["read"] } = {}) {
+  return {
+    autoCompactionEnabled: autoCompaction,
+    settingsManager: { getCompactionReserveTokens: () => 1600 },
+    getContextUsage: () => ({ tokens, contextWindow: 10_000, percent: tokens === null ? null : tokens / 100 }),
+    agent: {
+      state: {
+        systemPrompt: "p".repeat(1200),
+        messages: [
+          userMessage("u".repeat(400)),
+          {
+            role: "toolResult",
+            toolCallId: "c1",
+            toolName: "read",
+            content: [{ type: "text", text: "r".repeat(1200) }],
+          },
+        ],
+      },
+    },
+    resourceLoader: {
+      getAgentsFiles: () => ({ agentsFiles: [{ path: "/p/AGENTS.md", content: "a".repeat(400) }] }),
+      getSkills: () => ({ skills: [] }),
+    },
+    getAllTools: () => [
+      { name: "read", description: "Read a file", parameters: { type: "object" } },
+      { name: "write", description: "Write a file", parameters: { type: "object" } },
+    ],
+    getActiveToolNames: () => activeTools,
+  };
+}
+
+test("a live session's usage is split into system prompt, tools, AGENTS.md and skills, conversation and tool results that add up to the used total", () => {
+  const result = describeLiveContextUsage(liveSession());
+  assert.equal(result.tokens, 2000);
+  assert.equal(result.contextWindow, 10_000);
+  assert.equal(result.reserveTokens, 1600);
+  assert.deepEqual(result.breakdown, {
+    systemPrompt: 200,
+    tools: 19,
+    agentsAndSkills: 100,
+    conversation: 420,
+    toolResults: 1261,
+  });
+});
+
+test("a live session with automatic compaction turned off reports no compaction reserve", () => {
+  const result = describeLiveContextUsage(liveSession({ autoCompaction: false }));
+  assert.equal("reserveTokens" in result, false);
+  assert.equal(result.breakdown.systemPrompt, 200);
+});
+
+test("right after compaction a live session has no split to show, only the reserve and the window", () => {
+  const result = describeLiveContextUsage(liveSession({ tokens: null }));
+  assert.equal(result.tokens, null);
+  assert.equal(result.reserveTokens, 1600);
+  assert.equal("breakdown" in result, false);
 });

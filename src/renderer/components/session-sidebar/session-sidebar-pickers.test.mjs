@@ -2,7 +2,6 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import {
   act,
-  button,
   click,
   createElement,
   dom,
@@ -16,118 +15,18 @@ import {
 import { installApiHostBridge } from "../../../../tests/support/api-host.mjs";
 
 after(restoreGlobals);
-const { resetRpc, ProjectPicker, WorktreeSwitcher, useProjectWorkspace } = await loadRenderer(
+const { resetRpc, WorkspaceTrigger, useComposerWorkspace, useProjectWorkspace } = await loadRenderer(
   "session-sidebar-pickers",
-  'export { ProjectPicker } from "./src/renderer/components/session-sidebar/project-picker.tsx";\n' +
-    'export { WorktreeSwitcher } from "./src/renderer/components/session-sidebar/worktree-switcher.tsx";\n' +
+  'export { WorkspaceTrigger } from "./src/renderer/components/chat-input/workspace-trigger.tsx";\n' +
+    'export { useComposerWorkspace } from "./src/renderer/components/app-shell/composer-workspace.ts";\n' +
     'export { useProjectWorkspace } from "./src/renderer/components/session-sidebar/project-workspace.ts";',
 );
-
-function createPickerProps(overrides = {}) {
-  const calls = { selectedProjects: [], customPaths: [], defaultCwd: 0 };
-  return {
-    props: {
-      selectedCwd: "/repo",
-      selectedProject: "/repo",
-      homeDir: "/Users/tester",
-      recentProjects: ["/repo", "/other-1", "/other-2"],
-      suppressPlaceholder: false,
-      onSelectProject: (project) => calls.selectedProjects.push(project),
-      selectCustomCwd: async (value) => {
-        calls.customPaths.push(value);
-        return { status: "selected" };
-      },
-      selectDefaultCwd: async () => {
-        calls.defaultCwd += 1;
-        return true;
-      },
-      selectDirectoryFromPicker: async () => ({ status: "selected" }),
-      deferFocus: (focus) => setTimeout(focus, 0),
-      ...overrides,
-    },
-    calls,
-  };
-}
-
-function projectRows(container, projects) {
-  const trigger = container.querySelector("button");
-  return [...container.querySelectorAll("button")].filter(
-    (control) => control !== trigger && projects.includes(control.title),
-  );
-}
 
 async function outsideMousedown() {
   await act(async () =>
     dom.window.document.body.dispatchEvent(new dom.window.MouseEvent("mousedown", { bubbles: true })),
   );
 }
-
-test("lists projects, selects one, and closes the dropdown", async (t) => {
-  const { props, calls } = createPickerProps();
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  const rows = projectRows(view.container, props.recentProjects);
-  assert.deepEqual(
-    rows.map((row) => row.title),
-    ["/repo", "/other-1", "/other-2"],
-  );
-  await click(rows[1]);
-  assert.deepEqual(calls.selectedProjects, ["/other-1"]);
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-});
-
-test("an outside click closes the dropdown and resets the custom path entry", async (t) => {
-  const { props } = createPickerProps();
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  await click(
-    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
-  );
-  assert.ok(view.container.querySelector("input"), "the custom path entry is open");
-  await outsideMousedown();
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-  assert.equal(view.container.querySelector("input"), null, "the custom path entry is reset");
-});
-
-test("escape in the project filter clears it and closes the dropdown", async (t) => {
-  const projects = Array.from({ length: 10 }, (_, index) => `/project-${index}`);
-  const { props } = createPickerProps({ recentProjects: projects });
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  const filter = view.container.querySelector("input");
-  await input(filter, "project-3");
-  assert.deepEqual(
-    projectRows(view.container, projects).map((row) => row.title),
-    ["/project-3"],
-  );
-  await keyDown(filter, "Escape");
-  await waitFor(() => assert.equal(view.container.querySelector("input") === null, true, "the filter closes"));
-  await click(view.container.querySelector("button"));
-  assert.equal(view.container.querySelector("input").value, "");
-  assert.equal(projectRows(view.container, projects).length, 10);
-});
-
-test("custom path validation failures stay visible until the path is fixed", async (t) => {
-  const { props, calls } = createPickerProps({
-    selectCustomCwd: async (value) => {
-      calls.customPaths.push(value);
-      return value === "/good" ? { status: "selected" } : { status: "invalid", error: "Nope" };
-    },
-  });
-  const view = await mount(t, ProjectPicker, props);
-  await click(view.container.querySelector("button"));
-  await click(
-    [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes("Custom path")),
-  );
-  await input(view.container.querySelector("input"), "/bad");
-  await click(button(view.container, "Open"));
-  assert.deepEqual(calls.customPaths, ["/bad"]);
-  assert.match(view.container.textContent, /Nope/);
-  await input(view.container.querySelector("input"), "/good");
-  await click(button(view.container, "Open"));
-  assert.deepEqual(calls.customPaths, ["/bad", "/good"]);
-  await waitFor(() => assert.equal(projectRows(view.container, props.recentProjects).length, 0));
-});
 
 const GIT_REPO_LIST = {
   projectRoot: "/repo",
@@ -139,43 +38,31 @@ const GIT_REPO_LIST = {
   ],
 };
 
-function SwitcherScene() {
+function SwitcherScene({ cwd }) {
   const workspace = useProjectWorkspace({
     sessions: [],
-    selectedCwdProp: "/repo",
+    selectedCwdProp: cwd,
     onCwdChange: () => {},
     refreshKey: 0,
   });
-  if (!workspace.showWorktreeSwitcher || !workspace.worktreeState)
-    return createElement("div", null, "Loading worktrees");
-  return createElement(WorktreeSwitcher, {
-    worktreeState: workspace.worktreeState,
-    selectedCwd: workspace.selectedCwd,
-    homeDir: "/Users/tester",
-    dropdownOpen: workspace.wtDropdownOpen,
-    onToggleDropdown: workspace.toggleWorktreeDropdown,
-    onOutsideClickClose: workspace.resetWorktreeDropdownForOutsideClick,
-    newOpen: workspace.wtNewOpen,
-    onOpenNewEntry: workspace.openNewWorktreeEntry,
-    onCloseNewEntry: workspace.closeNewWorktreeEntry,
-    newBranch: workspace.wtNewBranch,
-    onNewBranchChange: workspace.setNewWorktreeBranch,
-    busy: workspace.wtBusy,
-    error: workspace.wtError,
-    confirmRemovePath: workspace.wtConfirmRemove,
-    onCancelRemove: workspace.cancelWorktreeRemove,
-    onCreateWorktree: workspace.handleCreateWorktree,
-    onRemoveWorktree: workspace.handleRemoveWorktree,
-    onSelectWorktree: workspace.handleSelectWorktree,
-    deferFocus: (focus) => setTimeout(focus, 0),
+  const composer = useComposerWorkspace({
+    workspace,
+    project: { name: "repo", path: "/repo", displayPath: "/repo" },
+    onSwitchProject: () => {},
+    onOpenInFinder: async () => {},
+    onCopyPath: async () => {},
   });
+  return composer ? createElement(WorkspaceTrigger, { workspace: composer, isMobile: false }) : null;
 }
 
-async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl } = {}) {
-  const calls = { removed: [], created: [] };
+async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl, cwd = "/repo", list = GIT_REPO_LIST } = {}) {
+  const calls = { listed: 0, removed: [], created: [] };
   const replies = {
     async call(method, params) {
-      if (method === "worktrees.list") return GIT_REPO_LIST;
+      if (method === "worktrees.list") {
+        calls.listed++;
+        return list;
+      }
       if (method === "worktrees.create") {
         calls.created.push(params.branch);
         return createWorktreeImpl?.(params.branch) ?? { worktree: { path: "/repo/wt2", branch: params.branch } };
@@ -188,15 +75,18 @@ async function renderSwitcher(t, { removeWorktreeImpl, createWorktreeImpl } = {}
     },
   };
   const host = installApiHostBridge(dom.window, () => replies, resetRpc);
-  const view = await mount(t, SwitcherScene, {}, { release: () => host.close() });
+  const view = await mount(t, SwitcherScene, { cwd }, { release: () => host.close() });
+  await waitFor(() => assert.ok(calls.listed > 0));
+  await act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
   return { ...view, calls };
 }
 
+function worktreeTrigger(view) {
+  return [...view.container.querySelectorAll("button")].find((control) => control.title.startsWith("Switch worktree"));
+}
+
 async function openWorktreeDropdown(view) {
-  const trigger = [...view.container.querySelectorAll("button")].find((control) =>
-    control.title.startsWith("Switch worktree"),
-  );
-  await click(trigger);
+  await click(worktreeTrigger(view));
   assert.ok([...view.container.querySelectorAll("button")].some((control) => control.title === "/repo"));
 }
 
@@ -216,6 +106,19 @@ async function openNewWorktree(view) {
   );
   return view.container.querySelector("input");
 }
+
+test("a checkout switch and a worktree creation take effect at once", async (t) => {
+  const view = await renderSwitcher(t);
+  await openWorktreeDropdown(view);
+  await click([...view.container.querySelectorAll("button")].find((control) => control.title === "/repo/wt"));
+  await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt"));
+
+  const branch = await openNewWorktree(view);
+  await input(branch, "feat-2");
+  await keyDown(branch, "Enter");
+  await waitFor(() => assert.equal(worktreeTrigger(view).title, "Switch worktree: /repo/wt2"));
+  assert.deepEqual(view.calls.created, ["feat-2"]);
+});
 
 test("a dirty removal surfaces the inline confirmation until it is resolved", async (t) => {
   const view = await renderSwitcher(t, {
@@ -266,4 +169,40 @@ test("escape closes the new-worktree entry without submitting", async (t) => {
   await keyDown(branch, "Escape");
   assert.deepEqual(view.calls.created, []);
   assert.equal(view.container.querySelector("input"), null);
+});
+
+const SUBDIRECTORY_LIST = {
+  projectRoot: "/repo/src",
+  isGit: true,
+  isTopLevel: false,
+  worktrees: GIT_REPO_LIST.worktrees,
+};
+const PLAIN_LIST = { projectRoot: "/plain", isGit: false, isTopLevel: true, worktrees: [] };
+
+test("in a Git checkout the footer trigger shows the current branch next to the project", async (t) => {
+  const view = await renderSwitcher(t);
+  await waitFor(() => assert.match(worktreeTrigger(view).textContent, /main/));
+});
+
+test("in a repository subdirectory the footer trigger shows only the project, never the main branch", async (t) => {
+  const view = await renderSwitcher(t, { cwd: "/repo/src", list: SUBDIRECTORY_LIST });
+  assert.equal(worktreeTrigger(view), undefined, "a subdirectory offers no checkout switch");
+  assert.doesNotMatch(view.container.textContent, /main|feat/);
+});
+
+test("in a folder outside Git the footer trigger shows only the project", async (t) => {
+  const view = await renderSwitcher(t, { cwd: "/plain", list: PLAIN_LIST });
+  assert.equal(worktreeTrigger(view), undefined);
+  assert.doesNotMatch(view.container.textContent, /main|feat/);
+});
+
+test("removing another worktree is sent at once", async (t) => {
+  const view = await renderSwitcher(t);
+  await openWorktreeDropdown(view);
+  await click(
+    [...view.container.querySelectorAll("button")].find((control) =>
+      control.title.includes("Remove worktree checkout"),
+    ),
+  );
+  assert.deepEqual(view.calls.removed, [["/repo/wt", false]]);
 });

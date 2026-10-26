@@ -107,7 +107,7 @@ const js = <T = unknown>(code: string): Promise<T> => window!.webContents.execut
 async function capture(shot: Shot): Promise<{ file: string }> {
   window!.setContentSize(shot.width, shot.height);
   const result = await js<{ ok: boolean }>(
-    `window.preview.configure(${JSON.stringify({ screen: shot.screen, theme: shot.theme, lang: shot.lang, state: shot.state })})`,
+    `window.preview.configure(${JSON.stringify({ screen: shot.screen, theme: shot.theme, lang: shot.lang, state: shot.state, freeze: true })})`,
   );
   if (!result?.ok) throw new Error(`configure failed for ${shot.name}`);
   if (shot.state?.search) {
@@ -213,9 +213,9 @@ async function run(): Promise<void> {
   const typography = await js<{ body: string; button: string | null; fontFaces: string[] }>(
     "window.preview.probeTypography()",
   );
-  const facesOk = ["Geist/100 900", "Geist Mono/100 900"].every((expected) => typography.fontFaces.includes(expected));
+  const facesOk = ["Inter/100 900", "Geist Mono/100 900"].every((expected) => typography.fontFaces.includes(expected));
   const typographyPass = Boolean(
-    typography.button && typography.button === typography.body && typography.body.includes("Geist") && facesOk,
+    typography.button && typography.button === typography.body && typography.body.includes("Inter") && facesOk,
   );
   if (!typographyPass) {
     console.error(

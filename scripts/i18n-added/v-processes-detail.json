@@ -1,0 +1,12 @@
+[
+  "managedProcessLanWarningAddress",
+  "managedProcessOpenInBrowser",
+  "managedProcessRestart",
+  "managedProcessRerun",
+  "managedProcessExportDiagnostics",
+  "managedProcessRunGeneration",
+  "managedProcessLogStreams",
+  "managedProcessLiveTail",
+  "managedProcessExitedAt",
+  "managedProcessExitedTail"
+]

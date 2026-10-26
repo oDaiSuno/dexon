@@ -13,11 +13,12 @@ import {
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { accessibleName } from "../support/dom-queries.mjs";
+import { hover } from "../support/dom-events.mjs";
 import { navigationLabels, remainingSettings, remainingSettingsZhCN } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
 
-function expectSixTabs(dialog, expected = remainingSettings) {
+function expectSettingsTabs(dialog, expected = remainingSettings) {
   assert.deepEqual(
     roles(dialog, "tab")
       .map((element) => element.textContent.trim())
@@ -44,53 +45,53 @@ async function pressOnSelected(dialog, key) {
   });
 }
 
-test("Settings opened from the new navigation contains only the six non-resource categories", async (t) => {
+test("Settings opened from the new navigation contains only the five design categories", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  expectSixTabs(await scene.settings());
+  expectSettingsTabs(await scene.settings());
 });
 
-test("the zh-CN Settings shows the same six categories under their Chinese names", async (t) => {
+test("the zh-CN Settings shows the same five categories under their Chinese names", async (t) => {
   const scene = await startNavigation(t, { history: false, language: "zh-CN" });
-  expectSixTabs(await scene.settings(), remainingSettingsZhCN);
+  expectSettingsTabs(await scene.settings(), remainingSettingsZhCN);
 });
 
-test("the collapsed navigation's Settings icon opens the same six categories", async (t) => {
+test("the collapsed navigation's Settings icon opens the same five categories", async (t) => {
   const scene = await startNavigation(t, { history: false });
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
-  expectSixTabs(await scene.settings());
+  expectSettingsTabs(await scene.settings());
 });
 
-test("pressing ArrowDown in Settings visits exactly the six categories and wraps back to the first", async (t) => {
+test("pressing ArrowDown in Settings visits exactly the five categories and wraps back to the first", async (t) => {
   const scene = await startNavigation(t, { history: false });
   const dialog = await scene.settings();
   const start = accessibleName(selectedTab(dialog));
   const visited = [start];
   for (let step = 0; step < remainingSettings.length; step++) visited.push(await pressOnSelected(dialog, "ArrowDown"));
-  assert.equal(visited.at(-1), start, "the sixth press returns to where the cycle began");
+  assert.equal(visited.at(-1), start, "the fifth press returns to where the cycle began");
   assert.deepEqual(visited.slice(0, -1).sort(), [...remainingSettings].sort());
 });
 
-test("from the first Settings category, five ArrowDown presses reach the category End jumps to, and ArrowUp wraps back to it", async (t) => {
+test("from the first Settings category, four ArrowDown presses reach the category End jumps to, and ArrowUp wraps back to it", async (t) => {
   const scene = await startNavigation(t, { history: false });
   const dialog = await scene.settings();
   const last = await pressOnSelected(dialog, "End");
   const first = await pressOnSelected(dialog, "Home");
   let reached = first;
   for (let step = 0; step < remainingSettings.length - 1; step++) reached = await pressOnSelected(dialog, "ArrowDown");
-  assert.equal(reached, last, "the list between the two ends holds exactly six categories");
+  assert.equal(reached, last, "the list between the two ends holds exactly five categories");
   await pressOnSelected(dialog, "Home");
   assert.equal(await pressOnSelected(dialog, "ArrowUp"), last, "moving before the first category wraps to the last");
 });
 
-test("Escape closes the six-category Settings without asking and returns focus to the Settings entry", async (t) => {
+test("Escape closes the five-category Settings without asking and returns focus to the Settings entry", async (t) => {
   const scene = await startNavigation(t, { history: false });
   const entry = control(scene.navigation(), "button", "Settings");
   entry.focus();
   await click(entry);
-  const dialog = await waitFor(() => control(scene.container, "dialog", "Settings"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   await keyDown(selectedTab(dialog), "Escape");
-  await waitFor(() => assert.equal(roles(scene.container, "dialog", "Settings").length, 0));
+  await waitFor(() => assert.equal(roles(scene.container, "region", "Settings").length, 0));
   assert.equal(roles(scene.container, "dialog", "Unsaved skill changes").length, 0);
   const focused = dom.window.document.activeElement;
   assert.ok(scene.navigation().contains(focused), "focus is back in the navigation");
@@ -119,11 +120,11 @@ for (const [command, selected] of [
   ["check-for-updates", "About"],
   ["show-update", "About"],
 ]) {
-  test(`the desktop ${command} entry opens ${selected} in the migrated six-category Settings`, async (t) => {
+  test(`the desktop ${command} entry opens ${selected} in the migrated five-category Settings`, async (t) => {
     const scene = await startNavigation(t, { history: false });
     const dialog = await scene.desktopMenu(command);
     assert.equal(control(dialog, "tab", selected).getAttribute("aria-selected"), "true");
-    expectSixTabs(dialog);
+    expectSettingsTabs(dialog);
   });
 }
 
@@ -131,11 +132,10 @@ for (const [command, selected] of [
 // Distinct visible contents detect a tab that changes selection but not page.
 for (const [tab, content] of [
   ["General", /Interface language/],
-  ["Browser", /Enable built-in Browser/],
-  ["Channels", /Messaging channels/],
-  ["Models", /Add provider/],
+  ["Browser", /Built-in Browser/],
+  ["Models", /Add channel/],
   ["Developer Tools", /JavaScript/],
-  ["About", /Application information/],
+  ["About", /Software update/],
 ]) {
   test(`the retained ${tab} category still opens its actual configuration through the real application`, async (t) => {
     const scene = await startNavigation(t, { history: false });
@@ -147,6 +147,19 @@ for (const [tab, content] of [
     });
   });
 }
+
+test("Remote chat is not a Settings category and opens its real configuration from Plugins & Skills", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  const settings = await scene.settings();
+  assert.equal(roles(settings, "tab", "Remote chat").length, 0);
+  await click(control(scene.navigation(), "button", "Plugins & Skills"));
+  await click(await waitFor(() => control(scene.container, "button", "Remote chat")));
+  const remote = await waitFor(() => control(scene.container, "region", "Remote chat"));
+  await waitFor(() => assert.match(remote.textContent, /Chat apps/));
+  assert.equal(roles(scene.container, "region", "Settings").length, 0);
+  await keyDown(remote, "Escape");
+  await waitFor(() => assert.equal(roles(scene.container, "region", "Remote chat").length, 0));
+});
 
 test("Manage permanent permission from a browser authorization request still reaches Browser in migrated Settings", async (t) => {
   const scene = await startNavigation(t, { history: false });
@@ -163,9 +176,20 @@ test("Manage permanent permission from a browser authorization request still rea
       },
     }),
   );
-  await click(control(scene.container, "button", "Manage permanent permission…"));
-  const dialog = await waitFor(() => control(scene.container, "dialog", "Settings"));
+  await click(control(scene.container, "button", "Manage permanent permissions"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
   assert.equal(control(dialog, "tab", "Browser").getAttribute("aria-selected"), "true");
-  await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Enable built-in Browser/));
-  expectSixTabs(dialog);
+  await waitFor(() => assert.match(control(dialog, "tabpanel").textContent, /Built-in Browser/));
+  expectSettingsTabs(dialog);
+});
+
+test("Go to settings on a greyed-out Regenerate name opens Settings on the Models page", async (t) => {
+  const scene = await startNavigation(t);
+  await hover(await waitFor(() => control(scene.history(), "button", "Another personal conversation")));
+  await click(control(scene.history(), "button", "Session actions for Another personal conversation"));
+  const menu = await waitFor(() => control(scene.history(), "menu", "Session actions"));
+  await click(control(menu, "menuitem", "Regenerate name: choose a naming model in Settings"));
+  const dialog = await waitFor(() => control(scene.container, "region", "Settings"));
+  await waitFor(() => assert.equal(accessibleName(selectedTab(dialog)), "Models"));
+  assert.equal(roles(scene.history(), "menu", "Session actions").length, 0);
 });

@@ -15,8 +15,8 @@ const FAILURE_PAGE_COLORS: Record<
   FailurePageTheme,
   { bg: string; panel: string; text: string; muted: string; link: string }
 > = {
-  light: { bg: "#f7f6f3", panel: "#fcfbf9", text: "#1c1a17", muted: "#57534a", link: "#9a3412" },
-  dark: { bg: "#141210", panel: "#1c1a17", text: "#faf9f7", muted: "#a19d92", link: "#fb923c" },
+  light: { bg: "#fafafa", panel: "#ffffff", text: "#171717", muted: "#5c5c5c", link: "#1d5fd6" },
+  dark: { bg: "#171717", panel: "#1c1c1c", text: "#ededed", muted: "#a1a1a1", link: "#7fb0f9" },
 };
 
 function createFailurePage(title: string, content: string, theme: FailurePageTheme): string {

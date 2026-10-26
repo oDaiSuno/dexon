@@ -9,15 +9,18 @@ function squareBase(): CSSProperties {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    height: 28,
+    width: 32,
+    height: 32,
     padding: 0,
+    border: "none",
+    borderRadius: "var(--radius-send)",
     transition:
       "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), transform var(--duration-micro, 80ms)",
   };
 }
 
-/** 28×28 tactile send square. Ink-filled when armed (black/white inversion,
- *  per the design system), quiet gray when the draft is empty. */
+/** 32×32 tactile send square. Inverse-ink filled when armed, quiet gray
+ *  when the draft is empty. */
 export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => void }) {
   const { t } = useI18n();
   return (
@@ -28,18 +31,15 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
       onClick={onSend}
       style={{
         ...squareBase(),
-        width: 28,
-        border: "none",
-        borderRadius: "var(--radius-control)",
-        background: armed ? "var(--btn-bg)" : "var(--bg-hover)",
-        color: armed ? "var(--btn-fg)" : "var(--text-dim)",
+        background: armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)",
+        color: armed ? "var(--fx-text-inverse)" : "var(--fx-text-tertiary)",
         cursor: armed ? "pointer" : "not-allowed",
       }}
       onMouseEnter={(e) => {
-        if (armed) e.currentTarget.style.background = "var(--btn-bg-hover)";
+        if (armed) e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = armed ? "var(--btn-bg)" : "var(--bg-hover)";
+        e.currentTarget.style.background = armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)";
       }}
       className="tap-scale"
     >
@@ -49,7 +49,7 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
 }
 
 /** While streaming with an empty draft, the send slot becomes a stop
- *  button — same 28×28 square, radius, and ink inversion as the send
+ *  button — same 32×32 square, radius, and inverse ink as the send
  *  square; only the glyph changes (white stop mark). */
 export function StopSquare({ onAbort }: { onAbort: () => void }) {
   const { t } = useI18n();
@@ -61,22 +61,28 @@ export function StopSquare({ onAbort }: { onAbort: () => void }) {
       onClick={onAbort}
       style={{
         ...squareBase(),
-        width: 28,
-        border: "none",
-        borderRadius: "var(--radius-control)",
-        background: "var(--btn-bg)",
-        color: "var(--btn-fg)",
+        background: "var(--fx-surface-inverse)",
+        color: "var(--fx-text-inverse)",
         cursor: "pointer",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--btn-bg-hover)";
+        e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "var(--btn-bg)";
+        e.currentTarget.style.background = "var(--fx-surface-inverse)";
       }}
       className="tap-scale"
     >
-      <StopIcon size={11} />
+      <StopIcon />
     </button>
+  );
+}
+
+export function KeyHint({ keyLabel, label }: { keyLabel: string; label: string }) {
+  return (
+    <span className="composer-key-hint type-meta-default">
+      <kbd className="type-mono-meta">{keyLabel}</kbd>
+      {label}
+    </span>
   );
 }

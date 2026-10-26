@@ -13,6 +13,7 @@ export const CHANNEL_SOURCE_CANCELLED_TYPE = "dexon-channel-source-cancelled";
 export const CHANNEL_ATTACHMENT_CONTEXT_TYPE = "dexon-channel-attachment-context";
 export const SESSION_TOOLS_TYPE = "dexon-session-tools";
 export const SESSION_SOURCE_TYPE = "dexon-session-source";
+export const RETRY_OUTCOME_TYPE = "dexon-retry-outcome";
 
 const LEGACY_CHANNEL_SOURCE_TYPE = "pi-desktop-channel-source";
 const LEGACY_CHANNEL_SOURCE_CANCELLED_TYPE = "pi-desktop-channel-source-cancelled";
@@ -37,6 +38,10 @@ export function isSessionToolsType(customType: string): boolean {
 
 export function isSessionSourceType(customType: string): boolean {
   return customType === SESSION_SOURCE_TYPE;
+}
+
+export function isRetryOutcomeType(customType: string): boolean {
+  return customType === RETRY_OUTCOME_TYPE;
 }
 
 /** Remove toolchain summary markers (Dexon and legacy spelling) from stored system prompts. */

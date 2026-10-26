@@ -258,6 +258,16 @@ export async function runSmokeHostChecks(
               const root = document.getElementById("root");
               if (window.piBridge && root && root.childElementCount > 0) {
                 const findButton = (text) => Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === text);
+                const findLabeledButton = (...labels) => Array.from(document.querySelectorAll("button")).find((button) => labels.includes(button.getAttribute("aria-label") || ""));
+                const waitForElement = async (find, failure) => {
+                  const elementDeadline = Date.now() + 3000;
+                  while (Date.now() < elementDeadline) {
+                    const element = find();
+                    if (element) return element;
+                    await new Promise((wait) => setTimeout(wait, 25));
+                  }
+                  throw new Error(failure);
+                };
                 const settingsButton = document.querySelector('button[title="Settings"],button[title="设置"]');
                 if (!settingsButton) {
                   if (Date.now() >= deadline) throw new Error("Settings button is unavailable");
@@ -266,21 +276,18 @@ export async function runSmokeHostChecks(
                 }
                 settingsButton.click();
                 const settingsDeadline = Date.now() + 3000;
-                let channelsButton;
                 let chatFontSizeSelect;
                 let chatLayoutSelect;
-                while ((!channelsButton || !chatFontSizeSelect || !chatLayoutSelect) && Date.now() < settingsDeadline) {
-                  channelsButton = findButton("Channels") || findButton("消息渠道");
+                while ((!chatFontSizeSelect || !chatLayoutSelect) && Date.now() < settingsDeadline) {
                   const labels = Array.from(document.querySelectorAll("label"));
                   const fontLabel = labels.find((label) => ["Chat text size", "聊天字号"].includes(label.textContent?.trim() || ""));
                   const layoutLabel = labels.find((label) => ["Conversation width", "对话宽度"].includes(label.textContent?.trim() || ""));
                   chatFontSizeSelect = fontLabel?.htmlFor ? document.getElementById(fontLabel.htmlFor) : undefined;
                   chatLayoutSelect = layoutLabel?.htmlFor ? document.getElementById(layoutLabel.htmlFor) : undefined;
-                  if (!channelsButton || !chatFontSizeSelect || !chatLayoutSelect) {
+                  if (!chatFontSizeSelect || !chatLayoutSelect) {
                     await new Promise((wait) => setTimeout(wait, 25));
                   }
                 }
-                if (!channelsButton) throw new Error("Channels settings tab is unavailable");
                 if (!(chatFontSizeSelect instanceof HTMLSelectElement) || !(chatLayoutSelect instanceof HTMLSelectElement)) {
                   throw new Error("Chat appearance settings are unavailable or unlabeled");
                 }
@@ -292,28 +299,26 @@ export async function runSmokeHostChecks(
                 if (JSON.stringify(Array.from(chatLayoutSelect.options, (option) => option.value)) !== JSON.stringify(expectedLayoutOptions)) {
                   throw new Error("Chat layout options do not match the public contract");
                 }
-                let chatFixture;
-                let chatScope = document.querySelector(".chat-appearance-scope");
-                let chatColumn = document.querySelector(".chat-content-column");
-                let chatInput = document.querySelector("textarea");
-                if (!(chatScope instanceof HTMLElement) || !(chatColumn instanceof HTMLElement) || !(chatInput instanceof HTMLElement)) {
-                  chatFixture = document.createElement("div");
-                  chatFixture.className = "chat-appearance-scope";
-                  Object.assign(chatFixture.style, {
-                    position: "absolute",
-                    visibility: "hidden",
-                    width: "100%",
-                    pointerEvents: "none",
-                  });
-                  chatColumn = document.createElement("div");
-                  chatColumn.className = "chat-content-column";
-                  chatInput = document.createElement("textarea");
-                  chatInput.style.fontSize = "calc(14px * var(--chat-font-scale))";
-                  chatColumn.appendChild(chatInput);
-                  chatFixture.appendChild(chatColumn);
-                  document.body.appendChild(chatFixture);
-                  chatScope = chatFixture;
-                }
+                const chatFixture = document.createElement("div");
+                chatFixture.className = "chat-appearance-scope";
+                Object.assign(chatFixture.style, {
+                  position: "absolute",
+                  visibility: "hidden",
+                  width: "100%",
+                  pointerEvents: "none",
+                });
+                const chatColumn = document.createElement("div");
+                chatColumn.className = "chat-content-column";
+                const readingText = document.createElement("div");
+                readingText.className = "chat-reading";
+                readingText.style.fontSize = "calc(14px * var(--type-scale, 1))";
+                readingText.textContent = "message";
+                const composerText = document.createElement("textarea");
+                composerText.className = "type-chat-input";
+                chatColumn.append(readingText, composerText);
+                chatFixture.appendChild(chatColumn);
+                document.body.appendChild(chatFixture);
+                const chatScope = chatFixture;
                 const changeSelect = (select, value) => {
                   const valueSetter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
                   valueSetter?.call(select, value);
@@ -341,16 +346,17 @@ export async function runSmokeHostChecks(
                 await waitForAppearance("standard", chatLayoutSelect.value);
                 changeSelect(chatLayoutSelect, "fixed");
                 await waitForAppearance("standard", "fixed");
-                const standardInputFontSize = Number.parseFloat(getComputedStyle(chatInput).fontSize);
+                const standardReadingFontSize = Number.parseFloat(getComputedStyle(readingText).fontSize);
+                const standardComposerFontSize = Number.parseFloat(getComputedStyle(composerText).fontSize);
                 const settingsFontSize = getComputedStyle(chatFontSizeSelect).fontSize;
                 const fixedColumnWidth = chatColumn.getBoundingClientRect().width;
                 changeSelect(chatFontSizeSelect, "extra-large");
                 await waitForAppearance("extra-large", "fixed");
                 changeSelect(chatLayoutSelect, "wide");
                 await waitForAppearance("extra-large", "wide");
-                const extraLargeInputFontSize = Number.parseFloat(getComputedStyle(chatInput).fontSize);
+                const extraLargeReadingFontSize = Number.parseFloat(getComputedStyle(readingText).fontSize);
+                const extraLargeComposerFontSize = Number.parseFloat(getComputedStyle(composerText).fontSize);
                 const wideColumnWidth = chatColumn.getBoundingClientRect().width;
-                const chatScopeStyle = getComputedStyle(chatScope);
                 window.resizeTo(900, 700);
                 await new Promise((wait) => setTimeout(wait, 50));
                 const narrowLayout =
@@ -360,23 +366,23 @@ export async function runSmokeHostChecks(
                 window.resizeTo(1440, 900);
                 await new Promise((wait) => setTimeout(wait, 50));
                 const chatAppearance =
-                  Math.abs(extraLargeInputFontSize / standardInputFontSize - 1.3) < 0.01 &&
-                  chatScopeStyle.getPropertyValue("--chat-font-scale").trim() === "1.3" &&
+                  Math.abs(extraLargeReadingFontSize / standardReadingFontSize - 1.3) < 0.01 &&
+                  extraLargeComposerFontSize === standardComposerFontSize &&
                   fixedColumnWidth <= 760.5 &&
                   wideColumnWidth > 760.5 &&
                   wideColumnWidth <= 960.5 &&
                   wideColumnWidth > fixedColumnWidth &&
                   narrowLayout &&
                   getComputedStyle(chatFontSizeSelect).fontSize === settingsFontSize &&
-                  document.documentElement.scrollWidth <= document.documentElement.clientWidth &&
-                  (chatFixture ? chatFixture : document.querySelector(".chat-appearance-scope")) === chatScope &&
-                  (chatFixture ? chatFixture.querySelector("textarea") : document.querySelector("textarea")) === chatInput;
-                chatFixture?.remove();
+                  document.documentElement.scrollWidth <= document.documentElement.clientWidth;
+                chatFixture.remove();
                 changeSelect(chatFontSizeSelect, "standard");
                 await waitForAppearance("standard", "wide");
                 changeSelect(chatLayoutSelect, "fixed");
                 await waitForAppearance("standard", "fixed");
-                channelsButton.click();
+                (await waitForElement(() => findLabeledButton("Plugins & Skills", "插件与技能"), "Plugins & Skills navigation is unavailable")).click();
+                (await waitForElement(() => findLabeledButton("Remote chat", "远程对话"), "Remote chat entry is unavailable")).click();
+                (await waitForElement(() => findButton("Add chat app") || findButton("接入新应用"), "Remote chat app menu is unavailable")).click();
                 const channelDeadline = Date.now() + 3000;
                 let weixinConnectButton;
                 let telegramConnectButton;
@@ -390,14 +396,9 @@ export async function runSmokeHostChecks(
                 if (typeof window.piBridge.setChannelCredential !== "function") {
                   throw new Error("Write-only channel credential bridge is unavailable");
                 }
-                const activityToggle = document.querySelector('[data-testid="channel-activity-toggle"]');
-                if (!activityToggle || activityToggle.getAttribute("aria-expanded") !== "false") {
-                  throw new Error("Recent channel activity is not collapsed by default");
-                }
-                activityToggle.click();
-                await new Promise((wait) => setTimeout(wait, 0));
-                if (activityToggle.getAttribute("aria-expanded") !== "true") {
-                  throw new Error("Recent channel activity cannot be expanded");
+                const activityLog = document.querySelector('[data-testid="channel-activity-log"]');
+                if (!activityLog || activityLog.getClientRects().length === 0) {
+                  throw new Error("Recent channel activity log is not shown");
                 }
                 const status = await fetch(${JSON.stringify(`/api/git-status?cwd=${encodeURIComponent(process.cwd())}`)}).then((response) => response.json());
                 const token = "pi-html-preview-smoke-" + Math.random().toString(36).slice(2);

@@ -1,0 +1,29 @@
+/* ── Shimmer label (transitions.dev 15-shimmer-text) — "thinking" hold state ── */
+
+.chat-shimmer-text {
+  background-image: linear-gradient(
+    90deg,
+    var(--fx-text-tertiary) 35%,
+    var(--fx-text-primary) 50%,
+    var(--fx-text-tertiary) 65%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-shimmer-text 1.4s var(--ease-linear) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-shimmer-text {
+    animation: none !important;
+    background: none;
+    -webkit-text-fill-color: var(--fx-text-secondary);
+  }
+}
+
+.message-hover-actions:focus-within,
+.message-hover-action:focus-visible {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}

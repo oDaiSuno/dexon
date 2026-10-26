@@ -1,0 +1,105 @@
+{
+  "lane": "基座（主窗口）",
+  "legacy": [
+    {
+      "file": "src/renderer/App.tsx",
+      "name": "--text-body",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/App.tsx",
+      "name": "--text-heading-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/App.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/App.tsx",
+      "name": "--text-meta",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/App.tsx",
+      "property": "fontSize",
+      "count": 6
+    },
+    {
+      "file": "src/renderer/App.tsx",
+      "property": "lineHeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#171717",
+      "count": 2,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#1c1c1c",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#1d5fd6",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#5c5c5c",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#7fb0f9",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#a1a1a1",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#ededed",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#fafafa",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window-load-failure.ts",
+      "color": "#ffffff",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window.ts",
+      "color": "#171717",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    },
+    {
+      "file": "src/main/window.ts",
+      "color": "#fafafa",
+      "count": 1,
+      "hint": "主进程读不到 CSS 变量：从 framer-tokens.json 取 /Surface/Main、/Surface/Raised、/Text/*、/Accent/Blue Text"
+    }
+  ]
+}

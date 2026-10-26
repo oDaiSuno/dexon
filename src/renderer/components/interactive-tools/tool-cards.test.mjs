@@ -155,7 +155,7 @@ test("Close and Escape repeatedly collapse the card while retaining its answer w
   dom.window.document.body.addEventListener("keydown", onOutsideKey);
   t.after(() => dom.window.document.body.removeEventListener("keydown", onOutsideKey));
   for (let i = 0; i < 3; i++) {
-    await h.click("Collapse and keep answers");
+    await h.click("Collapse — your answers stay");
     assert.equal(h.container.querySelector("textarea"), null);
     await h.resume();
     const field = h.container.querySelector("textarea");
@@ -189,7 +189,7 @@ test("single selection advances one question and the last question waits for exp
   await h.click("Previous question");
   await h.click("Previous question");
   assert.equal(h.container.querySelectorAll("input")[1].checked, true, "the first answer is retained");
-  await h.click("Send answered questions");
+  await h.click("Send what's answered");
   assert.deepEqual(h.commands, [
     {
       type: "extension_ui_response",
@@ -209,7 +209,7 @@ for (const action of ["collapse", "navigate", "text", "unmount"])
     t.mock.timers.enable({ apis: ["setTimeout"] });
     const h = await harness(t, request("questionnaire", [question(), question()]));
     await h.choose();
-    if (action === "collapse") await h.click("Collapse and keep answers");
+    if (action === "collapse") await h.click("Collapse — your answers stay");
     if (action === "navigate") {
       await h.click("Next question");
       await h.click("Previous question");
@@ -252,12 +252,12 @@ test("single-choice text and options replace each other rather than accumulating
 
 test("skipping stays local and partial submission includes explicit unanswered slots", async (t) => {
   const h = await harness(t, request("questionnaire", [question(), question()]));
-  assert.equal(h.button("Send answered questions").disabled, true);
+  assert.equal(h.button("Send what's answered").disabled, true);
   await h.click("Skip for now");
   assert.equal(h.page, "2 / 2");
   assert.deepEqual(h.commands, []);
   await h.type("one answered");
-  await h.click("Send answered questions");
+  await h.click("Send what's answered");
   assert.deepEqual(h.commands[0].answers, [
     { selected: [], text: "" },
     { selected: [], text: "one answered" },
@@ -266,25 +266,28 @@ test("skipping stays local and partial submission includes explicit unanswered s
 
 test("opening the full preview exposes inert source without selecting or submitting", async (t) => {
   const h = await harness(t);
-  await click(h.container.querySelector("summary"));
+  assert.equal(h.container.querySelector("pre"), null);
+  await h.click("Preview");
   const preview = h.container.querySelector("pre");
   assert.ok(preview.textContent.length > 600);
   assert.ok(preview.textContent.includes("<script>no execution</script>"));
   assert.equal(h.container.querySelector("script"), null);
   assert.ok([...h.container.querySelectorAll("input")].every((field) => !field.checked));
   assert.deepEqual(h.commands, []);
+  await h.click("Hide preview");
+  assert.equal(h.container.querySelector("pre"), null);
 });
 
 test("abandonment requires in-card confirmation and never sends the retained draft", async (t) => {
   const h = await harness(t);
   await h.type("not to be sent");
-  await h.click("Abandon this answer");
+  await h.click("Abandon answer");
   assert.deepEqual(h.commands, []);
   assert.equal(h.container.querySelector('[aria-modal="true"]'), null);
   await h.click("Keep answering");
   assert.equal(h.container.querySelector("textarea").value, "not to be sent");
-  await h.click("Abandon this answer");
-  await h.click("Abandon without sending");
+  await h.click("Abandon answer");
+  await h.click("Abandon, don't send");
   assert.deepEqual(h.commands, [{ type: "extension_ui_response", id: "q", cancelled: true }]);
   assert.match(h.container.textContent, /Answering abandoned/);
 });
@@ -312,7 +315,7 @@ for (const method of ["select", "input", "editor", "confirm", "custom"])
       assert.equal(h.commands[0].confirmed, false);
     }
     if (method === "custom") {
-      await h.click("Collapse and keep answers");
+      await h.click("Collapse — your answers stay");
       assert.deepEqual(h.commands, []);
       await h.resume();
       await keyDown(h.container.querySelector('[role="textbox"]'), "ArrowDown");
@@ -334,13 +337,13 @@ test("failed delivery retains the visible answer and permits a successful retry"
   });
   await h.type("saved");
   await h.click("Send answers");
-  assert.match(h.container.textContent, /Delivery failed/);
+  assert.match(h.container.textContent, /Not delivered/);
   assert.equal(h.container.querySelector("textarea").value, "saved");
   assert.equal(h.button("Restart"), undefined);
   offline = false;
-  await h.click("Send answers");
+  await h.click("Resend");
   assert.match(h.container.textContent, /Answers sent/);
-  assert.equal(h.button("Send answers"), undefined);
+  assert.equal(h.button("Resend"), undefined);
 });
 
 test("a terminal leaves Tab available for focus navigation but can send it explicitly", async (t) => {

@@ -1,0 +1,4 @@
+{
+  "refreshModels": { "enUS": "Refresh model directory", "zhCN": "刷新模型目录" },
+  "refreshingModels": { "enUS": "Refreshing model directory…", "zhCN": "正在刷新模型目录…" }
+}

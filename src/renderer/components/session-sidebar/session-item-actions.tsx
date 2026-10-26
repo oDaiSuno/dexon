@@ -1,214 +1,286 @@
 import { useI18n } from "@/i18n";
-import type { CSSProperties, MouseEvent as ReactMouseEvent } from "react";
+import { formatNumber } from "@/lib/locale-format";
+import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import {
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type RefObject,
+} from "react";
+import { Button } from "../form-controls";
+import { CopyGlyph } from "../processes/process-icons";
+import { RowIcon, SessionNamingGlyph } from "./session-relation-glyphs";
+import type { SessionSubtree } from "./use-session-delete";
 
-// Moved verbatim from SessionSidebar.tsx in Phase 2 (session row split).
+function PencilLineGlyph() {
+  return (
+    <RowIcon size={15}>
+      <path d="M13 21h8" />
+      <path d="m15 5 4 4" />
+      <path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z" />
+    </RowIcon>
+  );
+}
 
-export const sessionMenuItemStyle: CSSProperties = {
-  width: "100%",
-  minHeight: 34,
-  display: "flex",
-  alignItems: "center",
-  gap: 8,
-  padding: "0 8px",
-  border: 0,
-  borderRadius: "var(--radius-control)",
-  background: "transparent",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  fontSize: "var(--text-body)",
-  textAlign: "left",
-  transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-};
+function TrashGlyph() {
+  return (
+    <RowIcon size={15}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <line x1="10" x2="10" y1="11" y2="17" />
+      <line x1="14" x2="14" y1="11" y2="17" />
+    </RowIcon>
+  );
+}
 
-/** Shared hover handlers so the two session-menu items fade instead of snapping. */
-export const sessionMenuItemHandlers = {
-  onMouseEnter: (e: ReactMouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "var(--bg-hover)";
-    e.currentTarget.style.color = "var(--text)";
-  },
-  onMouseLeave: (e: ReactMouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "transparent";
-    e.currentTarget.style.color = "var(--text-muted)";
-  },
-};
+function ChevronRightGlyph() {
+  return (
+    <RowIcon size={14} strokeWidth={2}>
+      <path d="m9 18 6-6-6-6" />
+    </RowIcon>
+  );
+}
 
-/** Delete item: same fade, but the danger color is never overridden. */
-export const dangerMenuItemHandlers = {
-  onMouseEnter: (e: ReactMouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "var(--bg-hover)";
-  },
-  onMouseLeave: (e: ReactMouseEvent<HTMLElement>) => {
-    e.currentTarget.style.background = "transparent";
-  },
-};
+const MENU_WIDTH = 216;
+const VIEWPORT_MARGIN = 8;
 
 export function SessionItemActionsMenu({
+  at,
+  sessionPath,
   onRename,
+  regenerate,
+  onRegenerate,
+  onOpenNamingSettings,
   onDelete,
 }: {
+  at: { x: number; y: number } | null;
+  sessionPath: string;
   onRename: (event: ReactMouseEvent) => void;
+  regenerate: "ready" | "unavailable" | "needs-model";
+  onRegenerate: (event: ReactMouseEvent) => void;
+  onOpenNamingSettings: (event: ReactMouseEvent) => void;
   onDelete: (event: ReactMouseEvent) => void;
 }) {
   const { t } = useI18n();
+  const { copied, copy } = useCopyFeedback();
+  const [copyFailed, setCopyFailed] = useState(false);
+  const [measuredTop, setMeasuredTop] = useState<number | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    if (!at) {
+      setMeasuredTop(null);
+      return;
+    }
+    const menu = menuRef.current;
+    if (!menu) return;
+    const height = menu.getBoundingClientRect().height;
+    setMeasuredTop(
+      at.y + height > window.innerHeight - VIEWPORT_MARGIN ? window.innerHeight - VIEWPORT_MARGIN - height : at.y,
+    );
+    menu.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus();
+  }, [at]);
+
+  const left = at ? Math.max(VIEWPORT_MARGIN, Math.min(at.x, window.innerWidth - MENU_WIDTH - VIEWPORT_MARGIN)) : 0;
+  const top = at ? Math.max(VIEWPORT_MARGIN, measuredTop ?? at.y) : 0;
+  const copyLabel = copied
+    ? t("copied", "Copied")
+    : copyFailed
+      ? t("copyFailed", "Copy failed")
+      : t("copySessionPath", "Copy session path");
+
   return (
     <div
+      ref={menuRef}
       role="menu"
       aria-label={t("sessionActions", "Session actions")}
-      className="composer-pop-in"
-      style={{
-        position: "absolute",
-        top: 34,
-        right: 0,
-        zIndex: 50,
-        transformOrigin: "top right",
-        minWidth: 132,
-        padding: 4,
-        border: "1px solid var(--border)",
-        borderRadius: "var(--radius-card)",
-        background: "var(--bg)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.14)",
-      }}
+      className="session-menu-card session-menu-card--menu composer-pop-in"
+      style={at ? { position: "fixed", left, top, right: "auto", transformOrigin: "top left" } : undefined}
     >
-      <button
-        type="button"
-        role="menuitem"
-        className="session-menu-item"
-        onClick={onRename}
-        style={sessionMenuItemStyle}
-        {...sessionMenuItemHandlers}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+      <div className="session-menu-list">
+        <button type="button" role="menuitem" className="session-menu-item type-body-large" onClick={onRename}>
+          <span className="session-menu-item-icon">
+            <PencilLineGlyph />
+          </span>
+          <span className="session-menu-item-label">{t("rename", "Rename")}</span>
+        </button>
+        {regenerate === "needs-model" ? (
+          <button
+            type="button"
+            role="menuitem"
+            className="session-menu-item session-menu-item--muted type-body-large"
+            aria-label={t("regenerateSessionNameNeedsModel", "Regenerate name: choose a naming model in Settings")}
+            onClick={onOpenNamingSettings}
+          >
+            <span className="session-menu-item-icon">
+              <SessionNamingGlyph size={15} />
+            </span>
+            <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
+            <span className="session-menu-item-hint type-label-default">
+              {t("sessionNamingGoToSettings", "Go to settings")}
+              <ChevronRightGlyph />
+            </span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            role="menuitem"
+            className="session-menu-item type-body-large"
+            disabled={regenerate === "unavailable"}
+            onClick={onRegenerate}
+          >
+            <span className="session-menu-item-icon session-menu-item-icon--accent">
+              <SessionNamingGlyph size={15} />
+            </span>
+            <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
+          </button>
+        )}
+        <button
+          type="button"
+          role="menuitem"
+          className="session-menu-item type-body-large"
+          disabled={!sessionPath}
+          onClick={(event) => {
+            event.stopPropagation();
+            void copy(sessionPath).then((ok) => setCopyFailed(!ok));
+          }}
         >
-          <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
-        </svg>
-        {t("rename", "Rename")}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="session-menu-item"
-        onClick={onDelete}
-        {...dangerMenuItemHandlers}
-        style={{ ...sessionMenuItemStyle, color: "var(--danger)" }}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
+          <span className="session-menu-item-icon">
+            <CopyGlyph size={15} />
+          </span>
+          <span className="session-menu-item-label">{copyLabel}</span>
+        </button>
+        <div aria-hidden="true" className="session-menu-separator">
+          <div />
+        </div>
+        <button
+          type="button"
+          role="menuitem"
+          className="session-menu-item session-menu-item--danger type-body-large"
+          onClick={onDelete}
         >
-          <polyline points="3 6 5 6 21 6" />
-          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-          <path d="M10 11v6M14 11v6" />
-          <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-        </svg>
-        {t("delete", "Delete")}
-      </button>
+          <span className="session-menu-item-icon">
+            <TrashGlyph />
+          </span>
+          <span className="session-menu-item-label">{t("deleteSessionAction", "Delete session")}</span>
+        </button>
+      </div>
     </div>
   );
 }
 
-/** Delete confirmation: same fixed row height, prompt plus two flat buttons. */
+const CONFIRM_CARD_WIDTH = 264;
+const CONFIRM_CARD_OFFSET = 4;
+
+function useAnchoredPosition(anchorRef: RefObject<HTMLElement | null>) {
+  const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const maxLeft = window.innerWidth - CONFIRM_CARD_WIDTH - VIEWPORT_MARGIN;
+      setPosition({
+        top: rect.bottom + CONFIRM_CARD_OFFSET,
+        left: Math.max(VIEWPORT_MARGIN, Math.min(rect.left, maxLeft)),
+      });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
+  }, [anchorRef]);
+  return position;
+}
+
 export function SessionItemDeleteConfirm({
   title,
+  anchorRef,
+  blocked,
+  busy,
+  error,
+  subtree,
   onConfirm,
   onCancel,
 }: {
   title: string;
+  anchorRef: RefObject<HTMLElement | null>;
+  blocked: boolean;
+  busy: boolean;
+  error: string | null;
+  subtree: SessionSubtree;
   onConfirm: (event: ReactMouseEvent) => void;
-  onCancel: (event: ReactMouseEvent) => void;
+  onCancel: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
 }) {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
+  const position = useAnchoredPosition(anchorRef);
+  const subtreeError = subtree.status === "error" ? subtree.message : null;
+  const runsWithChild = subtree.status === "ready" && subtree.running;
+  const notice =
+    error ??
+    (blocked ? t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting.") : null) ??
+    subtreeError ??
+    (runsWithChild ? t("deleteRunningChildBlocked", "A sub-session is still running. Stop it before deleting.") : null);
+  const childrenSentence =
+    subtree.status === "ready" && subtree.count > 0
+      ? (subtree.count === 1
+          ? t("deleteSessionWithChild", "“{title}” and its sub-session will be deleted together. This can’t be undone.")
+          : t(
+              "deleteSessionWithChildren",
+              "“{title}” and its {count} sub-sessions will be deleted together. This can’t be undone.",
+            ).replace("{count}", formatNumber(subtree.count, language))
+        ).replace("{title}", title)
+      : null;
   return (
-    <>
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          fontSize: "var(--text-label)",
-          color: "var(--text)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {t("deleteSessionConfirm", "Delete “{title}”?").replace(
-          "{title}",
-          `${title.slice(0, 22)}${title.length > 22 ? "…" : ""}`,
-        )}
+    <div
+      role="alertdialog"
+      aria-label={t("deleteSessionConfirm", "Delete “{title}”?").replace("{title}", title)}
+      className="session-menu-card session-menu-card--confirm composer-pop-in"
+      style={position ?? undefined}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || busy) return;
+        event.preventDefault();
+        onCancel(event);
+      }}
+    >
+      <div className="session-menu-confirm-body">
+        <span className="session-menu-confirm-icon">
+          <TrashGlyph />
+        </span>
+        <div className="session-menu-confirm-text">
+          <div className="type-body-large-medium">{t("deleteSessionTitle", "Delete this session?")}</div>
+          {childrenSentence && <p className="session-menu-confirm-notice type-label-default">{childrenSentence}</p>}
+          {notice && (
+            <p
+              role="alert"
+              className="session-menu-confirm-notice type-label-default"
+              data-tone={error || subtreeError ? "danger" : undefined}
+            >
+              {notice}
+            </p>
+          )}
+        </div>
       </div>
-      <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-        <button
+      <div className="session-menu-confirm-footer">
+        <Button
+          variant="danger"
+          busy={busy}
+          disabled={blocked || busy || subtree.status !== "ready" || subtree.running}
           onClick={onConfirm}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 4,
-            height: 24,
-            padding: "0 10px",
-            background: "var(--danger)",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: "var(--on-danger)",
-            cursor: "pointer",
-            fontSize: "var(--text-label)",
-            fontWeight: 600,
-            whiteSpace: "nowrap",
-          }}
         >
-          <svg
-            width="12"
-            height="12"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="3 6 5 6 21 6" />
-            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-            <path d="M10 11v6M14 11v6" />
-            <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-          </svg>
           {t("delete", "Delete")}
-        </button>
-        <button
-          onClick={onCancel}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 24,
-            padding: "0 10px",
-            background: "var(--bg)",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--radius-control)",
-            color: "var(--text-muted)",
-            cursor: "pointer",
-            fontSize: "var(--text-label)",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-          }}
-        >
+        </Button>
+        <Button autoFocus disabled={busy} onClick={onCancel}>
           {t("cancel", "Cancel")}
-        </button>
+        </Button>
       </div>
-    </>
+    </div>
   );
 }

@@ -6,20 +6,9 @@ import { NavSidebar } from "../renderer/components/app-nav/nav-sidebar.tsx";
 import { ResourcePage } from "../renderer/components/app-nav/resource-page.tsx";
 import { MessageView } from "../renderer/components/MessageView.tsx";
 import { ChatInput } from "../renderer/components/ChatInput.tsx";
-// Style cascade mirrors main.tsx exactly: the production entry first (its
-// Tailwind preflight reset and full Geist font declarations are part of the
-// real typography), then the app partials and the chat surface. The capture
-// script compiles globals.css through the real Tailwind postcss pipeline.
-import "../renderer/globals.css";
-import "../renderer/styles/tokens.css";
-import "../renderer/styles/base.css";
-import "../renderer/styles/interactive.css";
-import "../renderer/styles/markdown.css";
-import "../renderer/styles/motion.css";
-import "../renderer/styles/nav.css";
-import "../renderer/styles/panels.css";
-import "../renderer/chat.css";
-import "../renderer/styles/tool-cards.css";
+// The same style entry as main.tsx; the capture script compiles globals.css
+// through the real Tailwind postcss pipeline.
+import "../renderer/styles/index.ts";
 import { buildPreviewData } from "./ui-preview-data.mjs";
 
 // The preview runs in a real browser window (Electron); alias the globals the
@@ -36,6 +25,21 @@ const getComputedStyle = globalThis.getComputedStyle.bind(globalThis);
  * replaced by the api-client mock at bundle time. Nothing here touches a
  * real Agent Host, session file or configuration.
  */
+
+const PREVIEW_NOW = (() => {
+  const anchor = new Date();
+  anchor.setHours(12, 0, 0, 0);
+  return anchor.getTime();
+})();
+const RealDate = globalThis.Date;
+globalThis.Date = class PreviewDate extends RealDate {
+  constructor(...args) {
+    super(...(args.length === 0 ? [PREVIEW_NOW] : args));
+  }
+  static now() {
+    return PREVIEW_NOW;
+  }
+};
 
 const data = buildPreviewData({ now: new Date() });
 
@@ -173,7 +177,7 @@ function renderCurrent() {
     root.render(
       createElement(
         "div",
-        { style: { display: "flex", height: "100dvh", overflow: "hidden", background: "var(--bg)" } },
+        { style: { display: "flex", height: "100dvh", overflow: "hidden", background: "var(--fx-surface-main)" } },
         createElement(NavSidebar, {
           key: renderEpoch,
           expanded: layout.expanded,
@@ -192,9 +196,7 @@ function renderCurrent() {
           onNewSession: () => undefined,
           onRefreshSessions: () => undefined,
           onOpenSettings: () => undefined,
-          onOpenFolder: () => undefined,
           onChooseFolder: () => undefined,
-          onSwitchSpace: () => undefined,
           onBackToPersonalSpace: () => undefined,
           onSessionDeleted: () => undefined,
         }),
@@ -219,6 +221,37 @@ async function settleAnimations() {
   await raf2();
 }
 
+const FREEZE_STYLE_ID = "ui-preview-freeze";
+
+function freezeMotion(enabled) {
+  const existing = document.getElementById(FREEZE_STYLE_ID);
+  if (!enabled) {
+    existing?.remove();
+    return;
+  }
+  if (existing) return;
+  const style = document.createElement("style");
+  style.id = FREEZE_STYLE_ID;
+  style.textContent =
+    "*,*::before,*::after{transition:none!important;animation-play-state:paused!important;animation-delay:0s!important;caret-color:transparent!important}";
+  document.head.appendChild(style);
+}
+
+function freezeLoopingMotion() {
+  for (const animation of document.getAnimations()) {
+    if (animation.effect?.getTiming().iterations !== Infinity) {
+      animation.finish();
+      continue;
+    }
+    animation.pause();
+    animation.currentTime = 0;
+  }
+  for (const svg of document.querySelectorAll("svg")) {
+    svg.pauseAnimations();
+    svg.setCurrentTime(0);
+  }
+}
+
 function applyState(state) {
   if (!state) return;
   if (state.search) clickRequired("[data-nav-search-toggle]", "search toggle");
@@ -232,7 +265,8 @@ function clickRequired(selector, what) {
 }
 
 window.preview = {
-  async configure({ screen, theme, lang, state }) {
+  async configure({ screen, theme, lang, state, freeze }) {
+    freezeMotion(Boolean(freeze));
     renderEpoch += 1;
     if (screen) currentScreen = screen;
     if (lang) setAppLanguage(lang === "en" ? "en-US" : "zh-CN");
@@ -242,6 +276,10 @@ window.preview = {
     await settleAnimations();
     applyState(state);
     await settleAnimations();
+    if (freeze) {
+      freezeLoopingMotion();
+      await raf2();
+    }
     return { ok: true, screen: currentScreen };
   },
   /**

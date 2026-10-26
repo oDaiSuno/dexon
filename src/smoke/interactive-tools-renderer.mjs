@@ -6,7 +6,13 @@ import { ToolCardDock } from "../renderer/components/interactive-tools/tool-card
 import { InteractiveToolStore } from "../renderer/lib/interactive-tool-store.ts";
 import "../renderer/styles/tokens.css";
 import "../renderer/styles/base.css";
-import "../renderer/chat.css";
+import "../renderer/styles/motion-tokens.css";
+import "../renderer/styles/chat-scope.css";
+import "../renderer/styles/chat-motion.css";
+import "../renderer/styles/chat-shared.css";
+import "../renderer/styles/messages-process.css";
+import "../renderer/styles/messages-failure.css";
+import "../renderer/styles/messages-stream.css";
 import "../renderer/styles/tool-cards.css";
 
 const document = globalThis.document;
@@ -86,8 +92,8 @@ window.fixture = {
     if (mode === "collapsed") store.setCollapsed(req.id, true);
     if (mode === "failed") await store.respond(req.id, { answers: store.getSnapshot().entries[0].draft.answers });
     render();
-    if (mode === "abandon") button("放弃本次回答").click();
-    if (mode === "preview") document.querySelector("details").open = true;
+    if (mode === "abandon") button("放弃回答").click();
+    if (mode === "preview") flushSync(() => document.querySelector(".tool-preview-toggle").click());
     await paint();
     return this.inspect();
   },
@@ -110,7 +116,7 @@ window.fixture = {
   inspect() {
     const card = document.querySelector(".tool-card");
     const body = document.querySelector(".tool-body-scroll");
-    const primary = document.querySelector(".tool-primary");
+    const primary = document.querySelector('.tool-card .ui-button[data-variant="primary"]');
     const rect = card?.getBoundingClientRect();
     const overflow = [...document.querySelectorAll(".tool-card *")]
       .filter((e) => {
@@ -126,7 +132,7 @@ window.fixture = {
       composerVisible: document.querySelector(".composer").getBoundingClientRect().bottom <= window.innerHeight,
       primaryVisible: !primary || primary.getBoundingClientRect().bottom <= window.innerHeight,
       bodyScroll: !!body && body.scrollHeight > body.clientHeight,
-      previewLength: document.querySelector(".tool-preview pre")?.textContent.length ?? 0,
+      previewLength: document.querySelector(".tool-preview")?.textContent.length ?? 0,
       previewExecuted: !!window.previewExecuted,
       reduced: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       motion: [...document.querySelectorAll(".tool-card *")].map((e) => {

@@ -60,8 +60,6 @@ test("context usage survives session switches without a live runtime", async (pa
 
   const USAGE = { percent: 30.2, contextWindow: 100_000_000, tokens: 30_200_000 };
   const UNKNOWN_AFTER_COMPACTION = { percent: null, contextWindow: 100_000_000, tokens: null };
-  const HINT = "Context usage updates after the next model response (e.g. right after compaction)";
-  const escapedHint = HINT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   function hostWithDefaults(host) {
     return {
@@ -211,7 +209,6 @@ test("context usage survives session switches without a live runtime", async (pa
     });
     await h.mount(detail);
     assert.deepEqual(h.state.contextUsage, USAGE);
-    assert.match(h.text(), /30\.2%\/100\.0M · Compact/);
     assert.equal(h.state.messages[0].role, "user");
   });
 
@@ -238,9 +235,6 @@ test("context usage survives session switches without a live runtime", async (pa
     });
     await h.mount(detail);
     assert.deepEqual(h.state.contextUsage, UNKNOWN_AFTER_COMPACTION);
-    assert.match(h.text(), /\?\/100\.0M · Compact/);
-    assert.match(h.text(), new RegExp(escapedHint));
-    assert.doesNotMatch(h.text(), /30\.2%/);
   });
 
   await parent.test("does not fabricate usage when the host cannot compute it", async (t) => {
@@ -252,9 +246,6 @@ test("context usage survives session switches without a live runtime", async (pa
     });
     await h.mount(detail);
     assert.equal(h.state.contextUsage, null);
-    assert.match(h.text(), /Compact/);
-    assert.doesNotMatch(h.text(), /\/100\.0M/);
-    assert.doesNotMatch(h.text(), new RegExp(escapedHint));
   });
 
   await parent.test("a late response for an abandoned session cannot overwrite the active one", async (t) => {

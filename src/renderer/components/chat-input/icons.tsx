@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export function Icon({
   children,
   size = 15,
-  strokeWidth = 1.8,
+  strokeWidth = 1.75,
 }: {
   children: ReactNode;
   size?: number;
@@ -29,7 +29,7 @@ export function Icon({
 
 export function PlusIcon({ size = 16 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2}>
+    <Icon size={size}>
       <path d="M12 5v14M5 12h14" />
     </Icon>
   );
@@ -47,12 +47,14 @@ export function PackageIcon({ size = 15 }: { size?: number }) {
   );
 }
 
-export function ImageIcon({ size = 15 }: { size?: number }) {
+export function ImagePlusIcon({ size = 13 }: { size?: number }) {
   return (
     <Icon size={size}>
-      <rect x="3" y="3" width="18" height="18" rx="2.5" />
-      <circle cx="8.8" cy="8.8" r="1.7" />
-      <path d="m21 15.5-4.2-4.2a1.5 1.5 0 0 0-2.1 0L5 21" />
+      <path d="M16 5h6" />
+      <path d="M19 2v6" />
+      <path d="M21 11.5V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7.5" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+      <circle cx="9" cy="9" r="2" />
     </Icon>
   );
 }
@@ -67,8 +69,16 @@ export function PaperclipIcon({ size = 15 }: { size?: number }) {
 
 export function ArrowUpIcon({ size = 16 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2.4}>
+    <Icon size={size} strokeWidth={2.25}>
       <path d="M12 19V5M5 12l7-7 7 7" />
+    </Icon>
+  );
+}
+
+export function ArrowDownIcon({ size = 15 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M12 5v14M19 12l-7 7-7-7" />
     </Icon>
   );
 }
@@ -76,7 +86,7 @@ export function ArrowUpIcon({ size = 16 }: { size?: number }) {
 export function StopIcon({ size = 10 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 10 10" fill="none" aria-hidden="true">
-      <rect x="0.75" y="0.75" width="8.5" height="8.5" rx="2" fill="currentColor" />
+      <rect width="10" height="10" fill="currentColor" />
     </svg>
   );
 }
@@ -184,7 +194,7 @@ export function CheckIcon({ size = 10 }: { size?: number }) {
       height={size}
       viewBox="0 0 10 10"
       fill="none"
-      stroke="var(--accent)"
+      stroke="var(--fx-accent-blue)"
       strokeWidth="2"
       strokeLinecap="round"
       strokeLinejoin="round"
@@ -198,8 +208,191 @@ export function CheckIcon({ size = 10 }: { size?: number }) {
 
 export function ChevronDownIcon({ size = 11 }: { size?: number }) {
   return (
-    <Icon size={size} strokeWidth={2.4}>
+    <Icon size={size} strokeWidth={2}>
       <path d="M6 9l6 6 6-6" />
+    </Icon>
+  );
+}
+
+export function ChevronLeftIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="m15 18-6-6 6-6" />
+    </Icon>
+  );
+}
+
+export function ArrowUpRightIcon({ size = 12 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M7 7h10v10" />
+      <path d="M7 17 17 7" />
+    </Icon>
+  );
+}
+
+export function PuzzleIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size} strokeWidth={2}>
+      <path d="M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z" />
+    </Icon>
+  );
+}
+
+export function RefreshCwIcon({ size = 14, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M8 16H3v5" />
+    </Icon>
+  );
+}
+
+export function SearchIcon({ size = 15, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </Icon>
+  );
+}
+
+export function ArrowRightIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M5 12h14" />
+      <path d="m12 5 7 7-7 7" />
+    </Icon>
+  );
+}
+
+export function ImageIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <rect width="18" height="18" x="3" y="3" rx="2" ry="2" />
+      <circle cx="9" cy="9" r="2" />
+      <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+    </Icon>
+  );
+}
+
+export function BrainIcon({ size = 13, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+      <path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+      <path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+      <path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+      <path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+      <path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+      <path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+      <path d="M6 18a4 4 0 0 1-1.967-.516" />
+      <path d="M19.967 17.484A4 4 0 0 1 18 18" />
+    </Icon>
+  );
+}
+
+export function PlugsConnectedIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 256 256"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={16}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ flexShrink: 0 }}
+    >
+      <rect x="63.03" y="88.4" width="129.94" height="79.2" rx="24" transform="translate(-53.02 128) rotate(-45)" />
+      <line x1="88" y1="88" x2="168" y2="168" />
+      <line x1="232" y1="24" x2="173.94" y2="82.06" />
+      <line x1="82.06" y1="173.94" x2="24" y2="232" />
+      <line x1="96" y1="32" x2="104" y2="52" />
+      <line x1="32" y1="96" x2="52" y2="104" />
+      <line x1="204" y1="152" x2="224" y2="160" />
+      <line x1="152" y1="204" x2="160" y2="224" />
+    </svg>
+  );
+}
+
+export function PackageOpenIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M12 22v-9" />
+      <path d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.66 1.66 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z" />
+      <path d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13" />
+      <path d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.64 1.64 0 0 0 1.63 0z" />
+    </Icon>
+  );
+}
+
+export function InfoIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 16v-4" />
+      <path d="M12 8h.01" />
+    </Icon>
+  );
+}
+
+export function CircleCheckIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m9 12 2 2 4-4" />
+    </Icon>
+  );
+}
+
+export function CircleXIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="m15 9-6 6" />
+      <path d="m9 9 6 6" />
+    </Icon>
+  );
+}
+
+export function CircleAlertIcon({ size = 15 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </Icon>
+  );
+}
+
+export function TriangleAlertIcon({ size = 16 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" />
+      <path d="M12 9v4" />
+      <path d="M12 17h.01" />
+    </Icon>
+  );
+}
+
+export function CloseIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Icon size={size}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </Icon>
+  );
+}
+
+export function CheckmarkIcon({ size = 14, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <Icon size={size} strokeWidth={strokeWidth}>
+      <path d="M20 6 9 17l-5-5" />
     </Icon>
   );
 }

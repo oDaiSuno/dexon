@@ -1,0 +1,124 @@
+.chat-upstream-error {
+  min-width: 0;
+  margin-bottom: var(--space-2);
+  padding: 2px;
+  overflow: clip;
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-composer);
+  background: var(--fx-surface-card);
+}
+
+.chat-upstream-error-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 11px 15px var(--space-3) 13px;
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-brand-xl);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-control);
+}
+
+.chat-upstream-error-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.chat-upstream-error-icon,
+.chat-upstream-error-spinner {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.chat-upstream-error-icon {
+  color: var(--fx-status-danger);
+}
+
+.chat-upstream-error-heading {
+  color: var(--fx-text-primary);
+}
+
+.chat-upstream-error-attempts {
+  color: var(--fx-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-upstream-error-spinner {
+  color: var(--fx-text-tertiary);
+  animation: chat-spin 900ms var(--ease-linear) infinite;
+}
+
+.chat-upstream-error-message {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+  padding-left: var(--space-6);
+}
+
+.chat-upstream-error-code {
+  flex-shrink: 0;
+  color: var(--fx-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chat-upstream-error-text {
+  flex: 1;
+  min-width: 0;
+  color: var(--fx-text-secondary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  text-wrap: pretty;
+}
+
+.chat-failure-text[data-clamped] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.chat-failure-meta {
+  display: inline-flex;
+  gap: var(--space-2);
+  margin-left: var(--space-2);
+  color: var(--fx-text-tertiary);
+  white-space: nowrap;
+}
+
+.chat-failure-action {
+  appearance: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition: color var(--duration-quick) var(--ease-out);
+}
+
+.chat-failure-action:hover {
+  color: var(--fx-text-secondary);
+}
+
+.chat-failure-copy {
+  opacity: 0;
+  transition: opacity var(--duration-quick) var(--ease-out);
+}
+
+.chat-upstream-error:hover .chat-failure-copy,
+.chat-failure-copy:focus-visible,
+.chat-failure-copy[data-copied] {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-failure-action,
+  .chat-failure-copy,
+  .chat-upstream-error-spinner {
+    transition: none !important;
+    animation: none !important;
+  }
+}

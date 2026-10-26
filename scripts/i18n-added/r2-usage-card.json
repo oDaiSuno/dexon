@@ -1,0 +1,15 @@
+[
+  "usageSystemPrompt",
+  "usageTools",
+  "usageAgentsSkills",
+  "usageConversation",
+  "usageToolResults",
+  "usageUsed",
+  "usageFree",
+  "usageReserve",
+  "usageCompactIn",
+  "usageCompactNow",
+  "usageLastCompaction",
+  "usageDetails",
+  "contextUsageHint"
+]

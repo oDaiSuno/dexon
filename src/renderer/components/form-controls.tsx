@@ -1,6 +1,6 @@
 /**
- * Shared form controls for settings-style panels (fields, inputs, selects).
- * Extracted from ModelsConfig so detail panes can stay focused on domain logic.
+ * Shared form controls for settings-style panels, styled by styles/controls.css
+ * after the Framer "Controls/*" components.
  */
 import {
   createContext,
@@ -8,10 +8,14 @@ import {
   useEffect,
   useId,
   useState,
+  type ButtonHTMLAttributes,
   type CSSProperties,
+  type InputHTMLAttributes,
   type KeyboardEventHandler,
   type ReactNode,
+  type SelectHTMLAttributes,
 } from "react";
+import { useI18n } from "@/i18n";
 
 const FieldControlIdContext = createContext<string | undefined>(undefined);
 
@@ -19,16 +23,40 @@ function useFieldControlId(): string | undefined {
   return useContext(FieldControlIdContext);
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+const iconProps = {
+  width: 14,
+  height: 14,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 2,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+export type FieldLabelSize = "label" | "body";
+
+const fieldLabelClass: Record<FieldLabelSize, string> = {
+  label: "type-label-default",
+  body: "type-body-default",
+};
+
+export function Field({
+  label,
+  labelSize = "label",
+  children,
+}: {
+  label: ReactNode;
+  labelSize?: FieldLabelSize;
+  children: ReactNode;
+}) {
   const controlId = useId();
 
   return (
     <FieldControlIdContext.Provider value={controlId}>
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label
-          htmlFor={controlId}
-          style={{ fontSize: "var(--text-label)", color: "var(--text-muted)", fontWeight: 500 }}
-        >
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label htmlFor={controlId} className={fieldLabelClass[labelSize]} style={{ color: "var(--fx-text-secondary)" }}>
           {label}
         </label>
         {children}
@@ -37,29 +65,60 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-export const inputStyle = {
-  minHeight: 36,
-  padding: "8px 12px",
-  background: "var(--bg-panel)",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-control)",
-  color: "var(--text)",
-  fontSize: "var(--text-body)",
-  outline: "none",
-  width: "100%",
-  boxSizing: "border-box" as const,
-};
+export type ButtonVariant = "secondary" | "primary" | "danger" | "ghost";
+
+export function Button({
+  variant = "secondary",
+  busy,
+  type = "button",
+  className,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; busy?: boolean }) {
+  return (
+    <button
+      {...props}
+      type={type}
+      className={className ? `ui-button type-body-medium ${className}` : "ui-button type-body-medium"}
+      data-variant={variant === "secondary" ? undefined : variant}
+      aria-busy={busy || undefined}
+    />
+  );
+}
+
+export function Toggle({ className, ...props }: Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "role">) {
+  return (
+    <input {...props} type="checkbox" role="switch" className={className ? `ui-toggle ${className}` : "ui-toggle"} />
+  );
+}
+
+export type BadgeTone = "success" | "warning" | "danger" | "running" | "muted" | "neutral" | "accent";
+
+export function Badge({ tone = "muted", children }: { tone?: BadgeTone; children: ReactNode }) {
+  const textClass = tone === "neutral" || tone === "accent" ? "type-mono-meta" : "type-label-medium";
+
+  return (
+    <span className={`ui-badge ${textClass}`} data-tone={tone}>
+      {children}
+    </span>
+  );
+}
+
+function inputClassName(mono?: boolean): string {
+  return mono ? "ui-input type-mono-label" : "ui-input type-body-default";
+}
 
 export function TextInput({
   value,
   onChange,
   placeholder,
   mono,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   mono?: boolean;
+  onBlur?: () => void;
 }) {
   const controlId = useFieldControlId();
 
@@ -68,8 +127,10 @@ export function TextInput({
       id={controlId}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       placeholder={placeholder}
-      style={{ ...inputStyle, fontFamily: mono ? "var(--font-mono)" : "inherit" }}
+      className={inputClassName(mono)}
+      data-mono={mono || undefined}
     />
   );
 }
@@ -83,6 +144,7 @@ export function SecretTextInput({
   autoComplete = "off",
   spellCheck = false,
   style,
+  onBlur,
 }: {
   value: string;
   onChange: (v: string) => void;
@@ -92,16 +154,26 @@ export function SecretTextInput({
   autoComplete?: string;
   spellCheck?: boolean;
   style?: CSSProperties;
+  onBlur?: () => void;
 }) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
   const controlId = useFieldControlId();
+  const revealLabel = visible ? t("secretInputHide", "Hide API key") : t("secretInputShow", "Show API key");
 
   useEffect(() => {
     if (!value) setVisible(false);
   }, [value]);
 
   return (
-    <div style={{ position: "relative", width: "100%", ...style }}>
+    <div
+      style={{ display: "flex", alignItems: "center", gap: 6, width: "100%", ...style }}
+      onBlur={(event) => {
+        const next = event.relatedTarget as Node | null;
+        if (next?.nodeType && event.currentTarget.contains(next)) return;
+        onBlur?.();
+      }}
+    >
       <input
         id={controlId}
         type={visible ? "text" : "password"}
@@ -109,60 +181,30 @@ export function SecretTextInput({
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        style={{ ...inputStyle, paddingRight: 40, fontFamily: mono ? "var(--font-mono)" : "inherit" }}
+        className={inputClassName(mono)}
+        data-mono={mono || undefined}
+        style={{ flex: 1, minWidth: 0 }}
         autoComplete={autoComplete}
         spellCheck={spellCheck}
       />
       <button
         type="button"
         onClick={() => setVisible((v) => !v)}
-        aria-label={visible ? "Hide API key" : "Show API key"}
-        title={visible ? "Hide API key" : "Show API key"}
-        style={{
-          position: "absolute",
-          right: 2,
-          top: "50%",
-          transform: "translateY(-50%)",
-          width: 32,
-          height: 32,
-          padding: 0,
-          border: "none",
-          background: "transparent",
-          color: "var(--text-dim)",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
+        aria-label={revealLabel}
+        title={revealLabel}
+        className="ui-input-reveal"
+        style={{ width: 32, height: 32 }}
       >
         {visible ? (
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.89 1 12a18.45 18.45 0 0 1 5.06-6.94" />
-            <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c5 0 9.27 3.11 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-            <path d="M14.12 14.12A3 3 0 0 1 9.88 9.88" />
-            <path d="M1 1l22 22" />
+          <svg {...iconProps}>
+            <path d="M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49" />
+            <path d="M14.084 14.158a3 3 0 0 1-4.242-4.242" />
+            <path d="M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143" />
+            <path d="m2 2 20 20" />
           </svg>
         ) : (
-          <svg
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8S1 12 1 12Z" />
+          <svg {...iconProps}>
+            <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" />
             <circle cx="12" cy="12" r="3" />
           </svg>
         )}
@@ -189,8 +231,29 @@ export function NumInput({
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={inputStyle}
+      className={inputClassName(true)}
+      data-mono
     />
+  );
+}
+
+export function NativeSelect({ id, className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  const controlId = useFieldControlId();
+
+  return (
+    <span className="ui-select-field">
+      <select
+        {...props}
+        id={id ?? controlId}
+        className={className ? `ui-select type-body-default ${className}` : "ui-select type-body-default"}
+      >
+        {children}
+      </select>
+      <svg {...iconProps} className="ui-select-icon">
+        <path d="m7 15 5 5 5-5" />
+        <path d="m7 9 5-5 5 5" />
+      </svg>
+    </span>
   );
 }
 
@@ -205,22 +268,17 @@ export function Select({
   options: readonly string[];
   required?: boolean;
 }) {
-  const controlId = useFieldControlId();
+  const { t } = useI18n();
 
   return (
-    <select
-      id={controlId}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      style={{ ...inputStyle, color: value ? "var(--text)" : "var(--text-dim)" }}
-    >
-      {!required && <option value="">— inherit / none —</option>}
+    <NativeSelect value={value} onChange={(e) => onChange(e.target.value)} data-empty={!value || undefined}>
+      {!required && <option value="">{t("selectUseDefault", "Use default")}</option>}
       {options.map((o) => (
         <option key={o} value={o}>
           {o}
         </option>
       ))}
-    </select>
+    </NativeSelect>
   );
 }
 
@@ -235,23 +293,17 @@ export function Check({
 }) {
   return (
     <label
+      className="type-body-medium"
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 8,
-        minHeight: 36,
-        padding: "4px 0",
+        gap: 10,
+        minHeight: 32,
         cursor: "pointer",
-        fontSize: "var(--text-body)",
-        color: "var(--text-muted)",
+        color: "var(--fx-text-primary)",
       }}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(e) => onChange(e.target.checked)}
-        style={{ width: 18, height: 18, margin: 0, accentColor: "var(--accent)", cursor: "pointer" }}
-      />
+      <Toggle checked={checked} onChange={(e) => onChange(e.target.checked)} />
       {label}
     </label>
   );
@@ -260,12 +312,10 @@ export function Check({
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <div
+      className="type-meta-caps"
       style={{
-        fontSize: "var(--text-meta)",
-        fontWeight: 600,
-        color: "var(--text-dim)",
+        color: "var(--fx-text-tertiary)",
         textTransform: "uppercase",
-        letterSpacing: "0.06em",
         marginBottom: 2,
       }}
     >

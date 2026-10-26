@@ -2,12 +2,12 @@ import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { formatTurnDuration } from "@/lib/process-flow";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useDelayedUnmount } from "./messages/shared";
 
 export function ProcessDetailsGroup({
   messageCount,
   toolCallCount,
+  createdSessionCount = 0,
   durationSeconds,
   children,
   stateKey,
@@ -19,29 +19,34 @@ export function ProcessDetailsGroup({
   const { language, t } = useI18n();
   const durationLabel =
     durationSeconds !== undefined && durationSeconds > 0 ? formatTurnDuration(durationSeconds) : null;
-  // Preferred header: whole-turn duration. Falls back to the legacy counts
-  // only when message timestamps are unavailable.
-  const parts = durationLabel
-    ? [`${t("processedLabel", "Processed")} ${durationLabel}`]
-    : [
-        t("processDetails", "Process details"),
-        language === "zh-CN"
-          ? `${messageCount} ${t("messagesCount", "messages")}`
-          : `${messageCount} ${messageCount === 1 ? "message" : "messages"}`,
-        ...(toolCallCount > 0
-          ? [
-              language === "zh-CN"
-                ? `${toolCallCount} ${t("toolCallsCount", "tool calls")}`
-                : `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`,
-            ]
-          : []),
-      ];
+  const label = durationLabel
+    ? `${t("processedLabel", "Processed")} ${durationLabel}`
+    : t("processedLabel", "Processed");
+  const summary =
+    createdSessionCount > 0
+      ? createdSessionCount === 1
+        ? t("processCreatedOneSession", "· 1 new session")
+        : t("processCreatedSessions", "· {count} new sessions").replace("{count}", String(createdSessionCount))
+      : null;
+  const counts = [
+    t("processDetails", "Process details"),
+    language === "zh-CN"
+      ? `${messageCount} ${t("messagesCount", "messages")}`
+      : `${messageCount} ${messageCount === 1 ? "message" : "messages"}`,
+    ...(toolCallCount > 0
+      ? [
+          language === "zh-CN"
+            ? `${toolCallCount} ${t("toolCallsCount", "tool calls")}`
+            : `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`,
+        ]
+      : []),
+  ].join(" · ");
 
   return (
     <div className="chat-acc" data-open={expanded ? "true" : "false"} style={{ marginBottom: 16 }}>
       <button
         type="button"
-        className="chat-quiet-head"
+        className="chat-quiet-head chat-process-head type-body-default"
         aria-expanded={expanded}
         onClick={() => expansionStore.toggle(stateKey)}
         title={
@@ -49,38 +54,24 @@ export function ProcessDetailsGroup({
             ? t("collapseProcessDetails", "Collapse process details")
             : t("expandProcessDetails", "Expand process details")
         }
-        style={{ fontSize: scaledChatFont(12.5) }}
       >
-        <span
-          className="chat-acc-chevron"
-          style={{ color: "var(--bui-ink-3)", display: "flex", flexShrink: 0 }}
-          aria-hidden="true"
-        >
+        <span className="chat-acc-chevron chat-process-chevron" aria-hidden="true">
           <svg
-            width="13"
-            height="13"
+            width="14"
+            height="14"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2.2"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           >
             <path d="M6 9l6 6 6-6" />
           </svg>
         </span>
-        <span
-          style={{
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "var(--bui-ink-2)",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          {parts.join(" · ")}
-        </span>
+        <span className="chat-process-label">{label}</span>
+        {summary && <span className="chat-process-summary">{summary}</span>}
+        {!durationLabel && <span className="sr-only">{counts}</span>}
       </button>
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
@@ -94,7 +85,7 @@ export function ProcessDetailsGroup({
 interface Props {
   messageCount: number;
   toolCallCount: number;
-  /** Whole-turn processing duration in seconds; falls back to counts when unavailable. */
+  createdSessionCount?: number;
   durationSeconds?: number;
   children: ReactNode;
   stateKey: string;

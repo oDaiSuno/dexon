@@ -1,0 +1,127 @@
+{
+  "lane": "F2 插件与技能的详情和添加页",
+  "legacy": [
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "name": "--text-body",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "name": "--text-label",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "name": "--text-meta",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "name": "--text-label",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "name": "--text-micro",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "name": "--text-body",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "name": "--text-body-lg",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "name": "--text-label",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "name": "--text-meta",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "property": "fontSize",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/plugins/add-plugin-panel.tsx",
+      "property": "fontWeight",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "property": "fontSize",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "property": "lineHeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "property": "fontSize",
+      "count": 13
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "property": "fontWeight",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "property": "lineHeight",
+      "count": 1
+    }
+  ],
+  "colors": [
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "color": "rgba(120,120,120,0.12)",
+      "count": 1,
+      "hint": "中性底色改用 var(--fx-surface-subtle) / var(--fx-surface-hover)，边线用 var(--fx-line-default)；状态标签可直接用 <Badge tone=\"neutral\">"
+    },
+    {
+      "file": "src/renderer/components/plugins/package-detail.tsx",
+      "color": "rgba(245,158,11,0.12)",
+      "count": 1,
+      "hint": "改用 var(--fx-status-warning-soft)"
+    },
+    {
+      "file": "src/renderer/components/skills/add-skill-panel.tsx",
+      "color": "rgba(34,197,94,0.1)",
+      "count": 1,
+      "hint": "改用 var(--fx-status-success-soft)"
+    }
+  ]
+}

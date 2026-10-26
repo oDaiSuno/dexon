@@ -20,6 +20,7 @@ import { type ExternalTurnParams, runExternalTurn as runExternalTurnOn } from ".
 import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
 import { QueuedTurns } from "./queued-turns";
+import { RetryOutcomeRecorder } from "./retry-outcome";
 import { activateBrowserTools, activateSessionTools } from "./tool-activation";
 import { SessionTurnStatus } from "./turn-status";
 import type {
@@ -45,6 +46,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private orchestratedSource: SessionSourceRef | null = null;
   public readonly queuedTurns = new QueuedTurns();
   private readonly turnStatus = new SessionTurnStatus();
+  private readonly retryOutcome = new RetryOutcomeRecorder();
   protected externalTurnActive = false;
   private externalTurnChannel: ChannelId | null = null;
   private externalTurnAttachments: ChannelMessageAttachment[] | null = null;
@@ -106,6 +108,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       this.resetIdleTimer();
       this.turnStatus.observe(event);
+      this.retryOutcome.observe(event, this.inner.sessionManager);
       const displayEvent = this.withMessageSources(event);
       this.emit(displayEvent);
       try {
@@ -369,7 +372,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
           this.externalTurnChannel = null;
           this.externalTurnAttachments = null;
         },
-        setBrowserSource: (source) => setBrowserSessionSource(this.inner.sessionManager, source),
+        setBrowserSource: (source, channel) => setBrowserSessionSource(this.inner.sessionManager, source, channel),
       },
       params,
     );

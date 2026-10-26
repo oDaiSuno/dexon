@@ -15,7 +15,7 @@ import type {
   ImageContent,
   TextContent,
 } from "@/lib/types";
-import type { ModelCatalogStatus } from "@contract/types";
+import type { ContextUsageInfo, ModelCatalogStatus } from "@contract/types";
 import { useReducer, useRef, useState } from "react";
 import {
   AgentEvent,
@@ -74,11 +74,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
   const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
   const [retryInfo, setRetryInfo] = useState<RetryInfo | null>(null);
-  const [contextUsage, setContextUsage] = useState<{
-    percent: number | null;
-    contextWindow: number;
-    tokens: number | null;
-  } | null>(null);
+  const [contextUsage, setContextUsage] = useState<ContextUsageInfo | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
   const [currentModelOverride, setCurrentModelOverride] = useState<{ provider: string; modelId: string } | null>(null);

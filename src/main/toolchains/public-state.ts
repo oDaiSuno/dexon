@@ -9,7 +9,7 @@ import type {
   ToolPreference,
 } from "../../shared/toolchains/types";
 import { MANAGED_COMPONENT_IDS, TOOL_CAPABILITY_IDS } from "../../shared/toolchains/types.ts";
-import { redactToolPath, type PathRedactionRoot } from "./candidate-normalizer.ts";
+import { redactToolPath, toolPathComparisonKey, type PathRedactionRoot } from "./candidate-normalizer.ts";
 
 const MISSING_REASON: Partial<Record<ToolCapabilityId, PublicCapabilityState["reasonCode"]>> = {
   "shell.bash": "TOOLCHAIN_BASH_REQUIRED",
@@ -21,6 +21,29 @@ const MISSING_REASON: Partial<Record<ToolCapabilityId, PublicCapabilityState["re
   "python.uv": "TOOLCHAIN_UV_REQUIRED",
   "python.uvx": "TOOLCHAIN_UV_REQUIRED",
 };
+
+const CAPABILITY_LEADERS: Partial<Record<ToolCapabilityId, ToolCapabilityId>> = {
+  "js.npm": "js.node",
+  "js.npx": "js.node",
+  "python.uvx": "python.uv",
+};
+
+function followedCapability(
+  capability: ToolCapabilityId,
+  defaults: Readonly<Partial<Record<ToolCapabilityId, ToolCandidate>>>,
+  platform: NodeJS.Platform,
+): ToolCapabilityId | undefined {
+  const leader = CAPABILITY_LEADERS[capability];
+  if (!leader) return undefined;
+  const own = defaults[capability];
+  const lead = defaults[leader];
+  if (!own || !lead || own.provider !== lead.provider) return undefined;
+  const same =
+    own.componentRoot && lead.componentRoot
+      ? toolPathComparisonKey(own.componentRoot, platform) === toolPathComparisonKey(lead.componentRoot, platform)
+      : toolPathComparisonKey(own.executable, platform) === toolPathComparisonKey(lead.executable, platform);
+  return same ? leader : undefined;
+}
 
 export function commandDescriptorFromCandidate(candidate: ToolCandidate, platform: NodeJS.Platform): CommandDescriptor {
   const isWindowsMsysBash =
@@ -87,6 +110,7 @@ export function buildPublicToolchainState(options: {
   operations?: PublicToolchainState["operations"];
   lastScanAt?: string;
   lastErrorCode?: PublicToolchainState["lastErrorCode"];
+  managedRoot?: string;
 }): PublicToolchainState {
   const capabilities: PublicToolchainState["capabilities"] = {};
   for (const capability of TOOL_CAPABILITY_IDS) {
@@ -113,6 +137,7 @@ export function buildPublicToolchainState(options: {
         health: candidate.health,
         reasonCode: candidate.reasonCode,
       })),
+      follows: followedCapability(capability, options.defaults, options.platform),
     };
   }
 
@@ -132,6 +157,9 @@ export function buildPublicToolchainState(options: {
     components,
     caches: options.caches ? structuredClone(options.caches) : {},
     operations: options.operations ? options.operations.map((operation) => structuredClone(operation)) : [],
+    managedRootLabel: options.managedRoot
+      ? redactToolPath(options.managedRoot, options.redactionRoots, options.platform)
+      : undefined,
     lastScanAt: options.lastScanAt,
     lastErrorCode: options.lastErrorCode,
   };

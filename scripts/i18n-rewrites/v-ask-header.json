@@ -1,0 +1,26 @@
+{
+  "toolCollapse": {
+    "enUS": "Collapse and keep answers",
+    "zhCN": "收起并保留答案"
+  },
+  "toolDismiss": {
+    "enUS": "Dismiss status",
+    "zhCN": "关闭状态提示"
+  },
+  "toolExpired": {
+    "enUS": "This request is no longer active",
+    "zhCN": "本次请求已失效"
+  },
+  "toolSendFailed": {
+    "enUS": "Delivery failed. Your answers are kept; try again.",
+    "zhCN": "发送失败，答案仍保留，请重试。"
+  },
+  "toolSubmitted": {
+    "enUS": "Answers sent",
+    "zhCN": "回答已发送"
+  },
+  "toolWaiting": {
+    "enUS": "Waiting for your answer",
+    "zhCN": "等待你回答"
+  }
+}

@@ -6,6 +6,7 @@ import type {
 } from "@/hooks/useAgentSession";
 import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
+import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 
 export interface ChatInputProps {
@@ -19,16 +20,17 @@ export interface ChatInputProps {
   isAutoModelSelection?: boolean;
   modelNames?: Record<string, string>;
   modelList?: { id: string; name: string; provider: string; input?: ("text" | "image")[] }[];
+  modelThinkingLevels?: Record<string, string[]>;
   modelCatalog?: ModelCatalogStatus;
   modelRefreshing?: boolean;
   onModelChange?: (provider: string, modelId: string) => void;
   onModelsRefresh?: () => Promise<void> | void;
   onModelsRefreshCancel?: () => void;
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   compactResult?: CompactResultInfo | null;
+  onDismissCompactResult?: () => void;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
   thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
   onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
@@ -48,6 +50,58 @@ export interface ChatInputProps {
   cwd?: string | null;
   /** Whether this input is currently user-visible and interactive. */
   visible?: boolean;
+  remote?: ComposerRemote | null;
+  navigation?: ComposerNavigation;
+  workspace?: ComposerWorkspace | null;
+}
+
+export interface ComposerCheckout {
+  path: string;
+  branch: string | null;
+  isMain: boolean;
+}
+
+export interface ComposerProject {
+  name: string;
+  path: string;
+  displayPath: string;
+}
+
+export interface ComposerWorkspace {
+  project: ComposerProject;
+  checkouts: ComposerCheckout[];
+  current: ComposerCheckout | null;
+  currentPath: string | null;
+  menuOpen: boolean;
+  newEntryOpen: boolean;
+  newBranch: string;
+  busy: boolean;
+  error: string | null;
+  confirmRemovePath: string | null;
+  toggleMenu: () => void;
+  closeMenu: () => void;
+  selectCheckout: (path: string) => void;
+  openNewEntry: () => void;
+  closeNewEntry: () => void;
+  setNewBranch: (branch: string) => void;
+  createCheckout: () => void;
+  removeCheckout: (path: string, force: boolean) => void;
+  cancelRemove: () => void;
+  switchProject: () => void;
+  openInFinder: () => Promise<void>;
+  copyPath: () => Promise<void>;
+}
+
+export interface ComposerRemote {
+  sessionId: string;
+  snapshot: ChannelsSnapshot;
+  onSnapshotChange: (snapshot: ChannelsSnapshot) => void;
+}
+
+export interface ComposerNavigation {
+  openResources: () => void;
+  openRemote: () => void;
+  openModelSettings: () => void;
 }
 
 export interface ComposerEditableHandle {

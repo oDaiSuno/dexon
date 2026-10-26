@@ -8,6 +8,7 @@ import type {
   BrowserPermissionLevel,
   BrowserCapabilitySnapshot,
 } from "../contract/browser";
+import type { ChannelId } from "../shared/channel-types";
 import { callMain } from "./parent-rpc";
 import { BROWSER_CANONICAL_GUIDELINES, browserAgentRuntime } from "./browser-agent-runtime";
 
@@ -66,14 +67,24 @@ export function browserToolNamesForSnapshot(snapshot: BrowserCapabilitySnapshot)
 }
 
 type ToolContext = { sessionManager: { getSessionId(): string } };
-const browserSessionSources = new WeakMap<object, "local" | "channel">();
+type BrowserSessionSource = { source: "local" | "channel"; channel?: ChannelId };
+const browserSessionSources = new WeakMap<object, BrowserSessionSource>();
 
-export function setBrowserSessionSource(sessionManager: object, source: "local" | "channel"): void {
-  browserSessionSources.set(sessionManager, source);
+export function setBrowserSessionSource(
+  sessionManager: object,
+  source: "local" | "channel",
+  channel?: ChannelId,
+): void {
+  browserSessionSources.set(sessionManager, channel ? { source, channel } : { source });
 }
 
 export function getBrowserSessionSource(sessionManager: object): "local" | "channel" {
-  return browserSessionSources.get(sessionManager) ?? "local";
+  return browserSessionSources.get(sessionManager)?.source ?? "local";
+}
+
+export function getBrowserSessionChannel(sessionManager: object): ChannelId | undefined {
+  const entry = browserSessionSources.get(sessionManager);
+  return entry?.source === "channel" ? entry.channel : undefined;
 }
 
 async function browserCall<
@@ -92,11 +103,13 @@ async function browserCall<
   let capabilities = await callMain<BrowserHostResult<"browser.capabilities">>("browser.capabilities", { sessionId });
   const required = requiredPermissionForHostMethod(method);
   if (!capabilities.lease || permissionRank(capabilities.lease.permission) < permissionRank(required)) {
+    const channel = getBrowserSessionChannel(ctx.sessionManager);
     await callMain<BrowserHostResult<"browser.requestAuthorization">>(
       "browser.requestAuthorization",
       {
         sessionId,
         source: getBrowserSessionSource(ctx.sessionManager),
+        ...(channel ? { channel } : {}),
         targetMethod: method,
         requestId,
       },

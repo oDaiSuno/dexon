@@ -9,7 +9,13 @@
  * a session restores the statistic, without starting an agent or performing
  * any network request.
  */
-import { calculateContextTokens, estimateTokens, getLatestCompactionEntry } from "@earendil-works/pi-coding-agent";
+import {
+  calculateContextTokens,
+  estimateTokens,
+  formatSkillsForPrompt,
+  getLatestCompactionEntry,
+} from "@earendil-works/pi-coding-agent";
+import type { ContextUsageBreakdown, ContextUsageInfo } from "../contract/types";
 
 export interface ContextUsageSnapshot {
   percent: number | null;
@@ -134,4 +140,81 @@ export async function reconstructSessionContextUsage(options: {
     branchEntries: options.manager.getBranch(),
     contextWindow,
   });
+}
+
+interface LiveContextSource {
+  autoCompactionEnabled: boolean;
+  settingsManager: { getCompactionReserveTokens(): number };
+  getContextUsage(): ContextUsageSnapshot | undefined;
+  agent: { state?: { systemPrompt?: string; messages?: unknown[] } };
+  resourceLoader: {
+    getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
+    getSkills(): { skills: unknown[] };
+  };
+  getAllTools(): Array<{ name: string; description: string; parameters?: unknown }>;
+  getActiveToolNames(): string[];
+}
+
+function scaleFixedParts(fixed: ContextUsageBreakdown, tokens: number): ContextUsageBreakdown {
+  const scale = tokens / (fixed.systemPrompt + fixed.tools + fixed.agentsAndSkills);
+  const tools = Math.floor(fixed.tools * scale);
+  const agentsAndSkills = Math.floor(fixed.agentsAndSkills * scale);
+  return {
+    systemPrompt: tokens - tools - agentsAndSkills,
+    tools,
+    agentsAndSkills,
+    conversation: 0,
+    toolResults: 0,
+  };
+}
+
+export function describeLiveContextUsage(source: LiveContextSource): ContextUsageInfo | null {
+  const usage = source.getContextUsage();
+  if (!usage) return null;
+  const reserveTokens = source.autoCompactionEnabled ? source.settingsManager.getCompactionReserveTokens() : undefined;
+  const head: ContextUsageInfo = {
+    percent: usage.percent,
+    contextWindow: usage.contextWindow,
+    tokens: usage.tokens,
+    ...(reserveTokens === undefined ? {} : { reserveTokens }),
+  };
+  if (usage.tokens === null) return head;
+
+  const agentsFileChars = source.resourceLoader
+    .getAgentsFiles()
+    .agentsFiles.reduce((sum, file) => sum + file.content.length, 0);
+  const skills = source.resourceLoader.getSkills().skills as Parameters<typeof formatSkillsForPrompt>[0];
+  const skillsChars = formatSkillsForPrompt(skills).length;
+  const agentsAndSkills = Math.ceil((agentsFileChars + skillsChars) / 4);
+  const systemPrompt = Math.max(0, Math.ceil((source.agent.state?.systemPrompt?.length ?? 0) / 4) - agentsAndSkills);
+
+  const activeToolNames = new Set(source.getActiveToolNames());
+  const toolsChars = source
+    .getAllTools()
+    .filter((tool) => activeToolNames.has(tool.name))
+    .reduce(
+      (sum, tool) =>
+        sum + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length,
+      0,
+    );
+  const tools = Math.ceil(toolsChars / 4);
+
+  let conversationEstimate = 0;
+  let toolResultsEstimate = 0;
+  for (const message of source.agent.state?.messages ?? []) {
+    if ((message as { role?: unknown } | null)?.role === "toolResult")
+      toolResultsEstimate += estimateMessageTokens(message);
+    else conversationEstimate += estimateMessageTokens(message);
+  }
+
+  const fixed: ContextUsageBreakdown = { systemPrompt, tools, agentsAndSkills, conversation: 0, toolResults: 0 };
+  const fixedTokens = systemPrompt + tools + agentsAndSkills;
+  if (fixedTokens > usage.tokens) return { ...head, breakdown: scaleFixedParts(fixed, usage.tokens) };
+
+  const rest = usage.tokens - fixedTokens;
+  if (conversationEstimate + toolResultsEstimate === 0) {
+    return { ...head, breakdown: { ...fixed, conversation: rest, toolResults: 0 } };
+  }
+  const conversation = Math.round((rest * conversationEstimate) / (conversationEstimate + toolResultsEstimate));
+  return { ...head, breakdown: { ...fixed, conversation, toolResults: rest - conversation } };
 }

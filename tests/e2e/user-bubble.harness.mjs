@@ -200,6 +200,7 @@ async function run() {
     await settle();
     await type("@/tmp/shot.png ");
     await waitFor("!!window.userBubble.composerChipStyle()", "the typed reference becomes a composer chip");
+    await hover({ x: 1, y: 1 });
     const composer = await page("composerChipStyle()");
     const bubble = await page(`bubbleChipStyle(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);
     assert.ok(bubble, "the bubble shows the same attachment as a chip");
@@ -217,8 +218,8 @@ async function run() {
     near(composer.paddingRight, bubble.paddingRight, "chip right padding");
     near(composer.glyph.width, bubble.glyph.width, "chip glyph width");
     near(composer.glyph.height, bubble.glyph.height, "chip glyph height");
-    near(bubble.fontSize, bubble.surroundingFontSize * 0.82, "the bubble chip font follows the bubble text");
-    near(composer.fontSize, composer.surroundingFontSize * 0.82, "the composer chip font follows the composer text");
+    near(bubble.fontSize, 12, "the bubble chip label uses the 12px Mono/Label text style");
+    near(composer.fontSize, 12, "the composer chip label uses the 12px Mono/Label text style");
     const center = await page(`chipCenter(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);
     await hover(center);
     const hovered = await page(`bubbleChipStyle(${JSON.stringify(SENTENCE_MARKER)}, "/tmp/shot.png")`);
@@ -346,7 +347,11 @@ async function run() {
     await page("clearCatalog()");
     await paint();
     const cleared = await page("breadcrumb()");
-    assert.equal(cleared.exists, false, "an empty catalog leaves no stale path");
+    assert.deepEqual(
+      cleared.segments.map((segment) => segment.label),
+      ["补接口测试"],
+      "an empty catalog drops the ancestors and keeps the session on screen",
+    );
     await page(`publishCatalog(["bulb-root", "bulb-mid", "bulb-leaf"])`);
     await paint();
     records.push({
@@ -362,7 +367,7 @@ async function run() {
     await page(`scrollTo(${JSON.stringify(COMMAND_MARKER)})`);
     await paint();
     const layout = await page("page()");
-    assert.equal(layout.pageBackground, "rgb(10, 10, 10)", "the dark scene actually displays the dark page surface");
+    assert.equal(layout.pageBackground, "rgb(23, 23, 23)", "the dark scene actually displays the dark page surface");
     assert.ok(layout.documentScrollWidth <= layout.documentWidth + 1, "the bubbles do not overflow horizontally");
     const sentence = await page(`layout(${JSON.stringify(SENTENCE_MARKER)})`);
     const command = await page(`layout(${JSON.stringify(COMMAND_MARKER)})`);

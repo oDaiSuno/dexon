@@ -40,10 +40,12 @@ import type {
   BrowserVisualCompareResult,
   BrowserVisualCompareTarget,
 } from "../../contract/browser.ts";
+import { resolveBrowserAddress } from "./browser-address.ts";
 import { BrowserCdpCoordinator } from "./browser-cdp-coordinator.ts";
 import { BrowserConsoleBuffer } from "./browser-console-buffer.ts";
 import { isBrowserDevToolsShortcut } from "./browser-devtools-shortcut.ts";
 import { BrowserError } from "./browser-error.ts";
+import { loadFavicon, pickFaviconUrl } from "./browser-favicon.ts";
 import { BrowserIdentityManager } from "./browser-identity-manager.ts";
 import { BrowserInspectionStore } from "./browser-inspection-store.ts";
 import { BrowserNetworkRecorder } from "./browser-network-recorder.ts";
@@ -107,6 +109,7 @@ type TabRecord = {
   identityProfile?: BrowserIdentityProfile;
   nativeUserAgent: string;
   externalProtocolToken: string;
+  faviconRequest?: string;
   lastLoadFailure?: BrowserLoadFailure;
   activeClickCapture?: { observation?: ClickNavigationObservation };
   pendingFileUpload?: { snapshotId: string; ref: string; generation: number };
@@ -271,6 +274,7 @@ export class BrowserTabManager {
         canGoBack: false,
         canGoForward: false,
         crashed: false,
+        favicon: null,
         control: "user",
         advanced: false,
         advancedProfile: profile.mode === "unsafe",
@@ -408,7 +412,7 @@ export class BrowserTabManager {
     navigationOptions?: Electron.LoadURLOptions,
   ): Promise<BrowserTabInfo> {
     const record = this.requireOwnedTab(tabId, sessionId);
-    const url = normalizeAddress(rawUrl);
+    const url = resolveBrowserAddress(rawUrl, userInitiated ? this.options.getSettings().navigation : null);
     const policy = this.getNetworkPolicy(record);
     const checked = await policy.check(url, {
       settings: this.options.getSettings().navigation,
@@ -475,6 +479,11 @@ export class BrowserTabManager {
   stop(tabId: string): void {
     const record = this.requireTab(tabId);
     record.view.webContents.stop();
+  }
+
+  takeOver(tabId: string): void {
+    const record = this.requireTab(tabId);
+    this.handleUserInput(record);
   }
 
   async snapshot(
@@ -1838,6 +1847,8 @@ export class BrowserTabManager {
       record.info.url = redactUrlCredentials(url);
       record.info.generation += 1;
       record.info.crashed = false;
+      record.info.favicon = null;
+      record.faviconRequest = undefined;
       record.snapshot = undefined;
       this.inspections.clearTab(record.info.id);
       this.refreshHistory(record);
@@ -1857,6 +1868,16 @@ export class BrowserTabManager {
       event.preventDefault();
       record.info.title = title.slice(0, 512) || "Untitled";
       this.emitUpdate(record);
+    });
+    wc.on("page-favicon-updated", (_event, favicons) => {
+      const url = pickFaviconUrl(favicons);
+      if (!url) return;
+      record.faviconRequest = url;
+      void loadFavicon(record.session, url, AbortSignal.timeout(5_000)).then((icon) => {
+        if (record.faviconRequest !== url || !this.tabs.has(record.info.id) || !icon) return;
+        record.info.favicon = icon;
+        this.emitUpdate(record);
+      });
     });
     wc.on("did-start-loading", () => {
       record.info.loading = true;
@@ -2504,16 +2525,6 @@ function compareScreenshots(
     ...(diff ? { diff } : {}),
     untrustedWebContent: true,
   };
-}
-
-function normalizeAddress(value: string): string {
-  if (typeof value !== "string") throw new BrowserError("INVALID_BROWSER_REQUEST", "Browser address is invalid");
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > 8_192 || /[\0\r\n]/.test(trimmed)) {
-    throw new BrowserError("INVALID_BROWSER_REQUEST", "Browser address is invalid");
-  }
-  if (trimmed === "about:blank" || /^[a-z][a-z0-9+.-]*:/i.test(trimmed)) return trimmed;
-  return `https://${trimmed}`;
 }
 
 function navigationFailureError(error: unknown): BrowserError {

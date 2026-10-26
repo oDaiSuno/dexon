@@ -11,8 +11,9 @@ import {
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { captureComposerSubmission, type ComposerSubmissionSnapshot } from "@/lib/composer-submission";
+import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
-import { compareModelOptions, type ModelOption } from "./chat-input/ModelPicker";
+import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
 import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
@@ -22,6 +23,10 @@ import type { ChatInputHandle, ChatInputProps, ComposerEditableHandle } from "./
 
 export type { ChatInputHandle } from "./chat-input/types";
 export type { ChatInputProps as Props } from "./chat-input/types";
+
+function supportsReasoning(levels?: string[]): boolean {
+  return levels?.some((level) => level !== "off") ?? false;
+}
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
   {
@@ -34,16 +39,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     isAutoModelSelection,
     modelNames,
     modelList,
+    modelThinkingLevels,
     modelCatalog,
     modelRefreshing,
     onModelChange,
     onModelsRefresh,
     onModelsRefreshCancel,
-    onCompact,
-    onAbortCompaction,
+    onOpenUsage,
     isCompacting,
     compactError,
     compactResult,
+    onDismissCompactResult,
     contextUsage,
     thinkingLevel,
     onThinkingLevelChange,
@@ -62,6 +68,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     draftKey,
     cwd,
     visible = true,
+    remote,
+    navigation,
+    workspace,
   },
   ref,
 ) {
@@ -114,10 +123,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   }, [onRecallQueue, visible]);
 
   const restoreFailedSubmission = useCallback(
-    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue") => {
-      restoreDraft(snapshot, clearedAtRevision, kind);
+    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue", error: unknown) => {
+      const reason = typeof error === "string" ? error : sessionClientErrorMessage(error, t, "");
+      restoreDraft(snapshot, clearedAtRevision, kind, reason);
     },
-    [restoreDraft],
+    [restoreDraft, t],
   );
 
   const handleSend = useCallback(async () => {
@@ -134,17 +144,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       if (!attachments.attachmentTokens.length && message.startsWith("/") && onBuiltinCommand) {
         const result = await onBuiltinCommand(message);
         if (result.handled) {
-          if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+          if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send", result.error);
           return;
         }
       }
       const result = onSend(message) as void | Promise<unknown> | { ok?: boolean };
       const settled = await Promise.resolve(result);
       if (settled && typeof settled === "object" && "ok" in settled && settled.ok === false) {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+        restoreFailedSubmission(snapshot, clearedAtRevision, "send", null);
       }
-    } catch {
-      restoreFailedSubmission(snapshot, clearedAtRevision, "send");
+    } catch (error) {
+      restoreFailedSubmission(snapshot, clearedAtRevision, "send", error);
     }
   }, [
     attachments.attachmentTokens.length,
@@ -180,8 +190,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         }
         if (mode === "steer" && onSteer) await Promise.resolve(onSteer(message));
         else if (mode === "followup" && onFollowUp) await Promise.resolve(onFollowUp(message));
-      } catch {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "queue");
+      } catch (error) {
+        restoreFailedSubmission(snapshot, clearedAtRevision, "queue", error);
       }
     },
     [
@@ -252,24 +262,24 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   }, [commitCurrentDraft, visible]);
   const modelOptions = useMemo<ModelOption[]>(() => {
     if (modelList && modelList.length > 0) {
-      return modelList
-        .map((entry) => ({ provider: entry.provider, modelId: entry.id, name: entry.name }))
-        .sort(compareModelOptions);
+      return modelList.map((entry) => ({
+        provider: entry.provider,
+        modelId: entry.id,
+        name: entry.name,
+        image: entry.input?.includes("image") ?? false,
+        reasoning: supportsReasoning(modelThinkingLevels?.[`${entry.provider}:${entry.id}`]),
+      }));
     }
-    return Object.entries(modelNames ?? {})
-      .map(([modelId, name]) => ({ provider: model?.provider ?? "unknown", modelId, name }))
-      .sort(compareModelOptions);
-  }, [model, modelList, modelNames]);
+    return Object.entries(modelNames ?? {}).map(([modelId, name]) => ({
+      provider: model?.provider ?? "unknown",
+      modelId,
+      name,
+      image: false,
+      reasoning: supportsReasoning(modelThinkingLevels?.[`${model?.provider ?? "unknown"}:${modelId}`]),
+    }));
+  }, [model, modelList, modelNames, modelThinkingLevels]);
 
-  const modelOptionsByProvider = useMemo(() => {
-    const groups: { provider: string; options: ModelOption[] }[] = [];
-    for (const option of modelOptions) {
-      const group = groups.find((candidate) => candidate.provider === option.provider);
-      if (group) group.options.push(option);
-      else groups.push({ provider: option.provider, options: [option] });
-    }
-    return groups;
-  }, [modelOptions]);
+  const modelOptionsByProvider = useMemo(() => groupModelOptions(modelOptions), [modelOptions]);
 
   const currentModelName = model
     ? (modelOptions.find((option) => option.modelId === model.modelId && option.provider === model.provider)?.name ??
@@ -304,6 +314,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       if (!isActive || isAutoModelSelection) onModelChange?.(provider, modelId);
     },
     [isAutoModelSelection, onModelChange, setModelDropdownOpen, visible],
+  );
+
+  const closeModelDropdown = useCallback(() => setModelDropdownOpen(false), [setModelDropdownOpen]);
+
+  const openModelSettings = navigation?.openModelSettings;
+  const handleManageModels = useMemo(
+    () =>
+      openModelSettings
+        ? () => {
+            setModelDropdownOpen(false);
+            openModelSettings();
+          }
+        : undefined,
+    [openModelSettings, setModelDropdownOpen],
   );
 
   useImperativeHandle(
@@ -365,19 +389,26 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       plusMenuOpen={skills.plusMenuOpen}
       onTogglePlusMenu={skills.openPlusMenu}
       onOpenSkillPicker={skills.openSkillPicker}
+      remotePanelOpen={skills.remotePanelOpen}
+      onOpenRemotePanel={skills.openRemotePanel}
+      onBackToPlusMenu={skills.backToPlusMenu}
+      onCloseMenus={skills.closeTransientMenus}
+      remote={remote}
+      navigation={navigation}
       skills={skills.skillsState.skills}
       skillsLoading={skills.skillsState.loading}
       skillsError={skills.skillsState.error}
       onPickSkill={skills.pickSkill}
+      onRetrySkills={skills.loadSkills}
       skillPickerOpen={skills.skillPickerOpen}
       skillRevealName={skills.skillRevealName}
       skillRecordsRef={skills.skillRecordsRef}
       onCloseSkillPicker={skills.closeTransientMenus}
       onCloseSkillReveal={() => skills.setSkillRevealName(null)}
       slashMenuOpen={suggestions.slashMenuOpen}
-      slashGroups={suggestions.groupedSlashCommands}
+      slashCommands={suggestions.filteredSlashCommands}
+      slashQuery={suggestions.slashQuery ?? ""}
       slashLoading={suggestions.slashCommandsLoading}
-      slashCountLabel={suggestions.slashCommandCountLabel}
       slashActiveIndex={suggestions.slashActiveIndex}
       slashItemRefs={suggestions.slashItemRefs}
       onApplySlash={suggestions.applySlashCommand}
@@ -394,9 +425,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onDismissImageNotice={() => setImageAttachNotice(null)}
       submissionNotice={submissionNotice}
       onDismissSubmissionNotice={() => setSubmissionNotice(null)}
+      onResendSubmission={() => void handleSend()}
       queuedMessages={queuedMessages}
       onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}
       compactResult={compactResult}
+      onDismissCompactResult={() => onDismissCompactResult?.()}
       model={model}
       modelOptionsByProvider={modelOptionsByProvider}
       currentModelName={currentModelName}
@@ -411,9 +444,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onModelChange={onModelChange}
       onModelsRefresh={onModelsRefresh}
       onModelPick={handleModelPick}
+      onCloseModelDropdown={closeModelDropdown}
+      onManageModels={handleManageModels}
       isAutoModelSelection={isAutoModelSelection}
-      onCompact={onCompact}
-      onAbortCompaction={onAbortCompaction}
+      onOpenUsage={onOpenUsage}
       isCompacting={isCompacting}
       compactError={compactError}
       contextUsage={contextUsage}
@@ -428,6 +462,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       closeControlDropdowns={closeControlDropdowns}
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
+      workspace={workspace}
     />
   );
 });

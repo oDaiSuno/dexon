@@ -14,10 +14,11 @@ import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
 import { stageClipboardImage } from "./attachment-staging";
 import { openValidatedDirectory } from "./open-directory";
+import { openValidatedMarkdownFile } from "./open-file";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
-import { realpath } from "node:fs/promises";
+import { mkdir, realpath } from "node:fs/promises";
 import {
   isToolchainActionRequest,
   type PublicToolchainState,
@@ -55,6 +56,7 @@ export type DesktopIpcOptions = {
     capability: Extract<ToolchainActionRequest, { action: "choose-custom-tool" }>["capability"],
     executable: string,
   ) => Promise<PublicToolchainState>;
+  getManagedToolsRoot: () => string | undefined;
   setChannelCredential: (payload: ChannelCredentialWrite) => void;
   getBrowserService: () => BrowserService | null;
   getManagedProcessCapability: () => ManagedProcessCapability;
@@ -77,6 +79,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     rescanToolchains,
     performToolchainAction,
     chooseCustomTool,
+    getManagedToolsRoot,
     setChannelCredential,
     getBrowserService,
     getManagedProcessCapability,
@@ -176,6 +179,13 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     }
   });
 
+  trustedHandle("desktop:toolchains:open-managed-folder", async () => {
+    const root = getManagedToolsRoot();
+    if (!root) throw new Error("TOOLCHAIN_INTERNAL: Managed tools folder is unavailable");
+    await mkdir(root, { recursive: true });
+    await openValidatedDirectory(root, { openPath: (target) => shell.openPath(target) });
+  });
+
   trustedOn("desktop:connect-host", (event) => {
     const manager = getHostManager();
     if (!manager) return;
@@ -202,6 +212,10 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   // reveal-only channel above. Same trust wrapper and path validation style.
   trustedHandle("desktop:open-directory", async (_event, fsPath: string) => {
     await openValidatedDirectory(fsPath, { openPath: (target) => shell.openPath(target) });
+  });
+
+  trustedHandle("desktop:open-file", async (_event, fsPath: string) => {
+    await openValidatedMarkdownFile(fsPath, { openPath: (target) => shell.openPath(target) });
   });
 
   // Rich file context menu, built in main from a real path (Chromium does not
@@ -348,6 +362,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   browserHandler("desktop:browser:navigate-user", (browser, tabId: string, url: string) =>
     browser.navigateUser(tabId, url),
   );
+  browserHandler("desktop:browser:take-over", (browser, tabId: string) => browser.takeOver(tabId));
   browserHandler("desktop:browser:go-back", (browser, tabId: string) => browser.goBack(tabId));
   browserHandler("desktop:browser:go-forward", (browser, tabId: string) => browser.goForward(tabId));
   browserHandler("desktop:browser:reload", (browser, tabId: string) => browser.reload(tabId));

@@ -1,19 +1,23 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
+import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
-import type {
-  BrowserDownloadInfo,
-  BrowserEvent,
-  BrowserPermissionRequest,
-  BrowserRendererState,
-} from "../../../contract/browser";
+import { BrowserCrashedState, BrowserEmptyState, BrowserNoTabState } from "./browser-empty-state";
+import { BrowserNotice, BrowserPermissionBar, activeDownload } from "./browser-notices";
+import { BrowserStatusBar } from "./browser-status-bar";
+import { BrowserTakeoverPill } from "./browser-takeover-pill";
+import { BrowserTabStrip } from "./browser-tab-strip";
+import { BrowserToolbar } from "./browser-toolbar";
+import type { BrowserEvent, BrowserRendererState } from "../../../contract/browser";
 
 export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; ownerSessionId: string | null }) {
   const { t } = useI18n();
+  const sessionCatalog = useSessionCatalog();
   const [state, setState] = useState<BrowserRendererState | null>(null);
   const [address, setAddress] = useState("");
   const [profileId, setProfileId] = useState("temporary");
   const [error, setError] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
   const surfaceRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -30,6 +34,8 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
       setError(messageOf(cause));
     }
   }, []);
+
+  const reportError = useCallback((cause: unknown) => setError(messageOf(cause)), []);
 
   const handleTabSyncError = useCallback(
     (cause: unknown) => {
@@ -134,366 +140,106 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
     }
   };
 
-  if (!state) return <div style={emptyStyle}>{error || t("browserLoadingPanel", "Loading Browser…")}</div>;
+  if (!state) {
+    return (
+      <div style={columnStyle}>
+        {error ? (
+          <BrowserEmptyState
+            icon="triangle-alert"
+            iconColor="var(--fx-status-danger)"
+            title={t("browserLoadFailed", "Couldn't load the Browser")}
+            description={error}
+          />
+        ) : (
+          <BrowserEmptyState icon="loader" spinning title={t("browserLoadingPanel", "Loading Browser…")} />
+        )}
+      </div>
+    );
+  }
   if (!state.settings.settings.enabled) {
     return (
-      <div style={emptyStyle}>
-        <div>{t("browserDisabled", "Built-in Browser is disabled.")}</div>
-        <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
-          {t("browserEnableInSettings", "Enable it in Settings → Browser.")}
-        </div>
+      <div style={columnStyle}>
+        <BrowserEmptyState
+          icon="globe"
+          title={t("browserDisabled", "Built-in Browser is off")}
+          description={t("browserEnableInSettings", "Enable it in Settings → Browser.")}
+        />
       </div>
     );
   }
 
+  const agentControl = activeTab?.control === "agent";
+  const takeOver = () => {
+    if (activeTab) void window.piBridge.browserTakeOver(activeTab.id).catch(reportError);
+  };
+  const onDockKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Escape" || !agentControl || !activeTab || event.defaultPrevented) return;
+    event.preventDefault();
+    takeOver();
+  };
+  const tabOwnerId = activeTab?.ownerSessionId ?? null;
+  const resolvedTitle = tabOwnerId ? resolveSessionTitle(tabOwnerId, undefined, sessionCatalog) : null;
+  const sessionTitle = resolvedTitle && resolvedTitle !== tabOwnerId ? resolvedTitle : null;
+
   return (
-    <div style={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column", background: "var(--bg)" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          minHeight: 34,
-          padding: "4px 4px",
-          borderBottom: "1px solid var(--border)",
-          overflowX: "auto",
-          background: "var(--bg-panel)",
-        }}
-      >
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            title={tab.url}
-            onClick={() => void window.piBridge.browserActivateTab(tab.id).catch((cause) => setError(messageOf(cause)))}
-            style={{
-              maxWidth: 150,
-              minWidth: 72,
-              height: 27,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "0 8px",
-              background: tab.id === state.activeTabId ? "var(--bg)" : "transparent",
-              color: tab.crashed ? "var(--danger)" : "var(--text-muted)",
-              border: `1px solid ${tab.id === state.activeTabId ? "var(--border)" : "transparent"}`,
-              borderRadius: "var(--radius-control)",
-              cursor: "pointer",
-              fontSize: "var(--text-micro)",
-            }}
-          >
-            {tab.loading ? (
-              <span aria-label={t("browserLoading", "Loading")}>◌</span>
-            ) : (
-              <span aria-hidden="true">●</span>
-            )}
-            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-              {tab.title || t("browserNewTab", "New tab")}
-            </span>
-            {tab.advanced || tab.advancedProfile ? (
-              <Badge danger>{t("browserAdvancedModeBadge", "Advanced Browser Mode")}</Badge>
-            ) : null}
-            <span
-              role="button"
-              aria-label={t("browserCloseTab", "Close tab")}
-              tabIndex={0}
-              onClick={(event) => {
-                event.stopPropagation();
-                void window.piBridge.browserCloseTab(tab.id).catch((cause) => setError(messageOf(cause)));
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.stopPropagation();
-                  void window.piBridge.browserCloseTab(tab.id).catch((cause) => setError(messageOf(cause)));
-                }
-              }}
-            >
-              ×
-            </span>
-          </button>
-        ))}
-        <button
-          type="button"
-          style={iconButtonStyle}
-          title={t("browserNewTab", "New tab")}
-          onClick={() => void createTab()}
-        >
-          ＋
-        </button>
-      </div>
-
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 4,
-          padding: 4,
-          borderBottom: "1px solid var(--border)",
-          background: "var(--bg-panel)",
-        }}
-      >
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab?.canGoBack}
-          title={t("browserBack", "Back")}
-          onClick={() => activeTab && void window.piBridge.browserGoBack(activeTab.id)}
-        >
-          ←
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab?.canGoForward}
-          title={t("browserForward", "Forward")}
-          onClick={() => activeTab && void window.piBridge.browserGoForward(activeTab.id)}
-        >
-          →
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab}
-          title={activeTab?.loading ? t("browserStop", "Stop") : t("browserReload", "Reload")}
-          onClick={() =>
-            activeTab &&
-            void (activeTab.loading
-              ? window.piBridge.browserStop(activeTab.id)
-              : window.piBridge.browserReload(activeTab.id))
-          }
-        >
-          {activeTab?.loading ? "×" : "↻"}
-        </button>
-        <form
-          style={{ flex: 1, minWidth: 0 }}
-          onSubmit={(event) => {
-            event.preventDefault();
-            void navigate();
-          }}
-        >
-          <input
-            aria-label={t("browserAddress", "Browser address")}
-            value={address}
-            onChange={(event) => setAddress(event.target.value)}
-            placeholder="https://example.com"
-            style={{
-              width: "100%",
-              height: 29,
-              boxSizing: "border-box",
-              padding: "0 8px",
-              border: `1px solid ${activeTab?.url.startsWith("http:") ? "var(--warning-border)" : "var(--border)"}`,
-              borderRadius: "var(--radius-control)",
-              background: "var(--bg)",
-              color: "var(--text)",
-              fontSize: "var(--text-meta)",
-              outline: "none",
-            }}
-          />
-        </form>
-        <select
-          aria-label={t("browserProfileForNewTabs", "Profile for new tabs")}
-          value={profileId}
-          onChange={(event) => setProfileId(event.target.value)}
-          style={{ ...selectStyle, maxWidth: 90 }}
-        >
-          {state.profiles.map((profile) => (
-            <option key={profile.id} value={profile.id}>
-              {profile.name}
-            </option>
-          ))}
-        </select>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab}
-          title={t("browserChooseUpload", "Choose files for focused upload input")}
-          onClick={() =>
-            activeTab &&
-            void window.piBridge.browserChooseUploadFiles(activeTab.id).catch((cause) => setError(messageOf(cause)))
-          }
-        >
-          ↑
-        </button>
-        <button
-          style={iconButtonStyle}
-          disabled={!activeTab || !/^https?:/.test(activeTab.url)}
-          title={t("browserOpenSystem", "Open in system browser")}
-          onClick={() => activeTab && void window.piBridge.openExternal(activeTab.url)}
-        >
-          ↗
-        </button>
-      </div>
-
-      {(error || state.permissionRequests.length > 0 || activeDownload(state.downloads)) && (
-        <div
-          style={{
-            display: "grid",
-            gap: 4,
-            padding: "4px 8px",
-            borderBottom: "1px solid var(--border)",
-            background: "var(--bg-panel)",
-            fontSize: "var(--text-micro)",
-          }}
-        >
-          {error && <div style={{ color: "var(--danger)" }}>{error}</div>}
-          {state.permissionRequests.map((request) => (
-            <PermissionPrompt key={request.id} request={request} onRespond={refresh} />
-          ))}
-          {activeDownload(state.downloads) && <DownloadStatus download={activeDownload(state.downloads)!} />}
-        </div>
-      )}
+    <div style={columnStyle} onKeyDown={onDockKeyDown}>
+      <BrowserTabStrip
+        tabs={visibleTabs}
+        activeTabId={state.activeTabId}
+        onActivate={(tabId) => void window.piBridge.browserActivateTab(tabId).catch(reportError)}
+        onClose={(tabId) => void window.piBridge.browserCloseTab(tabId).catch(reportError)}
+        onCreate={() => void createTab()}
+      />
+      <BrowserToolbar
+        activeTab={activeTab}
+        address={address}
+        profiles={state.profiles}
+        newTabProfileId={profileId}
+        menuOpen={menuOpen}
+        onAddressChange={setAddress}
+        onNavigate={() => void navigate()}
+        onNewTabProfileChange={setProfileId}
+        onMenuOpenChange={setMenuOpen}
+        onError={reportError}
+      />
+      {state.permissionRequests.map((request) => (
+        <BrowserPermissionBar key={request.id} request={request} onRespond={refresh} />
+      ))}
+      <BrowserNotice error={error} download={activeDownload(state.downloads)} />
 
       {!activeTab ? (
-        <div style={emptyStyle}>
-          <button style={primaryButtonStyle} onClick={() => void createTab()}>
-            {t("browserOpenNewTab", "Open a new tab")}
-          </button>
-          <div style={{ marginTop: 8, color: "var(--text-dim)" }}>
-            {t("browserRemotePageSecurity", "Remote pages receive no Pi Desktop preload or Node access.")}
-          </div>
-        </div>
+        <BrowserNoTabState onCreate={() => void createTab()} />
       ) : activeTab.crashed ? (
-        <div style={emptyStyle}>
-          <div>{t("browserTabCrashed", "This tab’s renderer crashed.")}</div>
-          <button
-            style={{ ...primaryButtonStyle, marginTop: 8 }}
-            onClick={() => void window.piBridge.browserReload(activeTab.id)}
-          >
-            {t("browserReload", "Reload")}
-          </button>
-        </div>
+        <BrowserCrashedState onReload={() => void window.piBridge.browserReload(activeTab.id)} />
       ) : (
         <div
-          ref={surfaceRef}
-          data-browser-surface
-          style={{ flex: 1, minHeight: 1, position: "relative", background: "#fff" }}
-        />
-      )}
-
-      {activeTab && (
-        <div
+          data-agent-control={agentControl || undefined}
           style={{
-            minHeight: 22,
+            position: "relative",
             display: "flex",
-            alignItems: "center",
-            gap: 8,
-            padding: "0 8px",
-            borderTop: "1px solid var(--border)",
-            color: "var(--text-dim)",
-            fontSize: "var(--text-micro)",
-            background: "var(--bg-panel)",
+            flex: 1,
+            minHeight: 1,
+            padding: agentControl ? 2 : 0,
+            background: agentControl ? "var(--fx-accent-blue-border)" : undefined,
           }}
         >
-          <span>
-            {activeTab.control === "agent"
-              ? t("browserAgentControl", "Agent is controlling this tab — click or type to take over")
-              : t("browserUserControl", "User control")}
-          </span>
-          <span>·</span>
-          <span>
-            {state.settings.settings.navigation.networkIsolation === "strict"
-              ? t("browserStrictIsolation", "Strict isolation")
-              : t("browserBestEffortIsolation", "Best-effort network isolation")}
-          </span>
-          {activeTab.advanced || activeTab.advancedProfile ? (
-            <Badge danger>{t("browserAdvancedModeBadge", "Advanced Browser Mode")}</Badge>
-          ) : null}
+          <div
+            ref={surfaceRef}
+            data-browser-surface
+            style={{ flex: 1, minWidth: 0, minHeight: 1, position: "relative", background: "#fff" }}
+          />
+          {agentControl && <BrowserTakeoverPill onTakeOver={takeOver} />}
         </div>
       )}
+
+      <BrowserStatusBar
+        agentControl={agentControl}
+        strictIsolation={state.settings.settings.navigation.networkIsolation === "strict"}
+        advanced={Boolean(activeTab?.advanced || activeTab?.advancedProfile)}
+        sessionTitle={sessionTitle}
+      />
     </div>
   );
-}
-
-function PermissionPrompt({
-  request,
-  onRespond,
-}: {
-  request: BrowserPermissionRequest;
-  onRespond: () => Promise<void>;
-}) {
-  const { t } = useI18n();
-  const respond = (decision: "allow-once" | "allow-session" | "deny") =>
-    void window.piBridge.browserRespondPermission(request.id, decision).then(onRespond);
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-muted)" }}>
-      <span style={{ flex: 1 }}>
-        {formatMessage(t("browserPermissionRequest", "{origin} requests {permission}"), {
-          origin: request.origin,
-          permission: request.permission,
-        })}
-      </span>
-      <button style={tinyButtonStyle} onClick={() => respond("deny")}>
-        {t("browserDeny", "Deny")}
-      </button>
-      <button style={tinyButtonStyle} onClick={() => respond("allow-once")}>
-        {t("browserAllowOnce", "Once")}
-      </button>
-      <button style={tinyButtonStyle} onClick={() => respond("allow-session")}>
-        {t("browserAllowSession", "Session")}
-      </button>
-    </div>
-  );
-}
-
-function DownloadStatus({ download }: { download: BrowserDownloadInfo }) {
-  const { t } = useI18n();
-  const percent = download.totalBytes > 0 ? Math.round((download.receivedBytes / download.totalBytes) * 100) : null;
-  const stateLabel = downloadStateLabel(t, download.state);
-  return (
-    <div style={{ color: download.state === "interrupted" ? "var(--danger)" : "var(--text-dim)" }}>
-      {formatMessage(t("browserDownloadStatus", "Download {filename}: {state}{percent}"), {
-        filename: download.filename,
-        state: stateLabel,
-        percent: percent === null ? "" : ` ${percent}%`,
-      })}
-    </div>
-  );
-}
-
-function Badge({ children, danger }: { children: string; danger?: boolean }) {
-  return (
-    <span
-      style={{
-        padding: "1px 4px",
-        borderRadius: "var(--radius-chip)",
-        color: danger ? "var(--danger)" : "var(--warning)",
-        border: `1px solid ${danger ? "var(--danger)" : "var(--warning)"}`,
-        fontSize: "var(--text-micro)",
-        fontWeight: 700,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
-
-function activeDownload(downloads: BrowserDownloadInfo[]): BrowserDownloadInfo | undefined {
-  return [...downloads]
-    .reverse()
-    .find(
-      (download) =>
-        download.state === "pending" || download.state === "progressing" || download.state === "interrupted",
-    );
-}
-
-type Translate = ReturnType<typeof useI18n>["t"];
-
-function formatMessage(template: string, values: Record<string, string | number>): string {
-  return Object.entries(values).reduce(
-    (message, [key, value]) => message.replaceAll(`{${key}}`, String(value)),
-    template,
-  );
-}
-
-function downloadStateLabel(t: Translate, state: BrowserDownloadInfo["state"]): string {
-  switch (state) {
-    case "pending":
-      return t("browserDownloadPending", "pending");
-    case "progressing":
-      return t("browserDownloadProgressing", "progressing");
-    case "completed":
-      return t("browserDownloadCompleted", "completed");
-    case "cancelled":
-      return t("browserDownloadCancelled", "cancelled");
-    default:
-      return t("browserDownloadInterrupted", "interrupted");
-  }
 }
 
 function applyBrowserEvent(state: BrowserRendererState, event: BrowserEvent): BrowserRendererState {
@@ -536,57 +282,10 @@ function applyBrowserEvent(state: BrowserRendererState, event: BrowserEvent): Br
   return state;
 }
 
-const emptyStyle = {
+const columnStyle = {
   height: "100%",
+  minHeight: 0,
   display: "flex",
   flexDirection: "column" as const,
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 20,
-  textAlign: "center" as const,
-  color: "var(--text-muted)",
-  fontSize: "var(--text-meta)",
-};
-const iconButtonStyle = {
-  width: 28,
-  height: 28,
-  flexShrink: 0,
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 0,
-  border: "1px solid transparent",
-  borderRadius: "var(--radius-control)",
-  background: "transparent",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  fontSize: "var(--text-body-lg)",
-};
-const selectStyle = {
-  height: 29,
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-control)",
-  background: "var(--bg)",
-  color: "var(--text-muted)",
-  fontSize: "var(--text-micro)",
-};
-const primaryButtonStyle = {
-  minHeight: 32,
-  padding: "0 12px",
-  border: "1px solid var(--accent)",
-  borderRadius: "var(--radius-control)",
-  background: "var(--accent-soft)",
-  color: "var(--accent)",
-  cursor: "pointer",
-  fontSize: "var(--text-meta)",
-};
-const tinyButtonStyle = {
-  minHeight: 22,
-  padding: "0 8px",
-  border: "1px solid var(--border)",
-  borderRadius: "var(--radius-chip)",
-  background: "var(--bg)",
-  color: "var(--text-muted)",
-  cursor: "pointer",
-  fontSize: "var(--text-micro)",
+  background: "var(--fx-surface-main)",
 };

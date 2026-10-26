@@ -1,0 +1,14 @@
+[
+  "skillPickerCount",
+  "skillPickerOneCount",
+  "skillPickerMatchCount",
+  "skillPickerOneMatch",
+  "skillPickerInsert",
+  "skillPickerInsertAtStart",
+  "skillPickerManage",
+  "skillPickerNoMatchHint",
+  "skillPickerEmptyHint",
+  "skillPickerLoadFailedHint",
+  "skillPickerOpenResources",
+  "menuBack"
+]

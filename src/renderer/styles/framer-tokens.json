@@ -1,0 +1,532 @@
+{
+  "source": "Framer project 7waFbDNHrTwzmv5gTY0n (Dexon) — color and text styles",
+  "colors": {
+    "/Accent/Blue": {
+      "light": "rgb(37, 99, 235)",
+      "dark": "rgb(59, 130, 246)"
+    },
+    "/Accent/Blue Border": {
+      "light": "rgba(37, 99, 235, 0.32)",
+      "dark": "rgba(59, 130, 246, 0.36)"
+    },
+    "/Accent/Blue Fill": {
+      "light": "rgb(37, 99, 235)",
+      "dark": "rgb(37, 99, 235)"
+    },
+    "/Accent/Blue Fill Hover": {
+      "light": "rgb(29, 78, 216)",
+      "dark": "rgb(29, 78, 216)"
+    },
+    "/Accent/Blue Hover": {
+      "light": "rgb(29, 78, 216)",
+      "dark": "rgb(47, 116, 230)"
+    },
+    "/Accent/Blue Selection": {
+      "light": "rgba(37, 99, 235, 0.18)",
+      "dark": "rgba(59, 130, 246, 0.18)"
+    },
+    "/Accent/Blue Soft": {
+      "light": "rgb(232, 240, 254)",
+      "dark": "rgb(31, 45, 68)"
+    },
+    "/Accent/Blue Text": {
+      "light": "rgb(29, 95, 214)",
+      "dark": "rgb(127, 176, 249)"
+    },
+    "/Channel/Feishu": {
+      "light": "rgb(194, 65, 12)",
+      "dark": "rgb(161, 61, 19)"
+    },
+    "/Channel/Feishu Ink": {
+      "light": "rgb(194, 65, 12)",
+      "dark": "rgb(251, 128, 74)"
+    },
+    "/Channel/Feishu Line": {
+      "light": "rgba(194, 65, 12, 0.2)",
+      "dark": "rgba(251, 128, 74, 0.24)"
+    },
+    "/Channel/Feishu Soft": {
+      "light": "rgb(255, 245, 241)",
+      "dark": "rgb(41, 30, 25)"
+    },
+    "/Channel/On Brand": {
+      "light": "rgb(250, 249, 247)",
+      "dark": "rgb(250, 249, 247)"
+    },
+    "/Channel/On Brand Line": {
+      "light": "rgba(255, 255, 255, 0.22)",
+      "dark": "rgba(255, 255, 255, 0.2)"
+    },
+    "/Channel/On Brand Muted": {
+      "light": "rgba(250, 249, 247, 0.74)",
+      "dark": "rgba(250, 249, 247, 0.74)"
+    },
+    "/Channel/On Brand Subtle": {
+      "light": "rgba(255, 255, 255, 0.14)",
+      "dark": "rgba(255, 255, 255, 0.12)"
+    },
+    "/Channel/Telegram": {
+      "light": "rgb(22, 119, 168)",
+      "dark": "rgb(23, 102, 137)"
+    },
+    "/Channel/Telegram Ink": {
+      "light": "rgb(22, 119, 168)",
+      "dark": "rgb(84, 169, 235)"
+    },
+    "/Channel/Telegram Line": {
+      "light": "rgba(22, 119, 168, 0.2)",
+      "dark": "rgba(84, 169, 235, 0.24)"
+    },
+    "/Channel/Telegram Soft": {
+      "light": "rgb(241, 248, 252)",
+      "dark": "rgb(25, 33, 39)"
+    },
+    "/Channel/WeChat": {
+      "light": "rgb(8, 120, 62)",
+      "dark": "rgb(15, 104, 64)"
+    },
+    "/Channel/WeChat Ink": {
+      "light": "rgb(8, 120, 62)",
+      "dark": "rgb(52, 199, 120)"
+    },
+    "/Channel/WeChat Line": {
+      "light": "rgba(8, 120, 62, 0.2)",
+      "dark": "rgba(52, 199, 120, 0.24)"
+    },
+    "/Channel/WeChat Soft": {
+      "light": "rgb(243, 251, 247)",
+      "dark": "rgb(26, 39, 32)"
+    },
+    "/Control/Thumb": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(255, 255, 255)"
+    },
+    "/Control/Thumb Off": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(161, 161, 161)"
+    },
+    "/Control/Tick": {
+      "light": "rgba(0, 0, 0, 0.22)",
+      "dark": "rgba(255, 255, 255, 0.28)"
+    },
+    "/Data/Blue": {
+      "light": "rgb(37, 99, 235)",
+      "dark": "rgb(96, 165, 250)"
+    },
+    "/Data/Cyan": {
+      "light": "rgb(8, 145, 178)",
+      "dark": "rgb(103, 232, 249)"
+    },
+    "/Data/Fuchsia": {
+      "light": "rgb(192, 38, 211)",
+      "dark": "rgb(232, 121, 249)"
+    },
+    "/Data/Fuchsia Line": {
+      "light": "rgba(192, 38, 211, 0.3)",
+      "dark": "rgba(232, 121, 249, 0.3)"
+    },
+    "/Data/Fuchsia Surface": {
+      "light": "rgb(252, 239, 255)",
+      "dark": "rgb(42, 20, 48)"
+    },
+    "/Data/Green": {
+      "light": "rgb(5, 150, 105)",
+      "dark": "rgb(52, 211, 153)"
+    },
+    "/Data/Indigo": {
+      "light": "rgb(79, 70, 229)",
+      "dark": "rgb(129, 140, 248)"
+    },
+    "/Data/Pink": {
+      "light": "rgb(219, 39, 119)",
+      "dark": "rgb(244, 114, 182)"
+    },
+    "/Data/Purple Surface": {
+      "light": "rgb(243, 237, 255)",
+      "dark": "rgb(43, 22, 80)"
+    },
+    "/Data/Slate": {
+      "light": "rgb(100, 116, 139)",
+      "dark": "rgb(148, 163, 184)"
+    },
+    "/Data/Violet": {
+      "light": "rgb(124, 58, 237)",
+      "dark": "rgb(167, 139, 250)"
+    },
+    "/Line/Default": {
+      "light": "rgb(229, 229, 229)",
+      "dark": "rgb(42, 42, 42)"
+    },
+    "/Line/Heavy": {
+      "light": "rgb(181, 181, 181)",
+      "dark": "rgb(68, 68, 68)"
+    },
+    "/Line/Strong": {
+      "light": "rgb(212, 212, 212)",
+      "dark": "rgb(51, 51, 51)"
+    },
+    "/Line/Subtle": {
+      "light": "rgb(240, 240, 240)",
+      "dark": "rgb(34, 34, 34)"
+    },
+    "/Line/Translucent": {
+      "light": "rgba(0, 0, 0, 0.08)",
+      "dark": "rgba(255, 255, 255, 0.08)"
+    },
+    "/Shadow/Soft": {
+      "light": "rgba(0, 0, 0, 0.08)",
+      "dark": "rgba(0, 0, 0, 0.35)"
+    },
+    "/Shadow/Strong": {
+      "light": "rgba(0, 0, 0, 0.14)",
+      "dark": "rgba(0, 0, 0, 0.5)"
+    },
+    "/Status/Danger": {
+      "light": "rgb(220, 38, 38)",
+      "dark": "rgb(248, 113, 113)"
+    },
+    "/Status/Danger Border": {
+      "light": "rgba(220, 38, 38, 0.25)",
+      "dark": "rgba(239, 68, 68, 0.28)"
+    },
+    "/Status/Danger Soft": {
+      "light": "rgb(254, 242, 242)",
+      "dark": "rgba(239, 68, 68, 0.06)"
+    },
+    "/Status/Danger Soft Strong": {
+      "light": "rgb(253, 226, 226)",
+      "dark": "rgba(239, 68, 68, 0.12)"
+    },
+    "/Status/Danger Text": {
+      "light": "rgb(185, 28, 28)",
+      "dark": "rgb(252, 165, 165)"
+    },
+    "/Status/Success": {
+      "light": "rgb(22, 163, 74)",
+      "dark": "rgb(74, 222, 128)"
+    },
+    "/Status/Success Border": {
+      "light": "rgba(22, 163, 74, 0.25)",
+      "dark": "rgba(74, 222, 128, 0.24)"
+    },
+    "/Status/Success Soft": {
+      "light": "rgb(239, 250, 243)",
+      "dark": "rgba(74, 222, 128, 0.07)"
+    },
+    "/Status/Success Text": {
+      "light": "rgb(21, 128, 61)",
+      "dark": "rgb(134, 239, 172)"
+    },
+    "/Status/Warning": {
+      "light": "rgb(180, 83, 9)",
+      "dark": "rgb(245, 181, 68)"
+    },
+    "/Status/Warning Border": {
+      "light": "rgba(180, 83, 9, 0.25)",
+      "dark": "rgba(245, 181, 68, 0.22)"
+    },
+    "/Status/Warning Soft": {
+      "light": "rgb(255, 247, 230)",
+      "dark": "rgba(245, 181, 68, 0.06)"
+    },
+    "/Status/Warning Text": {
+      "light": "rgb(146, 64, 14)",
+      "dark": "rgb(245, 197, 106)"
+    },
+    "/Surface/Canvas": {
+      "light": "rgb(217, 217, 220)",
+      "dark": "rgb(44, 44, 46)"
+    },
+    "/Surface/Card": {
+      "light": "rgb(247, 247, 247)",
+      "dark": "rgb(32, 32, 32)"
+    },
+    "/Surface/Hero Tint": {
+      "light": "rgb(238, 242, 251)",
+      "dark": "rgb(30, 34, 48)"
+    },
+    "/Surface/Hover": {
+      "light": "rgb(239, 239, 239)",
+      "dark": "rgb(28, 28, 28)"
+    },
+    "/Surface/Hover Clear": {
+      "light": "rgba(0, 0, 0, 0)",
+      "dark": "rgba(255, 255, 255, 0)"
+    },
+    "/Surface/Hover Overlay": {
+      "light": "rgba(0, 0, 0, 0.05)",
+      "dark": "rgba(255, 255, 255, 0.06)"
+    },
+    "/Surface/Hover Overlay Strong": {
+      "light": "rgba(0, 0, 0, 0.08)",
+      "dark": "rgba(255, 255, 255, 0.1)"
+    },
+    "/Surface/Inset": {
+      "light": "rgb(243, 243, 243)",
+      "dark": "rgb(20, 20, 20)"
+    },
+    "/Surface/Inverse": {
+      "light": "rgb(23, 23, 23)",
+      "dark": "rgb(237, 237, 237)"
+    },
+    "/Surface/Inverse Hover": {
+      "light": "rgb(55, 55, 55)",
+      "dark": "rgb(207, 207, 207)"
+    },
+    "/Surface/Main": {
+      "light": "rgb(250, 250, 250)",
+      "dark": "rgb(23, 23, 23)"
+    },
+    "/Surface/Raised": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(28, 28, 28)"
+    },
+    "/Surface/Raised Hover": {
+      "light": "rgb(242, 242, 242)",
+      "dark": "rgb(42, 42, 42)"
+    },
+    "/Surface/Scrim": {
+      "light": "rgba(0, 0, 0, 0.25)",
+      "dark": "rgba(0, 0, 0, 0.55)"
+    },
+    "/Surface/Selected": {
+      "light": "rgb(232, 232, 232)",
+      "dark": "rgb(42, 42, 42)"
+    },
+    "/Surface/Sidebar": {
+      "light": "rgb(245, 245, 245)",
+      "dark": "rgb(18, 18, 18)"
+    },
+    "/Surface/Subtle": {
+      "light": "rgba(0, 0, 0, 0.04)",
+      "dark": "rgba(255, 255, 255, 0.06)"
+    },
+    "/Surface/Track": {
+      "light": "rgb(217, 217, 217)",
+      "dark": "rgb(51, 51, 51)"
+    },
+    "/Text/Body": {
+      "light": "rgb(51, 51, 51)",
+      "dark": "rgb(212, 212, 212)"
+    },
+    "/Text/Faint": {
+      "light": "rgb(194, 194, 194)",
+      "dark": "rgb(74, 74, 74)"
+    },
+    "/Text/Inverse": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(23, 23, 23)"
+    },
+    "/Text/On Accent": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(255, 255, 255)"
+    },
+    "/Text/On Danger": {
+      "light": "rgb(255, 255, 255)",
+      "dark": "rgb(23, 23, 23)"
+    },
+    "/Text/Primary": {
+      "light": "rgb(23, 23, 23)",
+      "dark": "rgb(237, 237, 237)"
+    },
+    "/Text/Secondary": {
+      "light": "rgb(92, 92, 92)",
+      "dark": "rgb(161, 161, 161)"
+    },
+    "/Text/Tertiary": {
+      "light": "rgb(112, 112, 112)",
+      "dark": "rgb(138, 138, 138)"
+    }
+  },
+  "textStyles": {
+    "/Body/Default": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "13px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Body/Large": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "14px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Body/Large Medium": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "14px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Body/Medium": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "13px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Body/Relaxed": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "13px",
+      "lineHeight": "1.55em",
+      "letterSpacing": "0px"
+    },
+    "/Chat/Body": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "14px",
+      "lineHeight": "1.7em",
+      "letterSpacing": "0px"
+    },
+    "/Chat/Body Strong": {
+      "family": "Inter",
+      "weight": 600,
+      "size": "14px",
+      "lineHeight": "1.7em",
+      "letterSpacing": "0px"
+    },
+    "/Chat/Input": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "15px",
+      "lineHeight": "1.5em",
+      "letterSpacing": "0px"
+    },
+    "/Heading": {
+      "family": "Inter",
+      "weight": 600,
+      "size": "14px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Label/Default": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "12px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Label/Medium": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "12px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Meta/Caps": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "11px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0.06em"
+    },
+    "/Meta/Default": {
+      "family": "Inter",
+      "weight": 400,
+      "size": "11px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Meta/Micro": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "10px",
+      "lineHeight": "1.2em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Body": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "13px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Chat Code": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "13px",
+      "lineHeight": "1.75em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Code": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "12px",
+      "lineHeight": "1.65em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Label": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "12px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Label Strong": {
+      "family": "Geist Mono",
+      "weight": 500,
+      "size": "12px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Meta": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "11px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Number": {
+      "family": "Geist Mono",
+      "weight": 400,
+      "size": "16px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Mono/Number Strong": {
+      "family": "Geist Mono",
+      "weight": 500,
+      "size": "16px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Title/Dialog": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "16px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "0px"
+    },
+    "/Title/Hero": {
+      "family": "Inter",
+      "weight": 600,
+      "size": "24px",
+      "lineHeight": "1.25em",
+      "letterSpacing": "-0.01em"
+    },
+    "/Title/Page": {
+      "family": "Inter",
+      "weight": 500,
+      "size": "28px",
+      "lineHeight": "1.2em",
+      "letterSpacing": "-0.02em"
+    },
+    "/Title/Section": {
+      "family": "Inter",
+      "weight": 600,
+      "size": "20px",
+      "lineHeight": "1.4em",
+      "letterSpacing": "-0.01em"
+    },
+    "/Title/Stat": {
+      "family": "Inter",
+      "weight": 600,
+      "size": "60px",
+      "lineHeight": "1em",
+      "letterSpacing": "-0.03em"
+    }
+  }
+}

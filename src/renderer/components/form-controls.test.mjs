@@ -25,8 +25,6 @@ function assertFieldAssociation(Control, props, tagName) {
   assert.ok(labelMatch, html);
   const controlId = labelMatch[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   assert.match(html, new RegExp(`<${tagName}[^>]*id="${controlId}"`));
-  assert.match(html, /min-height:36px/);
-  assert.match(html, /font-size:var\(--text-body\)/);
 }
 
 test("Field associates its label with every shared input type", () => {
@@ -44,7 +42,12 @@ test("compact shared controls expose at least a 32px pointer target", () => {
   assert.match(secretHtml, /width:32px;height:32px/);
 
   const checkHtml = renderToStaticMarkup(createElement(Check, { label: "Reasoning", checked: true, onChange() {} }));
-  assert.match(checkHtml, /min-height:36px/);
-  assert.match(checkHtml, /width:18px;height:18px/);
-  assert.match(checkHtml, /font-size:var\(--text-body\)/);
+  assert.match(checkHtml, /min-height:32px/);
+});
+
+test("a shared check is announced as a switch that carries its label and on state", () => {
+  const on = renderToStaticMarkup(createElement(Check, { label: "Reasoning", checked: true, onChange() {} }));
+  const off = renderToStaticMarkup(createElement(Check, { label: "Reasoning", checked: false, onChange() {} }));
+  assert.match(on, /<label[^>]*><input[^>]*type="checkbox"[^>]*role="switch"[^>]*checked=""[^>]*\/>Reasoning<\/label>/);
+  assert.doesNotMatch(off, /checked=""/);
 });

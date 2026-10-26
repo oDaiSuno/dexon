@@ -12,9 +12,9 @@ import { createSessionDetail, createSessionTestHost } from "../hooks/agent-sessi
  * Shared harness for the retained ChatWindow composition test (ASTRA-R5-G001.2).
  *
  * Mounts the ACTUAL ChatWindow component (real useChatWindow, useAgentSession,
- * ChatInput, ChatMinimap, sentinel and viewport owners) in jsdom with mocked
+ * ChatInput, TurnNavigator, sentinel and viewport owners) in jsdom with mocked
  * external IO. Browser signals are delivered by DOM target; the tests observe
- * public reading, history and drag behavior, not the number of internal owners.
+ * public reading, history and turn-jump behavior, not the number of internal owners.
  * Resource registries only account for released targets and leftover work.
  */
 

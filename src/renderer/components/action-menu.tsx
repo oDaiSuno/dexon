@@ -1,0 +1,172 @@
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
+import { CheckmarkIcon } from "./chat-input/icons";
+
+export type ActionMenuItem = {
+  key: string;
+  label: string;
+  title?: string;
+  checked?: boolean;
+  danger?: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+};
+
+export type ActionMenuTriggerProps = {
+  "aria-haspopup": "menu";
+  "aria-expanded": boolean;
+  onClick: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
+};
+
+const MENU_GAP = 8;
+const ITEM_HEIGHT = 33;
+const LIST_PADDING = 10;
+const MAX_LIST_HEIGHT = 330;
+const ITEM_SELECTOR = "[role='menuitem']:not(:disabled), [role='menuitemradio']:not(:disabled)";
+
+export function ActionMenu({
+  label,
+  items,
+  trigger,
+  zIndex = 1000,
+}: {
+  label: string;
+  items: ActionMenuItem[];
+  trigger: (props: ActionMenuTriggerProps) => ReactNode;
+  zIndex?: number;
+}) {
+  const [position, setPosition] = useState<CSSProperties | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const open = position !== null;
+
+  const enabledItems = () => [...(menuRef.current?.querySelectorAll<HTMLButtonElement>(ITEM_SELECTOR) ?? [])];
+  const focusTrigger = () => rootRef.current?.querySelector<HTMLElement>("[aria-haspopup='menu']")?.focus();
+
+  const show = () => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const height = Math.min(items.length * ITEM_HEIGHT, MAX_LIST_HEIGHT) + LIST_PADDING;
+    const right = window.innerWidth - rect.right;
+    const fitsBelow = rect.bottom + MENU_GAP + height <= window.innerHeight;
+    setPosition(
+      fitsBelow
+        ? { top: rect.bottom + MENU_GAP, right }
+        : { top: "auto", bottom: window.innerHeight - rect.top + MENU_GAP, right },
+    );
+  };
+  const close = () => {
+    setPosition(null);
+    focusTrigger();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const checked = menuRef.current?.querySelector<HTMLButtonElement>("[aria-checked='true']:not(:disabled)");
+    (checked ?? enabledItems()[0])?.focus();
+    const onPointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!rootRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
+    };
+    const onScroll = (event: Event) => {
+      const target = event.target as Node | null;
+      if (target?.nodeType && menuRef.current?.contains(target)) return;
+      setPosition(null);
+    };
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onScroll);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [open]);
+
+  const choose = (item: ActionMenuItem) => {
+    close();
+    item.onSelect();
+  };
+  const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    event.stopPropagation();
+    if (event.key === "Escape" || event.key === "Tab") {
+      event.preventDefault();
+      close();
+      return;
+    }
+    const entries = enabledItems();
+    const index = entries.indexOf(document.activeElement as HTMLButtonElement);
+    const target = {
+      ArrowDown: entries[(index + 1) % entries.length],
+      ArrowUp: entries[(index - 1 + entries.length) % entries.length],
+      Home: entries[0],
+      End: entries[entries.length - 1],
+    }[event.key];
+    if (!target) return;
+    event.preventDefault();
+    target.focus();
+  };
+
+  return (
+    <div ref={rootRef} style={{ flexShrink: 0 }}>
+      {trigger({
+        "aria-haspopup": "menu",
+        "aria-expanded": open,
+        onClick: () => (open ? setPosition(null) : show()),
+        onKeyDown: (event) => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          show();
+        },
+      })}
+      {position &&
+        createPortal(
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={label}
+            className="session-menu-card session-menu-card--menu composer-pop-in"
+            style={{ ...menuStyle, zIndex, ...position }}
+            onKeyDown={onMenuKeyDown}
+          >
+            <div className="session-menu-list" style={listStyle}>
+              {items.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+                  aria-checked={item.checked === undefined ? undefined : item.checked}
+                  title={item.title}
+                  disabled={item.disabled}
+                  className={
+                    item.danger
+                      ? "session-menu-item session-menu-item--danger type-body-large"
+                      : "session-menu-item type-body-large"
+                  }
+                  style={item.disabled ? disabledItemStyle : undefined}
+                  onClick={() => choose(item)}
+                >
+                  <span className="session-menu-item-label">{item.label}</span>
+                  {item.checked && (
+                    <span className="session-menu-item-icon">
+                      <CheckmarkIcon size={14} />
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </div>
+  );
+}
+
+const menuStyle: CSSProperties = { position: "fixed" };
+const listStyle: CSSProperties = { maxHeight: MAX_LIST_HEIGHT, overflowY: "auto" };
+const disabledItemStyle: CSSProperties = {
+  background: "var(--fx-surface-hover-clear)",
+  color: "var(--fx-text-faint)",
+  cursor: "default",
+};

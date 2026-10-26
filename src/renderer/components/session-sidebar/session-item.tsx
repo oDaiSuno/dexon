@@ -3,15 +3,24 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { abbreviateHomePath } from "@/lib/display-path";
-import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
-import { MAX_TREE_INDENT_DEPTH } from "@/lib/session-tree";
+import { formatNumber, formatRelativeDateTime, formatShortRelativeTime } from "@/lib/locale-format";
+import { useSessionNaming } from "@/lib/session-naming-store";
+import { getSessionNamingModel, regenerateSessionTitle } from "@/lib/auto-session-title";
+import { requestModelSettings } from "@/lib/model-settings-request";
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
-import { COUNTED_ACTIVITIES, type SubtreeActivity } from "@/lib/session-tree-status";
-import { SessionRowCounts, SessionRowStatusSlot, sessionRowLabel } from "./session-row-status";
+import type { SubtreeActivity } from "@/lib/session-tree-status";
+import {
+  SessionRowCount,
+  SessionRowLead,
+  SessionRowStatusSlot,
+  sessionRowIndicatedActivity,
+  sessionRowLabel,
+  sessionRowShowsTime,
+  sessionRowTitleClass,
+} from "./session-row-status";
+import { ExpandChevronGlyph } from "./session-relation-glyphs";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
-
-// Moved verbatim from SessionSidebar.tsx in Phase 2 (session row split). The
-// actions menu and status indicators now live in their own modules.
+import { useSessionDelete } from "./use-session-delete";
 
 export function SessionItem({
   session,
@@ -20,10 +29,10 @@ export function SessionItem({
   activity,
   relation,
   descendants = null,
+  descendantCount = 0,
   onClick,
   onRenamed,
   onDeleted,
-  depth = 0,
   hasChildren = false,
   collapsed = false,
   onToggleCollapse,
@@ -35,10 +44,10 @@ export function SessionItem({
   activity: SessionActivityStatus;
   relation: SessionRelation | null;
   descendants?: SubtreeActivity | null;
+  descendantCount?: number;
   onClick: () => void;
   onRenamed?: () => void;
   onDeleted?: (id: string) => void;
-  depth?: number;
   hasChildren?: boolean;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
@@ -46,19 +55,23 @@ export function SessionItem({
 }) {
   const { language, t } = useI18n();
   const [hovered, setHovered] = useState(false);
+  const [keyboardFocus, setKeyboardFocus] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null);
+  const naming = useSessionNaming(session.id);
+  const rowRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
   const actionsSummaryRef = useRef<HTMLButtonElement>(null);
+  const pointerFocusRef = useRef(false);
   const restoreFocusFrameRef = useRef<number | null>(null);
   const selectInputTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const closeActionsMenu = useCallback((restoreFocus = false) => {
     setActionsOpen(false);
+    setMenuAt(null);
     if (restoreFocus) {
       if (restoreFocusFrameRef.current !== null) window.cancelAnimationFrame(restoreFocusFrameRef.current);
       restoreFocusFrameRef.current = window.requestAnimationFrame(() => {
@@ -67,6 +80,14 @@ export function SessionItem({
       });
     }
   }, []);
+
+  const deletion = useSessionDelete({
+    sessionId: session.id,
+    isRunning: Boolean(isRunning),
+    onDeleted,
+    onOpen: closeActionsMenu,
+    returnFocusRef: actionsSummaryRef,
+  });
 
   useEffect(
     () => () => {
@@ -77,11 +98,18 @@ export function SessionItem({
   );
 
   const title = getSessionDisplayTitle(session);
+  const regenerate = actionsOpen
+    ? !getSessionNamingModel()
+      ? "needs-model"
+      : naming || session.messageCount === 0 || !session.firstMessage.trim()
+        ? "unavailable"
+        : "ready"
+    : "unavailable";
   const foldedDescendants = hasChildren && collapsed ? descendants : null;
-  const showCounts = foldedDescendants ? COUNTED_ACTIVITIES.some((kind) => foldedDescendants.counts[kind] > 0) : false;
-
-  const tooltipText = [
-    title,
+  const details = [
+    foldedDescendants
+      ? t("sessionChildCount", "{count} sub-sessions").replace("{count}", formatNumber(descendantCount, language))
+      : null,
     `${t("messageCount", "{count} msgs").replace("{count}", formatNumber(session.messageCount, language))}${
       session.worktreeBranch ? ` · ${session.worktreeBranch}` : ""
     }`,
@@ -89,7 +117,7 @@ export function SessionItem({
     formatRelativeDateTime(session.modified, language),
   ]
     .filter(Boolean)
-    .join("\n");
+    .join(" · ");
 
   const startRename = useCallback(
     (e: React.MouseEvent) => {
@@ -127,124 +155,113 @@ export function SessionItem({
     }
   }, [renameValue, session.id, session.name, onRenamed]);
 
-  const handleDeleteClick = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
+  const regenerateName = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      closeActionsMenu(true);
+      void regenerateSessionTitle(session.id, session.firstMessage).then((name) => {
+        if (name) onRenamed?.();
+      });
+    },
+    [closeActionsMenu, onRenamed, session.firstMessage, session.id],
+  );
+
+  const openNamingSettings = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
       closeActionsMenu();
-      // ISSUE-001: block delete while agent is running
-      if (isRunning) {
-        window.alert(t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting."));
-        return;
-      }
-      setConfirmDelete(true);
+      requestModelSettings();
     },
-    [closeActionsMenu, isRunning, t],
+    [closeActionsMenu],
   );
 
-  const handleDeleteConfirm = useCallback(
-    async (e: React.MouseEvent) => {
-      e.stopPropagation();
-      if (isRunning) {
-        window.alert(t("deleteRunningSessionBlocked", "This session is still running. Stop it before deleting."));
-        setConfirmDelete(false);
-        return;
-      }
-      setConfirmDelete(false);
-      setDeleting(true);
-      try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          window.alert(
-            body.error ??
-              t("deleteSessionFailedStatus", "Delete failed ({status})").replace("{status}", String(res.status)),
-          );
-          setDeleting(false);
-          return;
-        }
-        onDeleted?.(session.id);
-      } catch (err) {
-        window.alert(err instanceof Error ? err.message : String(err));
-        setDeleting(false);
-      }
-    },
-    [session.id, onDeleted, isRunning, t],
-  );
-
-  const handleDeleteCancel = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setConfirmDelete(false);
-  }, []);
-
-  const ITEM_HEIGHT = 28;
-  const rowBackground = confirmDelete
-    ? "color-mix(in srgb, var(--danger) 8%, transparent)"
-    : isSelected
-      ? "var(--bg-selected)"
+  const ITEM_HEIGHT = 30;
+  const rowBackground = renaming
+    ? "var(--fx-surface-raised)"
+    : isSelected || actionsOpen || deletion.open
+      ? "var(--fx-surface-selected)"
       : hovered
-        ? "var(--bg-hover)"
+        ? "var(--fx-surface-hover)"
         : "transparent";
+  const titleTone = sessionRowTitleClass({ activity, relation, isSelected, naming });
+  const indicated = sessionRowIndicatedActivity(activity, foldedDescendants);
+  const showTime = !naming && sessionRowShowsTime(indicated);
+  const agentDone = relation === "delegate" && activity === "idle";
+  const revealed = hovered || keyboardFocus || actionsOpen;
 
   return (
     <div
+      ref={rowRef}
       role="listitem"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false);
       }}
+      onMouseDown={() => {
+        pointerFocusRef.current = true;
+      }}
+      onFocus={() => {
+        setKeyboardFocus(!pointerFocusRef.current);
+        pointerFocusRef.current = false;
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setKeyboardFocus(false);
+      }}
+      onContextMenu={
+        renaming
+          ? undefined
+          : (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              setMenuAt({ x: event.clientX, y: event.clientY });
+              setActionsOpen(true);
+            }
+      }
       style={{
         height: ITEM_HEIGHT,
         position: "relative",
         zIndex: actionsOpen ? 20 : undefined,
         display: "flex",
         alignItems: "center",
-        margin: "0 4px 4px",
-        paddingLeft: Math.min(depth, MAX_TREE_INDENT_DEPTH) * 12 + 10,
-        paddingRight: 8,
-        cursor: "default",
+        flex: 1,
+        minWidth: 0,
+        padding: "0 8px",
+        cursor: renaming ? "text" : "pointer",
         background: rowBackground,
-        border: confirmDelete
-          ? "1px solid color-mix(in srgb, var(--danger) 40%, transparent)"
-          : "1px solid transparent",
-        borderRadius: "999px",
-        transition:
-          "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), border-color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-        opacity: deleting ? 0.5 : 1,
+        boxShadow: renaming ? "inset 0 0 0 1px var(--fx-accent-blue), 0 0 0 3px var(--fx-accent-blue-soft)" : undefined,
+        borderRadius: "var(--radius-row)",
+        transition: "background var(--duration-quick) var(--ease-smooth-out)",
         gap: 8,
         overflow: "visible",
       }}
     >
-      {confirmDelete ? (
-        /* ── Delete confirmation: same height, two flat buttons ── */
-        <SessionItemDeleteConfirm title={title} onConfirm={handleDeleteConfirm} onCancel={handleDeleteCancel} />
-      ) : renaming ? (
-        /* ── Rename: input fills the same row ── */
-        <input
-          ref={inputRef}
-          value={renameValue}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onBlur={commitRename}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") void commitRename();
-            if (e.key === "Escape") setRenaming(false);
-          }}
-          autoFocus
-          style={{
-            flex: 1,
-            fontSize: "var(--text-body)",
-            padding: "0 8px",
-            border: "1px solid var(--accent)",
-            borderRadius: "var(--radius-control)",
-            outline: "none",
-            background: "var(--bg)",
-            color: "var(--text)",
-            height: 24,
-          }}
-        />
+      {renaming ? (
+        <>
+          <SessionRowLead activity={activity} relation={relation} />
+          <input
+            ref={inputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void commitRename();
+              if (e.key === "Escape") setRenaming(false);
+            }}
+            autoFocus
+            className="session-rename-input type-body-large"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: "100%",
+              padding: 0,
+              border: 0,
+              outline: "none",
+              background: "transparent",
+              color: "var(--fx-text-primary)",
+            }}
+          />
+        </>
       ) : (
-        /* ── Normal view ── */
         <>
           <button
             type="button"
@@ -253,8 +270,15 @@ export function SessionItem({
               onClick();
             }}
             aria-current={isSelected ? "page" : undefined}
-            aria-label={sessionRowLabel({ title, activity, relation, descendants: foldedDescendants, t })}
-            title={tooltipText}
+            aria-label={sessionRowLabel({
+              title,
+              activity,
+              relation,
+              naming,
+              descendants: foldedDescendants,
+              t,
+            })}
+            aria-description={details}
             style={{
               alignSelf: "stretch",
               flex: 1,
@@ -263,61 +287,48 @@ export function SessionItem({
               alignItems: "center",
               gap: 8,
               padding: 0,
+              paddingRight: revealed ? 28 : 0,
               border: 0,
               background: "transparent",
               color: "inherit",
               cursor: "pointer",
               font: "inherit",
               textAlign: "left",
+              transition: "padding-right var(--duration-quick) var(--ease-smooth-out)",
             }}
           >
-            <span
-              aria-hidden="true"
-              style={{
-                width: 18,
-                height: 18,
-                flexShrink: 0,
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--text-dim)",
-              }}
-            >
-              <SessionRowStatusSlot activity={activity} relation={relation} isSelected={isSelected} />
-            </span>
+            <SessionRowLead activity={activity} relation={relation} naming={naming} />
             <span
               data-session-row-title
+              className={titleTone.className}
               style={{
                 flex: 1,
                 minWidth: 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
-                fontSize: "var(--text-body)",
-                fontWeight: 400,
-                lineHeight: 1.4,
-                color: "var(--text)",
+                color: titleTone.color,
               }}
             >
               {title}
             </span>
-            {showCounts && foldedDescendants && <SessionRowCounts counts={foldedDescendants.counts} />}
-            {!showCounts && depth < MAX_TREE_INDENT_DEPTH && (
+            {foldedDescendants && <SessionRowCount count={descendantCount} />}
+            {!naming && <SessionRowStatusSlot activity={indicated} />}
+            {showTime && (
               <span
                 data-session-row-time
+                className="type-label-default"
                 style={{
                   flexShrink: 0,
-                  fontSize: "var(--text-meta)",
-                  color: "var(--text-dim)",
+                  color: activity === "unread" ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)",
                   whiteSpace: "nowrap",
                 }}
               >
-                {formatRelativeDateTime(session.modified, language)}
+                {agentDone ? t("sessionAgentDone", "Done") : formatShortRelativeTime(session.modified, language)}
               </span>
             )}
           </button>
 
-          {/* Collapse toggle — always visible when has children */}
           {hasChildren && (
             <button
               type="button"
@@ -325,43 +336,23 @@ export function SessionItem({
                 e.stopPropagation();
                 onToggleCollapse?.();
               }}
-              title={collapsed ? t("expandForks", "Expand forks") : t("collapseForks", "Collapse forks")}
               aria-label={collapsed ? t("expandForks", "Expand forks") : t("collapseForks", "Collapse forks")}
               aria-expanded={!collapsed}
               style={{
                 display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
+                width: 14,
+                height: 14,
                 padding: 0,
                 flexShrink: 0,
-                background: hovered ? "var(--bg-hover)" : "none",
+                background: "transparent",
                 border: "none",
-                borderRadius: "var(--radius-card)",
-                color: "var(--text-dim)",
+                color: "var(--fx-text-tertiary)",
                 cursor: "pointer",
-                transition:
-                  "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+                transform: collapsed ? "rotate(-90deg)" : "none",
+                transition: "transform var(--duration-quick) var(--ease-smooth-out)",
               }}
             >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-                style={{
-                  transform: collapsed ? "rotate(-90deg)" : "none",
-                  transition: "transform 0.15s",
-                }}
-              >
-                <polyline points="2 3.5 5 6.5 8 3.5" />
-              </svg>
+              <ExpandChevronGlyph />
             </button>
           )}
 
@@ -376,7 +367,7 @@ export function SessionItem({
               event.preventDefault();
               closeActionsMenu(true);
             }}
-            style={{ position: "absolute", top: 2, right: hasChildren ? 36 : 4, flexShrink: 0 }}
+            style={{ position: "absolute", top: 3, right: hasChildren ? 26 : 4, flexShrink: 0 }}
           >
             <button
               type="button"
@@ -388,6 +379,7 @@ export function SessionItem({
               aria-expanded={actionsOpen}
               onClick={(event) => {
                 event.stopPropagation();
+                setMenuAt(null);
                 setActionsOpen((open) => !open);
               }}
               style={{
@@ -397,14 +389,14 @@ export function SessionItem({
                 width: 24,
                 height: 24,
                 padding: 0,
-                background: actionsOpen || hovered ? rowBackground : "transparent",
-                border: actionsOpen ? "1px solid var(--border)" : "1px solid transparent",
-                borderRadius: "var(--radius-card)",
-                color: actionsOpen ? "var(--text)" : "var(--text-dim)",
+                background: revealed ? rowBackground : "transparent",
+                border: "1px solid transparent",
+                borderRadius: "var(--radius-chip)",
+                color: actionsOpen ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
                 cursor: "pointer",
-                opacity: actionsOpen || hovered ? 1 : 0,
-                pointerEvents: actionsOpen || hovered ? "auto" : "none",
-                transition: "opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
+                opacity: revealed ? 1 : 0,
+                pointerEvents: revealed ? "auto" : "none",
+                transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -413,8 +405,30 @@ export function SessionItem({
                 <circle cx="19" cy="12" r="1.7" />
               </svg>
             </button>
-            {actionsOpen && <SessionItemActionsMenu onRename={startRename} onDelete={handleDeleteClick} />}
+            {actionsOpen && (
+              <SessionItemActionsMenu
+                at={menuAt}
+                sessionPath={session.path}
+                onRename={startRename}
+                regenerate={regenerate}
+                onRegenerate={regenerateName}
+                onOpenNamingSettings={openNamingSettings}
+                onDelete={deletion.requestDelete}
+              />
+            )}
           </div>
+          {deletion.open && (
+            <SessionItemDeleteConfirm
+              title={title}
+              anchorRef={rowRef}
+              blocked={Boolean(isRunning)}
+              subtree={deletion.subtree}
+              busy={deletion.busy}
+              error={deletion.error}
+              onConfirm={deletion.confirm}
+              onCancel={deletion.cancel}
+            />
+          )}
         </>
       )}
     </div>

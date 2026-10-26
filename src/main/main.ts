@@ -282,6 +282,8 @@ function handleDeepLink(url: string): void {
 }
 
 function startMainProcess(): void {
+  const devUserDataDirectory = isDev ? process.env.DEXON_DEV_USER_DATA_DIR : undefined;
+  if (devUserDataDirectory) app.setPath("userData", path.resolve(devUserDataDirectory));
   if (
     !acquireSingleInstanceLock(getMainWindow, (argv) => {
       const url = findDesktopDeepLink(argv);
@@ -561,6 +563,7 @@ function startMainProcess(): void {
       },
       performToolchainAction: (request) => toolchainManager!.performAction(request),
       chooseCustomTool: (capability, executable) => toolchainManager!.registerCustomTool(capability, executable),
+      getManagedToolsRoot: () => toolchainManager?.getManagedRoot(),
       setChannelCredential: (payload) =>
         credentialVault.set(`channel:${payload.channel}:${payload.accountId}`, payload.credential),
       getBrowserService: () => browserService,

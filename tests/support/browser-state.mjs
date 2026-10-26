@@ -23,6 +23,8 @@ export function browserState(tabs = []) {
           allowHttp: false,
           allowPrivateNetwork: false,
           networkIsolation: "best-effort",
+          searchEngine: "bing",
+          customSearchTemplate: "",
         },
         automation: {
           enabled: false,
@@ -87,6 +89,7 @@ export function browserTab(id, ownerSessionId = null) {
     canGoBack: false,
     canGoForward: false,
     crashed: false,
+    favicon: null,
     control: "user",
     advanced: false,
     advancedProfile: false,

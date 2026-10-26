@@ -1,0 +1,103 @@
+{
+  "lane": "F1 插件与技能列表",
+  "legacy": [
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "name": "--text-micro",
+      "count": 3
+    },
+    {
+      "file": "src/renderer/components/plugins/resource-list.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/plugins/resource-list.tsx",
+      "name": "--text-micro",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "name": "--bg-hover",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "name": "--bg-selected",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "name": "--text-label",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "name": "--text-meta",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "name": "--text-micro",
+      "count": 1
+    }
+  ],
+  "typography": [
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "property": "fontSize",
+      "count": 7
+    },
+    {
+      "file": "src/renderer/components/plugins/plugin-list.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/plugins/resource-list.tsx",
+      "property": "fontSize",
+      "count": 4
+    },
+    {
+      "file": "src/renderer/components/plugins/resource-list.tsx",
+      "property": "fontWeight",
+      "count": 1
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "property": "fontSize",
+      "count": 5
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "property": "fontWeight",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/skills/skill-list.tsx",
+      "property": "letterSpacing",
+      "count": 1
+    }
+  ],
+  "colors": []
+}

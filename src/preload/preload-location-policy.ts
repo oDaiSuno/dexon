@@ -1,10 +1,10 @@
-export function isTrustedPreloadLocation(rawUrl: string): boolean {
+import { DEFAULT_DEV_RENDERER_PORT, isDevRendererOrigin } from "../shared/dev-renderer-origin.ts";
+
+export function isTrustedPreloadLocation(rawUrl: string, devPort = DEFAULT_DEV_RENDERER_PORT): boolean {
   try {
     const url = new URL(rawUrl);
     if (url.protocol === "app:") return url.hostname === "bundle";
-    return (
-      url.protocol === "http:" && url.port === "5173" && (url.hostname === "localhost" || url.hostname === "127.0.0.1")
-    );
+    return isDevRendererOrigin(url, devPort);
   } catch {
     return false;
   }

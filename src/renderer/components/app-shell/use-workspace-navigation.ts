@@ -4,6 +4,7 @@ import { beginSessionLoadTrace } from "@/lib/session-performance";
 import { readSessionIdFromSearch, routerCompat } from "@/lib/router-compat";
 import { getSessionCatalog } from "@/lib/session-catalog";
 import { subscribeOpenSessionRequests } from "@/lib/session-open-request";
+import { requestSessionSearchFocus } from "@/lib/session-search-focus";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { SessionInfo } from "@/lib/types";
 
@@ -20,9 +21,7 @@ export function useWorkspaceNavigation({
   onSwitchSessionRequested,
   onBeforeSessionDeleted,
   onShowChat,
-  requestDeparture = (action) => action(),
 }: {
-  requestDeparture?: (action: () => void) => void;
   isMobile: boolean;
   onMobileSidebarClose: () => void;
   onTopPanelDismiss: () => void;
@@ -50,20 +49,18 @@ export function useWorkspaceNavigation({
           const listed = getSessionCatalog().find((session) => session.id === sessionId);
           const found = listed ?? (await listSessions()).sessions.find((session) => session.id === sessionId);
           if (!found) return;
-          requestDeparture(() => {
-            onShowChat?.();
-            setNewSessionCwd(null);
-            setSelectedSession(found as SessionInfo);
-            setSessionKey((k) => k + 1);
-            setRefreshKey((k) => k + 1);
-            router.replace(`?session=${encodeURIComponent(sessionId)}`);
-          });
+          onShowChat?.();
+          setNewSessionCwd(null);
+          setSelectedSession(found as SessionInfo);
+          setSessionKey((k) => k + 1);
+          setRefreshKey((k) => k + 1);
+          router.replace(`?session=${encodeURIComponent(sessionId)}`);
         } catch (error) {
           console.error("open session failed", error);
         }
       })();
     },
-    [onShowChat, requestDeparture, router],
+    [onShowChat, router],
   );
 
   useEffect(() => subscribeOpenSessionRequests(openSessionById), [openSessionById]);
@@ -73,25 +70,24 @@ export function useWorkspaceNavigation({
     const offDeep = window.piBridge?.onDeepLinkSession?.((sessionId) => openSessionById(sessionId));
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
       if (!activeCwd) return;
-      requestDeparture(() => {
-        onShowChat?.();
-        setSelectedSession(null);
-        setNewSessionCwd(activeCwd);
-        setSessionKey((k) => k + 1);
-        router.replace("/", { scroll: false });
-      });
+      onShowChat?.();
+      setSelectedSession(null);
+      setNewSessionCwd(activeCwd);
+      setSessionKey((k) => k + 1);
+      router.replace("/", { scroll: false });
     });
     // ISSUE-016: Switch Session palette — focus sidebar / open project list
     const offSwitch = window.piBridge?.onMenu?.("switch-session", () => {
       onSwitchSessionRequested();
       setRefreshKey((k) => k + 1);
+      requestSessionSearchFocus();
     });
     return () => {
       offDeep?.();
       offNew?.();
       offSwitch?.();
     };
-  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, openSessionById, requestDeparture]);
+  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, openSessionById]);
 
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null) => {

@@ -252,63 +252,6 @@ test("syncs the selected cwd from the parent prop without feedback loops", async
   );
 });
 
-test("validates custom paths and reports failures without moving the cwd", async () => {
-  let validateCount = 0;
-  const callHandlers = {
-    "system.validateCwd": async ({ path }) => {
-      validateCount += 1;
-      if (path === "/bad") return { ok: false, error: "Directory does not exist" };
-      return { ok: true, path };
-    },
-  };
-  await withEnvironment({ callHandlers }, async (env) => {
-    const { state, mounted } = await mountWithWorkspace(env, null);
-    let good;
-    await act(async () => {
-      good = await state.value.selectCustomCwd("/good");
-    });
-    assert.deepEqual(good, { status: "selected" });
-    assert.equal(state.value.selectedCwd, "/good");
-    let bad;
-    await act(async () => {
-      bad = await state.value.selectCustomCwd("/bad");
-    });
-    assert.deepEqual(bad, { status: "invalid", error: "Directory does not exist" });
-    assert.equal(state.value.selectedCwd, "/good");
-    env.callHarness.handlers["system.validateCwd"] = async () => {
-      throw new Error("network down");
-    };
-    const failed = await state.value.selectCustomCwd("/unreachable");
-    assert.deepEqual(failed, { status: "invalid", error: "network down" });
-    assert.equal(validateCount, 2);
-    await mounted.unmount();
-  });
-});
-
-test("applies the default directory only when the host provides one", async () => {
-  let mode = "present";
-  const callHandlers = {
-    "system.defaultCwd": async () => ({ cwd: mode === "present" ? "/default" : "" }),
-  };
-  await withEnvironment({ callHandlers }, async (env) => {
-    const { state, mounted } = await mountWithWorkspace(env, null);
-    let applied;
-    await act(async () => {
-      applied = await state.value.selectDefaultCwd();
-    });
-    assert.equal(applied, true);
-    assert.equal(state.value.selectedCwd, "/default");
-    mode = "absent";
-    let skipped;
-    await act(async () => {
-      skipped = await state.value.selectDefaultCwd();
-    });
-    assert.equal(skipped, false);
-    assert.equal(state.value.selectedCwd, "/default");
-    await mounted.unmount();
-  });
-});
-
 test("supports the native directory picker with validation outcomes", async () => {
   const callHandlers = {
     "system.validateCwd": async ({ path }) => {
@@ -343,7 +286,7 @@ test("supports the native directory picker with validation outcomes", async () =
   });
 });
 
-test("derives the switcher visibility and guidance for the current workspace", async () => {
+test("shows the worktree switcher only at a Git repository root", async () => {
   const subdirList = { projectRoot: "/repo", isGit: true, isTopLevel: false, worktrees: [] };
   const plainList = { projectRoot: "/plain", isGit: false, isTopLevel: true, worktrees: [] };
   await withEnvironment(
@@ -359,23 +302,14 @@ test("derives the switcher visibility and guidance for the current workspace", a
     async (env) => {
       const { state, mounted } = await mountWithWorkspace(env, "/repo");
       assert.equal(state.value.showWorktreeSwitcher, true);
-      assert.equal(state.value.worktreeGuide, null);
       await mounted.unmount();
 
       const subdir = await mountWithWorkspace(env, "/repo/src");
       assert.equal(subdir.state.value.showWorktreeSwitcher, false);
-      assert.deepEqual(subdir.state.value.worktreeGuide, {
-        label: "Open repo root",
-        title: "Open the repository root to manage worktrees.",
-      });
       await subdir.mounted.unmount();
 
       const plain = await mountWithWorkspace(env, "/plain");
       assert.equal(plain.state.value.showWorktreeSwitcher, false);
-      assert.deepEqual(plain.state.value.worktreeGuide, {
-        label: "Git repo root only",
-        title: "Worktrees are available in Git repository roots.",
-      });
       await plain.mounted.unmount();
     },
   );

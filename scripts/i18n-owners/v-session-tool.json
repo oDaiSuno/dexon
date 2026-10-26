@@ -1,0 +1,5 @@
+[
+  "components/messages/session-tool-row.tsx",
+  "components/messages/session-tool-labels.tsx",
+  "components/messages/session-tool-detail.ts"
+]

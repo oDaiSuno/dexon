@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { dom, act, click, input, button, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
+import { dom, act, byRole, click, input, button, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
 import { installHostBridge } from "../support/host-bridge.mjs";
 import { createManagedProcessHost } from "../support/managed-process-host.mjs";
 
@@ -134,9 +134,10 @@ test("output availability shows bounded plain text rather than executable markup
   }));
   await view.output(records);
   const log = view.container.querySelector('[role="log"]');
-  assert.match(log.textContent, /^\[stdout\] line-10/);
-  assert.doesNotMatch(log.textContent, /\[stdout\] line-[0-9](?=\[stdout\])/);
-  assert.match(log.textContent, /<img src=x onerror="attack\(\)">$/);
+  const shown = [...log.querySelectorAll("[title]")].map((line) => line.textContent);
+  assert.equal(shown.length, 2000, "the log shows exactly the retained 2,000 records");
+  assert.equal(shown[0], "line-10");
+  assert.equal(shown.at(-1), '<img src=x onerror="attack()">');
   await click(button(view.container, "Copy Visible"));
   const lines = view.copied.at(-1).split("\n");
   assert.equal(lines.length, 2000, "the public copy action contains exactly the retained 2,000 records");
@@ -150,13 +151,13 @@ test("Stop terminates only the selected server and Restart uses its current run 
   const view = await panel(t, twoServers());
   await view.select("Other server");
   await click(button(view.container, "Stop"));
-  assert.match(view.processButton("Other server").textContent, /exited/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Other server").textContent, /Exited/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 
-  await click(button(view.container, "Restart"));
-  assert.match(view.processButton("Other server").textContent, /running/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  await click(button(view.container, "Run again"));
+  assert.match(view.processButton("Other server").textContent, /Running/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   await click(button(view.container, "Export Logs"));
   assert.deepEqual(view.exported, [
     { processId: "process-two", runId: "second-run-two", streams: ["stdout", "stderr", "system"] },
@@ -168,8 +169,8 @@ test("Force Stop force-terminates the selected server without stopping another r
   const view = await panel(t, twoServers());
   await view.select("Other server");
   await click(button(view.container, "Force Stop"));
-  assert.match(view.processButton("Other server").textContent, /killed/);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Other server").textContent, /Killed/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 });
 
@@ -180,10 +181,7 @@ test("stdin and browser controls preserve the selected process and owning sessio
   assert.deepEqual(view.inputs, [
     { processId: "process-one", runId: "run-one", text: "hello server", appendNewline: true },
   ]);
-  const endpoint = [...view.container.querySelectorAll("button")].find((control) =>
-    control.textContent.includes("Open in Browser:"),
-  );
-  await click(endpoint);
+  await click(button(view.container, "Open in browser"));
   assert.deepEqual(view.opened, [{ url: "http://127.0.0.1:4173/", ownerSessionId: "session-one", activate: true }]);
   assertHealthy(view);
 });
@@ -193,14 +191,14 @@ test("dismissing a finished selected process leaves another running server avail
   await view.select("Other server");
   await click(button(view.container, "Dismiss"));
   assert.equal(view.processButton("Other server"), undefined);
-  assert.match(view.processButton("Fixture server").textContent, /running/);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
   assertHealthy(view);
 });
 
 test("dismissing the last finished process shows the empty process list", async (t) => {
   const view = await panel(t, [processInfo("killed")]);
   await click(button(view.container, "Dismiss"));
-  assert.match(view.container.textContent, /No managed processes/);
+  assert.match(view.container.textContent, /No background processes/);
   assertHealthy(view);
 });
 
@@ -209,10 +207,60 @@ test("a lost process offers diagnostics and stops other active processes without
   await view.select("Other server");
   assert.match(view.container.querySelector('[role="alert"]').textContent, /could not be safely confirmed as stopped/);
   assert.equal(button(view.container, "Restart"), undefined);
+  assert.equal(button(view.container, "Run again"), undefined);
   await click(button(view.container, "Export Diagnostics"));
   assert.equal(view.diagnostics(), 1);
   await click(button(view.container, "Stop All"));
-  assert.match(view.processButton("Fixture server").textContent, /killed/);
-  assert.match(view.processButton("Other server").textContent, /lost/);
+  assert.match(view.processButton("Fixture server").textContent, /Killed/);
+  assert.match(view.processButton("Other server").textContent, /Lost/);
   assert.match(view.container.querySelector('[role="alert"]').textContent, /could not be safely confirmed as stopped/);
+});
+
+const menuItem = (name) => byRole(dom.window.document.body, "menuitem", name);
+const openMore = (view) => click(button(view.container, "More actions"));
+
+test("the summary More menu offers export, stop all, force stop all and clear finished", async (t) => {
+  const view = await panel(t, twoServers("killed"));
+  await openMore(view);
+  const menu = byRole(dom.window.document.body, "menu", "More actions");
+  assert.deepEqual(
+    [...menu.querySelectorAll('[role="menuitem"]')].map((item) => item.textContent.trim()),
+    ["Export Diagnostics", "Stop All", "Force stop all", "Clear finished"],
+  );
+});
+
+test("Stop All in the More menu gracefully stops every running server", async (t) => {
+  const view = await panel(t, twoServers());
+  await openMore(view);
+  await click(menuItem("Stop All"));
+  assert.match(view.processButton("Fixture server").textContent, /Exited/);
+  assert.match(view.processButton("Other server").textContent, /Exited/);
+  assertHealthy(view);
+});
+
+test("Clear finished removes finished processes from the list and keeps the running one", async (t) => {
+  const view = await panel(t, twoServers("killed"));
+  await openMore(view);
+  await click(menuItem("Clear finished"));
+  assert.equal(view.processButton("Other server"), undefined);
+  assert.match(view.processButton("Fixture server").textContent, /Running/);
+  assertHealthy(view);
+});
+
+test("Clear finished is unavailable while nothing has finished", async (t) => {
+  const view = await panel(t, twoServers());
+  await openMore(view);
+  assert.equal(menuItem("Clear finished").disabled, true);
+});
+
+test("Clear finished keeps a lost process and its warning, because it may still be running", async (t) => {
+  const view = await panel(t, [
+    processInfo("lost"),
+    processInfo("exited", { processId: "process-two", runId: "second-run-one", label: "Other server", endpoints: [] }),
+  ]);
+  await openMore(view);
+  await click(menuItem("Clear finished"));
+  assert.equal(view.processButton("Other server"), undefined);
+  assert.match(view.processButton("Fixture server").textContent, /Lost/);
+  assert.match(view.container.textContent, /could not be safely confirmed as stopped/);
 });

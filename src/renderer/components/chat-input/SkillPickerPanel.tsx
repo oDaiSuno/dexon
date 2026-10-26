@@ -1,19 +1,12 @@
-import { useMemo, useRef, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { SkillRecord } from "@/lib/api-types";
-import { scaledChatFont } from "@/lib/chat-appearance";
+import { Button } from "../form-controls";
 import { GlideHighlight } from "./GlideHighlight";
-import { PackageIcon } from "./icons";
+import { CircleAlertIcon, PackageIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon, SearchIcon } from "./icons";
+import { MenuBackButton, MenuDivider, MenuFooter, MenuLinkButton, MenuState, SearchXIcon } from "./menu-chrome";
+import { KeyHint } from "./SendControls";
 
-/**
- * The ＋ menu's "Use a skill" second-level panel: browse installed skills
- * (via the skills.list RPC, fetched by ChatInput), filter by query, pick one
- * to place a `/skill:name` chip at message start. Shares the PlusMenu visual
- * skeleton: full-width panel rising from the composer's top edge, pop-in,
- * raised shadow, one line per row.
- */
-
-/** Map a SkillRecord's source info to a scope label (mirrors SkillsConfig). */
 function skillScope(skill: SkillRecord): "global" | "project" | "path" {
   const source = skill.sourceInfo?.source;
   const scope = skill.sourceInfo?.scope;
@@ -28,18 +21,22 @@ export function SkillPickerPanel({
   error,
   onPick,
   onClose,
+  onBack,
+  onRetry,
+  onManage,
 }: {
   skills: SkillRecord[];
   loading: boolean;
   error: string | null;
   onPick: (skill: SkillRecord) => void;
   onClose: () => void;
+  onBack: () => void;
+  onRetry: () => void;
+  onManage?: () => void;
 }) {
   const { t } = useI18n();
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [engaged, setEngaged] = useState(false);
-  const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -57,278 +54,348 @@ export function SkillPickerPanel({
     return t("skillScopePath", "path");
   };
 
-  const statusLine = (() => {
-    if (error) return { key: "error", text: t("skillPickerLoadFailed", "Failed to load skills. Try again.") };
-    if (loading) return { key: "loading", text: t("skillPickerLoading", "Loading skills…") };
-    if (skills.length === 0)
-      return { key: "empty", text: t("skillPickerEmpty", "No skills installed yet. Add them from Plugins & Skills.") };
-    if (filtered.length === 0) return { key: "nomatch", text: t("skillPickerNoMatch", "No skills match this search") };
-    return null;
+  const needle = query.trim().toLowerCase();
+  const highlight = (name: string, active: boolean) => {
+    const at = needle ? name.toLowerCase().indexOf(needle) : -1;
+    if (at < 0) return name;
+    return (
+      <>
+        <span style={{ color: active ? undefined : "var(--fx-text-secondary)" }}>{name.slice(0, at)}</span>
+        <span className="type-mono-label-strong">{name.slice(at, at + needle.length)}</span>
+        <span style={{ color: active ? undefined : "var(--fx-text-secondary)" }}>{name.slice(at + needle.length)}</span>
+      </>
+    );
+  };
+
+  const status = error
+    ? "error"
+    : loading
+      ? "loading"
+      : skills.length === 0
+        ? "empty"
+        : filtered.length === 0
+          ? "nomatch"
+          : null;
+
+  const countLabel = (() => {
+    if (status === "error") return "—";
+    if (status === "loading") return "…";
+    const count = filtered.length;
+    if (needle && count > 0 && status === null) {
+      return count === 1
+        ? t("skillPickerOneMatch", "1 match")
+        : t("skillPickerMatchCount", "{count} matches").replace("{count}", String(count));
+    }
+    return count === 1
+      ? t("skillPickerOneCount", "1 skill")
+      : t("skillPickerCount", "{count} skills").replace("{count}", String(count));
   })();
+
+  const retry = () => {
+    onRetry();
+    inputRef.current?.focus();
+  };
+  const openResourcesButton = onManage ? (
+    <Button onClick={onManage}>
+      <PuzzleIcon size={14} />
+      {t("skillPickerOpenResources", "Open Plugins & Skills")}
+    </Button>
+  ) : undefined;
+
+  const groupSizes = filtered.map((skill, index) => {
+    if (needle || (index > 0 && skillScope(filtered[index - 1]) === skillScope(skill))) return 0;
+    let size = 1;
+    while (filtered[index + size] && skillScope(filtered[index + size]) === skillScope(skill)) size += 1;
+    return size;
+  });
 
   return (
     <div
       className="composer-pop-in"
       role="menu"
       aria-label={t("skillPickerTitle", "Use a skill")}
-      onMouseLeave={() => setEngaged(false)}
       style={{
         position: "absolute",
         left: 0,
         right: 0,
         bottom: "calc(100% + 8px)",
         zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        boxShadow:
-          "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
-        padding: 4,
+        background: "var(--fx-surface-raised)",
+        border: "1px solid var(--fx-line-default)",
+        borderRadius: "var(--radius-composer)",
+        boxShadow: "var(--shadow-popover)",
         transformOrigin: "bottom center",
-        maxHeight: 300,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",
       }}
+      onKeyDown={(e) => {
+        if (e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        onClose();
+      }}
     >
-      <input
-        ref={inputRef}
-        // autoFocus plus a microtask refocus: the panel mounts while the
-        // composer editor holds focus, and the initial focus can be lost to
-        // the outside-pointerdown closer in edge cases.
-        autoFocus
-        data-skill-search
-        value={query}
-        placeholder={t("skillPickerSearch", "Search skills…")}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setActiveIndex(0);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") {
-            e.preventDefault();
-            e.stopPropagation();
-            onClose();
-            return;
-          }
-          if (e.key === "ArrowDown" && filtered.length > 0) {
-            e.preventDefault();
-            setEngaged(true);
-            setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
-            return;
-          }
-          if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setEngaged(true);
-            setActiveIndex((i) => Math.max(0, i - 1));
-            return;
-          }
-          if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-            e.preventDefault();
-            const target = filtered[activeIndex] ?? filtered[0];
-            if (target) onPick(target);
-          }
-        }}
-        style={{
-          width: "100%",
-          height: 32,
-          flexShrink: 0,
-          margin: "0 0 4px",
-          padding: "0 10px",
-          borderRadius: 6,
-          border: "1px solid var(--border)",
-          background: "var(--bg)",
-          color: "var(--text)",
-          outline: "none",
-          font: "inherit",
-          fontSize: scaledChatFont(12.5),
-        }}
-      />
-      {statusLine && (
-        <div
-          style={{
-            height: 36,
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            padding: "0 8px",
-            fontSize: scaledChatFont(12),
-            color: "var(--text-muted)",
-          }}
-        >
-          {statusLine.text}
-        </div>
-      )}
       <div
-        ref={listRef}
         style={{
-          position: "relative",
-          flex: "1 1 auto",
-          minHeight: 0,
-          overflowY: "auto",
-          overscrollBehavior: "contain",
+          height: 44,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "0 14px 0 8px",
+          borderBottom: "1px solid var(--fx-line-default)",
         }}
       >
-        <GlideHighlight
-          containerRef={listRef}
-          rowSelector='[role="menuitem"]'
-          activeIndex={activeIndex}
-          visible={engaged && filtered.length > 0}
-          insetX={0}
-        />
-        {filtered.map((skill, index) => (
-          <button
-            key={skill.filePath}
-            type="button"
-            role="menuitem"
-            onMouseDown={(e) => {
+        <MenuBackButton label={t("menuBack", "Back")} onClick={onBack} />
+        <MenuDivider />
+        <span style={{ display: "flex", flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
+          <SearchIcon size={15} strokeWidth={2} />
+        </span>
+        <input
+          ref={inputRef}
+          autoFocus
+          data-skill-search
+          value={query}
+          placeholder={t("skillPickerSearch", "Search skills…")}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setActiveIndex(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && filtered.length > 0) {
               e.preventDefault();
-              onPick(skill);
-            }}
-            onMouseEnter={() => {
-              setActiveIndex(index);
-              setEngaged(true);
-            }}
-            style={{
-              position: "relative",
-              zIndex: 1,
-              width: "100%",
-              height: 36,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "0 8px",
-              border: "none",
-              borderRadius: 6,
-              background: "none",
-              cursor: "pointer",
-              textAlign: "left",
-              font: "inherit",
-              color: "inherit",
-            }}
-          >
-            <span
-              style={{
-                flexShrink: 0,
-                width: 22,
-                height: 22,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                color: "var(--accent)",
-              }}
-            >
-              <PackageIcon size={15} />
-            </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: scaledChatFont(12.5),
-                fontWeight: 500,
-                color: "var(--accent)",
-              }}
-            >
-              {skill.name}
-            </span>
-            <span
-              style={{
-                minWidth: 0,
-                flex: 1,
-                fontSize: scaledChatFont(12),
-                color: "var(--text-dim)",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {skill.description}
-            </span>
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: scaledChatFont(10.5),
-                color: "var(--text-muted)",
-                textTransform: "uppercase",
-                letterSpacing: 0.4,
-              }}
-            >
-              {scopeLabel(skill)}
-            </span>
-          </button>
-        ))}
+              setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+              return;
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setActiveIndex((i) => Math.max(0, i - 1));
+              return;
+            }
+            if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+              e.preventDefault();
+              const target = filtered[activeIndex] ?? filtered[0];
+              if (target) onPick(target);
+            }
+          }}
+          className="type-body-default placeholder:text-[var(--fx-text-tertiary)]"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            height: "100%",
+            padding: 0,
+            border: "none",
+            background: "none",
+            color: "var(--fx-text-primary)",
+            caretColor: "var(--fx-accent-blue)",
+            outline: "none",
+          }}
+        />
+        <span className="type-mono-meta" style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
+          {countLabel}
+        </span>
       </div>
+      {status === "loading" ? (
+        <div
+          className="motion-safe:animate-pulse"
+          style={{ display: "flex", flexDirection: "column", gap: 1, padding: 6, flexShrink: 0 }}
+        >
+          <span className="sr-only">{t("skillPickerLoading", "Loading skills…")}</span>
+          {SKELETON_ROWS.map(([name, desc]) => (
+            <div
+              key={name}
+              aria-hidden
+              style={{ height: 36, display: "flex", alignItems: "center", gap: 10, padding: "0 10px" }}
+            >
+              <span
+                style={{
+                  width: 15,
+                  height: 15,
+                  borderRadius: "var(--radius-xs)",
+                  background: "var(--fx-surface-subtle)",
+                }}
+              />
+              <span
+                style={{
+                  width: name,
+                  height: 10,
+                  borderRadius: "var(--radius-skeleton)",
+                  background: "var(--fx-surface-subtle)",
+                }}
+              />
+              <span
+                style={{
+                  width: desc,
+                  height: 10,
+                  borderRadius: "var(--radius-skeleton)",
+                  background: "var(--fx-surface-subtle)",
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      ) : status === "error" ? (
+        <MenuState
+          tone="danger"
+          icon={<CircleAlertIcon size={16} />}
+          title={t("skillPickerLoadFailed", "Failed to load skills")}
+          description={t(
+            "skillPickerLoadFailedHint",
+            "Something went wrong while reading installed skills. Skills you already have are not affected.",
+          )}
+          action={
+            <Button onClick={retry}>
+              <RefreshCwIcon size={14} />
+              {t("retry", "Retry")}
+            </Button>
+          }
+        />
+      ) : status === "empty" ? (
+        <MenuState
+          icon={<PackageOpenIcon size={16} />}
+          title={t("skillPickerEmpty", "No skills installed yet")}
+          description={t(
+            "skillPickerEmptyHint",
+            "Skills give the agent a set way to work, such as research, releases or reviews.",
+          )}
+          action={openResourcesButton}
+        />
+      ) : status === "nomatch" ? (
+        <MenuState
+          icon={<SearchXIcon size={16} />}
+          title={t("skillPickerNoMatch", "No skills match “{query}”").replace("{query}", query.trim())}
+          description={t("skillPickerNoMatchHint", "Try another keyword, or install new skills from Plugins & Skills.")}
+          action={openResourcesButton}
+        />
+      ) : (
+        <div
+          style={{
+            position: "relative",
+            flex: "1 1 auto",
+            minHeight: 0,
+            maxHeight: 224,
+            overflowY: "auto",
+            overscrollBehavior: "contain",
+            display: "flex",
+            flexDirection: "column",
+            gap: 1,
+            padding: 6,
+          }}
+        >
+          <GlideHighlight
+            rowSelector='[role="menuitem"]'
+            activeIndex={activeIndex}
+            visible={filtered.length > 0}
+            layoutKey={filtered}
+            insetX={6}
+          />
+          {filtered.map((skill, index) => {
+            const active = index === activeIndex;
+            return (
+              <Fragment key={skill.filePath}>
+                {groupSizes[index] > 0 && (
+                  <div
+                    aria-hidden
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "var(--space-2) 10px var(--space-1)",
+                      color: "var(--fx-text-tertiary)",
+                    }}
+                  >
+                    <span className="type-meta-caps">{scopeLabel(skill)}</span>
+                    <span className="type-mono-meta">{groupSizes[index]}</span>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    onPick(skill);
+                  }}
+                  onMouseEnter={() => {
+                    setActiveIndex(index);
+                  }}
+                  style={{
+                    position: "relative",
+                    zIndex: 1,
+                    width: "100%",
+                    height: 36,
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "0 10px",
+                    border: "none",
+                    borderRadius: "var(--radius-control)",
+                    background: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    color: "inherit",
+                  }}
+                >
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      display: "flex",
+                      color: active ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)",
+                    }}
+                  >
+                    <PackageIcon size={15} />
+                  </span>
+                  <span
+                    className="type-mono-label"
+                    style={{
+                      flexShrink: 0,
+                      color: active ? "var(--fx-accent-blue-text)" : "var(--fx-text-primary)",
+                    }}
+                  >
+                    {highlight(skill.name, active)}
+                  </span>
+                  <span
+                    className="type-label-default"
+                    style={{
+                      minWidth: 0,
+                      flex: 1,
+                      color: "var(--fx-text-tertiary)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {skill.description}
+                  </span>
+                  <span
+                    className={needle ? "type-meta-default" : "sr-only"}
+                    style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+                  >
+                    {scopeLabel(skill)}
+                  </span>
+                  {active && <KeyHint keyLabel="↵" label={t("skillPickerInsert", "Insert")} />}
+                </button>
+              </Fragment>
+            );
+          })}
+        </div>
+      )}
+      <MenuFooter
+        hints={[
+          { keyLabel: "↑↓", label: t("menuKeySelect", "Select") },
+          { keyLabel: "↵", label: t("skillPickerInsertAtStart", "Insert at start") },
+          { keyLabel: "esc", label: t("menuKeyClose", "Close") },
+        ]}
+        trailing={onManage && <MenuLinkButton label={t("skillPickerManage", "Manage skills")} onClick={onManage} />}
+      />
     </div>
   );
 }
 
-/**
- * Reveal card shown when a skill chip in the composer is clicked: name,
- * description, and the skill's file location. Dismissed with Esc or an
- * outside pointerdown (wired by ChatInput).
- */
-export function SkillRevealCard({
-  name,
-  description,
-  filePath,
-  onClose,
-}: {
-  name: string;
-  description: string | null;
-  filePath: string | null;
-  onClose: () => void;
-}) {
-  const { t } = useI18n();
-  return (
-    <div
-      className="composer-pop-in"
-      role="dialog"
-      aria-label={t("skillRevealTitle", "Skill details")}
-      style={{
-        position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: "calc(100% + 8px)",
-        zIndex: 120,
-        background: "var(--bg-panel)",
-        border: "1px solid var(--border)",
-        borderRadius: 10,
-        boxShadow:
-          "0 -10px 32px color-mix(in srgb, #000 18%, transparent), 0 2px 10px color-mix(in srgb, #000 10%, transparent)",
-        padding: "10px 12px",
-        transformOrigin: "bottom center",
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          e.stopPropagation();
-          onClose();
-        }
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span style={{ color: "var(--accent)", display: "flex" }}>
-          <PackageIcon size={15} />
-        </span>
-        <span style={{ fontSize: scaledChatFont(13), fontWeight: 600, color: "var(--accent)" }}>{name}</span>
-      </div>
-      {description && (
-        <div style={{ marginTop: 6, fontSize: scaledChatFont(12), lineHeight: 1.55, color: "var(--text-dim)" }}>
-          {description}
-        </div>
-      )}
-      {filePath && (
-        <div
-          style={{
-            marginTop: 8,
-            fontSize: scaledChatFont(11),
-            fontFamily: "var(--font-mono, monospace)",
-            color: "var(--text-muted)",
-            wordBreak: "break-all",
-          }}
-        >
-          {filePath}
-        </div>
-      )}
-    </div>
-  );
-}
+const SKELETON_ROWS = [
+  [96, 260],
+  [120, 220],
+  [72, 300],
+  [108, 180],
+] as const;

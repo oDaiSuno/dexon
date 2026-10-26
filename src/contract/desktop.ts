@@ -40,7 +40,16 @@ export type {
 export type HostStatus = "starting" | "ready" | "crashed" | "stopped";
 
 export type DesktopMenuEvent =
-  "new-session" | "settings" | "check-for-updates" | "show-update" | "switch-session" | "export-diagnostics";
+  | "new-session"
+  | "settings"
+  | "check-for-updates"
+  | "show-update"
+  | "switch-session"
+  | "export-diagnostics"
+  | "toggle-sidebar"
+  | "open-processes"
+  | "open-project-switcher"
+  | "add-project";
 
 export type UpdatePhase =
   "disabled" | "idle" | "checking" | "up-to-date" | "available" | "downloading" | "downloaded" | "installing" | "error";
@@ -160,6 +169,7 @@ export interface PiBridge {
   getToolchainState: (cwd?: string) => Promise<PublicToolchainState>;
   rescanToolchains: (cwd?: string) => Promise<PublicToolchainState>;
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
+  openManagedToolsFolder: () => Promise<void>;
   requestHostPort: () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;
@@ -173,6 +183,7 @@ export interface PiBridge {
   selectDirectory: () => Promise<string | null>;
   /** Truly open a directory in the system file manager (validated in main). */
   openDirectory: (fsPath: string) => Promise<void>;
+  openFile: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;
   saveBinaryFile: (opts: SaveBinaryFileOptions) => Promise<string | null>;
@@ -202,6 +213,7 @@ export interface PiBridge {
   browserCreateUserTab: (input: BrowserCreateTabInput) => Promise<BrowserTabInfo>;
   browserActivateTab: (tabId: string) => Promise<void>;
   browserNavigateUser: (tabId: string, url: string) => Promise<void>;
+  browserTakeOver: (tabId: string) => Promise<void>;
   browserGoBack: (tabId: string) => Promise<void>;
   browserGoForward: (tabId: string) => Promise<void>;
   browserReload: (tabId: string) => Promise<void>;

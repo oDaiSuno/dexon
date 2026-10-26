@@ -1,0 +1,17 @@
+{
+  "lane": "B7 轮次导航、回到底部与欢迎页",
+  "legacy": [],
+  "typography": [
+    {
+      "file": "src/renderer/components/chat-window/older-history-zone.tsx",
+      "property": "fontSize",
+      "count": 2
+    },
+    {
+      "file": "src/renderer/components/messages/turn-footer.tsx",
+      "property": "fontSize",
+      "count": 2
+    }
+  ],
+  "colors": []
+}

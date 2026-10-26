@@ -107,10 +107,20 @@ export function visibleText(root, value) {
 export function pathChoice(root, path) {
   // Both the visible path and its public tooltip identify a folder to a user.
   // No component classes, generated IDs, or parent/child layout assumptions.
-  const matches = [...new Set(["button", "menuitem", "option"].flatMap((role) => roles(root, role)))].filter(
-    (element) => element.title === path || element.textContent.trim() === path,
-  );
+  const matches = [
+    ...new Set(["button", "menuitem", "menuitemradio", "option"].flatMap((role) => roles(root, role))),
+  ].filter((element) => element.title === path || element.textContent.trim() === path);
   assert.equal(matches.length, 1, `Expected one visible folder choice for ${path}`);
+  return matches[0];
+}
+
+export function menuActions(root, name) {
+  return [...new Set(["button", "menuitem"].flatMap((role) => roles(root, role, name)))];
+}
+
+export function menuAction(root, name) {
+  const matches = menuActions(root, name);
+  assert.equal(matches.length, 1, `Expected one visible menu action named ${name}`);
   return matches[0];
 }
 
@@ -207,49 +217,49 @@ export async function startNavigation(t, options = {}, external = navigationBoun
         if (Date.now() >= deadline) throw new Error("Host requests did not settle");
       }
     },
-    async resources() {
+    async overview() {
       await click(control(scene.navigation(), "button", labels.resources));
       return waitFor(() => {
         control(view.container, "heading", labels.resources);
-        return scene.resourcePanel();
+        return control(view.container, "button", labels.manageSources);
       });
+    },
+    async resources() {
+      await click(control(scene.navigation(), "button", labels.resources));
+      await waitFor(() => control(view.container, "heading", labels.resources));
+      const manage = roles(view.container, "button", labels.manageSources);
+      if (manage.length) await click(manage[0]);
+      return waitFor(() => scene.resourcePanel());
     },
     async skills(name = "personal-checklist") {
       await scene.resources();
       await click(control(view.container, "tab", labels.skills));
       await waitFor(() => visibleText(scene.resourcePanel(), name));
       await click(visibleText(scene.resourcePanel(), name));
-      return waitFor(() => control(scene.resourcePanel(), "textbox", labels.skillContent));
+      return waitFor(() => control(scene.resourcePanel(), "region", labels.skillContent));
     },
+    // The project card floats above the page, so it is looked up in the whole
+    // document rather than inside the navigation it was opened from.
     async menu(space = labels.personal) {
-      await click(control(scene.navigation(), "button", space));
-      return waitFor(() => control(scene.navigation(), "menu", space));
+      await click(control(scene.navigation(), "button", labels.spaceActions.replace("{name}", space)));
+      return waitFor(() => control(dom.window.document.body, "menu", space));
     },
-    // The real working directory, observed where the user's action leaves the
-    // App: the folder handed to the operating system by "Open current folder".
-    // The space button is found by its menu popup, not by its friendly name,
-    // so this checks the directory without fixing how a space is named.
+    // The real working directory, observed where it leaves the App: the folder
+    // the App hands to the desktop to remember as the current space. Waiting
+    // for quiet first means a pending change is reported, not the previous one.
     async currentFolder() {
-      external.desktop.openedDirectory = null;
-      const spaceButtons = roles(scene.workspace(), "button").filter(
-        (element) => element.getAttribute("aria-haspopup") === "menu",
-      );
-      assert.equal(spaceButtons.length, 1, "Expected one space menu button");
-      await click(spaceButtons[0]);
-      const menu = await waitFor(() => control(scene.navigation(), "menu"));
-      await click(control(menu, "menuitem", labels.openFolder));
-      return waitFor(() => {
-        assert.ok(external.desktop.openedDirectory, "the App asked the system to open a folder");
-        return external.desktop.openedDirectory;
-      });
+      await scene.settled();
+      const folder = external.rememberedSpace();
+      assert.ok(folder, "the App told the desktop which folder is the current space");
+      return folder;
     },
     async settings() {
       await click(control(scene.navigation(), "button", labels.settings));
-      return waitFor(() => control(view.container, "dialog", labels.settings));
+      return waitFor(() => control(view.container, "region", labels.settings));
     },
     async desktopMenu(command) {
       await act(async () => external.menu(command));
-      return waitFor(() => control(view.container, "dialog", labels.settings));
+      return waitFor(() => control(view.container, "region", labels.settings));
     },
   };
   return scene;

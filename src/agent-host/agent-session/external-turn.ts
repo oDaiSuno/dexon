@@ -28,7 +28,7 @@ export interface ExternalTurnHost {
   emit(event: AgentEvent): void;
   beginExternalTurn(context: ExternalTurnContext): void;
   endExternalTurn(): void;
-  setBrowserSource(source: "local" | "channel"): void;
+  setBrowserSource(source: "local" | "channel", channel?: ChannelId): void;
 }
 
 export function runExternalTurn(
@@ -42,7 +42,7 @@ export function runExternalTurn(
       attachments: params.channelAttachments ?? null,
       progress: params.onProgress ?? null,
     });
-    host.setBrowserSource("channel");
+    host.setBrowserSource("channel", params.channel);
     browserAgentRuntime.beginTurn(host.sessionId, "channel");
     try {
       host.inner.sessionManager.appendCustomEntry(CHANNEL_SOURCE_TYPE, {

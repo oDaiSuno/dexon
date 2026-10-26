@@ -1,14 +1,20 @@
 #!/usr/bin/env node
 /**
- * Blocking design contracts: token schema, contrast, shared fonts, motion
- * policy and theme boot ordering. UI behavior belongs at its public boundary;
- * equivalent JSX spelling, component extraction and DOM wrappers are allowed.
+ * Blocking design contracts: Framer is the only source of colors and text
+ * styles, the generated CSS matches its export, retired names and direct
+ * typography only shrink, contrast, shared fonts, motion policy and theme boot
+ * ordering. UI behavior belongs at its public boundary.
  */
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { readRendererCssSources, readStylePartial } from "./css-sources.mjs";
+import postcss from "postcss";
+import { readRendererCssSources, readStylePartial, rendererCssImportOrder } from "./css-sources.mjs";
 import { APP_MONO_FONT_FAMILY, APP_SANS_FONT_FAMILY } from "../src/shared/font-stack.ts";
+import { parseColor, readFramerTokens } from "./framer-tokens.mjs";
+import { staleFramerOutputs } from "./sync-framer-tokens.mjs";
+import { checkColorLedger } from "./design-debt/color-ledger.mjs";
+import { checkDesignDebt, readDebtLedgers, remainingDebt } from "./design-debt/ledger.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const failures = [];
@@ -20,80 +26,66 @@ function requireFile(relative) {
   return exists(relative);
 }
 
-const FORBIDDEN_STATUS_HEX = ["#f87171", "#ef4444", "#4ade80", "#22c55e", "#f59e0b", "#d97706", "#16a34a", "#1f2937"];
+function checkColorLiterals() {
+  failures.push(...checkColorLedger());
+}
 
-function checkComponentStatusColors() {
-  const componentFiles = [
-    "src/renderer/components/FileViewer.tsx",
-    "src/renderer/components/channels/ChannelsConfig.tsx",
-    "src/renderer/components/ChatInput.tsx",
-    "src/renderer/components/PluginsConfig.tsx",
-    "src/renderer/components/ToolchainsConfig.tsx",
-    "src/renderer/components/MessageView.tsx",
-  ];
-  for (const relative of componentFiles) {
-    if (!requireFile(relative)) continue;
-    const source = read(relative);
-    for (const hex of FORBIDDEN_STATUS_HEX) {
-      if (new RegExp(hex, "i").test(source)) failures.push(`${relative} 使用裸状态色 ${hex}，必须走语义令牌`);
+// ---------------------------------------------------------------------------
+// D. 生成物与 Framer 导出一致；tokens.css 手写区不出现裸色值
+// ---------------------------------------------------------------------------
+function checkFramerMirror() {
+  for (const stale of staleFramerOutputs()) {
+    failures.push(
+      `${stale} 与 framer-tokens.json 不一致：运行 node --experimental-strip-types scripts/sync-framer-tokens.mjs`,
+    );
+  }
+  const css = readStylePartial("tokens.css");
+  const handWritten = css.replace(
+    /\/\* FRAMER-MIRROR:(light|dark):start \*\/[\s\S]*?\/\* FRAMER-MIRROR:\1:end \*\//g,
+    "",
+  );
+  for (const [, token, value] of handWritten.matchAll(/\n\s*(--[a-z0-9-]+):\s*([^;]+);/g)) {
+    if (/#[0-9a-f]{3,8}\b|rgba?\(/i.test(value)) {
+      failures.push(`tokens.css ${token} 写了裸色值 ${value.trim()}：颜色只能来自 Framer（var(--fx-*)）`);
+    }
+  }
+}
+
+function checkDebt() {
+  failures.push(...checkDesignDebt());
+  for (const ledger of readDebtLedgers().filter((entry) => entry.permanent)) {
+    for (const entry of ledger.typography ?? []) {
+      if (!entry.reason?.trim()) failures.push(`${entry.file} 的 ${entry.property} 是永久豁免，必须写明 reason`);
     }
   }
 }
 
 // ---------------------------------------------------------------------------
-// D. 亮暗主题语义色契约完整；E. accent 对比度满足 WCAG AA
-//    （原 semantic-colors.test.mjs）
+// E. 文字与底色对比度满足 WCAG AA（独立判据：WCAG 2.x 正文 ≥ 4.5）
+//    取值来自 framer-tokens.json，即设计稿本身
 // ---------------------------------------------------------------------------
-const SEMANTIC_TOKENS = [
-  "--success",
-  "--success-soft",
-  "--success-border",
-  "--danger",
-  "--danger-soft",
-  "--danger-border",
-  "--warning",
-  "--warning-soft",
-  "--warning-border",
-  "--info",
-  "--info-soft",
-  "--info-border",
-  "--accent-contrast",
-  "--on-accent",
+const CONTRAST_PAIRS = [
+  ["/Text/Primary", "/Surface/Main"],
+  ["/Text/Secondary", "/Surface/Main"],
+  ["/Text/Tertiary", "/Surface/Main"],
+  ["/Text/Tertiary", "/Surface/Sidebar"],
+  ["/Text/On Accent", "/Accent/Blue Fill"],
+  ["/Text/On Accent", "/Accent/Blue Fill Hover"],
+  ["/Accent/Blue Text", "/Surface/Main"],
+  ["/Accent/Blue Text", "/Accent/Blue Soft"],
+  ["/Status/Success Text", "/Surface/Raised"],
+  ["/Status/Warning Text", "/Surface/Raised"],
+  ["/Status/Danger Text", "/Surface/Raised"],
+  ["/Text/Inverse", "/Surface/Inverse"],
+  ["/Text/Inverse", "/Surface/Inverse Hover"],
+  ["/Text/On Danger", "/Status/Danger"],
 ];
 
-function checkSemanticContract() {
-  const css = readStylePartial("tokens.css");
-  const roots = [
-    ["light", css.slice(css.indexOf(":root {"), css.indexOf("html.dark"))],
-    ["dark", css.slice(css.indexOf("html.dark"))],
-  ];
-  for (const [theme, rootBlock] of roots) {
-    if (!rootBlock) {
-      failures.push(`tokens.css 缺少 ${theme} 主题区块`);
-      continue;
-    }
-    for (const token of SEMANTIC_TOKENS) {
-      if (!new RegExp(`${token}:`).test(rootBlock)) failures.push(`tokens.css ${theme} 主题缺少语义令牌: ${token}`);
-    }
-  }
-}
-
-function cssHexToken(rootBlock, token) {
-  const match = rootBlock.match(new RegExp(`${token}:\\s*(#[0-9a-f]{6})`, "i"));
-  if (!match) {
-    failures.push(`${token} 必须是具体六位十六进制色值`);
-    return null;
-  }
-  return match[1];
-}
-
-function relativeLuminance(hex) {
-  const channels = hex
-    .slice(1)
-    .match(/../g)
-    .map((channel) => Number.parseInt(channel, 16) / 255)
+function relativeLuminance({ r, g, b }) {
+  const linear = [r, g, b]
+    .map((channel) => channel / 255)
     .map((channel) => (channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
+  return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
 }
 
 function contrastRatio(first, second) {
@@ -101,21 +93,18 @@ function contrastRatio(first, second) {
   return (luminances[0] + 0.05) / (luminances[1] + 0.05);
 }
 
-function checkAccentContrast() {
-  // 期望值来源：WCAG 2.x AA 正文对比度 ≥ 4.5（独立判据，非项目自定）。
-  const css = readStylePartial("tokens.css");
-  const roots = [
-    ["light", css.slice(css.indexOf(":root {"), css.indexOf("html.dark"))],
-    ["dark", css.slice(css.indexOf("html.dark"))],
-  ];
-  for (const [theme, rootBlock] of roots) {
-    const accent = cssHexToken(rootBlock, "--accent");
-    const accentContrast = cssHexToken(rootBlock, "--accent-contrast");
-    if (accent && accentContrast && contrastRatio(accent, accentContrast) < 4.5) {
-      failures.push(`${theme} 主题 --accent/--accent-contrast 对比度低于 WCAG AA (4.5)`);
-    }
-    if (!/--on-accent:\s*var\(--accent-contrast\)/.test(rootBlock)) {
-      failures.push(`${theme} 主题 --on-accent 必须引用 --accent-contrast`);
+function checkContrast() {
+  const { colors } = readFramerTokens();
+  for (const [foreground, background] of CONTRAST_PAIRS) {
+    for (const theme of ["light", "dark"]) {
+      if (!colors[foreground] || !colors[background]) {
+        failures.push(`framer-tokens.json 缺少颜色 ${colors[foreground] ? background : foreground}`);
+        continue;
+      }
+      const ratio = contrastRatio(parseColor(colors[foreground][theme]), parseColor(colors[background][theme]));
+      if (ratio < 4.5) {
+        failures.push(`${theme} 主题 ${foreground} 在 ${background} 上对比度 ${ratio.toFixed(2)} 低于 WCAG AA (4.5)`);
+      }
     }
   }
 }
@@ -157,6 +146,15 @@ function checkFontStack() {
   for (const required of ["Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC"]) {
     if (!APP_SANS_FONT_FAMILY.includes(required)) failures.push(`共享无衬线字体栈缺少 CJK 字族: ${required}`);
   }
+  const families = new Set(Object.values(readFramerTokens().textStyles).map((style) => style.family));
+  const framerMono = [...families].find((family) => /mono/i.test(family));
+  const framerSans = [...families].find((family) => !/mono/i.test(family));
+  if (framerSans && !APP_SANS_FONT_FAMILY.startsWith(`"${framerSans}"`)) {
+    failures.push(`共享无衬线字体栈必须以 Framer 文字样式的 ${framerSans} 打头`);
+  }
+  if (framerMono && !APP_MONO_FONT_FAMILY.startsWith(`"${framerMono}"`)) {
+    failures.push(`共享等宽字体栈必须以 Framer 文字样式的 ${framerMono} 打头`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +189,24 @@ function checkNavMotion() {
 // GeneralSettings behavior and the real Chromium chat-layout check. Source
 // spelling and occurrence counts are not design contracts.
 
+function checkDuplicateCustomProperties() {
+  for (const file of rendererCssImportOrder()) {
+    const relative = `src/renderer/${file}`;
+    postcss.parse(read(relative), { from: relative }).walkRules((rule) => {
+      const firstLine = new Map();
+      rule.each((node) => {
+        if (node.type !== "decl" || !node.prop.startsWith("--")) return;
+        const line = node.source?.start?.line ?? 0;
+        if (firstLine.has(node.prop)) {
+          failures.push(
+            `${relative}:${firstLine.get(node.prop)},${line} 的 ${rule.selector} 里 ${node.prop} 定义了两次，后一次会覆盖前一次：给其中一个改名`,
+          );
+        } else firstLine.set(node.prop, line);
+      });
+    });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // M. 主题启动顺序（原 theme-init.test.mjs 第 4 条的构建顺序部分；
 //    colorScheme 同步为行为规则，已转写为 theme-init / use-theme 行为测试）
@@ -209,12 +225,14 @@ function checkThemeBootOrder() {
 }
 
 function main() {
-  checkComponentStatusColors();
-  checkSemanticContract();
-  checkAccentContrast();
+  checkColorLiterals();
+  checkFramerMirror();
+  checkDebt();
+  checkContrast();
   checkRemovedTokens();
   checkFontStack();
   checkNavMotion();
+  checkDuplicateCustomProperties();
   checkThemeBootOrder();
 
   if (failures.length > 0) {
@@ -223,7 +241,15 @@ function main() {
     process.exitCode = 1;
     return;
   }
-  console.log("Design constraints OK: 7 组设计契约满足（令牌/对比度/字体栈/动效降级/启动顺序）");
+  console.log(
+    "Design constraints OK: 9 组设计契约满足（写死颜色/Framer 生成物/旧名字与直写字体只减不增/对比度/字体栈/动效降级/令牌不重名/启动顺序）",
+  );
+  const remaining = remainingDebt();
+  if (remaining.length > 0) {
+    console.log(
+      `待迁移：${remaining.map((row) => `${row.lane} 旧名字 ${row.legacy} 处、直写字体 ${row.typography} 处`).join("；")}`,
+    );
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

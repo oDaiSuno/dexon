@@ -1,108 +1,116 @@
-import { useState } from "react";
+import { useMemo } from "react";
+import { useI18n } from "@/i18n";
+import { ActionMenu } from "./action-menu";
 import { getFileIcon } from "./FileIcons";
+import { EllipsisGlyph, XGlyph } from "./processes/process-icons";
 import type { FileTab } from "@/lib/file-tab-state";
 
 interface Props {
   tabs: FileTab[];
   activeTabId: string;
+  changedTabIds?: ReadonlySet<string>;
   onSelectTab: (id: string) => void;
   onCloseTab: (id: string) => void;
 }
 
-export function TabBar({ tabs, activeTabId, onSelectTab, onCloseTab }: Props) {
-  const [hoveredClose, setHoveredClose] = useState<string | null>(null);
+const MOTION = "duration-[var(--duration-quick)] ease-[var(--ease-smooth-out)] motion-reduce:transition-none";
+
+export function TabBar({ tabs, activeTabId, changedTabIds, onSelectTab, onCloseTab }: Props) {
+  const { t } = useI18n();
+  const closeLabel = t("closeFileTab", "Close {name}");
+  const changedLabel = t("fileTabChanged", "Changed");
+  const allTabsLabel = t("allFileTabs", "All tabs");
+  const menuItems = useMemo(
+    () =>
+      tabs.map((tab) => ({
+        key: tab.id,
+        label: tab.label,
+        title: tab.filePath,
+        checked: tab.id === activeTabId,
+        onSelect: () => onSelectTab(tab.id),
+      })),
+    [tabs, activeTabId, onSelectTab],
+  );
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-end",
-        background: "var(--bg-panel)",
-        overflowX: "auto",
-        flexShrink: 0,
-        height: 36,
-      }}
-    >
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTabId;
-        return (
-          <div
-            key={tab.id}
-            onClick={() => onSelectTab(tab.id)}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              height: 36,
-              paddingLeft: 12,
-              paddingRight: 8,
-              borderRight: "1px solid var(--border)",
-              background: isActive ? "var(--bg)" : "var(--bg-panel)",
-              cursor: "pointer",
-              fontSize: "var(--text-label)",
-              color: isActive ? "var(--text)" : "var(--text-muted)",
-              whiteSpace: "nowrap",
-              maxWidth: 180,
-              minWidth: 80,
-              flexShrink: 0,
-              userSelect: "none",
-              transition: "background 0.1s, color 0.1s",
-            }}
-          >
-            <span style={{ flexShrink: 0, opacity: isActive ? 1 : 0.7, display: "flex", alignItems: "center" }}>
-              {getFileIcon(tab.label, 13)}
-            </span>
-            <span
-              style={{
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                flex: 1,
-                fontWeight: isActive ? 500 : 400,
-              }}
-              title={tab.filePath}
+    <div className="flex min-w-0 flex-1 items-center gap-[2px] px-[8px]">
+      <div className="flex min-w-0 flex-1 items-center gap-[2px] overflow-x-auto [scrollbar-width:none]">
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTabId;
+          const closeName = closeLabel.replace("{name}", tab.label);
+          const isChanged = changedTabIds?.has(tab.id) === true;
+
+          return (
+            <div
+              key={tab.id}
+              className={`group flex h-[28px] max-w-[168px] shrink-0 items-center rounded-[var(--radius-chip)] py-0 pr-[4px] transition-[background-color,box-shadow] ${MOTION} ${
+                isActive
+                  ? "bg-[var(--fx-surface-raised)] shadow-[var(--shadow-tab)]"
+                  : "bg-[var(--fx-surface-hover-clear)] hover:bg-[var(--fx-surface-hover-overlay)]"
+              }`}
             >
-              {tab.label}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onCloseTab(tab.id);
-              }}
-              onMouseEnter={() => setHoveredClose(tab.id)}
-              onMouseLeave={() => setHoveredClose(null)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 16,
-                height: 16,
-                background: hoveredClose === tab.id ? "var(--bg-hover)" : "transparent",
-                border: "none",
-                borderRadius: "var(--radius-chip)",
-                color: hoveredClose === tab.id ? "var(--text)" : "var(--text-dim)",
-                cursor: "pointer",
-                padding: 0,
-                flexShrink: 0,
-                transition: "background 0.1s, color 0.1s",
-              }}
-              title="Close"
-            >
-              <svg
-                width="10"
-                height="10"
-                viewBox="0 0 10 10"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
+              <button
+                type="button"
+                aria-current={isActive ? "page" : undefined}
+                title={tab.filePath}
+                onClick={() => onSelectTab(tab.id)}
+                className={`flex h-full min-w-0 flex-1 cursor-pointer items-center gap-[6px] border-none bg-transparent py-0 pr-[6px] pl-[8px] text-left transition-colors ${MOTION} ${
+                  isActive
+                    ? "text-[var(--fx-text-primary)]"
+                    : "text-[var(--fx-text-secondary)] group-hover:text-[var(--fx-text-primary)]"
+                }`}
               >
-                <line x1="2" y1="2" x2="8" y2="8" />
-                <line x1="8" y1="2" x2="2" y2="8" />
-              </svg>
-            </button>
-          </div>
-        );
-      })}
+                <span
+                  className={`flex shrink-0 items-center ${isActive ? "[&_svg]:[stroke:var(--fx-text-primary)]" : ""}`}
+                >
+                  {getFileIcon(tab.label, 13)}
+                </span>
+                <span className={`min-w-0 truncate ${isActive ? "type-label-medium" : "type-label-default"}`}>
+                  {tab.label}
+                </span>
+              </button>
+              <span className="relative flex size-[16px] shrink-0 items-center justify-center">
+                {isChanged && (
+                  <span
+                    role="img"
+                    aria-label={changedLabel}
+                    title={changedLabel}
+                    className={`pointer-events-none absolute size-[6px] rounded-[3px] bg-[var(--fx-status-warning)] transition-opacity ${MOTION} group-hover:opacity-0 group-focus-within:opacity-0 ${
+                      isActive ? "opacity-0" : "opacity-100"
+                    }`}
+                  />
+                )}
+                <button
+                  type="button"
+                  aria-label={closeName}
+                  title={closeName}
+                  onClick={() => onCloseTab(tab.id)}
+                  className={`relative flex size-[16px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--radius-xs)] border-none bg-[var(--fx-surface-hover-clear)] p-0 text-[var(--fx-text-secondary)] transition-[background-color,opacity] hover:bg-[var(--fx-surface-hover-overlay-strong)] group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 ${MOTION} ${
+                    isActive ? "opacity-100" : "opacity-0"
+                  }`}
+                >
+                  <XGlyph size={11} strokeWidth={2} />
+                </button>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <ActionMenu
+        label={allTabsLabel}
+        items={menuItems}
+        trigger={(props) => (
+          <button
+            type="button"
+            className="file-viewer-icon-button"
+            aria-label={allTabsLabel}
+            title={allTabsLabel}
+            {...props}
+          >
+            <EllipsisGlyph />
+          </button>
+        )}
+      />
     </div>
   );
 }

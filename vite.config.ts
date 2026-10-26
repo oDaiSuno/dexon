@@ -50,7 +50,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    port: Number(process.env.DEXON_DEV_PORT ?? 5173),
     strictPort: true,
   },
   build: {

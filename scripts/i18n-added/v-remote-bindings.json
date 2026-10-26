@@ -1,0 +1,18 @@
+[
+  "bindingMoreActions",
+  "channelActivityDisconnected",
+  "channelActivityIgnored",
+  "channelActivityInboundFailed",
+  "channelActivityReceived",
+  "channelActivityReplied",
+  "channelActivityReplyFailed",
+  "channelActivitySystem",
+  "channelBindingDaysAgo",
+  "currentSessionMarker",
+  "dedicatedImSessionDescription",
+  "defaultToolsDescription",
+  "dmAccessDescription",
+  "groupAccessDescription",
+  "noMatchingConversations",
+  "searchConversations"
+]

@@ -45,12 +45,14 @@ export interface ProcessFlow {
   /** Number of contributing messages — mirrors the legacy header count. */
   messageCount: number;
   toolCallCount: number;
+  createdSessionCount: number;
 }
 
 export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: ProcessFlowKeyFor): ProcessFlow {
   const items: ProcessFlowItem[] = [];
   let messageCount = 0;
   let toolCallCount = 0;
+  let createdSessionCount = 0;
 
   for (const source of sources) {
     if (source.message.role === "custom") {
@@ -82,13 +84,15 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
       } else if (block.type === "toolCall") {
         contributed = true;
         toolCallCount += 1;
+        const result = source.toolData?.results.get(block.toolCallId);
+        if (block.toolName === "session_new" && result && !result.isError) createdSessionCount += 1;
         items.push({
           kind: "toolCall",
           key: keyFor(message, entryId) + `:${blockIndex}`,
           block,
           blockIndex,
           entryId,
-          result: source.toolData?.results.get(block.toolCallId),
+          result,
           duration: source.toolData?.durations.get(block.toolCallId),
         });
       }
@@ -96,7 +100,7 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
     if (contributed) messageCount += 1;
   }
 
-  return { items, messageCount, toolCallCount };
+  return { items, messageCount, toolCallCount, createdSessionCount };
 }
 
 /** Whole-turn duration: user message → final assistant message, in whole seconds. */

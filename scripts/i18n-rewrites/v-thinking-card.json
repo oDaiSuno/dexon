@@ -1,0 +1,6 @@
+{
+  "thinkingOffDescription": { "enUS": "Reasoning off", "zhCN": "关闭推理" },
+  "thinkingHighDescription": { "enUS": "High reasoning", "zhCN": "较高推理强度" },
+  "thinkingXHighDescription": { "enUS": "Extra-high reasoning", "zhCN": "极高推理强度" },
+  "thinkingMaxDescription": { "enUS": "Maximum reasoning", "zhCN": "最大推理强度" }
+}

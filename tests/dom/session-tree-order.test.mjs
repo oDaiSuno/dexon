@@ -65,7 +65,7 @@ test("a child the Host reports as freshly modified keeps its place among its sib
   assert.ok(precedes(second, third), "the newly modified child did not jump up the list");
 });
 
-test("a tree whose root is ten days old but whose child was modified today is grouped under Today", async (t) => {
+test("a tree whose root is ten days old but whose child was modified now is listed above a root modified a minute ago", async (t) => {
   const scene = await startSessionScene(t, [
     treeSession("group-root", { name: "Old root", created: daysAgo(20), modified: daysAgo(10) }),
     treeSession("group-child", {
@@ -77,10 +77,9 @@ test("a tree whose root is ten days old but whose child was modified today is gr
     treeSession("group-control", { name: "Fresh root", created: minutesAgo(2), modified: minutesAgo(1) }),
   ]);
   await waitFor(() => historyRow(scene, "Old root"));
-  const today = control(scene.container, "region", "Today");
-  assert.ok(today.contains(control(scene.container, "button", "Fresh root")), "a root modified now is today's work");
-  assert.ok(today.contains(historyRow(scene, "Old root")), "the old root is grouped with its active child");
-  assert.ok(today.contains(historyRow(scene, "Fresh child")), "the active child is in the same group");
+  const freshRoot = control(scene.container, "button", "Fresh root");
+  assert.ok(precedes(historyRow(scene, "Old root"), freshRoot), "the old root is ranked by its active child");
+  assert.ok(precedes(historyRow(scene, "Fresh child"), freshRoot), "the active child stays with its root");
 });
 
 test("trees are ordered by the newest activity anywhere inside them", async (t) => {

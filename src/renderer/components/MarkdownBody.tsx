@@ -14,7 +14,7 @@ import ReactMarkdown, {
   type Components,
   type Options as ReactMarkdownOptions,
 } from "react-markdown";
-import { SyntaxHighlighter, vs, vscDarkPlus } from "@/lib/syntax-highlight";
+import { SyntaxHighlighter } from "@/lib/syntax-highlight";
 import { useTheme } from "@/hooks/useTheme";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { resolveLocalFileHref } from "@/lib/file-links";
@@ -30,7 +30,6 @@ import { mermaidCacheKey, renderMermaidSvg } from "@/lib/mermaid-renderer";
 import { remarkLeadingSkill } from "@shared/markdown-attachment-tokens";
 import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 
 interface MarkdownBodyProps {
   children: string;
@@ -41,7 +40,10 @@ interface MarkdownBodyProps {
   sourceSessionId?: string | null;
   onOpenFile?: (filePath: string) => void;
   inlineChips?: InlineChips;
+  codeBlockVariant?: CodeBlockVariant;
 }
+
+type CodeBlockVariant = "card" | "plain";
 
 export interface InlineChips {
   leadingSkill?: string | null;
@@ -56,7 +58,7 @@ interface ChipNodeData {
 
 type MarkdownRenderContextValue = Pick<
   MarkdownBodyProps,
-  "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile"
+  "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile" | "codeBlockVariant"
 >;
 
 const MarkdownRenderContext = createContext<MarkdownRenderContextValue>({});
@@ -66,7 +68,7 @@ type MarkdownComponentProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intri
 };
 
 function MarkdownCode({ className, children, node: _node, ...props }: MarkdownComponentProps<"code">) {
-  const { isStreaming } = useContext(MarkdownRenderContext);
+  const { isStreaming, codeBlockVariant } = useContext(MarkdownRenderContext);
   const lang = className?.replace("language-", "").toLowerCase() ?? "";
   const raw = String(children);
   const isBlock = className?.includes("language-") || raw.includes("\n");
@@ -74,7 +76,7 @@ function MarkdownCode({ className, children, node: _node, ...props }: MarkdownCo
     if (lang === "mermaid") {
       return <MermaidBlock code={raw.replace(/\n$/, "")} isStreaming={isStreaming} />;
     }
-    return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} />;
+    return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} variant={codeBlockVariant} />;
   }
   return (
     <code className="markdown-inline-code" {...props}>
@@ -138,7 +140,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
         {children}
       </a>
       {menuError && (
-        <span role="status" style={{ marginLeft: 4, color: "var(--danger)", fontSize: "0.85em" }}>
+        <span role="status" className="type-label-default" style={{ marginLeft: 4, color: "var(--fx-status-danger)" }}>
           {t("fileContextMenuUnavailable", "The file menu could not be opened.")}
         </span>
       )}
@@ -205,11 +207,12 @@ export function MarkdownBody({
   sourceSessionId,
   onOpenFile,
   inlineChips,
+  codeBlockVariant,
 }: MarkdownBodyProps) {
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
-    () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile }),
-    [cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
+    () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
+    [codeBlockVariant, cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
   );
   const hasInlineChips = inlineChips !== undefined;
   const leadingSkill = inlineChips?.leadingSkill ?? null;
@@ -409,8 +412,38 @@ function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?: boole
   );
 }
 
-function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
-  const { isDark } = useTheme();
+function PlainCodeBlock({ code, lang }: { code: string; lang: string }) {
+  return shouldHighlightCode(code) ? (
+    <SyntaxHighlighter
+      language={lang || "text"}
+      className="markdown-code-plain type-mono-code"
+      codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
+    >
+      {code}
+    </SyntaxHighlighter>
+  ) : (
+    <pre className="markdown-code-plain type-mono-code">
+      <code>{code}</code>
+    </pre>
+  );
+}
+
+function CodeBlock({
+  code,
+  lang,
+  headerAction,
+  variant = "card",
+}: {
+  code: string;
+  lang: string;
+  headerAction?: ReactNode;
+  variant?: CodeBlockVariant;
+}) {
+  if (variant === "plain") return <PlainCodeBlock code={code} lang={lang} />;
+  return <CodeCard code={code} lang={lang} headerAction={headerAction} />;
+}
+
+function CodeCard({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
   const { copied, copy } = useCopyFeedback();
 
   return (
@@ -419,42 +452,56 @@ function CodeBlock({ code, lang, headerAction }: { code: string; lang: string; h
         <span className="markdown-code-lang">{lang || "text"}</span>
         <div className="markdown-code-actions">
           {headerAction}
-          <button onClick={() => void copy(code)} className="markdown-code-action">
-            {copied ? "copied" : "copy"}
+          <button
+            onClick={() => void copy(code)}
+            className={["markdown-code-copy", copied ? "is-copied" : ""].filter(Boolean).join(" ")}
+            aria-label={copied ? "copied" : "copy"}
+          >
+            {copied ? (
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+            ) : (
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="9" y="9" width="12" height="12" rx="2.5" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
           </button>
         </div>
       </div>
       {shouldHighlightCode(code) ? (
         <SyntaxHighlighter
           language={lang || "text"}
-          style={isDark ? vscDarkPlus : vs}
+          className="markdown-code-body type-mono-chat-code"
           showLineNumbers
-          lineNumberStyle={{ color: "var(--text-dim)", fontStyle: "normal" }}
-          customStyle={{
-            margin: 0,
-            padding: "12px 12px",
-            fontSize: scaledChatFont(12.5),
-            lineHeight: 1.62,
-            borderRadius: "0",
-            background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
-          }}
+          lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
           codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
         >
           {code}
         </SyntaxHighlighter>
       ) : (
-        <pre
-          style={{
-            margin: 0,
-            padding: "12px 12px",
-            fontSize: scaledChatFont(12.5),
-            lineHeight: 1.62,
-            overflow: "auto",
-            whiteSpace: "pre",
-            fontFamily: "var(--font-mono)",
-            background: "color-mix(in srgb, var(--bg) 92%, var(--bg-panel))",
-          }}
-        >
+        <pre className="markdown-code-body type-mono-chat-code">
           <code>{code}</code>
         </pre>
       )}

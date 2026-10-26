@@ -1,4 +1,4 @@
-import type { ModelInfo } from "@contract/types";
+import type { ModelInfo, ModelPreferencesResult } from "@contract/types";
 
 const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 
@@ -18,6 +18,10 @@ export function isModelEnabled(model: ModelInfo, enabledModels: string[] | null)
   if (enabledModels === null) return true;
   const refs = new Set(enabledModels.map(stripThinkingSuffix));
   return refs.has(modelRef(model)) || refs.has(model.id);
+}
+
+export function enabledModelList(preferences: ModelPreferencesResult | null): ModelInfo[] {
+  return preferences ? preferences.models.filter((model) => isModelEnabled(model, preferences.enabledModels)) : [];
 }
 
 function updateModelSelection(

@@ -1,0 +1,10 @@
+{
+  "browserEnableBuiltIn": {
+    "enUS": "Enable built-in Browser",
+    "zhCN": "启用内置浏览器"
+  },
+  "browserSettingsDescription": {
+    "enUS": "Websites run in Main-owned, sandboxed Electron WebContentsView instances. Agent access is a separate, default-off permission.",
+    "zhCN": "网站运行在主进程持有且启用沙箱的 Electron WebContentsView 中。Agent 访问权限独立控制，默认关闭。"
+  }
+}

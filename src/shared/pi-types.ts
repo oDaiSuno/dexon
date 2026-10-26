@@ -19,6 +19,7 @@ export interface ModelLike {
 export interface ToolInfo {
   name: string;
   description: string;
+  parameters?: unknown;
 }
 
 export interface NavigateTreeResult {
@@ -44,12 +45,15 @@ export interface SessionStatsInfo {
     total: number;
   };
   cost: number;
+  costs?: { input: number; output: number; cacheRead: number; cacheWrite: number };
+  lastCompactionAt?: string | null;
   contextUsage?: ContextUsage;
 }
 
 interface PromptTemplateLike {
   name: string;
   description?: string;
+  argumentHint?: string;
   sourceInfo: SlashCommandInfo["sourceInfo"];
 }
 
@@ -61,6 +65,7 @@ interface SkillLike {
 
 interface ResourceLoaderLike {
   getSkills(): { skills: SkillLike[] };
+  getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
 }
 
 interface ExtensionRunnerLike {

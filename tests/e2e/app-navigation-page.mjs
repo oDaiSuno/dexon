@@ -75,7 +75,10 @@ export function productionPage(operation, args = {}) {
       documentScrollWidth: document.documentElement.scrollWidth,
       buttons: [...element.querySelectorAll("button")].filter(exposed).map(nameOf),
       workspace: rectOf(find("group", "Workspace controls", element)),
-      resourceHeading: rectOf(find("heading", "Plugins & Skills")),
+      resourceHeading: rectOf(
+        find("heading", "Plugins & Skills")?.closest("header") ?? find("heading", "Plugins & Skills"),
+      ),
+      resourceColumn: rectOf(find("heading", "Plugins & Skills")?.closest('[class*="max-w-[760px]"]')),
       currentPage: [...element.querySelectorAll('[aria-current="page"]')].filter(exposed).map(nameOf),
     };
   }
@@ -90,7 +93,7 @@ export function productionPage(operation, args = {}) {
     };
   }
   if (operation === "settingsTabs") {
-    const settings = find("dialog", "Settings");
+    const settings = find("region", "Settings");
     return settings ? [...settings.querySelectorAll('[role="tab"]')].filter(exposed).map(nameOf) : null;
   }
   if (operation === "focus") {

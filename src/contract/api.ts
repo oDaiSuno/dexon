@@ -8,11 +8,15 @@ import type {
   FileMeta,
   HistoryWindow,
   LoginProgressEvent,
+  DefaultThinkingLevel,
+  ModelDefaultsResult,
   ModelPreferencesResult,
   ModelsConfig,
   ModelsConfigSnapshot,
   ModelsListResult,
   PagedContextInfo,
+  ProviderChannelTestResult,
+  ProviderChannelsResult,
   ProviderStatus,
   RunningStateEvent,
   SessionDetail,
@@ -21,6 +25,8 @@ import type {
   WorktreeInfo,
 } from "./types";
 import type {
+  GitBranchResult,
+  GitHeadContentResult,
   GitStatusResult,
   PluginActionParams,
   PluginsResponse,
@@ -107,6 +113,10 @@ export interface Api {
     params: { processId: string; runId: string; streams?: ManagedProcessLogStream[] };
     result: { saved: boolean; fileName?: string };
   };
+  "processes.clearFinished": {
+    params: void;
+    result: { ok: true; cleared: number };
+  };
 
   // Sessions & projects
   "sessions.list": {
@@ -138,6 +148,10 @@ export interface Api {
     result: { content: string; suggestedName: string };
   };
   "sessions.delete": { params: { id: string; force?: boolean }; result: { ok: true } };
+  "sessions.descendants": {
+    params: { id: string };
+    result: { sessionIds: string[]; runningSessionIds: string[] };
+  };
   "sessions.rename": {
     params: { id: string; name: string };
     result: { ok: true };
@@ -164,6 +178,18 @@ export interface Api {
   "git.status": {
     params: { path: string };
     result: GitStatusResult;
+  };
+  "git.branch": {
+    params: { path: string };
+    result: GitBranchResult;
+  };
+  "git.headContent": {
+    params: { path: string; sourceSessionId?: string };
+    result: GitHeadContentResult;
+  };
+  "projects.inspectFolder": {
+    params: { path: string };
+    result: { ok: boolean; path?: string; error?: string };
   };
 
   // Agent lifecycle
@@ -195,6 +221,7 @@ export interface Api {
       message: string;
       provider?: string;
       modelId?: string;
+      replace?: boolean;
     };
     result: { title: string | null };
   };
@@ -315,6 +342,11 @@ export interface Api {
     params: { cwd?: string; enabledModels: string[] | null };
     result: ModelPreferencesResult;
   };
+  "models.defaults.get": { params: { cwd?: string } | void; result: ModelDefaultsResult };
+  "models.defaults.set": {
+    params: { cwd?: string; model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel };
+    result: ModelDefaultsResult;
+  };
   "modelsConfig.get": { params: void; result: ModelsConfigSnapshot };
   "modelsConfig.set": {
     params: { config: ModelsConfig; expectedVersion: string };
@@ -329,6 +361,12 @@ export interface Api {
     };
     result: TestResult;
   };
+  "modelsConfig.channels.get": { params: void; result: ProviderChannelsResult };
+  "modelsConfig.channels.setEnabled": {
+    params: { provider: string; enabled: boolean };
+    result: ProviderChannelsResult;
+  };
+  "modelsConfig.channels.test": { params: { provider: string }; result: ProviderChannelTestResult };
 
   "auth.providers": { params: void; result: { providers: ProviderStatus[] } };
   "auth.allProviders": { params: void; result: { providers: ProviderStatus[] } };
@@ -382,6 +420,10 @@ export interface Api {
   };
   "plugins.set": {
     params: PluginActionParams;
+    result: PluginsResponse;
+  };
+  "plugins.markReloaded": {
+    params: { cwd: string };
     result: PluginsResponse;
   };
 

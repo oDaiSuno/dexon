@@ -1,0 +1,10 @@
+{
+  "toolErrorPermission": {
+    "enUS": "Pi Desktop cannot write or execute its private tool directory.",
+    "zhCN": "Pi Desktop 无法写入或执行其私有工具目录。"
+  },
+  "toolStateReadOnly": {
+    "enUS": "These tool settings were written by a newer Pi Desktop. This version will not modify or delete them.",
+    "zhCN": "这些工具设置由更新版本的 Pi Desktop 写入；当前版本不会修改或删除它们。"
+  }
+}

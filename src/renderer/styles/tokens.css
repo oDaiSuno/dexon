@@ -1,208 +1,295 @@
-/* tokens — design tokens (light/dark), chat reading prefs, font stacks — split from globals.css in Phase 1 (plan: refactor-sidebar-personal-workspace). */
-
-/* ─────────────────────────────────────────────────────────
- * Dexon design system — personality: "Vercel A" (user-approved
- * 2026-09-03, preview .artifacts/ui-vercel/preview-vercel.html).
- * Geist Sans/Mono (vendored), monochrome gray ramp + blue accent
- * reserved for focus/selection/links, black/white inverted primary
- * buttons, semantic colors only for runtime states.
- * All app surfaces consume the semantic vars below; raw values live
- * only in the gray ramp / state colors.
- * ───────────────────────────────────────────────────────── */
+/* tokens — Framer colors (generated), shadow/radius/spacing recipes, chat reading scale, font stacks. */
 :root {
-  /* gray ramp — light */
-  --gray-0: #ffffff;
-  --gray-50: #fafafa;
-  --gray-100: #f2f2f2;
-  --gray-200: #eaeaea;
-  --gray-300: #d4d4d4;
-  --gray-400: #a1a1a1;
-  --gray-500: #8f8f8f;
-  --gray-600: #666666;
-  --gray-800: #333333;
-  --gray-900: #171717;
-  --gray-1000: #0a0a0a;
+  /* FRAMER-MIRROR:light:start */
+  --fx-accent-blue: #2563eb;
+  --fx-accent-blue-border: rgba(37, 99, 235, 0.32);
+  --fx-accent-blue-fill: #2563eb;
+  --fx-accent-blue-fill-hover: #1d4ed8;
+  --fx-accent-blue-hover: #1d4ed8;
+  --fx-accent-blue-selection: rgba(37, 99, 235, 0.18);
+  --fx-accent-blue-soft: #e8f0fe;
+  --fx-accent-blue-text: #1d5fd6;
+  --fx-channel-feishu: #c2410c;
+  --fx-channel-feishu-ink: #c2410c;
+  --fx-channel-feishu-line: rgba(194, 65, 12, 0.2);
+  --fx-channel-feishu-soft: #fff5f1;
+  --fx-channel-on-brand: #faf9f7;
+  --fx-channel-on-brand-line: rgba(255, 255, 255, 0.22);
+  --fx-channel-on-brand-muted: rgba(250, 249, 247, 0.74);
+  --fx-channel-on-brand-subtle: rgba(255, 255, 255, 0.14);
+  --fx-channel-telegram: #1677a8;
+  --fx-channel-telegram-ink: #1677a8;
+  --fx-channel-telegram-line: rgba(22, 119, 168, 0.2);
+  --fx-channel-telegram-soft: #f1f8fc;
+  --fx-channel-wechat: #08783e;
+  --fx-channel-wechat-ink: #08783e;
+  --fx-channel-wechat-line: rgba(8, 120, 62, 0.2);
+  --fx-channel-wechat-soft: #f3fbf7;
+  --fx-control-thumb: #ffffff;
+  --fx-control-thumb-off: #ffffff;
+  --fx-control-tick: rgba(0, 0, 0, 0.22);
+  --fx-data-blue: #2563eb;
+  --fx-data-cyan: #0891b2;
+  --fx-data-fuchsia: #c026d3;
+  --fx-data-fuchsia-line: rgba(192, 38, 211, 0.3);
+  --fx-data-fuchsia-surface: #fcefff;
+  --fx-data-green: #059669;
+  --fx-data-indigo: #4f46e5;
+  --fx-data-pink: #db2777;
+  --fx-data-purple-surface: #f3edff;
+  --fx-data-slate: #64748b;
+  --fx-data-violet: #7c3aed;
+  --fx-line-default: #e5e5e5;
+  --fx-line-heavy: #b5b5b5;
+  --fx-line-strong: #d4d4d4;
+  --fx-line-subtle: #f0f0f0;
+  --fx-line-translucent: rgba(0, 0, 0, 0.08);
+  --fx-shadow-soft: rgba(0, 0, 0, 0.08);
+  --fx-shadow-strong: rgba(0, 0, 0, 0.14);
+  --fx-status-danger: #dc2626;
+  --fx-status-danger-border: rgba(220, 38, 38, 0.25);
+  --fx-status-danger-soft: #fef2f2;
+  --fx-status-danger-soft-strong: #fde2e2;
+  --fx-status-danger-text: #b91c1c;
+  --fx-status-success: #16a34a;
+  --fx-status-success-border: rgba(22, 163, 74, 0.25);
+  --fx-status-success-soft: #effaf3;
+  --fx-status-success-text: #15803d;
+  --fx-status-warning: #b45309;
+  --fx-status-warning-border: rgba(180, 83, 9, 0.25);
+  --fx-status-warning-soft: #fff7e6;
+  --fx-status-warning-text: #92400e;
+  --fx-surface-canvas: #d9d9dc;
+  --fx-surface-card: #f7f7f7;
+  --fx-surface-hero-tint: #eef2fb;
+  --fx-surface-hover: #efefef;
+  --fx-surface-hover-clear: rgba(0, 0, 0, 0);
+  --fx-surface-hover-overlay: rgba(0, 0, 0, 0.05);
+  --fx-surface-hover-overlay-strong: rgba(0, 0, 0, 0.08);
+  --fx-surface-inset: #f3f3f3;
+  --fx-surface-inverse: #171717;
+  --fx-surface-inverse-hover: #373737;
+  --fx-surface-main: #fafafa;
+  --fx-surface-raised: #ffffff;
+  --fx-surface-raised-hover: #f2f2f2;
+  --fx-surface-scrim: rgba(0, 0, 0, 0.25);
+  --fx-surface-selected: #e8e8e8;
+  --fx-surface-sidebar: #f5f5f5;
+  --fx-surface-subtle: rgba(0, 0, 0, 0.04);
+  --fx-surface-track: #d9d9d9;
+  --fx-text-body: #333333;
+  --fx-text-faint: #c2c2c2;
+  --fx-text-inverse: #ffffff;
+  --fx-text-on-accent: #ffffff;
+  --fx-text-on-danger: #ffffff;
+  --fx-text-primary: #171717;
+  --fx-text-secondary: #5c5c5c;
+  --fx-text-tertiary: #707070;
+  /* FRAMER-MIRROR:light:end */
 
-  /* semantic surfaces & ink */
-  --bg: var(--gray-50);
-  --bg-panel: var(--gray-0);
-  --bg-hover: var(--gray-100);
-  --bg-selected: var(--gray-200);
-  --border: var(--gray-200);
-  --border-strong: var(--gray-300);
-  --text: var(--gray-1000);
-  --text-muted: var(--gray-600);
-  --text-dim: var(--gray-400);
+  /* shadows, radii, spacing — Framer cannot store these as shared styles, so
+     the recurring recipes from its components live here */
+  --shadow-control: 0 1px 2px 0 var(--fx-shadow-soft);
+  --shadow-card: 0 2px 6px 0 var(--fx-shadow-soft);
+  --shadow-popover: 0 16px 40px 0 var(--fx-shadow-strong), 0 2px 6px 0 var(--fx-shadow-soft);
+  --shadow-picker: 0 16px 40px 0 var(--fx-shadow-strong);
+  --shadow-menu: 0 12px 32px -8px var(--fx-shadow-strong), 0 1px 2px 0 var(--fx-shadow-soft);
+  --shadow-composer:
+    0 12px 32px 0 var(--fx-shadow-strong), inset 0 1px 0 0 color-mix(in srgb, var(--fx-text-on-accent) 3%, transparent);
+  --shadow-dialog: 0 24px 64px 0 var(--fx-shadow-strong), 0 0 0 1px var(--fx-shadow-strong);
+  --shadow-toast: 0 8px 24px 0 var(--fx-shadow-soft), 0 1px 2px 0 var(--fx-shadow-soft);
+  --shadow-readout: 0 8px 24px 0 var(--fx-shadow-strong);
+  --shadow-hairline: 0 0 0 1px var(--fx-line-default);
+  --shadow-hairline-card: 0 0 0 1px var(--fx-line-default), var(--shadow-control);
+  --shadow-floating-card: 0 12px 32px 0 var(--fx-shadow-strong), var(--shadow-control);
+  --shadow-overlay: 0 10px 20px 0 color-mix(in srgb, var(--fx-shadow-soft) 62.5%, transparent);
+  --shadow-hairline-button: 0 0 0 1px var(--fx-line-strong), var(--shadow-control);
+  --shadow-tab: var(--shadow-control), 0 0 0 1px var(--fx-line-translucent);
+  --shadow-badge-success: 0 0 0 3px var(--fx-status-success-soft);
+  --shadow-badge-warning: 0 0 0 3px var(--fx-status-warning-soft);
+  --shadow-badge-danger: 0 0 0 3px var(--fx-status-danger-soft-strong);
+  --shadow-badge-running: 0 0 0 3px var(--fx-accent-blue-selection);
 
-  /* accent: blue, reserved for focus / selection / links */
-  --accent: #0060dd;
-  --accent-hover: #0052c4;
-  --accent-contrast: #ffffff;
-  --accent-soft: rgba(0, 96, 221, 0.08);
-  --accent-soft-border: rgba(0, 96, 221, 0.28);
-  --accent-chip-bg: rgba(0, 96, 221, 0.08);
-  --accent-chip-fg: #0060dd;
+  --radius-xs: 4px;
+  --radius-kbd: 5px;
+  --radius-segment: 5px;
+  --radius-segmented: 9px;
+  --radius-chip: 6px;
+  --radius-row: 7px;
+  --radius-control: 8px;
+  --radius-send: 9px;
+  --radius-icon-box: 9px;
+  --radius-bar: 2px;
+  --radius-skeleton: 3px;
+  --radius-status: 9px;
+  --radius-card: 10px;
+  --radius-menu: 12px;
+  --radius-hero: 16px;
+  --radius-app-icon: 17px;
+  --radius-composer: 14px;
+  --radius-dialog: 14px;
+  --radius-resource-card: 14px;
+  --radius-plugin-tile: 12px;
+  --radius-pairing-card: 12px;
+  --radius-relay-hero: 18px;
+  --radius-resource-tile: 12px;
+  --radius-resource-hero: 18px;
+  --radius-pill: 999px;
+  --radius-brand-xs: 4px;
+  --radius-brand-sm: 6px;
+  --radius-brand-md: 9px;
+  --radius-brand-lg: 10px;
+  --radius-brand-xl: 11px;
+  --radius-menu-row: 9px;
 
-  /* primary button: black/white inversion (signature move) */
-  --btn-bg: var(--gray-1000);
-  --btn-bg-hover: var(--gray-900);
-  --btn-fg: #ffffff;
-
-  --user-bg: var(--gray-200);
-  --user-fg: var(--gray-1000);
-  --assistant-bg: var(--gray-0);
-  --tool-bg: var(--gray-1000);
-  --tool-fg: #ededed;
-  --tool-border: var(--gray-800);
-  --bg-subtle: rgba(10, 10, 10, 0.04);
-
-  /* state colors — only ever encode runtime state */
-  --success: #29a383;
-  --success-soft: rgba(41, 163, 131, 0.1);
-  --success-border: rgba(41, 163, 131, 0.32);
-  --danger: #e00000;
-  --danger-soft: rgba(224, 0, 0, 0.08);
-  --danger-border: rgba(224, 0, 0, 0.3);
-  --warning: #f5a623;
-  --warning-soft: rgba(245, 166, 35, 0.12);
-  --warning-border: rgba(245, 166, 35, 0.38);
-  --info: #0060dd;
-  --info-soft: rgba(0, 96, 221, 0.08);
-  --info-border: rgba(0, 96, 221, 0.28);
-  --on-accent: var(--accent-contrast);
-  --on-danger: #ffffff;
-  --grid-line: var(--gray-200);
-  --selection: rgba(0, 96, 221, 0.15);
-  --thinking-bg: var(--gray-50);
-  --thinking-border: var(--gray-200);
-
-  /* data heat scale (reasoning effort etc.) — derived from state anchors,
-     theme-aware by construction; minimal → max */
-  --heat-1: var(--gray-400);
-  --heat-2: color-mix(in srgb, var(--warning) 78%, var(--danger));
-  --heat-3: color-mix(in srgb, var(--warning) 55%, var(--danger));
-  --heat-4: color-mix(in srgb, var(--warning) 32%, var(--danger));
-  --heat-5: color-mix(in srgb, var(--warning) 12%, var(--danger));
-  --heat-6: color-mix(in srgb, var(--danger) 82%, var(--text));
-
-  /* type scale — the only allowed UI font sizes */
-  --text-display: 20px; /* page-defining statements only */
-  --text-heading-lg: 18px; /* panel section headers */
-  --text-title: 16px; /* screen titles */
-  --text-heading: 14px; /* section headings */
-  --text-body-lg: 14px; /* emphasized body / list rows */
-  --text-body: 13px; /* reading & controls */
-  --text-label: 12px; /* compact labels */
-  --text-meta: 11px; /* metadata, timestamps */
-  --text-micro: 10px; /* dense logs only */
-  --weight-regular: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-
-  /* spacing scale (4px base) */
+  --space-0-5: 2px;
   --space-1: 4px;
+  --space-1-5: 6px;
   --space-2: 8px;
+  --space-2-5: 10px;
   --space-3: 12px;
+  --space-3-5: 14px;
   --space-4: 16px;
+  --space-4-5: 18px;
   --space-5: 20px;
+  --space-5-5: 22px;
   --space-6: 24px;
+  --space-7: 28px;
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
 
-  /* radii — named stops + pill */
-  --radius-chip: 4px;
-  --radius-control: 6px;
-  --radius-card: 8px;
-  --radius-composer: 14px; /* chat composer shell only — the page's hero surface */
-  --radius-pill: 999px;
-  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.06), 0 4px 12px rgba(0, 0, 0, 0.08);
-
-  --chat-font-scale: 1;
   --chat-content-max-width: 760px;
+
+  /* legacy — retired names kept only while their registered callers are
+     migrated (scripts/design-debt/ledger). The count may only go down. */
+  --bg-hover: var(--fx-surface-hover);
+  --bg-selected: var(--fx-surface-selected);
+  --bg-subtle: var(--fx-surface-subtle);
+  --heat-1: var(--fx-text-tertiary);
+  --heat-3: color-mix(in srgb, var(--fx-status-warning) 55%, var(--fx-status-danger));
+  --heat-4: color-mix(in srgb, var(--fx-status-warning) 32%, var(--fx-status-danger));
+  --heat-5: color-mix(in srgb, var(--fx-status-warning) 12%, var(--fx-status-danger));
+  --heat-6: color-mix(in srgb, var(--fx-status-danger) 82%, var(--fx-text-primary));
+  --text-heading-lg: 20px;
+  --text-title: 16px;
+  --text-body-lg: 14px;
+  --text-body: 13px;
+  --text-label: 12px;
+  --text-meta: 11px;
+  --text-micro: 10px;
 }
 
 html.dark {
-  /* gray ramp — dark (Vercel true-black family) */
-  --gray-0: #0f0f0f;
-  --gray-50: #0a0a0a;
-  --gray-100: #1c1c1c;
-  --gray-200: #262626;
-  --gray-300: #333333;
-  --gray-400: #444444;
-  --gray-500: #707070;
-  --gray-600: #a1a1a1;
-  --gray-800: #3d3d3d;
-  --gray-900: #e5e5e5;
-  --gray-1000: #ededed;
-
-  --bg: var(--gray-50);
-  --bg-panel: var(--gray-0);
-  --bg-hover: var(--gray-100);
-  --bg-selected: var(--gray-200);
-  --border: var(--gray-300);
-  --border-strong: var(--gray-400);
-  --text: var(--gray-1000);
-  --text-muted: var(--gray-600);
-  --text-dim: var(--gray-500);
-
-  --accent: #3291ff;
-  --accent-hover: #5ba2ff;
-  --accent-contrast: #0a0a0a;
-  --accent-soft: rgba(50, 145, 255, 0.14);
-  --accent-soft-border: rgba(50, 145, 255, 0.36);
-  --accent-chip-bg: rgba(50, 145, 255, 0.14);
-  --accent-chip-fg: #8ec5ff;
-
-  --btn-bg: #ededed;
-  --btn-bg-hover: #ffffff;
-  --btn-fg: #0a0a0a;
-
-  --user-bg: var(--gray-200);
-  --user-fg: var(--gray-1000);
-  --assistant-bg: var(--gray-50);
-  --tool-bg: #050505;
-  --tool-fg: #ededed;
-  --tool-border: var(--gray-300);
-  --bg-subtle: rgba(255, 255, 255, 0.06);
-
-  --success: #45c4a0;
-  --success-soft: rgba(69, 196, 160, 0.12);
-  --success-border: rgba(69, 196, 160, 0.36);
-  --danger: #ff5c5c;
-  --danger-soft: rgba(255, 92, 92, 0.12);
-  --danger-border: rgba(255, 92, 92, 0.36);
-  --warning: #f5b94a;
-  --warning-soft: rgba(245, 185, 74, 0.12);
-  --warning-border: rgba(245, 185, 74, 0.38);
-  --info: #3291ff;
-  --info-soft: rgba(50, 145, 255, 0.12);
-  --info-border: rgba(50, 145, 255, 0.34);
-  --on-accent: var(--accent-contrast);
-  --on-danger: #0a0a0a;
-  --grid-line: var(--gray-200);
-  --selection: rgba(50, 145, 255, 0.35);
-  --thinking-bg: #111111;
-  --thinking-border: var(--gray-300);
-
-  --shadow-popover: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.5);
+  /* FRAMER-MIRROR:dark:start */
+  --fx-accent-blue: #3b82f6;
+  --fx-accent-blue-border: rgba(59, 130, 246, 0.36);
+  --fx-accent-blue-fill: #2563eb;
+  --fx-accent-blue-fill-hover: #1d4ed8;
+  --fx-accent-blue-hover: #2f74e6;
+  --fx-accent-blue-selection: rgba(59, 130, 246, 0.18);
+  --fx-accent-blue-soft: #1f2d44;
+  --fx-accent-blue-text: #7fb0f9;
+  --fx-channel-feishu: #a13d13;
+  --fx-channel-feishu-ink: #fb804a;
+  --fx-channel-feishu-line: rgba(251, 128, 74, 0.24);
+  --fx-channel-feishu-soft: #291e19;
+  --fx-channel-on-brand: #faf9f7;
+  --fx-channel-on-brand-line: rgba(255, 255, 255, 0.2);
+  --fx-channel-on-brand-muted: rgba(250, 249, 247, 0.74);
+  --fx-channel-on-brand-subtle: rgba(255, 255, 255, 0.12);
+  --fx-channel-telegram: #176689;
+  --fx-channel-telegram-ink: #54a9eb;
+  --fx-channel-telegram-line: rgba(84, 169, 235, 0.24);
+  --fx-channel-telegram-soft: #192127;
+  --fx-channel-wechat: #0f6840;
+  --fx-channel-wechat-ink: #34c778;
+  --fx-channel-wechat-line: rgba(52, 199, 120, 0.24);
+  --fx-channel-wechat-soft: #1a2720;
+  --fx-control-thumb: #ffffff;
+  --fx-control-thumb-off: #a1a1a1;
+  --fx-control-tick: rgba(255, 255, 255, 0.28);
+  --fx-data-blue: #60a5fa;
+  --fx-data-cyan: #67e8f9;
+  --fx-data-fuchsia: #e879f9;
+  --fx-data-fuchsia-line: rgba(232, 121, 249, 0.3);
+  --fx-data-fuchsia-surface: #2a1430;
+  --fx-data-green: #34d399;
+  --fx-data-indigo: #818cf8;
+  --fx-data-pink: #f472b6;
+  --fx-data-purple-surface: #2b1650;
+  --fx-data-slate: #94a3b8;
+  --fx-data-violet: #a78bfa;
+  --fx-line-default: #2a2a2a;
+  --fx-line-heavy: #444444;
+  --fx-line-strong: #333333;
+  --fx-line-subtle: #222222;
+  --fx-line-translucent: rgba(255, 255, 255, 0.08);
+  --fx-shadow-soft: rgba(0, 0, 0, 0.35);
+  --fx-shadow-strong: rgba(0, 0, 0, 0.5);
+  --fx-status-danger: #f87171;
+  --fx-status-danger-border: rgba(239, 68, 68, 0.28);
+  --fx-status-danger-soft: rgba(239, 68, 68, 0.06);
+  --fx-status-danger-soft-strong: rgba(239, 68, 68, 0.12);
+  --fx-status-danger-text: #fca5a5;
+  --fx-status-success: #4ade80;
+  --fx-status-success-border: rgba(74, 222, 128, 0.24);
+  --fx-status-success-soft: rgba(74, 222, 128, 0.07);
+  --fx-status-success-text: #86efac;
+  --fx-status-warning: #f5b544;
+  --fx-status-warning-border: rgba(245, 181, 68, 0.22);
+  --fx-status-warning-soft: rgba(245, 181, 68, 0.06);
+  --fx-status-warning-text: #f5c56a;
+  --fx-surface-canvas: #2c2c2e;
+  --fx-surface-card: #202020;
+  --fx-surface-hero-tint: #1e2230;
+  --fx-surface-hover: #1c1c1c;
+  --fx-surface-hover-clear: rgba(255, 255, 255, 0);
+  --fx-surface-hover-overlay: rgba(255, 255, 255, 0.06);
+  --fx-surface-hover-overlay-strong: rgba(255, 255, 255, 0.1);
+  --fx-surface-inset: #141414;
+  --fx-surface-inverse: #ededed;
+  --fx-surface-inverse-hover: #cfcfcf;
+  --fx-surface-main: #171717;
+  --fx-surface-raised: #1c1c1c;
+  --fx-surface-raised-hover: #2a2a2a;
+  --fx-surface-scrim: rgba(0, 0, 0, 0.55);
+  --fx-surface-selected: #2a2a2a;
+  --fx-surface-sidebar: #121212;
+  --fx-surface-subtle: rgba(255, 255, 255, 0.06);
+  --fx-surface-track: #333333;
+  --fx-text-body: #d4d4d4;
+  --fx-text-faint: #4a4a4a;
+  --fx-text-inverse: #171717;
+  --fx-text-on-accent: #ffffff;
+  --fx-text-on-danger: #171717;
+  --fx-text-primary: #ededed;
+  --fx-text-secondary: #a1a1a1;
+  --fx-text-tertiary: #8a8a8a;
+  /* FRAMER-MIRROR:dark:end */
 }
 
-.chat-appearance-scope {
-  --chat-font-scale: 1;
-  --chat-content-max-width: 760px;
+html.dark {
+  --shadow-badge-success: 0 0 0 3px color-mix(in srgb, var(--fx-status-success) 16%, transparent);
+  --shadow-badge-warning: 0 0 0 3px color-mix(in srgb, var(--fx-status-warning) 16%, transparent);
+  --shadow-badge-danger: 0 0 0 3px color-mix(in srgb, var(--fx-status-danger) 16%, transparent);
+  --shadow-badge-running: 0 0 0 3px color-mix(in srgb, var(--fx-accent-blue) 20%, transparent);
 }
 
-html[data-chat-font-size="small"] .chat-appearance-scope {
-  --chat-font-scale: 0.9;
+.chat-reading {
+  --type-scale: 1;
 }
 
-html[data-chat-font-size="large"] .chat-appearance-scope {
-  --chat-font-scale: 1.15;
+html[data-chat-font-size="small"] .chat-reading {
+  --type-scale: 0.9;
 }
 
-html[data-chat-font-size="extra-large"] .chat-appearance-scope {
-  --chat-font-scale: 1.3;
+html[data-chat-font-size="large"] .chat-reading {
+  --type-scale: 1.15;
+}
+
+html[data-chat-font-size="extra-large"] .chat-reading {
+  --type-scale: 1.3;
 }
 
 html[data-chat-layout="wide"] .chat-appearance-scope {
@@ -217,7 +304,7 @@ html[data-chat-layout="wide"] .chat-appearance-scope {
 
 :root {
   --font-sans:
-    "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
+    "Inter", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei UI", "Microsoft YaHei", "Noto Sans CJK SC", "Noto Sans SC", Arial, sans-serif;
   --font-mono:
     "Geist Mono", ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",

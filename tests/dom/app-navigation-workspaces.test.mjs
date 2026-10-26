@@ -10,10 +10,13 @@ import {
   input,
   waitFor,
   pathChoice,
+  menuAction,
   historyRows,
   noHistoryRows,
+  dom,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { accessibleName } from "../support/dom-queries.mjs";
 import {
   createdWorktreeBranch,
   navigationPaths,
@@ -38,16 +41,18 @@ function worktreeSwitcher(scene) {
   return matches[0];
 }
 
-test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and keeps the path and space actions in its menu", async (t) => {
+test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the two space actions", async (t) => {
   const scene = await startNavigation(t, { history: false });
   control(scene.workspace(), "button", "Personal space");
   const menu = await scene.menu();
-  assert.ok(menu.textContent.includes(navigationPaths.personal), "the menu shows the full personal folder path");
+  const blocks = textBlocks(menu);
+  assert.ok(blocks.includes("Current project"), "the card labels the current project group");
+  assert.ok(blocks.includes("Personal space"), "the card names the current project");
+  assert.ok(blocks.includes("~"), "the personal folder lives in the home folder, shown as ~");
+  assert.ok(!menu.textContent.includes(navigationPaths.home), "the card does not spell out the home folder");
   assert.deepEqual(
-    roles(menu, "menuitem")
-      .map((item) => item.textContent.trim())
-      .sort(),
-    ["Open current folder", "Choose another folder…", "Switch space…", "Back to personal space"].sort(),
+    roles(menu, "menuitem").map((item) => accessibleName(item)),
+    ["Add project space from folder…", "Back to personal space"],
   );
   await keyDown(menu, "Escape");
   await waitFor(() => assert.equal(roles(scene.navigation(), "menu").length, 0));
@@ -56,18 +61,36 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.doesNotMatch(scene.navigation().textContent, /worktree|repo root/i);
 });
 
-test("Open current folder asks the operating-system boundary to open the active personal directory", async (t) => {
+function composerWorkspaceButton(scene) {
+  return waitFor(() => control(scene.container, "button", "Workspace: Personal space"));
+}
+
+test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const menu = await scene.menu();
-  await click(control(menu, "menuitem", "Open current folder"));
+  await click(await composerWorkspaceButton(scene));
+  await click(await waitFor(() => control(scene.container, "button", "Open in Finder")));
   await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
+});
+
+test("Switch project… in the composer's workspace menu brings back the collapsed sidebar with its project tree, and no separate list of spaces appears", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => historyRows(scene, ...personalRows));
+  await click(control(scene.navigation(), "button", "Hide sidebar"));
+  await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
+  await click(await composerWorkspaceButton(scene));
+  await click(await waitFor(() => control(scene.container, "button", "Switch project…")));
+  await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"));
+  historyRows(scene, ...personalRows);
+  control(scene.history(), "button", "navigation-project");
+  await scene.settled();
+  assert.equal(roles(dom.window.document.body, "menu", "Switch space").length, 0, "no extra list of spaces is opened");
 });
 
 test("choosing another folder moves the sidebar to that project and shows all of its worktree histories", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await expectProjectSpace(scene);
   assert.equal(await scene.currentFolder(), navigationPaths.project);
 });
@@ -76,7 +99,7 @@ test("cancelling the native directory picker keeps the personal space and its hi
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = null;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
   control(scene.workspace(), "button", "Personal space");
@@ -85,11 +108,11 @@ test("cancelling the native directory picker keeps the personal space and its hi
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });
 
-test("Switch space exposes a recent project whose selection moves the sidebar to that project", async (t) => {
+test("another project in the sidebar tree is reached by expanding it and opening one of its conversations, which moves the sidebar to that project", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
-  await click(control(await scene.menu(), "menuitem", "Switch space…"));
-  await click(await waitFor(() => pathChoice(scene.container, navigationPaths.project)));
+  await click(control(scene.history(), "button", "navigation-project"));
+  await click(await waitFor(() => control(scene.history(), "button", "Project release notes")));
   await expectProjectSpace(scene);
   assert.equal(await scene.currentFolder(), navigationPaths.project);
 });
@@ -98,7 +121,7 @@ test("a space chosen from the sidebar is still the current space after reloading
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, ...personalRows));
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await expectProjectSpace(scene);
   await scene.settled();
   const reopened = await scene.reload();
@@ -126,11 +149,11 @@ test("switching a Git worktree moves to that checkout while keeping both histori
   assert.equal(await scene.currentFolder(), navigationPaths.worktree);
 });
 
-test("creating a worktree from the sidebar moves to the new checkout and keeps the project history", async (t) => {
+test("creating a worktree from the composer footer moves to the new checkout and keeps the project history", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
   await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => control(scene.container, "button", "New worktree…")));
+  await click(await waitFor(() => menuAction(scene.container, "New worktree…")));
   const branch = await waitFor(() => {
     const fields = roles(scene.container, "textbox").filter((element) => element.placeholder === "branch name");
     assert.equal(fields.length, 1, "Expected one visible branch name field");
@@ -145,7 +168,7 @@ test("creating a worktree from the sidebar moves to the new checkout and keeps t
   assert.equal(await scene.currentFolder(), navigationPaths.createdWorktree);
 });
 
-test("removing another worktree from the sidebar drops it from the choices and keeps the current checkout", async (t) => {
+test("removing another worktree from the composer footer drops it from the choices and keeps the current checkout", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
   await click(await openRemoveControl(scene, navigationPaths.worktree));
@@ -175,7 +198,9 @@ async function openRemoveControl(scene, path) {
 }
 
 function worktreeChoices(scene, path) {
-  return roles(scene.container, "button").filter((element) => element.title === path);
+  return [...roles(scene.container, "button"), ...roles(scene.container, "menuitemradio")].filter(
+    (element) => element.title === path,
+  );
 }
 
 test("removing a worktree with uncommitted changes asks first and keeps it when the user cancels", async (t) => {

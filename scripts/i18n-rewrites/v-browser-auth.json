@@ -1,0 +1,46 @@
+{
+  "browserAllowCurrentAgentSession": {
+    "enUS": "Allow current Agent session",
+    "zhCN": "允许当前 Agent 会话"
+  },
+  "browserAuthorizationAdvanced": {
+    "enUS": "Use Advanced Browser Mode",
+    "zhCN": "使用高级浏览器模式"
+  },
+  "browserAuthorizationAdvancedSummary": {
+    "enUS": "The Agent can also execute JavaScript, inspect captured network data, replay requests, and use CDP.",
+    "zhCN": "Agent 还可以执行 JavaScript、检查已抓取的网络数据、重放请求并使用 CDP。"
+  },
+  "browserAuthorizationDescription": {
+    "enUS": "Pi Desktop paused the Browser tool before it made any page, network, or input changes.",
+    "zhCN": "Pi Desktop 已在页面、网络或输入发生任何更改前暂停浏览器工具。"
+  },
+  "browserAuthorizationInteractSummary": {
+    "enUS": "The Agent can also click, type, press keys, and scroll in Browser tabs owned by this session.",
+    "zhCN": "Agent 还可以在此会话拥有的浏览器标签页中点击、输入、按键和滚动。"
+  },
+  "browserAuthorizationManage": {
+    "enUS": "Manage permanent permission…",
+    "zhCN": "管理永久权限…"
+  },
+  "browserAuthorizationPermission": {
+    "enUS": "Permission",
+    "zhCN": "权限"
+  },
+  "browserAuthorizationReadSummary": {
+    "enUS": "The Agent can open pages, navigate, read page snapshots, and take screenshots.",
+    "zhCN": "Agent 可以打开和导航页面、读取页面快照并截取屏幕。"
+  },
+  "browserAuthorizationSessionOnly": {
+    "enUS": "Allowing here lasts only for this running Agent session. Permanent permissions can only be saved in Browser settings.",
+    "zhCN": "在此允许仅对当前运行中的 Agent 会话有效。永久权限只能在浏览器设置中保存。"
+  },
+  "browserAuthorizationSourceLocal": {
+    "zhCN": "本地桌面会话",
+    "enUS": "Local desktop session"
+  },
+  "browserAuthorizationTitle": {
+    "enUS": "Allow Agent Browser access?",
+    "zhCN": "允许 Agent 使用浏览器吗？"
+  }
+}

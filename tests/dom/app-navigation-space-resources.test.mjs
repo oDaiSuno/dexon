@@ -19,7 +19,7 @@ test("choosing another folder from Resources rescopes plugins to that project wi
   const scene = await startNavigation(t);
   await scene.resources();
   scene.external.desktop.selectedDirectory = navigationPaths.project;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await expectScope(scene, "npm:project-navigation-plugin", { absent: ["npm:personal-navigation-plugin"] });
   control(scene.container, "heading", "Plugins & Skills");
 });
@@ -29,7 +29,7 @@ test("cancelling the native directory picker keeps the current resource page and
   await scene.resources();
   await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
   scene.external.desktop.selectedDirectory = null;
-  await click(control(await scene.menu(), "menuitem", "Choose another folder…"));
+  await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
   await expectScope(scene, "npm:personal-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
@@ -37,11 +37,13 @@ test("cancelling the native directory picker keeps the current resource page and
   control(scene.container, "heading", "Plugins & Skills");
 });
 
-test("Switch space from Resources rescopes plugins to the chosen recent project", async (t) => {
+test("opening another project's conversation from the sidebar tree while on Resources rescopes plugins to that project", async (t) => {
   const scene = await startNavigation(t);
   await scene.resources();
-  await click(control(await scene.menu(), "menuitem", "Switch space…"));
-  await click(await waitFor(() => pathChoice(scene.container, navigationPaths.project)));
+  await click(control(scene.navigation(), "button", "navigation-project"));
+  await click(await waitFor(() => control(scene.navigation(), "button", "Project release notes")));
+  await waitFor(() => visibleText(scene.container, "Project conversation marker"));
+  await scene.resources();
   await expectScope(scene, "npm:project-navigation-plugin", { absent: ["npm:personal-navigation-plugin"] });
 });
 
@@ -57,9 +59,8 @@ test("returning from a project to personal space restores personal resources whi
   assert.ok(!scene.resourcePanel().textContent.includes("project-checklist"));
 });
 
-test("switching a Git worktree scopes resources to the checkout", async (t) => {
+test("switching a Git worktree from the composer footer scopes resources to the checkout", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
-  await scene.resources();
   const switcher = await waitFor(() => {
     const matches = roles(scene.container, "button").filter((element) => element.title.startsWith("Switch worktree:"));
     assert.equal(matches.length, 1);
@@ -67,6 +68,7 @@ test("switching a Git worktree scopes resources to the checkout", async (t) => {
   });
   await click(switcher);
   await click(await waitFor(() => pathChoice(scene.container, navigationPaths.worktree)));
+  await scene.resources();
   await expectScope(scene, "npm:review-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
 });
 

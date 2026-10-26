@@ -22,7 +22,7 @@ export async function runRendererElectronCheck({ name, renderer, main, output, r
       format: "iife",
       tsconfig: "tsconfig.renderer.json",
       outfile: path.join(directory, "renderer.js"),
-      loader: { ".png": "dataurl", ".woff2": "file", ".woff": "file", ".ttf": "file" },
+      loader: { ".png": "dataurl", ".svg": "dataurl", ".woff2": "file", ".woff": "file", ".ttf": "file" },
       define: {
         "import.meta.env.DEV": "false",
         "import.meta.env.PROD": "true",

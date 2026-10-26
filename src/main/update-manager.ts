@@ -1,14 +1,28 @@
-import type { DesktopUpdateState, UpdateErrorCode, UpdatePhase } from "../contract/desktop";
-import type { UpdateAdapter, UpdateAdapterEventMap } from "./update-adapter";
+import type { DesktopUpdateState, UpdatePhase } from "../contract/desktop";
+import type { UpdateAdapter } from "./update-adapter";
+import {
+  ERROR_MESSAGES,
+  UpdateManagerError,
+  classifyUpdateError,
+  redactUpdateError,
+  type UpdateOperation,
+} from "./update-errors.ts";
+import {
+  availableUpdateDetails,
+  downloadedUpdateDetails,
+  finiteNonNegative,
+  type UpdateDetails,
+  type UpdateTarget,
+} from "./update-info.ts";
+import { UpdateOperationSlot } from "./update-operation.ts";
+
+export { UpdateManagerError, redactUpdateError } from "./update-errors.ts";
 
 const DEFAULT_INITIAL_CHECK_DELAY_MS = 60_000;
 const DEFAULT_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
 const DEFAULT_DOWNLOAD_WATCHDOG_MS = 15 * 60 * 1_000;
 const DEFAULT_JITTER_RATIO = 0.08;
-const MAX_RELEASE_NOTES_LENGTH = 12_000;
-const MAX_ERROR_DETAIL_LENGTH = 800;
 
-type UpdateOperation = "check" | "download" | "install";
 type UpdateLogLevel = "info" | "warn" | "error";
 
 export interface UpdateManagerOptions {
@@ -16,6 +30,7 @@ export interface UpdateManagerOptions {
   currentVersion: string;
   isPackaged: boolean;
   platform?: NodeJS.Platform;
+  arch?: NodeJS.Architecture;
   automaticChecksEnabled?: boolean;
   initialCheckDelayMs?: number;
   checkIntervalMs?: number;
@@ -34,164 +49,11 @@ export interface CheckForUpdatesOptions {
   automatic?: boolean;
 }
 
-export class UpdateManagerError extends Error {
-  readonly code: UpdateErrorCode;
-
-  constructor(code: UpdateErrorCode, message: string) {
-    super(message);
-    this.name = "UpdateManagerError";
-    this.code = code;
-  }
-}
-
-type UpdateDetails = Pick<
-  DesktopUpdateState,
-  "availableVersion" | "releaseName" | "releaseDate" | "releaseNotes" | "checkedAt"
->;
-
-type ActiveOperation = {
-  kind: UpdateOperation;
-  promise: Promise<unknown>;
-};
-
-const ERROR_MESSAGES: Record<UpdateErrorCode, string> = {
-  UPDATE_OFFLINE: "Unable to reach the update service. Check your network and try again.",
-  UPDATE_NOT_PUBLISHED: "The update is not available yet. It may still be under release review.",
-  UPDATE_METADATA_INVALID: "The update information is invalid or incomplete. The current version was not changed.",
-  UPDATE_SIGNATURE_INVALID: "Update signature verification failed. Installation was stopped.",
-  UPDATE_DOWNLOAD_FAILED: "The update could not be downloaded. You can keep using this version and retry.",
-  UPDATE_BUSY: "Another update operation is already in progress.",
-  UPDATE_INVALID_STATE: "The update action is not available in the current state.",
-  UPDATE_UNSUPPORTED: "Automatic updates are not supported in this build or on this platform.",
-  UPDATE_UNKNOWN: "The update operation failed. You can keep using the current version and retry.",
-};
-
 function cloneState(state: DesktopUpdateState): DesktopUpdateState {
   return {
     ...state,
     error: state.error ? { ...state.error } : undefined,
   };
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-/** Remove credentials and machine-specific paths before writing updater errors to logs. */
-export function redactUpdateError(value: unknown): string {
-  let text = value instanceof Error ? `${value.name}: ${value.message}` : String(value);
-
-  const home = process.env.HOME || process.env.USERPROFILE;
-  if (home) {
-    text = text.replace(new RegExp(escapeRegExp(home), "gi"), "[LOCAL_PATH]");
-  }
-
-  text = text
-    .replace(/\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "[AUTH_REDACTED]")
-    .replace(/\b(?:gh[opusr]_)[A-Za-z0-9_]{12,}\b/gi, "[TOKEN_REDACTED]")
-    .replace(
-      /\b(authorization|proxy-authorization|token|password|secret|api[-_]?key)\b\s*[:=]\s*["']?[^\s,"'}]+/gi,
-      "$1=[REDACTED]",
-    )
-    .replace(/([?&](?:access_token|auth|key|password|secret|token)=)[^&#\s]+/gi, "$1[REDACTED]")
-    .replace(/\b[A-Z]:\\Users\\[^\\\s"']+(?:\\[^\s"']*)?/gi, "[LOCAL_PATH]")
-    .replace(/\/(?:Users|home)\/[^/\s"']+(?:\/[^\s"']*)?/g, "[LOCAL_PATH]")
-    .replace(/\/(?:private\/)?var\/folders\/[^\s"']+/g, "[CACHE_PATH]")
-    .replace(/\/tmp\/[^\s"']+/g, "[CACHE_PATH]")
-    .replace(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, "[EMAIL_REDACTED]")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (text.length > MAX_ERROR_DETAIL_LENGTH) {
-    return `${text.slice(0, MAX_ERROR_DETAIL_LENGTH)}…`;
-  }
-  return text || "No error detail was provided";
-}
-
-function classifyUpdateError(error: unknown, context?: UpdateOperation): UpdateErrorCode {
-  if (error instanceof UpdateManagerError) return error.code;
-  const errorCode =
-    error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
-  const text =
-    `${errorCode} ${error instanceof Error ? `${error.name} ${error.message}` : String(error)}`.toLowerCase();
-
-  if (/signature|code signing|publisher|not trusted|err_updater_invalid_signature/.test(text)) {
-    return "UPDATE_SIGNATURE_INVALID";
-  }
-  if (
-    /enetunreach|enotfound|eai_again|econnreset|econnrefused|etimedout|err_name_not_resolved|err_internet_disconnected|err_connection_reset|network|offline|internet disconnected/.test(
-      text,
-    )
-  ) {
-    return "UPDATE_OFFLINE";
-  }
-  if (/\b404\b|not found|no published (?:release|version)|latest(?:-mac)?\.yml.*missing/.test(text)) {
-    return "UPDATE_NOT_PUBLISHED";
-  }
-  if (/yaml|metadata|sha-?512|checksum|parse|semver|invalid version|update info|latest(?:-mac)?\.yml/.test(text)) {
-    return "UPDATE_METADATA_INVALID";
-  }
-  if (context === "download" || /download|blockmap/.test(text)) {
-    return "UPDATE_DOWNLOAD_FAILED";
-  }
-  return "UPDATE_UNKNOWN";
-}
-
-function decodeHtmlEntities(value: string): string {
-  const entities: Record<string, string> = {
-    amp: "&",
-    apos: "'",
-    gt: ">",
-    lt: "<",
-    nbsp: " ",
-    quot: '"',
-  };
-  return value.replace(/&(#(?:x[0-9a-f]+|\d+)|[a-z]+);/gi, (match, entity: string) => {
-    if (entity.startsWith("#")) {
-      const isHex = entity[1]?.toLowerCase() === "x";
-      const parsed = Number.parseInt(entity.slice(isHex ? 2 : 1), isHex ? 16 : 10);
-      return Number.isFinite(parsed) && parsed >= 0 && parsed <= 0x10ffff ? String.fromCodePoint(parsed) : match;
-    }
-    return entities[entity.toLowerCase()] ?? match;
-  });
-}
-
-function plainText(value: string, maxLength = MAX_RELEASE_NOTES_LENGTH): string | undefined {
-  const decoded = decodeHtmlEntities(value);
-  const result = decoded
-    .replace(/<\s*(script|style|iframe|object)\b[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, " ")
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\r/g, "")
-    .replace(/[\t ]+/g, " ")
-    .replace(/ *\n */g, "\n")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  if (!result) return undefined;
-  return result.length > maxLength ? `${result.slice(0, maxLength)}…` : result;
-}
-
-function releaseNotesToText(
-  notes: Parameters<UpdateAdapterEventMap["update-available"]>[0]["releaseNotes"],
-): string | undefined {
-  if (typeof notes === "string") return plainText(notes);
-  if (!Array.isArray(notes)) return undefined;
-  const entries = notes.flatMap((entry) => {
-    const note = plainText(entry.note ?? "");
-    if (!note) return [];
-    const version = plainText(entry.version, 80);
-    return [version ? `${version}\n${note}` : note];
-  });
-  return plainText(entries.join("\n\n"));
-}
-
-function safeDate(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  const timestamp = Date.parse(value);
-  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
-}
-
-function finiteNonNegative(value: number): number | undefined {
-  return Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 
 function unrefTimer(timer: unknown): void {
@@ -210,6 +72,7 @@ export class UpdateManager {
   private readonly jitterRatio: number;
   private readonly random: () => number;
   private readonly now: () => Date;
+  private readonly target: UpdateTarget;
   private readonly setTimer: (callback: () => void, delayMs: number) => unknown;
   private readonly clearTimer: (timer: unknown) => void;
   private readonly prepareToInstall: () => void | Promise<void>;
@@ -220,7 +83,7 @@ export class UpdateManager {
 
   private state: DesktopUpdateState;
   private details: UpdateDetails = {};
-  private activeOperation: ActiveOperation | null = null;
+  private readonly operation = new UpdateOperationSlot();
   private automaticTimer: unknown = null;
   private automaticChecksStarted = false;
   private disposed = false;
@@ -249,6 +112,7 @@ export class UpdateManager {
     this.jitterRatio = Math.min(0.5, Math.max(0, options.jitterRatio ?? DEFAULT_JITTER_RATIO));
     this.random = options.random ?? Math.random;
     this.now = options.now ?? (() => new Date());
+    this.target = { platform, arch: options.arch ?? process.arch };
     this.setTimer = options.setTimer ?? ((callback, delayMs) => setTimeout(callback, delayMs));
     this.clearTimer = options.clearTimer ?? ((timer) => clearTimeout(timer as ReturnType<typeof setTimeout>));
     this.prepareToInstall = options.prepareToInstall ?? (() => undefined);
@@ -293,7 +157,7 @@ export class UpdateManager {
     const unavailable = this.requireEnabled();
     if (unavailable) return Promise.reject(unavailable);
 
-    const active = this.reuseOrReject<DesktopUpdateState>("check");
+    const active = this.operation.reuseOrReject<DesktopUpdateState>("check");
     if (active) return active;
     if (!this.isPhase("idle", "up-to-date", "error")) {
       return Promise.reject(this.invalidState("check for updates"));
@@ -303,7 +167,7 @@ export class UpdateManager {
     this.transition("checking");
     this.log("info", `checking for updates (${options.automatic ? "automatic" : "manual"})`);
 
-    return this.trackOperation("check", async () => {
+    return this.operation.track("check", async () => {
       try {
         await this.adapter!.checkForUpdates();
       } catch (error) {
@@ -317,7 +181,7 @@ export class UpdateManager {
     const unavailable = this.requireEnabled();
     if (unavailable) return Promise.reject(unavailable);
 
-    const active = this.reuseOrReject<DesktopUpdateState>("download");
+    const active = this.operation.reuseOrReject<DesktopUpdateState>("download");
     if (active) return active;
     if (this.state.phase !== "available") {
       return Promise.reject(this.invalidState("download an update"));
@@ -328,7 +192,7 @@ export class UpdateManager {
     this.downloadPromiseSettled = false;
     this.log("info", `downloading update ${this.details.availableVersion ?? "(unknown version)"}`);
 
-    return this.trackOperation("download", async () => {
+    return this.operation.track("download", async () => {
       try {
         await this.downloadWithWatchdog();
         this.downloadPromiseSettled = true;
@@ -346,7 +210,7 @@ export class UpdateManager {
     const unavailable = this.requireEnabled();
     if (unavailable) return Promise.reject(unavailable);
 
-    const active = this.reuseOrReject<void>("install");
+    const active = this.operation.reuseOrReject<void>("install");
     if (active) return active;
     if (this.state.phase !== "downloaded") {
       return Promise.reject(this.invalidState("install an update"));
@@ -360,7 +224,7 @@ export class UpdateManager {
       );
     }
 
-    return this.trackOperation("install", async () => {
+    return this.operation.track("install", async () => {
       this.transition("installing");
       this.log("info", `installing update ${this.details.availableVersion ?? "(unknown version)"}`);
       try {
@@ -405,7 +269,7 @@ export class UpdateManager {
     if (this.disposed) return;
     this.disposed = true;
     this.clearDownloadWatchdog();
-    if (this.activeOperation?.kind === "download") this.cancelAdapterDownload();
+    if (this.operation.kind === "download") this.cancelAdapterDownload();
     this.stopAutomaticChecks();
     for (const remove of this.removeAdapterListeners.splice(0)) remove();
     this.listeners.clear();
@@ -426,13 +290,7 @@ export class UpdateManager {
       }),
       adapter.on("update-available", (info) => {
         if (this.disposed) return;
-        this.details = {
-          availableVersion: plainText(info.version, 80),
-          releaseName: info.releaseName ? plainText(info.releaseName, 300) : undefined,
-          releaseDate: safeDate(info.releaseDate),
-          releaseNotes: releaseNotesToText(info.releaseNotes),
-          checkedAt: this.now().toISOString(),
-        };
+        this.details = availableUpdateDetails(info, this.now().toISOString(), this.target);
         this.transition("available");
         this.log("info", `update available: ${this.details.availableVersion ?? "unknown"}`);
       }),
@@ -449,15 +307,9 @@ export class UpdateManager {
       }),
       adapter.on("update-downloaded", (info) => {
         if (this.disposed || !this.isPhase("available", "downloading")) return;
-        this.details = {
-          ...this.details,
-          availableVersion: plainText(info.version, 80) ?? this.details.availableVersion,
-          releaseName: info.releaseName ? plainText(info.releaseName, 300) : this.details.releaseName,
-          releaseDate: safeDate(info.releaseDate) ?? this.details.releaseDate,
-          releaseNotes: releaseNotesToText(info.releaseNotes) ?? this.details.releaseNotes,
-        };
+        this.details = downloadedUpdateDetails(info, this.details, this.target);
         this.downloadEventReceived = true;
-        if (this.activeOperation?.kind !== "download" || this.downloadPromiseSettled) {
+        if (this.operation.kind !== "download" || this.downloadPromiseSettled) {
           this.finishDownloadedUpdate();
         }
       }),
@@ -465,7 +317,7 @@ export class UpdateManager {
         if (this.disposed) return;
         const detail = message ? `${error.message}; ${message}` : error;
         const operation =
-          this.activeOperation?.kind ??
+          this.operation.kind ??
           (this.state.phase === "installing" && this.installLifecyclePrepared ? "install" : undefined);
         this.recordAdapterError(detail, operation);
         if (operation === "download") {
@@ -623,39 +475,6 @@ export class UpdateManager {
 
   private isPhase(...phases: UpdatePhase[]): boolean {
     return phases.includes(this.state.phase);
-  }
-
-  private reuseOrReject<Result>(kind: UpdateOperation): Promise<Result> | null {
-    if (!this.activeOperation) return null;
-    if (this.activeOperation.kind === kind) return this.activeOperation.promise as Promise<Result>;
-    return Promise.reject(new UpdateManagerError("UPDATE_BUSY", ERROR_MESSAGES.UPDATE_BUSY));
-  }
-
-  private trackOperation<Result>(kind: UpdateOperation, run: () => Promise<Result>): Promise<Result> {
-    let resolveOperation: (value: Result | PromiseLike<Result>) => void = () => undefined;
-    let rejectOperation: (reason?: unknown) => void = () => undefined;
-    const promise = new Promise<Result>((resolve, reject) => {
-      resolveOperation = resolve;
-      rejectOperation = reject;
-    });
-    this.activeOperation = { kind, promise };
-    let result: Promise<Result>;
-    try {
-      result = run();
-    } catch (error) {
-      rejectOperation(error);
-      result = Promise.reject(error);
-    }
-    void result.then(resolveOperation, rejectOperation);
-    void promise.then(
-      () => {
-        if (this.activeOperation?.promise === promise) this.activeOperation = null;
-      },
-      () => {
-        if (this.activeOperation?.promise === promise) this.activeOperation = null;
-      },
-    );
-    return promise;
   }
 
   private scheduleAutomaticCheck(delayMs: number): void {

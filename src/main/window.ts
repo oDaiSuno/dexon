@@ -8,9 +8,10 @@ import { isAllowedMainNavigation } from "./window-navigation-policy";
 import { applyWindowBounds, loadUiState, shouldMaximize, trackWindowState } from "./window-state";
 import { RendererCrashRecovery } from "./renderer-crash-recovery";
 import { installWindowShowFallback } from "./window-show-fallback";
+import { DEV_RENDERER_PORT_ARGUMENT, resolveDevRendererPort } from "../shared/dev-renderer-origin";
 
-const LIGHT_BACKGROUND = "#f7f6f3";
-const DARK_BACKGROUND = "#141210";
+const LIGHT_BACKGROUND = "#fafafa";
+const DARK_BACKGROUND = "#171717";
 
 function currentTheme(): "light" | "dark" {
   return nativeTheme.shouldUseDarkColors ? "dark" : "light";
@@ -35,6 +36,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
     all: screen.getAllDisplays().map((display) => display.workArea),
   });
 
+  const devRendererPort = resolveDevRendererPort(process.env.DEXON_DEV_PORT);
   const win = new BrowserWindow({
     width: bounds.width,
     height: bounds.height,
@@ -51,6 +53,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
+      additionalArguments: options.isDev ? [`${DEV_RENDERER_PORT_ARGUMENT}${devRendererPort}`] : [],
     },
   });
   const previewOwnerId = win.webContents.id;
@@ -90,7 +93,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
       if (!win.isDestroyed()) void win.loadURL(rendererUrl);
       return;
     }
-    if (!isAllowedMainNavigation(url, options.isDev)) {
+    if (!isAllowedMainNavigation(url, options.isDev, devRendererPort)) {
       event.preventDefault();
       if (/^https?:/i.test(url)) void shell.openExternal(url);
     }

@@ -1,7 +1,7 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { MessageChannel } from "node:worker_threads";
@@ -55,7 +55,7 @@ async function waitFor(predicate, timeoutMs, stepMs = 50) {
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
   // Keep in sync with src/contract/api.ts: one handler per contract method.
-  assert.equal(Object.keys(handlers).length, 81);
+  assert.equal(Object.keys(handlers).length, 92);
   for (const method of [
     "host.ping",
     "host.toolchain",
@@ -64,6 +64,8 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "sessions.entryContent",
     "worktrees.list",
     "git.status",
+    "git.branch",
+    "git.headContent",
     "agent.state",
     "channels.list",
     "channels.accountConnect",
@@ -74,15 +76,19 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "models.refreshCancel",
     "models.preferences.get",
     "models.preferences.set",
+    "models.defaults.get",
+    "models.defaults.set",
     "auth.providers",
     "skills.list",
     "plugins.list",
+    "plugins.markReloaded",
     "processes.list",
     "processes.read",
     "processes.wait",
     "processes.stop",
     "processes.restart",
     "processes.export",
+    "processes.clearFinished",
     "system.allowRoot",
   ]) {
     assert.equal(typeof handlers[method], "function", `${method} must be registered`);
@@ -791,5 +797,25 @@ test("host cleanup releases the file watch it owns and silences its events", asy
     changeEvents.length,
     eventsBeforeSilence,
     "the host-owned watch must not emit after the composition cleanup releases it",
+  );
+});
+
+test("checking a typed folder for the project switcher resolves ~ and existing folders without granting file access", async (t) => {
+  const base = mkdtempSync(path.join(tmpdir(), "pi-inspect-folder-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const folder = path.join(base, "typed-project");
+  mkdirSync(folder);
+  const file = path.join(base, "notes.txt");
+  writeFileSync(file, "not a folder\n");
+
+  const { handlers } = await captureHandlers();
+  assert.deepEqual(await handlers["projects.inspectFolder"]({ path: folder }), { ok: true, path: folder });
+  assert.deepEqual(await handlers["projects.inspectFolder"]({ path: "~" }), { ok: true, path: homedir() });
+  assert.equal((await handlers["projects.inspectFolder"]({ path: file })).ok, false);
+  assert.equal((await handlers["projects.inspectFolder"]({ path: path.join(base, "missing") })).ok, false);
+  await assert.rejects(
+    handlers["files.list"]({ path: folder }),
+    (error) => error.code === "FORBIDDEN",
+    "only checking a folder must not open it for file access",
   );
 });

@@ -1,0 +1,14 @@
+/* chat-scope — chat surface base and the legacy names whose meaning differs inside the chat. */
+
+.chat-appearance-scope {
+  background: var(--fx-surface-main);
+  color: var(--fx-text-primary);
+  --bg-hover: var(--fx-surface-hover-overlay);
+  --bg-selected: var(--fx-accent-blue-soft);
+  --bg-subtle: var(--fx-surface-hover-overlay);
+}
+
+.chat-history-item {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 120px;
+}

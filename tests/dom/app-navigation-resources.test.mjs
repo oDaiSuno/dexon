@@ -7,7 +7,6 @@ import {
   visibleText,
   textBlocks,
   click,
-  input,
   mouseDown,
   dom,
   waitFor,
@@ -15,16 +14,41 @@ import {
   currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
-import { initialSkillContent, savedSkillContent, reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
+import { reloadedPluginStatus } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
+
+test("the official Resources entry first shows one overview with skills, tool extensions and sources together", async (t) => {
+  const scene = await startNavigation(t, { history: false });
+  await scene.overview();
+  await waitFor(() => visibleText(scene.container, "personal-checklist"));
+  visibleText(scene.container, "shared-checklist");
+  visibleText(scene.container, "These capabilities come from 2 installed packages");
+  assert.equal(roles(scene.container, "tab").length, 0, "the overview is a single page, not tabs");
+  assert.deepEqual(currentPages(scene), ["Plugins & Skills"]);
+});
+
+test("Manage sources keeps the full plugin manager reachable, and returning to the page shows the overview again", async (t) => {
+  const scene = await startNavigation(t, { initialSession: "personal-history" });
+  await waitFor(() => visibleText(scene.container, "Personal conversation marker"));
+  const panel = await scene.resources();
+  await waitFor(() => visibleText(panel, "npm:personal-navigation-plugin"));
+  await click(control(scene.container, "button", "Back to Plugins & Skills"));
+  await waitFor(() => control(scene.container, "button", "Manage sources"));
+  assert.equal(roles(scene.container, "tabpanel").length, 0);
+  await scene.resources();
+  await click(historyRow(scene, "Personal release notes"));
+  await waitFor(() => visibleText(control(scene.container, "region", "Chat"), "Personal conversation marker"));
+  await scene.overview();
+  assert.equal(roles(scene.container, "tabpanel").length, 0, "re-entering the page starts from the overview");
+});
 
 test("with no history or selected session, the official Resources entry opens personal-space plugins as a main page", async (t) => {
   const scene = await startNavigation(t, { history: false });
   const panel = await scene.resources();
   await waitFor(() => visibleText(panel, "npm:personal-navigation-plugin"));
   visibleText(panel, "npm:shared-navigation-plugin");
-  assert.equal(roles(scene.container, "dialog", "Settings").length, 0);
+  assert.equal(roles(scene.container, "region", "Settings").length, 0);
   assert.deepEqual(
     roles(scene.container, "tab").map((element) => element.textContent.trim()),
     ["Plugins", "Skills"],
@@ -35,8 +59,8 @@ test("with no history or selected session, the official Resources entry opens pe
 
 test("the Skills tab reached from the official entry reads a personal skill and its file without needing a session", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const editor = await scene.skills();
-  assert.equal(editor.value, initialSkillContent);
+  const preview = await scene.skills();
+  await waitFor(() => assert.ok(preview.textContent.includes("Keep the review scoped to the current space.")));
   assert.equal(control(scene.container, "tab", "Skills").getAttribute("aria-selected"), "true");
   visibleText(scene.resourcePanel(), "shared-checklist");
 });
@@ -46,13 +70,13 @@ test("disabling a plugin from the new resource page remains visible after reload
   await scene.resources();
   await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
   await click(visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin"));
-  await click(control(scene.resourcePanel(), "button", "Disable package"));
-  await waitFor(() => control(scene.resourcePanel(), "button", "Enable package"));
+  await click(control(scene.resourcePanel(), "switch", "Disable package"));
+  await waitFor(() => control(scene.resourcePanel(), "switch", "Enable package"));
   const reopened = await scene.reload();
   await reopened.resources();
   await waitFor(() => visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
   await click(visibleText(reopened.resourcePanel(), "npm:personal-navigation-plugin"));
-  assert.equal(control(reopened.resourcePanel(), "button", "Enable package").getAttribute("aria-pressed"), "false");
+  assert.equal(control(reopened.resourcePanel(), "switch", "Enable package").getAttribute("aria-checked"), "false");
 });
 
 test("explicit plugin reload from Resources refreshes the same conversation when returning to Chat", async (t) => {
@@ -100,13 +124,12 @@ for (const [language, unsettled, obsoleteGuidance] of [
   });
 }
 
-test("saving a skill through the official resource page is read back after reloading the application", async (t) => {
+test("Open in editor from Manage sources hands the skill file to the desktop's default editor", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const editor = await scene.skills();
-  await input(editor, savedSkillContent);
-  await click(control(scene.resourcePanel(), "button", "Save changes"));
-  await waitFor(() => assert.equal(control(scene.resourcePanel(), "button", "Save changes").disabled, true));
-  const reopened = await scene.reload();
-  const savedEditor = await reopened.skills();
-  assert.equal(savedEditor.value, savedSkillContent);
+  await scene.skills();
+  await click(control(scene.resourcePanel(), "button", "Open in editor"));
+  assert.deepEqual(scene.external.desktop.openedFiles, [
+    "/Users/navigation-fixture/.dexon/.pi/skills/personal-checklist/SKILL.md",
+  ]);
+  assert.equal(roles(scene.resourcePanel(), "button", "Save changes").length, 0);
 });

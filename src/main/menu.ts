@@ -1,5 +1,10 @@
 import { app, Menu, shell, type BrowserWindow } from "electron";
-import { developerViewRoles } from "./menu-policy";
+import {
+  developerViewRoles,
+  fileShortcutCommands,
+  viewShortcutCommands,
+  type MenuShortcutCommand,
+} from "./menu-policy";
 import { sendWindowMenuCommand } from "./window-menu-command";
 
 export function installAppMenu(
@@ -9,6 +14,13 @@ export function installAppMenu(
 ): void {
   const isMac = process.platform === "darwin";
   const isWindows = process.platform === "win32";
+
+  const shortcutItems = (commands: MenuShortcutCommand[]) =>
+    commands.map(({ label, accelerator, event }) => ({
+      label,
+      accelerator,
+      click: () => sendWindowMenuCommand(getWindow, `menu:${event}`),
+    }));
 
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
@@ -64,6 +76,7 @@ export function installAppMenu(
             sendWindowMenuCommand(getWindow, "menu:switch-session");
           },
         },
+        ...shortcutItems(fileShortcutCommands),
         { type: "separator" },
         ...(isMac
           ? []
@@ -95,6 +108,8 @@ export function installAppMenu(
     {
       label: "View",
       submenu: [
+        ...shortcutItems(viewShortcutCommands),
+        { type: "separator" as const },
         ...developerViewRoles(isDev).map((role) => ({ role })),
         ...(isDev ? [{ type: "separator" as const }] : []),
         { role: "resetZoom" },

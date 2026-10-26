@@ -101,9 +101,7 @@ function NavigationScene({
         void refresh();
       },
       onOpenSettings: () => actions.push("settings"),
-      onOpenFolder: () => actions.push("open folder"),
       onChooseFolder: () => actions.push("choose folder"),
-      onSwitchSpace: () => actions.push("switch space"),
       onBackToPersonalSpace: () => actions.push("personal space"),
     }),
     createElement(
@@ -123,13 +121,10 @@ window.navLayout = {
     const chinese = document.documentElement.lang === "zh-CN";
     const nav = navigation();
     const workspace = byRole(nav, "group", chinese ? "工作区控制区" : "Workspace controls");
-    const trigger = workspace ? getByRole(workspace, "button", currentSpaceName) : null;
-    // Follow the published naming relationship, never a child index or an ID
-    // value chosen by React. Text lookup also permits an equivalent aria-label.
-    const labels = trigger?.getAttribute("aria-labelledby")?.trim().split(/\s+/) ?? [];
-    const label =
-      labels.map((id) => document.getElementById(id)).find((node) => node?.textContent === currentSpaceName) ??
-      (trigger ? text(trigger, currentSpaceName) : null);
+    const row = workspace ? getByRole(workspace, "button", currentSpaceName) : null;
+    const actionsName = chinese ? `${currentSpaceName} 的项目操作` : `Actions for ${currentSpaceName}`;
+    const trigger = workspace ? getByRole(workspace, "button", actionsName) : null;
+    const label = row ? text(row, currentSpaceName) : null;
     return {
       nav,
       workspace,
@@ -167,7 +162,7 @@ window.navLayout = {
         }),
       ),
     );
-    await document.fonts.load('14px "Geist"');
+    await document.fonts.load('14px "Inter"');
     await document.fonts.load('14px "Geist Mono"');
     await document.fonts.ready;
     await new Promise((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(resolve)));
@@ -181,7 +176,7 @@ window.navLayout = {
       const counts = item.querySelector("[data-session-row-counts]");
       return {
         name: accessibleName(row),
-        indent: parseFloat(window.getComputedStyle(item).paddingLeft),
+        indent: item.getBoundingClientRect().x - nav.getBoundingClientRect().x,
         titleWidth: title ? title.clientWidth : null,
         titleScrollWidth: title ? title.scrollWidth : null,
         rowBox: boxOf(item),

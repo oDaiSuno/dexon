@@ -138,7 +138,7 @@ export const harness = {
   connectApi(api, { skills = [] } = {}) {
     apiBoundary = installRendererApi(dom.window, api, () => ({
       call(method, params) {
-        if (method === "skills.list") return { skills };
+        if (method === "skills.list") return typeof skills === "function" ? skills(params) : { skills };
         if (method !== "files.index") throw new Error(`Unexpected composer Host request: ${method}`);
         requests.push({ method, params });
         return fileSearch(params);

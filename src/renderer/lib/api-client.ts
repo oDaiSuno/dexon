@@ -4,6 +4,7 @@
  */
 import { createRpcClient, type PiRpc } from "@contract/rpc";
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "@contract/api";
+import type { DefaultThinkingLevel } from "@contract/types";
 
 let rpc: PiRpc | null = null;
 let connectPromise: Promise<PiRpc> | null = null;
@@ -201,6 +202,10 @@ export async function deleteSession(id: string) {
   return call("sessions.delete", { id });
 }
 
+export async function getSessionDescendants(id: string) {
+  return call("sessions.descendants", { id });
+}
+
 export async function renameSession(id: string, name: string) {
   return call("sessions.rename", { id, name });
 }
@@ -235,6 +240,29 @@ export async function getModelPreferences(cwd?: string) {
 
 export async function setModelPreferences(cwd: string | undefined, enabledModels: string[] | null) {
   return call("models.preferences.set", { ...(cwd ? { cwd } : {}), enabledModels });
+}
+
+export async function getModelDefaults(cwd?: string) {
+  return call("models.defaults.get", cwd ? { cwd } : undefined);
+}
+
+export async function setModelDefaults(
+  cwd: string | undefined,
+  change: { model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel },
+) {
+  return call("models.defaults.set", { ...(cwd ? { cwd } : {}), ...change });
+}
+
+export async function getProviderChannels() {
+  return call("modelsConfig.channels.get");
+}
+
+export async function setProviderChannelEnabled(provider: string, enabled: boolean) {
+  return call("modelsConfig.channels.setEnabled", { provider, enabled });
+}
+
+export async function testProviderChannel(provider: string) {
+  return call("modelsConfig.channels.test", { provider });
 }
 
 export async function listWorktrees(projectRoot: string) {

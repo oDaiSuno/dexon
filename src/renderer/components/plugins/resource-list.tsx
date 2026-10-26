@@ -20,7 +20,7 @@ export function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
 
   if (groups.length === 0) {
     return (
-      <div style={{ fontSize: "var(--text-label)", color: "var(--text-dim)" }}>
+      <div style={{ fontSize: "var(--text-label)", color: "var(--fx-text-tertiary)" }}>
         {pkg.disabled
           ? t("pluginPackageDisabled", "Package disabled")
           : t("pluginNoResolvedResources", "No resolved resources")}
@@ -40,7 +40,7 @@ export function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
         <div
           key={group.kind}
           style={{
-            borderTop: groupIndex === 0 ? "none" : "1px solid var(--border)",
+            borderTop: groupIndex === 0 ? "none" : "1px solid var(--fx-line-default)",
             paddingTop: groupIndex === 0 ? 0 : 12,
           }}
         >
@@ -48,7 +48,7 @@ export function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
             style={{
               fontSize: "var(--text-micro)",
               fontWeight: 700,
-              color: "var(--text-dim)",
+              color: "var(--fx-text-tertiary)",
               textTransform: "uppercase",
               marginBottom: 8,
             }}
@@ -61,7 +61,7 @@ export function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 <div
                   style={{
                     fontSize: "var(--text-label)",
-                    color: "var(--text)",
+                    color: "var(--fx-text-primary)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",
@@ -74,7 +74,7 @@ export function ResourceList({ pkg }: { pkg: PluginPackageInfo }) {
                 <div
                   style={{
                     fontSize: "var(--text-micro)",
-                    color: "var(--text-dim)",
+                    color: "var(--fx-text-tertiary)",
                     fontFamily: "var(--font-mono)",
                     overflow: "hidden",
                     textOverflow: "ellipsis",

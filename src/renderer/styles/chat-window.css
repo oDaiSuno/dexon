@@ -1,0 +1,231 @@
+.chat-input-bottom-spacer {
+  flex: 1 1 0;
+  min-height: 0;
+  pointer-events: none;
+  transition: flex-grow 440ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-input-bottom-spacer[data-expanded="false"] {
+  flex-grow: 0;
+}
+
+.chat-input-transition-dock {
+  transition:
+    filter 280ms ease,
+    opacity 220ms ease;
+}
+
+.chat-input-transition-dock[data-position="conversation"] {
+  filter: drop-shadow(0 -2px 8px var(--fx-shadow-soft));
+}
+
+.chat-conversation-enter {
+  animation: chat-conversation-enter var(--duration-medium, 350ms)
+    var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+@keyframes chat-conversation-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.chat-scroll-to-bottom {
+  position: absolute;
+  left: calc(50% - 17px);
+  bottom: 12px;
+  z-index: 30;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 17px;
+  border: 1px solid var(--fx-line-translucent);
+  background: var(--fx-surface-raised);
+  color: var(--fx-text-secondary);
+  box-shadow: var(--shadow-floating-card);
+  cursor: pointer;
+  transition: background-color var(--duration-quick) var(--ease-smooth-out);
+  animation: chat-scroll-to-bottom-in var(--duration-pop, 180ms) var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1))
+    both;
+}
+
+.chat-scroll-to-bottom:hover {
+  background: var(--fx-surface-raised-hover);
+}
+
+.chat-scroll-to-bottom:active {
+  background: var(--fx-surface-selected);
+}
+
+@keyframes chat-scroll-to-bottom-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.chat-turn-nav {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  width: 36px;
+  max-height: calc(100% - 96px);
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 10px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-composer);
+  background: transparent;
+  transform: translateY(-50%);
+  transition:
+    width var(--duration-quick) var(--ease-smooth-out),
+    padding var(--duration-quick) var(--ease-smooth-out),
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    box-shadow var(--duration-quick) var(--ease-smooth-out);
+}
+
+.chat-turn-nav:hover,
+.chat-turn-nav:focus-within {
+  width: 280px;
+  padding: 8px 6px;
+  overflow-y: auto;
+  border-color: var(--fx-line-translucent);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-popover);
+}
+
+.chat-turn-nav-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  width: 256px;
+  height: 10px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    height var(--duration-quick) var(--ease-smooth-out),
+    background-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.chat-turn-nav:hover .chat-turn-nav-row,
+.chat-turn-nav:focus-within .chat-turn-nav-row {
+  height: 30px;
+}
+
+.chat-turn-nav-row:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
+.chat-turn-nav-row:active {
+  background: var(--fx-surface-selected);
+}
+
+.chat-turn-nav-title {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fx-text-tertiary);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  user-select: none;
+}
+
+.chat-turn-nav-row[aria-current="true"] .chat-turn-nav-title {
+  color: var(--fx-text-primary);
+}
+
+.chat-turn-nav:hover .chat-turn-nav-title,
+.chat-turn-nav:focus-within .chat-turn-nav-title {
+  opacity: 1;
+}
+
+.chat-turn-nav-tick {
+  flex-shrink: 0;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--fx-line-heavy);
+}
+
+.chat-turn-nav-row[aria-current="true"] .chat-turn-nav-tick {
+  width: 16px;
+  background: var(--fx-text-primary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-input-bottom-spacer {
+    transition-duration: 0.001ms !important;
+  }
+
+  .chat-input-transition-dock {
+    transition-duration: 0.001ms !important;
+  }
+
+  .chat-conversation-enter {
+    animation-duration: 0.001ms !important;
+  }
+
+  .chat-scroll-to-bottom {
+    animation-duration: 0.001ms !important;
+  }
+
+  .chat-turn-nav,
+  .chat-turn-nav-row {
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* ── Welcome entrance (transitions.dev 18-texts-reveal, CSS-only:
+     staggered blurred rise; lines are .chat-welcome-line with --line-i) ──
+     NOTE: the keyframes own the blur; putting it in the base rule made
+     `fill-mode: both` restore the blurred state after the run. */
+
+@keyframes chat-welcome-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--distance-medium));
+    filter: blur(var(--blur-medium));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+.chat-welcome-line {
+  opacity: 0;
+  animation: chat-welcome-in var(--duration-very-slow) var(--ease-smooth-out) both;
+  animation-delay: calc(var(--line-i, 0) * var(--duration-stagger) * 2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-welcome-line {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}

@@ -17,12 +17,13 @@ export const navigationLabels = {
   "en-US": {
     navigation: "Main navigation",
     resources: "Plugins & Skills",
+    manageSources: "Manage sources",
     skills: "Skills",
     settings: "Settings",
     filePanel: "Show file panel",
     personal: "Personal space",
-    openFolder: "Open current folder",
-    history: "History",
+    history: "Project spaces",
+    spaceActions: "Actions for {name}",
     newSession: "New session",
     attach: "Add images or local file references",
     skillAction: /^Use a skill/,
@@ -32,22 +33,23 @@ export const navigationLabels = {
   "zh-CN": {
     navigation: "主导航",
     resources: "插件与技能",
+    manageSources: "管理来源",
     skills: "技能",
     settings: "设置",
     filePanel: "显示文件面板",
     personal: "个人空间",
-    openFolder: "打开当前文件夹",
-    history: "历史",
+    history: "项目空间",
+    spaceActions: "{name} 的项目操作",
     newSession: "新建会话",
     attach: "添加图片或本地文件引用",
-    skillAction: /^使用 Skill/,
+    skillAction: /^使用技能/,
     skillPicker: "使用技能",
     skillContent: "技能 Markdown 内容",
   },
 };
 export const reloadedPluginStatus = "Navigation plugin ready after explicit reload";
-export const remainingSettings = ["General", "Browser", "Channels", "Models", "Developer Tools", "About"];
-export const remainingSettingsZhCN = ["通用", "浏览器", "消息渠道", "模型", "开发工具", "关于"];
+export const remainingSettings = ["General", "Browser", "Models", "Developer Tools", "About"];
+export const remainingSettingsZhCN = ["通用", "浏览器", "模型", "开发工具", "关于"];
 export const railEntries = ["Show sidebar", "New session", "Plugins & Skills", "Settings"];
 export const initialSkillContent = "# Personal checklist\n\nKeep the review scoped to the current space.\n";
 export const savedSkillContent = "# Personal checklist\n\nVerify the navigation before shipping.\n";

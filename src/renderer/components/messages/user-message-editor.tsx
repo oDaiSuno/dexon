@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
+import { Button } from "../form-controls";
 import { compositionEnterAction, type CompositionState } from "../chat-input/composition-guard";
 import type { ComposerEditableHandle } from "../chat-input/types";
 import type { ImageContent } from "@/lib/types";
@@ -80,17 +80,16 @@ export function UserMessageEditor({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: "68ch", width: "100%" }}>
       <div
+        className="chat-reading type-chat-body"
         style={{
           minWidth: 0,
           maxWidth: "100%",
           background: bubbleStyle.background,
-          borderRadius: "12px 12px 4px 12px",
-          padding: "8px 13px",
-          fontSize: scaledChatFont(13),
-          lineHeight: 1.55,
+          border: "1px solid var(--fx-line-default)",
+          borderRadius: "var(--radius-composer)",
+          padding: "var(--space-3) var(--space-4)",
           color: bubbleStyle.foreground,
           wordBreak: "break-word",
-          boxShadow: "var(--bui-shadow-btn)",
         }}
       >
         {images.length > 0 && (
@@ -106,11 +105,12 @@ export function UserMessageEditor({
                     borderRadius: "var(--radius-control)",
                     objectFit: "contain",
                     display: "block",
-                    border: `1px solid color-mix(in srgb, ${bubbleStyle.foreground} 18%, transparent)`,
+                    border: "1px solid var(--fx-line-translucent)",
                   }}
                 />
                 <button
                   type="button"
+                  className="type-meta-default"
                   aria-label={t("removeImage", "Remove image")}
                   title={t("removeImage", "Remove image")}
                   onClick={() => onRemoveImage(index)}
@@ -123,13 +123,11 @@ export function UserMessageEditor({
                     justifyContent: "center",
                     width: 18,
                     height: 18,
-                    background: "var(--bui-surface)",
-                    border: "1px solid color-mix(in srgb, currentColor 22%, transparent)",
+                    background: "var(--fx-surface-raised)",
+                    border: "1px solid var(--fx-line-default)",
                     borderRadius: "50%",
-                    color: "var(--bui-ink-2)",
+                    color: "var(--fx-text-secondary)",
                     cursor: "pointer",
-                    fontSize: 11,
-                    lineHeight: 1,
                   }}
                 >
                   ×
@@ -184,40 +182,11 @@ export function UserMessageEditor({
           skillRemoveLabel={t("removeSkill", "Remove skill")}
         />
       </div>
-      <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-        <button
-          type="button"
-          onClick={onCancel}
-          style={{
-            padding: "3px 10px",
-            height: 26,
-            background: "none",
-            border: "1px solid var(--border)",
-            borderRadius: "var(--bui-r-chip)",
-            color: "var(--bui-ink-2)",
-            cursor: "pointer",
-            fontSize: scaledChatFont(12),
-          }}
-        >
-          {t("cancel", "Cancel")}
-        </button>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSend}
-          style={{
-            padding: "3px 10px",
-            height: 26,
-            background: canSend ? "var(--accent)" : "var(--border)",
-            border: "none",
-            borderRadius: "var(--bui-r-chip)",
-            color: canSend ? "#fff" : "var(--bui-ink-3)",
-            cursor: canSend ? "pointer" : "not-allowed",
-            fontSize: scaledChatFont(12),
-          }}
-        >
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>
+        <Button onClick={onCancel}>{t("cancel", "Cancel")}</Button>
+        <Button variant="primary" onClick={submit} disabled={!canSend}>
           {t("send", "Send")}
-        </button>
+        </Button>
       </div>
     </div>
   );

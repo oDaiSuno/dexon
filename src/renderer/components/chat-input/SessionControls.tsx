@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
+import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
-import { CompactIcon, LightbulbIcon, SpeakerOffIcon, SpeakerOnIcon } from "./icons";
-
-const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
-type ThinkingLevel = (typeof THINKING_LEVELS)[number];
+import { formatUsagePercent } from "../app-shell/usage-format";
+import { ChevronDownIcon, CompactIcon, Icon } from "./icons";
+import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
+import { THINKING_LEVELS, THINKING_TONES, labelTone, tint, type ThinkingLevel } from "./thinking-art";
+import { ThinkingCard, useClosingCard } from "./thinking-card";
 
 export function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
@@ -21,7 +21,7 @@ function compactUrgencyOf(percent: number | null): number {
 
 function mixWarning(urgency: number, strength: number, base: string): string {
   const pct = Math.round(urgency * strength);
-  return pct > 0 ? `color-mix(in srgb, var(--warning) ${pct}%, ${base})` : base;
+  return pct > 0 ? `color-mix(in srgb, var(--fx-status-warning) ${pct}%, ${base})` : base;
 }
 
 export interface SessionControlsProps {
@@ -39,8 +39,7 @@ export interface SessionControlsProps {
   thinkingContainerRef: { current: HTMLDivElement | null };
   thinkingButtonRef: { current: HTMLButtonElement | null };
   /* compaction */
-  onCompact?: () => void;
-  onAbortCompaction?: () => void;
+  onOpenUsage?: () => void;
   isCompacting?: boolean;
   compactError?: string | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
@@ -49,32 +48,19 @@ export interface SessionControlsProps {
   onSoundToggle?: () => void;
 }
 
-function ghostChip(open: boolean): CSSProperties {
-  return {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    minHeight: 32,
-    background: open ? "var(--bg-selected)" : "transparent",
-    border: "none",
-    borderRadius: "var(--radius-control)",
-    color: "var(--text-muted)",
-    transition:
-      "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-  };
-}
+const GHOST: CSSProperties = {
+  border: "none",
+  borderRadius: "var(--radius-control)",
+  transition: `background ${QUICK}, opacity ${QUICK}`,
+};
+const THINKING_TRIGGER: CSSProperties = {
+  ...GHOST,
+  transition: `background ${QUICK}, opacity ${QUICK}, color var(--duration-spring-glide) var(--ease-spring-glide)`,
+};
+const GHOST_CLASS = "flex min-h-[30px] items-center justify-center gap-[6px]";
 
-function ghostHover(e: MouseEvent<HTMLButtonElement>, { open, disabled }: { open: boolean; disabled?: boolean }) {
-  if (disabled) return;
-  e.currentTarget.style.background = open ? "var(--bg-selected)" : "var(--bg-hover)";
-  e.currentTarget.style.color = "var(--text)";
-}
-
-function ghostLeave(e: MouseEvent<HTMLButtonElement>, { open, color }: { open: boolean; color: string }) {
-  e.currentTarget.style.background = open ? "var(--bg-selected)" : "transparent";
-  e.currentTarget.style.color = color;
-}
+const BRAIN_PATH =
+  "M12 18V5M15 13a4.17 4.17 0 0 1-3-4 4.17 4.17 0 0 1-3 4M17.598 6.5A3 3 0 1 0 12 5a3 3 0 1 0-5.598 1.5M17.997 5.125a4 4 0 0 1 2.526 5.77M18 18a4 4 0 0 0 2-7.464M19.967 17.483A4 4 0 1 1 12 18a4 4 0 1 1-7.967-.517M6 18a4 4 0 0 1-2-7.464M6.003 5.125a4 4 0 0 0-2.526 5.77";
 
 /** Session-scoped controls below the composer: reasoning level, context
  *  compaction, completion sound. Ghost chips — chrome only on hover. */
@@ -92,8 +78,7 @@ export function SessionControls(props: SessionControlsProps) {
     onThinkingToggle,
     thinkingContainerRef,
     thinkingButtonRef,
-    onCompact,
-    onAbortCompaction,
+    onOpenUsage,
     isCompacting,
     compactError,
     contextUsage,
@@ -101,24 +86,7 @@ export function SessionControls(props: SessionControlsProps) {
     onSoundToggle,
   } = props;
   const { t } = useI18n();
-  const focusFrameIdsRef = useRef<Set<number>>(new Set());
-  const cancelFocusFrames = useCallback(() => {
-    for (const frameId of focusFrameIdsRef.current) globalThis.cancelAnimationFrame?.(frameId);
-    focusFrameIdsRef.current.clear();
-  }, []);
-  const focusThinkingButtonAfterPaint = useCallback(() => {
-    if (!visible || typeof globalThis.requestAnimationFrame !== "function") return;
-    let frameId = 0;
-    frameId = globalThis.requestAnimationFrame(() => {
-      focusFrameIdsRef.current.delete(frameId);
-      if (visible) thinkingButtonRef.current?.focus();
-    });
-    focusFrameIdsRef.current.add(frameId);
-  }, [thinkingButtonRef, visible]);
-  useEffect(() => {
-    if (!visible) cancelFocusFrames();
-    return cancelFocusFrames;
-  }, [cancelFocusFrames, visible]);
+  const thinkingCardClosing = useClosingCard(thinkingDropdownOpen, visible);
 
   const thinkingLabels: Record<ThinkingLevel, string> = {
     auto: t("thinkingAuto", "Auto"),
@@ -132,13 +100,13 @@ export function SessionControls(props: SessionControlsProps) {
   };
   const thinkingDescriptions: Record<ThinkingLevel, string> = {
     auto: t("thinkingDefaultDescription", "Use Pi default"),
-    off: t("thinkingOffDescription", "Reasoning off"),
+    off: t("thinkingOffDescription", "Reasoning off, fastest replies"),
     minimal: t("thinkingMinimalDescription", "Minimal reasoning"),
     low: t("thinkingLowDescription", "Low reasoning"),
     medium: t("thinkingMediumDescription", "Medium reasoning"),
-    high: t("thinkingHighDescription", "High reasoning"),
-    xhigh: t("thinkingXHighDescription", "Extra-high reasoning"),
-    max: t("thinkingMaxDescription", "Maximum reasoning"),
+    high: t("thinkingHighDescription", "High reasoning, slower replies"),
+    xhigh: t("thinkingXHighDescription", "Extra-high reasoning, uses more tokens"),
+    max: t("thinkingMaxDescription", "Maximum reasoning, for the hardest problems"),
   };
   const translateThinkingValue = (value: string): string =>
     (THINKING_LEVELS as readonly string[]).includes(value) ? thinkingLabels[value as ThinkingLevel] : value;
@@ -148,34 +116,38 @@ export function SessionControls(props: SessionControlsProps) {
     return translateThinkingValue(thinkingLevelMap[lvl] ?? lvl);
   })();
 
+  const currentLevel: ThinkingLevel = thinkingLevel ?? "auto";
+  const thinkingOptions = THINKING_LEVELS.filter(
+    (lvl) => !availableThinkingLevels || lvl === "auto" || availableThinkingLevels.includes(lvl),
+  ).map((lvl) => {
+    const mappedVal = lvl !== "auto" && thinkingLevelMap ? thinkingLevelMap[lvl] : undefined;
+    const showOriginal = mappedVal != null && mappedVal !== lvl;
+    const displayLabel = translateThinkingValue(showOriginal ? mappedVal : lvl);
+    return {
+      level: lvl,
+      label: showOriginal ? `${displayLabel} (${thinkingLabels[lvl]})` : displayLabel,
+      description: thinkingDescriptions[lvl],
+    };
+  });
+
   const contextPct = contextUsage?.percent ?? null;
-  const contextWindowTokens = contextUsage?.contextWindow ?? null;
   const compactUrgency = compactUrgencyOf(contextPct);
-  // Option A: keep the capacity visible and mark the usage explicitly unknown
-  // (e.g. right after compaction) instead of hiding the numbers entirely.
-  const compactTitle = isCompacting
-    ? t("stopCompaction", "Stop compaction")
-    : contextPct === null && contextWindowTokens !== null
-      ? t(
-          "contextUsagePendingHint",
-          "Context usage updates after the next model response (e.g. right after compaction)",
-        )
-      : t("compact", "Compact context");
+  const usageHintVisible =
+    onOpenUsage !== undefined && (isCompacting === true || (contextPct !== null && contextPct > 80));
+  const usageHintText = isCompacting
+    ? t("compacting", "Compacting…")
+    : t("contextUsageHint", "Context {percent}").replace("{percent}", formatUsagePercent(contextPct ?? 0));
+  const soundLabel = soundEnabled
+    ? t("disableCompletionSound", "Disable completion sound")
+    : t("enableCompletionSound", "Enable completion sound");
 
   return (
     <div
-      style={{
-        flex: "0 0 auto",
-        display: "flex",
-        alignItems: "center",
-        gap: isMobile ? 2 : 6,
-        justifyContent: "flex-end",
-        position: "relative",
-        marginLeft: isMobile ? 0 : "auto",
-      }}
+      className={`relative flex flex-none items-center justify-end ${isMobile ? "gap-0.5" : "ml-auto"}`}
+      style={{ gap: isMobile ? undefined : "var(--space-3)" }}
     >
       {onThinkingLevelChange && (
-        <div ref={thinkingContainerRef} style={{ position: "relative", display: "flex" }}>
+        <div ref={thinkingContainerRef} className="relative flex">
           <button
             ref={thinkingButtonRef}
             type="button"
@@ -185,205 +157,101 @@ export function SessionControls(props: SessionControlsProps) {
             disabled={isStreaming}
             title={`${t("changeThinkingLevel", "Change reasoning level")}: ${thinkingDisplayLabel}`}
             aria-label={`${t("changeThinkingLevel", "Change reasoning level")}: ${thinkingDisplayLabel}`}
+            className={`type-body-medium ${GHOST_CLASS}`}
             style={{
-              ...ghostChip(thinkingDropdownOpen),
-              padding: isMobile ? 0 : "0 9px",
+              ...THINKING_TRIGGER,
+              background: thinkingDropdownOpen ? HOVER : CLEAR,
+              minWidth: 30,
+              padding: isMobile ? 0 : "0 var(--space-2)",
+              color: labelTone(currentLevel),
               cursor: isStreaming ? "not-allowed" : "pointer",
-              fontSize: scaledChatFont(12),
               opacity: isStreaming ? 0.5 : 1,
             }}
-            onMouseEnter={(e) => ghostHover(e, { open: thinkingDropdownOpen, disabled: isStreaming })}
-            onMouseLeave={(e) => ghostLeave(e, { open: thinkingDropdownOpen, color: "var(--text-muted)" })}
+            onMouseEnter={(e) => !isStreaming && paint(e, HOVER)}
+            onMouseLeave={(e) => paint(e, thinkingDropdownOpen ? HOVER : CLEAR)}
           >
-            <LightbulbIcon size={11} />
+            <span className="thinking-glide flex" style={{ color: THINKING_TONES[currentLevel] }}>
+              <Icon size={14} strokeWidth={1.75}>
+                <path d={BRAIN_PATH} />
+              </Icon>
+            </span>
             {!isMobile && <span style={{ whiteSpace: "nowrap" }}>{thinkingDisplayLabel}</span>}
+            {!isMobile && (
+              <span className="flex" style={{ color: "var(--fx-text-tertiary)" }}>
+                <ChevronDownIcon size={12} />
+              </span>
+            )}
           </button>
-          {thinkingDropdownOpen && (
-            <div
-              role="menu"
-              aria-label={t("changeThinkingLevel", "Change reasoning level")}
-              className="composer-pop-in"
-              style={{
-                position: "absolute",
-                bottom: "calc(100% + 6px)",
-                right: 0,
-                zIndex: 100,
-                transformOrigin: "bottom right",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "var(--radius-card)",
-                boxShadow: "0 -4px 16px rgba(0,0,0,0.10)",
-                overflow: "hidden",
-                minWidth: 180,
+          {(thinkingDropdownOpen || thinkingCardClosing) && (
+            <ThinkingCard
+              closing={!thinkingDropdownOpen}
+              label={t("changeThinkingLevel", "Change reasoning level")}
+              title={t("thinkingCardTitle", "Reasoning effort")}
+              help={t("thinkingCardHelp", "Higher effort thinks longer before replying; Auto uses the Pi default")}
+              fasterLabel={t("thinkingFaster", "Faster")}
+              smarterLabel={t("thinkingSmarter", "Smarter")}
+              current={currentLevel}
+              currentLabel={thinkingDisplayLabel}
+              description={thinkingDescriptions[currentLevel]}
+              options={thinkingOptions}
+              onPick={(lvl) => {
+                if (visible && lvl !== currentLevel) onThinkingLevelChange(lvl);
               }}
-            >
-              {THINKING_LEVELS.filter((lvl) => {
-                if (!availableThinkingLevels) return true;
-                if (lvl === "auto") return true;
-                return availableThinkingLevels.includes(lvl);
-              }).map((lvl) => {
-                const isActive = (thinkingLevel ?? "auto") === lvl;
-                const desc = thinkingDescriptions[lvl];
-                const mappedVal = lvl !== "auto" && thinkingLevelMap ? thinkingLevelMap[lvl] : undefined;
-                const displayLabel = translateThinkingValue(mappedVal != null && mappedVal !== lvl ? mappedVal : lvl);
-                const showOriginal = mappedVal != null && mappedVal !== lvl;
-                return (
-                  <button
-                    key={lvl}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isActive}
-                    onClick={() => {
-                      if (!visible) return;
-                      if (!isActive) onThinkingLevelChange(lvl);
-                      onThinkingToggle();
-                      focusThinkingButtonAfterPaint();
-                    }}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 8,
-                      width: "100%",
-                      padding: "8px 12px",
-                      background: isActive ? "var(--bg-selected)" : "none",
-                      border: "none",
-                      color: isActive ? "var(--text)" : "var(--text-muted)",
-                      cursor: "pointer",
-                      fontSize: scaledChatFont(12),
-                      textAlign: "left",
-                      fontWeight: isActive ? 600 : 400,
-                      whiteSpace: "nowrap",
-                      transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = "var(--bg-hover)";
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.background = "none";
-                    }}
-                  >
-                    {isActive ? <CheckDot /> : <span style={{ width: 10, flexShrink: 0 }} />}
-                    <span style={{ flex: 1 }}>
-                      {displayLabel}
-                      {showOriginal && (
-                        <span
-                          style={{
-                            fontSize: scaledChatFont(10),
-                            color: "var(--text-dim)",
-                            fontFamily: "var(--font-mono)",
-                            marginLeft: 4,
-                          }}
-                        >
-                          ({thinkingLabels[lvl]})
-                        </span>
-                      )}
-                    </span>
-                    <span style={{ fontSize: scaledChatFont(11), color: "var(--text-dim)", marginLeft: 8 }}>
-                      {desc}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
+            />
           )}
         </div>
       )}
 
-      {onCompact && (
-        <div style={{ position: "relative" }}>
+      {(compactError || usageHintVisible) && (
+        <div className="relative">
           {compactError && (
             <div
+              className="type-meta-default"
               style={{
                 position: "absolute",
                 bottom: "calc(100% + 6px)",
                 right: 0,
-                background: "var(--danger-soft)",
-                color: "var(--danger)",
-                fontSize: scaledChatFont(11),
-                padding: "4px 8px",
+                background: "var(--fx-status-danger-soft)",
+                color: "var(--fx-status-danger-text)",
+                padding: "var(--space-1) var(--space-2)",
                 borderRadius: "var(--radius-control)",
                 whiteSpace: "nowrap",
                 pointerEvents: "none",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+                boxShadow: "var(--shadow-card)",
                 zIndex: 50,
               }}
             >
               {compactError}
             </div>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              if (!visible) return;
-              closeDropdowns();
-              if (isCompacting) onAbortCompaction?.();
-              else onCompact();
-            }}
-            disabled={isStreaming && !isCompacting}
-            title={compactTitle}
-            aria-label={compactTitle}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 4,
-              minWidth: 32,
-              minHeight: 32,
-              padding: isMobile ? 0 : "0 9px",
-              background: isCompacting ? "color-mix(in srgb, var(--danger) 8%, transparent)" : "transparent",
-              border: "none",
-              borderRadius: "var(--radius-control)",
-              color: isCompacting ? "var(--danger)" : mixWarning(compactUrgency, 100, "var(--text-muted)"),
-              cursor: isStreaming && !isCompacting ? "not-allowed" : "pointer",
-              fontSize: scaledChatFont(12),
-              opacity: isStreaming && !isCompacting ? 0.5 : 1,
-              transition:
-                "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
-            }}
-            onMouseEnter={(e) => {
-              if (isStreaming && !isCompacting) return;
-              e.currentTarget.style.background = isCompacting
-                ? "color-mix(in srgb, var(--danger) 16%, transparent)"
-                : mixWarning(compactUrgency, 24, "var(--bg-hover)");
-              e.currentTarget.style.color = isCompacting
-                ? "var(--danger)"
-                : mixWarning(compactUrgency, 100, "var(--text)");
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = isCompacting
-                ? "color-mix(in srgb, var(--danger) 8%, transparent)"
-                : "transparent";
-              e.currentTarget.style.color = isCompacting
-                ? "var(--danger)"
-                : mixWarning(compactUrgency, 100, "var(--text-muted)");
-            }}
-          >
-            {isCompacting ? (
-              <>
-                <span
-                  style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 2,
-                    background: "currentColor",
-                    display: "inline-block",
-                  }}
-                />
-                {!isMobile && <span style={{ whiteSpace: "nowrap" }}>{t("compacting", "Compacting…")}</span>}
-              </>
-            ) : (
-              <>
-                <CompactIcon size={11} />
-                {!isMobile && (
-                  <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                    {contextWindowTokens !== null
-                      ? `${contextPct !== null ? `${contextPct.toFixed(1)}%` : "?"}/${formatTokenCount(contextWindowTokens)} · ${t("compactAction", "Compact")}`
-                      : t("compactAction", "Compact")}
-                  </span>
-                )}
-              </>
-            )}
-          </button>
+          {usageHintVisible && (
+            <button
+              type="button"
+              onClick={() => {
+                if (!visible) return;
+                closeDropdowns();
+                onOpenUsage?.();
+              }}
+              title={t("contextAndCost", "View context and cost")}
+              className={`type-label-default ${GHOST_CLASS}`}
+              style={{
+                ...GHOST,
+                gap: 4,
+                padding: "0 var(--space-2)",
+                color: isCompacting
+                  ? "var(--fx-status-danger)"
+                  : mixWarning(compactUrgency, 100, "var(--fx-text-secondary)"),
+                cursor: "pointer",
+              }}
+              onMouseEnter={(e) =>
+                paint(e, isCompacting ? tint("var(--fx-status-danger)", 16) : mixWarning(compactUrgency, 24, HOVER))
+              }
+              onMouseLeave={(e) => paint(e, CLEAR)}
+            >
+              <CompactIcon size={13} />
+              <span style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>{usageHintText}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -396,65 +264,31 @@ export function SessionControls(props: SessionControlsProps) {
             closeDropdowns();
             onSoundToggle();
           }}
-          title={
-            soundEnabled
-              ? t("disableCompletionSound", "Disable completion sound")
-              : t("enableCompletionSound", "Enable completion sound")
-          }
-          aria-label={
-            soundEnabled
-              ? t("disableCompletionSound", "Disable completion sound")
-              : t("enableCompletionSound", "Enable completion sound")
-          }
+          title={soundLabel}
+          aria-label={soundLabel}
+          className={GHOST_CLASS}
           style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 32,
-            height: 32,
+            ...GHOST,
+            width: 30,
+            height: 30,
             padding: 0,
-            background: "transparent",
-            border: "none",
-            borderRadius: "var(--radius-control)",
-            color: soundEnabled ? "var(--text-muted)" : "var(--text-dim)",
+            color: "var(--fx-text-tertiary)",
             cursor: "pointer",
             opacity: soundEnabled ? 1 : 0.55,
-            transition:
-              "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease), color var(--duration-quick, 150ms) var(--ease-smooth-out, ease), opacity var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
           }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--bg-hover)";
-            e.currentTarget.style.color = "var(--text)";
-            e.currentTarget.style.opacity = "1";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
-            e.currentTarget.style.color = soundEnabled ? "var(--text-muted)" : "var(--text-dim)";
-            e.currentTarget.style.opacity = soundEnabled ? "1" : "0.55";
-          }}
+          onMouseEnter={(e) => paint(e, HOVER)}
+          onMouseLeave={(e) => paint(e, CLEAR)}
         >
-          {soundEnabled ? <SpeakerOnIcon size={12} /> : <SpeakerOffIcon size={12} />}
+          <Icon size={15} strokeWidth={1.75}>
+            <path d="M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z" />
+            {soundEnabled ? (
+              <path d="M16 9a5 5 0 0 1 0 6M19.364 18.364a9 9 0 0 0 0-12.728" />
+            ) : (
+              <path d="M22 9l-6 6M16 9l6 6" />
+            )}
+          </Icon>
         </button>
       )}
     </div>
-  );
-}
-
-function CheckDot() {
-  return (
-    <svg
-      width="10"
-      height="10"
-      viewBox="0 0 10 10"
-      fill="none"
-      stroke="var(--accent)"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      style={{ flexShrink: 0 }}
-      aria-hidden="true"
-    >
-      <polyline points="1.5 5 4 7.5 8.5 2.5" />
-    </svg>
   );
 }

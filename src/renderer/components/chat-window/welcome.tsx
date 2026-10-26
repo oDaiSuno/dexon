@@ -1,9 +1,14 @@
 import { type NoticeItem } from "@/hooks/useAgentSession";
 import { useI18n } from "@/i18n";
-import { scaledChatFont } from "@/lib/chat-appearance";
 import appIconUrl from "../../../../build/icon.png";
 import { NoticeShelf } from "./status";
-export function Welcome({ notices }: { notices: NoticeItem[] }) {
+export function Welcome({
+  notices,
+  onDismissNotice,
+}: {
+  notices: NoticeItem[];
+  onDismissNotice: (id: string) => void;
+}) {
   const { t } = useI18n();
   return (
     <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
@@ -15,7 +20,6 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               alignItems: "center",
               justifyContent: "center",
               gap: 12,
-              lineHeight: 1.4,
             }}
           >
             <img
@@ -25,18 +29,16 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
               style={{
                 width: 36,
                 height: 36,
-                borderRadius: "var(--bui-r-card)",
+                borderRadius: "var(--radius-card)",
                 objectFit: "contain",
                 flexShrink: 0,
                 display: "block",
               }}
             />
             <span
+              className="type-title-section"
               style={{
-                fontSize: scaledChatFont(20),
-                color: "var(--bui-ink)",
-                fontWeight: 600,
-                letterSpacing: "-0.2px",
+                color: "var(--fx-text-primary)",
                 flexShrink: 0,
                 whiteSpace: "nowrap",
               }}
@@ -46,22 +48,20 @@ export function Welcome({ notices }: { notices: NoticeItem[] }) {
           </div>
         </div>
         <div
-          className="chat-welcome-line"
+          className="chat-welcome-line type-body-relaxed"
           style={
             {
               "--line-i": 1,
               marginTop: 16,
               marginBottom: 12,
-              fontSize: scaledChatFont(13),
-              lineHeight: 1.6,
-              color: "var(--bui-ink-2)",
+              color: "var(--fx-text-secondary)",
               textAlign: "center",
             } as React.CSSProperties
           }
         >
           {t("welcomeGreeting", "What are we working on? Describe a task, paste an error, or drop in files.")}
         </div>
-        <NoticeShelf notices={notices} align="center" />
+        <NoticeShelf notices={notices} onDismiss={onDismissNotice} align="center" />
       </div>
     </div>
   );

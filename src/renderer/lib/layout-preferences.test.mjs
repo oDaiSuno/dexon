@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CHAT_MIN_WIDTH,
+  NAV_EXPANDED_WIDTH,
   RIGHT_PANEL_DEFAULT_WIDTH,
   RIGHT_PANEL_MIN_WIDTH,
   RIGHT_PANEL_WIDTH_STORAGE_KEY,
@@ -66,23 +67,24 @@ test("saves a rounded usable preference without throwing on storage failures", (
 test("caps the panel at 40vw while preserving the chat column", () => {
   const wide = getRightPanelWidthBounds(1514, true);
   assert.equal(wide.maxWidth, Math.floor(1514 * 0.4));
-  assert.ok(1514 - 224 - wide.maxWidth >= CHAT_MIN_WIDTH);
+  assert.equal(wide.maxLimitedBy, "window");
+  assert.ok(1514 - NAV_EXPANDED_WIDTH - wide.maxWidth >= CHAT_MIN_WIDTH);
 
   const constrained = getRightPanelWidthBounds(1000, true);
-  assert.deepEqual(constrained, { minWidth: 280, maxWidth: 356 });
-  assert.equal(clampRightPanelWidth(800, 1000, true), 356);
+  assert.deepEqual(constrained, { minWidth: 280, maxWidth: 308, maxLimitedBy: "chat" });
+  assert.equal(clampRightPanelWidth(800, 1000, true), 308);
   assert.equal(clampRightPanelWidth(100, 1000, true), 280);
 });
 
 test("allows the panel to become narrower only when the viewport cannot fit all minimums", () => {
-  assert.deepEqual(getRightPanelWidthBounds(900, true), { minWidth: 256, maxWidth: 256 });
-  assert.equal(clampRightPanelWidth(360, 900, true), 256);
-  assert.equal(shouldCollapseSidebarForRightPanel(923), true);
-  assert.equal(shouldCollapseSidebarForRightPanel(924), false);
+  assert.deepEqual(getRightPanelWidthBounds(900, true), { minWidth: 208, maxWidth: 208, maxLimitedBy: "chat" });
+  assert.equal(clampRightPanelWidth(360, 900, true), 208);
+  assert.equal(shouldCollapseSidebarForRightPanel(971), true);
+  assert.equal(shouldCollapseSidebarForRightPanel(972), false);
 });
 
 test("the collapsed 52px rail still takes room from the right panel", () => {
-  assert.deepEqual(getRightPanelWidthBounds(700, false), { minWidth: 228, maxWidth: 228 });
+  assert.deepEqual(getRightPanelWidthBounds(700, false), { minWidth: 228, maxWidth: 228, maxLimitedBy: "chat" });
   assert.equal(clampRightPanelWidth(360, 700, false), 228);
 });
 
