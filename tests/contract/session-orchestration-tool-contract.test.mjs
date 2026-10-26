@@ -37,7 +37,7 @@ function sessionToolsOf(request) {
   return new Map(tools.map((tool) => [tool.function.name, tool.function]));
 }
 
-test("the system prompt lists all seven session tools so the Agent knows they exist", { timeout: 60_000 }, async () => {
+test("the system prompt lists all nine session tools so the Agent knows they exist", { timeout: 60_000 }, async () => {
   const parent = await host.createUserSession({ cwd: host.workspace("contract-prompt") });
   host.model.script("Say hello", [{ text: "Hello" }]);
   const request = await promptAndCaptureRequest(parent, "Say hello");
@@ -57,7 +57,7 @@ test(
     const request = await promptAndCaptureRequest(parent, "Describe your tools");
     const tools = sessionToolsOf(request);
 
-    assert.deepEqual([...tools.keys()].sort(), [...SESSION_TOOL_NAMES].sort(), "all seven tools are offered");
+    assert.deepEqual([...tools.keys()].sort(), [...SESSION_TOOL_NAMES].sort(), "all nine tools are offered");
     for (const [name, definition] of tools) {
       assert.ok(definition.description?.trim(), `${name} must describe what it does`);
       const properties = definition.parameters?.properties ?? {};
