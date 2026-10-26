@@ -73,7 +73,7 @@ test("Open in Finder in the composer's workspace menu asks the operating-system 
 });
 
 test("Switch project… in the composer's workspace menu brings back the collapsed sidebar with its project tree, and no separate list of spaces appears", async (t) => {
-  const scene = await startNavigation(t);
+  const scene = await startNavigation(t, { openProjects: [navigationPaths.personal, navigationPaths.project] });
   await waitFor(() => historyRows(scene, ...personalRows));
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
@@ -109,7 +109,7 @@ test("cancelling the native directory picker keeps the personal space and its hi
 });
 
 test("another project in the sidebar tree is reached by expanding it and opening one of its conversations, which moves the sidebar to that project", async (t) => {
-  const scene = await startNavigation(t);
+  const scene = await startNavigation(t, { openProjects: [navigationPaths.personal, navigationPaths.project] });
   await waitFor(() => historyRows(scene, ...personalRows));
   await click(control(scene.history(), "button", "navigation-project"));
   await click(await waitFor(() => control(scene.history(), "button", "Project release notes")));

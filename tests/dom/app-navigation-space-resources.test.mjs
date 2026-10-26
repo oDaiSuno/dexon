@@ -38,7 +38,7 @@ test("cancelling the native directory picker keeps the current resource page and
 });
 
 test("opening another project's conversation from the sidebar tree while on Resources rescopes plugins to that project", async (t) => {
-  const scene = await startNavigation(t);
+  const scene = await startNavigation(t, { openProjects: [navigationPaths.personal, navigationPaths.project] });
   await scene.resources();
   await click(control(scene.navigation(), "button", "navigation-project"));
   await click(await waitFor(() => control(scene.navigation(), "button", "Project release notes")));

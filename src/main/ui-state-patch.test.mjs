@@ -94,3 +94,34 @@ test("renderer UI state accepts session collaboration settings only inside the d
     );
   }
 });
+
+test("renderer UI state accepts openProjects only as a list of distinct absolute folders", () => {
+  const first = path.join(tmpdir(), "tester", ".dexon");
+  const second = path.join(tmpdir(), "work", "project");
+  assert.deepEqual(validateDesktopUiStatePatch({ openProjects: [first, second] }), {
+    openProjects: [first, second],
+  });
+  assert.deepEqual(validateDesktopUiStatePatch({ openProjects: [] }), { openProjects: [] });
+
+  for (const bad of [
+    null,
+    "not-a-list",
+    {},
+    [42],
+    ["relative/path"],
+    [`${first}\0`],
+    [`${first}\n`],
+    [`/${"a".repeat(4096)}`],
+    [first, first],
+  ]) {
+    assert.throws(() => validateDesktopUiStatePatch({ openProjects: bad }), /Open projects/);
+  }
+});
+
+test("renderer UI state rejects an openProjects list longer than 200 folders", () => {
+  const folders = Array.from({ length: 201 }, (_, index) => path.join(tmpdir(), `project-${index}`));
+  assert.throws(() => validateDesktopUiStatePatch({ openProjects: folders }), /Open projects/);
+  assert.deepEqual(validateDesktopUiStatePatch({ openProjects: folders.slice(0, 200) }), {
+    openProjects: folders.slice(0, 200),
+  });
+});

@@ -475,6 +475,7 @@ export function navigationBoundary({
     },
     restoreFolder(folder) {
       missingFolders.delete(folder);
+      existingFolders.add(folder);
     },
     hold(method, matches = () => true) {
       const entry = { method, matches, reached: false, released: createDeferred() };
