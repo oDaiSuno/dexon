@@ -33,7 +33,7 @@ test("cancelling the native directory picker keeps the current resource page and
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
   await expectScope(scene, "npm:personal-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   control(scene.container, "heading", "Plugins & Skills");
 });
 
@@ -51,7 +51,7 @@ test("returning from a project to personal space restores personal resources whi
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await scene.resources();
   await expectScope(scene, "npm:project-navigation-plugin");
-  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
+  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to default space"));
   await expectScope(scene, "npm:personal-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
   await click(control(scene.container, "tab", "Skills"));
   await waitFor(() => visibleText(scene.resourcePanel(), "personal-checklist"));

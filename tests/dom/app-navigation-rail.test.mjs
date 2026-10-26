@@ -46,7 +46,7 @@ test("New session on the rail replaces the open conversation and expansion resto
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
   await click(control(scene.navigation(), "button", "Show sidebar"));
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
   assert.equal(roles(history, "listitem").length, 2);
   assert.deepEqual(currentPages(scene), [], "an empty session is the current page nowhere in the navigation");

@@ -57,9 +57,9 @@ function useClipboard(t, writeText) {
   });
 }
 
-test("in personal space the composer footer is named “Workspace: Personal space”, shows no branch, and its menu shows the home-relative path", async (t) => {
+test("in personal space the composer footer is named “Workspace: Default space”, shows no branch, and its menu shows the home-relative path", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  const trigger = await footerTrigger(scene, "Workspace: Personal space");
+  const trigger = await footerTrigger(scene, "Workspace: Default space");
   assert.doesNotMatch(trigger.textContent, /main|review/);
   await click(trigger);
   await waitFor(() => assert.ok(textBlocks(scene.container).includes("~/.dexon")));

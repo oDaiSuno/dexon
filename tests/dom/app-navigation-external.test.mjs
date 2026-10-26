@@ -50,7 +50,7 @@ test("a session link in the current space displays that conversation", async (t)
   await act(async () => scene.external.deepLink("personal-other"));
   await waitFor(() => visibleText(scene.container, "Other conversation marker"));
   assert.equal(dom.window.location.search, "?session=personal-other");
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });
 

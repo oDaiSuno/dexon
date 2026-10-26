@@ -91,7 +91,7 @@ test("deleting the open conversation removes it from history and leaves an empty
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
   assert.equal(dom.window.location.search, "");
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
 });
 
 test("a conversation the Host reports as running is marked as running in the production history", async (t) => {

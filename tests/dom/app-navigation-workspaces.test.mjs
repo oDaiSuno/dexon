@@ -43,16 +43,16 @@ function worktreeSwitcher(scene) {
 
 test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the two space actions", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   const menu = await scene.menu();
   const blocks = textBlocks(menu);
   assert.ok(blocks.includes("Current project"), "the card labels the current project group");
-  assert.ok(blocks.includes("Personal space"), "the card names the current project");
+  assert.ok(blocks.includes("Default space"), "the card names the current project");
   assert.ok(blocks.includes("~"), "the personal folder lives in the home folder, shown as ~");
   assert.ok(!menu.textContent.includes(navigationPaths.home), "the card does not spell out the home folder");
   assert.deepEqual(
     roles(menu, "menuitem").map((item) => accessibleName(item)),
-    ["Add project space from folder…", "Back to personal space"],
+    ["Add project space from folder…", "Back to default space"],
   );
   await keyDown(menu, "Escape");
   await waitFor(() => assert.equal(roles(scene.navigation(), "menu").length, 0));
@@ -62,7 +62,7 @@ test("the production sidebar shows a friendly personal-space name without a resi
 });
 
 function composerWorkspaceButton(scene) {
-  return waitFor(() => control(scene.container, "button", "Workspace: Personal space"));
+  return waitFor(() => control(scene.container, "button", "Workspace: Default space"));
 }
 
 test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
@@ -102,7 +102,7 @@ test("cancelling the native directory picker keeps the personal space and its hi
   await click(control(await scene.menu(), "menuitem", "Add project space from folder…"));
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   historyRows(scene, ...personalRows);
   noHistoryRows(scene, ...projectRows);
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
@@ -132,10 +132,10 @@ test("a space chosen from the sidebar is still the current space after reloading
 test("returning from a project to personal space restores the personal history", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
-  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
+  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to default space"));
   await waitFor(() => historyRows(scene, ...personalRows));
   noHistoryRows(scene, ...projectRows);
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });
 
@@ -241,9 +241,9 @@ test("an unavailable remembered space shows its reason and is not silently repla
   await scene.settled();
   for (const title of [...personalRows, ...projectRows])
     assert.equal(roles(scene.navigation(), "button", title).length, 0, `${title} is not shown`);
-  await click(control(await scene.menu("removed-project"), "menuitem", "Back to personal space"));
+  await click(control(await scene.menu("removed-project"), "menuitem", "Back to default space"));
   await waitFor(() => historyRows(scene, ...personalRows));
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   assert.ok(!textBlocks(scene.container).some((block) => block.includes(removedSpaceReason)));
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });
@@ -254,7 +254,7 @@ test("a personal folder that cannot be prepared shows its reason and Retry prepa
   await scene.settled();
   await click(control(scene.container, "button", "Retry"));
   await waitFor(() => historyRows(scene, ...personalRows));
-  control(scene.workspace(), "button", "Personal space");
+  control(scene.workspace(), "button", "Default space");
   assert.ok(!textBlocks(scene.container).some((block) => block.includes(personalPrepareReason)));
   assert.equal(await scene.currentFolder(), navigationPaths.personal);
 });

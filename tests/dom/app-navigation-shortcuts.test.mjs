@@ -42,7 +42,7 @@ test("the desktop Switch Project command (⌘P) expands a collapsed sidebar and 
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
   await act(async () => scene.external.menu("open-project-switcher"));
-  const card = await waitFor(() => control(dom.window.document.body, "menu", "Personal space"));
+  const card = await waitFor(() => control(dom.window.document.body, "menu", "Default space"));
   control(card, "menuitem", ADD_FROM_FOLDER);
   control(scene.navigation(), "button", "Hide sidebar");
 });

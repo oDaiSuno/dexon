@@ -83,7 +83,7 @@ function highlighted() {
   return accessibleName(element);
 }
 
-const MENU_ITEMS = ["Add project space from folder…", "Back to personal space"];
+const MENU_ITEMS = ["Add project space from folder…", "Back to default space"];
 
 function querySelector(container, selector) {
   return container.querySelector(selector);
@@ -237,7 +237,7 @@ test("Enter opens the highlighted action, closes the card and gives focus back t
     await root.render(createElement(NavSpaceMenu, props));
     const trigger = await openMenu(root);
     await keyDown(searchBox(), "ArrowUp");
-    assert.equal(highlighted(), "Back to personal space");
+    assert.equal(highlighted(), "Back to default space");
     await keyDown(searchBox(), "Enter");
     assert.equal(calls.back, 1, "Enter runs the highlighted action once");
     assert.equal(calls.chooseFolder, 0, "no other action runs");

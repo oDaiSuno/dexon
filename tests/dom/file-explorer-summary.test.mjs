@@ -122,7 +122,7 @@ test("when the project watcher fails, the top row says the panel is static inste
 test("the personal space is named as such, shows its own location, and says it is not a Git repository", async (t) => {
   const { view } = await explorer(t, { cwd: PERSONAL }, { git: NOT_GIT });
   await loaded(view);
-  assert.ok(text(view.container, "个人空间"));
+  assert.ok(text(view.container, "默认空间"));
   assert.ok(text(view.container, "~/Documents/Dexon"));
   assert.ok(text(view.container, "不是 Git 仓库"));
   assert.ok(text(view.container, "只显示文件"));
