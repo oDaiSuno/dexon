@@ -8,6 +8,8 @@ export const navigationPaths = {
   worktree: "/work/navigation-project-review",
   createdWorktree: "/work/navigation-project-release",
   removed: "/work/removed-project",
+  terminalOnly: "/work/terminal-only-project",
+  empty: "/work/empty-project",
 };
 export const removedSpaceReason = "Fixture folder was removed from this computer";
 export const personalPrepareReason = "Fixture could not create the personal folder";
@@ -23,6 +25,11 @@ export const navigationLabels = {
     filePanel: "Show file panel",
     personal: "Default space",
     history: "Project spaces",
+    moveUp: "Move up",
+    moveDown: "Move down",
+    closeProject: "Close project",
+    missingFolder: "Folder not found",
+    missingFolderNote: "This folder was moved or deleted. Its sessions are kept.",
     spaceActions: "Actions for {name}",
     newSession: "New session",
     attach: "Add images or local file references",
@@ -39,6 +46,11 @@ export const navigationLabels = {
     filePanel: "显示文件面板",
     personal: "默认空间",
     history: "项目空间",
+    moveUp: "上移",
+    moveDown: "下移",
+    closeProject: "关闭项目",
+    missingFolder: "找不到文件夹",
+    missingFolderNote: "文件夹已被移动或删除，会话记录仍然保留。",
     spaceActions: "{name} 的项目操作",
     newSession: "新建会话",
     attach: "添加图片或本地文件引用",
@@ -91,6 +103,18 @@ export function navigationConversations() {
       navigationPaths.worktree,
       "Review conversation marker",
       navigationPaths.project,
+    ),
+    conversation(
+      "terminal-only-history",
+      "Terminal only notes",
+      navigationPaths.terminalOnly,
+      "Terminal only conversation marker",
+    ),
+    conversation(
+      "removed-history",
+      "Removed project notes",
+      navigationPaths.removed,
+      "Removed project conversation marker",
     ),
   ];
 }
@@ -220,5 +244,7 @@ export function navigationResources() {
       },
     ],
     [navigationPaths.createdWorktree, { packages: [sharedPlugin], skills: [sharedSkill] }],
+    [navigationPaths.terminalOnly, { packages: [sharedPlugin], skills: [sharedSkill] }],
+    [navigationPaths.empty, { packages: [sharedPlugin], skills: [sharedSkill] }],
   ]);
 }
