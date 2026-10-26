@@ -53,6 +53,7 @@ function repository(name) {
   const repo = path.join(base, name);
   mkdirSync(repo, { recursive: true });
   execFileSync("git", ["init", "-q", "-b", "main", repo]);
+  execFileSync("git", ["-C", repo, "config", "core.autocrlf", "false"]);
   return repo;
 }
 
