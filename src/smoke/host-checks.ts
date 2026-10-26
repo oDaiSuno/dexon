@@ -258,6 +258,16 @@ export async function runSmokeHostChecks(
               const root = document.getElementById("root");
               if (window.piBridge && root && root.childElementCount > 0) {
                 const findButton = (text) => Array.from(document.querySelectorAll("button")).find((button) => button.textContent?.trim() === text);
+                const findLabeledButton = (...labels) => Array.from(document.querySelectorAll("button")).find((button) => labels.includes(button.getAttribute("aria-label") || ""));
+                const waitForElement = async (find, failure) => {
+                  const elementDeadline = Date.now() + 3000;
+                  while (Date.now() < elementDeadline) {
+                    const element = find();
+                    if (element) return element;
+                    await new Promise((wait) => setTimeout(wait, 25));
+                  }
+                  throw new Error(failure);
+                };
                 const settingsButton = document.querySelector('button[title="Settings"],button[title="设置"]');
                 if (!settingsButton) {
                   if (Date.now() >= deadline) throw new Error("Settings button is unavailable");
@@ -266,21 +276,18 @@ export async function runSmokeHostChecks(
                 }
                 settingsButton.click();
                 const settingsDeadline = Date.now() + 3000;
-                let channelsButton;
                 let chatFontSizeSelect;
                 let chatLayoutSelect;
-                while ((!channelsButton || !chatFontSizeSelect || !chatLayoutSelect) && Date.now() < settingsDeadline) {
-                  channelsButton = findButton("Channels") || findButton("消息渠道");
+                while ((!chatFontSizeSelect || !chatLayoutSelect) && Date.now() < settingsDeadline) {
                   const labels = Array.from(document.querySelectorAll("label"));
                   const fontLabel = labels.find((label) => ["Chat text size", "聊天字号"].includes(label.textContent?.trim() || ""));
                   const layoutLabel = labels.find((label) => ["Conversation width", "对话宽度"].includes(label.textContent?.trim() || ""));
                   chatFontSizeSelect = fontLabel?.htmlFor ? document.getElementById(fontLabel.htmlFor) : undefined;
                   chatLayoutSelect = layoutLabel?.htmlFor ? document.getElementById(layoutLabel.htmlFor) : undefined;
-                  if (!channelsButton || !chatFontSizeSelect || !chatLayoutSelect) {
+                  if (!chatFontSizeSelect || !chatLayoutSelect) {
                     await new Promise((wait) => setTimeout(wait, 25));
                   }
                 }
-                if (!channelsButton) throw new Error("Channels settings tab is unavailable");
                 if (!(chatFontSizeSelect instanceof HTMLSelectElement) || !(chatLayoutSelect instanceof HTMLSelectElement)) {
                   throw new Error("Chat appearance settings are unavailable or unlabeled");
                 }
@@ -373,7 +380,9 @@ export async function runSmokeHostChecks(
                 await waitForAppearance("standard", "wide");
                 changeSelect(chatLayoutSelect, "fixed");
                 await waitForAppearance("standard", "fixed");
-                channelsButton.click();
+                (await waitForElement(() => findLabeledButton("Plugins & Skills", "插件与技能"), "Plugins & Skills navigation is unavailable")).click();
+                (await waitForElement(() => findLabeledButton("Remote chat", "远程对话"), "Remote chat entry is unavailable")).click();
+                (await waitForElement(() => findButton("Add chat app") || findButton("接入新应用"), "Remote chat app menu is unavailable")).click();
                 const channelDeadline = Date.now() + 3000;
                 let weixinConnectButton;
                 let telegramConnectButton;
