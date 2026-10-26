@@ -6,17 +6,26 @@ export function projectList(scene) {
   return control(scene.history(), "list", scene.labels.history);
 }
 
-export function projectItems(scene) {
-  const list = projectList(scene);
+function ownItems(list) {
   return roles(list, "listitem").filter((item) => item.parentElement?.closest('[role="list"]') === list);
 }
 
+function projectName(item) {
+  const toggles = roles(item, "button").filter((button) => button.hasAttribute("aria-expanded"));
+  assert.ok(toggles.length > 0, "every project row can be expanded or collapsed");
+  return accessibleName(toggles[0]);
+}
+
+export function projectItems(scene) {
+  return ownItems(projectList(scene));
+}
+
 export function projectOrder(scene) {
-  return projectItems(scene).map(accessibleName);
+  return projectItems(scene).map(projectName);
 }
 
 export function projectItem(scene, name) {
-  const matches = projectItems(scene).filter((item) => accessibleName(item) === name);
+  const matches = projectItems(scene).filter((item) => projectName(item) === name);
   assert.equal(matches.length, 1, `Expected one project named ${name}; found ${matches.length}`);
   return matches[0];
 }
@@ -39,8 +48,4 @@ export function enabledAction(menu, name) {
 export function unavailableAction(menu, name) {
   const matches = roles(menu, "menuitem", name);
   assert.ok(matches.every(disabled), `${name} is absent or cannot be used`);
-}
-
-export function absentAction(menu, name) {
-  assert.equal(roles(menu, "menuitem", name).length, 0, `${name} is not offered`);
 }
