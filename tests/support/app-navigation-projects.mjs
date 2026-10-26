@@ -11,7 +11,9 @@ function ownItems(list) {
 }
 
 function projectName(item) {
-  const toggles = roles(item, "button").filter((button) => button.hasAttribute("aria-expanded"));
+  const toggles = roles(item, "button").filter(
+    (button) => button.hasAttribute("aria-expanded") && !button.hasAttribute("aria-haspopup"),
+  );
   assert.ok(toggles.length > 0, "every project row can be expanded or collapsed");
   return accessibleName(toggles[0]);
 }
