@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listSessions } from "@/lib/api-client";
 import { beginSessionLoadTrace } from "@/lib/session-performance";
 import { readSessionIdFromSearch, routerCompat } from "@/lib/router-compat";
-import { getSessionCatalog } from "@/lib/session-catalog";
+import { getSessionCatalog, useSessionCatalog } from "@/lib/session-catalog";
 import { subscribeOpenSessionRequests } from "@/lib/session-open-request";
 import { requestSessionSearchFocus } from "@/lib/session-search-focus";
 import { worktreePathsEqual } from "@shared/worktree-path";
@@ -30,7 +30,12 @@ export function useWorkspaceNavigation({
   onShowChat?: () => void;
 }) {
   const router = routerCompat;
-  const [selectedSession, setSelectedSession] = useState<SessionInfo | null>(null);
+  const catalog = useSessionCatalog();
+  const [openedSession, setOpenedSession] = useState<SessionInfo | null>(null);
+  const selectedSession = useMemo(
+    () => (openedSession && catalog.find((session) => session.id === openedSession.id)) ?? openedSession,
+    [catalog, openedSession],
+  );
   // When user clicks +, we only store the cwd — no fake session id
   const [newSessionCwd, setNewSessionCwd] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -51,7 +56,7 @@ export function useWorkspaceNavigation({
           if (!found) return;
           onShowChat?.();
           setNewSessionCwd(null);
-          setSelectedSession(found as SessionInfo);
+          setOpenedSession(found as SessionInfo);
           setSessionKey((k) => k + 1);
           setRefreshKey((k) => k + 1);
           router.replace(`?session=${encodeURIComponent(sessionId)}`);
@@ -71,7 +76,7 @@ export function useWorkspaceNavigation({
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
       if (!activeCwd) return;
       onShowChat?.();
-      setSelectedSession(null);
+      setOpenedSession(null);
       setNewSessionCwd(activeCwd);
       setSessionKey((k) => k + 1);
       router.replace("/", { scroll: false });
@@ -109,7 +114,7 @@ export function useWorkspaceNavigation({
       }
       // Close any session that belongs to a different project — it no longer
       // matches the selected project directory.
-      setSelectedSession(null);
+      setOpenedSession(null);
       setNewSessionCwd((prev) => {
         if (prev && prev !== cwd) return null;
         return prev;
@@ -130,7 +135,7 @@ export function useWorkspaceNavigation({
       }
       beginSessionLoadTrace(session.id, isRestore ? "restore" : "selection");
       setNewSessionCwd(null);
-      setSelectedSession(session);
+      setOpenedSession(session);
       setSessionKey((k) => k + 1);
       setInitialSessionRestored(true);
       // On mobile, collapse the overlay drawer so the chat is revealed after pick.
@@ -152,7 +157,7 @@ export function useWorkspaceNavigation({
   const handleNewSession = useCallback(
     (_sessionId: string, cwd: string) => {
       onShowChat?.();
-      setSelectedSession(null);
+      setOpenedSession(null);
       setNewSessionCwd(cwd);
       setSessionKey((k) => k + 1);
       onTopPanelDismiss();
@@ -171,7 +176,7 @@ export function useWorkspaceNavigation({
       .then((d) => {
         const full = d.sessions.find((s) => s.id === sessionId);
         if (!full) return;
-        setSelectedSession((prev) => (prev && prev.id === sessionId && !prev.projectRoot ? full : prev));
+        setOpenedSession((prev) => (prev && prev.id === sessionId && !prev.projectRoot ? full : prev));
       })
       .catch(() => {});
   }, []);
@@ -180,7 +185,7 @@ export function useWorkspaceNavigation({
   const handleSessionCreated = useCallback(
     (session: SessionInfo) => {
       setNewSessionCwd(null);
-      setSelectedSession(session);
+      setOpenedSession(session);
       setRefreshKey((k) => k + 1);
       hydrateSelectedSession(session.id);
       router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
@@ -193,7 +198,7 @@ export function useWorkspaceNavigation({
       setRefreshKey((k) => k + 1);
       setSessionKey((k) => k + 1);
       setNewSessionCwd(null);
-      setSelectedSession((prev) => ({
+      setOpenedSession((prev) => ({
         ...(prev ?? { path: "", cwd: "", created: "", modified: "", messageCount: 0, firstMessage: "" }),
         id: newSessionId,
       }));
@@ -209,7 +214,7 @@ export function useWorkspaceNavigation({
       setRefreshKey((k) => k + 1);
       if (selectedSession?.id === sessionId) {
         const cwd = selectedSession.cwd;
-        setSelectedSession(null);
+        setOpenedSession(null);
         setNewSessionCwd(cwd ?? null);
         setSessionKey((k) => k + 1);
         onTopPanelDismiss();

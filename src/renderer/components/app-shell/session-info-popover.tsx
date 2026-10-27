@@ -165,7 +165,7 @@ export function SessionInfoPopover({
   return (
     <>
       <IdentitySection
-        name={sessionStats?.sessionName ?? selectedSession?.name}
+        name={selectedSession ? selectedSession.name : sessionStats?.sessionName}
         file={sessionStats?.sessionFile ?? selectedSession?.path}
         id={sessionStats?.sessionId ?? selectedSession?.id ?? ""}
         copyFeedback={copyFeedback}
