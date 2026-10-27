@@ -25,7 +25,7 @@ const { ChatWindow, ThinkingExpansionStore, resetRpc } = await loadRenderer(
 after(restoreGlobals);
 
 const FOLLOWING = dom.window.Node.DOCUMENT_POSITION_FOLLOWING;
-const NEW_SESSION = /New session/;
+const BRANCH = /^Branch from here$/;
 
 const nameOf = (element) => accessibleName(element) || element.getAttribute("title") || "";
 
@@ -53,12 +53,12 @@ function controlsNamed(controls, pattern) {
   return controls.filter((node) => pattern.test(nameOf(node)));
 }
 
-function newSessionControls(root) {
-  return controlsNamed(allByRole(root, "button"), NEW_SESSION);
+function branchControls(root) {
+  return controlsNamed(allByRole(root, "button"), BRANCH);
 }
 
-function answerNewSessionControls(root) {
-  return controlsNamed(answerActions(root), NEW_SESSION);
+function answerBranchControls(root) {
+  return controlsNamed(answerActions(root), BRANCH);
 }
 
 function answerCopyControls(root) {
@@ -125,15 +125,15 @@ function forkCommands(host) {
 
 const answeredFork = () => Promise.resolve({ cancelled: false, newSessionId: "forked-session" });
 
-test("when a conversation holds two answered turns, the reader finds one New session control at the end of each answer", async (t) => {
+test("when a conversation holds two answered turns, the reader finds one Branch from here control at the end of each answer", async (t) => {
   const { view } = await mountConversation(t, twoAnsweredTurns());
   const root = messagesOf(view);
-  const controls = newSessionControls(root);
-  assert.equal(controls.length, 2, "each of the two answered turns offers exactly one New session control");
+  const controls = branchControls(root);
+  assert.equal(controls.length, 2, "each of the two answered turns offers exactly one Branch from here control");
   for (const control of controls) {
     assert.equal(control.tagName, "BUTTON", "the control is a real button");
     assert.equal(control.getAttribute("type"), "button", "the control never submits a form");
-    assert.match(nameOf(control), NEW_SESSION);
+    assert.match(nameOf(control), BRANCH);
     assert.ok(control.classList.contains("message-hover-action"), "the control joins the hover actions of the answer");
   }
   const firstAnswer = onScreen(view, OPENING);
@@ -148,15 +148,15 @@ test("when a conversation holds two answered turns, the reader finds one New ses
   comesBefore(copies[1], controls[1], "the latest turn's control sits beside its copy control");
   assert.equal(isShown(controls[0]), false, "the control stays out of the way until the reader points at the answer");
   await hover(firstAnswer);
-  assert.equal(isShown(controls[0]), true, "pointing at the answer reveals its New session control");
+  assert.equal(isShown(controls[0]), true, "pointing at the answer reveals its Branch from here control");
   controls[0].focus();
   assert.equal(dom.window.document.activeElement, controls[0], "the revealed control takes keyboard focus");
 });
 
-test("when the reader clicks New session on an answer, the app asks for a new session that includes that answer", async (t) => {
+test("when the reader clicks Branch from here on an answer, the app asks for a new session that includes that answer", async (t) => {
   const { view, host, forked } = await mountConversation(t, twoAnsweredTurns(), { answerFork: answeredFork });
-  const [control] = answerNewSessionControls(messagesOf(view));
-  assert.ok(control, "the first answer offers a New session control");
+  const [control] = answerBranchControls(messagesOf(view));
+  assert.ok(control, "the first answer offers a Branch from here control");
   await hover(onScreen(view, OPENING));
   await click(control);
   await settle();
@@ -166,15 +166,15 @@ test("when the reader clicks New session on an answer, the app asks for a new se
   assert.deepEqual(forked, ["forked-session"], "the app is told which new session to open");
 });
 
-test("when a turn answers through several replies around a tool call, the reader finds one New session control after the turn's last sentence", async (t) => {
+test("when a turn answers through several replies around a tool call, the reader finds one Branch from here control after the turn's last sentence", async (t) => {
   const { view, host } = await mountConversation(t, toolThenAnswerTurn(), { answerFork: answeredFork });
   const root = messagesOf(view);
-  const controls = answerNewSessionControls(root);
+  const controls = answerBranchControls(root);
   assert.equal(controls.length, 1, "a turn written in several replies still offers a single control");
   comesBefore(onScreen(view, CONCLUSION), controls[0], "the control follows the closing sentence of the turn");
   const copies = answerCopyControls(root);
   assert.equal(copies.length, 1, "the turn keeps a single copy control in its footer");
-  comesBefore(copies[0], controls[0], "the copy control and New session share the turn's single footer");
+  comesBefore(copies[0], controls[0], "the copy control and Branch from here share the turn's single footer");
   await hover(onScreen(view, CONCLUSION));
   await click(controls[0]);
   await settle();
@@ -183,9 +183,9 @@ test("when a turn answers through several replies around a tool call, the reader
   ]);
 });
 
-test("when a turn ends on a tool result, New session starts the new session at that result so the call keeps its answer", async (t) => {
+test("when a turn ends on a tool result, Branch from here starts the new session at that result so the call keeps its answer", async (t) => {
   const { view, host } = await mountConversation(t, toolEndedTurn(), { answerFork: answeredFork });
-  const [control] = answerNewSessionControls(messagesOf(view));
+  const [control] = answerBranchControls(messagesOf(view));
   assert.ok(control, "a turn that ends on a tool result still offers the control");
   await hover(onScreen(view, OPENING));
   await click(control);
@@ -195,20 +195,20 @@ test("when a turn ends on a tool result, New session starts the new session at t
   ]);
 });
 
-test("when a turn fails without any answer text, the reader finds no New session control to carry that failure away", async (t) => {
+test("when a turn fails without any answer text, the reader finds no Branch from here control to carry that failure away", async (t) => {
   const { view } = await mountConversation(t, failureOnlyTurn());
   const root = messagesOf(view);
-  assert.equal(newSessionControls(root).length, 0, "a failed turn without an answer offers no New session control");
+  assert.equal(branchControls(root).length, 0, "a failed turn without an answer offers no Branch from here control");
   assert.equal(answerCopyControls(root).length, 0, "a failed turn without an answer offers nothing to copy either");
 });
 
-test("when a turn is interrupted before it writes a sentence, the reader finds no New session control on it", async (t) => {
+test("when a turn is interrupted before it writes a sentence, the reader finds no Branch from here control on it", async (t) => {
   const { view } = await mountConversation(t, silentAbortTurn());
   const root = messagesOf(view);
   assert.equal(
-    newSessionControls(root).length,
+    branchControls(root).length,
     0,
-    "an interrupted turn without a sentence offers no New session control",
+    "an interrupted turn without a sentence offers no Branch from here control",
   );
   assert.equal(
     answerCopyControls(root).length,
@@ -217,35 +217,40 @@ test("when a turn is interrupted before it writes a sentence, the reader finds n
   );
 });
 
-test("while the agent is still answering, no answer offers a New session control", async (t) => {
+test("while the agent is still answering, no answer offers a Branch from here control", async (t) => {
   const { view, host } = await mountConversation(t, twoAnsweredTurns());
   assert.equal(
-    newSessionControls(messagesOf(view)).length,
+    branchControls(messagesOf(view)).length,
     2,
     "both finished turns offer the control while the conversation rests",
   );
   await emit(host, { type: "agent_start" });
-  assert.equal(newSessionControls(messagesOf(view)).length, 0, "a running conversation offers no New session control");
+  assert.equal(branchControls(messagesOf(view)).length, 0, "a running conversation offers no Branch from here control");
   await emit(host, { type: "agent_end" });
-  assert.equal(newSessionControls(messagesOf(view)).length, 2, "the control returns once the run has finished");
+  assert.equal(branchControls(messagesOf(view)).length, 2, "the control returns once the run has finished");
 });
 
 test("while the request is being fulfilled, the control reports that it is creating the session and ignores further clicks", async (t) => {
   const answer = createDeferred();
   const { view, host, forked } = await mountConversation(t, twoAnsweredTurns(), { answerFork: () => answer.promise });
-  const [control] = answerNewSessionControls(messagesOf(view));
-  assert.ok(control, "the first answer offers a New session control");
+  const [control] = answerBranchControls(messagesOf(view));
+  assert.ok(control, "the first answer offers a Branch from here control");
   await hover(onScreen(view, OPENING));
   await click(control);
   await settle();
-  assert.equal(nameOf(control), "Creating…", "the control says the new session is being created");
+  assert.equal(nameOf(control), "Creating new session…", "the control says the new session is being created");
+  assert.equal(control.textContent.trim(), "", "the control shows no text while creating");
   assert.equal(control.disabled, true, "the control cannot be used again while the request runs");
   control.click();
   await settle();
   assert.equal(forkCommands(host).length, 1, "a second click during the request sends nothing more");
   answer.resolve({ cancelled: false, newSessionId: "forked-session" });
   await settle();
-  assert.equal(nameOf(control), "New session", "the control returns to its usual name once the request is answered");
+  assert.equal(
+    nameOf(control),
+    "Branch from here",
+    "the control returns to its usual name once the request is answered",
+  );
   assert.equal(control.disabled, false, "the control can be used again");
   assert.deepEqual(forked, ["forked-session"]);
 });
@@ -254,30 +259,30 @@ test("when the host declines to start a new session, the app stays where it is",
   const { view, forked } = await mountConversation(t, twoAnsweredTurns(), {
     answerFork: () => Promise.resolve({ cancelled: true }),
   });
-  const [control] = answerNewSessionControls(messagesOf(view));
-  assert.ok(control, "the first answer offers a New session control");
+  const [control] = answerBranchControls(messagesOf(view));
+  assert.ok(control, "the first answer offers a Branch from here control");
   await hover(onScreen(view, OPENING));
   await click(control);
   await settle();
   assert.deepEqual(forked, [], "a declined request switches to no new session");
-  assert.equal(nameOf(control), "New session", "the control returns to its usual name");
+  assert.equal(nameOf(control), "Branch from here", "the control returns to its usual name");
 });
 
-test("when the reader points at a later question, it offers Edit and keeps no New session of its own", async (t) => {
+test("when the reader points at a later question, it offers Edit and keeps no Branch from here of its own", async (t) => {
   const { view } = await mountConversation(t, twoAnsweredTurns());
   const root = messagesOf(view);
   await hover(onScreen(view, FOLLOW_UP_QUESTION));
   const editing = controlsNamed(allByRole(root, "button"), /^Edit$/).filter(isShown);
   assert.equal(editing.length, 1, "the later question offers the one revealed Edit control");
-  assert.equal(newSessionControls(root).length, 2, "only the two answers carry a New session control");
+  assert.equal(branchControls(root).length, 2, "only the two answers carry a Branch from here control");
 });
 
-test("when the reader points at the first question of a conversation, no New session control appears on it", async (t) => {
+test("when the reader points at the first question of a conversation, no Branch from here control appears on it", async (t) => {
   const { view } = await mountConversation(t, toolThenAnswerTurn("answer-new-session-first-question"));
   const root = messagesOf(view);
   await hover(onScreen(view, QUESTION));
-  const controls = newSessionControls(root);
-  assert.equal(controls.length, 1, "the single answer carries the only New session control");
+  const controls = branchControls(root);
+  assert.equal(controls.length, 1, "the single answer carries the only Branch from here control");
   comesBefore(onScreen(view, QUESTION), controls[0], "the control sits after the question, not on it");
   comesBefore(onScreen(view, CONCLUSION), controls[0], "the control follows the answer");
 });
