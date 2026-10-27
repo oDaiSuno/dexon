@@ -305,14 +305,38 @@ export interface RpcErrorShape {
   detail?: unknown;
 }
 
+const RPC_ERROR_TAG: unique symbol = Symbol.for("dexon.rpc-error");
+
 export class RpcError extends Error {
   code: string;
   detail?: unknown;
+  readonly [RPC_ERROR_TAG] = true;
 
   constructor(shape: RpcErrorShape) {
     super(shape.message);
     this.name = "RpcError";
     this.code = shape.code;
     this.detail = shape.detail;
+  }
+}
+
+export function isRpcError(error: unknown): error is RpcError {
+  if (error instanceof RpcError) return true;
+  return typeof error === "object" && error !== null && (error as Record<symbol, unknown>)[RPC_ERROR_TAG] === true;
+}
+
+export interface UnavailableModelRef {
+  provider: string;
+  modelId: string;
+}
+
+export class ModelUnavailableError extends RpcError {
+  constructor(ref: UnavailableModelRef) {
+    super({
+      code: "MODEL_UNAVAILABLE",
+      message: `Model ${ref.provider}/${ref.modelId} is unavailable; switch to another model before sending`,
+      detail: { provider: ref.provider, modelId: ref.modelId },
+    });
+    this.name = "ModelUnavailableError";
   }
 }

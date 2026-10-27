@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { useSessionActivity } from "@/lib/session-catalog";
-import { readSessionToolTarget } from "@shared/session-orchestration";
+import { readSessionToolTarget, readSessionUnavailableModel } from "@shared/session-orchestration";
 import { SessionTargetLink, type SessionCardTarget } from "./session-links";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { sessionLaunchMeta, sessionToolDetail } from "./session-tool-detail";
@@ -37,17 +37,23 @@ export function SessionToolRow({
   const resultText = result ? textOf(result) : null;
   const target = sessionCardTarget(block, result);
   const activity = useSessionActivity(target?.sessionId ?? null);
+  const unavailableModel = readSessionUnavailableModel(result?.details);
   const outcome = resolveSessionOutcome({
     toolName: block.toolName,
     isRunning,
     isError,
     activity,
     reported: reportedSessionStatus(resultText),
+    failed: unavailableModel !== null,
   });
   const elapsed = useElapsedSince(isRunning ? startedAt : undefined);
   const meta = isRunning ? elapsed : duration;
   const failure = isError ? (resultText ?? "").trim() : "";
-  const detail = failure ? firstLine(failure) : sessionToolDetail(block, resultText, t);
+  const detail = failure
+    ? firstLine(failure)
+    : unavailableModel
+      ? unavailableDetail(unavailableModel.modelId, t)
+      : sessionToolDetail(block, resultText, t, result?.details);
   const launchMeta = block.toolName === "session_new" ? sessionLaunchMeta(block, result?.details, t) : "";
 
   return (
@@ -119,6 +125,10 @@ function SessionBrief({ brief, failure, raw, meta }: { brief: string; failure: s
       </div>
     </div>
   );
+}
+
+function unavailableDetail(modelId: string, t: (key: string, fallback: string) => string): string {
+  return t("sessionModelUnavailable", "Model {model} is unavailable").replace("{model}", modelId);
 }
 
 function handsOffTask(toolName: string): boolean {

@@ -21,6 +21,7 @@ import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
 import { QueuedTurns } from "./queued-turns";
 import { RetryOutcomeRecorder } from "./retry-outcome";
+import { SessionModelState } from "./session-model-state";
 import { activateBrowserTools, activateSessionTools } from "./tool-activation";
 import { SessionTurnStatus } from "./turn-status";
 import type {
@@ -64,6 +65,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private _alive = true;
   private requestedToolNames: string[] | undefined;
   private readonly persistToolNames: (sessionId: string, toolNames: string[]) => void;
+  public readonly sessionModel = new SessionModelState();
 
   constructor(
     inner: AgentSessionLike,
@@ -102,6 +104,11 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       this._alive &&
       (this.promptRunning || this.queuedTurnCount > 0 || this.inner.isStreaming || this.inner.isCompacting)
     );
+  }
+
+  recordTurnError(message: string): void {
+    this.turnStatus.fail(message);
+    notifyRunningChange();
   }
 
   start(): void {
@@ -345,6 +352,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         queuedTurns: this.queuedTurns,
         waitForExtensionsBound: () => this.waitForExtensionsBound(),
         emit: (event) => this.emit(event),
+        assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
+        recordTurnError: (message) => this.recordTurnError(message),
         setMessageSource: (source) => {
           this.orchestratedSource = source;
         },
@@ -360,6 +369,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         sessionId: this.sessionId,
         enqueueTurn: (task) => this.enqueueTurn(task),
         emit: (event) => this.emit(event),
+        assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
         beginExternalTurn: (context) => {
           this.externalTurnActive = true;
           this.externalTurnChannel = context.channel;
@@ -444,7 +454,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   async send(command: Record<string, unknown>): Promise<unknown> {
     this.resetIdleTimer();
     if (this.shouldWaitForExtensions(command.type as string)) await this.waitForExtensionsBound();
-    return sendSessionCommand(command, {
+    const result = await sendSessionCommand(command, {
       sessionId: this.sessionId,
       inner: this.inner,
       getInteractiveSnapshot: this.getInteractiveSnapshot.bind(this),
@@ -454,6 +464,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       withFinalRunningNotification: this.withFinalRunningNotification.bind(this),
       promptRunning: this.promptRunning,
       isRunning: () => this.isRunning(),
+      currentModelRef: () => this.sessionModel.current(this.inner),
+      assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
       getExtensionStatuses: this.getExtensionStatuses.bind(this),
       getExtensionWidgets: this.getExtensionWidgets.bind(this),
       dispose: this.dispose.bind(this),
@@ -465,6 +477,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       resolveExtensionUiResponse: this.resolveExtensionUiResponse.bind(this),
       handleExtensionUiInput: this.handleExtensionUiInput.bind(this),
     });
+    if (command.type === "set_model") this.sessionModel.clear();
+    return result;
   }
 
   /**

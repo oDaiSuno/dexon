@@ -31,4 +31,5 @@ export interface OrchestratedTurnOutcome {
   reply?: string;
   error?: string;
   stopped?: boolean;
+  unavailableModel?: { provider: string; modelId: string };
 }

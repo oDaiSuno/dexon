@@ -1,7 +1,9 @@
+import type { UnavailableModelRef } from "../../contract/types";
 import type { AgentSessionLike } from "../../shared/pi-types";
 import type { SessionSourceRef } from "../../shared/session-orchestration";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { SESSION_SOURCE_TYPE } from "../session-entry-compat";
+import { unavailableModelOf } from "./model-gate";
 import { type QueuedTurn, type QueuedTurns } from "./queued-turns";
 import { lastAssistantOutcome } from "./turn-status";
 import type { AgentEvent, OrchestratedTurnOutcome } from "./types";
@@ -12,6 +14,8 @@ export interface OrchestratedTurnHost {
   readonly queuedTurns: QueuedTurns;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   waitForExtensionsBound(): Promise<void>;
+  assertModelUsable(): Promise<void>;
+  recordTurnError(message: string): void;
   emit(event: AgentEvent): void;
   setMessageSource(source: SessionSourceRef | null): void;
 }
@@ -40,6 +44,15 @@ export function runOrchestratedTurn(
   return runQueuedTurn(host, params, turn).finally(turn.release);
 }
 
+function refuseTurn(host: OrchestratedTurnHost, error: unknown): OrchestratedTurnOutcome {
+  const message = error instanceof Error ? error.message : String(error);
+  const unavailableModel: UnavailableModelRef | null = unavailableModelOf(error);
+  host.recordTurnError(message);
+  host.emit({ type: "prompt_error", errorMessage: message });
+  host.emit({ type: "prompt_done" });
+  return { error: message, ...(unavailableModel ? { unavailableModel } : {}) };
+}
+
 function runQueuedTurn(
   host: OrchestratedTurnHost,
   params: { message: string; source?: SessionSourceRef },
@@ -48,6 +61,11 @@ function runQueuedTurn(
   return host.enqueueTurn(async () => {
     if (turn.cancelled()) return { stopped: true };
     await host.waitForExtensionsBound();
+    try {
+      await host.assertModelUsable();
+    } catch (error) {
+      return refuseTurn(host, error);
+    }
     browserAgentRuntime.beginTurn(host.sessionId, "local");
     host.setMessageSource(params.source ?? null);
     try {

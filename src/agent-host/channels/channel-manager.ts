@@ -29,6 +29,7 @@ import { ChannelStateStore } from "./state-store";
 import type { AdapterTurnOutput, ChannelSecret, OutboundAttachment, StagedInboundAttachment } from "./types";
 import { resolveSessionPath } from "../session-reader";
 import { sessionIndex } from "../session-index";
+import { unavailableModelOf } from "../agent-session/model-gate";
 
 type RuntimeEntry = { controller: AbortController; task: Promise<void> };
 type StartingEntry = { controller: AbortController; task: Promise<void> };
@@ -1050,6 +1051,32 @@ export class ChannelManager {
           peerId: envelope.peer.id,
         });
       } catch (error) {
+        const unavailable = unavailableModelOf(error);
+        if (unavailable) {
+          const text = `这个会话用的模型 ${unavailable.modelId} 不可用，请回到 Dexon 换一个模型`;
+          const receipt = progressiveOutput
+            ? await progressiveOutput.finish(text)
+            : await adapter.send({
+                account,
+                secret,
+                peerId: envelope.peer.id,
+                contextToken: envelope.providerContext?.contextToken,
+                threadId: envelope.threadId,
+                replyToMessageId: envelope.providerContext?.replyToMessageId,
+                text,
+                runId: envelope.id,
+              });
+          this.state.addDelivery(receipt);
+          this.emitStatus(account, { lastOutboundAt: Date.now(), lastEventAt: Date.now() });
+          this.addActivity({
+            channel: account.channel,
+            accountId: account.id,
+            direction: "outbound",
+            outcome: "sent",
+            peerId: envelope.peer.id,
+          });
+          return;
+        }
         await progressiveOutput?.cancel().catch(() => undefined);
         const message = safeChannelError(error);
         this.addActivity({

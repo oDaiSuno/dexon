@@ -27,10 +27,17 @@ export function navigationBoundary({
   streamingSessionId = null,
   toolHistory = false,
   browserTabs = [],
+  sessionOverrides = {},
 } = {}) {
   const details = history ? navigationConversations() : [];
   if (history && forks) details.push(forkedConversation());
   if (history && toolHistory) details.push(toolConversation());
+  for (const [sessionId, patch] of Object.entries(sessionOverrides)) {
+    const detail = details.find((item) => item.sessionId === sessionId);
+    if (!detail) throw new Error(`Fixture cannot override unknown session ${sessionId}`);
+    if (patch.model) detail.context.model = structuredClone(patch.model);
+    if (patch.agentState) detail.agentState = structuredClone(patch.agentState);
+  }
   const runningSessions = new Set(runningSessionIds);
   if (streamingSessionId) {
     const detail = details.find((item) => item.sessionId === streamingSessionId);
@@ -56,7 +63,7 @@ export function navigationBoundary({
   const menus = new Map();
   const browserListeners = new Set();
   const deepLinkListeners = new Set();
-  const failures = { skillSave: null, openDirectory: null };
+  const failures = { skillSave: null, openDirectory: null, agentPrompt: null };
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
   const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0, openedFiles: [] };
@@ -165,6 +172,9 @@ export function navigationBoundary({
           return {};
         }
         if (params.command.type === "prompt") {
+          const failure = failures.agentPrompt;
+          if (failure && (!failure.sessionId || failure.sessionId === params.sessionId))
+            throw Object.assign(new Error(failure.message), { code: failure.code, detail: failure.detail });
           prompts.push({ sessionId: params.sessionId, message: params.command.message });
           if (!details.some((item) => item.sessionId === params.sessionId)) {
             const started = startedConversation(params.sessionId, navigationPaths.personal, params.command.message);

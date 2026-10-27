@@ -1,3 +1,4 @@
+import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
   AgentSessionEvent,
   SessionManager,
@@ -130,7 +131,11 @@ export interface AgentSessionLike {
   readonly autoRetryEnabled: boolean;
   readonly model: ModelLike | undefined;
   readonly sessionName: string | undefined;
-  readonly modelRuntime: { getModel: (provider: string, modelId: string) => ModelLike | undefined };
+  readonly modelRuntime: {
+    getModel: (provider: string, modelId: string) => Model<Api> | undefined;
+    getAvailableSnapshot: () => readonly Model<Api>[];
+    refresh: (options?: { allowNetwork?: boolean }) => Promise<unknown>;
+  };
   readonly sessionManager: SessionManager;
   readonly settingsManager: SettingsManager;
   readonly agent: {

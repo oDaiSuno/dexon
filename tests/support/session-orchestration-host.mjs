@@ -20,6 +20,8 @@ export const SESSION_TOOL_NAMES = [
   "session_read",
   "session_stop",
   "session_close",
+  "session_models",
+  "session_set_model",
 ];
 
 export const ENABLED_SETTINGS = Object.freeze({
@@ -137,6 +139,7 @@ export async function startSessionOrchestrationHost({
   name = "session-orchestration",
   settings,
   models = [{ id: heldModel.modelId, reasoning: true }],
+  extraProviders = [],
   retry,
   modules = {},
   extension = null,
@@ -162,38 +165,56 @@ export async function startSessionOrchestrationHost({
   const model = await startHeldModelServer();
   model.configure(agentDirectory, {
     models,
+    extraProviders,
     ...(retry === false || (retry && typeof retry === "object") ? { retry } : {}),
   });
   const mainPort = installMainProcessPort(settings ? { sessionOrchestration: settings } : {});
 
   const requested = { registerHandlers: "./src/agent-host/handlers.ts", ...modules };
-  const module = await importTestBundle(name, {
-    packages: "external",
-    stdin: {
-      contents: Object.entries(requested)
-        .map(([exported, modulePath]) => `export { ${exported} } from ${JSON.stringify(modulePath)};`)
-        .join("\n"),
-      resolveDir: projectRoot,
-      loader: "ts",
-    },
-  });
 
-  const server = createRpcServer();
-  const { port1, port2 } = new MessageChannel();
-  server.attachPort(port1);
-  const client = createRpcClient(port2);
-  const cleanupHost = module.registerHandlers(server);
+  async function boot(label) {
+    const loaded = await importTestBundle(label, {
+      packages: "external",
+      stdin: {
+        contents: Object.entries(requested)
+          .map(([exported, modulePath]) => `export { ${exported} } from ${JSON.stringify(modulePath)};`)
+          .join("\n"),
+        resolveDir: projectRoot,
+        loader: "ts",
+      },
+    });
+    const rpcServer = createRpcServer();
+    const { port1, port2 } = new MessageChannel();
+    rpcServer.attachPort(port1);
+    const rpcClient = createRpcClient(port2);
+    return { loaded, rpcServer, port1, rpcClient, cleanup: loaded.registerHandlers(rpcServer) };
+  }
+
+  let runtime = await boot(name);
+  let restarts = 0;
   let closed = false;
 
-  const listed = async (cwd) => (await client.call("sessions.list", cwd ? { cwd } : undefined)).sessions;
+  async function stopRuntime() {
+    const stopped = runtime;
+    runtime = null;
+    await stopped.cleanup();
+    stopped.rpcClient.close();
+    stopped.rpcServer.detachPort(stopped.port1);
+  }
+
+  const listed = async (cwd) => (await runtime.rpcClient.call("sessions.list", cwd ? { cwd } : undefined)).sessions;
   const sessionRow = async (sessionId) => (await listed()).find((session) => session.id === sessionId);
 
   return {
     base,
-    client,
+    get client() {
+      return runtime.rpcClient;
+    },
+    get module() {
+      return runtime.loaded;
+    },
     model,
     mainPort,
-    module,
     sessions: listed,
     sessionRow,
     workspace(label) {
@@ -203,7 +224,7 @@ export async function startSessionOrchestrationHost({
     },
     async createUserSession({ cwd, provider, modelId, thinkingLevel } = {}) {
       const directory = cwd ?? this.workspace(`user-${Date.now()}`);
-      const result = await client.call("agent.new", {
+      const result = await runtime.rpcClient.call("agent.new", {
         cwd: directory,
         type: "ensure_session",
         ...(provider && modelId ? { provider, modelId } : {}),
@@ -212,13 +233,13 @@ export async function startSessionOrchestrationHost({
       return result.sessionId;
     },
     async prompt(sessionId, message) {
-      await client.call("agent.command", { sessionId, command: { type: "prompt", message } });
+      await runtime.rpcClient.call("agent.command", { sessionId, command: { type: "prompt", message } });
     },
     async command(sessionId, command) {
-      return client.call("agent.command", { sessionId, command });
+      return runtime.rpcClient.call("agent.command", { sessionId, command });
     },
     async tools(sessionId) {
-      return client.call("agent.command", { sessionId, command: { type: "get_tools" } });
+      return runtime.rpcClient.call("agent.command", { sessionId, command: { type: "get_tools" } });
     },
     async activeToolNames(sessionId) {
       return (await this.tools(sessionId))
@@ -227,25 +248,42 @@ export async function startSessionOrchestrationHost({
         .sort();
     },
     async state(sessionId) {
-      return client.call("agent.state", { sessionId });
+      return runtime.rpcClient.call("agent.state", { sessionId });
     },
     async detail(sessionId) {
-      return client.call("sessions.get", { id: sessionId, includeState: true });
+      return runtime.rpcClient.call("sessions.get", { id: sessionId, includeState: true });
     },
     async runningIds() {
-      return (await client.call("sessions.list")).runningSessionIds;
+      return (await runtime.rpcClient.call("sessions.list")).runningSessionIds;
     },
     events(sessionId) {
-      return collectEvents(client, sessionId);
+      return collectEvents(runtime.rpcClient, sessionId);
+    },
+    async writeSession(sessionId, cwd, entries) {
+      await listed();
+      const header = {
+        type: "session",
+        version: 3,
+        id: sessionId,
+        timestamp: new Date(Date.UTC(2026, 7, 6, 9, 0, 0)).toISOString(),
+        cwd,
+      };
+      const filePath = path.join(sessionDirectory, `2026-08-06T09-00-00-000Z_${sessionId}.jsonl`);
+      const lines = [header, ...entries].map((entry) => JSON.stringify(entry));
+      writeFileSync(filePath, `${lines.join("\n")}\n`, "utf8");
+      return filePath;
+    },
+    async restart() {
+      await stopRuntime();
+      restarts += 1;
+      runtime = await boot(`${name}-reopened-${restarts}`);
     },
     async close() {
       if (closed) return;
       closed = true;
       try {
-        await cleanupHost();
+        if (runtime) await stopRuntime();
       } finally {
-        client.close();
-        server.detachPort(port1);
         await model.close();
         mainPort();
         for (const [variable, value] of previous) {

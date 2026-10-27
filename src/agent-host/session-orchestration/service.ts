@@ -27,14 +27,18 @@ import {
   CALLER_ONLY_REFUSAL,
   CROSS_PROJECT_REFUSAL,
   FOREIGN_PROJECT_REFUSAL,
+  modelUnavailableRefusal,
+  MODEL_SWITCH_EMPTY_REFUSAL,
   OWNER_DISABLED_REFUSAL,
   runningLimitRefusal,
   SELF_TARGET_REFUSAL,
+  SESSION_BUSY_REFUSAL,
   SessionOrchestrationError,
   throwIfAborted,
 } from "./errors";
 import {
   clampNumber,
+  isSessionRunning,
   listSessionViews,
   liveStatusOf,
   readSessionView,
@@ -42,11 +46,14 @@ import {
   type SessionReadView,
   type SessionToolView,
 } from "./inspection";
+import { listModelChoices, type SessionModelChoice, usableModelsOf } from "./model-view";
+import { isModelUsable } from "../session-model";
 import { projectRootOf, sameProjectRoot } from "./project-scope";
 import { getSessionOrchestrationSettings } from "./settings";
 import { openSessionWait, waitForSessionOutcome, type SessionWaitResult } from "./waiting";
 
 export type { SessionReadView, SessionToolView } from "./inspection";
+export type { SessionModelChoice } from "./model-view";
 export type { SessionWaitResult, SessionWaitStatus } from "./waiting";
 export { SessionOrchestrationError } from "./errors";
 
@@ -96,13 +103,15 @@ export class SessionOrchestrationService {
     if (!callerProjectRoot || !targetProjectRoot || !sameProjectRoot(callerProjectRoot, targetProjectRoot)) {
       throw new SessionOrchestrationError(CROSS_PROJECT_REFUSAL);
     }
+    const model = input.model ?? settings.model ?? sessionModel(caller);
+    if (model) await assertUsableModel(caller, model);
+    const thinkingLevel = input.thinkingLevel ?? settings.thinkingLevel ?? sessionThinkingLevel(caller);
+    const name = input.name?.trim();
+
     if (this.agentSessionLoad() >= settings.maxRunning) {
       throw new SessionOrchestrationError(runningLimitRefusal(settings.maxRunning));
     }
 
-    const model = input.model ?? settings.model ?? sessionModel(caller);
-    const thinkingLevel = input.thinkingLevel ?? settings.thinkingLevel ?? sessionThinkingLevel(caller);
-    const name = input.name?.trim();
     const launched = await this.launchDelegate(callerId, {
       cwd,
       toolNames: caller.inner.getActiveToolNames(),
@@ -179,13 +188,52 @@ export class SessionOrchestrationService {
   }
 
   async list(callerId: string, input: { limit?: number }): Promise<{ sessions: SessionToolView[] }> {
-    const callerProjectRoot = await projectRootOf(getRpcSession(callerId)?.cwd);
-    return listSessionViews({ callerId, callerProjectRoot, ...input });
+    const caller = getRpcSession(callerId);
+    const callerProjectRoot = await projectRootOf(caller?.cwd);
+    const usable = await usableModelsOf(caller);
+    return listSessionViews({ callerId, callerProjectRoot, usable, ...input });
   }
 
   async read(callerId: string, sessionId: string): Promise<SessionReadView> {
     await this.assertSameProject(callerId, sessionId);
-    return readSessionView(sessionId);
+    return readSessionView(sessionId, await usableModelsOf(getRpcSession(callerId)));
+  }
+
+  async models(callerId: string, input: { provider?: string }): Promise<{ models: SessionModelChoice[] }> {
+    const caller = getRpcSession(callerId);
+    if (!caller?.isAlive()) throw new SessionOrchestrationError("The calling session is no longer available");
+    return listModelChoices(caller, input.provider);
+  }
+
+  async setModel(
+    callerId: string,
+    input: { sessionId: string; model?: SessionModelRef; thinkingLevel?: string },
+  ): Promise<{
+    sessionId: string;
+    previous: { model: SessionModelRef | null; thinkingLevel: string | null };
+    current: { model: SessionModelRef | null; thinkingLevel: string | null };
+  }> {
+    await this.assertSameProject(callerId, input.sessionId);
+    this.requireOwnedSession(callerId, input.sessionId, "given another model");
+    if (!input.model && !input.thinkingLevel) throw new SessionOrchestrationError(MODEL_SWITCH_EMPTY_REFUSAL);
+    if (isSessionRunning(input.sessionId)) throw new SessionOrchestrationError(SESSION_BUSY_REFUSAL);
+    const caller = getRpcSession(callerId);
+    if (input.model) await assertUsableModel(caller, input.model);
+
+    const target = await this.requireLiveSession(input.sessionId);
+    const previous = {
+      model: target.sessionModel.current(target.inner),
+      thinkingLevel: sessionThinkingLevel(target) ?? null,
+    };
+    if (input.model) {
+      await target.send({ type: "set_model", provider: input.model.provider, modelId: input.model.modelId });
+    }
+    if (input.thinkingLevel) await target.send({ type: "set_thinking_level", level: input.thinkingLevel });
+    const current = {
+      model: target.sessionModel.current(target.inner),
+      thinkingLevel: sessionThinkingLevel(target) ?? null,
+    };
+    return { sessionId: input.sessionId, previous, current };
   }
 
   async stop(callerId: string, sessionId: string): Promise<{ sessionId: string; status: SessionLiveStatus | "idle" }> {
@@ -298,6 +346,12 @@ export class SessionOrchestrationService {
     ensureSessionEvents(sessionLauncherServer(), session, sessionId);
     return session;
   }
+}
+
+async function assertUsableModel(caller: AgentSessionWrapper | undefined, model: SessionModelRef): Promise<void> {
+  if (!caller?.isAlive()) throw new SessionOrchestrationError("The calling session is no longer available");
+  if (await isModelUsable(model, caller.inner.modelRuntime, caller.inner.settingsManager)) return;
+  throw new SessionOrchestrationError(modelUnavailableRefusal(model));
 }
 
 function sessionModel(caller: AgentSessionWrapper): SessionModelRef | undefined {

@@ -1,4 +1,4 @@
-import { SESSION_ORCHESTRATION_LIMITS, readSessionLaunch } from "@shared/session-orchestration";
+import { SESSION_ORCHESTRATION_LIMITS, readSessionLaunch, readSessionModelSwitch } from "@shared/session-orchestration";
 import type { ToolCallContent } from "@/lib/types";
 import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 import { isRecord } from "./shared";
@@ -19,7 +19,12 @@ export function sessionLaunchMeta(block: ToolCallContent, details: unknown, t: T
   ]);
 }
 
-export function sessionToolDetail(block: ToolCallContent, resultText: string | null, t: Translate): string {
+export function sessionToolDetail(
+  block: ToolCallContent,
+  resultText: string | null,
+  t: Translate,
+  details?: unknown,
+): string {
   const input = isRecord(block.input) ? block.input : {};
   switch (block.toolName) {
     case "session_new":
@@ -30,6 +35,10 @@ export function sessionToolDetail(block: ToolCallContent, resultText: string | n
       return waitLimitLabel(input.timeoutSeconds, t);
     case "session_list":
       return listSummary(parseResult(resultText), t);
+    case "session_set_model": {
+      const modelSwitch = readSessionModelSwitch(details);
+      return modelSwitch ? `${modelSwitch.from.modelId} → ${modelSwitch.to.modelId}` : "";
+    }
     default:
       return "";
   }

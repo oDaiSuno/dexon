@@ -70,6 +70,23 @@ const model = Type.Optional(
   ),
 );
 
+const switchModel = Type.Optional(
+  Type.Object(
+    {
+      provider: Type.String({ minLength: 1, maxLength: 256, description: "Provider id of the model to switch to" }),
+      modelId: Type.String({ minLength: 1, maxLength: 256, description: "Model id within that provider" }),
+    },
+    { description: "Model the session should run on; omit to keep the model it runs on now" },
+  ),
+);
+
+const switchThinkingLevel = Type.Optional(
+  Type.Union(
+    SESSION_THINKING_LEVELS.map((level) => Type.Literal(level)),
+    { description: "Reasoning effort for the session; omit to keep the level it thinks at now" },
+  ),
+);
+
 function text(value: unknown, details?: SessionToolTargetDetails) {
   return { content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }], details };
 }
@@ -143,6 +160,7 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
               targetSessionId: created.sessionId,
               ...(created.name ? { targetTitle: created.name } : {}),
               launch: created.launch,
+              ...(created.wait?.unavailableModel ? { unavailableModel: created.wait.unavailableModel } : {}),
             },
           );
         } catch (error) {
@@ -174,7 +192,10 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
               status: result.status,
               ...(result.wait ? waitResultPayload(result.wait) : {}),
             },
-            { targetSessionId: result.sessionId },
+            {
+              targetSessionId: result.sessionId,
+              ...(result.wait?.unavailableModel ? { unavailableModel: result.wait.unavailableModel } : {}),
+            },
           );
         } catch (error) {
           return toolError(error);
@@ -254,6 +275,62 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
           const service = getSessionOrchestrationService();
           const result = await service.stop(enter(ctx), input.sessionId);
           return text(result, { targetSessionId: input.sessionId });
+        } catch (error) {
+          return toolError(error);
+        }
+      },
+    }),
+    defineTool({
+      name: "session_models",
+      label: "list the models I may hand out",
+      description:
+        "List the models the user lets a session run on, exactly the list the user's model picker shows, with the thinking levels each model supports. Use it before session_set_model or session_new when the model matters.",
+      promptSnippet: "session_models: list the models a session may run on, with their thinking levels",
+      parameters: Type.Object({
+        provider: Type.Optional(
+          Type.String({
+            minLength: 1,
+            maxLength: 256,
+            description: "Only list the models of this provider; omit to list every model the user enabled",
+          }),
+        ),
+      }),
+      async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        try {
+          const service = getSessionOrchestrationService();
+          return text(await service.models(enter(ctx), input as never));
+        } catch (error) {
+          return toolError(error);
+        }
+      },
+    }),
+    defineTool({
+      name: "session_set_model",
+      label: "switch a session's model",
+      description:
+        "Switch the model or the thinking level of a session this session created. Only sessions this session created can be switched, and the target must be idle. It is the agent's equivalent of the user's model picker: the session keeps the new choice when it is reopened, and the user's Settings default model stays untouched. Prompt the session again afterwards with session_prompt.",
+      promptSnippet: "session_set_model: switch a session this session created to another model or thinking level",
+      parameters: Type.Object({
+        sessionId,
+        model: switchModel,
+        thinkingLevel: switchThinkingLevel,
+      }),
+      async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        try {
+          const service = getSessionOrchestrationService();
+          const result = await service.setModel(enter(ctx), input as never);
+          const modelSwitch =
+            result.previous.model && result.current.model
+              ? {
+                  from: result.previous.model,
+                  to: result.current.model,
+                  thinkingLevel: result.current.thinkingLevel,
+                }
+              : undefined;
+          return text(result, {
+            targetSessionId: result.sessionId,
+            ...(modelSwitch ? { modelSwitch } : {}),
+          });
         } catch (error) {
           return toolError(error);
         }

@@ -3,6 +3,7 @@ import { statSync } from "node:fs";
 import type { HistoryWindow, PagedContextInfo } from "../contract/types";
 import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
+import { chosenSessionModel } from "./session-model";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
 import {
   attachRetryOutcomes,
@@ -85,16 +86,8 @@ function buildEntryPath(entries: SessionEntry[], leafId?: string | null): Sessio
 }
 
 function deriveContextSettings(path: SessionEntry[]): Pick<PagedContextInfo, "thinkingLevel" | "model"> {
-  let thinkingLevel = "off";
-  let model: { provider: string; modelId: string } | null = null;
-  for (const entry of path) {
-    if (entry.type === "thinking_level_change") thinkingLevel = entry.thinkingLevel;
-    else if (entry.type === "model_change") model = { provider: entry.provider, modelId: entry.modelId };
-    else if (entry.type === "message" && entry.message.role === "assistant") {
-      model = { provider: entry.message.provider, modelId: entry.message.model };
-    }
-  }
-  return { thinkingLevel, model };
+  const chosen = chosenSessionModel(path);
+  return { thinkingLevel: chosen.thinkingLevel ?? "off", model: chosen.model };
 }
 
 function groupTurns(messages: ProjectedMessage[]): ProjectedMessage[][] {

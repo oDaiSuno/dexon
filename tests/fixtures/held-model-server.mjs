@@ -35,6 +35,23 @@ function heldStep({ partial, rest }) {
   return { partial, rest, partialSent: createDeferred(), released: createDeferred() };
 }
 
+function providerConfig(baseUrl, models, apiKey) {
+  return {
+    baseUrl,
+    api: "openai-completions",
+    ...(apiKey ? { apiKey } : {}),
+    models: models.map((model) => ({
+      id: model.id,
+      name: `Held fixture model ${model.id}`,
+      reasoning: model.reasoning === true,
+      input: ["text"],
+      contextWindow: 8192,
+      maxTokens: 1024,
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    })),
+  };
+}
+
 export async function startHeldModelServer({ otherReply = "Held fixture title" } = {}) {
   const scripts = [];
   const requests = [];
@@ -174,25 +191,25 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
       resultsWaiter = { count, deferred };
       return deferred.promise.finally(() => clearTimeout(timer));
     },
-    configure(agentDirectory, { models = [{ id: heldModel.modelId, reasoning: false }], retry } = {}) {
+    configure(
+      agentDirectory,
+      { models = [{ id: heldModel.modelId, reasoning: false }], retry, extraProviders = [] } = {},
+    ) {
       writeFileSync(
         path.join(agentDirectory, "models.json"),
         JSON.stringify({
           providers: {
-            [heldModel.provider]: {
-              baseUrl,
-              api: "openai-completions",
-              apiKey: "held-fixture-key",
-              models: models.map((model) => ({
-                id: model.id,
-                name: `Held fixture model ${model.id}`,
-                reasoning: model.reasoning === true,
-                input: ["text"],
-                contextWindow: 8192,
-                maxTokens: 1024,
-                cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-              })),
-            },
+            [heldModel.provider]: providerConfig(baseUrl, models, "held-fixture-key"),
+            ...Object.fromEntries(
+              extraProviders.map((provider) => [
+                provider.provider,
+                providerConfig(
+                  baseUrl,
+                  provider.models,
+                  provider.apiKey === null ? null : (provider.apiKey ?? `${provider.provider}-key`),
+                ),
+              ]),
+            ),
           },
         }),
       );

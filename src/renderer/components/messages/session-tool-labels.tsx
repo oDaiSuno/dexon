@@ -23,6 +23,10 @@ export function sessionToolVerb(toolName: string, t: Translate): string {
       return t("sessionToolStop", "Stop session");
     case "session_close":
       return t("sessionToolClose", "Close session");
+    case "session_models":
+      return t("sessionToolModels", "List models");
+    case "session_set_model":
+      return t("sessionToolSetModel", "Switch model");
     default:
       return toolName;
   }
@@ -79,15 +83,17 @@ export function resolveSessionOutcome({
   isError,
   activity,
   reported,
+  failed,
 }: {
   toolName: string;
   isRunning: boolean;
   isError: boolean;
   activity: SessionActivityStatus | null;
   reported: string | null;
+  failed?: boolean;
 }): SessionToolOutcome {
   if (isRunning) return "running";
-  if (isError) return "failed";
+  if (isError || failed) return "failed";
   const live = activity ? LIVE_OUTCOMES[activity] : undefined;
   if (live) return live;
   if (toolName === "session_stop") return "stopped";

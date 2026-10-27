@@ -1,6 +1,7 @@
 import type { InteractiveReceipt, InteractiveSnapshot } from "../../shared/interactive-tools";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import type { SessionModelRef } from "../../shared/session-orchestration";
 import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
 import type { ExtensionUiResponse, ExtensionWidgetItem } from "../../shared/types";
 import type { SessionEntry } from "../../shared/types";
@@ -26,6 +27,8 @@ export interface SessionCommandContext {
   sessionId: string;
   promptRunning: boolean;
   isRunning(): boolean;
+  currentModelRef(): SessionModelRef | null;
+  assertModelUsable(): Promise<void>;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
   withFinalRunningNotification<T>(operation: () => Promise<T>): Promise<T>;
@@ -119,6 +122,7 @@ export async function sendSessionCommand(
   const type = command.type as string;
   switch (type) {
     case "prompt": {
+      await context.assertModelUsable();
       // Fire and forget — events come via subscribe
       startPromptTurn(context, {
         message: command.message as string,
@@ -135,6 +139,7 @@ export async function sendSessionCommand(
       if (!isUserMessageEntry(entries.find((candidate) => candidate.id === entryId))) {
         throw new Error("Only a question can be edited");
       }
+      await context.assertModelUsable();
       const navigation = createSettlement();
       startPromptTurn(context, {
         message: command.message as string,
@@ -181,7 +186,7 @@ export async function sendSessionCommand(
       return null;
 
     case "get_state": {
-      const model = context.inner.model;
+      const model = context.currentModelRef();
       return {
         sessionId: context.inner.sessionId,
         sessionFile: context.inner.sessionFile ?? "",
@@ -191,7 +196,7 @@ export async function sendSessionCommand(
         isCompacting: context.inner.isCompacting,
         autoCompactionEnabled: context.inner.autoCompactionEnabled,
         autoRetryEnabled: context.inner.autoRetryEnabled,
-        model: model ? { id: model.id, provider: model.provider } : undefined,
+        model: model ? { id: model.modelId, provider: model.provider } : undefined,
         messageCount: 0,
         pendingMessageCount: context.inner.pendingMessageCount,
         queuedMessages: {

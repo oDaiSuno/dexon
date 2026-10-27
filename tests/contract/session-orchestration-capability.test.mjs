@@ -34,7 +34,7 @@ test(
     assert.deepEqual(
       SESSION_TOOL_NAMES.filter((name) => enabled.includes(name)).sort(),
       [...SESSION_TOOL_NAMES].sort(),
-      "all seven session tools become active on a session that was already running",
+      "all nine session tools become active on a session that was already running",
     );
   },
 );

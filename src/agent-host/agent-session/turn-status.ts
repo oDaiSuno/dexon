@@ -33,6 +33,10 @@ export class SessionTurnStatus {
     this.lastError = null;
   }
 
+  fail(message: string): void {
+    this.lastError = message;
+  }
+
   observe(event: OutcomeEvent): void {
     if (event.type !== "message_end") return;
     const outcome = assistantOutcome(event.message);
