@@ -77,17 +77,29 @@ export function toNavigatorTurns(messages: AgentMessage[]): NavigatorTurn[] {
   }
   return turns;
 }
-export function findRetriedFailureIndices(messages: AgentMessage[]): Set<number> {
+export interface TurnFailureClassification {
+  retried: Set<number>;
+  resolved: Set<number>;
+}
+export function classifyTurnFailures(messages: AgentMessage[]): TurnFailureClassification {
   const retried = new Set<number>();
+  const resolved = new Set<number>();
   let laterAssistantInTurn = false;
+  let laterSuccessInTurn = false;
   for (let idx = messages.length - 1; idx >= 0; idx--) {
     const message = messages[idx];
     if (message.role === "user") {
       laterAssistantInTurn = false;
+      laterSuccessInTurn = false;
     } else if (message.role === "assistant") {
-      if (laterAssistantInTurn && isAssistantFailure(message as AssistantMessage)) retried.add(idx);
+      const assistant = message as AssistantMessage;
+      if (isAssistantFailure(assistant)) {
+        if (laterAssistantInTurn) retried.add(idx);
+        if (laterSuccessInTurn) resolved.add(idx);
+      }
       laterAssistantInTurn = true;
+      if (assistant.stopReason !== "error" && assistant.stopReason !== "aborted") laterSuccessInTurn = true;
     }
   }
-  return retried;
+  return { retried, resolved };
 }

@@ -121,6 +121,7 @@ export interface TurnLayoutInput {
   refIndexFor: (messageIndex: number) => number | undefined;
   keyFor: (message: object, entryId: string | undefined, role: MessageRenderRole) => string;
   retriedIndices: ReadonlySet<number>;
+  resolvedIndices: ReadonlySet<number>;
   cache: AssistantBlockCache;
 }
 
@@ -201,7 +202,7 @@ function footerFor(input: TurnLayoutInput, pieces: TurnPiece[], lastAssistantInd
 }
 
 export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
-  const { messages, userIdx, endIdx, entryIds, retriedIndices, cache } = input;
+  const { messages, userIdx, endIdx, entryIds, retriedIndices, resolvedIndices, cache } = input;
   let lastAssistantIndex = -1;
   for (let index = endIdx - 1; index > userIdx; index -= 1) {
     if (messages[index]?.role === "assistant") {
@@ -281,14 +282,16 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
     }
     if (isAssistantFailure(assistant)) {
       flushGroup();
-      pieces.push({
-        kind: "failure",
-        key: input.keyFor(assistant, entryId, "failure"),
-        refIndex: claimRef(index),
-        index,
-        message: failureOnlyMessage(assistant),
-        retried: retriedIndices.has(index),
-      });
+      if (!resolvedIndices.has(index)) {
+        pieces.push({
+          kind: "failure",
+          key: input.keyFor(assistant, entryId, "failure"),
+          refIndex: claimRef(index),
+          index,
+          message: failureOnlyMessage(assistant),
+          retried: retriedIndices.has(index),
+        });
+      }
     }
   }
   flushGroup();
