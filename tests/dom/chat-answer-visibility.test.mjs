@@ -276,15 +276,14 @@ test("when a reply is nothing but a sentence, the reader sees a plain reply with
   assert.equal(collapsedGroups(messagesOf(view)).length, 0, "a plain reply offers no process group to open");
 });
 
-test("when a provider failure lands in the middle of a turn, the reader sees it between the process details and the reply", async (t) => {
+test("when a provider failure in the middle of a turn is later answered, the reader sees the process details and the reply but no failure", async (t) => {
   const { view } = await mountAnswerTurn(t, failedTurn());
   const root = messagesOf(view);
   const opening = onScreen(view, OPENING);
-  const failure = onScreen(view, FAILURE_DETAIL);
   const conclusion = onScreen(view, CONCLUSION);
   const groups = collapsedGroups(root);
   assert.equal(groups.length, 1, "the tool call before the failure waits behind one collapsed group");
   comesBefore(opening, groups[0], "the sentence written before the failure is read before the tool-call group");
-  comesBefore(groups[0], failure, "the failure is reported after the process details of the turn");
-  comesBefore(failure, conclusion, "the failure is reported before the reply that follows it");
+  comesBefore(groups[0], conclusion, "the reply that ends the turn is read after the process details");
+  assert.ok(!text(root, FAILURE_DETAIL), "a failure the turn later answered is not shown");
 });
