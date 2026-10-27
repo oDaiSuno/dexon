@@ -1,19 +1,32 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useRef, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { filterSessionsForQuery, groupSessionsByProject, sessionProjectKey } from "@/lib/session-list";
 import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
 import { ProjectRow } from "./project-row";
+import { useProjectDrag } from "./use-project-drag";
 import type { SwitcherProject } from "./project-switcher-card";
+
+export interface ListedProject {
+  root: string;
+  missing: boolean;
+}
 
 export interface ProjectTreeOptions {
   currentProject: string;
   projectName: (root: string) => string;
   isPinnedProject?: (root: string) => boolean;
-  openProjects?: ReadonlyMap<string, boolean>;
+  listedProjects?: readonly ListedProject[];
+  expandedProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
   onChooseFolder: () => void;
-  renderCurrentActions?: (name: string, revealed: boolean, projects: readonly SwitcherProject[]) => ReactNode;
+  onReorderProjects?: (from: number, to: number) => void;
+  renderProjectActions?: (
+    name: string,
+    revealed: boolean,
+    project: ListedProject,
+    switchTargets: readonly SwitcherProject[],
+  ) => ReactNode;
 }
 
 function PlusGlyph() {
@@ -104,24 +117,51 @@ export function NavHistory({
 } & SessionListHandlers) {
   const { t } = useI18n();
   const [localOpen, setLocalOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const openProjects = tree.openProjects ?? localOpen;
+  const expandedProjects = tree.expandedProjects ?? localOpen;
   const toggleProject =
     tree.onToggleProject ??
     ((key: string, open: boolean) => setLocalOpen((current) => new Map(current).set(key, open)));
+  const listRef = useRef<HTMLDivElement>(null);
+  const drag = useProjectDrag({
+    listRef,
+    onReorder: (from, to) => tree.onReorderProjects?.(from, to),
+  });
 
   const searching = query.trim().length > 0;
   const currentKey = tree.currentProject ? sessionProjectKey(tree.currentProject) : "";
-  const grouped = groupSessionsByProject(sessions, tree.currentProject, tree.isPinnedProject).map((project) => ({
-    ...project,
-    key: sessionProjectKey(project.root),
-  }));
-  const projects = grouped
+  const base = useMemo(() => {
+    const listed = tree.listedProjects;
+    if (!listed) {
+      return groupSessionsByProject(sessions, tree.currentProject, tree.isPinnedProject).map((project) => ({
+        root: project.root,
+        key: sessionProjectKey(project.root),
+        missing: false,
+        sessions: project.sessions,
+      }));
+    }
+    const byProject = new Map<string, SessionInfo[]>();
+    for (const session of sessions) {
+      const root = session.projectRoot ?? session.cwd;
+      if (!root) continue;
+      const key = sessionProjectKey(root);
+      const members = byProject.get(key);
+      if (members) members.push(session);
+      else byProject.set(key, [session]);
+    }
+    return listed.map((project) => {
+      const key = sessionProjectKey(project.root);
+      return { root: project.root, key, missing: project.missing, sessions: byProject.get(key) ?? [] };
+    });
+  }, [sessions, tree.listedProjects, tree.currentProject, tree.isPinnedProject]);
+
+  const projects = base
     .map((project) => ({ ...project, visible: filterSessionsForQuery(project.sessions, query) }))
     .filter((project) => !searching || project.visible.length > 0);
-  const switchTargets = grouped
+  const switchTargets = base
     .filter((project) => project.key !== currentKey)
     .map((project) => ({ root: project.root, name: tree.projectName(project.root) }));
   const nothingMatches = searching && projects.length === 0;
+  const missingLabel = t("missingFolder", "Folder not found");
 
   return (
     <nav
@@ -137,10 +177,15 @@ export function NavHistory({
     >
       <SectionHeader onAdd={tree.onChooseFolder} />
       <SessionListStatus loading={loading} error={error} empty={nothingMatches} hasActiveFilter={searching} />
-      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-        {projects.map((project) => {
+      <div
+        ref={listRef}
+        role="list"
+        aria-label={t("navHistory", "Project spaces")}
+        style={{ display: "flex", flexDirection: "column", gap: 2 }}
+      >
+        {projects.map((project, index) => {
           const current = project.key === currentKey;
-          const open = searching || (openProjects.get(project.key) ?? current);
+          const open = searching || (expandedProjects.get(project.key) ?? current);
           const name = tree.projectName(project.root);
           const count = project.visible.length;
           const row = (
@@ -151,23 +196,20 @@ export function NavHistory({
               countLabel={t("sessionCount", "{count} sessions").replace("{count}", String(count))}
               open={open}
               current={current}
+              missing={project.missing}
+              missingLabel={missingLabel}
+              dragging={drag.draggingIndex === index}
+              onDragStart={
+                tree.onReorderProjects && !searching && index > 0 ? (event) => drag.start(index, event) : undefined
+              }
+              consumeDragClick={drag.consumeClick}
               onToggle={() => toggleProject(project.key, !open)}
               actions={
-                current && tree.renderCurrentActions
-                  ? (revealed) => tree.renderCurrentActions?.(name, revealed, switchTargets)
+                tree.renderProjectActions
+                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project, switchTargets)
                   : undefined
               }
-            />
-          );
-          return (
-            <div key={project.key} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {current ? (
-                <div role="group" aria-label={t("workspaceControls", "Workspace controls")}>
-                  {row}
-                </div>
-              ) : (
-                row
-              )}
+            >
               {open &&
                 (project.visible.length > 0 ? (
                   <ProjectSessionList sessions={project.visible} {...handlers} />
@@ -179,6 +221,16 @@ export function NavHistory({
                     </div>
                   )
                 ))}
+            </ProjectRow>
+          );
+          return (
+            <div
+              key={project.key}
+              role={current ? "group" : undefined}
+              aria-label={current ? t("workspaceControls", "Workspace controls") : undefined}
+              style={{ display: "flex", flexDirection: "column" }}
+            >
+              {row}
             </div>
           );
         })}

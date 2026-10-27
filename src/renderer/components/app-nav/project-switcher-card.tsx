@@ -1,34 +1,26 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { getParentFilePath } from "@shared/file-paths";
 import { GlideHighlight } from "../chat-input/GlideHighlight";
 import { useFolderSuggestion } from "./use-folder-suggestion";
+import { useSwitcherKeyboard } from "./use-switcher-keyboard";
 import {
   ACTION_ROW_HEIGHT,
   ELLIPSIS,
   FOLDER_PATH,
-  HOUSE_PATHS,
   MenuIcon,
   ROW_STYLE,
   SwitcherKeyHints,
+  SwitcherRow,
   SwitcherSearchRow,
   iconBox,
 } from "./project-switcher-parts";
+import { spaceActions } from "./project-switcher-actions";
 
 export interface SwitcherProject {
   root: string;
   name: string;
-}
-
-interface SwitcherRow {
-  key: string;
-  label: string;
-  icon: ReactNode;
-  detail?: string;
-  title?: string;
-  shortcut?: { label: string; aria: string };
-  run: () => void;
 }
 
 function folderIcon(size?: number, strokeWidth?: number) {
@@ -48,6 +40,9 @@ export function ProjectSwitcherCard({
   onOpenFolder,
   onChooseFolder,
   onBackToPersonalSpace,
+  showsCurrentProject = true,
+  onCloseProject,
+  canCloseProject = true,
   onChoose,
 }: {
   spaceName: string;
@@ -58,6 +53,9 @@ export function ProjectSwitcherCard({
   onOpenFolder?: (folder: string) => void;
   onChooseFolder: () => void;
   onBackToPersonalSpace: () => void;
+  showsCurrentProject?: boolean;
+  onCloseProject?: () => void;
+  canCloseProject?: boolean;
   onChoose: (run: () => void) => void;
 }) {
   const { t } = useI18n();
@@ -102,57 +100,49 @@ export function ProjectSwitcherCard({
     }
   }
 
-  const actions: SwitcherRow[] = [
-    {
-      key: "add-folder",
-      label: t("addProjectSpace", "Add project space from folder…"),
-      icon: (
-        <MenuIcon>
-          <path d={FOLDER_PATH} />
-          <path d="M12 11v6" />
-          <path d="M9 14h6" />
-        </MenuIcon>
-      ),
-      shortcut: mac ? { label: "⌘O", aria: "Meta+O" } : { label: "Ctrl O", aria: "Control+O" },
-      run: onChooseFolder,
+  const actions = spaceActions({
+    labels: {
+      add: t("addProjectSpace", "Add project space from folder…"),
+      back: t("backToPersonalSpace", "Back to default space"),
+      close: t("closeProject", "Close project"),
     },
-    {
-      key: "personal-space",
-      label: t("backToPersonalSpace", "Back to personal space"),
-      icon: (
-        <MenuIcon>
-          {HOUSE_PATHS.map((d) => (
-            <path key={d} d={d} />
-          ))}
-        </MenuIcon>
-      ),
-      run: onBackToPersonalSpace,
-    },
-  ];
+    mac,
+    canCloseProject,
+    onChooseFolder,
+    onBackToPersonalSpace,
+    onCloseProject,
+  });
 
   const rows = [...lead, ...actions];
   const active = cursor >= 0 && cursor < rows.length ? cursor : typed !== "" && lead.length > 0 ? 0 : -1;
 
+  const runKey = (key: string): boolean => {
+    if (key === "ArrowDown") {
+      setCursor(active < 0 ? 0 : (active + 1) % rows.length);
+      return true;
+    }
+    if (key === "ArrowUp") {
+      setCursor(active <= 0 ? rows.length - 1 : active - 1);
+      return true;
+    }
+    if (key === "Enter" && active >= 0) {
+      if (rows[active].disabled) {
+        return true;
+      }
+      onChoose(rows[active].run);
+      return true;
+    }
+    return false;
+  };
+
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.nativeEvent.isComposing) return;
-    if (event.key === "ArrowDown") {
-      event.preventDefault();
-      event.stopPropagation();
-      setCursor(active < 0 ? 0 : (active + 1) % rows.length);
-      return;
-    }
-    if (event.key === "ArrowUp") {
-      event.preventDefault();
-      event.stopPropagation();
-      setCursor(active <= 0 ? rows.length - 1 : active - 1);
-      return;
-    }
-    if (event.key === "Enter" && active >= 0) {
-      event.preventDefault();
-      event.stopPropagation();
-      onChoose(rows[active].run);
-    }
+    if (!runKey(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
+
+  useSwitcherKeyboard(runKey);
 
   const row = (entry: SwitcherRow, index: number) => (
     <button
@@ -162,17 +152,21 @@ export function ProjectSwitcherCard({
       role="menuitem"
       tabIndex={-1}
       aria-label={entry.label}
+      aria-disabled={entry.disabled ? true : undefined}
       aria-keyshortcuts={entry.shortcut?.aria}
       title={entry.title}
       className="type-body-default"
       onMouseEnter={() => setCursor(index)}
-      onClick={() => onChoose(entry.run)}
+      onClick={() => {
+        if (entry.disabled) return;
+        onChoose(entry.run);
+      }}
       style={{
         ...ROW_STYLE,
         height: ACTION_ROW_HEIGHT,
         borderRadius: "var(--radius-control)",
-        color: "var(--fx-text-body)",
-        cursor: "pointer",
+        color: entry.disabled ? "var(--fx-text-tertiary)" : "var(--fx-text-body)",
+        cursor: entry.disabled ? "default" : "pointer",
         position: "relative",
         zIndex: 1,
       }}
@@ -223,26 +217,30 @@ export function ProjectSwitcherCard({
 
       {typed === "" ? (
         <>
-          <div style={{ display: "flex", alignItems: "center", padding: "10px 10px 4px 10px", flexShrink: 0 }}>
-            <span className="type-meta-caps" style={{ color: "var(--fx-text-tertiary)" }}>
-              {t("currentProjectGroup", "Current project")}
-            </span>
-          </div>
+          {showsCurrentProject && (
+            <div style={{ display: "flex", alignItems: "center", padding: "10px 10px 4px 10px", flexShrink: 0 }}>
+              <span className="type-meta-caps" style={{ color: "var(--fx-text-tertiary)" }}>
+                {t("currentProjectGroup", "Current project")}
+              </span>
+            </div>
+          )}
 
-          <div style={{ ...ROW_STYLE, height: 46, borderRadius: "var(--radius-icon-box)" }}>
-            {iconBox(folderIcon(18, 1.5))}
-            <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
-              <span className="type-body-large-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
-                {spaceName}
+          {showsCurrentProject && (
+            <div style={{ ...ROW_STYLE, height: 46, borderRadius: "var(--radius-icon-box)" }}>
+              {iconBox(folderIcon(18, 1.5))}
+              <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
+                <span className="type-body-large-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
+                  {spaceName}
+                </span>
+                <span className="type-mono-meta" style={{ ...ELLIPSIS, color: "var(--fx-text-tertiary)" }}>
+                  {folderPath}
+                </span>
               </span>
-              <span className="type-mono-meta" style={{ ...ELLIPSIS, color: "var(--fx-text-tertiary)" }}>
-                {folderPath}
-              </span>
-            </span>
-            <MenuIcon style={{ flexShrink: 0, color: "var(--fx-accent-blue-text)" }}>
-              <polyline points="20 6 9 17 4 12" />
-            </MenuIcon>
-          </div>
+              <MenuIcon style={{ flexShrink: 0, color: "var(--fx-accent-blue-text)" }}>
+                <polyline points="20 6 9 17 4 12" />
+              </MenuIcon>
+            </div>
+          )}
         </>
       ) : (
         lead.length === 0 && (

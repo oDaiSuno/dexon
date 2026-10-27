@@ -58,7 +58,7 @@ export function useSpaceOwner({
 
   const closeWorktreeMenu = workspace.resetWorktreeDropdownForOutsideClick;
   const projectPath = workspace.selectedProject;
-  const personalLabel = t("personalSpace", "Personal space");
+  const personalLabel = t("personalSpace", "Default space");
   const project = useMemo(
     () =>
       projectPath

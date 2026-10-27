@@ -147,16 +147,21 @@ export function useProjectWorkspace({
   );
 
   /** Desktop-native directory picker (design §6.1). Falls back to path input. */
-  const selectDirectoryFromPicker = useCallback(async (): Promise<WorkspaceSelectResult> => {
-    let dir: string | null | undefined;
-    try {
-      dir = await window.piBridge?.selectDirectory?.();
-    } catch (e) {
-      return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
-    }
-    if (!dir) return { status: "cancelled" };
-    return openDirectory(dir);
-  }, [openDirectory]);
+  const selectDirectoryFromPicker = useCallback(
+    async (onSelected?: (folder: string) => void): Promise<WorkspaceSelectResult> => {
+      let dir: string | null | undefined;
+      try {
+        dir = await window.piBridge?.selectDirectory?.();
+      } catch (e) {
+        return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
+      }
+      if (!dir) return { status: "cancelled" };
+      const result = await openDirectory(dir);
+      if (result.status === "selected") onSelected?.(dir);
+      return result;
+    },
+    [openDirectory],
+  );
 
   const createWorktree = useCallback(async () => {
     const branch = wtNewBranch.trim();

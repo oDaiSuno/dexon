@@ -13,6 +13,7 @@ import { useSessionDirectory } from "../session-sidebar/session-directory";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
+import type { OpenProjects } from "./use-open-projects";
 import type { SettingsTab } from "../SettingsConfig";
 
 export function NavigationSidebar({
@@ -29,6 +30,7 @@ export function NavigationSidebar({
   refreshKey,
   workspace,
   onReturnToPersonalSpace,
+  openProjects,
   shownSessionId,
   onSelectSession,
   onNewSession,
@@ -49,8 +51,9 @@ export function NavigationSidebar({
   refreshKey: number;
   workspace: ProjectWorkspaceState;
   onReturnToPersonalSpace: () => void;
+  openProjects: OpenProjects;
   shownSessionId: string | null;
-  onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
+  onSelectSession: (session: SessionInfo, isRestore?: boolean, keepSpace?: boolean) => void;
   onNewSession: (sessionId: string, cwd: string) => void;
   initialSessionId: string | null;
   onInitialRestoreDone: () => void;
@@ -60,7 +63,7 @@ export function NavigationSidebar({
   const softwareUpdate = useSoftwareUpdate();
   const [mobileReady, setMobileReady] = useState(false);
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [openProjects, setOpenProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [spaceError, setSpaceError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,15 +111,17 @@ export function NavigationSidebar({
   }, []);
 
   const toggleProject = useCallback((key: string, open: boolean) => {
-    setOpenProjects((current) => new Map(current).set(key, open));
+    setExpandedProjects((current) => new Map(current).set(key, open));
   }, []);
 
   const selectSession = useCallback(
     (session: SessionInfo) => {
-      if (session.cwd) setSelectedCwd(session.cwd);
-      onSelectSession(session);
+      const projectRoot = session.projectRoot ?? session.cwd;
+      const readableOnly = openProjects.isMissing(projectRoot);
+      if (session.cwd && !readableOnly) setSelectedCwd(session.cwd);
+      onSelectSession(session, false, readableOnly);
     },
-    [setSelectedCwd, onSelectSession],
+    [openProjects, setSelectedCwd, onSelectSession],
   );
 
   const createSession = useCallback(() => {
@@ -130,12 +135,16 @@ export function NavigationSidebar({
   }, []);
 
   const chooseFolder = useCallback(() => {
-    void selectDirectoryFromPicker().then(reportSpaceResult);
-  }, [selectDirectoryFromPicker, reportSpaceResult]);
+    void selectDirectoryFromPicker((folder) => openProjects.add(folder)).then(reportSpaceResult);
+  }, [selectDirectoryFromPicker, openProjects, reportSpaceResult]);
 
   const openFolder = useCallback(
-    (folder: string) => void openDirectory(folder).then(reportSpaceResult),
-    [openDirectory, reportSpaceResult],
+    (folder: string) =>
+      void openDirectory(folder).then((result) => {
+        if (result.status === "selected") openProjects.add(folder);
+        reportSpaceResult(result);
+      }),
+    [openDirectory, openProjects, reportSpaceResult],
   );
 
   const inspectFolder = useCallback(async (typed: string) => {
@@ -169,7 +178,9 @@ export function NavigationSidebar({
   const spaceName = spacePath && !personal(spacePath) ? spaceFolderName(spacePath) : undefined;
 
   const projectName = (path: string) =>
-    spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Personal space"));
+    spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Default space"));
+
+  const listedProjects = openProjects.projects.map((root) => ({ root, missing: openProjects.isMissing(root) }));
 
   const phase = coordination.spacePhase;
   const notice: SpaceNotice | null =
@@ -177,7 +188,7 @@ export function NavigationSidebar({
       ? {
           message:
             phase.attempted === "personal"
-              ? t("personalSpaceUnavailable", "The personal space couldn't be prepared.")
+              ? t("personalSpaceUnavailable", "The default space couldn't be prepared.")
               : t("spaceUnavailable", "This space can't be opened."),
           reason: phase.reason,
           onRetry: coordination.retry,
@@ -219,8 +230,14 @@ export function NavigationSidebar({
           currentProject={selectedProject ?? spacePath}
           projectName={projectName}
           isPinnedProject={personal}
-          openProjects={openProjects}
+          listedProjects={listedProjects}
+          expandedProjects={expandedProjects}
           onToggleProject={toggleProject}
+          isDefaultProject={personal}
+          canMoveProject={openProjects.canMove}
+          onMoveProject={openProjects.move}
+          onCloseProject={openProjects.close}
+          onReorderProjects={openProjects.reorder}
           loading={directory.loading}
           error={directory.error}
           selectedSessionId={shownSessionId}

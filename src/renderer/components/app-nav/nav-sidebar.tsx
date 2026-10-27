@@ -1,9 +1,11 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
-import { NavSpaceMenu, PanelLeftIcon } from "./nav-space-menu";
-import { NavHistory } from "./nav-history";
+import { sessionProjectKey } from "@/lib/session-list";
+import { PanelLeftIcon } from "./nav-space-menu";
+import { NavHistory, type ListedProject } from "./nav-history";
+import { ProjectRowActions } from "./project-row-actions";
 import { NavTopBar } from "./nav-top-bar";
 import { spaceFolderName } from "@/lib/space-identity";
 import { worktreePathsEqual } from "@shared/worktree-path";
@@ -61,8 +63,14 @@ export function NavSidebar({
   currentProject,
   projectName,
   isPinnedProject,
-  openProjects,
+  listedProjects,
+  expandedProjects,
   onToggleProject,
+  isDefaultProject,
+  canMoveProject,
+  onMoveProject,
+  onCloseProject,
+  onReorderProjects,
 }: {
   expanded: boolean;
   page: NavPage;
@@ -96,11 +104,17 @@ export function NavSidebar({
   currentProject?: string;
   projectName?: (root: string) => string;
   isPinnedProject?: (root: string) => boolean;
-  openProjects?: ReadonlyMap<string, boolean>;
+  listedProjects?: readonly ListedProject[];
+  expandedProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
+  isDefaultProject?: (root: string) => boolean;
+  canMoveProject?: (root: string, offset: -1 | 1) => boolean;
+  onMoveProject?: (root: string, offset: -1 | 1) => void;
+  onCloseProject?: (root: string) => void;
+  onReorderProjects?: (from: number, to: number) => void;
 }) {
   const { t } = useI18n();
-  const spaceName = spaceNameProp ?? t("personalSpace", "Personal space");
+  const spaceName = spaceNameProp ?? t("personalSpace", "Default space");
   const [activeEntry, setActiveEntry] = useState(-1);
   const [query, setQuery] = useState("");
   if (!expanded && query) setQuery("");
@@ -109,6 +123,15 @@ export function NavSidebar({
     projectName ?? ((root: string) => (worktreePathsEqual(root, projectRoot) ? spaceName : spaceFolderName(root)));
   const currentPage = settingsOpen ? null : page;
   const onNewSessionPage = currentPage === "chat" && selectedSessionId === null;
+  const runningProjectKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const session of sessions) {
+      if (!runningSessionIds.has(session.id)) continue;
+      const root = session.projectRoot ?? session.cwd;
+      if (root) keys.add(sessionProjectKey(root));
+    }
+    return keys;
+  }, [sessions, runningSessionIds]);
 
   if (!expanded) {
     return (
@@ -287,16 +310,24 @@ export function NavSidebar({
             currentProject: projectRoot,
             projectName: nameOfProject,
             isPinnedProject,
-            openProjects,
+            listedProjects,
+            expandedProjects,
             onToggleProject,
             onChooseFolder,
-            renderCurrentActions: (name, revealed, projects) => (
-              <NavSpaceMenu
-                spaceName={name}
-                projectPath={spacePath}
-                homeDir={homeDir}
+            onReorderProjects,
+            renderProjectActions: (name, revealed, project, switchTargets) => (
+              <ProjectRowActions
+                name={name}
                 revealed={revealed}
-                projects={projects}
+                project={project}
+                switchTargets={switchTargets}
+                currentProject={projectRoot}
+                homeDir={homeDir}
+                runningProjectKeys={runningProjectKeys}
+                isDefaultProject={isDefaultProject}
+                canMoveProject={canMoveProject}
+                onMoveProject={onMoveProject}
+                onCloseProject={onCloseProject}
                 onOpenFolder={onOpenFolder}
                 inspectFolder={inspectFolder}
                 onChooseFolder={onChooseFolder}

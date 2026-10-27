@@ -9,7 +9,10 @@ const RENDERER_WRITABLE_UI_STATE_FIELDS = new Set([
   "sessionOrchestration",
   "chatAppearance",
   "lastSpaceCwd",
+  "openProjects",
 ]);
+
+const MAX_OPEN_PROJECTS = 200;
 
 export function validateDesktopUiStatePatch(value: unknown): DesktopUiStatePatch {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid UI state patch");
@@ -54,5 +57,28 @@ export function validateDesktopUiStatePatch(value: unknown): DesktopUiStatePatch
     }
     validated.lastSpaceCwd = value;
   }
+  if ("openProjects" in patch) {
+    validated.openProjects = validateOpenProjects(patch.openProjects);
+  }
   return validated;
+}
+
+function validateOpenProjects(value: unknown): string[] {
+  if (!Array.isArray(value)) throw new Error("Open projects must be a list of folders");
+  if (value.length > MAX_OPEN_PROJECTS) throw new Error("Open projects cannot hold more than 200 folders");
+  const seen = new Set<string>();
+  return value.map((entry) => {
+    if (
+      typeof entry !== "string" ||
+      !entry ||
+      entry.length > 4096 ||
+      /[\0\r\n]/.test(entry) ||
+      !path.isAbsolute(entry)
+    ) {
+      throw new Error("Open projects must be absolute folder paths");
+    }
+    if (seen.has(entry)) throw new Error("Open projects must not repeat a folder");
+    seen.add(entry);
+    return entry;
+  });
 }

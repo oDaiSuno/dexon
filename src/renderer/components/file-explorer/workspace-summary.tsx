@@ -63,7 +63,7 @@ function WorkspaceTitle({
 }) {
   const { t } = useI18n();
   const personal = isPersonalSpace(cwd, personalCwd, homeDir);
-  const name = spaceDisplayName(cwd, personalCwd, homeDir, t("personalSpace", "Personal space"));
+  const name = spaceDisplayName(cwd, personalCwd, homeDir, t("personalSpace", "Default space"));
   const location = abbreviateHomePath(personal ? cwd : getParentFilePath(cwd), homeDir);
   return (
     <div className="flex h-[24px] items-center gap-[8px] pr-[4px] pl-[8px]">
