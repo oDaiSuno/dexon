@@ -1,5 +1,5 @@
-import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { useI18n } from "@/i18n";
+import { EditMessageGlyph, MessageActionButton, MessageCopyButton } from "./message-action-button";
 
 function Chevron({ direction }: { direction: "previous" | "next" }) {
   return (
@@ -53,12 +53,9 @@ export function UserMessageFooter({
   onSwitchVersion: (entryId: string) => void;
 }) {
   const { t } = useI18n();
-  const { copied, copy } = useCopyFeedback();
   const previousVersion = versions && versions.index > 0 ? versions.entryIds[versions.index - 1] : undefined;
   const nextVersion =
     versions && versions.index < versions.entryIds.length - 1 ? versions.entryIds[versions.index + 1] : undefined;
-
-  const copyTitle = copyableContent ? t("copyMessage", "Copy message") : t("nothingToCopy", "Nothing to copy");
 
   return (
     <div
@@ -66,7 +63,7 @@ export function UserMessageFooter({
         display: "flex",
         alignItems: "center",
         justifyContent: "flex-end",
-        gap: 4,
+        gap: 2,
         marginTop: 4,
       }}
     >
@@ -80,93 +77,11 @@ export function UserMessageFooter({
           transition: "opacity var(--duration-quick) var(--ease-out)",
         }}
       >
-        <button
-          type="button"
-          onClick={() => void copy(copyableContent)}
-          disabled={!copyableContent}
-          title={copyTitle}
-          aria-label={copyTitle}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 24,
-            height: 24,
-            background: "none",
-            border: "none",
-            borderRadius: "var(--radius-chip)",
-            color: copied ? "var(--fx-status-success-text)" : "var(--fx-text-tertiary)",
-            cursor: copyableContent ? "pointer" : "not-allowed",
-            opacity: copyableContent ? 1 : 0.55,
-            transition: "color var(--duration-quick) var(--ease-out)",
-          }}
-          onMouseEnter={(e) => {
-            if (!copied) e.currentTarget.style.color = "var(--fx-text-secondary)";
-          }}
-          onMouseLeave={(e) => {
-            if (!copied) e.currentTarget.style.color = "var(--fx-text-tertiary)";
-          }}
-        >
-          {copied ? (
-            <svg
-              width="13"
-              height="13"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-          ) : (
-            <svg
-              width="15"
-              height="15"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <rect x="9" y="9" width="12" height="12" rx="2.5" />
-              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-            </svg>
-          )}
-        </button>
+        <MessageCopyButton text={copyableContent} />
         {canEdit && (
-          <button
-            type="button"
-            onClick={onEdit}
-            title={t("editMessage", "Edit")}
-            className="type-meta-default"
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "2px 7px",
-              height: 24,
-              background: "none",
-              border: "none",
-              borderRadius: "var(--radius-chip)",
-              color: "var(--fx-text-tertiary)",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              transition: "color var(--duration-quick) var(--ease-out)",
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = "var(--fx-accent-blue-text)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = "var(--fx-text-tertiary)";
-            }}
-          >
-            {t("editMessage", "Edit")}
-          </button>
+          <MessageActionButton label={t("editMessage", "Edit")} onClick={onEdit}>
+            <EditMessageGlyph />
+          </MessageActionButton>
         )}
       </div>
       {versions && (

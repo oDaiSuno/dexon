@@ -27,3 +27,42 @@
   opacity: 1 !important;
   pointer-events: auto !important;
 }
+
+.message-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-chip);
+  background: var(--fx-surface-hover-clear);
+  color: var(--fx-text-tertiary);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    opacity var(--duration-quick) var(--ease-smooth-out),
+    color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.message-action-button:hover:not(:disabled) {
+  background: var(--fx-surface-hover-overlay);
+}
+
+.message-action-button:disabled {
+  cursor: not-allowed;
+}
+
+.message-action-button[data-busy="true"] {
+  color: var(--fx-accent-blue-text);
+  cursor: progress;
+}
+
+.message-copy-action:disabled {
+  opacity: 0.55;
+}
+
+.message-copy-action-done {
+  color: var(--fx-status-success-text);
+}

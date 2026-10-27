@@ -1,6 +1,7 @@
-import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { useI18n } from "@/i18n";
 import type { AssistantUsage, TurnFooter } from "../chat-window/turn-layout";
-import { NewSessionAction } from "./new-session-action";
+import { ForkSessionGlyph } from "../session-sidebar/session-relation-glyphs";
+import { MessageActionButton, MessageCopyButton } from "./message-action-button";
 import { formatTime } from "./shared";
 
 export function TurnFooterView({
@@ -16,7 +17,7 @@ export function TurnFooterView({
   onFork?: (entryId: string) => void;
   forking?: boolean;
 }) {
-  const { copied, copy } = useCopyFeedback();
+  const { t } = useI18n();
   const time = formatTime(footer.timestamp);
   const copyText = footer.copyText;
   const modelLabel = footer.provider && footer.model ? modelName(footer.provider, footer.model, modelNames) : undefined;
@@ -45,68 +46,23 @@ export function TurnFooterView({
         </div>
       )}
       {(copyText || time) && (
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
-          {copyText && (
-            <button
-              type="button"
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {copyText && <MessageCopyButton text={copyText} className="message-hover-action" revealed={hovered} />}
+          {copyText && onFork && footer.forkEntryId && (
+            <MessageActionButton
               className="message-hover-action"
-              onClick={() => void copy(copyText)}
-              title="Copy message"
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
-                background: "none",
-                border: "none",
-                borderRadius: "var(--radius-chip)",
-                color: copied ? "var(--fx-status-success-text)" : "var(--fx-text-tertiary)",
-                cursor: "pointer",
-                opacity: hovered ? 1 : 0,
-                pointerEvents: hovered ? "auto" : "none",
-                transition:
-                  "opacity var(--duration-quick) var(--ease-out), color var(--duration-quick) var(--ease-out)",
-              }}
-              onMouseEnter={(e) => {
-                if (!copied) e.currentTarget.style.color = "var(--fx-text-secondary)";
-              }}
-              onMouseLeave={(e) => {
-                if (!copied) e.currentTarget.style.color = "var(--fx-text-tertiary)";
+              label={
+                forking ? t("creatingNewSession", "Creating new session…") : t("branchFromHere", "Branch from here")
+              }
+              disabled={forking}
+              busy={forking}
+              revealed={hovered || forking}
+              onClick={() => {
+                if (footer.forkEntryId) onFork?.(footer.forkEntryId);
               }}
             >
-              {copied ? (
-                <svg
-                  width="13"
-                  height="13"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M20 6L9 17l-5-5" />
-                </svg>
-              ) : (
-                <svg
-                  width="15"
-                  height="15"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="9" y="9" width="12" height="12" rx="2.5" />
-                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                </svg>
-              )}
-            </button>
-          )}
-          {copyText && onFork && footer.forkEntryId && (
-            <NewSessionAction entryId={footer.forkEntryId} onFork={onFork} forking={forking} hovered={hovered} />
+              <ForkSessionGlyph size={14} />
+            </MessageActionButton>
           )}
           {time && (
             <span
