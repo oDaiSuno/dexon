@@ -317,3 +317,45 @@ test("in Chinese the list names the default space 默认空间 and its menus rea
   unavailableAction(menu, "上移");
   enabledAction(menu, "关闭项目");
 });
+
+test("a project added by a session link is still listed after going back to the default space and reopening", async (t) => {
+  const scene = await startNavigation(t);
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await act(async () => scene.external.deepLink("terminal-only-history"));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]));
+  await click(control(await scene.menu(TERMINAL), "menuitem", "Back to default space"));
+  await waitFor(async () => assert.equal(await scene.currentFolder(), P.personal));
+  assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]);
+  const reopened = await scene.reload();
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, TERMINAL]));
+});
+
+async function sendFirstMessage(scene) {
+  await click(control(scene.navigation(), "button", scene.labels.newSession));
+  const chat = control(scene.container, "region", "Chat");
+  const composer = await waitFor(() => control(chat, "textbox"));
+  await act(async () => {
+    composer.focus();
+    composer.textContent = "Draft the worktree note";
+    const range = dom.window.document.createRange();
+    range.selectNodeContents(composer);
+    range.collapse(false);
+    dom.window.getSelection().removeAllRanges();
+    dom.window.getSelection().addRange(range);
+    composer.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  await click(control(chat, "button", "Send"));
+  await waitFor(() => assert.equal(scene.external.prompts().length, 1, "the first message reached the Host"));
+}
+
+test("a conversation started in a worktree of a listed project adds no row for that checkout", async (t) => {
+  const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await click(await waitFor(() => control(scene.history(), "button", "Review branch notes")));
+  await waitFor(async () => assert.equal(await scene.currentFolder(), P.worktree));
+  await sendFirstMessage(scene);
+  await scene.settled();
+  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  const reopened = await scene.reload();
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, PROJECT]));
+});

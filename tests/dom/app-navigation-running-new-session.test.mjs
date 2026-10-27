@@ -11,6 +11,7 @@ import {
   waitFor,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { sessionItems } from "../support/app-navigation-projects.mjs";
 import { accessibleName } from "../support/dom-queries.mjs";
 
 after(restoreGlobals);
@@ -123,7 +124,7 @@ test("a new chat that has only an unsent draft does not appear in history and ke
   await waitFor(() => visibleText(chat(scene), "Personal conversation marker"));
   await scene.settled();
   assert.equal(rowsFor(scene, "Unsent draft line").length, 0);
-  assert.equal(roles(scene.history(), "listitem").length, 2);
+  assert.equal(sessionItems(scene).length, 2);
   await click(control(scene.navigation(), "button", scene.labels.newSession));
   await waitFor(() => assert.equal(control(chat(scene), "textbox").textContent, "Unsent draft line"));
   assert.deepEqual(scene.external.prompts(), [], "nothing was sent");

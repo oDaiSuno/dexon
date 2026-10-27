@@ -64,6 +64,12 @@ export function projectListPage(operation, args = {}) {
     return center(toggle);
   }
   if (operation === "rowText") return projectItem(args.name)?.innerText ?? null;
+  if (operation === "isCurrent") {
+    const item = projectItem(args.name);
+    if (!item) return false;
+    const toggle = [...item.querySelectorAll("button[aria-expanded]:not([aria-haspopup])")].find(exposed);
+    return toggle ? toggle.getAttribute("aria-current") === "location" : false;
+  }
   if (operation === "rowNameColor") {
     const item = projectItem(args.name);
     if (!item) return null;

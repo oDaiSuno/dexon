@@ -106,7 +106,7 @@ async function backToDefault(current) {
   await click("button", `Actions for ${current}`);
   await waitFor(() => page("exists", { role: "menuitem", name: "Back to default space" }), "the project card");
   await click("menuitem", "Back to default space");
-  await waitFor(() => page("exists", { role: "button", name: "Actions for Default space" }), "the default space");
+  await waitFor(() => page("isCurrent", { name: "Default space" }), "the default space");
 }
 
 async function drag(fromName, toName, { cancel = false, outside = false } = {}) {

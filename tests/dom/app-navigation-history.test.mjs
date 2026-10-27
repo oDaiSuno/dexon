@@ -18,6 +18,7 @@ import {
   currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { sessionItems } from "../support/app-navigation-projects.mjs";
 import { laterConversation } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
@@ -50,7 +51,7 @@ test("New session on the main navigation replaces the open conversation with an 
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
   assert.deepEqual(currentPages(scene), [], "an empty session is the current page nowhere in the navigation");
   await scene.settled();
-  assert.equal(roles(scene.history(), "listitem").length, 2);
+  assert.equal(sessionItems(scene).length, 2);
   historyRows(scene, "Personal release notes", "Another personal conversation");
 });
 

@@ -22,6 +22,11 @@ export function projectItems(scene) {
   return ownItems(projectList(scene));
 }
 
+export function sessionItems(scene) {
+  const projects = new Set(projectItems(scene));
+  return roles(scene.history(), "listitem").filter((item) => !projects.has(item));
+}
+
 export function projectOrder(scene) {
   return projectItems(scene).map(projectName);
 }
