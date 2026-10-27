@@ -26,6 +26,7 @@ type Dependencies = Pick<
   | "setHistoryRevision"
   | "setPreviousCursor"
   | "setLoadingOlder"
+  | "setOlderOutline"
   | "session"
   | "sessionChangeIgnoreScrollUntilRef"
   | "sessionIdRef"
@@ -71,6 +72,7 @@ export function useSessionLifecycle(context: Dependencies) {
     setHistoryRevision,
     setPreviousCursor,
     setLoadingOlder,
+    setOlderOutline,
     session,
     sessionChangeIgnoreScrollUntilRef,
     sessionIdRef,
@@ -118,6 +120,7 @@ export function useSessionLifecycle(context: Dependencies) {
     setHistoryRevision(null);
     setPreviousCursor(null);
     setLoadingOlder(false);
+    setOlderOutline([]);
     if (session) {
       sessionChangeIgnoreScrollUntilRef.current = Date.now() + 1500;
       sessionIdRef.current = session.id;

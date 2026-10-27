@@ -1,14 +1,15 @@
+import { alignReadingPosition, readReadingAnchorOffset, type ReadingAnchor } from "@/lib/reading-anchor";
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
-import type { HistoryContentAnchor } from "./use-session-history-anchors";
 
 type HistoryAnchor = {
   element: HTMLDivElement;
   previousScrollHeight: number;
   previousScrollTop: number;
-  contentAnchor: HistoryContentAnchor | null;
+  contentAnchor: ReadingAnchor | null;
   generation: number;
   sessionId: string;
   revision: string;
+  onSettled?: () => void;
 };
 
 type Options = {
@@ -17,6 +18,7 @@ type Options = {
   sessionIdRef: MutableRefObject<string | null>;
   historyRevisionRef: MutableRefObject<string | null>;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
+  userScrollIntentUntilRef: MutableRefObject<number>;
 };
 
 /** Owns reading-side animation frames and deferred history anchor restoration. */
@@ -26,12 +28,14 @@ export function useSessionHistoryVisuals({
   sessionIdRef,
   historyRevisionRef,
   scrollContainerRef,
+  userScrollIntentUntilRef,
 }: Options) {
   const readingVisibleRef = useRef(readingVisible);
   readingVisibleRef.current = readingVisible;
   const mountedRef = useRef(true);
   const frameIdsRef = useRef<Set<number>>(new Set());
   const pendingAnchorRef = useRef<HistoryAnchor | null>(null);
+  const cancelAlignmentRef = useRef<(() => void) | null>(null);
 
   const cancelFrames = useCallback(() => {
     for (const frameId of frameIdsRef.current) globalThis.cancelAnimationFrame?.(frameId);
@@ -48,6 +52,8 @@ export function useSessionHistoryVisuals({
     return () => {
       mountedRef.current = false;
       cancelFrames();
+      cancelAlignmentRef.current?.();
+      cancelAlignmentRef.current = null;
     };
   }, [cancelFrames]);
 
@@ -66,40 +72,80 @@ export function useSessionHistoryVisuals({
     return frameId;
   }, []);
 
+  const settle = useCallback((anchor: HistoryAnchor) => {
+    anchor.onSettled?.();
+  }, []);
+
+  const fallBackToHeightDelta = useCallback((anchor: HistoryAnchor) => {
+    const container = anchor.element;
+    container.scrollTop = anchor.previousScrollTop + (container.scrollHeight - anchor.previousScrollHeight);
+  }, []);
+
   const restorePendingAnchor = useCallback(() => {
     const anchor = pendingAnchorRef.current;
-    if (!anchor || !mountedRef.current || !readingVisibleRef.current) return;
+    if (!anchor || !mountedRef.current) return;
     if (
       anchor.generation !== historyGenerationRef.current ||
       anchor.sessionId !== sessionIdRef.current ||
-      anchor.revision !== historyRevisionRef.current
+      anchor.revision !== historyRevisionRef.current ||
+      scrollContainerRef.current !== anchor.element
     ) {
       pendingAnchorRef.current = null;
+      settle(anchor);
       return;
     }
-    const current = scrollContainerRef.current;
-    if (!current || current !== anchor.element) {
-      pendingAnchorRef.current = null;
+    if (!readingVisibleRef.current) {
+      settle(anchor);
       return;
     }
     pendingAnchorRef.current = null;
-    if (anchor.contentAnchor) {
-      const currentRect = current.getBoundingClientRect();
-      const anchorRect = anchor.contentAnchor.element.getBoundingClientRect();
-      if (anchor.contentAnchor.element.isConnected !== false && Number.isFinite(anchorRect.top)) {
-        current.scrollTop += anchorRect.top - currentRect.top - anchor.contentAnchor.offsetTop;
-        return;
-      }
+    const container = anchor.element;
+    const contentAnchor = anchor.contentAnchor;
+    if (!contentAnchor || readReadingAnchorOffset(container, contentAnchor.key) === null) {
+      fallBackToHeightDelta(anchor);
+      settle(anchor);
+      return;
     }
-    current.scrollTop = anchor.previousScrollTop + (current.scrollHeight - anchor.previousScrollHeight);
-  }, [historyGenerationRef, historyRevisionRef, scrollContainerRef, sessionIdRef]);
+    const intentBaseline = userScrollIntentUntilRef.current;
+    cancelAlignmentRef.current?.();
+    cancelAlignmentRef.current = alignReadingPosition({
+      container,
+      target: contentAnchor.offsetTop,
+      measure: () => readReadingAnchorOffset(container, contentAnchor.key),
+      shouldStop: () =>
+        !mountedRef.current ||
+        !readingVisibleRef.current ||
+        anchor.generation !== historyGenerationRef.current ||
+        anchor.sessionId !== sessionIdRef.current ||
+        anchor.revision !== historyRevisionRef.current ||
+        userScrollIntentUntilRef.current > intentBaseline,
+      onSettled: () => {
+        cancelAlignmentRef.current = null;
+        settle(anchor);
+      },
+    });
+  }, [
+    fallBackToHeightDelta,
+    historyGenerationRef,
+    historyRevisionRef,
+    scrollContainerRef,
+    sessionIdRef,
+    settle,
+    userScrollIntentUntilRef,
+  ]);
 
   const queueHistoryAnchor = useCallback(
     (anchor: HistoryAnchor) => {
+      cancelAlignmentRef.current?.();
+      cancelAlignmentRef.current = null;
       pendingAnchorRef.current = anchor;
+      if (!readingVisibleRef.current) {
+        settle(anchor);
+        return;
+      }
       scheduleVisualFrame(restorePendingAnchor);
     },
-    [restorePendingAnchor, scheduleVisualFrame],
+    [restorePendingAnchor, scheduleVisualFrame, settle],
   );
 
   useEffect(() => {

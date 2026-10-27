@@ -52,6 +52,7 @@
     "test:browser-electron": "node scripts/test-browser-electron.mjs",
     "test:interactive-tools-electron": "node scripts/test-interactive-tools-electron.mjs",
     "test:chat-layout-electron": "node scripts/test-chat-layout-electron.mjs",
+    "test:chat-history-electron": "node scripts/test-chat-history-electron.mjs",
     "test:user-bubble-electron": "node scripts/test-user-bubble-electron.mjs",
     "test:composer-editing-electron": "node scripts/test-composer-editing-electron.mjs",
     "test:nav-layout-electron": "node scripts/test-nav-layout-electron.mjs",

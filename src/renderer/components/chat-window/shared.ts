@@ -4,11 +4,11 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import { type ChatInputHandle } from "../ChatInput";
-import type { ContextUsageInfo } from "@contract/types";
+import type { ContextUsageInfo, TurnOutlineItem } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { ComposerNavigation, ComposerWorkspace } from "../chat-input/types";
 import type { UsageCompaction } from "../app-shell/use-session-info";
-import { parseExpandedSkillMessage, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
+import { turnTitleOf } from "@shared/turn-title";
 export interface Props {
   session: SessionInfo | null;
   newSessionCwd: string | null;
@@ -53,29 +53,39 @@ export function phaseLabel(phase: AgentPhase, t: (key: string, fallback: string)
 }
 export const CHAT_COLUMN_PADDING = 16;
 export interface NavigatorTurn {
-  refIndex: number;
+  key: string;
   title: string;
+  refIndex?: number;
+  entryId?: string;
 }
-export function turnTitleOf(content: AgentMessage["content"]): string {
-  const text =
-    typeof content === "string"
-      ? content
-      : Array.isArray(content)
-        ? content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(" ")
-        : "";
-  const skill = splitLeadingSkillCommand(text) ?? parseExpandedSkillMessage(text);
-  const visible = skill ? `${skillCommandText(skill.name)} ${skill.rest}` : text;
-  return visible.replace(/\s+/g, " ").trim().slice(0, 200);
-}
-export function toNavigatorTurns(messages: AgentMessage[]): NavigatorTurn[] {
-  const turns: NavigatorTurn[] = [];
+export function toNavigatorTurns(
+  messages: AgentMessage[],
+  entryIds: string[],
+  olderOutline: TurnOutlineItem[],
+): NavigatorTurn[] {
+  const loaded: NavigatorTurn[] = [];
   let refIndex = 0;
-  for (const message of messages) {
-    if (message.role !== "user" && message.role !== "assistant") continue;
-    if (message.role === "user") turns.push({ refIndex, title: turnTitleOf(message.content) });
+  messages.forEach((message, index) => {
+    if (message.role !== "user" && message.role !== "assistant") return;
+    if (message.role === "user") {
+      const entryId = entryIds[index];
+      loaded.push({
+        key: entryId ? `entry:${entryId}` : `ref:${refIndex}`,
+        title: turnTitleOf(message.content),
+        refIndex,
+        ...(entryId ? { entryId } : {}),
+      });
+    }
     refIndex += 1;
-  }
-  return turns;
+  });
+  return [
+    ...olderOutline.map((item): NavigatorTurn => ({
+      key: `outline:${item.entryId}`,
+      title: item.title,
+      entryId: item.entryId,
+    })),
+    ...loaded,
+  ];
 }
 export interface TurnFailureClassification {
   retried: Set<number>;

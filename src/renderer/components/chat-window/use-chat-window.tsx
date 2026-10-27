@@ -101,6 +101,7 @@ export function useChatWindow({
     hasOlder,
     previousCursor,
     loadingOlder,
+    olderOutline,
     notices,
     interactiveTools,
     extensionStatuses,
@@ -146,7 +147,6 @@ export function useChatWindow({
     onBranchDataChange,
     onSystemPromptChange,
     onSessionStatsPanelOpen,
-    messageRefs,
     readingVisible: visible,
   });
 
@@ -260,7 +260,10 @@ export function useChatWindow({
     .fill(null)
     .map((_, index) => messageRefs.current[index] ?? null);
 
-  const navigatorTurns = useMemo(() => toNavigatorTurns(messages), [messages]);
+  const navigatorTurns = useMemo(
+    () => toNavigatorTurns(messages, entryIds, olderOutline),
+    [entryIds, messages, olderOutline],
+  );
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
 
@@ -310,7 +313,7 @@ export function useChatWindow({
     setEditDraft(null);
   }, [session?.id]);
 
-  const { olderHistorySentinelRef, loadOlderHistory, olderHistoryFailed } = useOlderHistory({
+  const { olderHistorySentinelRef, loadOlderHistory, olderHistoryFailed, turnJump } = useOlderHistory({
     visible,
     sessionId: session?.id ?? null,
     previousCursor,
@@ -318,6 +321,7 @@ export function useChatWindow({
     loadingOlder,
     loadOlder,
     messagesLength: messages.length,
+    loadedEntryIds: entryIds,
     scrollContainerRef,
   });
 
@@ -445,6 +449,7 @@ export function useChatWindow({
     chatViewportHeight,
     messagesEndRef,
     navigatorTurns,
+    turnJump,
     isAwayFromBottom,
     reattachAutoFollow,
     belowEditorWidgets,

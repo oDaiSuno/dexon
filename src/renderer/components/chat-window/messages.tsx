@@ -1,4 +1,5 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
+import { readingAnchorAttributes } from "@/lib/reading-anchor";
 import type { AgentMessage } from "@/lib/types";
 import { type ReactNode } from "react";
 import { MessageView } from "../MessageView";
@@ -143,6 +144,7 @@ export function ChatMessages({
           key={renderKey}
           className={compact ? undefined : "chat-history-item"}
           ref={attachVisibleRef(idx, currentRefIdx)}
+          {...readingAnchorAttributes(renderKey)}
         >
           {view}
         </div>
@@ -152,7 +154,12 @@ export function ChatMessages({
     const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
       const toolData = toolMessageIndex.get(messages[piece.index]);
       return (
-        <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
+        <div
+          key={piece.key}
+          className="chat-history-item"
+          ref={refForPiece(piece.refIndex)}
+          {...readingAnchorAttributes(piece.key)}
+        >
           <SessionProfiler id="MessageView">
             <MessageView
               sessionId={session?.id}
@@ -193,7 +200,12 @@ export function ChatMessages({
     );
 
     const renderFailure = (piece: TurnFailurePiece): ReactNode => (
-      <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
+      <div
+        key={piece.key}
+        className="chat-history-item"
+        ref={refForPiece(piece.refIndex)}
+        {...readingAnchorAttributes(piece.key)}
+      >
         <SessionProfiler id="MessageView">
           <MessageView
             sessionId={session?.id}

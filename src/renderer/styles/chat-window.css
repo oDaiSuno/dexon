@@ -86,6 +86,7 @@
   width: 36px;
   max-height: calc(100% - 96px);
   overflow: hidden;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   padding: 10px 6px;
   border: 1px solid transparent;
@@ -100,7 +101,8 @@
 }
 
 .chat-turn-nav:hover,
-.chat-turn-nav:focus-within {
+.chat-turn-nav:focus-within,
+.chat-turn-nav[data-expanded="true"] {
   width: 280px;
   padding: 8px 6px;
   overflow-y: auto;
@@ -128,7 +130,8 @@
 }
 
 .chat-turn-nav:hover .chat-turn-nav-row,
-.chat-turn-nav:focus-within .chat-turn-nav-row {
+.chat-turn-nav:focus-within .chat-turn-nav-row,
+.chat-turn-nav[data-expanded="true"] .chat-turn-nav-row {
   height: 30px;
 }
 
@@ -157,7 +160,8 @@
 }
 
 .chat-turn-nav:hover .chat-turn-nav-title,
-.chat-turn-nav:focus-within .chat-turn-nav-title {
+.chat-turn-nav:focus-within .chat-turn-nav-title,
+.chat-turn-nav[data-expanded="true"] .chat-turn-nav-title {
   opacity: 1;
 }
 
