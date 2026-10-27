@@ -22,6 +22,7 @@ import {
   unavailableAction,
 } from "../support/app-navigation-projects.mjs";
 import { navigationPaths } from "../fixtures/app-navigation-data.mjs";
+import { accessibleName } from "../support/dom-queries.mjs";
 
 after(restoreGlobals);
 
@@ -358,4 +359,20 @@ test("a conversation started in a worktree of a listed project adds no row for t
   assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
   const reopened = await scene.reload();
   await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, PROJECT]));
+});
+
+test("the arrow keys move through the usable actions of another project's menu and the focused action still works", async (t) => {
+  const scene = await startNavigation(t, saved(P.personal, P.project, P.empty));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  const menu = await projectMenu(scene, PROJECT);
+  const focused = () => dom.window.document.activeElement;
+  await keyDown(menu, "ArrowDown");
+  enabledAction(menu, "Move down");
+  assert.equal(accessibleName(focused()), "Move down");
+  await keyDown(focused(), "ArrowDown");
+  assert.equal(accessibleName(focused()), "Close project");
+  await keyDown(focused(), "ArrowUp");
+  assert.equal(accessibleName(focused()), "Move down");
+  await click(focused());
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
 });

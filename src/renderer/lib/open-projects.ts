@@ -20,7 +20,10 @@ export function withDefaultSpace(projects: readonly string[], defaultSpace: stri
   const folders = readOpenProjects(projects);
   if (!defaultSpace) return folders;
   const defaultKey = sessionProjectKey(defaultSpace);
-  return [defaultSpace, ...folders.filter((folder) => sessionProjectKey(folder) !== defaultKey)];
+  return [defaultSpace, ...folders.filter((folder) => sessionProjectKey(folder) !== defaultKey)].slice(
+    0,
+    MAX_OPEN_PROJECTS,
+  );
 }
 
 export function isListedProject(projects: readonly string[], folder: string): boolean {

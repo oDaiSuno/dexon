@@ -89,8 +89,9 @@ export function useOpenProjects({
   const commit = useCallback(
     (list: string[]) => {
       touchedRef.current = true;
-      setSaved(list);
-      persist(withDefaultSpace(list, defaultSpace));
+      const next = withDefaultSpace(list, defaultSpace);
+      setSaved(next);
+      persist(next);
     },
     [defaultSpace, persist],
   );

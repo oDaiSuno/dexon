@@ -126,12 +126,39 @@ export function NavSpaceMenu({
     };
   }, [open]);
 
+  const focusMenuItem = (key: string): boolean => {
+    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter(
+      (item) => item.getAttribute("aria-disabled") !== "true",
+    );
+    if (items.length === 0) return key === "ArrowDown" || key === "ArrowUp" || key === "Home" || key === "End";
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const target =
+      key === "Home"
+        ? 0
+        : key === "End"
+          ? items.length - 1
+          : key === "ArrowDown"
+            ? (index + 1) % items.length
+            : key === "ArrowUp"
+              ? index < 0
+                ? items.length - 1
+                : (index - 1 + items.length) % items.length
+              : -1;
+    if (target < 0) return false;
+    items[target].focus();
+    return true;
+  };
+
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape" || event.key === "Tab") {
       event.preventDefault();
       event.stopPropagation();
       close();
+      return;
     }
+    if (card || !focusMenuItem(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   return (
