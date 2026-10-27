@@ -180,6 +180,13 @@ export function navigationBoundary({
         if (!detail) throw new Error(`Fixture has no session ${params.id}`);
         return structuredClone(detail);
       }
+      case "sessions.contextPage": {
+        const detail = details.find((item) => item.sessionId === params.id);
+        if (!detail) throw new Error(`Fixture has no session ${params.id}`);
+        const page = detail.pages?.[params.cursor];
+        if (!page) throw new Error(`STALE_CURSOR: the fixture has no page behind cursor ${params.cursor}`);
+        return structuredClone(page);
+      }
       case "agent.new":
         return { sessionId: `new-navigation-session-${++sessionSequence}` };
       case "agent.state":
@@ -502,6 +509,27 @@ export function navigationBoundary({
     },
     addConversation(detail) {
       details.push(detail);
+    },
+    // The conversation itself changes while the reader is somewhere else: a
+    // different session file, a rewritten question, a switched branch.
+    replaceConversation(sessionId, detail) {
+      const index = details.findIndex((item) => item.sessionId === sessionId);
+      if (index < 0) throw new Error(`Fixture cannot replace unknown session ${sessionId}`);
+      details[index] = detail;
+    },
+    // A finished turn arrives through another channel while the reader is away.
+    appendTurn(sessionId, question, answer) {
+      const detail = details.find((item) => item.sessionId === sessionId);
+      if (!detail) throw new Error(`Fixture cannot append to unknown session ${sessionId}`);
+      const added = detail.context.messages.length;
+      detail.context.messages.push({ role: "user", content: question, timestamp: added + 1 }, assistantReply(answer));
+      detail.context.entryIds.push(`${sessionId}-appended-${added}`, `${sessionId}-appended-${added + 1}`);
+      detail.context.totalMessages = (detail.context.totalMessages ?? added) + 2;
+      detail.context.loadedMessages = detail.context.messages.length;
+      detail.context.historyRevision = `${sessionId}-revision-appended-${added + 2}`;
+      detail.info.messageCount = (detail.info.messageCount ?? added) + 2;
+      for (const listener of sessionChangedListeners)
+        listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
     },
     runningSubscribers: () => runningListeners.size,
     sessionChangedSubscribers: () => sessionChangedListeners.size,
