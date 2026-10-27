@@ -76,106 +76,90 @@ async function type(element, value) {
 
 const bottomJumps = (scene) => roles(chat(scene), "button", "Scroll to bottom").length;
 
-test(
-  "after reading an earlier part of a conversation, switching to another conversation in the sidebar and back shows the same sentence at the same height",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const first = longReading();
-    const second = secondReading();
-    const scene = await startSessionScene(t, [first, second]);
-    installChatGeometry(t, { markers: markersOf(first, second) });
+test("after reading an earlier part of a conversation, switching to another conversation in the sidebar and back shows the same sentence at the same height", async (t) => {
+  const first = longReading();
+  const second = secondReading();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: markersOf(first, second) });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
 
-    sameHeight(watched, before, topOf(scene, watched));
-  },
-);
+  sameHeight(watched, before, topOf(scene, watched));
+});
 
-test(
-  "a child conversation opened from its nested row in the session tree returns to where it was read",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const root = treeSession("reading-root", { name: "Reading root" });
-    const child = readingConversation("long-reading", {
-      name: "Long reading session",
-      turns: 12,
-      pageTurns: 12,
-      parentSessionId: "reading-root",
-    });
-    const second = secondReading();
-    const scene = await startSessionScene(t, [root, child, second]);
-    installChatGeometry(t, { markers: markersOf(child, second) });
+test("a child conversation opened from its nested row in the session tree returns to where it was read", async (t) => {
+  const root = treeSession("reading-root", { name: "Reading root" });
+  const child = readingConversation("long-reading", {
+    name: "Long reading session",
+    turns: 12,
+    pageTurns: 12,
+    parentSessionId: "reading-root",
+  });
+  const second = secondReading();
+  const scene = await startSessionScene(t, [root, child, second]);
+  installChatGeometry(t, { markers: markersOf(child, second) });
 
-    assert.ok(
-      precedes(historyRow(scene, "Reading root"), historyRow(scene, "Long reading session")),
-      "the child is listed under its parent",
-    );
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  assert.ok(
+    precedes(historyRow(scene, "Reading root"), historyRow(scene, "Long reading session")),
+    "the child is listed under its parent",
+  );
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
 
-    sameHeight(watched, before, topOf(scene, watched));
-  },
-);
+  sameHeight(watched, before, topOf(scene, watched));
+});
 
-test(
-  "a child conversation opened from the main conversation's link returns to where it was read",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const parent = delegateToolConversation("reading-parent", {
-      name: "Delegating reading session",
-      target: "long-reading",
-      targetTitle: "Long reading session",
-      text: "Ask the long conversation where it was read.",
-      reply: "Delegated reading finished",
-    });
-    const child = longReading();
-    const scene = await startSessionScene(t, [parent, child]);
-    installChatGeometry(t, { markers: markersOf(child) });
+test("a child conversation opened from the main conversation's link returns to where it was read", async (t) => {
+  const parent = delegateToolConversation("reading-parent", {
+    name: "Delegating reading session",
+    target: "long-reading",
+    targetTitle: "Long reading session",
+    text: "Ask the long conversation where it was read.",
+    reply: "Delegated reading finished",
+  });
+  const child = longReading();
+  const scene = await startSessionScene(t, [parent, child]);
+  installChatGeometry(t, { markers: markersOf(child) });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Delegating reading session", "Delegated reading finished");
-    await click(control(chat(scene), "button", /process details/i));
-    await click(await waitFor(() => control(chat(scene), "button", "Open session Long reading session")));
-    await waitFor(() => visibleText(chat(scene), questionMarker("long-reading", 1)));
-    await scene.settled();
+  await open(scene, "Delegating reading session", "Delegated reading finished");
+  await click(control(chat(scene), "button", /process details/i));
+  await click(await waitFor(() => control(chat(scene), "button", "Open session Long reading session")));
+  await waitFor(() => visibleText(chat(scene), questionMarker("long-reading", 1)));
+  await scene.settled();
 
-    sameHeight(watched, before, topOf(scene, watched));
-  },
-);
+  sameHeight(watched, before, topOf(scene, watched));
+});
 
-test(
-  "a conversation opened again from an external session link returns to where it was read",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const first = longReading();
-    const second = secondReading();
-    const scene = await startSessionScene(t, [first, second]);
-    installChatGeometry(t, { markers: markersOf(first, second) });
+test("a conversation opened again from an external session link returns to where it was read", async (t) => {
+  const first = longReading();
+  const second = secondReading();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: markersOf(first, second) });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await act(async () => scene.external.deepLink("long-reading"));
-    await waitFor(() => visibleText(chat(scene), questionMarker("long-reading", 1)));
-    await scene.settled();
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await act(async () => scene.external.deepLink("long-reading"));
+  await waitFor(() => visibleText(chat(scene), questionMarker("long-reading", 1)));
+  await scene.settled();
 
-    sameHeight(watched, before, topOf(scene, watched));
-  },
-);
+  sameHeight(watched, before, topOf(scene, watched));
+});
 
 test("a round trip through Plugins & Skills keeps the reading position", async (t) => {
   const first = longReading();
@@ -212,54 +196,46 @@ test("a round trip through Settings keeps the reading position", async (t) => {
   sameHeight(watched, before, topOf(scene, watched));
 });
 
-test(
-  "two conversations each keep their own reading position while the reader moves back and forth",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const first = longReading();
-    const second = secondReading();
-    const scene = await startSessionScene(t, [first, second]);
-    installChatGeometry(t, { markers: markersOf(first, second) });
+test("two conversations each keep their own reading position while the reader moves back and forth", async (t) => {
+  const first = longReading();
+  const second = secondReading();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: markersOf(first, second) });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watchedFirst = answerMarker("long-reading", 3);
-    const beforeFirst = await readUpTo(scene, watchedFirst, 1000);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watchedFirst = answerMarker("long-reading", 3);
+  const beforeFirst = await readUpTo(scene, watchedFirst, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    const watchedSecond = questionMarker("long-second", 3);
-    const beforeSecond = await readUpTo(scene, watchedSecond, 800);
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  const watchedSecond = questionMarker("long-second", 3);
+  const beforeSecond = await readUpTo(scene, watchedSecond, 800);
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    sameHeight(watchedFirst, beforeFirst, topOf(scene, watchedFirst));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  sameHeight(watchedFirst, beforeFirst, topOf(scene, watchedFirst));
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    sameHeight(watchedSecond, beforeSecond, topOf(scene, watchedSecond));
-  },
-);
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  sameHeight(watchedSecond, beforeSecond, topOf(scene, watchedSecond));
+});
 
-test(
-  "scrolling to the bottom of one conversation does not pull another conversation to its bottom",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const first = longReading();
-    const second = secondReading();
-    const scene = await startSessionScene(t, [first, second]);
-    installChatGeometry(t, { markers: markersOf(first, second) });
+test("scrolling to the bottom of one conversation does not pull another conversation to its bottom", async (t) => {
+  const first = longReading();
+  const second = secondReading();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: markersOf(first, second) });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await readerScrollsToBottom(scene);
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await readerScrollsToBottom(scene);
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    sameHeight(watched, before, topOf(scene, watched));
-    const distance = distanceFromBottom(scene);
-    assert.ok(distance > 0, `the reader is still away from the bottom of this conversation (${distance}px)`);
-    assert.equal(bottomJumps(scene), 1, "the way back to the newest content is offered");
-  },
-);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  sameHeight(watched, before, topOf(scene, watched));
+  const distance = distanceFromBottom(scene);
+  assert.ok(distance > 0, `the reader is still away from the bottom of this conversation (${distance}px)`);
+  assert.equal(bottomJumps(scene), 1, "the way back to the newest content is offered");
+});
 
 test("the first time a conversation is opened in this run it shows the latest message at the very bottom without the scroll-to-bottom button", async (t) => {
   const first = longReading();
@@ -320,35 +296,31 @@ test("when the message that was being read is no longer part of the conversation
   assert.equal(bottomJumps(scene), 0, "the reader is not invited to jump to the bottom they are already at");
 });
 
-test(
-  "after returning to a restored position, sending a new question moves the view to that question",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const fresh = "Fresh question after returning";
-    const first = longReading();
-    const second = secondReading();
-    const scene = await startSessionScene(t, [first, second]);
-    installChatGeometry(t, { markers: [...markersOf(first, second), fresh] });
+test("after returning to a restored position, sending a new question moves the view to that question", async (t) => {
+  const fresh = "Fresh question after returning";
+  const first = longReading();
+  const second = secondReading();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: [...markersOf(first, second), fresh] });
 
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    sameHeight(watched, before, topOf(scene, watched));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  sameHeight(watched, before, topOf(scene, watched));
 
-    await type(composer(scene), fresh);
-    await click(control(chat(scene), "button", "Send"));
-    await waitFor(() =>
-      assert.deepEqual(
-        scene.external.prompts(),
-        [{ sessionId: "long-reading", message: fresh }],
-        "the question was sent",
-      ),
-    );
-    await scene.settled();
+  await type(composer(scene), fresh);
+  await click(control(chat(scene), "button", "Send"));
+  await waitFor(() =>
+    assert.deepEqual(
+      scene.external.prompts(),
+      [{ sessionId: "long-reading", message: fresh }],
+      "the question was sent",
+    ),
+  );
+  await scene.settled();
 
-    const top = topOf(scene, fresh);
-    assert.ok(Math.abs(top - 16) <= ONE_LINE, `the sent question sits 16px below the top of the view (${top}px)`);
-  },
-);
+  const top = topOf(scene, fresh);
+  assert.ok(Math.abs(top - 16) <= ONE_LINE, `the sent question sits 16px below the top of the view (${top}px)`);
+});

@@ -40,9 +40,10 @@ type Dependencies = Pick<
     | "scrollToBottom"
     | "scrollLiveContentToBottom"
     | "updateScrollPresence"
+    | "settleAtLatest"
   >;
 
-export function useSessionReading(context: Dependencies, visible: boolean) {
+export function useSessionReading(context: Dependencies, visible: boolean, restoreReadingPosition = false) {
   const {
     messages,
     loading,
@@ -68,6 +69,7 @@ export function useSessionReading(context: Dependencies, visible: boolean) {
     scrollToBottom,
     scrollLiveContentToBottom,
     updateScrollPresence,
+    settleAtLatest,
   } = context;
 
   useEffect(() => {
@@ -119,7 +121,8 @@ export function useSessionReading(context: Dependencies, visible: boolean) {
         scrollUserMsgToTop();
       } else if (!initialScrollDoneRef.current) {
         initialScrollDoneRef.current = true;
-        scrollToBottom("instant");
+        if (restoreReadingPosition) completionScrollAllowedRef.current = false;
+        else settleAtLatest();
       } else if (!agentRunningRef.current && completionScrollAllowedRef.current) {
         scrollToBottom("smooth");
       }
@@ -134,6 +137,8 @@ export function useSessionReading(context: Dependencies, visible: boolean) {
     initialScrollDoneRef,
     agentRunningRef,
     completionScrollAllowedRef,
+    restoreReadingPosition,
+    settleAtLatest,
   ]);
 
   useEffect(() => {

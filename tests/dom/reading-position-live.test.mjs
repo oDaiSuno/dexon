@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { click, control, historyRow, restoreGlobals, roles, visibleText, waitFor } from "../support/app-navigation.mjs";
+import {
+  act,
+  click,
+  control,
+  historyRow,
+  restoreGlobals,
+  roles,
+  visibleText,
+  waitFor,
+} from "../support/app-navigation.mjs";
 import { startSessionScene } from "../support/session-tree-scene.mjs";
 import {
   conversation,
@@ -74,110 +83,138 @@ async function expectTheWayBackToTheNewestContent(scene) {
   return roles(chat(scene), "button", "Scroll to bottom")[0];
 }
 
-test(
-  "a reply that grows while the reader is away does not pull the conversation to the newest content when the reader returns",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const scene = await streamingScene(t);
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+test("a reply that grows while the reader is away does not pull the conversation to the newest content when the reader returns", async (t) => {
+  const scene = await streamingScene(t);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
-    await scene.settled();
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
 
-    sameHeight(watched, before, topOf(scene, watched));
-    await expectTheWayBackToTheNewestContent(scene);
-  },
-);
+  sameHeight(watched, before, topOf(scene, watched));
+  await expectTheWayBackToTheNewestContent(scene);
+});
 
-test(
-  "after returning, the scroll-to-bottom button jumps to the newest content and following resumes",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const scene = await streamingScene(t);
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+test("after returning, the scroll-to-bottom button jumps to the newest content and following resumes", async (t) => {
+  const scene = await streamingScene(t);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
-    await scene.settled();
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    sameHeight(watched, before, topOf(scene, watched));
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  sameHeight(watched, before, topOf(scene, watched));
 
-    await click(await expectTheWayBackToTheNewestContent(scene));
-    assert.equal(distanceFromBottom(scene), 0, "clicking it shows the newest content");
+  await click(await expectTheWayBackToTheNewestContent(scene));
+  assert.equal(distanceFromBottom(scene), 0, "clicking it shows the newest content");
 
-    await scene.external.streamReply("long-reading", [line(1), line(2), line(3), line(4), line(5)].join("\n\n"));
-    await scene.settled();
-    assert.equal(distanceFromBottom(scene), 0, "the view keeps following the growing reply after the jump");
-  },
-);
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3), line(4), line(5)].join("\n\n"));
+  await scene.settled();
+  assert.equal(distanceFromBottom(scene), 0, "the view keeps following the growing reply after the jump");
+});
 
-test(
-  "a reader who left while watching the reply at the bottom returns to the sentence they were watching, with the new content below",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const scene = await streamingScene(t, { lines: [line(1), line(2)] });
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 12);
-    const before = topOf(scene, watched);
-    assert.ok(
-      before >= 0 && before < VIEW_HEIGHT,
-      `“${watched}” is on screen while the reply arrives (${before}px below the top)`,
-    );
+test("after returning to the earlier position, the background reply finishing does not pull the view to the bottom", async (t) => {
+  const scene = await streamingScene(t);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    await scene.external.streamReply("long-reading", [line(1), line(2), line(3), line(4), line(5)].join("\n\n"));
-    await scene.settled();
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  sameHeight(watched, before, topOf(scene, watched));
 
-    sameHeight(watched, before, topOf(scene, watched));
-    const below = distanceFromBottom(scene);
-    assert.ok(below > 0, `the new lines of the reply are below the sentence the reader was watching (${below}px)`);
-    await expectTheWayBackToTheNewestContent(scene);
-  },
-);
+  await act(async () => scene.external.finishStream("long-reading", [line(1), line(2), line(3), line(4)].join("\n\n")));
+  await scene.settled();
 
-test(
-  "a turn that arrives through another channel while the reader is away does not move the reading position",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const { scene } = await idleScene(t);
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    const watched = answerMarker("long-reading", 3);
-    const before = await readUpTo(scene, watched, 1000);
+  sameHeight(watched, before, topOf(scene, watched));
+  const below = distanceFromBottom(scene);
+  assert.ok(below > 0, `the finished reply stays below the sentence the reader returned to (${below}px)`);
+});
 
-    await open(scene, "Second reading session", questionMarker("long-second", 1));
-    scene.external.appendTurn("long-reading", questionMarker("long-reading", 13), answerMarker("long-reading", 13));
-    await scene.settled();
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
+test("when the message that was being read is gone and a reply is running, returning lands at the latest message and keeps following the reply", async (t) => {
+  const running = () => ({ running: true, state: { isStreaming: true, streamingMessage: streamedMessage([line(1)]) } });
+  const first = readingConversation("long-reading", { name: "Long reading session", turns: 12, pageTurns: 12 });
+  first.agentState = running();
+  const second = readingConversation("long-second", { name: "Second reading session", turns: 12, pageTurns: 12 });
+  const rewritten = readingConversation("long-reading", {
+    name: "Long reading session",
+    turns: 12,
+    pageTurns: 12,
+    wording: "Rewritten",
+  });
+  rewritten.agentState = running();
+  const scene = await startSessionScene(t, [first, second]);
+  installChatGeometry(t, { markers: [...markersOf(first, second), ...markersOf(rewritten), ...STREAM_LINES] });
 
-    sameHeight(watched, before, topOf(scene, watched));
-    await expectTheWayBackToTheNewestContent(scene);
-  },
-);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await readUpTo(scene, answerMarker("long-reading", 3), 1000);
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  scene.external.replaceConversation("long-reading", rewritten);
+  await open(scene, "Long reading session", "Rewritten question 01 of long-reading");
 
-test(
-  "while the reader stays at the bottom of a running reply, the view keeps following it",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const scene = await streamingScene(t, { lines: [line(1)] });
-    await open(scene, "Long reading session", questionMarker("long-reading", 1));
-    assert.equal(distanceFromBottom(scene), 0, "the reader starts at the bottom of the reply");
+  assert.equal(distanceFromBottom(scene), 0, "the reader lands at the latest message of the running reply");
 
-    await scene.external.streamReply("long-reading", [line(1), line(2)].join("\n\n"));
-    await scene.settled();
-    assert.equal(distanceFromBottom(scene), 0, "the view follows the reply as it grows");
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
+  await scene.settled();
+  assert.equal(distanceFromBottom(scene), 0, "the view keeps following the running reply");
+});
 
-    await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
-    await scene.settled();
-    assert.equal(distanceFromBottom(scene), 0, "the view keeps following every new line of the reply");
-  },
-);
+test("a reader who left while watching the reply at the bottom returns to the sentence they were watching, with the new content below", async (t) => {
+  const scene = await streamingScene(t, { lines: [line(1), line(2)] });
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 12);
+  const before = topOf(scene, watched);
+  assert.ok(
+    before >= 0 && before < VIEW_HEIGHT,
+    `“${watched}” is on screen while the reply arrives (${before}px below the top)`,
+  );
+
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3), line(4), line(5)].join("\n\n"));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+
+  sameHeight(watched, before, topOf(scene, watched));
+  const below = distanceFromBottom(scene);
+  assert.ok(below > 0, `the new lines of the reply are below the sentence the reader was watching (${below}px)`);
+  await expectTheWayBackToTheNewestContent(scene);
+});
+
+test("a turn that arrives through another channel while the reader is away does not move the reading position", async (t) => {
+  const { scene } = await idleScene(t);
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 3);
+  const before = await readUpTo(scene, watched, 1000);
+
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  scene.external.appendTurn("long-reading", questionMarker("long-reading", 13), answerMarker("long-reading", 13));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+
+  sameHeight(watched, before, topOf(scene, watched));
+  await expectTheWayBackToTheNewestContent(scene);
+});
+
+test("while the reader stays at the bottom of a running reply, the view keeps following it", async (t) => {
+  const scene = await streamingScene(t, { lines: [line(1)] });
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  assert.equal(distanceFromBottom(scene), 0, "the reader starts at the bottom of the reply");
+
+  await scene.external.streamReply("long-reading", [line(1), line(2)].join("\n\n"));
+  await scene.settled();
+  assert.equal(distanceFromBottom(scene), 0, "the view follows the reply as it grows");
+
+  await scene.external.streamReply("long-reading", [line(1), line(2), line(3)].join("\n\n"));
+  await scene.settled();
+  assert.equal(distanceFromBottom(scene), 0, "the view keeps following every new line of the reply");
+});
 
 test("scrolling up during a running reply stops the view from following", async (t) => {
   const scene = await streamingScene(t, { lines: [line(1)] });

@@ -7,6 +7,7 @@ import { getFileName } from "@/lib/file-paths";
 import { defaultSpaceFolder } from "@/lib/space-identity";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { buildAtMentionText } from "@/lib/file-fuzzy";
+import { ReadingPositionRegistry } from "@/lib/reading-position-store";
 import { ThinkingExpansionRegistry } from "@/lib/thinking-expansion-store";
 import { SessionProfiler } from "./SessionProfiler";
 import type { ChatInputHandle } from "./ChatInput";
@@ -58,6 +59,7 @@ export function AppShell({
   const chatInputRef = useRef<ChatInputHandle | null>(null);
   const thinkingExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
   const processDetailsExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
+  const readingPositionRegistryRef = useRef(new ReadingPositionRegistry());
 
   const collapseMobileSidebar = useCallback(() => {
     setSidebarOpen(false);
@@ -103,6 +105,7 @@ export function AppShell({
     onBeforeSessionDeleted: useCallback((sessionId: string) => {
       thinkingExpansionRegistryRef.current.delete(sessionId);
       processDetailsExpansionRegistryRef.current.delete(sessionId);
+      readingPositionRegistryRef.current.delete(sessionId);
     }, []),
   });
   const {
@@ -401,6 +404,7 @@ export function AppShell({
                   <ChatWindow
                     visible={!mainSuspended}
                     session={selectedSession}
+                    readingPositions={readingPositionRegistryRef.current}
                     newSessionCwd={effectiveNewSessionCwd}
                     onAgentEnd={handleAgentEnd}
                     onSessionCreated={handleSessionCreated}

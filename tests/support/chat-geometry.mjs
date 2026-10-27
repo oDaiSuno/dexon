@@ -36,13 +36,21 @@ function rowsHeight(container) {
   return presentMarkers(container).length * installed.rowHeight;
 }
 
+// The conversation is exactly the messages: the running spacer is empty room
+// the App adds below the newest message so a freshly sent question can reach
+// the top of the view, not content. The App's own bottom check subtracts it
+// the same way (see isNearChatBottom), so "at the bottom" means the end of the
+// last message is at the bottom of the view.
 function contentHeight(container) {
-  const spacer = container.querySelector(RUN_SPACER) ? installed.viewHeight : 0;
-  return Math.max(rowsHeight(container) + spacer, installed.viewHeight);
+  return Math.max(rowsHeight(container), installed.viewHeight);
+}
+
+function spacerRoom(container) {
+  return container.querySelector(RUN_SPACER) ? installed.viewHeight : 0;
 }
 
 function maxScrollTop(container) {
-  return Math.max(contentHeight(container) - installed.viewHeight, 0);
+  return Math.max(contentHeight(container) + spacerRoom(container) - installed.viewHeight, 0);
 }
 
 function scrollTopOf(container) {

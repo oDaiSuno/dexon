@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, type MutableRefObject } from "react";
 import {
   isUpwardScrollKey,
   isUpwardTouchGesture,
@@ -11,7 +11,6 @@ import {
   SCROLL_KEYS,
   USER_SCROLL_INTENT_MS,
   isNearBottomExcludingSpacer,
-  setScrollMagnetEngaged,
 } from "./shared";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
@@ -32,7 +31,7 @@ type Dependencies = Pick<
   | "lastScrollTopRef"
   | "touchStartClientYRef"
   | "sessionChangeIgnoreScrollUntilRef"
->;
+> & { visualFrameIdsRef: MutableRefObject<Set<number>> };
 export function useSessionScroll(context: Dependencies) {
   const {
     ignoreProgrammaticScrollUntilRef,
@@ -51,7 +50,24 @@ export function useSessionScroll(context: Dependencies) {
     lastScrollTopRef,
     touchStartClientYRef,
     sessionChangeIgnoreScrollUntilRef,
+    visualFrameIdsRef,
   } = context;
+
+  const scheduleVisualFrame = useCallback(
+    (callback: () => void) => {
+      if (typeof globalThis.requestAnimationFrame !== "function") return;
+      let frameId = 0;
+      let callbackRan = false;
+      frameId = globalThis.requestAnimationFrame(() => {
+        callbackRan = true;
+        visualFrameIdsRef.current.delete(frameId);
+        if (globalThis.document?.visibilityState === "hidden") return;
+        callback();
+      });
+      if (!callbackRan) visualFrameIdsRef.current.add(frameId);
+    },
+    [visualFrameIdsRef],
+  );
 
   const scrollToBottom = useCallback(
     (behavior: ScrollBehavior = "smooth") => {
@@ -94,7 +110,6 @@ export function useSessionScroll(context: Dependencies) {
     completionScrollAllowedRef.current = true;
     externalTurnAutoFollowRef.current = false;
     autoFollowMagnetRef.current = true;
-    setScrollMagnetEngaged(true);
     pendingScrollToUserRef.current = false;
     initialScrollDoneRef.current = true;
     userScrollIntentUntilRef.current = 0;
@@ -109,11 +124,39 @@ export function useSessionScroll(context: Dependencies) {
     userScrollIntentUntilRef,
   ]);
 
+  const settleAtLatest = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    autoFollowMagnetRef.current = true;
+    completionScrollAllowedRef.current = true;
+    scrollToBottom("auto");
+    let previousHeight = container.scrollHeight;
+    let stableFrames = 0;
+    let frames = 0;
+    const snap = () => {
+      if (!container.isConnected) return;
+      if (Date.now() <= userScrollIntentUntilRef.current) return;
+      scrollToBottom("auto");
+      frames += 1;
+      const height = container.scrollHeight;
+      stableFrames = height === previousHeight ? stableFrames + 1 : 0;
+      previousHeight = height;
+      if (stableFrames < 3 && frames < 60) scheduleVisualFrame(snap);
+    };
+    scheduleVisualFrame(snap);
+  }, [
+    autoFollowMagnetRef,
+    completionScrollAllowedRef,
+    scrollContainerRef,
+    scrollToBottom,
+    scheduleVisualFrame,
+    userScrollIntentUntilRef,
+  ]);
+
   const disengageAutoFollowForExplicitUpwardGesture = useCallback(() => {
     completionScrollAllowedRef.current = false;
     externalTurnAutoFollowRef.current = false;
     autoFollowMagnetRef.current = false;
-    setScrollMagnetEngaged(false);
   }, [autoFollowMagnetRef, completionScrollAllowedRef, externalTurnAutoFollowRef]);
 
   const markUserScrollIntent = useCallback(
@@ -181,10 +224,8 @@ export function useSessionScroll(context: Dependencies) {
         })
       ) {
         autoFollowMagnetRef.current = false;
-        setScrollMagnetEngaged(false);
       } else if (now >= sessionChangeIgnoreScrollUntilRef.current && isNearBottomExcludingSpacer(container)) {
         autoFollowMagnetRef.current = true;
-        setScrollMagnetEngaged(true);
       }
       return;
     }
@@ -208,7 +249,6 @@ export function useSessionScroll(context: Dependencies) {
       // shouldStopChatAutoFollow only accepts explicit user intent, so it must
       // win even while a session-transition guard is active.
       autoFollowMagnetRef.current = false;
-      setScrollMagnetEngaged(false);
     }
   }, [
     agentRunningRef,
@@ -233,6 +273,7 @@ export function useSessionScroll(context: Dependencies) {
     scrollLiveContentToBottom,
     updateScrollPresence,
     reattachAutoFollow,
+    settleAtLatest,
   };
 }
 export type SessionScroll = ReturnType<typeof useSessionScroll>;

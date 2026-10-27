@@ -76,89 +76,77 @@ async function waitForTheEarlierPageRequest(page, scene) {
   return seenLoading || loading();
 }
 
-test(
-  "returning to a position on an earlier page shows that earlier messages are loading, then the same sentence at the same height",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const { scene, watched, before } = await readOnAnEarlierPage(t);
-    const page = await leaveAndHoldTheEarlierPage(scene);
+test("returning to a position on an earlier page shows that earlier messages are loading, then the same sentence at the same height", async (t) => {
+  const { scene, watched, before } = await readOnAnEarlierPage(t);
+  const page = await leaveAndHoldTheEarlierPage(scene);
 
-    await returnToThePagedConversation(scene);
-    const loadingShown = await waitForTheEarlierPageRequest(page, scene);
-    if (page.reached()) page.release();
-    await scene.settled();
+  await returnToThePagedConversation(scene);
+  const loadingShown = await waitForTheEarlierPageRequest(page, scene);
+  if (page.reached()) page.release();
+  await scene.settled();
 
-    const after = screenTop(scene, watched);
-    assert.ok(
-      after !== null && Math.abs(after - before) <= ONE_LINE,
-      `“${watched}” should be at the same height after returning: before ${before}px, after ${after === null ? "not on screen" : `${after}px`}`,
-    );
-    assert.ok(page.reached(), "returning asked the Host for the earlier page that holds that sentence");
-    assert.ok(loadingShown, `the reader was told “${LOADING}” while that page was being read`);
+  const after = screenTop(scene, watched);
+  assert.ok(
+    after !== null && Math.abs(after - before) <= ONE_LINE,
+    `“${watched}” should be at the same height after returning: before ${before}px, after ${after === null ? "not on screen" : `${after}px`}`,
+  );
+  assert.ok(page.reached(), "returning asked the Host for the earlier page that holds that sentence");
+  assert.ok(loadingShown, `the reader was told “${LOADING}” while that page was being read`);
 
-    const expected = [];
-    for (let turn = 15; turn <= 30; turn += 1)
-      expected.push(questionMarker("long-paged", turn), answerMarker("long-paged", turn));
-    const content = conversation(scene).textContent;
-    for (const sentence of expected)
-      assert.equal(content.split(sentence).length - 1, 1, `“${sentence}” appears exactly once`);
-    const positions = expected.map((sentence) => content.indexOf(sentence));
-    for (let index = 1; index < positions.length; index += 1)
-      assert.ok(positions[index - 1] < positions[index], `“${expected[index]}” is read after “${expected[index - 1]}”`);
-  },
-);
+  const expected = [];
+  for (let turn = 15; turn <= 30; turn += 1)
+    expected.push(questionMarker("long-paged", turn), answerMarker("long-paged", turn));
+  const content = conversation(scene).textContent;
+  for (const sentence of expected)
+    assert.equal(content.split(sentence).length - 1, 1, `“${sentence}” appears exactly once`);
+  const positions = expected.map((sentence) => content.indexOf(sentence));
+  for (let index = 1; index < positions.length; index += 1)
+    assert.ok(positions[index - 1] < positions[index], `“${expected[index]}” is read after “${expected[index - 1]}”`);
+});
 
-test(
-  "if the reader scrolls while the earlier page is loading, the view stays where the reader scrolled",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const { scene } = await readOnAnEarlierPage(t);
-    const page = await leaveAndHoldTheEarlierPage(scene);
+test("if the reader scrolls while the earlier page is loading, the view stays where the reader scrolled", async (t) => {
+  const { scene } = await readOnAnEarlierPage(t);
+  const page = await leaveAndHoldTheEarlierPage(scene);
 
-    await returnToThePagedConversation(scene);
-    await waitForTheEarlierPageRequest(page, scene);
-    const watched = questionMarker("long-paged", 24);
-    const container = conversation(scene);
-    await act(async () => {
-      container.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: -1, bubbles: true, cancelable: true }));
-      container.scrollTop = rowOnNewestPage(24) * ROW_HEIGHT;
-      container.dispatchEvent(new dom.window.Event("scroll"));
-    });
-    const top = topOf(scene, watched);
+  await returnToThePagedConversation(scene);
+  await waitForTheEarlierPageRequest(page, scene);
+  const watched = questionMarker("long-paged", 24);
+  const container = conversation(scene);
+  await act(async () => {
+    container.dispatchEvent(new dom.window.WheelEvent("wheel", { deltaY: -1, bubbles: true, cancelable: true }));
+    container.scrollTop = rowOnNewestPage(24) * ROW_HEIGHT;
+    container.dispatchEvent(new dom.window.Event("scroll"));
+  });
+  const top = topOf(scene, watched);
 
-    if (page.reached()) page.release();
-    await scene.settled();
+  if (page.reached()) page.release();
+  await scene.settled();
 
-    const after = topOf(scene, watched);
-    assert.ok(
-      Math.abs(after - top) <= ONE_LINE,
-      `“${watched}” should stay where the reader scrolled it: before ${top}px, after ${after}px`,
-    );
-    assert.ok(page.reached(), "returning asked the Host for the earlier page that was still loading");
-  },
-);
+  const after = topOf(scene, watched);
+  assert.ok(
+    Math.abs(after - top) <= ONE_LINE,
+    `“${watched}” should stay where the reader scrolled it: before ${top}px, after ${after}px`,
+  );
+  assert.ok(page.reached(), "returning asked the Host for the earlier page that was still loading");
+});
 
-test(
-  "if the earlier page cannot be read, the reader sees the existing failure notice with Retry",
-  { todo: "issue #42: not implemented yet" },
-  async (t) => {
-    const { scene, watched, before } = await readOnAnEarlierPage(t);
-    const page = await leaveAndHoldTheEarlierPage(scene);
+test("if the earlier page cannot be read, the reader sees the existing failure notice with Retry", async (t) => {
+  const { scene, watched, before } = await readOnAnEarlierPage(t);
+  const page = await leaveAndHoldTheEarlierPage(scene);
 
-    await returnToThePagedConversation(scene);
-    await waitForTheEarlierPageRequest(page, scene);
-    if (page.reached()) page.fail("Host read failed");
-    await scene.settled();
+  await returnToThePagedConversation(scene);
+  await waitForTheEarlierPageRequest(page, scene);
+  if (page.reached()) page.fail("Host read failed");
+  await scene.settled();
 
-    assert.ok(page.reached(), "returning asked the Host for the earlier page that failed");
-    visibleText(chat(scene), "Earlier messages could not be loaded.");
+  assert.ok(page.reached(), "returning asked the Host for the earlier page that failed");
+  visibleText(chat(scene), "Earlier messages could not be loaded.");
 
-    await click(control(chat(scene), "button", "Retry"));
-    await scene.settled();
-    const after = screenTop(scene, watched);
-    assert.ok(
-      after !== null && Math.abs(after - before) <= ONE_LINE,
-      `once the retried page arrives, “${watched}” is back at its height: before ${before}px, after ${after === null ? "not on screen" : `${after}px`}`,
-    );
-  },
-);
+  await click(control(chat(scene), "button", "Retry"));
+  await scene.settled();
+  const after = screenTop(scene, watched);
+  assert.ok(
+    after !== null && Math.abs(after - before) <= ONE_LINE,
+    `once the retried page arrives, “${watched}” is back at its height: before ${before}px, after ${after === null ? "not on screen" : `${after}px`}`,
+  );
+});

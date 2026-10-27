@@ -2,13 +2,6 @@ import { type EventStreamConnectionStatus } from "@/lib/event-stream-connection"
 import type { AgentMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ModelInfo, SessionDetail, SessionRuntimeState } from "@contract/types";
 import { isNearChatBottom } from "../chat-scroll-policy";
-export let scrollMagnetEngaged = false;
-export function getScrollMagnetEngaged(): boolean {
-  return scrollMagnetEngaged;
-}
-export function setScrollMagnetEngaged(value: boolean): void {
-  scrollMagnetEngaged = value;
-}
 export type SessionData = SessionDetail;
 export type AgentStateResponse = SessionRuntimeState;
 export interface StreamingState {
@@ -102,6 +95,7 @@ export interface UseAgentSessionOptions {
    * while false; the runtime keeps streaming. Defaults to true.
    */
   readingVisible?: boolean;
+  restoreReadingPosition?: boolean;
 }
 export type ThinkingLevelOption = "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
