@@ -26,7 +26,7 @@ function baseProps(overrides = {}) {
     props: {
       expanded: true,
       page: "chat",
-      spaceName: "Personal space",
+      spaceName: "Default space",
       spacePath: "/Users/tester/.dexon",
       sessions: navigationSessions,
       loading: false,
@@ -54,8 +54,8 @@ test("expanded navigation presents space, main entries, history and settings", a
   const view = await mount(t, NavSidebar, props);
   assert.ok(button(view.container, "Hide sidebar"));
   assert.ok(byRole(view.container, "searchbox", "Search sessions"), "the session search is always visible");
-  assert.ok(button(view.container, "Actions for Personal space"), "the current project offers its space actions");
-  assert.match(view.container.textContent, /Personal space/);
+  assert.ok(button(view.container, "Actions for Default space"), "the current project offers its space actions");
+  assert.match(view.container.textContent, /Default space/);
   const newSession = button(view.container, "New session");
   assert.ok(newSession, "the navigation offers an entry named New session");
   assert.equal(newSession.getAttribute("aria-current"), null);
@@ -118,7 +118,7 @@ test("sessions are grouped under the project they belong to and other projects s
   ];
   const { props } = baseProps({ sessions, spacePath: "/Users/tester/.dexon" });
   const view = await mount(t, NavSidebar, props);
-  const current = button(view.container, "Personal space");
+  const current = button(view.container, "Default space");
   const other = button(view.container, "gamma");
   assert.equal(current.getAttribute("aria-expanded"), "true");
   assert.equal(other.getAttribute("aria-expanded"), "false");

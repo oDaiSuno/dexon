@@ -151,6 +151,7 @@ export interface DesktopUiState {
   chatAppearance?: ChatAppearancePreferences;
   /** Remembered last workspace directory (space); null clears the record. */
   lastSpaceCwd?: string | null;
+  openProjects?: string[];
 }
 
 export type DesktopUiStatePatch = Partial<DesktopUiState>;

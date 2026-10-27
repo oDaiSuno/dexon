@@ -46,6 +46,7 @@ export function useWorkspaceNavigation({
   const [initialSessionRestored, setInitialSessionRestored] = useState<boolean>(() => !initialSessionId);
   // Suppresses sessionKey bump in handleCwdChange during the initial URL restore
   const suppressCwdBumpRef = useRef(false);
+  const [spaceFrozenSessionId, setSpaceFrozenSessionId] = useState<string | null>(null);
 
   const openSessionById = useCallback(
     (sessionId: string) => {
@@ -127,7 +128,8 @@ export function useWorkspaceNavigation({
   );
 
   const handleSelectSession = useCallback(
-    (session: SessionInfo, isRestore = false) => {
+    (session: SessionInfo, isRestore = false, keepSpace = false) => {
+      setSpaceFrozenSessionId(keepSpace ? session.id : null);
       if (!isRestore) onShowChat?.();
       if (!isRestore && selectedSession?.id === session.id) {
         if (isMobile) onMobileSidebarClose();
@@ -246,6 +248,7 @@ export function useWorkspaceNavigation({
 
   return {
     selectedSession,
+    spaceFrozenSessionId,
     newSessionCwd,
     activeCwd,
     sessionKey,

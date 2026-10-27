@@ -16,7 +16,7 @@ import { navigationPaths } from "../fixtures/app-navigation-data.mjs";
 after(restoreGlobals);
 
 test("typing a known project's name in the project switcher and pressing Enter makes it the current project", async (t) => {
-  const scene = await startNavigation(t);
+  const scene = await startNavigation(t, { openProjects: [navigationPaths.personal, navigationPaths.project] });
   const card = await scene.menu();
   const search = control(card, "searchbox", "Search or open a project…");
   assert.equal(dom.window.document.activeElement, search, "the card opens with the cursor in the search box");

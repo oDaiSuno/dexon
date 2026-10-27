@@ -1,0 +1,14 @@
+{
+  "personalSpace": {
+    "enUS": "Default space",
+    "zhCN": "默认空间"
+  },
+  "backToPersonalSpace": {
+    "enUS": "Back to default space",
+    "zhCN": "返回默认空间"
+  },
+  "personalSpaceUnavailable": {
+    "enUS": "The default space couldn't be prepared.",
+    "zhCN": "默认空间准备失败。"
+  }
+}

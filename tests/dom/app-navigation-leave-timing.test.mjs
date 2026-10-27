@@ -70,7 +70,7 @@ test("a plugin action that completes after a space switch reports nothing in the
   disable.release();
   await scene.settled();
   assert.doesNotMatch(scene.resourcePanel().textContent, /Package disabled\.|npm:personal-navigation-plugin/);
-  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to personal space"));
+  await click(control(await scene.menu("navigation-project"), "menuitem", "Back to default space"));
   await click(await waitFor(() => visibleText(scene.resourcePanel(), "npm:personal-navigation-plugin")));
   await waitFor(() => control(scene.resourcePanel(), "switch", "Enable package"));
 });

@@ -3,6 +3,17 @@ import { SearchIcon } from "../chat-input/icons";
 
 export const ACTION_ROW_HEIGHT = 36;
 
+export interface SwitcherRow {
+  key: string;
+  label: string;
+  icon: ReactNode;
+  detail?: string;
+  title?: string;
+  shortcut?: { label: string; aria: string };
+  disabled?: boolean;
+  run: () => void;
+}
+
 export const FOLDER_PATH = "M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z";
 export const HOUSE_PATHS = [
   "M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8",

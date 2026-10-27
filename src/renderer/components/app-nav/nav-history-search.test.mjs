@@ -73,7 +73,7 @@ function historyProps(overrides = {}) {
   return {
     expanded: true,
     page: "chat",
-    spaceName: "Personal space",
+    spaceName: "Default space",
     spacePath: "/Users/tester/.dexon",
     onToggleExpanded: noop,
     onNavigate: noop,

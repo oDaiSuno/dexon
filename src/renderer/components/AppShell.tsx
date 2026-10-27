@@ -4,6 +4,7 @@ import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { getFileName } from "@/lib/file-paths";
+import { defaultSpaceFolder } from "@/lib/space-identity";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { buildAtMentionText } from "@/lib/file-fuzzy";
 import { ThinkingExpansionRegistry } from "@/lib/thinking-expansion-store";
@@ -26,6 +27,7 @@ import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-pa
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useSpaceOwner } from "./app-shell/use-space-owner";
+import { useOpenProjects } from "./app-shell/use-open-projects";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -105,6 +107,7 @@ export function AppShell({
   });
   const {
     selectedSession,
+    spaceFrozenSessionId,
     newSessionCwd,
     activeCwd,
     sessionKey,
@@ -130,11 +133,17 @@ export function AppShell({
   // the coordinator's committed space flows back down as the sidebar's cwd.
   // Echoes of pushed values are tagged "coordinator" by the sidebar and must
   // adopt the cwd without user-space or session-close semantics.
+  const sessionSpaceCwd =
+    selectedSession === null
+      ? (newSessionCwd ?? null)
+      : selectedSession.id === spaceFrozenSessionId
+        ? null
+        : selectedSession.cwd;
   const coordination = useSpaceCoordination({
     sessionIntent: initialSessionId,
     sessionResolved: initialSessionRestored,
     sessionFound: selectedSession !== null,
-    sessionCwd: selectedSession?.cwd ?? newSessionCwd ?? null,
+    sessionCwd: sessionSpaceCwd,
   });
   const handleNavigate = useCallback(
     (target: NavPage) => {
@@ -182,6 +191,21 @@ export function AppShell({
     onCwdCommitted: handleCwdChange,
     onCoordinatorCwd: noteCoordinatorCwd,
     onOpenSidebar: openSidebarForSwitchSession,
+  });
+
+  const openProjects = useOpenProjects({
+    defaultSpace:
+      coordination.personalCwd ??
+      (coordination.spacePhase.phase === "idle" ||
+      (coordination.spacePhase.phase === "preparing" && coordination.spacePhase.target === "personal")
+        ? null
+        : defaultSpaceFolder(null, space.homeDir)),
+    currentProject:
+      (selectedSession ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd)) : null) ??
+      space.workspace.selectedProject ??
+      coordination.attemptedCwd,
+    refreshKey,
+    onCloseCurrent: space.handleReturnToPersonalSpace,
   });
 
   const dock = useRightPanelDock({
@@ -274,6 +298,7 @@ export function AppShell({
           refreshKey={refreshKey}
           workspace={space.workspace}
           onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
+          openProjects={openProjects}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}

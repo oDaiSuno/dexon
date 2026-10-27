@@ -14,6 +14,7 @@ import {
   currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { sessionItems } from "../support/app-navigation-projects.mjs";
 
 after(restoreGlobals);
 
@@ -55,7 +56,7 @@ test("New session on the main navigation leaves Resources for an empty chat and 
   assert.equal(dom.window.location.search, "");
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
   await scene.settled();
-  assert.equal(roles(scene.history(), "listitem").length, 2);
+  assert.equal(sessionItems(scene).length, 2);
   historyRows(scene, "Personal release notes", "Another personal conversation");
 });
 
@@ -118,9 +119,9 @@ test("New session on the rail returns from Resources to chat and expansion resto
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.equal(roles(scene.container, "heading", "Plugins & Skills").length, 0);
   await click(control(scene.navigation(), "button", "Show sidebar"));
-  control(scene.workspace(), "button", "Personal space");
-  const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  assert.equal(roles(history, "listitem").length, 2);
+  control(scene.workspace(), "button", "Default space");
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  assert.equal(sessionItems(scene).length, 2);
   showsChat(scene);
   assert.deepEqual(currentPages(scene), []);
 });

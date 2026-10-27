@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from "react";
+import { useId, useState, type MouseEvent, type ReactNode } from "react";
 
 const DUOTONE_FOLDER_OPEN = {
   tone: "M208,88v24H69.77a8,8,0,0,0-7.59,5.47L32,208V64a8,8,0,0,1,8-8H93.33a8,8,0,0,1,4.8,1.6L128,80h72A8,8,0,0,1,208,88Z",
@@ -23,6 +23,25 @@ function FolderGlyph({ open }: { open: boolean }) {
     >
       <path opacity={0.3} d={shape.tone} />
       <path d={shape.line} />
+    </svg>
+  );
+}
+
+function MissingFolderGlyph() {
+  return (
+    <svg
+      width={17}
+      height={17}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.7}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      style={{ display: "block", flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+    >
+      <path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" strokeDasharray="3 2.4" />
     </svg>
   );
 }
@@ -53,8 +72,14 @@ export function ProjectRow({
   countLabel,
   open,
   current,
+  missing = false,
+  missingLabel,
+  dragging = false,
   onToggle,
+  onDragStart,
+  consumeDragClick,
   actions,
+  children,
 }: {
   name: string;
   path: string;
@@ -62,8 +87,14 @@ export function ProjectRow({
   countLabel: string;
   open: boolean;
   current: boolean;
+  missing?: boolean;
+  missingLabel?: string;
+  dragging?: boolean;
   onToggle: () => void;
+  onDragStart?: (event: MouseEvent<HTMLElement>) => void;
+  consumeDragClick?: () => boolean;
   actions?: (revealed: boolean) => ReactNode;
+  children?: ReactNode;
 }) {
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -71,6 +102,7 @@ export function ProjectRow({
   const revealed = Boolean(actions) && (hovered || focused);
   return (
     <div
+      role="listitem"
       title={path}
       onMouseEnter={() => setHovered(true)}
       onMouseMove={() => {
@@ -81,64 +113,93 @@ export function ProjectRow({
       onBlur={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setFocused(false);
       }}
-      style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "center" }}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        borderRadius: "var(--radius-control)",
+        background: dragging ? "var(--fx-surface-raised)" : "transparent",
+        border: `1px solid ${dragging ? "var(--fx-line-default)" : "transparent"}`,
+        boxShadow: dragging ? "0 8px 20px -6px var(--fx-shadow-strong), 0 1px 2px var(--fx-shadow-soft)" : undefined,
+      }}
     >
-      <button
-        type="button"
-        data-project-row
-        aria-label={name}
-        aria-describedby={countId}
-        aria-expanded={open}
-        aria-current={current ? "location" : undefined}
-        onClick={onToggle}
-        style={{
-          gridArea: "1 / 1",
-          display: "flex",
-          alignItems: "center",
-          gap: "var(--space-2)",
-          width: "100%",
-          height: 32,
-          padding: "0 10px",
-          background: hovered ? "var(--fx-surface-hover)" : "var(--fx-surface-sidebar)",
-          border: "none",
-          borderRadius: "var(--radius-control)",
-          cursor: "pointer",
-          textAlign: "left",
-          transition: "background var(--duration-quick) var(--ease-smooth-out)",
-        }}
+      <div
+        style={{ position: "relative", display: "grid", gridTemplateColumns: "minmax(0, 1fr)", alignItems: "center" }}
       >
-        <ChevronGlyph open={open} />
-        <FolderGlyph open={open} />
-        <span
-          className="type-body-large"
+        <button
+          type="button"
+          data-project-row
+          aria-label={name}
+          aria-describedby={missing ? undefined : countId}
+          aria-expanded={open}
+          aria-current={current ? "location" : undefined}
+          onMouseDown={onDragStart}
+          onClick={() => {
+            if (consumeDragClick?.()) return;
+            onToggle();
+          }}
           style={{
-            flex: 1,
-            minWidth: 0,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: "var(--fx-text-body)",
+            gridArea: "1 / 1",
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--space-2)",
+            width: "100%",
+            height: 32,
+            padding: "0 10px",
+            background: hovered && !dragging ? "var(--fx-surface-hover)" : "transparent",
+            border: "none",
+            borderRadius: "var(--radius-control)",
+            cursor: "pointer",
+            textAlign: "left",
+            transition: "background var(--duration-quick) var(--ease-smooth-out)",
           }}
         >
-          {name}
-        </span>
-        <span
-          className="type-label-default"
-          aria-hidden="true"
-          style={{
-            flexShrink: 0,
-            color: "var(--fx-text-tertiary)",
-            opacity: revealed ? 0 : 1,
-            transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
-          }}
-        >
-          {count}
-        </span>
-        <span id={countId} className="sr-only">
-          {countLabel}
-        </span>
-      </button>
-      {actions && <div style={{ gridArea: "1 / 1", justifySelf: "end", marginRight: 6 }}>{actions(revealed)}</div>}
+          <ChevronGlyph open={open} />
+          {missing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
+          <span
+            className="type-body-large"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              color: missing ? "var(--fx-text-tertiary)" : "var(--fx-text-body)",
+            }}
+          >
+            {name}
+          </span>
+          {missing ? (
+            <span className="type-label-default" style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
+              {missingLabel}
+            </span>
+          ) : (
+            <>
+              <span
+                className="type-label-default"
+                aria-hidden="true"
+                style={{
+                  flexShrink: 0,
+                  color: "var(--fx-text-tertiary)",
+                  opacity: revealed ? 0 : 1,
+                  transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
+                }}
+              >
+                {count}
+              </span>
+              <span id={countId} className="sr-only">
+                {` ${countLabel}`}
+              </span>
+            </>
+          )}
+        </button>
+        {actions && (
+          <div style={{ position: "relative", gridArea: "1 / 1", justifySelf: "end", marginRight: 6 }}>
+            {actions(revealed)}
+          </div>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

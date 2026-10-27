@@ -18,6 +18,7 @@ import {
 export function navigationBoundary({
   history = true,
   lastSpaceCwd = null,
+  openProjects,
   emptySkills = false,
   runningSessionIds = [],
   unavailableSpaces = {},
@@ -66,6 +67,16 @@ export function navigationBoundary({
   const deepLinkListeners = new Set();
   const failures = { skillSave: null, openDirectory: null, agentPrompt: null };
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
+  if (openProjects !== undefined) uiState.openProjects = structuredClone(openProjects);
+  const missingFolders = new Map(Object.entries(unavailableSpaces));
+  const existingFolders = new Set([
+    navigationPaths.personal,
+    navigationPaths.project,
+    navigationPaths.worktree,
+    navigationPaths.createdWorktree,
+    navigationPaths.terminalOnly,
+    navigationPaths.empty,
+  ]);
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
   const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0, openedFiles: [] };
   const unexpected = [];
@@ -129,11 +140,11 @@ export function navigationBoundary({
         }
         return { cwd: navigationPaths.personal };
       case "system.validateCwd":
-        if (Object.hasOwn(unavailableSpaces, params.path)) return { ok: false, error: unavailableSpaces[params.path] };
+        if (missingFolders.has(params.path)) return { ok: false, error: missingFolders.get(params.path) };
         return { ok: true, path: params.path };
       case "projects.inspectFolder":
-        return params.path === navigationPaths.project
-          ? { ok: true, path: navigationPaths.project }
+        return existingFolders.has(params.path) && !missingFolders.has(params.path)
+          ? { ok: true, path: params.path }
           : { ok: false, error: "Directory does not exist" };
       case "sessions.list":
         return {
@@ -433,7 +444,14 @@ export function navigationBoundary({
     Object.entries(desktopBridge).map(([name, value]) =>
       typeof value !== "function" || name.startsWith("on")
         ? [name, value]
-        : [name, (...args) => tracked(() => value(...args))],
+        : [
+            name,
+            (...args) =>
+              tracked(async () => {
+                await passGate(`desktop.${name}`, args[0] ?? {});
+                return value(...args);
+              }),
+          ],
     ),
   );
   return {
@@ -451,6 +469,14 @@ export function navigationBoundary({
     unexpected,
     activity: () => ({ ...activity }),
     rememberedSpace: () => uiState.lastSpaceCwd,
+    // The folder disappears from (or comes back to) this computer.
+    removeFolder(folder, reason = "Fixture folder was removed from this computer") {
+      missingFolders.set(folder, reason);
+    },
+    restoreFolder(folder) {
+      missingFolders.delete(folder);
+      existingFolders.add(folder);
+    },
     hold(method, matches = () => true) {
       const entry = { method, matches, reached: false, released: createDeferred() };
       entry.released.promise.catch(() => {});

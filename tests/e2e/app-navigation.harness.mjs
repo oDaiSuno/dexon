@@ -322,23 +322,23 @@ async function run() {
     await waitFor(() => exists("group", "Message input"), "a real new-session composer");
     assert.equal(await exists("heading", "Plugins & Skills"), false);
     await click("button", "Show sidebar");
-    await waitFor(() => exists("button", "Personal space"), "restored friendly workspace controls");
+    await waitFor(() => exists("button", "Default space"), "restored friendly workspace controls");
     const measurement = await navigationWidth(272);
     assert.deepEqual(measurement.currentPage, [], "an empty session marks no navigation entry as the current page");
     await waitFor(() => exists("button", nativeHistoryTitle), "the original conversation after expansion");
     return { ...measurement, restoredHistory: nativeHistoryTitle };
   });
   await scene("09-space-menu-keyboard", async () => {
-    const focus = await focusByTab("Actions for Personal space");
-    assert.equal(focus.name, "Actions for Personal space");
+    const focus = await focusByTab("Actions for Default space");
+    assert.equal(focus.name, "Actions for Default space");
     assert.ok(
       focus.focusVisible && focus.outlineWidth > 0 && focus.outlineStyle !== "none",
       "workspace has a visible real-keyboard focus ring",
     );
     await key("Enter");
-    await waitFor(() => exists("menu", "Personal space"), "the space menu opened by Enter");
+    await waitFor(() => exists("menu", "Default space"), "the space menu opened by Enter");
     await key("Escape");
-    await waitFor(async () => !(await exists("menu", "Personal space")), "the space menu closed by Escape");
+    await waitFor(async () => !(await exists("menu", "Default space")), "the space menu closed by Escape");
     return { focus, keyboardOpenAndClose: true };
   });
   await scene("10-minimum-window-width", async () => {

@@ -12,6 +12,7 @@ import {
   currentPages,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import { sessionItems } from "../support/app-navigation-projects.mjs";
 import { railEntries } from "../fixtures/app-navigation-data.mjs";
 import { accessibleName } from "../support/dom-queries.mjs";
 
@@ -46,9 +47,9 @@ test("New session on the rail replaces the open conversation and expansion resto
   await waitFor(() => control(scene.container, "group", "Message input"));
   assert.doesNotMatch(control(scene.container, "region", "Chat").textContent, /Personal conversation marker/);
   await click(control(scene.navigation(), "button", "Show sidebar"));
-  control(scene.workspace(), "button", "Personal space");
-  const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
-  assert.equal(roles(history, "listitem").length, 2);
+  control(scene.workspace(), "button", "Default space");
+  await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
+  assert.equal(sessionItems(scene).length, 2);
   assert.deepEqual(currentPages(scene), [], "an empty session is the current page nowhere in the navigation");
 });
 

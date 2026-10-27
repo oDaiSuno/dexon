@@ -4,9 +4,11 @@ import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
 import { getParentFilePath } from "@shared/file-paths";
+import { ProjectMenuContent } from "./project-menu";
 import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-card";
 
 const CARD_WIDTH = 280;
+const MENU_WIDTH = 216;
 const CARD_MARGIN = 8;
 const CARD_GAP = 4;
 
@@ -24,39 +26,63 @@ const TRIGGER_STYLE: CSSProperties = {
     "background var(--duration-quick) var(--ease-smooth-out), opacity var(--duration-quick) var(--ease-smooth-out)",
 };
 
-export function NavSpaceMenu({
-  spaceName,
-  projectPath,
-  homeDir,
-  revealed = true,
-  projects = [],
-  inspectFolder,
-  onOpenFolder,
-  onChooseFolder,
-  onBackToPersonalSpace,
-}: {
+export interface NavProjectMenuProps {
   spaceName: string;
   projectPath: string;
   homeDir: string;
   revealed?: boolean;
+  missing?: boolean;
+  variant?: "card" | "menu";
+  currentRow?: boolean;
   projects?: readonly SwitcherProject[];
   inspectFolder?: (typed: string) => Promise<string | null>;
   onOpenFolder?: (folder: string) => void;
   onChooseFolder: () => void;
   onBackToPersonalSpace: () => void;
-}) {
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  canClose?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  onClose?: () => void;
+  closeProject?: () => void;
+}
+
+export function NavSpaceMenu({
+  spaceName,
+  projectPath,
+  homeDir,
+  revealed = true,
+  missing = false,
+  variant = "card",
+  currentRow = true,
+  projects = [],
+  inspectFolder,
+  onOpenFolder,
+  onChooseFolder,
+  onBackToPersonalSpace,
+  canMoveUp = false,
+  canMoveDown = false,
+  canClose = false,
+  onMoveUp,
+  onMoveDown,
+  onClose,
+  closeProject,
+}: NavProjectMenuProps) {
   const { t } = useI18n();
   const [position, setPosition] = useState<CSSProperties | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const open = position !== null;
+  const card = variant === "card";
+  const width = card ? CARD_WIDTH : MENU_WIDTH;
 
   const show = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (!rect) return;
     setPosition({
       top: rect.bottom + CARD_GAP,
-      left: Math.max(CARD_MARGIN, Math.min(rect.right - CARD_WIDTH, window.innerWidth - CARD_WIDTH - CARD_MARGIN)),
+      left: Math.max(CARD_MARGIN, Math.min(rect.right - width, window.innerWidth - width - CARD_MARGIN)),
     });
   };
 
@@ -74,6 +100,11 @@ export function NavSpaceMenu({
   showRef.current = show;
 
   useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
+
+  useEffect(() => {
+    if (!open || card) return;
+    menuRef.current?.focus();
+  }, [open, card]);
 
   useEffect(() => {
     if (!open) return;
@@ -95,12 +126,39 @@ export function NavSpaceMenu({
     };
   }, [open]);
 
+  const focusMenuItem = (key: string): boolean => {
+    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter(
+      (item) => item.getAttribute("aria-disabled") !== "true",
+    );
+    if (items.length === 0) return key === "ArrowDown" || key === "ArrowUp" || key === "Home" || key === "End";
+    const index = items.indexOf(document.activeElement as HTMLElement);
+    const target =
+      key === "Home"
+        ? 0
+        : key === "End"
+          ? items.length - 1
+          : key === "ArrowDown"
+            ? (index + 1) % items.length
+            : key === "ArrowUp"
+              ? index < 0
+                ? items.length - 1
+                : (index - 1 + items.length) % items.length
+              : -1;
+    if (target < 0) return false;
+    items[target].focus();
+    return true;
+  };
+
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape" || event.key === "Tab") {
       event.preventDefault();
       event.stopPropagation();
       close();
+      return;
     }
+    if (card || !focusMenuItem(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   return (
@@ -140,28 +198,43 @@ export function NavSpaceMenu({
               position: "fixed",
               display: "flex",
               flexDirection: "column",
-              gap: 2,
-              width: CARD_WIDTH,
-              padding: 6,
+              gap: card ? 2 : 0,
+              width,
+              padding: card ? 6 : 4,
               zIndex: 1000,
               background: "var(--fx-surface-raised)",
               border: "1px solid var(--fx-line-default)",
-              borderRadius: "var(--radius-dialog)",
-              boxShadow: "var(--shadow-popover)",
+              borderRadius: card ? "var(--radius-dialog)" : "var(--radius-menu)",
+              boxShadow: card ? "var(--shadow-popover)" : "var(--shadow-menu)",
               ...position,
             }}
           >
-            <ProjectSwitcherCard
-              spaceName={spaceName}
-              folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
-              homeDir={homeDir}
-              projects={projects}
-              inspectFolder={inspectFolder}
-              onOpenFolder={onOpenFolder}
-              onChooseFolder={onChooseFolder}
-              onBackToPersonalSpace={onBackToPersonalSpace}
-              onChoose={choose}
-            />
+            {card ? (
+              <ProjectSwitcherCard
+                spaceName={spaceName}
+                folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
+                homeDir={homeDir}
+                projects={projects}
+                inspectFolder={inspectFolder}
+                onOpenFolder={onOpenFolder}
+                onChooseFolder={onChooseFolder}
+                onBackToPersonalSpace={onBackToPersonalSpace}
+                showsCurrentProject={currentRow}
+                onCloseProject={closeProject}
+                canCloseProject={canClose}
+                onChoose={choose}
+              />
+            ) : (
+              <ProjectMenuContent
+                missing={missing}
+                canMoveUp={canMoveUp}
+                canMoveDown={canMoveDown}
+                canClose={canClose}
+                onMoveUp={() => choose(() => onMoveUp?.())}
+                onMoveDown={() => choose(() => onMoveDown?.())}
+                onClose={() => choose(() => onClose?.())}
+              />
+            )}
           </div>,
           document.body,
         )}

@@ -57,6 +57,7 @@
     "test:nav-layout-electron": "node scripts/test-nav-layout-electron.mjs",
     "test:app-navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/dom/app-navigation-*.test.mjs",
     "test:app-navigation-electron": "node scripts/test-app-navigation-electron.mjs",
+    "test:project-list-electron": "node scripts/test-project-list-electron.mjs",
     "test:browser-agent-e2e": "node scripts/test-browser-agent-e2e.mjs",
     "test:build-watch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-tsup-watch.mjs",
     "test:managed-process-flood": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-managed-process-flood.mjs",
