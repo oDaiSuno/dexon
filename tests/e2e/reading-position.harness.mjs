@@ -31,6 +31,7 @@ const LOADING = "Loading earlier messages…";
 
 let window;
 let currentScene = requiredScenes[0];
+let lastLongPosition = null;
 
 const observe = async (action, description) => {
   let timer;
@@ -244,6 +245,7 @@ async function run() {
       "the long conversation again",
     );
     const longAgain = await expectSamePosition(reading, "independent long");
+    lastLongPosition = longAgain.watched;
     await clickHistory(shortReadingTitle);
     await waitFor(
       async () => (await conversationShown()) && (await page("text")).includes(short.text),
@@ -262,6 +264,14 @@ async function run() {
     assert.ok(childRow.left >= parentRow.left, "the child conversation is not placed left of its parent");
 
     await openConversation(longReadingTitle, `Question ${longReadingQuestions} of ${longReadingTitle}`);
+    // Opening A restores where scene 07 left it, which reads earlier pages first;
+    // the reader starts scrolling only once A is back at that sentence.
+    await waitFor(
+      async () => (await conversationShown()) && (await page("text")).includes(lastLongPosition.text),
+      "the long conversation back at its remembered sentence",
+      40000,
+    );
+    await expectSamePosition(lastLongPosition, "child before reading");
     const watched = await settleOnSentence(1);
     await clickHistory(parentReadingTitle);
     await waitFor(
