@@ -166,6 +166,23 @@ test("when the message that was being read is gone and a reply is running, retur
   assert.equal(distanceFromBottom(scene), 0, "the view keeps following the running reply");
 });
 
+test("a reader who left while watching a reply that finished while they were away returns to the same sentence with the way to the bottom offered", async (t) => {
+  const scene = await streamingScene(t, { lines: [line(1), line(2)] });
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  const watched = answerMarker("long-reading", 12);
+  const before = topOf(scene, watched);
+
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await act(async () => scene.external.finishStream("long-reading", STREAM_LINES.join("\n\n")));
+  await scene.settled();
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+
+  sameHeight(watched, before, topOf(scene, watched));
+  const below = distanceFromBottom(scene);
+  assert.ok(below > 0, `the finished reply is below the sentence the reader was watching (${below}px)`);
+  await expectTheWayBackToTheNewestContent(scene);
+});
+
 test("a reader who left while watching the reply at the bottom returns to the sentence they were watching, with the new content below", async (t) => {
   const scene = await streamingScene(t, { lines: [line(1), line(2)] });
   await open(scene, "Long reading session", questionMarker("long-reading", 1));
