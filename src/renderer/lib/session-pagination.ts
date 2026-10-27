@@ -1,4 +1,4 @@
-import type { PagedContextInfo } from "@contract/types";
+import type { PagedContextInfo, TurnOutlineItem } from "@contract/types";
 import type { AgentMessage } from "./types";
 
 export interface LoadedHistory {
@@ -32,6 +32,14 @@ export function mergeHistoryTail(current: LoadedHistory, context: PagedContextIn
     revision: current.revision,
     previousCursor: current.previousCursor,
   };
+}
+
+export function outlineBeyondWindow(
+  outline: TurnOutlineItem[] | undefined,
+  loadedEntryIds: string[],
+): TurnOutlineItem[] {
+  const loaded = new Set(loadedEntryIds);
+  return (outline ?? []).filter((item) => !loaded.has(item.entryId));
 }
 
 export function prependHistoryPage(current: LoadedHistory, context: PagedContextInfo): LoadedHistory | null {

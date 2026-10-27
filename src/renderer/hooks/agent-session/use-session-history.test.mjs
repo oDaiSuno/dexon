@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createReadingAnchorElement,
   createReadingSurface,
   createSessionDetail,
   createSessionHookHarness,
   createSessionTestHost,
+  installReadingAnchors,
 } from "./session-hook-harness.mjs";
 
 function trackHiddenGeometry(container) {
@@ -50,6 +52,8 @@ function trackHiddenGeometry(container) {
 test("loading older history prepends and preserves the reading offset", async (t) => {
   const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
   const container = surface.container;
+  let anchorTop = 200;
+  installReadingAnchors(container, [createReadingAnchorElement(container, "older-1", () => anchorTop)]);
   const detail = createSessionDetail("s-1", {
     previousCursor: "cursor-1",
     historyRevision: "rev-1",
@@ -93,12 +97,17 @@ test("loading older history prepends and preserves the reading offset", async (t
 
   assert.equal(typeof commitRaf, "function", "scroll compensation scheduled");
   container.scrollHeight = 700;
+  anchorTop = 500;
   commitRaf();
-  assert.equal(container.scrollTop, 400, "viewport offset kept stable by the height delta");
+  assert.equal(container.scrollTop, 400, "the reading anchor keeps its offset in the viewport");
 });
 
 test("history pagination keeps data while hide cancels visual anchor compensation", async (t) => {
   const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
+  let anchorTop = 200;
+  installReadingAnchors(surface.container, [
+    createReadingAnchorElement(surface.container, "older-hidden", () => anchorTop),
+  ]);
   const geometry = trackHiddenGeometry(surface.container);
   const detail = createSessionDetail("s-1", { previousCursor: "cursor-1", historyRevision: "rev-1" });
   const visibleDetail = createSessionDetail("s-2", { previousCursor: "cursor-2", historyRevision: "rev-2" });
@@ -143,6 +152,7 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
   assert.deepEqual(geometry.counts, { reads: 0, writes: 0 }, "hidden page completion performs no geometry work");
   geometry.show();
   surface.container.scrollHeight = 700;
+  anchorTop = 500;
   geometry.reset();
   await h.update({ ...options, readingVisible: true });
   await h.flush();
@@ -169,6 +179,7 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
   await visibleLoad;
   await h.flush();
   surface.container.scrollHeight = 700;
+  anchorTop = 500;
   const scrollTopBeforeHide = surface.container.scrollTop;
   await h.update({ ...visibleOptions, readingVisible: false });
   geometry.hide();
@@ -193,6 +204,7 @@ test("history pagination keeps data while hide cancels visual anchor compensatio
 
 test("a queued history frame cannot mutate a surface after unmount", async (t) => {
   const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
+  installReadingAnchors(surface.container, []);
   const detail = createSessionDetail("s-1", { previousCursor: "cursor-1", historyRevision: "rev-1" });
   const host = createSessionTestHost({
     getSession: async () => detail,

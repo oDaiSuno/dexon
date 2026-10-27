@@ -15,7 +15,7 @@ import type {
   ImageContent,
   TextContent,
 } from "@/lib/types";
-import type { ContextUsageInfo, ModelCatalogStatus } from "@contract/types";
+import type { ContextUsageInfo, ModelCatalogStatus, TurnOutlineItem } from "@contract/types";
 import { useReducer, useRef, useState } from "react";
 import {
   AgentEvent,
@@ -95,6 +95,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessages>({ steering: [], followUp: [] });
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const [historyRevision, setHistoryRevision] = useState<string | null>(null);
+  const [olderOutline, setOlderOutline] = useState<TurnOutlineItem[]>([]);
   const [loadingOlder, setLoadingOlder] = useState(false);
   // True when the chat viewport has scrolled away from the bottom; drives the
   // floating "scroll to bottom" affordance in ChatWindow.
@@ -280,6 +281,8 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     previousCursor,
     loadingOlder,
     historyRevision,
+    olderOutline,
+    setOlderOutline,
     interactiveTools,
     extensionStatuses,
     extensionWidgets,

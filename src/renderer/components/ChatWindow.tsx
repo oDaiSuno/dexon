@@ -13,6 +13,19 @@ import { MessageView } from "./MessageView";
 import { RetryCountdownLine } from "./messages/FailureLine";
 import { SessionProfiler } from "./SessionProfiler";
 import { useLayoutEffect } from "react";
+
+const detachedSentinel = () => {};
+
+const floatingLayerStyle = {
+  position: "absolute",
+  top: 12,
+  left: 0,
+  right: 0,
+  zIndex: 40,
+  padding: `0 ${CHAT_COLUMN_PADDING}px`,
+  pointerEvents: "none",
+} as const;
+
 export function ChatWindow(props: Props) {
   const visible = props.visible ?? true;
   useLayoutEffect(() => {
@@ -70,11 +83,13 @@ export function ChatWindow(props: Props) {
     chatViewportHeight,
     messagesEndRef,
     navigatorTurns,
+    turnJump,
     isAwayFromBottom,
     reattachAutoFollow,
     belowEditorWidgets,
     chatInputElement,
   } = useChatWindow(props);
+  const jumpPending = turnJump.jumpTarget !== null;
 
   if (loading) {
     return (
@@ -117,21 +132,35 @@ export function ChatWindow(props: Props) {
       ) : (
         <>
           <div className="chat-conversation-enter relative z-[1] flex min-h-0 flex-[1_1_0] overflow-hidden">
-            <div
-              style={{
-                position: "absolute",
-                top: 12,
-                left: 0,
-                right: 0,
-                zIndex: 40,
-                padding: `0 ${CHAT_COLUMN_PADDING}px`,
-                pointerEvents: "none",
-              }}
-            >
+            <div style={floatingLayerStyle}>
               <div className="chat-content-column">
                 <NoticeShelf notices={notices} onDismiss={dismissNotice} floating align="right" />
               </div>
             </div>
+            {jumpPending ? (
+              <div style={floatingLayerStyle}>
+                <div className="chat-content-column">
+                  <div
+                    style={{
+                      width: "fit-content",
+                      margin: "0 auto",
+                      pointerEvents: "auto",
+                      borderRadius: "var(--radius-card)",
+                      background: "var(--fx-surface-raised)",
+                      boxShadow: "var(--shadow-popover)",
+                    }}
+                  >
+                    <OlderHistoryZone
+                      sentinelRef={detachedSentinel}
+                      hasOlder={hasOlder}
+                      loadingOlder={loadingOlder || (jumpPending && !olderHistoryFailed)}
+                      failed={olderHistoryFailed}
+                      onLoad={loadOlderHistory}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <div
               ref={scrollContainerRef}
               role="region"
@@ -145,13 +174,15 @@ export function ChatWindow(props: Props) {
                 }}
               >
                 <div role="group" aria-label={t("messages", "Messages")} className="chat-content-column">
-                  <OlderHistoryZone
-                    sentinelRef={olderHistorySentinelRef}
-                    hasOlder={hasOlder}
-                    loadingOlder={loadingOlder}
-                    failed={olderHistoryFailed}
-                    onLoad={loadOlderHistory}
-                  />
+                  {jumpPending ? null : (
+                    <OlderHistoryZone
+                      sentinelRef={olderHistorySentinelRef}
+                      hasOlder={hasOlder}
+                      loadingOlder={loadingOlder}
+                      failed={olderHistoryFailed}
+                      onLoad={loadOlderHistory}
+                    />
+                  )}
                   <ExtensionStatusBar statuses={extensionStatuses} />
                   <ExtensionWidgets widgets={aboveEditorWidgets} />
 
@@ -224,6 +255,7 @@ export function ChatWindow(props: Props) {
                   scrollContainer={scrollContainerRef}
                   messageRefs={messageRefs}
                   visible={visible}
+                  turnJump={turnJump}
                 />
               </SessionProfiler>
             )}

@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import {
   isUpwardScrollKey,
   isUpwardTouchGesture,
+  marksChatScrollIntent,
   shouldDisengageScrollMagnet,
   shouldStopChatAutoFollow,
 } from "../chat-scroll-policy";
@@ -117,14 +118,7 @@ export function useSessionScroll(context: Dependencies) {
 
   const markUserScrollIntent = useCallback(
     (event: Event) => {
-      if (event instanceof KeyboardEvent) {
-        if (!SCROLL_KEYS.has(event.key)) return;
-        if (
-          event.target instanceof Element &&
-          event.target.closest("input, textarea, [contenteditable]:not([contenteditable='false'])")
-        )
-          return;
-      }
+      if (event instanceof KeyboardEvent && !marksChatScrollIntent(event, SCROLL_KEYS)) return;
       const container = scrollContainerRef.current;
       if (container) lastScrollTopRef.current = container.scrollTop;
       userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;

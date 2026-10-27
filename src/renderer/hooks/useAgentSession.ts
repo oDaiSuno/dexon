@@ -34,7 +34,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   readingVisibleRef.current = readingVisible;
   const visualFrameIdsRef = useRef<Set<number>>(new Set());
   const state = useSessionState(opts);
-  const history = useSessionHistory({ ...state, messageRefs: opts.messageRefs }, readingVisible);
+  const history = useSessionHistory(state, readingVisible);
   const deferredContent = useSessionDeferredContent({ ...state, ...history });
   const connection = useSessionConnection({ ...state, ...history });
   const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
@@ -131,6 +131,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     previousCursor,
     loadingOlder,
     historyRevision,
+    olderOutline,
     noticeState,
     dispatchNotice,
     setCompactResult,
@@ -229,6 +230,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     hasOlder: previousCursor !== null,
     loadingOlder,
     historyRevision,
+    olderOutline,
     notices: noticeState.visible,
     interactiveTools,
     extensionStatuses,

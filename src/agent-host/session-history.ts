@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
-import type { HistoryWindow, PagedContextInfo } from "../contract/types";
+import type { HistoryWindow, PagedContextInfo, TurnOutlineItem } from "../contract/types";
 import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
+import { turnTitleOf } from "../shared/turn-title";
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
 import { chosenSessionModel } from "./session-model";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
@@ -119,6 +120,12 @@ function buildUnits(turns: ProjectedMessage[][]): MessageUnit[] {
   return units;
 }
 
+function turnOutlineOf(messages: ProjectedMessage[]): TurnOutlineItem[] {
+  return messages.flatMap((item) =>
+    item.message.role === "user" ? [{ entryId: item.entryId, title: turnTitleOf(item.message.content) }] : [],
+  );
+}
+
 function packPage(units: MessageUnit[], maxTurns: number, maxBytes: number): ProjectedMessage[] {
   const newestTurn = units.at(-1)?.turnIndex ?? 0;
   const selected: ProjectedMessage[] = [];
@@ -169,6 +176,7 @@ export function buildSessionHistoryPage(options: {
       loadedMessages: context.messages.length,
       truncatedBefore: false,
       historyRevision,
+      outline: turnOutlineOf(projectDisplayMessages(path)),
     };
   }
 
@@ -204,6 +212,7 @@ export function buildSessionHistoryPage(options: {
     truncatedBefore: hasOlder,
     ...(previousCursor ? { previousCursor } : {}),
     historyRevision,
+    ...(cursor ? {} : { outline: turnOutlineOf(allMessages) }),
   };
 }
 

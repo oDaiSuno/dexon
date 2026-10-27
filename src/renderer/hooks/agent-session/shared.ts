@@ -97,12 +97,6 @@ export interface UseAgentSessionOptions {
   onSystemPromptChange?: (prompt: string | null) => void;
   onSessionStatsPanelOpen?: () => void;
   /**
-   * Stable message elements used to preserve a reading anchor across hidden
-   * history pagination. The chat window owns the array; the runtime only
-   * reads it while the page is visible.
-   */
-  messageRefs?: { current: (HTMLDivElement | null)[] };
-  /**
    * Whether the chat page is actually visible to the user. Reading-side
    * wiring (input listeners, geometry observation, scroll pacing) pauses
    * while false; the runtime keeps streaming. Defaults to true.

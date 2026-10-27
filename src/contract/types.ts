@@ -97,12 +97,18 @@ export interface HistoryWindow {
   maxBytes?: number;
 }
 
+export interface TurnOutlineItem {
+  entryId: string;
+  title: string;
+}
+
 export interface PagedContextInfo extends ContextInfo {
   totalMessages: number;
   loadedMessages: number;
   truncatedBefore: boolean;
   previousCursor?: string;
   historyRevision: string;
+  outline?: TurnOutlineItem[];
 }
 
 export interface EntryContentResult {

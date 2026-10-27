@@ -6,10 +6,12 @@ import { act, createElement, StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import test from "node:test";
 import {
+  createReadingAnchorElement,
   createReadingSurface,
   createSessionDetail,
   createSessionHookHarness,
   createSessionTestHost,
+  installReadingAnchors,
 } from "./session-hook-harness.mjs";
 
 const { useSessionHistoryVisuals } = await importTestBundle("use-session-history-visuals-regression", {
@@ -84,6 +86,7 @@ function visualProps(element) {
     historyRevisionRef: { current: "revision" },
     sessionIdRef: { current: "session" },
     scrollContainerRef: { current: element },
+    userScrollIntentUntilRef: { current: 0 },
   };
 }
 
@@ -124,15 +127,8 @@ test("history visual scheduling survives StrictMode effect replay", async (t) =>
 
 test("history pagination passes a stable content anchor to visual restoration", async (t) => {
   const surface = createReadingSurface({ scrollTop: 100, scrollHeight: 400, clientHeight: 200 });
-  let anchorTop = 100;
-  const messageRefs = {
-    current: [
-      {
-        isConnected: true,
-        getBoundingClientRect: () => ({ top: anchorTop, bottom: anchorTop + 40 }),
-      },
-    ],
-  };
+  let anchorTop = 200;
+  installReadingAnchors(surface.container, [createReadingAnchorElement(surface.container, "entry-7", () => anchorTop)]);
   const detail = createSessionDetail("history-anchor", { previousCursor: "older", historyRevision: "revision" });
   let resolvePage;
   const host = createSessionTestHost({
@@ -148,7 +144,7 @@ test("history pagination passes a stable content anchor to visual restoration", 
       state.messagesEndRef.current = surface.messagesEnd;
     },
   });
-  const options = { session: detail.info, newSessionCwd: null, messageRefs };
+  const options = { session: detail.info, newSessionCwd: null };
   await h.mount({ ...options, readingVisible: true });
   await h.flush();
   await h.env.flushRafUntilSettled();
@@ -166,7 +162,7 @@ test("history pagination passes a stable content anchor to visual restoration", 
   await loadPromise;
   await h.flush();
   surface.container.scrollHeight = 900;
-  anchorTop = 400;
+  anchorTop = 500;
   await h.update({ ...options, readingVisible: true });
   await h.flush();
   await h.env.flushRafUntilSettled();
@@ -178,16 +174,13 @@ test("history restoration attributes hidden growth to the stable content anchor"
   const frames = installFrames();
   let renderer;
   let handle;
-  let anchorTop = 100;
-  const contentAnchor = {
-    isConnected: true,
-    getBoundingClientRect: () => ({ top: anchorTop, bottom: anchorTop + 40 }),
-  };
+  let anchorTop = 200;
   const element = {
     scrollTop: 100,
     scrollHeight: 400,
     getBoundingClientRect: () => ({ top: 0, bottom: 600 }),
   };
+  installReadingAnchors(element, [createReadingAnchorElement(element, "entry-7", () => anchorTop)]);
   const props = visualProps(element);
   function Probe({ visible }) {
     handle = useSessionHistoryVisuals({ ...props, readingVisible: visible });
@@ -202,12 +195,12 @@ test("history restoration attributes hidden growth to the stable content anchor"
   await act(async () => renderer.render(createElement(Probe, { visible: true })));
   await act(async () => renderer.render(createElement(Probe, { visible: false })));
   element.scrollHeight = 900;
-  anchorTop = 400;
+  anchorTop = 500;
   handle.queueHistoryAnchor({
     element,
     previousScrollHeight: 400,
     previousScrollTop: 100,
-    contentAnchor: { element: contentAnchor, offsetTop: 100 },
+    contentAnchor: { key: "entry-7", offsetTop: 100 },
     generation: 1,
     sessionId: "session",
     revision: "revision",

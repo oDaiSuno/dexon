@@ -2,6 +2,15 @@ export const CHAT_BOTTOM_PROXIMITY_PX = 96;
 export const USER_SCROLL_UP_MIN_PX = 1;
 export const TOUCH_SCROLL_UP_MIN_PX = 8;
 
+const TEXT_ENTRY_SELECTOR = "input, textarea, [contenteditable]:not([contenteditable='false'])";
+
+export function marksChatScrollIntent(event: KeyboardEvent, scrollKeys: ReadonlySet<string>): boolean {
+  if (!scrollKeys.has(event.key)) return false;
+  const target = event.target as { closest?: (selector: string) => unknown } | null;
+  if (typeof target?.closest === "function" && target.closest(TEXT_ENTRY_SELECTOR)) return false;
+  return true;
+}
+
 export function isUpwardScrollKey(key: string): boolean {
   return key === "ArrowUp" || key === "PageUp" || key === "Home";
 }

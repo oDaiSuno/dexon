@@ -19,6 +19,24 @@ import {
 
 export { createReadingSurface, createSessionDetail };
 
+const READING_ANCHOR = "data-reading-anchor";
+
+export function createReadingAnchorElement(container, key, readTop) {
+  return {
+    getAttribute: (name) => (name === READING_ANCHOR ? key : null),
+    getBoundingClientRect: () => {
+      const top = readTop() - container.scrollTop;
+      return { top, bottom: top + 40 };
+    },
+  };
+}
+
+export function installReadingAnchors(container, anchors) {
+  container.querySelectorAll = () => anchors;
+  container.querySelector = () => anchors[0] ?? null;
+  return anchors;
+}
+
 /**
  * Shared harness for exercising the real useAgentSession composition
  * (agent-session/* modules) against replies from an external Host fixture.

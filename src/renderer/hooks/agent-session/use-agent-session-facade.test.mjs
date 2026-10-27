@@ -51,6 +51,7 @@ test("the public return shape of useAgentSession is stable for consumers", async
     "hasOlder",
     "loadingOlder",
     "historyRevision",
+    "olderOutline",
     "notices",
     "interactiveTools",
     "extensionStatuses",
