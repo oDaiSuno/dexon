@@ -201,6 +201,7 @@ jobs:
           path: |-
             .artifacts/interactive-tools
             .artifacts/chat-layout-electron
+            .artifacts/chat-history-electron
             .artifacts/composer-editing-electron
             .artifacts/user-bubble-electron
             .artifacts/nav-layout-electron

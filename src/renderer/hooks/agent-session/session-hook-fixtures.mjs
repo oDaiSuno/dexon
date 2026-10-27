@@ -138,6 +138,7 @@ export function createSessionDetail(id, options = {}) {
       thinkingLevel: options.thinkingLevel ?? "off",
       historyRevision: options.historyRevision ?? `${id}-revision`,
       previousCursor: options.previousCursor ?? null,
+      ...(options.outline ? { outline: options.outline } : {}),
       totalMessages: options.totalMessages ?? messages.length,
       loadedMessages: messages.length,
       truncatedBefore: false,

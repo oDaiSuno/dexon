@@ -7,7 +7,7 @@ import { runElectronCheck } from "./electron-test-run.mjs";
 import { createProjectBuildTemp } from "./process-utils.mjs";
 
 // Shared build/lifetime only: scenes own their real components and assertions.
-export async function runRendererElectronCheck({ name, renderer, main, output, requiredScenes }) {
+export async function runRendererElectronCheck({ name, renderer, main, output, requiredScenes, timeoutMs = 90_000 }) {
   const root = path.resolve(import.meta.dirname, "..");
   const directory = createProjectBuildTemp(root, `dexon-${name}-build-`);
   try {
@@ -65,6 +65,7 @@ export async function runRendererElectronCheck({ name, renderer, main, output, r
       env: { DEXON_RENDERER_OUT: output },
       evidence,
       requiredScenes,
+      timeoutMs,
     });
     console.log(`${name}: verified ${requiredScenes.length} required scenes; evidence: ${output}`);
   } finally {
