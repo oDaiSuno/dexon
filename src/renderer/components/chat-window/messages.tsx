@@ -6,7 +6,7 @@ import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
 import { ProcessFlow } from "../ProcessFlow";
 import { SessionProfiler } from "../SessionProfiler";
 import { AnswerTurn } from "./answer-turn";
-import { findRetriedFailureIndices } from "./shared";
+import { classifyTurnFailures } from "./shared";
 import {
   type TurnAnswerPiece,
   type TurnFailurePiece,
@@ -72,7 +72,7 @@ export function ChatMessages({
       }
     }
 
-    const retriedFailureIndices = findRetriedFailureIndices(messages);
+    const { retried: retriedFailureIndices, resolved: resolvedFailureIndices } = classifyTurnFailures(messages);
 
     const visibleRefIndexByMessage = new Map<number, number>();
     let refIdx = 0;
@@ -234,6 +234,7 @@ export function ChatMessages({
             refIndexFor: (messageIndex) => visibleRefIndexByMessage.get(messageIndex),
             keyFor: (message, entryId, role) => messageRenderKeys.keyFor(message, entryId, role),
             retriedIndices: retriedFailureIndices,
+            resolvedIndices: resolvedFailureIndices,
             cache: assistantBlockCache,
           });
 

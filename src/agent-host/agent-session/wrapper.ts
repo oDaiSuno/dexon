@@ -462,6 +462,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       enqueueTurn: this.enqueueTurn.bind(this),
       emit: this.emit.bind(this),
       withFinalRunningNotification: this.withFinalRunningNotification.bind(this),
+      markTurnStopped: () => this.turnStatus.stop(),
       promptRunning: this.promptRunning,
       isRunning: () => this.isRunning(),
       currentModelRef: () => this.sessionModel.current(this.inner),

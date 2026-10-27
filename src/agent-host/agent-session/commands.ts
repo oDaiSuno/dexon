@@ -32,6 +32,7 @@ export interface SessionCommandContext {
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
   withFinalRunningNotification<T>(operation: () => Promise<T>): Promise<T>;
+  markTurnStopped(): void;
   getExtensionStatuses(): Array<{ key: string; text: string }>;
   getExtensionWidgets(): ExtensionWidgetItem[];
   dispose(options: { abort?: boolean; reason?: string }): Promise<void>;
@@ -180,10 +181,15 @@ export async function sendSessionCommand(
       return { cancelled: false, leafId: sessionManager.getLeafId(), leftVersionChangedFiles };
     }
 
-    case "abort":
+    case "abort": {
       context.cancelInteractiveRequests();
-      await context.withFinalRunningNotification(() => context.inner.abort());
+      const wasRunning = context.isRunning();
+      await context.withFinalRunningNotification(async () => {
+        await context.inner.abort();
+        if (wasRunning) context.markTurnStopped();
+      });
       return null;
+    }
 
     case "get_state": {
       const model = context.currentModelRef();

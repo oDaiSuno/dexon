@@ -4,20 +4,30 @@ type OutcomeEvent = { type: string; message?: unknown };
 
 export type AssistantTurnOutcome = { kind: "error"; error: string } | { kind: "stopped" };
 
-function assistantOutcome(message: unknown): AssistantTurnOutcome | null {
+interface AssistantLike {
+  role?: unknown;
+  stopReason?: unknown;
+  errorMessage?: unknown;
+}
+
+function assistantMessageOf(message: unknown): AssistantLike | null {
   if (!message || typeof message !== "object") return null;
-  const typed = message as { role?: unknown; stopReason?: unknown; errorMessage?: unknown };
-  if (typed.role !== "assistant") return null;
-  if (typed.stopReason === "aborted") return { kind: "stopped" };
-  const reported = typeof typed.errorMessage === "string" ? typed.errorMessage.trim() : "";
-  if (!reported && typed.stopReason !== "error") return null;
+  const typed = message as AssistantLike;
+  return typed.role === "assistant" ? typed : null;
+}
+
+function outcomeOf(message: AssistantLike): AssistantTurnOutcome | null {
+  if (message.stopReason === "aborted") return { kind: "stopped" };
+  const reported = typeof message.errorMessage === "string" ? message.errorMessage.trim() : "";
+  if (!reported && message.stopReason !== "error") return null;
   return { kind: "error", error: reported || "The last turn failed" };
 }
 
 export function lastAssistantOutcome(messages: unknown): AssistantTurnOutcome | null {
   if (!Array.isArray(messages)) return null;
   const last = [...messages].reverse().find((message) => (message as { role?: unknown })?.role === "assistant");
-  return assistantOutcome(last);
+  const typed = assistantMessageOf(last);
+  return typed ? outcomeOf(typed) : null;
 }
 
 export interface TurnStatusInput {
@@ -37,11 +47,16 @@ export class SessionTurnStatus {
     this.lastError = message;
   }
 
+  stop(): void {
+    this.lastError = null;
+  }
+
   observe(event: OutcomeEvent): void {
     if (event.type !== "message_end") return;
-    const outcome = assistantOutcome(event.message);
-    if (outcome?.kind === "error") this.lastError = outcome.error;
-    if (outcome?.kind === "stopped") this.lastError = null;
+    const message = assistantMessageOf(event.message);
+    if (!message) return;
+    const outcome = outcomeOf(message);
+    this.lastError = outcome?.kind === "error" ? outcome.error : null;
   }
 
   error(): string | null {
