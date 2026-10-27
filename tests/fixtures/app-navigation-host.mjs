@@ -28,6 +28,7 @@ export function navigationBoundary({
   toolHistory = false,
   browserTabs = [],
   sessionOverrides = {},
+  generatedTitle = null,
 } = {}) {
   const details = history ? navigationConversations() : [];
   if (history && forks) details.push(forkedConversation());
@@ -108,6 +109,15 @@ export function navigationBoundary({
     catalog: { source: "cache", refreshed: false, aborted: false, warnings: [] },
     defaultModel: null,
   };
+  const sessionFor = (sessionId) => {
+    const detail = details.find((item) => item.sessionId === sessionId);
+    if (!detail) throw new Error(`Fixture cannot update unknown session ${sessionId}`);
+    return detail;
+  };
+  const announceSession = (detail) => {
+    for (const listener of sessionChangedListeners)
+      listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
+  };
   const call = async (method, params) => {
     switch (method) {
       case "system.home":
@@ -131,9 +141,9 @@ export function navigationBoundary({
           runningSessionIds: [...runningSessions],
         };
       case "sessions.rename": {
-        const detail = details.find((item) => item.sessionId === params.id);
-        if (!detail) throw new Error(`Cannot rename unknown session ${params.id}`);
+        const detail = sessionFor(params.id);
         detail.info.name = params.name;
+        announceSession(detail);
         return { ok: true };
       }
       case "sessions.descendants": {
@@ -184,6 +194,27 @@ export function navigationBoundary({
           }
           return {};
         }
+        if (params.command.type === "set_session_name") {
+          const detail = sessionFor(params.sessionId);
+          detail.info.name = params.command.name;
+          announceSession(detail);
+          return null;
+        }
+        if (params.command.type === "get_session_stats") {
+          const detail = sessionFor(params.sessionId);
+          return {
+            sessionId: detail.sessionId,
+            sessionFile: detail.info.path,
+            sessionName: detail.info.name,
+            userMessages: 1,
+            assistantMessages: 0,
+            toolCalls: 0,
+            toolResults: 0,
+            totalMessages: 1,
+            tokens: { input: 1_200, output: 0, cacheRead: 0, cacheWrite: 0, total: 1_200 },
+            cost: 0.01,
+          };
+        }
         if (params.command.type === "reload") {
           const detail = details.find((item) => item.sessionId === params.sessionId);
           if (!detail) throw new Error(`Cannot reload unknown session ${params.sessionId}`);
@@ -195,8 +226,13 @@ export function navigationBoundary({
         }
         throw new Error(`Fixture has no agent command ${params.command.type}`);
       }
-      case "agent.generateTitle":
-        return { title: null };
+      case "agent.generateTitle": {
+        if (generatedTitle === null) return { title: null };
+        const detail = sessionFor(params.sessionId);
+        detail.info.name = generatedTitle;
+        announceSession(detail);
+        return { title: generatedTitle };
+      }
       case "models.list":
         return modelList;
       case "modelsConfig.get":
@@ -455,11 +491,9 @@ export function navigationBoundary({
         });
     },
     updateSession(sessionId, patch) {
-      const detail = details.find((item) => item.sessionId === sessionId);
-      if (!detail) throw new Error(`Fixture cannot update unknown session ${sessionId}`);
+      const detail = sessionFor(sessionId);
       Object.assign(detail.info, patch);
-      for (const listener of sessionChangedListeners)
-        listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
+      announceSession(detail);
     },
     // The Host's view of user stop requests: the observable side effect of
     // an abort, not a log of renderer calls.
