@@ -23,6 +23,15 @@ export const CHANNEL_REFUSAL = "Session tools are unavailable for messaging-chan
 
 export const DISABLED_REFUSAL = "Enable Session collaboration in Settings first";
 
+export const SESSION_BUSY_REFUSAL =
+  "That session is busy; wait for its current turn to finish before switching its model";
+
+export const MODEL_SWITCH_EMPTY_REFUSAL = "Provide a model, a thinking level, or both";
+
+export function modelUnavailableRefusal(ref: { provider: string; modelId: string }): string {
+  return `Model ${ref.provider}/${ref.modelId} is unavailable`;
+}
+
 const WAIT_CANCELLED_MESSAGE = "Waiting for another session was stopped; that session keeps running";
 
 export function runningLimitRefusal(maxRunning: number): string {

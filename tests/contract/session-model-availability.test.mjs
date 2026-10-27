@@ -248,7 +248,8 @@ test(
   "asking for a model that is not in models.json starts no session and says which model is unavailable",
   { timeout: 120_000 },
   async () => {
-    const parent = await host.createUserSession({ cwd: host.workspace("availability-new-missing-model") });
+    const cwd = host.workspace("availability-new-missing-model");
+    const parent = await host.createUserSession({ cwd });
     const prompt = "Start a worker on the model that was uninstalled.";
     host.model.script(prompt, [
       toolCall("session_new", {
@@ -257,7 +258,6 @@ test(
       }),
       { text: "Could not start the worker" },
     ]);
-    const before = (await host.sessions()).length;
     const results = resultReader(host);
 
     await host.prompt(parent, prompt);
@@ -267,7 +267,11 @@ test(
       /held-model-gone/,
     );
     assert.match(refusal, /unavailable/i, "the refusal says the model is unavailable");
-    assert.equal((await host.sessions()).length, before, "the refused call started no session");
+    assert.deepEqual(
+      (await host.sessions(cwd)).map((session) => session.id),
+      [parent],
+      "the refused call started no session",
+    );
   },
 );
 
@@ -324,7 +328,6 @@ test(
       }),
       { text: "Could not start the worker" },
     ]);
-    const before = (await host.sessions()).length;
     const results = resultReader(host);
 
     await host.prompt(parent, prompt);
@@ -334,7 +337,11 @@ test(
       /held-model-two/,
     );
     assert.match(refusal, /unavailable/i, "the refusal says the model is unavailable");
-    assert.equal((await host.sessions()).length, before, "the refused call started no session");
+    assert.deepEqual(
+      (await host.sessions(cwd)).map((session) => session.id),
+      [parent],
+      "the refused call started no session",
+    );
   },
 );
 
@@ -502,6 +509,59 @@ test(
       requestsMentioning(inboundText).length,
       requestsBefore,
       "nothing about the refused message reached the model server",
+    );
+  },
+);
+
+async function removeModelFromModelsJson(provider, modelId) {
+  const snapshot = await host.client.call("modelsConfig.get");
+  const providers = snapshot.config.providers ?? {};
+  const configured = providers[provider];
+  const config = {
+    ...snapshot.config,
+    providers: {
+      ...providers,
+      [provider]: { ...configured, models: configured.models.filter((model) => model.id !== modelId) },
+    },
+  };
+  await host.client.call("modelsConfig.set", { config, expectedVersion: snapshot.version });
+  return snapshot;
+}
+
+async function restoreModelsJson(snapshot) {
+  const current = await host.client.call("modelsConfig.get");
+  await host.client.call("modelsConfig.set", { config: snapshot.config, expectedVersion: current.version });
+}
+
+test(
+  "a session that stayed open is refused as soon as its model is removed from models.json",
+  { timeout: 120_000 },
+  async (t) => {
+    const cwd = host.workspace("availability-model-removed");
+    const firstQuestion = "Please answer once before my model is removed.";
+    const secondQuestion = "Do you still answer after my model was removed from the list?";
+    const sessionId = await host.createUserSession({ cwd, provider: "held-fixture", modelId: "held-model-c" });
+    host.model.script(firstQuestion, [{ text: "Answered before the model was removed" }]);
+    await host.prompt(sessionId, firstQuestion);
+    await waitForReply(sessionId, "Answered before the model was removed");
+
+    const snapshot = await host.client.call("modelsConfig.get");
+    t.after(() => restoreModelsJson(snapshot));
+    await removeModelFromModelsJson("held-fixture", "held-model-c");
+    await waitForPickerWithout(cwd, "held-model-c");
+
+    const requestsBefore = requestsMentioning(secondQuestion).length;
+    const rejection = await host.command(sessionId, { type: "prompt", message: secondQuestion }).then(
+      () => null,
+      (error) => error,
+    );
+    assert.ok(rejection, "the next prompt in the still open session is refused");
+    expectUnavailableModel(rejection, "held-model-c");
+    assert.deepEqual(rejection.detail, { provider: "held-fixture", modelId: "held-model-c" });
+    assert.equal(
+      requestsMentioning(secondQuestion).length,
+      requestsBefore,
+      "nothing about the refused prompt reached the model server",
     );
   },
 );

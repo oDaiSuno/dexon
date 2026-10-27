@@ -544,3 +544,83 @@ test(
     assert.equal(reply.model, "held-model-b", "the answer was written by the model the Agent moved the worker to");
   },
 );
+
+async function removeModelFromModelsJson(provider, modelId) {
+  const snapshot = await host.client.call("modelsConfig.get");
+  const providers = snapshot.config.providers ?? {};
+  const configured = providers[provider];
+  const config = {
+    ...snapshot.config,
+    providers: {
+      ...providers,
+      [provider]: { ...configured, models: configured.models.filter((model) => model.id !== modelId) },
+    },
+  };
+  await host.client.call("modelsConfig.set", { config, expectedVersion: snapshot.version });
+  return snapshot;
+}
+
+async function restoreModelsJson(snapshot) {
+  const current = await host.client.call("modelsConfig.get");
+  await host.client.call("modelsConfig.set", { config: snapshot.config, expectedVersion: current.version });
+}
+
+test(
+  "moving a closed worker reports the model it had chosen, even after that model was removed from models.json",
+  { timeout: 150_000 },
+  async (t) => {
+    const cwd = host.workspace("switch-removed-model");
+    const parent = await host.createUserSession({ cwd, provider: "held-fixture", modelId: "held-model" });
+    const workerTask = "Worker takes a task on the model that will be removed.";
+    let childId;
+    host.model.script(workerTask, [{ text: "The worker answered before its model was removed" }]);
+    host.model.script("Start a worker on the model that will be removed", [
+      toolCall("session_new", {
+        message: workerTask,
+        model: { provider: "held-fixture", modelId: "held-model-c" },
+        wait: false,
+      }),
+      { text: "Worker started" },
+      callLater("session_close", () => ({ sessionId: childId })),
+      { text: "Worker closed" },
+      callLater("session_set_model", () => ({
+        sessionId: childId,
+        model: { provider: "held-fixture", modelId: "held-model-b" },
+      })),
+      { text: "Worker moved" },
+    ]);
+    const results = resultReader(host);
+
+    await host.prompt(parent, "Start a worker on the model that will be removed");
+    childId = expectToolPayload((await results.next())[0], "the worker must be created").sessionId;
+    await waitForReply(childId, "The worker answered before its model was removed");
+
+    await host.prompt(parent, "Close that worker before its model is removed");
+    expectToolPayload((await results.next())[0], "the worker must be closed");
+
+    const snapshot = await host.client.call("modelsConfig.get");
+    t.after(() => restoreModelsJson(snapshot));
+    await removeModelFromModelsJson("held-fixture", "held-model-c");
+    await waitForPickerWithout(cwd, "held-model-c");
+
+    const events = host.events(parent);
+    await host.prompt(parent, "Move the worker to a model I can still use");
+    const payload = expectToolPayload((await results.next())[0], "the worker must be moved");
+    const ended = await events.next(
+      (event) => event.type === "tool_execution_end" && event.toolName === "session_set_model",
+    );
+    events.off();
+
+    assert.deepEqual(
+      payload.previous.model,
+      { provider: "held-fixture", modelId: "held-model-c" },
+      "the report names the model the worker had chosen, not the default model pi fell back to",
+    );
+    assert.deepEqual(
+      ended.result.details.modelSwitch.from,
+      { provider: "held-fixture", modelId: "held-model-c" },
+      "the card is told the model the worker had chosen",
+    );
+    assert.deepEqual(payload.current.model, { provider: "held-fixture", modelId: "held-model-b" });
+  },
+);

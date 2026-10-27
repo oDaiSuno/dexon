@@ -23,6 +23,7 @@ import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } fro
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
 import { versionsByEntryId } from "./session-versions";
+import { chosenSessionModel } from "./session-model";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { sessionIndex } from "./session-index";
 import { withSessionOrigin } from "./session-origin-store";
@@ -198,13 +199,8 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
   // Build entryIds: parallel array to messages[], mapping each message back to its entry id.
   // Needed for fork and navigate_tree calls from the UI.
   let targetLeaf: SessionEntry | undefined;
-  if (leafId === null) {
-    return { messages: [], entryIds: [], thinkingLevel: piCtx.thinkingLevel, model: piCtx.model };
-  }
-  if (leafId) targetLeaf = byId.get(leafId);
-  if (!targetLeaf) targetLeaf = entries[entries.length - 1];
-  if (!targetLeaf) {
-    return { messages: [], entryIds: [], thinkingLevel: piCtx.thinkingLevel, model: piCtx.model };
+  if (leafId !== null) {
+    targetLeaf = (leafId ? byId.get(leafId) : undefined) ?? entries[entries.length - 1];
   }
 
   // Walk path from target leaf to root
@@ -214,6 +210,10 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
     path.unshift(cur);
     cur = cur.parentId ? byId.get(cur.parentId) : undefined;
   }
+
+  const chosen = chosenSessionModel(path);
+  const thinkingLevel = chosen.thinkingLevel ?? piCtx.thinkingLevel;
+  if (path.length === 0) return { messages: [], entryIds: [], thinkingLevel, model: chosen.model };
 
   // Build UI history from the FULL branch path (root to leaf), without trimming.
   // pi's buildSessionContext targets LLM context: it drops everything before the last
@@ -266,8 +266,8 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
   return {
     messages,
     entryIds,
-    thinkingLevel: piCtx.thinkingLevel,
-    model: piCtx.model,
+    thinkingLevel,
+    model: chosen.model,
   };
 }
 

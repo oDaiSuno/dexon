@@ -171,8 +171,7 @@ test("channel markers cross page boundaries and settings match the active branch
   assert.equal(page.messages[0].role, "user");
   assert.equal(page.messages[0].channelSource, "telegram");
   assert.equal(page.thinkingLevel, "high");
-  // A later assistant message is authoritative, matching pi's context settings semantics.
-  assert.deepEqual(page.model, { provider: "provider", modelId: "model" });
+  assert.deepEqual(page.model, { provider: "next-provider", modelId: "next-model" });
 });
 
 test("compaction and branch summaries survive page boundaries with aligned entry ids", () => {

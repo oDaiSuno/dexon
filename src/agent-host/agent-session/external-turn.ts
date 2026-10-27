@@ -26,6 +26,7 @@ export interface ExternalTurnHost {
   readonly sessionId: string;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
+  assertModelUsable(): Promise<void>;
   beginExternalTurn(context: ExternalTurnContext): void;
   endExternalTurn(): void;
   setBrowserSource(source: "local" | "channel", channel?: ChannelId): void;
@@ -36,6 +37,7 @@ export function runExternalTurn(
   params: ExternalTurnParams,
 ): Promise<{ runId: string; finalText: string }> {
   return host.enqueueTurn(async () => {
+    await host.assertModelUsable();
     host.emit({ type: "channel_turn_start", runId: params.runId });
     host.beginExternalTurn({
       channel: params.channel,

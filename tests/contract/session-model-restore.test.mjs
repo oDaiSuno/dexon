@@ -301,3 +301,26 @@ test(
     assert.equal(state.thinkingLevel, "high", "the reopened worker still thinks at the level it was started with");
   },
 );
+
+test(
+  "the conversation the reader opens reports the model they chose, not the model that signed the last reply",
+  { timeout: 90_000 },
+  async () => {
+    const sessionId = "restore-view-chosen-model";
+    const cwd = host.workspace("restore-view-chosen-model");
+    await host.writeSession(sessionId, cwd, [
+      modelChange("m1", null, 1, "held-model-c"),
+      user("q1", "m1", 2, "Which model should this conversation use?"),
+      assistant("a1", "q1", 3, "held-model-c-internal", "The provider signed the first reply with its own name."),
+      user("q2", "a1", 4, "Are you still on the model I chose?"),
+      assistant("a2", "q2", 5, "held-model", "This later reply silently came from the default model."),
+    ]);
+
+    const detail = await host.detail(sessionId);
+    assert.deepEqual(
+      detail.context.model,
+      { provider: "held-fixture", modelId: "held-model-c" },
+      "the chat shows the model the reader chose, not the model that signed the last reply",
+    );
+  },
+);

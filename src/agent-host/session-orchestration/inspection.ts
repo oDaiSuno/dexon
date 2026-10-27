@@ -1,6 +1,7 @@
 import {
   SESSION_ORCHESTRATION_LIMITS,
   type SessionLiveStatus,
+  type SessionModelRef,
   type SessionRelation,
 } from "../../shared/session-orchestration";
 import type { AgentMessage, SessionInfo } from "../../shared/types";
@@ -8,6 +9,7 @@ import { getRpcSession } from "../rpc-manager";
 import { buildSessionContext } from "../session-reader";
 import { listHistorySessions, openSessionSource } from "../session-source";
 import { messageContentText } from "../session-title";
+import { sessionModelView } from "./model-view";
 import { sameProjectRoot } from "./project-scope";
 import { limitReply, writeSessionTranscript, type TranscriptSummary } from "./transcript";
 
@@ -19,6 +21,9 @@ export interface SessionToolView {
   relation?: SessionRelation;
   createdBySessionId?: string;
   createdByCaller: boolean;
+  model: SessionModelRef | null;
+  thinkingLevel: string | null;
+  modelAvailable: boolean;
 }
 
 export interface SessionReadView {
@@ -28,7 +33,12 @@ export interface SessionReadView {
   lastReply: string;
   lastReplyTruncated: boolean;
   transcript: TranscriptSummary;
+  model: SessionModelRef | null;
+  thinkingLevel: string | null;
+  modelAvailable: boolean;
 }
+
+export type UsableModelList = readonly { id: string; provider: string }[] | null;
 
 export function clampNumber(value: number | undefined, fallback: number, minimum: number, maximum: number): number {
   if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
@@ -85,6 +95,7 @@ export async function listSessionViews(options: {
   callerId: string;
   callerProjectRoot?: string;
   limit?: number;
+  usable: UsableModelList;
 }): Promise<{ sessions: SessionToolView[] }> {
   const limit = clampNumber(
     options.limit,
@@ -105,13 +116,14 @@ export async function listSessionViews(options: {
       ...(session.relation ? { relation: session.relation } : {}),
       ...(session.createdBySessionId ? { createdBySessionId: session.createdBySessionId } : {}),
       createdByCaller: session.createdBySessionId === options.callerId,
+      ...(await sessionModelView(session.id, options.usable)),
     });
     if (sessions.length >= limit) break;
   }
   return { sessions };
 }
 
-export async function readSessionView(sessionId: string): Promise<SessionReadView> {
+export async function readSessionView(sessionId: string, usable: UsableModelList): Promise<SessionReadView> {
   const source = await openSessionSource(sessionId);
   const messages = source ? buildSessionContext(source.entries).messages : [];
   const info = (await listHistorySessions()).find((session) => session.id === sessionId);
@@ -130,6 +142,7 @@ export async function readSessionView(sessionId: string): Promise<SessionReadVie
       ...(info?.createdBySessionId ? { createdBySessionId: info.createdBySessionId } : {}),
       messages,
     }),
+    ...(await sessionModelView(sessionId, usable)),
   };
 }
 

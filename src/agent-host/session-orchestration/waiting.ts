@@ -10,6 +10,7 @@ export interface SessionWaitResult {
   stillRunning: boolean;
   lastReply?: string;
   error?: string;
+  unavailableModel?: { provider: string; modelId: string };
 }
 
 export interface SessionWaitRequest {
@@ -84,7 +85,12 @@ export async function waitForSessionOutcome(request: SessionWaitRequest): Promis
     if (failure) return { status: "error", stillRunning: isSessionRunning(sessionId), error: failure };
     if (outcome) {
       if (outcome.error) {
-        return { status: "error", stillRunning: isSessionRunning(sessionId), error: outcome.error };
+        return {
+          status: "error",
+          stillRunning: isSessionRunning(sessionId),
+          error: outcome.error,
+          ...(outcome.unavailableModel ? { unavailableModel: outcome.unavailableModel } : {}),
+        };
       }
       if (outcome.stopped) return { status: "stopped", stillRunning: isSessionRunning(sessionId) };
       return {

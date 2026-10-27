@@ -14,6 +14,7 @@ import { peekManagedProcessService } from "./managed-process/runtime";
 import { installManagedProcessSessionRedaction } from "./managed-process/session-redaction";
 import { createManagedProcessToolDefinitions } from "./managed-process/tools";
 import { createSessionOrchestrationToolDefinitions } from "./session-orchestration/tools";
+import { chosenSessionModel } from "./session-model";
 import { cacheSessionPath } from "./session-reader";
 import { configuredSessionDir } from "./session-dir";
 import { applyStoredLeafChoice, rememberLeafChoice } from "./session-leaf-store";
@@ -26,6 +27,7 @@ import { getLegacySessionToolNames, withExtensionTools } from "./agent-session/c
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
 import { AgentSessionWrapper } from "./agent-session/wrapper";
 import type { SessionLiveStatus } from "../shared/session-orchestration";
+import type { SessionEntry } from "../shared/types";
 export { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
 export type { AgentEvent, ExternalSessionCommand, OrchestratedTurnOutcome } from "./agent-session/types";
 export { AgentSessionWrapper } from "./agent-session/wrapper";
@@ -215,9 +217,20 @@ export async function startRpcSession(
         : []),
       ...createSessionOrchestrationToolDefinitions(),
     ] as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>;
+    const chosen = chosenSessionModel(sessionManager.getBranch() as unknown as SessionEntry[]);
+    const chosenModel = chosen.model
+      ? services.modelRuntime.getModel(chosen.model.provider, chosen.model.modelId)
+      : undefined;
+    const reopenChoice: Pick<CreateAgentSessionFromServicesOptions, "model" | "thinkingLevel"> = {
+      ...(chosenModel ? { model: chosenModel } : {}),
+      ...(chosen.thinkingLevel
+        ? { thinkingLevel: chosen.thinkingLevel as NonNullable<CreateAgentSessionFromServicesOptions["thinkingLevel"]> }
+        : {}),
+    };
     const { session: inner } = await createAgentSessionFromServices({
       services,
       sessionManager,
+      ...reopenChoice,
       customTools,
       excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
     });
@@ -231,6 +244,7 @@ export async function startRpcSession(
     }
 
     const wrapper = new AgentSessionWrapper(inner, sessionToolNames);
+    if (chosen.model && !chosenModel) wrapper.sessionModel.adopt(chosen.model);
     bridge.wrapper = wrapper;
     wrapper.setRuntimeDiagnostics(services.diagnostics);
     wrapper.setToolchainSummary(executionContext.inventoryRevision, executionContext.summary);

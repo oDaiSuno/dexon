@@ -15,6 +15,8 @@ export const SESSION_TOOL_NAMES = [
   "session_read",
   "session_stop",
   "session_close",
+  "session_models",
+  "session_set_model",
 ] as const;
 export type SessionToolName = (typeof SESSION_TOOL_NAMES)[number];
 
@@ -125,6 +127,18 @@ export interface SessionToolTargetDetails {
   targetSessionId: string;
   targetTitle?: string;
   launch?: SessionLaunchReport;
+  modelSwitch?: SessionModelSwitch;
+  unavailableModel?: SessionModelRef;
+}
+
+export interface SessionModelSwitch {
+  from: SessionModelRef;
+  to: SessionModelRef;
+  thinkingLevel: string | null;
+}
+
+export function readSessionModelRef(value: unknown): SessionModelRef | null {
+  return isModelRef(value) ? { provider: value.provider, modelId: value.modelId } : null;
 }
 
 export function readSessionToolTarget(details: unknown): SessionToolTargetDetails | null {
@@ -144,9 +158,27 @@ export function readSessionLaunch(details: unknown): SessionLaunchReport | null 
   const record = launch as Record<string, unknown>;
   if (typeof record.cwd !== "string" || !record.cwd) return null;
   const thinkingLevel = record.thinkingLevel;
+  const model = readSessionModelRef(record.model);
   return {
-    ...(isModelRef(record.model) ? { model: { provider: record.model.provider, modelId: record.model.modelId } } : {}),
+    ...(model ? { model } : {}),
     ...(typeof thinkingLevel === "string" && thinkingLevel ? { thinkingLevel } : {}),
     cwd: record.cwd,
   };
+}
+
+export function readSessionModelSwitch(details: unknown): SessionModelSwitch | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  const record = (details as Record<string, unknown>).modelSwitch;
+  if (!record || typeof record !== "object" || Array.isArray(record)) return null;
+  const entry = record as Record<string, unknown>;
+  const from = readSessionModelRef(entry.from);
+  const to = readSessionModelRef(entry.to);
+  if (!from || !to) return null;
+  const level = entry.thinkingLevel;
+  return { from, to, thinkingLevel: typeof level === "string" && level ? level : null };
+}
+
+export function readSessionUnavailableModel(details: unknown): SessionModelRef | null {
+  if (!details || typeof details !== "object" || Array.isArray(details)) return null;
+  return readSessionModelRef((details as Record<string, unknown>).unavailableModel);
 }

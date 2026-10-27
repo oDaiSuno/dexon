@@ -5,7 +5,7 @@
  */
 
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "./api";
-import { RpcError, type RpcErrorShape } from "./types.ts";
+import { isRpcError, RpcError, type RpcErrorShape } from "./types.ts";
 import { ToolchainError } from "../shared/toolchains/errors.ts";
 
 // ---------------------------------------------------------------------------
@@ -392,19 +392,18 @@ export function createRpcServer(): RpcServer {
       const result = await handler(msg.params, requestContext(port));
       response = { kind: "response", id: msg.id, ok: true, result };
     } catch (err) {
-      const error: RpcErrorShape =
-        err instanceof RpcError
-          ? { code: err.code, message: err.message, detail: err.detail }
-          : err instanceof ToolchainError
-            ? {
-                code: err.code,
-                message: err.message,
-                detail: { capability: err.capability, causeCode: err.causeCode },
-              }
-            : {
-                code: "INTERNAL",
-                message: err instanceof Error ? err.message : String(err),
-              };
+      const error: RpcErrorShape = isRpcError(err)
+        ? { code: err.code, message: err.message, detail: err.detail }
+        : err instanceof ToolchainError
+          ? {
+              code: err.code,
+              message: err.message,
+              detail: { capability: err.capability, causeCode: err.causeCode },
+            }
+          : {
+              code: "INTERNAL",
+              message: err instanceof Error ? err.message : String(err),
+            };
       response = { kind: "response", id: msg.id, ok: false, error };
     }
     try {
