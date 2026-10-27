@@ -25,7 +25,7 @@ const { ChatWindow, ThinkingExpansionStore, resetRpc } = await loadRenderer(
 after(restoreGlobals);
 
 const FOLLOWING = dom.window.Node.DOCUMENT_POSITION_FOLLOWING;
-const NEW_SESSION = /New session/;
+const BRANCH = /^Branch from here$/;
 const COPY = /^Copy message$/;
 const CLOCK = /\d{1,2}:\d{2}/;
 
@@ -55,8 +55,8 @@ function controlsNamed(controls, pattern) {
   return controls.filter((node) => pattern.test(nameOf(node)));
 }
 
-function answerNewSessionControls(root) {
-  return controlsNamed(answerActions(root), NEW_SESSION);
+function answerBranchControls(root) {
+  return controlsNamed(answerActions(root), BRANCH);
 }
 
 function answerCopyControls(root) {
@@ -170,16 +170,16 @@ test("when a turn is written in several passages, the reader finds a single foot
   const { view } = await mountConversation(t, timedInterleavedTurn());
   const root = messagesOf(view);
   const copies = answerCopyControls(root);
-  const controls = answerNewSessionControls(root);
+  const controls = answerBranchControls(root);
   assert.equal(copies.length, 1, "the turn offers exactly one copy control");
-  assert.equal(controls.length, 1, "the turn offers exactly one New session control");
+  assert.equal(controls.length, 1, "the turn offers exactly one Branch from here control");
   const opening = onScreen(view, OPENING);
   const midway = onScreen(view, MIDWAY);
   const conclusion = onScreen(view, CONCLUSION);
   comesBefore(opening, midway, "the first passage is read before the second");
   comesBefore(midway, conclusion, "the second passage is read before the closing passage");
   comesBefore(conclusion, copies[0], "the copy control follows the closing passage of the turn");
-  comesBefore(copies[0], controls[0], "the copy control sits beside New session in the turn's single footer");
+  comesBefore(copies[0], controls[0], "the copy control sits beside Branch from here in the turn's single footer");
   for (const action of answerActions(root)) {
     comesBefore(conclusion, action, "every footer action of the turn comes after its closing passage");
   }
@@ -222,18 +222,18 @@ test("when a model call fails mid-turn, its usage still counts toward the turn's
   assert.doesNotMatch(content, /900 in/, "the footer ignores neither the failed call nor the answering one");
 });
 
-test("when a turn ends on a tool result after writing a sentence, the footer still offers copy, New session and the time", async (t) => {
+test("when a turn ends on a tool result after writing a sentence, the footer still offers copy, Branch from here and the time", async (t) => {
   const { view } = await mountConversation(t, timedToolEndedTurn());
   const root = messagesOf(view);
   const copies = answerCopyControls(root);
-  const controls = answerNewSessionControls(root);
+  const controls = answerBranchControls(root);
   assert.equal(copies.length, 1, "the turn offers a copy control");
-  assert.equal(controls.length, 1, "the turn offers a New session control");
+  assert.equal(controls.length, 1, "the turn offers a Branch from here control");
   const opening = onScreen(view, OPENING);
   comesBefore(opening, copies[0], "the copy control follows the sentence the turn wrote");
-  comesBefore(copies[0], controls[0], "the copy control sits beside New session in the turn's footer");
+  comesBefore(copies[0], controls[0], "the copy control sits beside Branch from here in the turn's footer");
   const clock = leafMatching(root, CLOCK).find((node) => controls[0].compareDocumentPosition(node) & FOLLOWING);
-  assert.ok(clock, "the turn's footer reports its clock time after New session");
+  assert.ok(clock, "the turn's footer reports its clock time after Branch from here");
   assert.match(root.textContent, /700 in/, "the footer reports the usage recorded before the tool call");
 });
 
@@ -251,14 +251,14 @@ test("when the reader points at a turn's process group, the footer actions appea
   const root = messagesOf(view);
   const [group] = processGroups(root);
   const [copyControl] = answerCopyControls(root);
-  const [control] = answerNewSessionControls(root);
+  const [control] = answerBranchControls(root);
   assert.ok(copyControl, "the turn offers a copy control");
-  assert.ok(control, "the turn offers a New session control");
+  assert.ok(control, "the turn offers a Branch from here control");
   assert.equal(isShown(copyControl), false, "the copy control stays out of the way until the reader points");
-  assert.equal(isShown(control), false, "New session stays out of the way until the reader points");
+  assert.equal(isShown(control), false, "Branch from here stays out of the way until the reader points");
   await hover(group);
   assert.equal(isShown(copyControl), true, "pointing at the process group reveals the copy control");
-  assert.equal(isShown(control), true, "pointing at the process group reveals New session");
+  assert.equal(isShown(control), true, "pointing at the process group reveals Branch from here");
 });
 
 test("while the latest turn is still being answered, it offers no footer, and earlier turns keep theirs", async (t) => {
