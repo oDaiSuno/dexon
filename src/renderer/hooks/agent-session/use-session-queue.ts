@@ -131,7 +131,6 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
   const handleThinkingLevelChange = useCallback(
     async (level: ThinkingLevelOption) => {
       setThinkingLevel(level);
-      if (level === "auto") return; // "auto" leaves pi's current setting untouched
       const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
       if (!sid) return;
       try {

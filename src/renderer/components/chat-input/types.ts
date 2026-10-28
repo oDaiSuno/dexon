@@ -8,6 +8,7 @@ import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
+import type { ThinkingLevel } from "./thinking-art";
 
 export interface ChatInputProps {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -32,8 +33,8 @@ export interface ChatInputProps {
   compactResult?: CompactResultInfo | null;
   onDismissCompactResult?: () => void;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
-  thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-  onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
+  thinkingLevel?: ThinkingLevel | null;
+  onThinkingLevelChange?: (level: ThinkingLevel) => void;
   availableThinkingLevels?: string[] | null;
   thinkingLevelMap?: Record<string, string | null> | null;
   queuedMessages?: QueuedMessages | null;

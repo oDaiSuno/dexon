@@ -5,7 +5,7 @@ import { trackSessionNaming } from "@/lib/session-naming-store";
 import { appendLocalHistoryMessage, removeLastHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage } from "@/lib/types";
 import { useCallback } from "react";
-import { CompactCommandResult, readCompactResult, userMessageKey } from "./shared";
+import { CompactCommandResult, ThinkingLevelOption, readCompactResult, userMessageKey } from "./shared";
 import type { SessionConnection } from "./use-session-connection";
 import type { SessionEvents } from "./use-session-events";
 import type { SessionExtensions } from "./use-session-extensions";
@@ -36,6 +36,8 @@ type Dependencies = Pick<
   | "setActiveLeafId"
   | "setNewSessionModel"
   | "setCurrentModelOverride"
+  | "thinkingLevel"
+  | "setThinkingLevel"
   | "isCompacting"
   | "setIsCompacting"
   | "setCompactError"
@@ -45,6 +47,14 @@ type Dependencies = Pick<
   Pick<SessionConnection, "ensureNewSession" | "ensureEventsConnected" | "promoteNewSession"> &
   Pick<SessionEvents, "waitForPromptSettlement"> &
   Pick<SessionExtensions, "addNotice">;
+
+type ModelCommandReply = { thinkingLevel?: unknown };
+
+function reportedThinkingLevel(reply: ModelCommandReply | null | undefined): ThinkingLevelOption | null {
+  const level = reply?.thinkingLevel;
+  return typeof level === "string" ? (level as ThinkingLevelOption) : null;
+}
+
 export function useSessionActions(context: Dependencies) {
   const {
     agentRunning,
@@ -79,6 +89,8 @@ export function useSessionActions(context: Dependencies) {
     contextGenRef,
     setNewSessionModel,
     setCurrentModelOverride,
+    thinkingLevel,
+    setThinkingLevel,
     isCompacting,
     setIsCompacting,
     setCompactError,
@@ -121,11 +133,17 @@ export function useSessionActions(context: Dependencies) {
             if (selectedModel) {
               setPendingModel(selectedModel);
               if (existingSid) {
-                await sendAgentCommand(sid, {
+                const reply = await sendAgentCommand<ModelCommandReply>(sid, {
                   type: "set_model",
                   provider: selectedModel.provider,
                   modelId: selectedModel.modelId,
                 });
+                const reported = reportedThinkingLevel(reply);
+                if (thinkingLevel) {
+                  await sendAgentCommand(sid, { type: "set_thinking_level", level: thinkingLevel });
+                } else if (reported) {
+                  setThinkingLevel(reported);
+                }
               }
             }
             await ensureEventsConnected(sid);
@@ -205,6 +223,8 @@ export function useSessionActions(context: Dependencies) {
       promoteNewSession,
       newSessionDefaultModel,
       setPendingModel,
+      thinkingLevel,
+      setThinkingLevel,
       waitForPromptSettlement,
       addNotice,
       t,
@@ -278,12 +298,15 @@ export function useSessionActions(context: Dependencies) {
   const handleModelChange = useCallback(
     async (provider: string, modelId: string) => {
       if (isNew) {
+        setThinkingLevel(null);
         setNewSessionModel({ provider, modelId });
         setPendingModel({ provider, modelId });
         const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
         if (!sid) return;
         try {
-          await sendAgentCommand(sid, { type: "set_model", provider, modelId });
+          const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+          const reported = reportedThinkingLevel(reply);
+          if (reported) setThinkingLevel(reported);
         } catch (e) {
           console.error("Failed to set model:", e);
         }
@@ -292,7 +315,9 @@ export function useSessionActions(context: Dependencies) {
       const sid = sessionIdRef.current;
       if (!sid) return;
       try {
-        await sendAgentCommand(sid, { type: "set_model", provider, modelId });
+        const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+        const reported = reportedThinkingLevel(reply);
+        if (reported) setThinkingLevel(reported);
         setCurrentModelOverride({ provider, modelId });
         // The context window may differ between models — refresh immediately
         // instead of waiting for the next agent_end.
@@ -309,6 +334,7 @@ export function useSessionActions(context: Dependencies) {
       setCurrentModelOverride,
       setNewSessionModel,
       setPendingModel,
+      setThinkingLevel,
     ],
   );
 

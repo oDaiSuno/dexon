@@ -48,6 +48,7 @@ function providerConfig(baseUrl, models, apiKey) {
       contextWindow: 8192,
       maxTokens: 1024,
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      ...(model.thinkingLevelMap ? { thinkingLevelMap: model.thinkingLevelMap } : {}),
     })),
   };
 }
@@ -193,7 +194,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
     },
     configure(
       agentDirectory,
-      { models = [{ id: heldModel.modelId, reasoning: false }], retry, extraProviders = [] } = {},
+      { models = [{ id: heldModel.modelId, reasoning: false }], retry, extraProviders = [], settings } = {},
     ) {
       writeFileSync(
         path.join(agentDirectory, "models.json"),
@@ -220,6 +221,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
           defaultModel: heldModel.modelId,
           ...(retry === false ? { retry: { enabled: false } } : {}),
           ...(retry && typeof retry === "object" ? { retry } : {}),
+          ...(settings ?? {}),
         }),
       );
     },

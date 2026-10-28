@@ -67,7 +67,7 @@ export function DefaultModelFields({
             disabled={!defaults || saving}
             onChange={(event) => onThinkingLevelChange(event.target.value as DefaultThinkingLevel)}
           >
-            {THINKING_LEVELS.filter((level) => level !== "auto").map((level) => (
+            {THINKING_LEVELS.map((level) => (
               <option key={level} value={level}>
                 {t("defaultThinkingOption", "Thinking: {level}").replace("{level}", thinkingLevelLabel(level, t))}
               </option>

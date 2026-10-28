@@ -163,7 +163,7 @@ export function useSessionLifecycle(context: Dependencies) {
           if (agentState.state.contextUsage !== undefined) setContextUsage(agentState.state.contextUsage ?? null);
           if (agentState.state.systemPrompt !== undefined) setSystemPrompt(agentState.state.systemPrompt ?? null);
           if (agentState.state.thinkingLevel !== undefined)
-            setThinkingLevel((agentState.state.thinkingLevel as ThinkingLevelOption) ?? "auto");
+            setThinkingLevel((agentState.state.thinkingLevel as ThinkingLevelOption) ?? null);
           if (agentState.state.extensionStatuses !== undefined)
             setExtensionStatuses(agentState.state.extensionStatuses ?? []);
           if (agentState.state.extensionWidgets !== undefined)

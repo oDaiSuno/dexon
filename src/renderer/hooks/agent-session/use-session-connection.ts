@@ -79,7 +79,7 @@ export function useSessionConnection(context: Dependencies) {
         cwd: newSessionCwd,
         type: "ensure_session",
         ...(selectedModel ? { provider: selectedModel.provider, modelId: selectedModel.modelId } : {}),
-        ...(thinkingLevel !== "auto" ? { thinkingLevel } : {}),
+        ...(thinkingLevel ? { thinkingLevel } : {}),
       });
       const realId = result.sessionId;
       sessionIdRef.current = realId;

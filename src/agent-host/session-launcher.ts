@@ -44,13 +44,24 @@ export async function launchDesktopSession(launch: DesktopSessionLaunch): Promis
   if (!existsSync(cwd)) throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
 
   const server = sessionLauncherServer();
-  const { session, realSessionId } = await startRpcSession(createAgentNewLockKey(), "", cwd, launch.toolNames);
+  const initialModel =
+    launch.provider && launch.modelId ? { provider: launch.provider, modelId: launch.modelId } : undefined;
+  const { session, realSessionId } = await startRpcSession(
+    createAgentNewLockKey(),
+    "",
+    cwd,
+    launch.toolNames,
+    initialModel,
+  );
   allowFileRoot(cwd);
 
   ensureSessionEvents(server, session, realSessionId);
   announceSessionOnFirstMessage(server, session);
 
-  if (launch.provider && launch.modelId) {
+  const startedModel = session.sessionModel.current(session.inner);
+  const alreadyOnRequestedModel =
+    startedModel !== null && startedModel.provider === launch.provider && startedModel.modelId === launch.modelId;
+  if (launch.provider && launch.modelId && !alreadyOnRequestedModel) {
     await session.send({ type: "set_model", provider: launch.provider, modelId: launch.modelId });
   }
   if (launch.thinkingLevel) {

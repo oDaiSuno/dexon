@@ -196,6 +196,7 @@ export interface ModelsListResult {
   defaultModel: { provider: string; modelId: string } | null;
   thinkingLevels: Record<string, string[]>;
   thinkingLevelMaps: Record<string, Record<string, string | null>>;
+  effectiveThinkingLevels: Record<string, string>;
   nameMap: Record<string, string>;
   catalog: ModelCatalogStatus;
 }

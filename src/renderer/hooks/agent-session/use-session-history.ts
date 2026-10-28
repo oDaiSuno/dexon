@@ -214,7 +214,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           if (liveState.contextUsage !== undefined) setContextUsage(liveState.contextUsage ?? null);
           if (liveState.systemPrompt !== undefined) setSystemPrompt(liveState.systemPrompt ?? null);
           if (liveState.thinkingLevel !== undefined)
-            setThinkingLevel((liveState.thinkingLevel as ThinkingLevelOption) ?? "auto");
+            setThinkingLevel((liveState.thinkingLevel as ThinkingLevelOption) ?? null);
           if (liveState.extensionStatuses !== undefined) setExtensionStatuses(liveState.extensionStatuses ?? []);
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined)
@@ -226,7 +226,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           // computable" — keep the current state instead of fabricating one.
           if (d.contextUsage !== undefined) setContextUsage(d.contextUsage ?? null);
         }
-        if (!liveState?.thinkingLevel && d.context.thinkingLevel && d.context.thinkingLevel !== "off") {
+        if (!liveState?.thinkingLevel && d.context.thinkingLevel) {
           setThinkingLevel(d.context.thinkingLevel as ThinkingLevelOption);
         }
         return d.agentState ?? null;

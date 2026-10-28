@@ -30,7 +30,7 @@ export interface SessionControlsProps {
   isStreaming: boolean;
   closeDropdowns: () => void;
   /* thinking level */
-  thinkingLevel: ThinkingLevel | "auto" | undefined;
+  thinkingLevel: ThinkingLevel | null | undefined;
   onThinkingLevelChange?: ((level: ThinkingLevel) => void) | undefined;
   availableThinkingLevels?: string[] | null;
   thinkingLevelMap?: Record<string, string | null> | null;
@@ -89,7 +89,6 @@ export function SessionControls(props: SessionControlsProps) {
   const thinkingCardClosing = useClosingCard(thinkingDropdownOpen, visible);
 
   const thinkingLabels: Record<ThinkingLevel, string> = {
-    auto: t("thinkingAuto", "Auto"),
     off: t("thinkingOff", "Off"),
     minimal: t("thinkingMinimal", "Minimal"),
     low: t("thinkingLow", "Low"),
@@ -99,7 +98,6 @@ export function SessionControls(props: SessionControlsProps) {
     max: t("thinkingMax", "Max"),
   };
   const thinkingDescriptions: Record<ThinkingLevel, string> = {
-    auto: t("thinkingDefaultDescription", "Use Pi default"),
     off: t("thinkingOffDescription", "Reasoning off, fastest replies"),
     minimal: t("thinkingMinimalDescription", "Minimal reasoning"),
     low: t("thinkingLowDescription", "Low reasoning"),
@@ -110,17 +108,16 @@ export function SessionControls(props: SessionControlsProps) {
   };
   const translateThinkingValue = (value: string): string =>
     (THINKING_LEVELS as readonly string[]).includes(value) ? thinkingLabels[value as ThinkingLevel] : value;
+  const currentLevel = thinkingLevel ?? null;
   const thinkingDisplayLabel = (() => {
-    const lvl = thinkingLevel ?? "auto";
-    if (lvl === "auto" || !thinkingLevelMap) return thinkingLabels[lvl];
-    return translateThinkingValue(thinkingLevelMap[lvl] ?? lvl);
+    if (!currentLevel) return "";
+    if (!thinkingLevelMap) return thinkingLabels[currentLevel];
+    return translateThinkingValue(thinkingLevelMap[currentLevel] ?? currentLevel);
   })();
-
-  const currentLevel: ThinkingLevel = thinkingLevel ?? "auto";
   const thinkingOptions = THINKING_LEVELS.filter(
-    (lvl) => !availableThinkingLevels || lvl === "auto" || availableThinkingLevels.includes(lvl),
+    (lvl) => !availableThinkingLevels || availableThinkingLevels.includes(lvl),
   ).map((lvl) => {
-    const mappedVal = lvl !== "auto" && thinkingLevelMap ? thinkingLevelMap[lvl] : undefined;
+    const mappedVal = thinkingLevelMap ? thinkingLevelMap[lvl] : undefined;
     const showOriginal = mappedVal != null && mappedVal !== lvl;
     const displayLabel = translateThinkingValue(showOriginal ? mappedVal : lvl);
     return {
@@ -146,7 +143,7 @@ export function SessionControls(props: SessionControlsProps) {
       className={`relative flex flex-none items-center justify-end ${isMobile ? "gap-0.5" : "ml-auto"}`}
       style={{ gap: isMobile ? undefined : "var(--space-3)" }}
     >
-      {onThinkingLevelChange && (
+      {onThinkingLevelChange && currentLevel && (
         <div ref={thinkingContainerRef} className="relative flex">
           <button
             ref={thinkingButtonRef}
@@ -187,7 +184,7 @@ export function SessionControls(props: SessionControlsProps) {
               closing={!thinkingDropdownOpen}
               label={t("changeThinkingLevel", "Change reasoning level")}
               title={t("thinkingCardTitle", "Reasoning effort")}
-              help={t("thinkingCardHelp", "Higher effort thinks longer before replying; Auto uses the Pi default")}
+              help={t("thinkingCardHelp", "Higher effort thinks longer before replying")}
               fasterLabel={t("thinkingFaster", "Faster")}
               smarterLabel={t("thinkingSmarter", "Smarter")}
               current={currentLevel}
