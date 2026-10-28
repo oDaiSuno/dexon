@@ -32,6 +32,10 @@ type Dependencies = Pick<
   | "touchStartClientYRef"
   | "sessionChangeIgnoreScrollUntilRef"
 > & { visualFrameIdsRef: MutableRefObject<Set<number>> };
+function distanceFromBottom(container: HTMLElement): number {
+  return container.scrollHeight - container.clientHeight - container.scrollTop;
+}
+
 export function useSessionScroll(context: Dependencies) {
   const {
     ignoreProgrammaticScrollUntilRef,
@@ -131,18 +135,26 @@ export function useSessionScroll(context: Dependencies) {
     completionScrollAllowedRef.current = true;
     scrollToBottom("auto");
     let settledTop = container.scrollTop;
+    let settledDistance = distanceFromBottom(container);
     let settledHeight = container.scrollHeight;
     let previousHeight = container.scrollHeight;
     let stableFrames = 0;
     let frames = 0;
+    const settleFrame = () => {
+      settledTop = container.scrollTop;
+      settledDistance = distanceFromBottom(container);
+      settledHeight = container.scrollHeight;
+    };
     const snap = () => {
       if (!container.isConnected) return;
       if (Date.now() <= userScrollIntentUntilRef.current) return;
-      const grew = container.scrollHeight !== settledHeight;
-      if (!grew && Math.abs(container.scrollTop - settledTop) > 1) return;
+      const moved = Math.abs(container.scrollTop - settledTop);
+      const distanceMoved = Math.abs(distanceFromBottom(container) - settledDistance);
+      const grown = container.scrollHeight - settledHeight;
+      const growthExplains = grown >= moved - 1;
+      if (moved > 1 && distanceMoved > 1 && !growthExplains) return;
       scrollToBottom("auto");
-      settledTop = container.scrollTop;
-      settledHeight = container.scrollHeight;
+      settleFrame();
       frames += 1;
       const height = container.scrollHeight;
       stableFrames = height === previousHeight ? stableFrames + 1 : 0;
