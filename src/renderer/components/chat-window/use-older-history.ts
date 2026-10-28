@@ -154,6 +154,7 @@ export function useOlderHistory({
     loadOlderHistory,
     continueOlderHistory: load,
     olderHistoryFailed: failed,
+    olderHistoryHalted: halted,
     turnJump,
   };
 }

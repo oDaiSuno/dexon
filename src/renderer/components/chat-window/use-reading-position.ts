@@ -55,6 +55,7 @@ export function useReadingPosition({
   hasOlder,
   loadingOlder,
   olderHistoryFailed,
+  olderHistoryHalted,
   continueOlderHistory,
   settleAtLatest,
 }: {
@@ -69,6 +70,7 @@ export function useReadingPosition({
   hasOlder: boolean;
   loadingOlder: boolean;
   olderHistoryFailed: boolean;
+  olderHistoryHalted: boolean;
   continueOlderHistory: () => Promise<unknown>;
   settleAtLatest: () => void;
 }) {
@@ -172,7 +174,7 @@ export function useReadingPosition({
       return;
     }
     if (loadingOlder || olderHistoryFailed) return;
-    if (!hasOlder) {
+    if (!hasOlder || olderHistoryHalted) {
       pendingRef.current = null;
       positionedRef.current = true;
       settleAtLatest();
@@ -191,6 +193,7 @@ export function useReadingPosition({
     loadingOlder,
     messages,
     olderHistoryFailed,
+    olderHistoryHalted,
     previousCursor,
     record,
     requested,

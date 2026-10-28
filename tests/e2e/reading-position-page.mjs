@@ -84,7 +84,7 @@ export function readingPositionPage(operation, args = {}) {
       distanceFromBottom: region.scrollHeight - region.clientHeight - region.scrollTop,
       center: { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) },
       scrollToBottomButton: Boolean(
-        [...document.querySelectorAll('[role="button"]')].find(
+        [...document.querySelectorAll('[role="button"], button')].find(
           (element) => exposed(element) && nameOf(element) === "Scroll to bottom",
         ),
       ),

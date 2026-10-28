@@ -319,18 +319,24 @@ export function useChatWindow({
     setEditDraft(null);
   }, [session?.id]);
 
-  const { olderHistorySentinelRef, loadOlderHistory, continueOlderHistory, olderHistoryFailed, turnJump } =
-    useOlderHistory({
-      visible,
-      sessionId: session?.id ?? null,
-      previousCursor,
-      hasOlder,
-      loadingOlder,
-      loadOlder,
-      messagesLength: messages.length,
-      loadedEntryIds: entryIds,
-      scrollContainerRef,
-    });
+  const {
+    olderHistorySentinelRef,
+    loadOlderHistory,
+    continueOlderHistory,
+    olderHistoryFailed,
+    olderHistoryHalted,
+    turnJump,
+  } = useOlderHistory({
+    visible,
+    sessionId: session?.id ?? null,
+    previousCursor,
+    hasOlder,
+    loadingOlder,
+    loadOlder,
+    messagesLength: messages.length,
+    loadedEntryIds: entryIds,
+    scrollContainerRef,
+  });
 
   useReadingPosition({
     visible,
@@ -344,6 +350,7 @@ export function useChatWindow({
     hasOlder,
     loadingOlder,
     olderHistoryFailed,
+    olderHistoryHalted,
     continueOlderHistory,
     settleAtLatest,
   });

@@ -12,7 +12,13 @@ import {
   waitFor,
 } from "../support/app-navigation.mjs";
 import { startSessionScene } from "../support/session-tree-scene.mjs";
-import { conversation, installChatGeometry, readerScrollsTo, topOf } from "../support/chat-geometry.mjs";
+import {
+  conversation,
+  distanceFromBottom,
+  installChatGeometry,
+  readerScrollsTo,
+  topOf,
+} from "../support/chat-geometry.mjs";
 import { answerMarker, markersOf, questionMarker, readingConversation } from "../fixtures/reading-position-data.mjs";
 
 after(restoreGlobals);
@@ -50,7 +56,7 @@ async function readOnAnEarlierPage(t) {
   await readerScrollsTo(scene, rowOnEarlierPage(15) * ROW_HEIGHT);
   const before = topOf(scene, watched);
   assert.ok(Math.abs(before) <= ONE_LINE, `“${watched}” is where the reader stopped (${before}px below the top)`);
-  return { scene, watched, before };
+  return { scene, watched, before, first };
 }
 
 async function leaveAndHoldTheEarlierPage(scene) {
@@ -128,6 +134,29 @@ test("if the reader scrolls while the earlier page is loading, the view stays wh
     `“${watched}” should stay where the reader scrolled it: before ${top}px, after ${after}px`,
   );
   assert.ok(page.reached(), "returning asked the Host for the earlier page that was still loading");
+});
+
+test("if the earlier page brings nothing new while returning, the conversation lands at the latest message", async (t) => {
+  const { scene, first } = await readOnAnEarlierPage(t);
+  const cursor = first.context.previousCursor;
+  const page = first.pages[cursor];
+  first.pages[cursor] = {
+    context: {
+      messages: [],
+      entryIds: [],
+      historyRevision: page.context.historyRevision,
+      previousCursor: cursor,
+    },
+    truncated: false,
+  };
+
+  await click(historyRow(scene, "Second reading session"));
+  await waitFor(() => visibleText(chat(scene), questionMarker("long-second", 1)));
+  await scene.settled();
+  await returnToThePagedConversation(scene);
+  await scene.settled();
+
+  assert.equal(distanceFromBottom(scene), 0, "the reader is at the latest message when nothing earlier arrives");
 });
 
 test("if the earlier page cannot be read, the reader sees the existing failure notice with Retry", async (t) => {
