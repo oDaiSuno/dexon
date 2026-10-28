@@ -357,7 +357,7 @@ test("hiding closes local menus and the body-mounted model menu", async (t) => {
 
   await rerender({
     visible: true,
-    thinkingLevel: "auto",
+    thinkingLevel: "low",
     availableThinkingLevels: ["low"],
     onThinkingLevelChange() {},
   });

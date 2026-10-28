@@ -133,15 +133,11 @@ test("recalling the queue clears it locally and returns the texts to the input",
   assert.deepEqual(prepends, ["a\n\nb"], "recalled texts handed back to the composer");
 });
 
-test("aborting compaction and changing thinking level reach the host; auto stays local", async (t) => {
+test("aborting compaction and changing the reasoning level reach the host", async (t) => {
   const { h, host } = await queueHarness(t);
 
   await h.act(() => h.state.handleAbortCompaction());
   assert.ok(host.sendCommands.some((c) => c.payload.type === "abort_compaction"));
-
-  await h.act(() => h.state.handleThinkingLevelChange("auto"));
-  assert.equal(h.state.thinkingLevel, "auto");
-  assert.ok(!host.sendCommands.some((c) => c.payload.type === "set_thinking_level"), "auto leaves pi untouched");
 
   await h.act(() => h.state.handleThinkingLevelChange("high"));
   assert.equal(h.state.thinkingLevel, "high");

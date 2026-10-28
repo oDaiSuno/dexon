@@ -95,7 +95,7 @@ test("hiding cancels a queued focus-return frame before it can run", async (t) =
   harness.setRafQueue(true);
   try {
     await mount({
-      thinkingLevel: "auto",
+      thinkingLevel: "low",
       availableThinkingLevels: ["low"],
       onThinkingLevelChange() {},
     });

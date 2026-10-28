@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { MessageChannel } from "node:worker_threads";
@@ -138,6 +138,7 @@ export function collectEvents(client, sessionId) {
 export async function startSessionOrchestrationHost({
   name = "session-orchestration",
   settings,
+  agentSettings,
   models = [{ id: heldModel.modelId, reasoning: true }],
   extraProviders = [],
   retry,
@@ -166,6 +167,7 @@ export async function startSessionOrchestrationHost({
   model.configure(agentDirectory, {
     models,
     extraProviders,
+    ...(agentSettings ? { settings: agentSettings } : {}),
     ...(retry === false || (retry && typeof retry === "object") ? { retry } : {}),
   });
   const mainPort = installMainProcessPort(settings ? { sessionOrchestration: settings } : {});
@@ -258,6 +260,11 @@ export async function startSessionOrchestrationHost({
     },
     events(sessionId) {
       return collectEvents(runtime.rpcClient, sessionId);
+    },
+    async writeAgentSettings(extra) {
+      const filePath = path.join(agentDirectory, "settings.json");
+      const current = JSON.parse(readFileSync(filePath, "utf8"));
+      writeFileSync(filePath, JSON.stringify({ ...current, ...extra }));
     },
     async writeSession(sessionId, cwd, entries) {
       await listed();
