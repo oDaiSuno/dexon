@@ -25,6 +25,8 @@ import { normalizeToolCalls } from "../shared/normalize";
 import { versionsByEntryId } from "./session-versions";
 import { chosenSessionModel } from "./session-model";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
+import { locateSessionProject, type LocatedProject } from "./session-project";
+import { flushSessionProjects } from "./session-project-store";
 import { sessionIndex } from "./session-index";
 import { withSessionOrigin } from "./session-origin-store";
 
@@ -166,7 +168,11 @@ export async function buildSessionInfoFromManager(
   const headerTime = Date.parse(header.timestamp);
   const created = Number.isNaN(headerTime) ? header.timestamp : new Date(headerTime).toISOString();
   const modified = lastActivityTime === undefined ? created : new Date(lastActivityTime).toISOString();
-  const project = header.cwd && options.resolveProjectInfo !== false ? await resolveProject(header.cwd) : undefined;
+  let located: LocatedProject | null = null;
+  if (header.cwd && options.resolveProjectInfo !== false) {
+    located = await locateSessionProject({ id: header.id, cwd: header.cwd });
+    flushSessionProjects();
+  }
   const parentSessionId = header.parentSession ? findCachedSessionId(header.parentSession) : undefined;
 
   return withSessionOrigin({
@@ -179,8 +185,8 @@ export async function buildSessionInfoFromManager(
     messageCount,
     firstMessage: firstMessage || "(no messages)",
     ...(parentSessionId ? { parentSessionId } : {}),
-    projectRoot: project?.projectRoot ?? header.cwd,
-    ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
+    projectRoot: located?.projectRoot ?? header.cwd,
+    ...(located?.worktreeBranch ? { worktreeBranch: located.worktreeBranch } : {}),
   });
 }
 

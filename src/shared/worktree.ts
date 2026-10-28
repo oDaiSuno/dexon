@@ -72,6 +72,8 @@ export interface WorktreeInfo {
 
 const PROJECT_CACHE_TTL_MS = 60_000;
 const projectCache = new Map<string, { info: ProjectInfo; expiresAt: number }>();
+const inferredProjectCache = new Map<string, { root: string | null; expiresAt: number }>();
+const pendingInferredProjects = new Map<string, Promise<string | null>>();
 let projectCacheRevision = 0;
 
 function getProjectCache(): Map<string, { info: ProjectInfo; expiresAt: number }> {
@@ -80,6 +82,8 @@ function getProjectCache(): Map<string, { info: ProjectInfo; expiresAt: number }
 
 export function invalidateProjectCache(): void {
   projectCache.clear();
+  inferredProjectCache.clear();
+  pendingInferredProjects.clear();
   projectCacheRevision += 1;
 }
 
@@ -250,6 +254,49 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
 
   cache.set(cwd, { info, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
   return info;
+}
+
+function missingProjectInfo(root: string | null): ProjectInfo | null {
+  return root ? { projectRoot: root, branch: null, isWorktree: false, isTopLevel: false } : null;
+}
+
+function commonDirRoot(directory: string): Promise<string | null> {
+  const pending = pendingInferredProjects.get(directory);
+  if (pending) return pending;
+  const started = git(directory, [
+    "rev-parse",
+    "--path-format=absolute",
+    "--git-common-dir",
+    "--git-dir",
+    "--show-toplevel",
+  ])
+    .then((out) => {
+      const [commonDir, gitDir, toplevel] = out.split("\n").map((line) => line.trim());
+      if (!toplevel) return null;
+      return worktreePathsEqual(gitDir, commonDir) ? toplevel : dirname(commonDir);
+    })
+    .catch(() => null)
+    .finally(() => {
+      if (pendingInferredProjects.get(directory) === started) pendingInferredProjects.delete(directory);
+    });
+  pendingInferredProjects.set(directory, started);
+  return started;
+}
+
+export async function inferMissingProject(cwd: string): Promise<ProjectInfo | null> {
+  const removed = inferRemovedWorktree(cwd);
+  if (removed) return removed;
+  let directory = dirname(cwd);
+  while (!existsSync(directory)) {
+    const parent = dirname(directory);
+    if (parent === directory) return null;
+    directory = parent;
+  }
+  const cached = inferredProjectCache.get(directory);
+  if (cached && cached.expiresAt > Date.now()) return missingProjectInfo(cached.root);
+  const root = await commonDirRoot(directory);
+  inferredProjectCache.set(directory, { root, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
+  return missingProjectInfo(root);
 }
 
 // ============================================================================
