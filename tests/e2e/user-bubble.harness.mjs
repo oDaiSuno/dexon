@@ -21,6 +21,8 @@ const SPECIAL_MARKER = "__init__";
 const SKILL_MARKER = "fast-context";
 const FROM_SESSION_MARKER = "请把迁移清单做完";
 const DELEGATED_MARKER = "请在另一个会话里开始迁移";
+const THUMB_MARKER = "缩略图夹在句中";
+const THUMB_PATH = "/tmp/tall-shot.png";
 
 const js = (source) => window.webContents.executeJavaScript(source, true);
 const page = (call) => js(`window.userBubble.${call}`);
@@ -250,6 +252,71 @@ async function run() {
       name: "clicking-a-bubble-chip-reveals-the-file",
       measurement: { clicked: center, focused: "/tmp/shot.png", revealed: await page("revealed()") },
       screenshot: await capture("06-reveal"),
+      pass: true,
+    });
+  }
+
+  await show(THUMB_MARKER);
+  {
+    await waitFor(
+      `!!window.userBubble.thumbnailChip(${JSON.stringify(THUMB_MARKER)})?.thumb?.loaded`,
+      "the real thumbnail has loaded in the bubble chip",
+    );
+    await page("focusComposer()");
+    await settle();
+    await type(`@${THUMB_PATH} `);
+    await waitFor(
+      "!!window.userBubble.composerThumbnailChip()?.thumb?.loaded",
+      "the composer chip shows the same real thumbnail",
+    );
+    await hover({ x: 1, y: 1 });
+    const bubble = await page(`thumbnailChip(${JSON.stringify(THUMB_MARKER)})`);
+    const composer = await page("composerThumbnailChip()");
+    const control = await page(`layout(${JSON.stringify(SENTENCE_MARKER)})`);
+    near(bubble.thumb.rect.width, 14, "bubble thumbnail width", 1);
+    near(bubble.thumb.rect.height, 14, "bubble thumbnail height", 1);
+    assert.ok(
+      bubble.thumb.naturalHeight > bubble.thumb.naturalWidth * 2,
+      "the measured thumbnail is a tall image, not a glyph",
+    );
+    assert.ok(bubble.name, "the thumbnail chip shows the file name");
+    assert.equal(bubble.name.text, "tall-shot.png", "the chip names the thumbnail file");
+    assert.ok(bubble.name.rect.left >= bubble.chip.left - 0.5, "the file name starts inside the chip");
+    assert.ok(bubble.name.rect.right <= bubble.chip.right + 0.5, "the file name ends inside the chip");
+    assert.ok(bubble.name.rect.top >= bubble.chip.top - 0.5, "the file name starts within the chip height");
+    assert.ok(bubble.name.rect.bottom <= bubble.chip.bottom + 0.5, "the file name does not drop out of the chip");
+    assert.ok(
+      verticallyOverlaps(bubble.thumb.rect, bubble.name.rect),
+      "the thumbnail shares a line with the file name",
+    );
+    assert.ok(bubble.thumb.rect.right <= bubble.name.rect.left + 0.5, "the thumbnail sits left of the file name");
+    const { textRects } = bubble.paragraph;
+    assert.ok(
+      textRects.length > 0 &&
+        verticallyOverlaps(bubble.chip, textRects[0]) &&
+        verticallyOverlaps(bubble.chip, textRects[textRects.length - 1]),
+      "the chip keeps the prose before and after it on its own line",
+    );
+    assert.ok(
+      bubble.paragraph.rect.height < bubble.paragraph.lineHeight * 1.5,
+      `the paragraph is one line tall: ${bubble.paragraph.rect.height} vs line height ${bubble.paragraph.lineHeight}`,
+    );
+    near(
+      bubble.paragraph.rect.height,
+      control.paragraphs[0].rect.height,
+      "the paragraph is as tall as one without a thumbnail",
+      1,
+    );
+    near(composer.chip.height, bubble.chip.height, "chip height", 0.5);
+    near(composer.chip.width, bubble.chip.width, "chip width", 1);
+    near(composer.thumb.rect.width, bubble.thumb.rect.width, "thumbnail width", 0.5);
+    near(composer.thumb.rect.height, bubble.thumb.rect.height, "thumbnail height", 0.5);
+    await page(`scrollTo(${JSON.stringify(THUMB_MARKER)})`);
+    await paint();
+    records.push({
+      name: "chip-with-real-thumbnail-keeps-layout",
+      measurement: { bubble, composer, control: control.paragraphs[0] },
+      screenshot: await capture("11-thumbnail-chip"),
       pass: true,
     });
   }

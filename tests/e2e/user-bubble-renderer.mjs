@@ -30,6 +30,8 @@ const FROM_SESSION = "请把迁移清单做完";
 const FROM_SESSION_REPLY = "迁移清单已完成";
 const DELEGATED = "请在另一个会话里开始迁移";
 const DELEGATED_REPLY = "已交给另一个会话";
+const THUMB_PATH = "/tmp/tall-shot.png";
+const THUMB_PROSE = "缩略图夹在句中 @/tmp/tall-shot.png 之后继续写字";
 
 const SENTENCES = [SENTENCE, COMMAND, QUOTED, SPECIAL, SKILLED];
 
@@ -92,6 +94,15 @@ const transcript = [
     stopReason: "stop",
     timestamp: 16,
   },
+  { role: "user", content: THUMB_PROSE, timestamp: 17 },
+  {
+    role: "assistant",
+    content: [{ type: "text", text: `第 ${SENTENCES.length + 1} 条回复` }],
+    provider: "fixture",
+    model: "fixture-model",
+    stopReason: "stop",
+    timestamp: 18,
+  },
 ];
 
 const detail = createSessionDetail("user-bubble", {
@@ -100,6 +111,7 @@ const detail = createSessionDetail("user-bubble", {
   entryIds: transcript.map((_, index) => `entry-${index}`),
 });
 
+const THUMB_BASE64 = tallShotPng();
 const revealed = [];
 const sessionHost = createSessionTestHost({
   getSession: async () => detail,
@@ -107,10 +119,14 @@ const sessionHost = createSessionTestHost({
 });
 const host = {
   ...sessionHost,
-  call(method) {
+  call(method, params) {
     if (method === "files.index") return { files: [], truncated: false };
     if (method === "skills.list") return { skills: [] };
-    if (method === "files.read") return null;
+    if (method === "files.read") {
+      if (params?.path !== THUMB_PATH) return null;
+      const bytes = globalThis.atob(THUMB_BASE64).length;
+      return { content: THUMB_BASE64, encoding: "base64", mime: "image/png", size: bytes };
+    }
     if (method === "agent.generateTitle") return { title: null };
     throw new Error(`Unexpected Host request: ${method}`);
   },
@@ -216,6 +232,19 @@ function render(theme) {
   );
 }
 
+function tallShotPng() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 40;
+  canvas.height = 120;
+  const context = canvas.getContext("2d");
+  const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, "#2f6feb");
+  gradient.addColorStop(1, "#f2a33c");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/png").split(",")[1];
+}
+
 function bounds(target) {
   const rect = typeof target.getBoundingClientRect === "function" ? target.getBoundingClientRect() : target;
   return {
@@ -313,11 +342,31 @@ function editor() {
   return composer ? byRole(composer, "textbox") : null;
 }
 
-function composerChip() {
+function composerChip(title = "/tmp/shot.png") {
   const element = editor();
   if (!element) return null;
   const chips = allByRole(element, "button").filter((candidate) => !candidate.parentElement.closest('[role="button"]'));
-  return chips.find((candidate) => candidate.getAttribute("title") === "/tmp/shot.png") ?? chips[0] ?? null;
+  const match = chips.find((candidate) => candidate.getAttribute("title") === title);
+  if (match) return match;
+  return title === "/tmp/shot.png" ? (chips[0] ?? null) : null;
+}
+
+function thumbnailSummary(chip) {
+  if (!chip) return null;
+  const thumb = chip.querySelector("img.token-chip-thumb");
+  const name = chip.querySelector(".token-chip-name");
+  return {
+    chip: bounds(chip),
+    thumb: thumb
+      ? {
+          rect: bounds(thumb),
+          loaded: thumb.complete && thumb.naturalWidth > 0,
+          naturalWidth: thumb.naturalWidth,
+          naturalHeight: thumb.naturalHeight,
+        }
+      : null,
+    name: name ? { rect: bounds(name), text: name.textContent } : null,
+  };
 }
 
 function styleSummary(element) {
@@ -364,8 +413,18 @@ window.userBubble = {
     if (!scope) return null;
     return styleSummary(chipsIn(scope).find((element) => element.getAttribute("title") === title) ?? null);
   },
-  composerChipStyle() {
-    return styleSummary(composerChip());
+  composerChipStyle(title = "/tmp/shot.png") {
+    return styleSummary(composerChip(title));
+  },
+  thumbnailChip(marker) {
+    const scope = bubbleOf(marker);
+    const chip = scope ? chipsIn(scope).find((element) => element.getAttribute("title") === THUMB_PATH) : null;
+    const summary = thumbnailSummary(chip);
+    if (!summary) return null;
+    return { ...summary, paragraph: paragraphSummary(chip.closest("p") ?? scope) };
+  },
+  composerThumbnailChip() {
+    return thumbnailSummary(composerChip(THUMB_PATH));
   },
   focusComposer() {
     editor()?.focus();
