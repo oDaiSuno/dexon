@@ -1,0 +1,465 @@
+{
+  "completed": true,
+  "pid": 48336,
+  "pass": true,
+  "expectedFailures": "exactly 2 'ResizeObserver loop' errors, produced on purpose by ro-observe-self and ro-observe-inner",
+  "records": [
+    {
+      "name": "baseline-standard",
+      "measurement": {
+        "viewport": 713,
+        "bubbleHeight": 1643.8125,
+        "bubbleWidth": 562.9375,
+        "proseHeight": 1609.8125,
+        "lineHeight": 23.8,
+        "fontSize": 14,
+        "visualLines": 68,
+        "screens": 2.31
+      },
+      "pass": true
+    },
+    {
+      "name": "supports",
+      "measurement": {
+        "interpolateSize": true,
+        "calcSize": true,
+        "mask": true,
+        "overflowAnchor": "auto",
+        "lhUnit": true
+      },
+      "pass": true
+    },
+    {
+      "name": "baseline-large",
+      "measurement": {
+        "viewport": 713,
+        "bubbleHeight": 3472.6953125,
+        "bubbleWidth": 600.578125,
+        "proseHeight": 3438.6953125,
+        "lineHeight": 27.37,
+        "fontSize": 16.1,
+        "visualLines": 126,
+        "screens": 4.87
+      },
+      "pass": true
+    },
+    {
+      "name": "baseline-extra-large",
+      "measurement": {
+        "viewport": 713,
+        "bubbleHeight": 3929.4375,
+        "bubbleWidth": 600.578125,
+        "proseHeight": 3895.4375,
+        "lineHeight": 30.94,
+        "fontSize": 18.2,
+        "visualLines": 126,
+        "screens": 5.51
+      },
+      "pass": true
+    },
+    {
+      "name": "baseline-window-760",
+      "measurement": {
+        "viewport": 713,
+        "bubbleHeight": 1643.8125,
+        "bubbleWidth": 562.9375,
+        "proseHeight": 1609.8125,
+        "lineHeight": 23.8,
+        "fontSize": 14,
+        "visualLines": 68,
+        "screens": 2.31
+      },
+      "pass": true
+    },
+    {
+      "name": "offscreen-font-change",
+      "measurement": {
+        "offscreen": true,
+        "whileOff": {
+          "roFired": 0,
+          "syncScrollHeight": 3895,
+          "lineHeight": 30.94
+        },
+        "back": {
+          "roEvents": [
+            {
+              "h": 3895,
+              "t": "ro"
+            }
+          ],
+          "finalHeight": 3895
+        }
+      },
+      "pass": true
+    },
+    {
+      "name": "offscreen-content-visibility",
+      "measurement": {
+        "probe": {
+          "itemOffscreen": false,
+          "cv": "auto",
+          "mdScrollHeight": 1610,
+          "mdRectHeight": 1609.8125,
+          "itemRectHeight": 1687.8125
+        },
+        "resizeObserverHeights": [
+          1610,
+          3895
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "back-onscreen",
+      "measurement": {
+        "probe": {
+          "itemOffscreen": false,
+          "cv": "auto",
+          "mdScrollHeight": 1610,
+          "mdRectHeight": 1609.8125,
+          "itemRectHeight": 1687.8125
+        },
+        "resizeObserverHeights": [
+          1610,
+          3895,
+          1610
+        ]
+      },
+      "pass": true
+    },
+    {
+      "name": "collapse-default-anchoring",
+      "measurement": {
+        "mode": "auto",
+        "before": {
+          "scrollTop": 985,
+          "bubbleTopInView": -971
+        },
+        "after": {
+          "scrollTop": 985,
+          "bubbleTop": -971,
+          "bubbleBottom": -754.6015625,
+          "viewport": 713
+        },
+        "bubbleTopVisible": false
+      },
+      "pass": true
+    },
+    {
+      "name": "collapse-anchor-none",
+      "measurement": {
+        "mode": "anchor-none",
+        "before": {
+          "scrollTop": 985,
+          "bubbleTopInView": -971
+        },
+        "after": {
+          "scrollTop": 985,
+          "bubbleTop": -971,
+          "bubbleBottom": -754.6015625,
+          "viewport": 713
+        },
+        "bubbleTopVisible": false
+      },
+      "pass": true
+    },
+    {
+      "name": "proto-standard",
+      "measurement": {
+        "t": 3320,
+        "lines": 67.6,
+        "clamp": true,
+        "shown": 190,
+        "lh": 23.8
+      },
+      "pass": true
+    },
+    {
+      "name": "proto-settled",
+      "measurement": {
+        "h": 190,
+        "lh": 23.8
+      },
+      "pass": true
+    },
+    {
+      "name": "proto-font-changes",
+      "measurement": [
+        {
+          "t": 4070,
+          "lines": 68.9,
+          "clamp": true,
+          "shown": 178,
+          "lh": 21.42
+        },
+        {
+          "t": 4079,
+          "lines": 68.9,
+          "clamp": true,
+          "shown": 176,
+          "lh": 21.42
+        },
+        {
+          "t": 4086,
+          "lines": 68.9,
+          "clamp": true,
+          "shown": 175,
+          "lh": 21.42
+        },
+        {
+          "t": 4095,
+          "lines": 68.9,
+          "clamp": true,
+          "shown": 174,
+          "lh": 21.42
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "proto-compensated-collapse",
+      "measurement": {
+        "dbg": {
+          "scrollTop": 985,
+          "bubbleH": 1643.8125,
+          "mdH": 1609.8125,
+          "scrollH": 12298
+        },
+        "bubbleTopBefore": -971,
+        "bubbleTopAfterCompensation": 14,
+        "scrollTopAfter": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "anim-maxheight-none",
+      "measurement": {
+        "kind": "maxheight-none",
+        "start": 190,
+        "expand_at110ms": 1428,
+        "expand_at400ms": 1428,
+        "collapse_at110ms": 190
+      },
+      "pass": true
+    },
+    {
+      "name": "anim-interpolate",
+      "measurement": {
+        "kind": "interpolate",
+        "start": 190,
+        "expand_at110ms": 1367,
+        "expand_at400ms": 1428,
+        "collapse_at110ms": 235
+      },
+      "pass": true
+    },
+    {
+      "name": "anim-grid-rows",
+      "measurement": {
+        "kind": "grid-rows",
+        "start": 190,
+        "expand_at110ms": 1428,
+        "expand_at400ms": 1428,
+        "collapse_at110ms": 190
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-noop",
+      "measurement": {
+        "mode": "noop",
+        "roLoopErrors": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-observe-self",
+      "measurement": {
+        "mode": "self",
+        "roLoopErrors": 1
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-raf",
+      "measurement": {
+        "mode": "raf",
+        "roLoopErrors": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-observe-inner",
+      "measurement": {
+        "mode": "inner",
+        "roLoopErrors": 1
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-async",
+      "measurement": {
+        "mode": "deferred-to-next-task",
+        "roLoopErrors": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "ro-react",
+      "measurement": {
+        "mode": "react-setState-in-observer",
+        "roLoopErrors": 0
+      },
+      "pass": true
+    },
+    {
+      "name": "clip-scroll-height",
+      "measurement": {
+        "natural": 714,
+        "clipSelfScrollHeight": 714,
+        "clipInnerHeight": 714,
+        "shown": 190
+      },
+      "pass": true
+    },
+    {
+      "name": "focus-overflow-hidden",
+      "measurement": {
+        "overflow": "hidden",
+        "innerScrollTop": 761.5,
+        "firstLineStillVisible": false,
+        "chipBelowClip": false
+      },
+      "pass": true
+    },
+    {
+      "name": "focus-overflow-clip",
+      "measurement": {
+        "overflow": "clip",
+        "innerScrollTop": 0,
+        "firstLineStillVisible": true,
+        "chipBelowClip": true
+      },
+      "pass": true
+    },
+    {
+      "name": "focus-into-clipped",
+      "measurement": {
+        "focused": true,
+        "chipVisibleInsideClip": true,
+        "mdScrollTopAfterFocus": 1448.5
+      },
+      "pass": true
+    },
+    {
+      "name": "forced-measure-cost",
+      "measurement": {
+        "items": 62,
+        "forcedMeasureMs": 5.7
+      },
+      "pass": true
+    },
+    {
+      "name": "restore-after-collapse",
+      "measurement": {
+        "anchor": {
+          "key": "entry:e0:message",
+          "offsetTop": -1000
+        },
+        "bubbleTopAfter": -1000,
+        "bubbleBottomAfter": -784,
+        "textAtViewportTop": "回复 1\n段落文字。段落文字。段落文字。段落文字。段落文字。"
+      },
+      "pass": true
+    },
+    {
+      "name": "restore-clamped-to-prompt-top",
+      "measurement": {
+        "anchor": {
+          "key": "entry:e0:message",
+          "offsetTop": -1000
+        },
+        "currentAnchorHeight": 260,
+        "targetUsed": 16,
+        "bubbleTopAfter": 14
+      },
+      "pass": true
+    },
+    {
+      "name": "collapse-scroll-first-then-animate",
+      "measurement": {
+        "bubbleTopBefore": -781,
+        "bubbleTopDuringAnimation": 14,
+        "bubbleTopAfter": 14,
+        "proseHeightAfter": 190
+      },
+      "pass": true
+    },
+    {
+      "name": "content-visibility-fresh-offscreen",
+      "measurement": {
+        "sync": {
+          "scrollHeight": 1428,
+          "rect": 1428
+        },
+        "resizeObserverSaw": [],
+        "hostOffscreen": true,
+        "cv": "auto"
+      },
+      "pass": true
+    },
+    {
+      "name": "live-before-reply-finishes",
+      "measurement": {
+        "key": "local:1:message"
+      },
+      "pass": true
+    },
+    {
+      "name": "live-after-reply-finishes",
+      "measurement": {
+        "sameNode": false,
+        "key": "entry:e62:message"
+      },
+      "pass": true
+    },
+    {
+      "name": "expand-while-streaming",
+      "measurement": {
+        "wheelScrolledUpByUser": true,
+        "bubbleTopWhenExpanded": 212,
+        "bubbleTopAfterStreamingContinues": 212
+      },
+      "pass": true
+    },
+    {
+      "name": "expand-just-sent-without-scrolling",
+      "measurement": {
+        "sendDisabled": false,
+        "topAfterSend": 58,
+        "topWhenExpanded": 58,
+        "topAfterStreamingContinues": -1222
+      },
+      "pass": true
+    },
+    {
+      "name": "alias-live-before",
+      "measurement": {
+        "key": "local:1:message"
+      },
+      "pass": true
+    },
+    {
+      "name": "alias-live-after",
+      "measurement": {
+        "sameNode": true,
+        "key": "local:1:message"
+      },
+      "pass": true
+    }
+  ],
+  "failures": [
+    "ResizeObserver loop completed with undelivered notifications.",
+    "ResizeObserver loop completed with undelivered notifications."
+  ]
+}
