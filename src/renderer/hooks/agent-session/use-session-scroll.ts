@@ -130,13 +130,19 @@ export function useSessionScroll(context: Dependencies) {
     autoFollowMagnetRef.current = true;
     completionScrollAllowedRef.current = true;
     scrollToBottom("auto");
+    let settledTop = container.scrollTop;
+    let settledHeight = container.scrollHeight;
     let previousHeight = container.scrollHeight;
     let stableFrames = 0;
     let frames = 0;
     const snap = () => {
       if (!container.isConnected) return;
       if (Date.now() <= userScrollIntentUntilRef.current) return;
+      const grew = container.scrollHeight !== settledHeight;
+      if (!grew && Math.abs(container.scrollTop - settledTop) > 1) return;
       scrollToBottom("auto");
+      settledTop = container.scrollTop;
+      settledHeight = container.scrollHeight;
       frames += 1;
       const height = container.scrollHeight;
       stableFrames = height === previousHeight ? stableFrames + 1 : 0;
