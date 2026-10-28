@@ -223,7 +223,11 @@ export async function sendSessionCommand(
       const model = context.inner.modelRuntime.getModel(provider, modelId);
       if (!model) throw new Error(`Model not found: ${provider}/${modelId}`);
       await context.inner.setModel(model);
-      return { id: model.id, provider: model.provider };
+      return {
+        id: model.id,
+        provider: model.provider,
+        thinkingLevel: context.inner.agent.state?.thinkingLevel ?? "off",
+      };
     }
 
     case "fork": {

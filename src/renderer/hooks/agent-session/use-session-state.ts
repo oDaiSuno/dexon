@@ -69,9 +69,10 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [modelThinkingLevelMaps, setModelThinkingLevelMaps] = useState<Record<string, Record<string, string | null>>>(
     {},
   );
+  const [modelEffectiveThinkingLevels, setModelEffectiveThinkingLevels] = useState<Record<string, string>>({});
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
-  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption>("auto");
+  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption | null>(null);
   const [retryInfo, setRetryInfo] = useState<RetryInfo | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextUsageInfo | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
@@ -143,6 +144,11 @@ export function useSessionState(opts: UseAgentSessionOptions) {
 
   const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
   const displayModel = isNew ? (newSessionModel ?? newSessionDefaultModel) : currentModel;
+  const announcedThinkingLevel = displayModel
+    ? modelEffectiveThinkingLevels[`${displayModel.provider}:${displayModel.modelId}`]
+    : undefined;
+  const displayThinkingLevel =
+    thinkingLevel ?? (isNew && announcedThinkingLevel ? (announcedThinkingLevel as ThinkingLevelOption) : null);
 
   const sessionStats = (() => {
     if (sessionStatsOverride) return sessionStatsOverride;
@@ -226,6 +232,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     setModelNames,
     setModelThinkingLevels,
     setModelThinkingLevelMaps,
+    setModelEffectiveThinkingLevels,
     modelListSizeRef,
     setModelList,
     setModelCatalog,
@@ -267,10 +274,12 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     modelRefreshing,
     modelThinkingLevels,
     modelThinkingLevelMaps,
+    modelEffectiveThinkingLevels,
     retryInfo,
     forkingEntryId,
     currentModel,
     displayModel,
+    displayThinkingLevel,
     sessionStats,
     slashCommands,
     slashCommandsLoading,

@@ -1,10 +1,9 @@
 import type { CSSProperties } from "react";
 
-export const THINKING_LEVELS = ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ThinkingLevel = (typeof THINKING_LEVELS)[number];
 
 export const THINKING_TONES: Record<ThinkingLevel, string> = {
-  auto: "var(--fx-text-secondary)",
   off: "var(--fx-text-secondary)",
   minimal: "var(--fx-data-slate)",
   low: "var(--fx-data-blue)",
@@ -15,7 +14,6 @@ export const THINKING_TONES: Record<ThinkingLevel, string> = {
 };
 
 const THINKING_FILL: Record<Exclude<ThinkingLevel, "max">, [number, number]> = {
-  auto: [3, 30],
   off: [3, 30],
   minimal: [3, 36],
   low: [3, 42],
@@ -71,13 +69,12 @@ export function ThinkingThumb({ level, offset }: { level: ThinkingLevel; offset:
       style={{
         transform: `translateX(${offset}px)`,
         color: THINKING_TONES[level],
-        opacity: level === "auto" ? 0 : 1,
       }}
     >
       <span className="thinking-layer" data-on={HALO_LEVELS.has(level)}>
         <span className="thinking-halo" />
       </span>
-      <BrainThumb alpha={level === "off" || level === "auto" ? 0 : 0.45} />
+      <BrainThumb alpha={level === "off" ? 0 : 0.45} />
     </span>
   );
 }

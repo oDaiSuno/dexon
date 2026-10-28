@@ -9,6 +9,7 @@ type Dependencies = Pick<
   | "setModelNames"
   | "setModelThinkingLevels"
   | "setModelThinkingLevelMaps"
+  | "setModelEffectiveThinkingLevels"
   | "modelListSizeRef"
   | "setModelList"
   | "setModelCatalog"
@@ -27,6 +28,7 @@ export function useSessionModels(context: Dependencies) {
     setModelNames,
     setModelThinkingLevels,
     setModelThinkingLevelMaps,
+    setModelEffectiveThinkingLevels,
     modelListSizeRef,
     setModelList,
     setModelCatalog,
@@ -52,6 +54,7 @@ export function useSessionModels(context: Dependencies) {
       );
       setModelThinkingLevels(d.thinkingLevels ?? {});
       setModelThinkingLevelMaps(d.thinkingLevelMaps ?? {});
+      setModelEffectiveThinkingLevels(d.effectiveThinkingLevels ?? {});
       modelListSizeRef.current = nextList.length;
       setModelList(nextList);
       setModelCatalog(d.catalog);
@@ -69,6 +72,7 @@ export function useSessionModels(context: Dependencies) {
       setModelCatalog,
       setModelList,
       setModelNames,
+      setModelEffectiveThinkingLevels,
       setModelThinkingLevelMaps,
       setModelThinkingLevels,
       setNewSessionDefaultModel,

@@ -148,6 +148,7 @@ export async function startRpcSession(
   sessionFile: string,
   cwd: string,
   toolNames?: string[],
+  initialModel?: { provider: string; modelId: string },
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
   const registry = getRegistry();
   const locks = getLocks();
@@ -221,8 +222,13 @@ export async function startRpcSession(
     const chosenModel = chosen.model
       ? services.modelRuntime.getModel(chosen.model.provider, chosen.model.modelId)
       : undefined;
+    const requestedModel =
+      !chosen.model && initialModel
+        ? services.modelRuntime.getModel(initialModel.provider, initialModel.modelId)
+        : undefined;
+    const startModel = chosenModel ?? requestedModel;
     const reopenChoice: Pick<CreateAgentSessionFromServicesOptions, "model" | "thinkingLevel"> = {
-      ...(chosenModel ? { model: chosenModel } : {}),
+      ...(startModel ? { model: startModel } : {}),
       ...(chosen.thinkingLevel
         ? { thinkingLevel: chosen.thinkingLevel as NonNullable<CreateAgentSessionFromServicesOptions["thinkingLevel"]> }
         : {}),

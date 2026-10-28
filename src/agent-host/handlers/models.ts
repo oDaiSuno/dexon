@@ -5,7 +5,7 @@ import {
   getAgentDir,
   type SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { getSupportedThinkingLevels } from "@earendil-works/pi-ai";
+import { clampThinkingLevel, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
 import type { RpcServer } from "../../contract/rpc";
 import {
   RpcError,
@@ -199,10 +199,16 @@ export async function projectModelsList(
   const nameMap: Record<string, string> = {};
   const thinkingLevels: Record<string, string[]> = {};
   const thinkingLevelMaps: Record<string, Record<string, string | null>> = {};
+  const effectiveThinkingLevels: Record<string, string> = {};
+  const sharedThinkingLevel = settings.getDefaultThinkingLevel?.() ?? DEFAULT_THINKING_LEVEL;
   for (const model of visible) {
     const key = `${model.provider}:${model.id}`;
     nameMap[key] = model.name;
     thinkingLevels[key] = getSupportedThinkingLevels(model);
+    effectiveThinkingLevels[key] = clampThinkingLevel(
+      model,
+      settings.getModelThinkingLevel?.(model.provider, model.id) ?? sharedThinkingLevel,
+    );
     if (model.thinkingLevelMap) thinkingLevelMaps[key] = model.thinkingLevelMap;
   }
 
@@ -218,6 +224,7 @@ export async function projectModelsList(
     defaultModel,
     thinkingLevels,
     thinkingLevelMaps,
+    effectiveThinkingLevels,
     nameMap,
     catalog: availability.warnings.length
       ? { ...catalog, warnings: [...catalog.warnings, ...availability.warnings] }

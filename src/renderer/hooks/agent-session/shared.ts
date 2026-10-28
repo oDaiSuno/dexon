@@ -97,7 +97,7 @@ export interface UseAgentSessionOptions {
   readingVisible?: boolean;
   restoreReadingPosition?: boolean;
 }
-export type ThinkingLevelOption = "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+export type ThinkingLevelOption = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
 export const USER_SCROLL_INTENT_MS = 1200;
 export function isNearBottomExcludingSpacer(container: HTMLElement): boolean {

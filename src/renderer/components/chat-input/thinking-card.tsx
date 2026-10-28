@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { Icon } from "./icons";
-import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import { ThinkingFill, ThinkingThumb, labelTone, tint, type ThinkingLevel } from "./thinking-art";
 
 const EXIT_MS = 120;
@@ -52,15 +51,6 @@ const TICK: CSSProperties = {
   transition: `opacity ${GLIDE}`,
 };
 const HELP: CSSProperties = { color: "var(--fx-text-secondary)", cursor: "help" };
-const AUTO_CHIP: CSSProperties = {
-  height: 22,
-  padding: "0 var(--space-2)",
-  border: "1px solid var(--fx-line-strong)",
-  borderRadius: "var(--radius-chip)",
-  cursor: "pointer",
-  whiteSpace: "nowrap",
-  transition: `background ${QUICK}, color ${QUICK}`,
-};
 
 export interface ThinkingOption {
   level: ThinkingLevel;
@@ -100,12 +90,9 @@ export function useClosingCard(open: boolean, visible: boolean): boolean {
 
 export function ThinkingCard({ closing = false, ...props }: ThinkingCardProps & { closing?: boolean }) {
   const { label, title, help, fasterLabel, smarterLabel, current, currentLabel, description, options, onPick } = props;
-  const auto = options.find((option) => option.level === "auto");
-  const stops = options.filter((option) => option.level !== "auto");
+  const stops = options;
   const activeIndex = stops.findIndex((option) => option.level === current);
-  const isAuto = current === "auto";
-  const resting = isAuto || current === "off";
-  const autoRest = isAuto ? "var(--fx-surface-selected)" : CLEAR;
+  const resting = current === "off";
   const headingColor = resting ? "var(--fx-text-tertiary)" : labelTone(current);
   const pitch = (TRACK_WIDTH - STOP_WIDTH) / Math.max(1, stops.length - 1);
   const thumbOffset = Math.max(0, activeIndex) * pitch;
@@ -130,25 +117,6 @@ export function ThinkingCard({ closing = false, ...props }: ThinkingCardProps & 
           {currentLabel}
         </span>
         <span className="flex-1" />
-        {auto && (
-          <button
-            type="button"
-            role="menuitemradio"
-            aria-checked={isAuto}
-            title={auto.description}
-            onClick={() => onPick("auto")}
-            className="type-label-default"
-            style={{
-              ...AUTO_CHIP,
-              background: autoRest,
-              color: isAuto ? "var(--fx-text-primary)" : "var(--fx-text-secondary)",
-            }}
-            onMouseEnter={(e) => !isAuto && paint(e, HOVER)}
-            onMouseLeave={(e) => paint(e, autoRest)}
-          >
-            {auto.label}
-          </button>
-        )}
         <span role="img" aria-label={help} title={help} className="flex" style={HELP}>
           <Icon size={15} strokeWidth={1.75}>
             <circle cx="12" cy="12" r="10" />

@@ -13,6 +13,7 @@ import { SkillPickerPanel } from "./SkillPickerPanel";
 import { SkillRevealCard } from "./SkillRevealCard";
 import { SendSquare, StopSquare } from "./SendControls";
 import { SessionControls } from "./SessionControls";
+import type { ThinkingLevel } from "./thinking-art";
 import { SlashMenu } from "./SlashMenu";
 import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SubmissionNotice } from "./use-composer-draft";
@@ -113,8 +114,8 @@ export interface ComposerViewProps {
   isCompacting?: boolean;
   compactError?: string | null;
   contextUsage?: { percent: number | null; contextWindow: number; tokens: number | null } | null;
-  thinkingLevel?: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
-  onThinkingLevelChange?: (level: "auto" | "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max") => void;
+  thinkingLevel?: ThinkingLevel | null;
+  onThinkingLevelChange?: (level: ThinkingLevel) => void;
   availableThinkingLevels?: string[] | null;
   thinkingLevelMap?: Record<string, string | null> | null;
   thinkingDropdownOpen: boolean;
