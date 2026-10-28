@@ -1,0 +1,104 @@
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { app, BrowserWindow } from "electron";
+import { configureSmokeEnvironment } from "../../src/smoke/environment.ts";
+configureSmokeEnvironment();
+const out = process.env.DEXON_RENDERER_OUT;
+const dir = path.dirname(fileURLToPath(import.meta.url));
+const records = []; const failures = []; let w;
+const js = (s) => w.webContents.executeJavaScript(s, true);
+const paint = () => js("document.fonts.ready.then(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))))");
+const wait = async (c) => { const d = Date.now() + 8000; while (!(await js(`!!(${c})`))) { if (Date.now() > d) throw new Error(c); await new Promise((r) => setTimeout(r, 30)); } };
+const shot = async (n) => { await paint(); const i = await w.webContents.capturePage(); fs.writeFileSync(path.join(out, n + ".png"), i.resize({ width: 720 }).toPNG()); };
+const rec = (name, measurement) => { records.push({ name, measurement, pass: true }); console.log(name, JSON.stringify(measurement)); };
+async function run() {
+  await app.whenReady();
+  w = new BrowserWindow({ width: 1280, height: 860, show: true, webPreferences: { contextIsolation: true, sandbox: true, backgroundThrottling: false } });
+  w.webContents.on("console-message", (m) => { if (m.level === "error") { failures.push(m.message); console.log("CONSOLE-ERROR", m.message); } });
+  await w.loadFile(path.join(dir, "index.html"));
+  await wait("window.poc && [...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))");
+  await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint();
+  rec("baseline-standard", await js("poc.baseline()")); await shot("01-baseline");
+  rec("supports", await js("poc.supports()"));
+  for (const f of ["large", "extra-large"]) { await js(`poc.render(${JSON.stringify(f)})`); await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))"); await paint(); rec("baseline-" + f, await js("poc.baseline()")); }
+  await js(`poc.render("standard")`); await paint();
+  w.setSize(760, 860); await new Promise(r=>setTimeout(r,300)); await paint(); rec("baseline-window-760", await js("poc.baseline()")); w.setSize(1280, 860); await new Promise(r=>setTimeout(r,300)); await paint();
+  await js("poc.observe()"); await js("poc.scrollBottom()"); await paint(); await new Promise((r) => setTimeout(r, 300));
+  rec("offscreen-font-change", await js("poc.offscreenFontChange()"));
+  rec("offscreen-content-visibility", { probe: await js("poc.offscreenProbe()"), resizeObserverHeights: await js("poc.roLog()") });
+  await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint(); await new Promise((r) => setTimeout(r, 300));
+  rec("back-onscreen", { probe: await js("poc.offscreenProbe()"), resizeObserverHeights: await js("poc.roLog()") });
+  rec("collapse-default-anchoring", await js("poc.collapseProbe('auto')")); await paint();
+  rec("collapse-anchor-none", await js("poc.collapseProbe('anchor-none')"));
+  await js("poc.maskFade()"); await shot("02-mask-fade");
+  await js("poc.render('standard')"); await paint(); await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint();
+  rec("proto-standard", await js("poc.proto()")); await new Promise(r=>setTimeout(r,400)); rec("proto-settled", await js("({h: Math.round(document.querySelector('[data-proto]').getBoundingClientRect().height), lh: parseFloat(getComputedStyle(document.querySelector('[data-proto]')).lineHeight)})")); await shot("03-proto-collapsed");
+  for (const f of ["large","extra-large","small"]) { await js(`document.documentElement.dataset.chatFontSize=${JSON.stringify(f)}`); await paint(); await new Promise(r=>setTimeout(r,100)); }
+  rec("proto-font-changes", (await js("poc.decisions()")).slice(-4));
+  await js(`document.documentElement.dataset.chatFontSize="standard"`); await paint();
+  rec("proto-compensated-collapse", await js("poc.compensatedCollapse()"));
+  for (const k of ["maxheight-none","interpolate","grid-rows"]) rec("anim-"+k, await js(`poc.cleanAnim(${JSON.stringify(k)})`));
+  await js("poc.render('standard')"); await paint(); await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint();
+  rec("ro-noop", await js("poc.roReal('noop')"));
+  rec("ro-observe-self", await js("poc.roReal('self')"));
+  rec("ro-raf", await js("poc.roReal('raf')"));
+  rec("ro-observe-inner", await js("poc.roReal('inner')"));
+  rec("ro-async", await js("poc.roAsync()"));
+  rec("ro-react", await js("poc.reactRo()"));
+  rec("clip-scroll-height", await js("poc.clipScrollHeight()"));
+  rec("focus-overflow-hidden", await js("poc.focusClip('hidden')"));
+  rec("focus-overflow-clip", await js("poc.focusClip('clip')"));
+  rec("focus-into-clipped", await js("poc.focusProbe()"));
+  rec("forced-measure-cost", await js("poc.forcedCost()"));
+  await js("poc.render('standard')"); await paint(); await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint(); await js("poc.proto()");
+  rec("restore-after-collapse", await js("poc.restoreProbe()"));
+  await js("poc.render('standard')"); await paint(); await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint(); await js("poc.proto()");
+  rec("restore-clamped-to-prompt-top", await js("poc.restoreClamped()"));
+  await js("poc.render('standard')"); await paint(); await js("document.querySelector('[data-message-source]').scrollIntoView({block:'start'})"); await paint();
+  rec("collapse-scroll-first-then-animate", await js("poc.animatedCollapseOrder()"));
+  rec("content-visibility-fresh-offscreen", await js("poc.cvFresh()"));
+  await js("poc.render('standard')"); await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))"); await paint(); await new Promise(r=>setTimeout(r,300));
+  await js("poc.liveTurnStart()"); await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LIVEMARK'))");
+  rec("live-before-reply-finishes", await js("poc.liveTag()"));
+  await js("poc.liveTurnEnd()"); await new Promise(r=>setTimeout(r,800)); await paint();
+  rec("live-after-reply-finishes", await js("poc.liveAfter()"));
+  await w.loadFile(path.join(dir, "index.html"));
+  await wait("window.poc && [...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))"); await paint(); await new Promise(r=>setTimeout(r,500));
+  await js("poc.liveTurnStart()"); await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LIVEMARK'))");
+  await js("poc.liveStream(1)"); await new Promise(r=>setTimeout(r,400)); await paint();
+  for (let k = 0; k < 40 && (await js("poc.liveTop()")) < 20; k++) { w.webContents.sendInputEvent({ type: "mouseWheel", x: 640, y: 400, deltaX: 0, deltaY: 120 }); await new Promise(r=>setTimeout(r,40)); }
+  await new Promise(r=>setTimeout(r,300));
+  const pt = await js("(()=>{const b=[...document.querySelectorAll('[data-message-source]')].find(e=>e.textContent.includes('LIVEMARK')).getBoundingClientRect();return {x:Math.round(b.left+b.width/2),y:Math.round(b.top+30)}})()"); await paint();
+  w.webContents.sendInputEvent({ type: "mouseDown", x: pt.x, y: pt.y, button: "left", clickCount: 1 }); w.webContents.sendInputEvent({ type: "mouseUp", x: pt.x, y: pt.y, button: "left", clickCount: 1 });
+  const topAtClick = await js("poc.liveExpandSim()");
+  await new Promise(r=>setTimeout(r,1500));
+  for (let i = 2; i < 6; i++) { await js(`poc.liveStream(${i})`); await new Promise(r=>setTimeout(r,120)); }
+  await paint();
+  rec("expand-while-streaming", { wheelScrolledUpByUser: true, bubbleTopWhenExpanded: topAtClick, bubbleTopAfterStreamingContinues: await js("poc.liveTop()") });
+  await shot("04-expand-while-streaming");
+  await w.loadFile(path.join(dir, "index.html"));
+  await wait("window.poc && [...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))"); await paint(); await new Promise(r=>setTimeout(r,500));
+  await js("poc.composer()"); await w.webContents.insertText("SENTMARK " + Array.from({length: 30}, (_, i) => "刚发出的第 " + i + " 行").join(" ")); await paint();
+  const sb = await js("poc.sendButton()");
+  w.webContents.sendInputEvent({ type: "mouseDown", x: sb.x, y: sb.y, button: "left", clickCount: 1 }); w.webContents.sendInputEvent({ type: "mouseUp", x: sb.x, y: sb.y, button: "left", clickCount: 1 });
+  await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('SENTMARK'))");
+  await js("poc.liveStream(1)"); await new Promise(r=>setTimeout(r,900)); await paint();
+  const st = await js("poc.sentTop()");
+  w.webContents.sendInputEvent({ type: "mouseDown", x: st.x, y: st.y, button: "left", clickCount: 1 }); w.webContents.sendInputEvent({ type: "mouseUp", x: st.x, y: st.y, button: "left", clickCount: 1 });
+  await js("poc.sentExpand()"); const atExpand = await js("poc.sentTop()");
+  await new Promise(r=>setTimeout(r,1500));
+  for (let i = 2; i < 6; i++) { await js(`poc.liveStream(${i})`); await new Promise(r=>setTimeout(r,120)); }
+  await paint();
+  rec("expand-just-sent-without-scrolling", { sendDisabled: sb.disabled, topAfterSend: st.top, topWhenExpanded: atExpand.top, topAfterStreamingContinues: (await js("poc.sentTop()")).top });
+  await shot("05-expand-just-sent");
+  await w.loadFile(path.join(dir, "index.html"), { search: "alias=1" });
+  await wait("window.poc && [...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LONGMARK'))"); await paint(); await new Promise(r=>setTimeout(r,300));
+  await js("poc.liveTurnStart()"); await wait("[...document.querySelectorAll('[data-message-source]')].some(e=>e.textContent.includes('LIVEMARK'))");
+  rec("alias-live-before", await js("poc.liveTag()"));
+  await js("poc.liveTurnEnd()"); await new Promise(r=>setTimeout(r,800)); await paint();
+  rec("alias-live-after", await js("poc.liveAfter()"));
+}
+(async () => { let code = 0; try { await run(); } catch (e) { code = 1; failures.push(String(e.stack)); console.error(e); }
+  try { await js("poc.close()"); } catch {}
+  w?.destroy(); fs.writeFileSync(process.env.DEXON_ELECTRON_RESULT, JSON.stringify({ completed: true, pid: process.pid, pass: code === 0 && failures.every((f) => f.includes("ResizeObserver loop")) && failures.length === 2, expectedFailures: "exactly 2 'ResizeObserver loop' errors, produced on purpose by ro-observe-self and ro-observe-inner", records, failures }, null, 2)); app.exit(code); })();
