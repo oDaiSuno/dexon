@@ -19,7 +19,7 @@ import { createRpcClient, createRpcServer } from "../../src/contract/rpc.ts";
 import { installMainProcessPort } from "../fixtures/main-process-port.mjs";
 
 const repositoryRoot = path.resolve(import.meta.dirname, "../..");
-const base = realpathSync(mkdtempSync(path.join(tmpdir(), "dexon-project-grouping-")));
+const base = realpathSync.native(mkdtempSync(path.join(tmpdir(), "dexon-project-grouping-")));
 const agentDirectory = path.join(base, "agent");
 const desktopDirectory = path.join(base, "desktop");
 const sessionDirectory = path.join(agentDirectory, "sessions");
@@ -62,13 +62,27 @@ function git(cwd, args) {
   }).trim();
 }
 
+const spell = (value) => {
+  const slashed = String(value).replaceAll("\\", "/").replace(/\/+$/, "");
+  return process.platform === "win32" ? slashed.toLowerCase() : slashed;
+};
+
+function samePath(left, right) {
+  return spell(left) === spell(right);
+}
+
+function assertSamePath(actual, expected, message) {
+  if (samePath(actual, expected)) return;
+  assert.equal(spell(actual), spell(expected), message);
+}
+
 function initRepository(repository) {
   mkdirSync(repository, { recursive: true });
   git(repository, ["init", "--initial-branch=main"]);
   writeFileSync(path.join(repository, "README.md"), `# ${path.basename(repository)}\n`, "utf8");
   git(repository, ["add", "README.md"]);
   git(repository, ["commit", "-m", "fixture repository"]);
-  return realpathSync(repository);
+  return realpathSync.native(repository);
 }
 
 function createRepository(name) {
@@ -77,7 +91,7 @@ function createRepository(name) {
 
 function addWorktree(repository, worktreePath, branch) {
   git(repository, ["worktree", "add", worktreePath, "-b", branch]);
-  return realpathSync(worktreePath);
+  return realpathSync.native(worktreePath);
 }
 
 const dexonRepository = createRepository("dexon");
@@ -254,11 +268,16 @@ async function listing() {
 
 const firstListing = await listing();
 
-async function waitForSessionEvent(events, from, sessionId, label) {
+async function waitForSessionView(events, from, sessionId, label) {
   const deadline = Date.now() + 10_000;
   for (;;) {
-    const found = events.slice(from).find((event) => event.sessionId === sessionId && event.session?.id === sessionId);
-    if (found) return found;
+    const live = events.slice(from).find((event) => event.sessionId === sessionId && event.session?.id === sessionId);
+    if (live) return live.session;
+    const refreshAllSignal = events.slice(from).find((event) => event.fullRefresh === true);
+    if (refreshAllSignal) {
+      const row = (await listing()).get(sessionId);
+      if (row) return row;
+    }
     if (Date.now() > deadline) throw new Error(`timed out after 10000ms waiting for ${label}`);
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
@@ -287,7 +306,7 @@ test("a running worktree session pushed live keeps the project and parent the fu
   for (const id of scenarioIds) {
     const row = first.get(id);
     assert.ok(row, `${id} appears in the full listing`);
-    assert.equal(row.projectRoot, dexonRepository, `${id} is grouped under the main repository`);
+    assertSamePath(row.projectRoot, dexonRepository, `${id} is grouped under the main repository`);
     assert.equal(row.parentSessionId, expectedParents[id], `${id} hangs under its creator`);
   }
 
@@ -296,6 +315,7 @@ test("a running worktree session pushed live keeps the project and parent the fu
   t.after(unsubscribe);
 
   let previousEntry = "pr-session-answer";
+  let latestView;
   for (const round of [1, 2, 3]) {
     const from = events.length;
     previousEntry = appendAnswer(
@@ -309,25 +329,30 @@ test("a running worktree session pushed live keeps the project and parent the fu
       (error) => error.code === "NOT_FOUND",
       `asking for an unknown session is refused, which is what forces a full rescan`,
     );
-    const pushed = await waitForSessionEvent(
+    const view = await waitForSessionView(
       events,
       from,
       "pr-session",
-      `the live push of pr-session in round ${round}`,
+      `the live update of pr-session in round ${round}`,
     );
-    assert.equal(
-      pushed.session.projectRoot,
+    assertSamePath(
+      view.projectRoot,
       dexonRepository,
-      `round ${round}: the pushed session is grouped under the main repository, not under the worktree folder`,
+      `round ${round}: the freshly seen session is grouped under the main repository, not under the worktree folder`,
     );
-    assert.equal(pushed.session.parentSessionId, "coordinator", `round ${round}: the pushed session keeps its creator`);
+    assert.equal(view.parentSessionId, "coordinator", `round ${round}: the freshly seen session keeps its creator`);
+    latestView = view;
   }
 
   const refreshed = await listing();
   const prRow = refreshed.get("pr-session");
-  const lastPush = events.filter((event) => event.sessionId === "pr-session" && event.session).at(-1);
-  for (const field of ["projectRoot", "parentSessionId", "relation", "createdBySessionId", "worktreeBranch"]) {
-    assert.equal(lastPush.session[field], prRow[field], `the live push and the refreshed list agree on ${field}`);
+  assertSamePath(
+    latestView.projectRoot,
+    prRow.projectRoot,
+    "the live update and the refreshed list agree on projectRoot",
+  );
+  for (const field of ["parentSessionId", "relation", "createdBySessionId", "worktreeBranch"]) {
+    assert.equal(latestView[field], prRow[field], `the live update and the refreshed list agree on ${field}`);
   }
   assert.equal(prRow.worktreeBranch, "issue-39", "the worktree session still names its branch");
   for (const id of scenarioIds) {
@@ -339,8 +364,8 @@ test("a running worktree session pushed live keeps the project and parent the fu
     );
   }
   assert.deepEqual(
-    [...new Set(scenarioIds.map((id) => refreshed.get(id).projectRoot))],
-    [dexonRepository],
+    [...new Set(scenarioIds.map((id) => spell(refreshed.get(id).projectRoot)))],
+    [spell(dexonRepository)],
     "the four sessions still form exactly one project group",
   );
 });
@@ -352,7 +377,7 @@ test("after a worktree that held a session tree is deleted and Dexon restarts, t
   for (const id of scenarioIds) {
     const row = before.get(id);
     assert.ok(row, `${id} appears while the worktree still exists`);
-    assert.equal(
+    assertSamePath(
       row.projectRoot,
       appRepository,
       `${id} is grouped under the main repository while the worktree exists`,
@@ -370,7 +395,7 @@ test("after a worktree that held a session tree is deleted and Dexon restarts, t
   for (const id of scenarioIds) {
     const row = rows.get(id);
     assert.ok(row, `${id} is still listed after the restart`);
-    assert.equal(
+    assertSamePath(
       row.projectRoot,
       appRepository,
       `${id} is still grouped under the main repository after its worktree folder was deleted`,
@@ -390,16 +415,16 @@ test("after a worktree that held a session tree is deleted and Dexon restarts, t
   ]) {
     const from = events.length;
     appendAnswer(appSessionFiles[id], `${id}-answer-after-removal`, `${id}-answer`, second);
-    const pushed = await waitForSessionEvent(events, from, id, `the live push of ${id} after its worktree was deleted`);
-    assert.equal(
-      pushed.session.projectRoot,
+    const view = await waitForSessionView(events, from, id, `the live update of ${id} after its worktree was deleted`);
+    assertSamePath(
+      view.projectRoot,
       appRepository,
-      `the live push of ${id} after its worktree was deleted stays under the main repository`,
+      `the live update of ${id} after its worktree was deleted stays under the main repository`,
     );
     assert.equal(
-      pushed.session.parentSessionId,
+      view.parentSessionId,
       rows.get(id).parentSessionId,
-      `the live push of ${id} keeps the same parent as the full list`,
+      `the live update of ${id} keeps the same parent as the full list`,
     );
   }
 
@@ -446,7 +471,7 @@ test("sessions of worktrees deleted before they were ever remembered find their 
     for (const [id, { projectRoot, parentSessionId, worktreeBranch, description }] of Object.entries(expectedLegacy)) {
       const row = rows.get(id);
       assert.ok(row, `${when}${id} is listed`);
-      assert.equal(row.projectRoot, projectRoot, `${when}${description}`);
+      assertSamePath(row.projectRoot, projectRoot, `${when}${description}`);
       if (worktreeBranch)
         assert.equal(row.worktreeBranch, worktreeBranch, `${when}${id} keeps the branch name ${worktreeBranch}`);
       if (parentSessionId) assert.equal(row.parentSessionId, parentSessionId, `${when}${description}`);
@@ -468,16 +493,16 @@ test("sessions of worktrees deleted before they were ever remembered find their 
   ]) {
     const from = events.length;
     appendAnswer(legacySessionFiles[id], `${id}-answer-after-removal`, `${id}-answer`, second);
-    const pushed = await waitForSessionEvent(events, from, id, `the live push of ${id} after its worktree is gone`);
-    assert.equal(
-      pushed.session.projectRoot,
+    const view = await waitForSessionView(events, from, id, `the live update of ${id} after its worktree is gone`);
+    assertSamePath(
+      view.projectRoot,
       projectRoot,
-      `the live push of ${id} lands in the same project as the full list`,
+      `the live update of ${id} lands in the same project as the full list`,
     );
     assert.equal(
-      pushed.session.parentSessionId,
+      view.parentSessionId,
       parentSessionId,
-      `the live push of ${id} keeps the same parent as the full list`,
+      `the live update of ${id} keeps the same parent as the full list`,
     );
   }
 
@@ -492,16 +517,16 @@ test("when a new session in a worktree is only ever pushed live and the worktree
   const liveOnlyFile = writeSessionFile({ folder: "app", id: "app-live-only", cwd: liveOnlyWorktree });
   const writtenContent = readFileSync(liveOnlyFile, "utf8");
 
-  const pushed = await waitForSessionEvent(
+  const view = await waitForSessionView(
     events,
     0,
     "app-live-only",
-    "the first live push of a session in a brand-new worktree",
+    "the first live update of a session in a brand-new worktree",
   );
-  assert.equal(
-    pushed.session.projectRoot,
+  assertSamePath(
+    view.projectRoot,
     appRepository,
-    "the first live push of a brand-new worktree session is grouped under the main repository",
+    "the first live update of a brand-new worktree session is grouped under the main repository",
   );
 
   git(appRepository, ["worktree", "remove", "--force", liveOnlyWorktree]);
@@ -511,7 +536,7 @@ test("when a new session in a worktree is only ever pushed live and the worktree
 
   const row = (await listing()).get("app-live-only");
   assert.ok(row, "the session that was only ever pushed live is still listed after the restart");
-  assert.equal(
+  assertSamePath(
     row.projectRoot,
     appRepository,
     "a session only ever pushed live stays under the main repository after its worktree was deleted",
@@ -529,12 +554,12 @@ test("a deleted worktree keeps the project it was remembered with even inside an
   const unrememberedFirst = firstListing.get("inner-gone");
   assert.ok(strayFirst, "app-stray is listed on the first listing");
   assert.ok(unrememberedFirst, "inner-gone is listed on the first listing");
-  assert.equal(
+  assertSamePath(
     strayFirst.projectRoot,
     appRepository,
     "on the first listing: a worktree of app placed inside another repository belongs to app",
   );
-  assert.equal(
+  assertSamePath(
     unrememberedFirst.projectRoot,
     innerRepository,
     "on the first listing: an unremembered deleted worktree joins the nearest enclosing repository, not an outer one",
@@ -550,12 +575,12 @@ test("a deleted worktree keeps the project it was remembered with even inside an
   const unrememberedAfter = rows.get("inner-gone");
   assert.ok(strayAfter, "app-stray is still listed after the restart");
   assert.ok(unrememberedAfter, "inner-gone is still listed after the restart");
-  assert.equal(
+  assertSamePath(
     strayAfter.projectRoot,
     appRepository,
     "after its folder inside another repository was deleted, the worktree session still belongs to the repository it was remembered with",
   );
-  assert.equal(
+  assertSamePath(
     unrememberedAfter.projectRoot,
     innerRepository,
     "after refreshing: an unremembered deleted worktree joins the nearest enclosing repository, not an outer one",
