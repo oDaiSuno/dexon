@@ -1,0 +1,1202 @@
+diff --git a/scripts/i18n-added/s-project-header.json b/scripts/i18n-added/s-project-header.json
+new file mode 100644
+index 0000000..f4afa3a
+--- /dev/null
++++ b/scripts/i18n-added/s-project-header.json
+@@ -0,0 +1 @@
++["switchOrAddProject", "collapseAllProjects", "expandCurrentProject"]
+diff --git a/src/renderer/components/app-nav/nav-history.tsx b/src/renderer/components/app-nav/nav-history.tsx
+index 66c9acb..3d36a6f 100644
+--- a/src/renderer/components/app-nav/nav-history.tsx
++++ b/src/renderer/components/app-nav/nav-history.tsx
+@@ -5,6 +5,7 @@ import { filterSessionsForQuery, groupSessionsByProject, sessionProjectKey } fro
+ import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
+ import { ProjectRow } from "./project-row";
+ import { useProjectDrag } from "./use-project-drag";
++import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
+ import type { SwitcherProject } from "./project-switcher-card";
+ 
+ export interface ListedProject {
+@@ -19,38 +20,13 @@ export interface ProjectTreeOptions {
+   listedProjects?: readonly ListedProject[];
+   expandedProjects?: ReadonlyMap<string, boolean>;
+   onToggleProject?: (key: string, open: boolean) => void;
+-  onChooseFolder: () => void;
++  renderSwitcher?: (switchTargets: readonly SwitcherProject[]) => ReactNode;
+   onReorderProjects?: (from: number, to: number) => void;
+-  renderProjectActions?: (
+-    name: string,
+-    revealed: boolean,
+-    project: ListedProject,
+-    switchTargets: readonly SwitcherProject[],
+-  ) => ReactNode;
++  renderProjectActions?: (name: string, revealed: boolean, project: ListedProject) => ReactNode;
+ }
+ 
+-function PlusGlyph() {
+-  return (
+-    <svg
+-      width={15}
+-      height={15}
+-      viewBox="0 0 24 24"
+-      fill="none"
+-      stroke="currentColor"
+-      strokeWidth={2}
+-      strokeLinecap="round"
+-      strokeLinejoin="round"
+-      aria-hidden="true"
+-    >
+-      <path d="M5 12h14" />
+-      <path d="M12 5v14" />
+-    </svg>
+-  );
+-}
+-
+-function SectionHeader({ onAdd }: { onAdd: () => void }) {
++function SectionHeader({ switcher, folding }: { switcher?: ReactNode; folding: ReactNode }) {
+   const { t } = useI18n();
+-  const label = t("addProjectSpace", "Add project space from folder…");
+   return (
+     <div
+       style={{
+@@ -58,45 +34,17 @@ function SectionHeader({ onAdd }: { onAdd: () => void }) {
+         alignItems: "center",
+         justifyContent: "space-between",
+         height: 28,
+-        padding: "0 10px",
++        padding: "0 6px 0 10px",
+         flexShrink: 0,
+       }}
+     >
+       <span className="type-label-medium" style={{ color: "var(--fx-text-tertiary)" }}>
+         {t("navHistory", "Project spaces")}
+       </span>
+-      <button
+-        type="button"
+-        onClick={onAdd}
+-        title={label}
+-        aria-label={label}
+-        onMouseEnter={(event) => {
+-          event.currentTarget.style.background = "var(--fx-surface-hover)";
+-          event.currentTarget.style.color = "var(--fx-text-primary)";
+-        }}
+-        onMouseLeave={(event) => {
+-          event.currentTarget.style.background = "transparent";
+-          event.currentTarget.style.color = "var(--fx-text-tertiary)";
+-        }}
+-        style={{
+-          display: "flex",
+-          alignItems: "center",
+-          justifyContent: "center",
+-          width: 22,
+-          height: 22,
+-          marginRight: -4,
+-          padding: 0,
+-          border: "none",
+-          borderRadius: "var(--radius-chip)",
+-          background: "transparent",
+-          color: "var(--fx-text-tertiary)",
+-          cursor: "pointer",
+-          transition:
+-            "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out)",
+-        }}
+-      >
+-        <PlusGlyph />
+-      </button>
++      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
++        {folding}
++        {switcher}
++      </div>
+     </div>
+   );
+ }
+@@ -160,6 +108,27 @@ export function NavHistory({
+   const switchTargets = base
+     .filter((project) => project.key !== currentKey)
+     .map((project) => ({ root: project.root, name: tree.projectName(project.root) }));
++  const isOpen = (key: string) => expandedProjects.get(key) ?? key === currentKey;
++  const anyOpen = base.some((project) => isOpen(project.key));
++  const foldAll = () => {
++    for (const project of base) if (isOpen(project.key)) toggleProject(project.key, false);
++  };
++  const openCurrent = () => {
++    if (currentKey) toggleProject(currentKey, true);
++  };
++  const folding = (
++    <HeaderButton
++      label={
++        anyOpen
++          ? t("collapseAllProjects", "Collapse all projects")
++          : t("expandCurrentProject", "Expand current project")
++      }
++      disabled={searching}
++      onClick={anyOpen ? foldAll : openCurrent}
++    >
++      <ChevronsGlyph inward={anyOpen} />
++    </HeaderButton>
++  );
+   const nothingMatches = searching && projects.length === 0;
+   const missingLabel = t("missingFolder", "Folder not found");
+ 
+@@ -175,7 +144,7 @@ export function NavHistory({
+         gap: 4,
+       }}
+     >
+-      <SectionHeader onAdd={tree.onChooseFolder} />
++      <SectionHeader switcher={tree.renderSwitcher?.(switchTargets)} folding={folding} />
+       <SessionListStatus loading={loading} error={error} empty={nothingMatches} hasActiveFilter={searching} />
+       <div
+         ref={listRef}
+@@ -185,7 +154,7 @@ export function NavHistory({
+       >
+         {projects.map((project, index) => {
+           const current = project.key === currentKey;
+-          const open = searching || (expandedProjects.get(project.key) ?? current);
++          const open = searching || isOpen(project.key);
+           const name = tree.projectName(project.root);
+           const count = project.visible.length;
+           const row = (
+@@ -206,7 +175,7 @@ export function NavHistory({
+               onToggle={() => toggleProject(project.key, !open)}
+               actions={
+                 tree.renderProjectActions
+-                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project, switchTargets)
++                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project)
+                   : undefined
+               }
+             >
+diff --git a/src/renderer/components/app-nav/nav-sidebar.tsx b/src/renderer/components/app-nav/nav-sidebar.tsx
+index 03fd8d4..f85ca20 100644
+--- a/src/renderer/components/app-nav/nav-sidebar.tsx
++++ b/src/renderer/components/app-nav/nav-sidebar.tsx
+@@ -6,6 +6,7 @@ import { sessionProjectKey } from "@/lib/session-list";
+ import { PanelLeftIcon } from "./nav-space-menu";
+ import { NavHistory, type ListedProject } from "./nav-history";
+ import { ProjectRowActions } from "./project-row-actions";
++import { ProjectSwitcherPopover } from "./project-switcher-popover";
+ import { NavTopBar } from "./nav-top-bar";
+ import { spaceFolderName } from "@/lib/space-identity";
+ import { worktreePathsEqual } from "@shared/worktree-path";
+@@ -313,25 +314,29 @@ export function NavSidebar({
+             listedProjects,
+             expandedProjects,
+             onToggleProject,
+-            onChooseFolder,
+             onReorderProjects,
+-            renderProjectActions: (name, revealed, project, switchTargets) => (
++            renderSwitcher: (switchTargets) => (
++              <ProjectSwitcherPopover
++                spaceName={nameOfProject(projectRoot)}
++                projectPath={projectRoot}
++                homeDir={homeDir}
++                projects={switchTargets}
++                inspectFolder={inspectFolder}
++                onOpenFolder={onOpenFolder}
++                onChooseFolder={onChooseFolder}
++                onBackToPersonalSpace={onBackToPersonalSpace}
++              />
++            ),
++            renderProjectActions: (name, revealed, project) => (
+               <ProjectRowActions
+                 name={name}
+                 revealed={revealed}
+                 project={project}
+-                switchTargets={switchTargets}
+-                currentProject={projectRoot}
+-                homeDir={homeDir}
+                 runningProjectKeys={runningProjectKeys}
+                 isDefaultProject={isDefaultProject}
+                 canMoveProject={canMoveProject}
+                 onMoveProject={onMoveProject}
+                 onCloseProject={onCloseProject}
+-                onOpenFolder={onOpenFolder}
+-                inspectFolder={inspectFolder}
+-                onChooseFolder={onChooseFolder}
+-                onBackToPersonalSpace={onBackToPersonalSpace}
+               />
+             ),
+           }}
+diff --git a/src/renderer/components/app-nav/nav-space-menu.tsx b/src/renderer/components/app-nav/nav-space-menu.tsx
+index 92fb401..56c6710 100644
+--- a/src/renderer/components/app-nav/nav-space-menu.tsx
++++ b/src/renderer/components/app-nav/nav-space-menu.tsx
+@@ -1,16 +1,10 @@
+-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
++import { useEffect, type CSSProperties, type KeyboardEvent } from "react";
+ import { createPortal } from "react-dom";
+ import { useI18n } from "@/i18n";
+-import { abbreviateHomePath } from "@/lib/display-path";
+-import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
+-import { getParentFilePath } from "@shared/file-paths";
+ import { ProjectMenuContent } from "./project-menu";
+-import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-card";
++import { useAnchoredPopover } from "./use-anchored-popover";
+ 
+-const CARD_WIDTH = 280;
+ const MENU_WIDTH = 216;
+-const CARD_MARGIN = 8;
+-const CARD_GAP = 4;
+ 
+ const TRIGGER_STYLE: CSSProperties = {
+   display: "flex",
+@@ -29,102 +23,35 @@ const TRIGGER_STYLE: CSSProperties = {
+ export interface NavProjectMenuProps {
+   spaceName: string;
+   projectPath: string;
+-  homeDir: string;
+   revealed?: boolean;
+   missing?: boolean;
+-  variant?: "card" | "menu";
+-  currentRow?: boolean;
+-  projects?: readonly SwitcherProject[];
+-  inspectFolder?: (typed: string) => Promise<string | null>;
+-  onOpenFolder?: (folder: string) => void;
+-  onChooseFolder: () => void;
+-  onBackToPersonalSpace: () => void;
+   canMoveUp?: boolean;
+   canMoveDown?: boolean;
+   canClose?: boolean;
+   onMoveUp?: () => void;
+   onMoveDown?: () => void;
+   onClose?: () => void;
+-  closeProject?: () => void;
+ }
+ 
+ export function NavSpaceMenu({
+   spaceName,
+   projectPath,
+-  homeDir,
+   revealed = true,
+   missing = false,
+-  variant = "card",
+-  currentRow = true,
+-  projects = [],
+-  inspectFolder,
+-  onOpenFolder,
+-  onChooseFolder,
+-  onBackToPersonalSpace,
+   canMoveUp = false,
+   canMoveDown = false,
+   canClose = false,
+   onMoveUp,
+   onMoveDown,
+   onClose,
+-  closeProject,
+ }: NavProjectMenuProps) {
+   const { t } = useI18n();
+-  const [position, setPosition] = useState<CSSProperties | null>(null);
+-  const triggerRef = useRef<HTMLButtonElement>(null);
+-  const menuRef = useRef<HTMLDivElement>(null);
+-  const open = position !== null;
+-  const card = variant === "card";
+-  const width = card ? CARD_WIDTH : MENU_WIDTH;
+-
+-  const show = () => {
+-    const rect = triggerRef.current?.getBoundingClientRect();
+-    if (!rect) return;
+-    setPosition({
+-      top: rect.bottom + CARD_GAP,
+-      left: Math.max(CARD_MARGIN, Math.min(rect.right - width, window.innerWidth - width - CARD_MARGIN)),
+-    });
+-  };
+-
+-  const close = () => {
+-    setPosition(null);
+-    triggerRef.current?.focus();
+-  };
+-
+-  const choose = (run: () => void) => {
+-    close();
+-    run();
+-  };
+-
+-  const showRef = useRef(show);
+-  showRef.current = show;
+-
+-  useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
+-
+-  useEffect(() => {
+-    if (!open || card) return;
+-    menuRef.current?.focus();
+-  }, [open, card]);
++  const popover = useAnchoredPopover(MENU_WIDTH, "end");
++  const { open, popoverRef: menuRef } = popover;
+ 
+   useEffect(() => {
+-    if (!open) return;
+-    const onPointerDown = (event: MouseEvent) => {
+-      const target = event.target as Node;
+-      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
+-    };
+-    const onDismiss = (event: Event) => {
+-      if (!menuRef.current?.contains(event.target as Node)) setPosition(null);
+-    };
+-    const onResize = () => setPosition(null);
+-    document.addEventListener("mousedown", onPointerDown);
+-    document.addEventListener("scroll", onDismiss, true);
+-    window.addEventListener("resize", onResize);
+-    return () => {
+-      document.removeEventListener("mousedown", onPointerDown);
+-      document.removeEventListener("scroll", onDismiss, true);
+-      window.removeEventListener("resize", onResize);
+-    };
+-  }, [open]);
++    if (open) menuRef.current?.focus();
++  }, [open, menuRef]);
+ 
+   const focusMenuItem = (key: string): boolean => {
+     const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter(
+@@ -150,13 +77,8 @@ export function NavSpaceMenu({
+   };
+ 
+   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+-    if (event.key === "Escape" || event.key === "Tab") {
+-      event.preventDefault();
+-      event.stopPropagation();
+-      close();
+-      return;
+-    }
+-    if (card || !focusMenuItem(event.key)) return;
++    if (popover.closeOnEscapeOrTab(event)) return;
++    if (!focusMenuItem(event.key)) return;
+     event.preventDefault();
+     event.stopPropagation();
+   };
+@@ -164,9 +86,9 @@ export function NavSpaceMenu({
+   return (
+     <>
+       <button
+-        ref={triggerRef}
++        ref={popover.triggerRef}
+         type="button"
+-        onClick={() => (open ? close() : show())}
++        onClick={() => (open ? popover.close() : popover.show())}
+         aria-haspopup="menu"
+         aria-expanded={open}
+         aria-label={t("projectActionsFor", "Actions for {name}").replace("{name}", spaceName)}
+@@ -185,7 +107,7 @@ export function NavSpaceMenu({
+         </svg>
+       </button>
+ 
+-      {position &&
++      {popover.position &&
+         createPortal(
+           <div
+             ref={menuRef}
+@@ -198,43 +120,25 @@ export function NavSpaceMenu({
+               position: "fixed",
+               display: "flex",
+               flexDirection: "column",
+-              gap: card ? 2 : 0,
+-              width,
+-              padding: card ? 6 : 4,
++              width: MENU_WIDTH,
++              padding: 4,
+               zIndex: 1000,
+               background: "var(--fx-surface-raised)",
+               border: "1px solid var(--fx-line-default)",
+-              borderRadius: card ? "var(--radius-dialog)" : "var(--radius-menu)",
+-              boxShadow: card ? "var(--shadow-popover)" : "var(--shadow-menu)",
+-              ...position,
++              borderRadius: "var(--radius-menu)",
++              boxShadow: "var(--shadow-menu)",
++              ...popover.position,
+             }}
+           >
+-            {card ? (
+-              <ProjectSwitcherCard
+-                spaceName={spaceName}
+-                folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
+-                homeDir={homeDir}
+-                projects={projects}
+-                inspectFolder={inspectFolder}
+-                onOpenFolder={onOpenFolder}
+-                onChooseFolder={onChooseFolder}
+-                onBackToPersonalSpace={onBackToPersonalSpace}
+-                showsCurrentProject={currentRow}
+-                onCloseProject={closeProject}
+-                canCloseProject={canClose}
+-                onChoose={choose}
+-              />
+-            ) : (
+-              <ProjectMenuContent
+-                missing={missing}
+-                canMoveUp={canMoveUp}
+-                canMoveDown={canMoveDown}
+-                canClose={canClose}
+-                onMoveUp={() => choose(() => onMoveUp?.())}
+-                onMoveDown={() => choose(() => onMoveDown?.())}
+-                onClose={() => choose(() => onClose?.())}
+-              />
+-            )}
++            <ProjectMenuContent
++              missing={missing}
++              canMoveUp={canMoveUp}
++              canMoveDown={canMoveDown}
++              canClose={canClose}
++              onMoveUp={() => popover.choose(() => onMoveUp?.())}
++              onMoveDown={() => popover.choose(() => onMoveDown?.())}
++              onClose={() => popover.choose(() => onClose?.())}
++            />
+           </div>,
+           document.body,
+         )}
+diff --git a/src/renderer/components/app-nav/project-row-actions.tsx b/src/renderer/components/app-nav/project-row-actions.tsx
+index 3eaea64..4f2315f 100644
+--- a/src/renderer/components/app-nav/project-row-actions.tsx
++++ b/src/renderer/components/app-nav/project-row-actions.tsx
+@@ -1,66 +1,39 @@
+ import { sessionProjectKey } from "@/lib/session-list";
+ import type { ListedProject } from "./nav-history";
+ import { NavSpaceMenu } from "./nav-space-menu";
+-import type { SwitcherProject } from "./project-switcher-card";
+ 
+ export function ProjectRowActions({
+   name,
+   revealed,
+   project,
+-  switchTargets,
+-  currentProject,
+-  homeDir,
+   runningProjectKeys,
+   isDefaultProject,
+   canMoveProject,
+   onMoveProject,
+   onCloseProject,
+-  onOpenFolder,
+-  inspectFolder,
+-  onChooseFolder,
+-  onBackToPersonalSpace,
+ }: {
+   name: string;
+   revealed: boolean;
+   project: ListedProject;
+-  switchTargets: readonly SwitcherProject[];
+-  currentProject?: string;
+-  homeDir: string;
+   runningProjectKeys: ReadonlySet<string>;
+   isDefaultProject?: (root: string) => boolean;
+   canMoveProject?: (root: string, offset: -1 | 1) => boolean;
+   onMoveProject?: (root: string, offset: -1 | 1) => void;
+   onCloseProject?: (root: string) => void;
+-  onOpenFolder?: (folder: string) => void;
+-  inspectFolder?: (typed: string) => Promise<string | null>;
+-  onChooseFolder: () => void;
+-  onBackToPersonalSpace: () => void;
+ }) {
+-  const key = sessionProjectKey(project.root);
+-  const currentRow = sessionProjectKey(currentProject ?? "") === key;
+-  const isDefault = isDefaultProject?.(project.root) ?? false;
+-  const closable = !isDefault && !runningProjectKeys.has(key);
++  if (isDefaultProject?.(project.root)) return null;
+   return (
+     <NavSpaceMenu
+       spaceName={name}
+       projectPath={project.root}
+-      homeDir={homeDir}
+       revealed={revealed}
+       missing={project.missing}
+-      variant={currentRow || isDefault ? "card" : "menu"}
+-      currentRow={currentRow}
+-      projects={currentRow ? switchTargets : []}
+-      onOpenFolder={onOpenFolder}
+-      inspectFolder={inspectFolder}
+-      onChooseFolder={onChooseFolder}
+-      onBackToPersonalSpace={onBackToPersonalSpace}
+       canMoveUp={canMoveProject?.(project.root, -1) ?? false}
+       canMoveDown={canMoveProject?.(project.root, 1) ?? false}
+-      canClose={closable}
++      canClose={!runningProjectKeys.has(sessionProjectKey(project.root))}
+       onMoveUp={() => onMoveProject?.(project.root, -1)}
+       onMoveDown={() => onMoveProject?.(project.root, 1)}
+       onClose={() => onCloseProject?.(project.root)}
+-      closeProject={closable ? () => onCloseProject?.(project.root) : undefined}
+     />
+   );
+ }
+diff --git a/src/renderer/components/app-nav/project-switcher-actions.tsx b/src/renderer/components/app-nav/project-switcher-actions.tsx
+index ca46be7..f373a16 100644
+--- a/src/renderer/components/app-nav/project-switcher-actions.tsx
++++ b/src/renderer/components/app-nav/project-switcher-actions.tsx
+@@ -4,19 +4,15 @@ import { FOLDER_PATH, HOUSE_PATHS, MenuIcon } from "./project-switcher-parts";
+ export function spaceActions({
+   labels,
+   mac,
+-  canCloseProject,
+   onChooseFolder,
+   onBackToPersonalSpace,
+-  onCloseProject,
+ }: {
+-  labels: { add: string; back: string; close: string };
++  labels: { add: string; back: string };
+   mac: boolean;
+-  canCloseProject: boolean;
+   onChooseFolder: () => void;
+   onBackToPersonalSpace: () => void;
+-  onCloseProject?: () => void;
+ }): SwitcherRow[] {
+-  const actions: SwitcherRow[] = [
++  return [
+     {
+       key: "add-folder",
+       label: labels.add,
+@@ -43,19 +39,4 @@ export function spaceActions({
+       run: onBackToPersonalSpace,
+     },
+   ];
+-  if (onCloseProject) {
+-    actions.push({
+-      key: "close-project",
+-      label: labels.close,
+-      icon: (
+-        <MenuIcon>
+-          <path d="M18 6 6 18" />
+-          <path d="m6 6 12 12" />
+-        </MenuIcon>
+-      ),
+-      disabled: !canCloseProject,
+-      run: onCloseProject,
+-    });
+-  }
+-  return actions;
+ }
+diff --git a/src/renderer/components/app-nav/project-switcher-card.tsx b/src/renderer/components/app-nav/project-switcher-card.tsx
+index 50eb01c..95bfcce 100644
+--- a/src/renderer/components/app-nav/project-switcher-card.tsx
++++ b/src/renderer/components/app-nav/project-switcher-card.tsx
+@@ -40,9 +40,6 @@ export function ProjectSwitcherCard({
+   onOpenFolder,
+   onChooseFolder,
+   onBackToPersonalSpace,
+-  showsCurrentProject = true,
+-  onCloseProject,
+-  canCloseProject = true,
+   onChoose,
+ }: {
+   spaceName: string;
+@@ -53,9 +50,6 @@ export function ProjectSwitcherCard({
+   onOpenFolder?: (folder: string) => void;
+   onChooseFolder: () => void;
+   onBackToPersonalSpace: () => void;
+-  showsCurrentProject?: boolean;
+-  onCloseProject?: () => void;
+-  canCloseProject?: boolean;
+   onChoose: (run: () => void) => void;
+ }) {
+   const { t } = useI18n();
+@@ -104,13 +98,10 @@ export function ProjectSwitcherCard({
+     labels: {
+       add: t("addProjectSpace", "Add project space from folder…"),
+       back: t("backToPersonalSpace", "Back to default space"),
+-      close: t("closeProject", "Close project"),
+     },
+     mac,
+-    canCloseProject,
+     onChooseFolder,
+     onBackToPersonalSpace,
+-    onCloseProject,
+   });
+ 
+   const rows = [...lead, ...actions];
+@@ -217,15 +208,15 @@ export function ProjectSwitcherCard({
+ 
+       {typed === "" ? (
+         <>
+-          {showsCurrentProject && (
++          {
+             <div style={{ display: "flex", alignItems: "center", padding: "10px 10px 4px 10px", flexShrink: 0 }}>
+               <span className="type-meta-caps" style={{ color: "var(--fx-text-tertiary)" }}>
+                 {t("currentProjectGroup", "Current project")}
+               </span>
+             </div>
+-          )}
++          }
+ 
+-          {showsCurrentProject && (
++          {
+             <div style={{ ...ROW_STYLE, height: 46, borderRadius: "var(--radius-icon-box)" }}>
+               {iconBox(folderIcon(18, 1.5))}
+               <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
+@@ -240,7 +231,7 @@ export function ProjectSwitcherCard({
+                 <polyline points="20 6 9 17 4 12" />
+               </MenuIcon>
+             </div>
+-          )}
++          }
+         </>
+       ) : (
+         lead.length === 0 && (
+diff --git a/src/renderer/components/app-nav/project-switcher-popover.tsx b/src/renderer/components/app-nav/project-switcher-popover.tsx
+new file mode 100644
+index 0000000..4b39163
+--- /dev/null
++++ b/src/renderer/components/app-nav/project-switcher-popover.tsx
+@@ -0,0 +1,91 @@
++import { useEffect, useRef } from "react";
++import { createPortal } from "react-dom";
++import { useI18n } from "@/i18n";
++import { abbreviateHomePath } from "@/lib/display-path";
++import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
++import { getParentFilePath } from "@shared/file-paths";
++import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-card";
++import { useAnchoredPopover } from "./use-anchored-popover";
++import { HeaderButton, PlusGlyph } from "./section-header-buttons";
++
++const CARD_WIDTH = 280;
++
++export function ProjectSwitcherPopover({
++  spaceName,
++  projectPath,
++  homeDir,
++  projects,
++  inspectFolder,
++  onOpenFolder,
++  onChooseFolder,
++  onBackToPersonalSpace,
++}: {
++  spaceName: string;
++  projectPath: string;
++  homeDir: string;
++  projects: readonly SwitcherProject[];
++  inspectFolder?: (typed: string) => Promise<string | null>;
++  onOpenFolder?: (folder: string) => void;
++  onChooseFolder: () => void;
++  onBackToPersonalSpace: () => void;
++}) {
++  const { t } = useI18n();
++  const popover = useAnchoredPopover(CARD_WIDTH, "end");
++  const showRef = useRef(popover.show);
++  showRef.current = popover.show;
++
++  useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
++
++  return (
++    <>
++      <HeaderButton
++        ref={popover.triggerRef}
++        label={t("switchOrAddProject", "Switch or add project")}
++        pressed={popover.open}
++        hasPopup
++        onClick={() => (popover.open ? popover.close() : popover.show())}
++      >
++        <PlusGlyph />
++      </HeaderButton>
++      {popover.position &&
++        createPortal(
++          <div
++            ref={popover.popoverRef}
++            role="menu"
++            aria-label={spaceName}
++            tabIndex={-1}
++            className="composer-pop-in"
++            onKeyDown={(event) => popover.closeOnEscapeOrTab(event)}
++            style={{
++              position: "fixed",
++              display: "flex",
++              flexDirection: "column",
++              gap: 2,
++              width: CARD_WIDTH,
++              padding: 6,
++              zIndex: 1000,
++              background: "var(--fx-surface-raised)",
++              border: "1px solid var(--fx-line-default)",
++              borderRadius: "var(--radius-dialog)",
++              boxShadow: "var(--shadow-popover)",
++              transformOrigin: "top right",
++              ...popover.position,
++            }}
++          >
++            <ProjectSwitcherCard
++              spaceName={spaceName}
++              folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
++              homeDir={homeDir}
++              projects={projects}
++              inspectFolder={inspectFolder}
++              onOpenFolder={onOpenFolder}
++              onChooseFolder={onChooseFolder}
++              onBackToPersonalSpace={onBackToPersonalSpace}
++              onChoose={popover.choose}
++            />
++          </div>,
++          document.body,
++        )}
++    </>
++  );
++}
+diff --git a/src/renderer/components/app-nav/section-header-buttons.tsx b/src/renderer/components/app-nav/section-header-buttons.tsx
+new file mode 100644
+index 0000000..1993f5a
+--- /dev/null
++++ b/src/renderer/components/app-nav/section-header-buttons.tsx
+@@ -0,0 +1,107 @@
++import type { ReactNode, Ref } from "react";
++
++export function PlusGlyph() {
++  return (
++    <svg
++      width={15}
++      height={15}
++      viewBox="0 0 24 24"
++      fill="none"
++      stroke="currentColor"
++      strokeWidth={2}
++      strokeLinecap="round"
++      strokeLinejoin="round"
++      aria-hidden="true"
++    >
++      <path d="M5 12h14" />
++      <path d="M12 5v14" />
++    </svg>
++  );
++}
++
++export function ChevronsGlyph({ inward }: { inward: boolean }) {
++  return (
++    <svg
++      width={15}
++      height={15}
++      viewBox="0 0 24 24"
++      fill="none"
++      stroke="currentColor"
++      strokeWidth={2}
++      strokeLinecap="round"
++      strokeLinejoin="round"
++      aria-hidden="true"
++    >
++      {inward ? (
++        <>
++          <path d="m7 20 5-5 5 5" />
++          <path d="m7 4 5 5 5-5" />
++        </>
++      ) : (
++        <>
++          <path d="m7 15 5 5 5-5" />
++          <path d="m7 9 5-5 5 5" />
++        </>
++      )}
++    </svg>
++  );
++}
++
++export function HeaderButton({
++  ref,
++  label,
++  pressed = false,
++  hasPopup = false,
++  disabled = false,
++  onClick,
++  children,
++}: {
++  ref?: Ref<HTMLButtonElement>;
++  label: string;
++  pressed?: boolean;
++  hasPopup?: boolean;
++  disabled?: boolean;
++  onClick: () => void;
++  children: ReactNode;
++}) {
++  return (
++    <button
++      ref={ref}
++      type="button"
++      onClick={onClick}
++      title={label}
++      aria-label={label}
++      aria-haspopup={hasPopup ? "menu" : undefined}
++      aria-expanded={hasPopup ? pressed : undefined}
++      disabled={disabled}
++      onMouseEnter={(event) => {
++        if (pressed || disabled) return;
++        event.currentTarget.style.background = "var(--fx-surface-hover)";
++        event.currentTarget.style.color = "var(--fx-text-primary)";
++      }}
++      onMouseLeave={(event) => {
++        if (pressed) return;
++        event.currentTarget.style.background = "transparent";
++        event.currentTarget.style.color = "var(--fx-text-tertiary)";
++      }}
++      style={{
++        display: "flex",
++        alignItems: "center",
++        justifyContent: "center",
++        width: 22,
++        height: 22,
++        padding: 0,
++        border: "none",
++        borderRadius: "var(--radius-chip)",
++        background: pressed ? "var(--fx-surface-selected)" : "transparent",
++        color: pressed ? "var(--fx-text-primary)" : "var(--fx-text-tertiary)",
++        cursor: disabled ? "default" : "pointer",
++        opacity: disabled ? 0.5 : 1,
++        transition:
++          "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out)",
++      }}
++    >
++      {children}
++    </button>
++  );
++}
+diff --git a/src/renderer/components/app-nav/use-anchored-popover.ts b/src/renderer/components/app-nav/use-anchored-popover.ts
+new file mode 100644
+index 0000000..18e9833
+--- /dev/null
++++ b/src/renderer/components/app-nav/use-anchored-popover.ts
+@@ -0,0 +1,63 @@
++import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
++
++const MARGIN = 8;
++const GAP = 4;
++
++export type PopoverAlign = "start" | "end";
++
++export function useAnchoredPopover(width: number, align: PopoverAlign) {
++  const [position, setPosition] = useState<CSSProperties | null>(null);
++  const triggerRef = useRef<HTMLButtonElement>(null);
++  const popoverRef = useRef<HTMLDivElement>(null);
++  const open = position !== null;
++
++  const show = () => {
++    const rect = triggerRef.current?.getBoundingClientRect();
++    if (!rect) return;
++    const anchor = align === "start" ? rect.left : rect.right - width;
++    setPosition({
++      top: rect.bottom + GAP,
++      left: Math.max(MARGIN, Math.min(anchor, window.innerWidth - width - MARGIN)),
++    });
++  };
++
++  const close = () => {
++    setPosition(null);
++    triggerRef.current?.focus();
++  };
++
++  const choose = (run: () => void) => {
++    close();
++    run();
++  };
++
++  useEffect(() => {
++    if (!open) return;
++    const onPointerDown = (event: MouseEvent) => {
++      const target = event.target as Node;
++      if (!triggerRef.current?.contains(target) && !popoverRef.current?.contains(target)) setPosition(null);
++    };
++    const onDismiss = (event: Event) => {
++      if (!popoverRef.current?.contains(event.target as Node)) setPosition(null);
++    };
++    const onResize = () => setPosition(null);
++    document.addEventListener("mousedown", onPointerDown);
++    document.addEventListener("scroll", onDismiss, true);
++    window.addEventListener("resize", onResize);
++    return () => {
++      document.removeEventListener("mousedown", onPointerDown);
++      document.removeEventListener("scroll", onDismiss, true);
++      window.removeEventListener("resize", onResize);
++    };
++  }, [open]);
++
++  const closeOnEscapeOrTab = (event: KeyboardEvent<HTMLDivElement>): boolean => {
++    if (event.key !== "Escape" && event.key !== "Tab") return false;
++    event.preventDefault();
++    event.stopPropagation();
++    close();
++    return true;
++  };
++
++  return { position, open, triggerRef, popoverRef, show, close, choose, closeOnEscapeOrTab };
++}
+diff --git a/src/renderer/components/app-shell/navigation-sidebar.tsx b/src/renderer/components/app-shell/navigation-sidebar.tsx
+index 4a19316..d3ba1ac 100644
+--- a/src/renderer/components/app-shell/navigation-sidebar.tsx
++++ b/src/renderer/components/app-shell/navigation-sidebar.tsx
+@@ -6,6 +6,7 @@ import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-
+ import { createTemporarySessionId } from "@/lib/temporary-session-id";
+ import { subscribeModelSettingsRequest } from "@/lib/model-settings-request";
+ import { requestProjectSwitcher } from "@/lib/project-switcher-request";
++import { sessionProjectKey } from "@/lib/session-list";
+ import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
+ import { useSoftwareUpdate } from "../settings/use-software-update";
+ import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-sidebar/project-workspace";
+@@ -65,6 +66,7 @@ export function NavigationSidebar({
+   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
+   const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+   const [spaceError, setSpaceError] = useState<string | null>(null);
++  const [enteredProject, setEnteredProject] = useState("");
+ 
+   useEffect(() => {
+     setMobileReady(true);
+@@ -91,6 +93,13 @@ export function NavigationSidebar({
+     onInitialRestoreDone,
+   });
+ 
++  const currentProjectKey = sessionProjectKey(selectedProject ?? selectedCwd ?? coordination.attemptedCwd ?? "");
++  if (enteredProject !== currentProjectKey) {
++    setEnteredProject(currentProjectKey);
++    if (currentProjectKey && expandedProjects.get(currentProjectKey) === false)
++      setExpandedProjects(new Map(expandedProjects).set(currentProjectKey, true));
++  }
++
+   const expanded = isMobile || open;
+   const hidden = isMobile && !open;
+   const updatePhase = softwareUpdate.state?.phase;
+diff --git a/src/renderer/components/app-shell/use-space-owner.ts b/src/renderer/components/app-shell/use-space-owner.ts
+index b245117..fa96b71 100644
+--- a/src/renderer/components/app-shell/use-space-owner.ts
++++ b/src/renderer/components/app-shell/use-space-owner.ts
+@@ -4,6 +4,7 @@ import { abbreviateHomePath } from "@/lib/display-path";
+ import { copyText } from "@/lib/clipboard";
+ import { spaceDisplayName } from "@/lib/space-identity";
+ import { useSessionProjectRoots } from "@/lib/session-catalog";
++import { requestProjectSwitcher } from "@/lib/project-switcher-request";
+ import { useProjectWorkspace } from "../session-sidebar/project-workspace";
+ import { useComposerWorkspace } from "./composer-workspace";
+ import type { SpaceCoordination } from "./use-space-coordination";
+@@ -73,6 +74,7 @@ export function useSpaceOwner({
+   const openProjectTree = useCallback(() => {
+     closeWorktreeMenu();
+     onOpenSidebar();
++    requestProjectSwitcher();
+   }, [closeWorktreeMenu, onOpenSidebar]);
+ 
+   const copyPath = useCallback(() => (projectPath ? copyText(projectPath) : Promise.resolve()), [projectPath]);
+diff --git a/src/renderer/i18n/app.ts b/src/renderer/i18n/app.ts
+index db2208a..eac5b96 100644
+--- a/src/renderer/i18n/app.ts
++++ b/src/renderer/i18n/app.ts
+@@ -80,6 +80,9 @@ export const enUS: Record<string, string> = {
+   noMatchingProjects: "No matching projects",
+   projectSwitcherKeyOpen: "Open",
+   projectActionsFor: "Actions for {name}",
++  switchOrAddProject: "Switch or add project",
++  collapseAllProjects: "Collapse all projects",
++  expandCurrentProject: "Expand current project",
+   personalSpace: "Default space",
+   backToPersonalSpace: "Back to default space",
+   moveProjectUp: "Move up",
+@@ -182,6 +185,9 @@ export const zhCN: Record<string, string> = {
+   noMatchingProjects: "没有匹配的项目",
+   projectSwitcherKeyOpen: "打开",
+   projectActionsFor: "{name} 的项目操作",
++  switchOrAddProject: "切换或新增项目",
++  collapseAllProjects: "收起全部项目",
++  expandCurrentProject: "展开当前项目",
+   personalSpace: "默认空间",
+   backToPersonalSpace: "返回默认空间",
+   moveProjectUp: "上移",
+diff --git a/tests/dom/zz-issue57-poc.test.mjs b/tests/dom/zz-issue57-poc.test.mjs
+new file mode 100644
+index 0000000..26bbc7d
+--- /dev/null
++++ b/tests/dom/zz-issue57-poc.test.mjs
+@@ -0,0 +1,156 @@
++import assert from "node:assert/strict";
++import test, { after } from "node:test";
++import { startNavigation, control, roles, click, act, input, keyDown, waitFor, dom, restoreGlobals } from "../support/app-navigation.mjs";
++import { projectOrder, projectItem, projectMenu, unavailableAction } from "../support/app-navigation-projects.mjs";
++import { navigationPaths as P } from "../fixtures/app-navigation-data.mjs";
++import { accessibleName } from "../support/dom-queries.mjs";
++
++after(restoreGlobals);
++const saved = { openProjects: [P.personal, P.project, P.empty], lastSpaceCwd: P.project };
++const menus = () => roles(dom.window.document.body, "menu");
++const expanded = (scene) => Object.fromEntries(projectOrder(scene).map((n) => [n, control(projectItem(scene, n), "button", n).getAttribute("aria-expanded")]));
++
++test("P1 every non-default row opens the same row menu, current included; default row has no ⋯", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  assert.equal(roles(projectItem(scene, "Default space"), "button", "Actions for Default space").length, 0);
++  for (const name of ["navigation-project", "empty-project"]) {
++    const m = await projectMenu(scene, name);
++    assert.deepEqual(roles(m, "menuitem").map(accessibleName), ["Move up", "Move down", "Close project"]);
++    await keyDown(m, "Escape");
++    await waitFor(() => assert.equal(menus().length, 0));
++  }
++});
++
++test("P2 running current project: Close project is greyed in its row menu", async (t) => {
++  const scene = await startNavigation(t, { ...saved, runningSessionIds: ["project-history"] });
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  unavailableAction(await projectMenu(scene, "navigation-project"), "Close project");
++});
++
++test("P3 + opens exactly one switcher card, without Close project; search finds other projects", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  const plus = control(scene.history(), "button", "Switch or add project");
++  await click(plus);
++  await waitFor(() => assert.equal(menus().length, 1));
++  assert.equal(plus.getAttribute("aria-expanded"), "true");
++  const card = menus()[0];
++  assert.deepEqual(roles(card, "menuitem").map(accessibleName), ["Add project space from folder…", "Back to default space"]);
++  await input(control(card, "searchbox", "Search or open a project…"), "empty");
++  await waitFor(() => assert.deepEqual(roles(card, "menuitem").map(accessibleName)[0], "empty-project"));
++});
++
++test("P4 ⌘P opens one card, sidebar open or collapsed", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  await scene.settled();
++  await act(async () => scene.external.menu("open-project-switcher"));
++  await waitFor(() => assert.equal(menus().length, 1));
++  await keyDown(menus()[0], "Escape");
++  await waitFor(() => assert.equal(menus().length, 0));
++  await click(control(scene.navigation(), "button", "Hide sidebar"));
++  await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
++  await act(async () => scene.external.menu("open-project-switcher"));
++  await waitFor(() => assert.equal(menus().length, 1));
++  control(menus()[0], "searchbox", "Search or open a project…");
++});
++
++test("P5 card → add from folder still asks the system picker directly", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  scene.external.desktop.selectedDirectory = null;
++  await click(control(scene.history(), "button", "Switch or add project"));
++  await click(await waitFor(() => control(menus()[0], "menuitem", "Add project space from folder…")));
++  await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
++});
++
++test("P6 collapse all / expand current follows the real state, including the default-open current project", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  const before = expanded(scene);
++  console.log("P6 initial", JSON.stringify(before));
++  await click(control(scene.history(), "button", "Collapse all projects"));
++  console.log("P6 after collapse", JSON.stringify(expanded(scene)));
++  assert.ok(Object.values(expanded(scene)).every((v) => v === "false"));
++  await click(control(scene.history(), "button", "Expand current project"));
++  console.log("P6 after expand", JSON.stringify(expanded(scene)));
++  assert.deepEqual(expanded(scene), { "Default space": "false", "navigation-project": "true", "empty-project": "false" });
++  await click(control(projectItem(scene, "navigation-project"), "button", "navigation-project"));
++  control(scene.history(), "button", "Expand current project");
++  await click(control(projectItem(scene, "empty-project"), "button", "empty-project"));
++  control(scene.history(), "button", "Collapse all projects");
++  assert.equal(await scene.currentFolder(), P.project);
++  assert.deepEqual(projectOrder(scene), ["Default space", "navigation-project", "empty-project"]);
++});
++
++test("P7 Chinese labels", async (t) => {
++  const scene = await startNavigation(t, { ...saved, language: "zh-CN" });
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  control(scene.history(), "button", "切换或新增项目");
++  control(scene.history(), "button", "收起全部项目");
++});
++
++test("P8 after collapse all, switching to another project via the card", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  await click(control(scene.projectsHeader?.() ?? scene.history(), "button", "Collapse all projects"));
++  const card = await scene.menu("navigation-project");
++  const search = control(card, "searchbox", "Search or open a project…");
++  await input(search, "empty-project");
++  await waitFor(() => assert.equal(accessibleName(roles(card, "menuitem")[0]), "empty-project"));
++  await keyDown(search, "Enter");
++  await waitFor(async () => assert.equal(await scene.currentFolder(), P.empty));
++  console.log("P8 after switch", JSON.stringify(expanded(scene)), "button:", roles(scene.history(), "button").map(accessibleName).filter((n) => /projects?$/.test(n) && /Collapse|Expand/.test(n)).join());
++  await click(control(scene.history(), "button", /Collapse all projects|Expand current project/));
++  console.log("P8 after header click", JSON.stringify(expanded(scene)));
++});
++
++test("P9 searching makes the fold button unusable; clearing restores it", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  const box = control(scene.navigation(), "searchbox", "Search sessions");
++  await input(box, "notes");
++  await scene.settled();
++  const b = roles(scene.history(), "button").find((e) => /Collapse all projects|Expand current project/.test(accessibleName(e)));
++  console.log("P9 searching:", b && accessibleName(b), "disabled=", b?.disabled, JSON.stringify(expanded(scene)));
++  assert.equal(b.disabled, true);
++  await input(box, "");
++  await scene.settled();
++  const after = control(scene.history(), "button", "Collapse all projects");
++  assert.equal(after.disabled, false);
++  console.log("P9 cleared:", JSON.stringify(expanded(scene)));
++});
++
++test("D3 switching to a project expands it even after it was folded by hand, and the project left behind follows its own rule", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  await click(control(scene.history(), "button", "Collapse all projects"));
++  const go = async (from, name, folder) => {
++    const card = await scene.menu(from);
++    const search = control(card, "searchbox", "Search or open a project…");
++    await input(search, name);
++    await waitFor(() => assert.equal(accessibleName(roles(card, "menuitem")[0]), name));
++    await keyDown(search, "Enter");
++    await waitFor(async () => assert.equal(await scene.currentFolder(), folder));
++  };
++  await go("navigation-project", "empty-project", P.empty);
++  console.log("D3 after first switch", JSON.stringify(expanded(scene)));
++  await go("empty-project", "navigation-project", P.project);
++  console.log("D3", JSON.stringify(expanded(scene)));
++  assert.deepEqual(expanded(scene), { "Default space": "false", "navigation-project": "true", "empty-project": "false" });
++});
++
++test("D5 Switch project… in the composer workspace menu opens the project switcher card", async (t) => {
++  const scene = await startNavigation(t, saved);
++  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
++  await click(control(scene.navigation(), "button", "Hide sidebar"));
++  await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
++  await click(await waitFor(() => control(scene.container, "button", "Workspace: navigation-project, branch main")));
++  await click(await waitFor(() => control(scene.container, "button", "Switch project…")));
++  const card = await waitFor(() => control(dom.window.document.body, "menu", "navigation-project"));
++  await scene.settled();
++  const search = control(card, "searchbox", "Search or open a project…");
++  console.log("D5 focus in search:", dom.window.document.activeElement === search);
++  assert.equal(dom.window.document.activeElement, search);
++});
+diff --git a/tests/e2e/project-list.harness.mjs b/tests/e2e/project-list.harness.mjs
+index d37e9e0..eb26e9f 100644
+--- a/tests/e2e/project-list.harness.mjs
++++ b/tests/e2e/project-list.harness.mjs
+@@ -94,7 +94,7 @@ async function scene(name, check) {
+ const sameOrder = (expected) => async () => JSON.stringify(await page("order")) === JSON.stringify(expected);
+ 
+ async function openFolder(folder) {
+-  await click("button", "Actions for Default space");
++  await click("button", "Switch or add project");
+   await waitFor(() => page("exists", { role: "searchbox", name: "Search or open a project…" }), "the project switcher");
+   await window.webContents.insertText(folder);
+   await waitFor(() => page("exists", { role: "menuitem", name: `Open ${folder}` }), `the offer to open ${folder}`);
+@@ -103,7 +103,7 @@ async function openFolder(folder) {
+ }
+ 
+ async function backToDefault(current) {
+-  await click("button", `Actions for ${current}`);
++  await click("button", "Switch or add project");
+   await waitFor(() => page("exists", { role: "menuitem", name: "Back to default space" }), "the project card");
+   await click("menuitem", "Back to default space");
+   await waitFor(() => page("isCurrent", { name: "Default space" }), "the default space");
+diff --git a/tests/fixtures/app-navigation-data.mjs b/tests/fixtures/app-navigation-data.mjs
+index e085345..3fc1259 100644
+--- a/tests/fixtures/app-navigation-data.mjs
++++ b/tests/fixtures/app-navigation-data.mjs
+@@ -31,6 +31,7 @@ export const navigationLabels = {
+     missingFolder: "Folder not found",
+     missingFolderNote: "This folder was moved or deleted. Its sessions are kept.",
+     spaceActions: "Actions for {name}",
++    switcher: "Switch or add project",
+     newSession: "New session",
+     attach: "Add images or local file references",
+     skillAction: /^Use a skill/,
+@@ -52,6 +53,7 @@ export const navigationLabels = {
+     missingFolder: "找不到文件夹",
+     missingFolderNote: "文件夹已被移动或删除，会话记录仍然保留。",
+     spaceActions: "{name} 的项目操作",
++    switcher: "切换或新增项目",
+     newSession: "新建会话",
+     attach: "添加图片或本地文件引用",
+     skillAction: /^使用技能/,
+diff --git a/tests/support/app-navigation.mjs b/tests/support/app-navigation.mjs
+index 89d456d..48a22ab 100644
+--- a/tests/support/app-navigation.mjs
++++ b/tests/support/app-navigation.mjs
+@@ -241,7 +241,7 @@ export async function startNavigation(t, options = {}, external = navigationBoun
+     // The project card floats above the page, so it is looked up in the whole
+     // document rather than inside the navigation it was opened from.
+     async menu(space = labels.personal) {
+-      await click(control(scene.navigation(), "button", labels.spaceActions.replace("{name}", space)));
++      await click(control(scene.navigation(), "button", labels.switcher));
+       return waitFor(() => control(dom.window.document.body, "menu", space));
+     },
+     // The real working directory, observed where it leaves the App: the folder
