@@ -75,7 +75,7 @@
 .markdown-body a:hover {
   text-decoration-color: var(--fx-accent-blue);
 }
-.markdown-body img {
+.markdown-body img:not(.token-chip-thumb) {
   display: block;
   max-width: 100%;
   height: auto;
