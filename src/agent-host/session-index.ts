@@ -4,8 +4,10 @@ import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry, SessionInfo } from "../shared/types";
 import { buildSessionInfoFromManager } from "./session-reader";
 import { withSessionOrigin } from "./session-origin-store";
+import { inheritProject, locateSessionProject, type LocatedProject, type ProjectLookupEntry } from "./session-project";
+import { flushSessionProjects } from "./session-project-store";
 import { sessionsRoot } from "./session-dir";
-import { getProjectCacheRevision, resolveProject } from "../shared/worktree";
+import { getProjectCacheRevision } from "../shared/worktree";
 
 const PROJECT_VIEW_TTL_MS = 60_000;
 
@@ -22,7 +24,11 @@ interface IndexRecord {
   info: SessionInfo | null;
   parentPath?: string;
   valid: boolean;
+  located?: LocatedProject | null;
+  projectResolved?: boolean;
 }
+
+type ResolvedRecord = IndexRecord & { info: SessionInfo };
 
 export interface SessionIndexMetrics {
   filesDiscovered: number;
@@ -70,6 +76,7 @@ function discoverSessionFiles(root: string): string[] {
 export class SessionIndex {
   private readonly byPath = new Map<string, IndexRecord>();
   private readonly pathById = new Map<string, string>();
+  private tail: Promise<unknown> = Promise.resolve();
   private refreshPromise: Promise<void> | null = null;
   private initialized = false;
   private projectRevision = -1;
@@ -105,44 +112,61 @@ export class SessionIndex {
     }
   }
 
-  private async refreshProjectViews(): Promise<void> {
-    const revision = getProjectCacheRevision();
-    if (revision === this.projectRevision && Date.now() - this.projectViewsRefreshedAt < PROJECT_VIEW_TTL_MS) return;
-    const projects = new Map<string, Awaited<ReturnType<typeof resolveProject>>>();
-    await Promise.all(
-      [...new Set([...this.byPath.values()].flatMap((record) => (record.info?.cwd ? [record.info.cwd] : [])))].map(
-        async (cwd) => {
-          projects.set(cwd, await resolveProject(cwd));
-        },
-      ),
+  private exclusive<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.tail.then(
+      () => task(),
+      () => task(),
     );
-    for (const record of this.byPath.values()) {
-      if (!record.info) continue;
-      const project = projects.get(record.info.cwd);
-      if (!project) continue;
+    this.tail = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
+  }
+
+  private refreshProjectViews(): Promise<void> {
+    return this.exclusive(async () => {
+      const revision = getProjectCacheRevision();
+      if (revision === this.projectRevision && Date.now() - this.projectViewsRefreshedAt < PROJECT_VIEW_TTL_MS) return;
+      await this.resolveProjects([...this.byPath.values()]);
+      this.projectRevision = revision;
+      this.projectViewsRefreshedAt = Date.now();
+    });
+  }
+
+  private async resolveProjects(records: IndexRecord[]): Promise<void> {
+    const targets = records.filter((record): record is ResolvedRecord => Boolean(record.info));
+    await Promise.all(
+      targets.map(async (record) => {
+        record.located = await locateSessionProject(record.info);
+      }),
+    );
+    const lookup = (id: string): ProjectLookupEntry | undefined => {
+      const record = this.byPath.get(this.pathById.get(id) ?? "");
+      if (!record?.info) return undefined;
+      return { located: record.located ?? null, parentSessionId: record.info.parentSessionId };
+    };
+    for (const record of targets) {
       const { worktreeBranch: _worktreeBranch, ...base } = record.info;
+      const project = record.located ?? inheritProject(record.info.id, lookup) ?? { projectRoot: record.info.cwd };
       record.info = {
         ...base,
         projectRoot: project.projectRoot,
-        ...(project.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
+        ...(project.worktreeBranch ? { worktreeBranch: project.worktreeBranch } : {}),
       };
+      record.projectResolved = true;
     }
-    this.projectRevision = revision;
-    this.projectViewsRefreshedAt = Date.now();
+    flushSessionProjects();
   }
 
-  private async parsePath(
-    filePath: string,
-    currentFingerprint: Fingerprint,
-    resolveProjectInfo: boolean,
-  ): Promise<IndexRecord> {
+  private async parsePath(filePath: string, currentFingerprint: Fingerprint): Promise<IndexRecord> {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const before = attempt === 0 ? currentFingerprint : fingerprint(filePath);
       try {
         const manager = SessionManager.open(filePath);
         const entries = manager.getEntries() as unknown as SessionEntry[];
         const header = manager.getHeader();
-        const info = await buildSessionInfoFromManager(filePath, manager, entries, { resolveProjectInfo });
+        const info = await buildSessionInfoFromManager(filePath, manager, entries, { resolveProjectInfo: false });
         const after = fingerprint(filePath);
         if (!sameFingerprint(before, after)) {
           if (attempt === 0) continue;
@@ -176,7 +200,7 @@ export class SessionIndex {
 
   refreshAll(): Promise<void> {
     if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = (async () => {
+    this.refreshPromise = this.exclusive(async () => {
       const startedAt = performance.now();
       const files = discoverSessionFiles(this.sessionsRoot());
       const discovered = new Set(files);
@@ -200,12 +224,13 @@ export class SessionIndex {
           if (!existing.valid) invalidFiles += 1;
           continue;
         }
-        const record = await this.parsePath(filePath, currentFingerprint, false);
+        const record = await this.parsePath(filePath, currentFingerprint);
         this.byPath.set(filePath, record);
         filesParsed += 1;
         if (!record.valid) invalidFiles += 1;
       }
       this.rebuildDerivedState();
+      await this.resolveProjects([...this.byPath.values()].filter((record) => !record.projectResolved));
       if (filesParsed > 0) this.projectViewsRefreshedAt = 0;
       this.initialized = true;
       this.metrics = {
@@ -215,42 +240,48 @@ export class SessionIndex {
         invalidFiles,
         totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
       };
-    })().finally(() => {
+    }).finally(() => {
       this.refreshPromise = null;
     });
     return this.refreshPromise;
   }
 
-  async refreshPath(filePath: string): Promise<SessionInfo | null> {
-    const resolved = path.resolve(filePath);
-    const root = this.sessionsRoot();
-    if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
-    if (!resolved.endsWith(".jsonl") || !existsSync(resolved)) {
-      this.removePath(resolved);
-      return null;
-    }
-    let currentFingerprint: Fingerprint;
-    try {
-      currentFingerprint = fingerprint(resolved);
-    } catch {
-      this.removePath(resolved);
-      return null;
-    }
-    const existing = this.byPath.get(resolved);
-    if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) return existing.info;
-    const startedAt = performance.now();
-    const record = await this.parsePath(resolved, currentFingerprint, true);
-    this.byPath.set(resolved, record);
-    this.rebuildDerivedState();
-    this.initialized = true;
-    this.metrics = {
-      filesDiscovered: 1,
-      filesParsed: 1,
-      filesReused: 0,
-      invalidFiles: record.valid ? 0 : 1,
-      totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
-    };
-    return record.info;
+  refreshPath(filePath: string): Promise<SessionInfo | null> {
+    return this.exclusive(async () => {
+      const resolved = path.resolve(filePath);
+      const root = this.sessionsRoot();
+      if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
+      if (!resolved.endsWith(".jsonl") || !existsSync(resolved)) {
+        this.removePath(resolved);
+        return null;
+      }
+      let currentFingerprint: Fingerprint;
+      try {
+        currentFingerprint = fingerprint(resolved);
+      } catch {
+        this.removePath(resolved);
+        return null;
+      }
+      const existing = this.byPath.get(resolved);
+      if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) {
+        if (!existing.projectResolved) await this.resolveProjects([existing]);
+        return existing.info;
+      }
+      const startedAt = performance.now();
+      const record = await this.parsePath(resolved, currentFingerprint);
+      this.byPath.set(resolved, record);
+      this.rebuildDerivedState();
+      await this.resolveProjects([record]);
+      this.initialized = true;
+      this.metrics = {
+        filesDiscovered: 1,
+        filesParsed: 1,
+        filesReused: 0,
+        invalidFiles: record.valid ? 0 : 1,
+        totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
+      };
+      return record.info;
+    });
   }
 
   removePath(filePath: string): SessionInfo | null {

@@ -7,6 +7,7 @@ import { buildSessionInfoFromManager, listAllSessions, resolveSessionPath } from
 import { buildHistoryRevision, buildUnsavedHistoryRevision } from "./session-history";
 import { getSessionContentSnapshot } from "./session-content-cache";
 import { getSessionOrigin } from "./session-origin-store";
+import { sessionIndex } from "./session-index";
 
 export interface SessionSource {
   filePath: string;
@@ -41,7 +42,11 @@ export async function openSessionSource(sessionId: string): Promise<SessionSourc
   return { filePath, manager, entries, historyRevision: buildHistoryRevision(filePath, sessionId) };
 }
 
-export function describeSessionSource(source: SessionSource): Promise<SessionInfo | null> {
+export async function describeSessionSource(source: SessionSource): Promise<SessionInfo | null> {
+  if (source.filePath) {
+    const indexed = await sessionIndex.refreshPath(source.filePath);
+    if (indexed) return indexed;
+  }
   return buildSessionInfoFromManager(source.filePath, source.manager, source.entries);
 }
 
