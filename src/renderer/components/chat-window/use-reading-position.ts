@@ -1,6 +1,11 @@
 import { SCROLL_KEYS } from "@/hooks/agent-session/shared";
 import { marksChatScrollIntent } from "@/hooks/chat-scroll-policy";
-import { READING_ANCHOR_ATTRIBUTE, alignReadingPosition, captureReadingAnchor } from "@/lib/reading-anchor";
+import {
+  READING_ANCHOR_ATTRIBUTE,
+  alignReadingPosition,
+  captureReadingAnchor,
+  readReadingAnchorOffset,
+} from "@/lib/reading-anchor";
 import type { ReadingPosition, ReadingPositionRegistry } from "@/lib/reading-position-store";
 import type { AgentMessage } from "@/lib/types";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
@@ -9,16 +14,27 @@ const PERSISTED_KEY = /^entry:.+?:(?=message|process|answer|failure|turn)/;
 
 function persistedAnchor(container: HTMLElement | null): ReadingPosition | null {
   const anchor = captureReadingAnchor(container);
-  const message = anchor ? PERSISTED_KEY.exec(anchor.key) : null;
-  return anchor && message ? { key: message[0], offsetTop: anchor.offsetTop } : null;
+  return anchor && PERSISTED_KEY.test(anchor.key) ? anchor : null;
 }
 
-function messageOffset(container: HTMLElement, prefix: string): number | null {
+function messageOffset(container: HTMLElement, key: string): number | null {
+  const exact = readReadingAnchorOffset(container, key);
+  if (exact !== null) return exact;
+  const message = PERSISTED_KEY.exec(key)?.[0];
+  return message ? prefixOffset(container, message) : null;
+}
+
+function prefixOffset(container: HTMLElement, prefix: string): number | null {
   for (const element of container.querySelectorAll<HTMLElement>(`[${READING_ANCHOR_ATTRIBUTE}]`)) {
     if (!element.getAttribute(READING_ANCHOR_ATTRIBUTE)?.startsWith(prefix)) continue;
     return element.getBoundingClientRect().top - container.getBoundingClientRect().top;
   }
   return null;
+}
+
+function messagePresent(container: HTMLElement, key: string): boolean {
+  const message = PERSISTED_KEY.exec(key)?.[0];
+  return message ? prefixOffset(container, message) !== null : readReadingAnchorOffset(container, key) !== null;
 }
 
 function isReaderScrollInput(event: Event): boolean {
@@ -151,7 +167,7 @@ export function useReadingPosition({
     const target = pendingRef.current;
     const container = scrollContainerRef.current;
     if (!visible || !target || loading || !container) return;
-    if (messageOffset(container, target.key) !== null) {
+    if (messagePresent(container, target.key)) {
       align(container, target);
       return;
     }

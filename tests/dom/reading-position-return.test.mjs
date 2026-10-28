@@ -21,7 +21,13 @@ import {
   readerScrollsToBottom,
   topOf,
 } from "../support/chat-geometry.mjs";
-import { answerMarker, markersOf, questionMarker, readingConversation } from "../fixtures/reading-position-data.mjs";
+import {
+  answerMarker,
+  markersOf,
+  messageText,
+  questionMarker,
+  readingConversation,
+} from "../fixtures/reading-position-data.mjs";
 import { delegateToolConversation, treeSession } from "../fixtures/session-tree-data.mjs";
 
 after(restoreGlobals);
@@ -159,6 +165,43 @@ test("a conversation opened again from an external session link returns to where
   await scene.settled();
 
   sameHeight(watched, before, topOf(scene, watched));
+});
+
+test("after reading the second part of an answer that is split by thinking, switching away and back keeps that part at the same height", async (t) => {
+  const firstPart = "Split answer first part";
+  const secondPart = "Split answer second part";
+  const first = longReading();
+  const second = secondReading();
+  const splitIndex = first.context.messages.findIndex(
+    (message) => messageText(message) === answerMarker("long-reading", 3),
+  );
+  assert.ok(splitIndex >= 0, "the answer that gets split is in the conversation");
+  first.context.messages[splitIndex] = {
+    ...first.context.messages[splitIndex],
+    content: [
+      { type: "text", text: firstPart },
+      { type: "thinking", thinking: "Split thinking of long-reading" },
+      { type: "text", text: secondPart },
+    ],
+  };
+
+  const scene = await startSessionScene(t, [first, second]);
+  const markers = [
+    ...first.context.messages
+      .map(messageText)
+      .flatMap((text) => (text.includes(firstPart) ? [firstPart, secondPart] : [text])),
+    ...markersOf(second),
+  ];
+  installChatGeometry(t, { markers });
+
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+  await readerScrollsTo(scene, markers.indexOf(secondPart) * 200);
+  const before = topOf(scene, secondPart);
+
+  await open(scene, "Second reading session", questionMarker("long-second", 1));
+  await open(scene, "Long reading session", questionMarker("long-reading", 1));
+
+  sameHeight(secondPart, before, topOf(scene, secondPart));
 });
 
 test("a round trip through Plugins & Skills keeps the reading position", async (t) => {
