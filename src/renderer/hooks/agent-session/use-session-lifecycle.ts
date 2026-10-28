@@ -30,10 +30,7 @@ type Dependencies = Pick<
   | "session"
   | "sessionChangeIgnoreScrollUntilRef"
   | "sessionIdRef"
-  | "autoFollowMagnetRef"
   | "agentRunningRef"
-  | "liveContentEndRef"
-  | "messagesEndRef"
   | "setAgentRunning"
   | "setAgentPhase"
   | "dispatch"
@@ -78,10 +75,7 @@ export function useSessionLifecycle(context: Dependencies) {
     sessionIdRef,
     connectEvents,
     loadSession,
-    autoFollowMagnetRef,
     agentRunningRef,
-    liveContentEndRef,
-    messagesEndRef,
     setAgentRunning,
     setAgentPhase,
     dispatch,
@@ -152,32 +146,6 @@ export function useSessionLifecycle(context: Dependencies) {
 
       void loadSession(session.id, true, true, true).then((agentState) => {
         if (disposed) return;
-        // When the magnet was engaged before switching sessions, scroll to
-        // the very last message after messages load; otherwise the viewport
-        // may show empty footer space while the real content sits above.
-        // Defer via rAF and re-check: the message list can render in multiple
-        // frames, so scroll target should be the live-content end (not the
-        // spacer after it).
-        if (autoFollowMagnetRef.current && readingVisibleRef.current) {
-          const trySnap = () => {
-            if (!readingVisibleRef.current) return;
-            const el = agentRunningRef.current ? liveContentEndRef.current : messagesEndRef.current;
-            if (el) el.scrollIntoView({ behavior: "auto", block: "end" });
-          };
-          const scheduleVisualFrame = (callback: () => void) => {
-            if (!readingVisibleRef.current || typeof globalThis.requestAnimationFrame !== "function") return;
-            let frameId = 0;
-            let callbackRan = false;
-            frameId = globalThis.requestAnimationFrame(() => {
-              callbackRan = true;
-              visualFrameIdsRef.current.delete(frameId);
-              if (readingVisibleRef.current && !disposed) callback();
-            });
-            if (!callbackRan) visualFrameIdsRef.current.add(frameId);
-          };
-          scheduleVisualFrame(trySnap);
-          scheduleVisualFrame(() => scheduleVisualFrame(trySnap));
-        }
         if (agentState?.running) {
           if (agentState.state?.isStreaming || agentState.state?.isPromptRunning) {
             agentRunningRef.current = true;

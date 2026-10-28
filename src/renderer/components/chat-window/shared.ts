@@ -1,6 +1,7 @@
 import { type AgentPhase } from "@/hooks/useAgentSession";
 import { isAssistantFailure } from "@/lib/message-display";
 import type { SessionStatsInfo } from "@/lib/pi-types";
+import type { ReadingPositionRegistry } from "@/lib/reading-position-store";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import { type ChatInputHandle } from "../ChatInput";
@@ -31,6 +32,7 @@ export interface Props {
   onOpenFile?: (filePath: string) => void;
   /** True while this chat surface is the page currently shown to the user. */
   visible?: boolean;
+  readingPositions?: ReadingPositionRegistry;
   thinkingExpansionStore: ThinkingExpansionStore;
   processDetailsExpansionStore: ThinkingExpansionStore;
   channelSnapshot?: ChannelsSnapshot;

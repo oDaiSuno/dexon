@@ -18,6 +18,7 @@ import {
 import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
+import { useReadingPosition } from "./use-reading-position";
 
 export function useChatWindow({
   session,
@@ -37,6 +38,7 @@ export function useChatWindow({
   onOpenFile,
   thinkingExpansionStore,
   processDetailsExpansionStore,
+  readingPositions,
   visible = true,
   channelSnapshot,
   onChannelSnapshotChange,
@@ -53,6 +55,8 @@ export function useChatWindow({
 
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  const [restoreReadingPosition] = useState(() => Boolean(session && readingPositions?.get(session.id)));
 
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
@@ -136,6 +140,7 @@ export function useChatWindow({
     loadDeferredContent,
     isAwayFromBottom,
     reattachAutoFollow,
+    settleAtLatest,
   } = useAgentSession({
     session,
     newSessionCwd,
@@ -148,6 +153,7 @@ export function useChatWindow({
     onSystemPromptChange,
     onSessionStatsPanelOpen,
     readingVisible: visible,
+    restoreReadingPosition,
   });
 
   // Push session stats up to AppShell for the top bar.
@@ -313,7 +319,14 @@ export function useChatWindow({
     setEditDraft(null);
   }, [session?.id]);
 
-  const { olderHistorySentinelRef, loadOlderHistory, olderHistoryFailed, turnJump } = useOlderHistory({
+  const {
+    olderHistorySentinelRef,
+    loadOlderHistory,
+    continueOlderHistory,
+    olderHistoryFailed,
+    olderHistoryHalted,
+    turnJump,
+  } = useOlderHistory({
     visible,
     sessionId: session?.id ?? null,
     previousCursor,
@@ -323,6 +336,23 @@ export function useChatWindow({
     messagesLength: messages.length,
     loadedEntryIds: entryIds,
     scrollContainerRef,
+  });
+
+  useReadingPosition({
+    visible,
+    sessionId: session?.id ?? null,
+    readingPositions,
+    restoreReadingPosition,
+    messages,
+    scrollContainerRef,
+    previousCursor,
+    loading,
+    hasOlder,
+    loadingOlder,
+    olderHistoryFailed,
+    olderHistoryHalted,
+    continueOlderHistory,
+    settleAtLatest,
   });
 
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;

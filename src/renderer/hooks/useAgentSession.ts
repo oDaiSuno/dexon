@@ -66,6 +66,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...models,
     ...commands,
     ...queue,
+    visualFrameIdsRef,
   });
   const lifecycle = useSessionLifecycle({
     ...state,
@@ -83,7 +84,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     readingVisibleRef,
     visualFrameIdsRef,
   });
-  const reading = useSessionReading({ ...state, ...scroll }, readingVisible);
+  const reading = useSessionReading({ ...state, ...scroll }, readingVisible, opts.restoreReadingPosition ?? false);
   const effects = useSessionEffects({
     ...state,
     ...history,
@@ -142,6 +143,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     agentPhase,
     isAwayFromBottom,
     reattachAutoFollow,
+    settleAtLatest,
     sessionIdRef,
     eventUnsubRef,
     messagesEndRef,
@@ -241,6 +243,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // "Scroll to bottom" affordance state + action
     isAwayFromBottom,
     reattachAutoFollow,
+    settleAtLatest,
     // Refs
     sessionIdRef,
     eventUnsubRef,

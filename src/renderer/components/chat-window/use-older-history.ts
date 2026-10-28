@@ -149,7 +149,14 @@ export function useOlderHistory({
     [arrivedTurn, cancelJump, jumpTarget, requestTurn],
   );
 
-  return { olderHistorySentinelRef: attachSentinel, loadOlderHistory, olderHistoryFailed: failed, turnJump };
+  return {
+    olderHistorySentinelRef: attachSentinel,
+    loadOlderHistory,
+    continueOlderHistory: load,
+    olderHistoryFailed: failed,
+    olderHistoryHalted: halted,
+    turnJump,
+  };
 }
 
 export type OlderHistory = ReturnType<typeof useOlderHistory>;

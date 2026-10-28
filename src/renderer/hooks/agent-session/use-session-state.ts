@@ -29,7 +29,6 @@ import {
   SlashCommandInfo,
   ThinkingLevelOption,
   UseAgentSessionOptions,
-  getScrollMagnetEngaged,
   streamReducer,
 } from "./shared";
 
@@ -124,9 +123,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   // Set when the user explicitly re-attaches the viewport to the newest
   // content (clicks "scroll to bottom"); live-follow then stays engaged until
   // the user scrolls away again or the run ends.
-  // Restored from the module flag so the magnet survives session switches that
-  // remount ChatWindow (key={sessionKey}).
-  const autoFollowMagnetRef = useRef(getScrollMagnetEngaged());
+  const autoFollowMagnetRef = useRef(false);
   const sessionChangeIgnoreScrollUntilRef = useRef(0);
   const ensuringNewSessionRef = useRef<Promise<string | null> | null>(null);
   const newSessionPromotedRef = useRef(false);
