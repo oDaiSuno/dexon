@@ -7,14 +7,14 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import {
+  filePreviewRemarkPlugins,
   linkifyLocalFileText,
   markdownRehypePlugins,
-  markdownRemarkPlugins,
   remarkLocalFileLinks,
 } from "./markdown.ts";
 
 test("Markdown plugins preserve GFM/math, add AST path links, and sanitize raw HTML", () => {
-  assert.deepEqual(markdownRemarkPlugins, [remarkGfm, remarkMath, remarkLocalFileLinks]);
+  assert.deepEqual(filePreviewRemarkPlugins, [remarkGfm, remarkMath, remarkLocalFileLinks]);
   assert.equal(markdownRehypePlugins[0], rehypeRaw);
   assert.equal(markdownRehypePlugins[1][0], rehypeSanitize);
   assert.equal(markdownRehypePlugins[2][0], rehypeKatex);

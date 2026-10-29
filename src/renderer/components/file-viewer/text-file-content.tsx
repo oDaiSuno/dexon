@@ -66,6 +66,7 @@ export function TextFileContent({
             imageBasePath={getParentFilePath(filePath)}
             sourceSessionId={sourceSessionId}
             codeBlockVariant="plain"
+            mathMode="file"
           >
             {data.content}
           </MarkdownBody>
