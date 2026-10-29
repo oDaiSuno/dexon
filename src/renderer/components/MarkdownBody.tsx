@@ -19,8 +19,9 @@ import { useTheme } from "@/hooks/useTheme";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { resolveLocalFileHref } from "@/lib/file-links";
 import {
+  chatRemarkPlugins,
+  filePreviewRemarkPlugins,
   markdownRehypePlugins,
-  markdownRemarkPlugins,
   userMessageRehypePlugins,
   userMessageRemarkPlugins,
   userMessageRemarkRehypeOptions,
@@ -41,9 +42,12 @@ interface MarkdownBodyProps {
   onOpenFile?: (filePath: string) => void;
   inlineChips?: InlineChips;
   codeBlockVariant?: CodeBlockVariant;
+  mathMode?: MathMode;
 }
 
 type CodeBlockVariant = "card" | "plain";
+
+type MathMode = "chat" | "file";
 
 export interface InlineChips {
   leadingSkill?: string | null;
@@ -208,6 +212,7 @@ export function MarkdownBody({
   onOpenFile,
   inlineChips,
   codeBlockVariant,
+  mathMode = "chat",
 }: MarkdownBodyProps) {
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
@@ -217,10 +222,11 @@ export function MarkdownBody({
   const hasInlineChips = inlineChips !== undefined;
   const leadingSkill = inlineChips?.leadingSkill ?? null;
   const remarkPlugins = useMemo<ReactMarkdownOptions["remarkPlugins"]>(() => {
-    if (!hasInlineChips) return markdownRemarkPlugins;
+    const mathPlugins = mathMode === "file" ? filePreviewRemarkPlugins : chatRemarkPlugins;
+    if (!hasInlineChips) return mathPlugins;
     if (leadingSkill === null) return userMessageRemarkPlugins;
     return [...userMessageRemarkPlugins, [remarkLeadingSkill, leadingSkill]];
-  }, [hasInlineChips, leadingSkill]);
+  }, [hasInlineChips, leadingSkill, mathMode]);
   const rehypePlugins = hasInlineChips ? userMessageRehypePlugins : markdownRehypePlugins;
   const components = hasInlineChips ? inlineChipComponents : markdownComponents;
 

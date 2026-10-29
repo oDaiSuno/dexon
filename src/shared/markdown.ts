@@ -4,6 +4,7 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import { remarkChatMath, remarkHoldUnclosedMath } from "./chat-math.ts";
 import { fileUrlToLocalPath, localFilePathToUrl } from "./file-url.ts";
 import { remarkAttachmentTokens } from "./markdown-attachment-tokens.ts";
 
@@ -106,7 +107,14 @@ export function remarkLocalFileLinks() {
   return (tree: MarkdownNode) => transformLocalFileTextNodes(tree);
 }
 
-export const markdownRemarkPlugins: ReactMarkdownOptions["remarkPlugins"] = [
+export const chatRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
+  remarkGfm,
+  remarkChatMath,
+  remarkHoldUnclosedMath,
+  remarkLocalFileLinks,
+];
+
+export const filePreviewRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
   remarkGfm,
   remarkMath,
   remarkLocalFileLinks,
@@ -161,7 +169,8 @@ export function rehypeAttachmentChips() {
 
 export const userMessageRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
   remarkGfm,
-  remarkMath,
+  remarkChatMath,
+  remarkHoldUnclosedMath,
   remarkAttachmentTokens,
   remarkLocalFileLinks,
 ];
