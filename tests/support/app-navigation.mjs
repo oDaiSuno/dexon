@@ -241,7 +241,7 @@ export async function startNavigation(t, options = {}, external = navigationBoun
     // The project card floats above the page, so it is looked up in the whole
     // document rather than inside the navigation it was opened from.
     async menu(space = labels.personal) {
-      await click(control(scene.navigation(), "button", labels.spaceActions.replace("{name}", space)));
+      await click(control(scene.navigation(), "button", labels.switcher));
       return waitFor(() => control(dom.window.document.body, "menu", space));
     },
     // The real working directory, observed where it leaves the App: the folder

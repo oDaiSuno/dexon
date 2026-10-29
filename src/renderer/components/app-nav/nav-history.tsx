@@ -5,6 +5,7 @@ import { filterSessionsForQuery, groupSessionsByProject, sessionProjectKey } fro
 import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
 import { ProjectRow } from "./project-row";
 import { useProjectDrag } from "./use-project-drag";
+import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
 import type { SwitcherProject } from "./project-switcher-card";
 
 export interface ListedProject {
@@ -19,38 +20,13 @@ export interface ProjectTreeOptions {
   listedProjects?: readonly ListedProject[];
   expandedProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
-  onChooseFolder: () => void;
+  renderSwitcher?: (switchTargets: readonly SwitcherProject[]) => ReactNode;
   onReorderProjects?: (from: number, to: number) => void;
-  renderProjectActions?: (
-    name: string,
-    revealed: boolean,
-    project: ListedProject,
-    switchTargets: readonly SwitcherProject[],
-  ) => ReactNode;
+  renderProjectActions?: (name: string, revealed: boolean, project: ListedProject) => ReactNode;
 }
 
-function PlusGlyph() {
-  return (
-    <svg
-      width={15}
-      height={15}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12h14" />
-      <path d="M12 5v14" />
-    </svg>
-  );
-}
-
-function SectionHeader({ onAdd }: { onAdd: () => void }) {
+function SectionHeader({ actions }: { actions: ReactNode }) {
   const { t } = useI18n();
-  const label = t("addProjectSpace", "Add project space from folder…");
   return (
     <div
       style={{
@@ -58,45 +34,14 @@ function SectionHeader({ onAdd }: { onAdd: () => void }) {
         alignItems: "center",
         justifyContent: "space-between",
         height: 28,
-        padding: "0 10px",
+        padding: "0 6px 0 10px",
         flexShrink: 0,
       }}
     >
       <span className="type-label-medium" style={{ color: "var(--fx-text-tertiary)" }}>
         {t("navHistory", "Project spaces")}
       </span>
-      <button
-        type="button"
-        onClick={onAdd}
-        title={label}
-        aria-label={label}
-        onMouseEnter={(event) => {
-          event.currentTarget.style.background = "var(--fx-surface-hover)";
-          event.currentTarget.style.color = "var(--fx-text-primary)";
-        }}
-        onMouseLeave={(event) => {
-          event.currentTarget.style.background = "transparent";
-          event.currentTarget.style.color = "var(--fx-text-tertiary)";
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 22,
-          height: 22,
-          marginRight: -4,
-          padding: 0,
-          border: "none",
-          borderRadius: "var(--radius-chip)",
-          background: "transparent",
-          color: "var(--fx-text-tertiary)",
-          cursor: "pointer",
-          transition:
-            "background var(--duration-quick) var(--ease-smooth-out), color var(--duration-quick) var(--ease-smooth-out)",
-        }}
-      >
-        <PlusGlyph />
-      </button>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>{actions}</div>
     </div>
   );
 }
@@ -160,6 +105,14 @@ export function NavHistory({
   const switchTargets = base
     .filter((project) => project.key !== currentKey)
     .map((project) => ({ root: project.root, name: tree.projectName(project.root) }));
+  const isOpen = (key: string) => expandedProjects.get(key) ?? key === currentKey;
+  const anyOpen = base.some((project) => isOpen(project.key));
+  const foldAll = () => {
+    for (const project of base) if (isOpen(project.key)) toggleProject(project.key, false);
+  };
+  const openCurrent = () => {
+    if (currentKey) toggleProject(currentKey, true);
+  };
   const nothingMatches = searching && projects.length === 0;
   const missingLabel = t("missingFolder", "Folder not found");
 
@@ -175,7 +128,24 @@ export function NavHistory({
         gap: 4,
       }}
     >
-      <SectionHeader onAdd={tree.onChooseFolder} />
+      <SectionHeader
+        actions={
+          <>
+            <HeaderButton
+              label={
+                anyOpen
+                  ? t("collapseAllProjects", "Collapse all projects")
+                  : t("expandCurrentProject", "Expand current project")
+              }
+              disabled={searching}
+              onClick={anyOpen ? foldAll : openCurrent}
+            >
+              <ChevronsGlyph inward={anyOpen} />
+            </HeaderButton>
+            {tree.renderSwitcher?.(switchTargets)}
+          </>
+        }
+      />
       <SessionListStatus loading={loading} error={error} empty={nothingMatches} hasActiveFilter={searching} />
       <div
         ref={listRef}
@@ -185,7 +155,7 @@ export function NavHistory({
       >
         {projects.map((project, index) => {
           const current = project.key === currentKey;
-          const open = searching || (expandedProjects.get(project.key) ?? current);
+          const open = searching || isOpen(project.key);
           const name = tree.projectName(project.root);
           const count = project.visible.length;
           const row = (
@@ -206,7 +176,7 @@ export function NavHistory({
               onToggle={() => toggleProject(project.key, !open)}
               actions={
                 tree.renderProjectActions
-                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project, switchTargets)
+                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project)
                   : undefined
               }
             >

@@ -40,9 +40,6 @@ export function ProjectSwitcherCard({
   onOpenFolder,
   onChooseFolder,
   onBackToPersonalSpace,
-  showsCurrentProject = true,
-  onCloseProject,
-  canCloseProject = true,
   onChoose,
 }: {
   spaceName: string;
@@ -53,9 +50,6 @@ export function ProjectSwitcherCard({
   onOpenFolder?: (folder: string) => void;
   onChooseFolder: () => void;
   onBackToPersonalSpace: () => void;
-  showsCurrentProject?: boolean;
-  onCloseProject?: () => void;
-  canCloseProject?: boolean;
   onChoose: (run: () => void) => void;
 }) {
   const { t } = useI18n();
@@ -104,13 +98,10 @@ export function ProjectSwitcherCard({
     labels: {
       add: t("addProjectSpace", "Add project space from folder…"),
       back: t("backToPersonalSpace", "Back to default space"),
-      close: t("closeProject", "Close project"),
     },
     mac,
-    canCloseProject,
     onChooseFolder,
     onBackToPersonalSpace,
-    onCloseProject,
   });
 
   const rows = [...lead, ...actions];
@@ -217,30 +208,26 @@ export function ProjectSwitcherCard({
 
       {typed === "" ? (
         <>
-          {showsCurrentProject && (
-            <div style={{ display: "flex", alignItems: "center", padding: "10px 10px 4px 10px", flexShrink: 0 }}>
-              <span className="type-meta-caps" style={{ color: "var(--fx-text-tertiary)" }}>
-                {t("currentProjectGroup", "Current project")}
-              </span>
-            </div>
-          )}
+          <div style={{ display: "flex", alignItems: "center", padding: "10px 10px 4px 10px", flexShrink: 0 }}>
+            <span className="type-meta-caps" style={{ color: "var(--fx-text-tertiary)" }}>
+              {t("currentProjectGroup", "Current project")}
+            </span>
+          </div>
 
-          {showsCurrentProject && (
-            <div style={{ ...ROW_STYLE, height: 46, borderRadius: "var(--radius-icon-box)" }}>
-              {iconBox(folderIcon(18, 1.5))}
-              <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
-                <span className="type-body-large-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
-                  {spaceName}
-                </span>
-                <span className="type-mono-meta" style={{ ...ELLIPSIS, color: "var(--fx-text-tertiary)" }}>
-                  {folderPath}
-                </span>
+          <div style={{ ...ROW_STYLE, height: 46, borderRadius: "var(--radius-icon-box)" }}>
+            {iconBox(folderIcon(18, 1.5))}
+            <span style={{ display: "flex", flexDirection: "column", gap: 1, flex: 1, minWidth: 0 }}>
+              <span className="type-body-large-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
+                {spaceName}
               </span>
-              <MenuIcon style={{ flexShrink: 0, color: "var(--fx-accent-blue-text)" }}>
-                <polyline points="20 6 9 17 4 12" />
-              </MenuIcon>
-            </div>
-          )}
+              <span className="type-mono-meta" style={{ ...ELLIPSIS, color: "var(--fx-text-tertiary)" }}>
+                {folderPath}
+              </span>
+            </span>
+            <MenuIcon style={{ flexShrink: 0, color: "var(--fx-accent-blue-text)" }}>
+              <polyline points="20 6 9 17 4 12" />
+            </MenuIcon>
+          </div>
         </>
       ) : (
         lead.length === 0 && (
