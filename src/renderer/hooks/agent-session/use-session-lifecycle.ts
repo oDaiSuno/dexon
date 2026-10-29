@@ -46,6 +46,7 @@ type Dependencies = Pick<
   | "onBranchDataChange"
   | "data"
   | "activeLeafId"
+  | "unsavedMessages"
 > &
   Pick<SessionHistory, "commitHistory" | "loadSession"> &
   Pick<SessionConnection, "connectEvents"> &
@@ -92,6 +93,7 @@ export function useSessionLifecycle(context: Dependencies) {
     onBranchDataChange,
     data,
     activeLeafId,
+    unsavedMessages,
     handleLeafChangeFromUi,
     readingVisible,
     readingVisibleRef,
@@ -139,7 +141,15 @@ export function useSessionLifecycle(context: Dependencies) {
             setAgentRunning(true);
             setAgentPhase(agentState.state.isStreaming ? { kind: "waiting_model" } : { kind: "running_command" });
             const partialReply = agentState.state.streamingMessage;
-            dispatch(partialReply ? { type: "update", message: normalizeToolCalls(partialReply) } : { type: "start" });
+            dispatch(
+              partialReply
+                ? {
+                    type: "update",
+                    message: normalizeToolCalls(partialReply),
+                    entryId: unsavedMessages.streamingEntryId(partialReply.timestamp),
+                  }
+                : { type: "start" },
+            );
             if (!agentState.state.isStreaming && agentState.state.isPromptRunning) {
               void waitForPromptSettlement(session.id);
             }

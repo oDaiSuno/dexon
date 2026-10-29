@@ -1,6 +1,6 @@
-import { useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useI18n } from "@/i18n";
-import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { formatTurnDuration } from "@/lib/process-flow";
 import { useDelayedUnmount } from "./messages/shared";
 
@@ -13,8 +13,8 @@ export function ProcessDetailsGroup({
   stateKey,
   expansionStore,
 }: Props) {
-  const getSnapshot = useMemo(() => () => expansionStore.getSnapshot(stateKey), [expansionStore, stateKey]);
-  const expanded = useSyncExternalStore(expansionStore.subscribe, getSnapshot, getSnapshot);
+  const [remembered, toggle] = useExpansion(expansionStore, stateKey);
+  const expanded = remembered ?? false;
   const contentMounted = useDelayedUnmount(expanded);
   const { language, t } = useI18n();
   const durationLabel =
@@ -48,7 +48,7 @@ export function ProcessDetailsGroup({
         type="button"
         className="chat-quiet-head chat-process-head type-body-default"
         aria-expanded={expanded}
-        onClick={() => expansionStore.toggle(stateKey)}
+        onClick={() => toggle(expanded)}
         title={
           expanded
             ? t("collapseProcessDetails", "Collapse process details")

@@ -7,6 +7,7 @@ import { noticeReducer } from "@/lib/notice-queue";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { type SessionLoadTrace } from "@/lib/session-performance";
 import { summarizeSessionMessages } from "@/lib/session-stats";
+import { unsavedMessagesFor } from "@/lib/unsaved-messages";
 import type {
   AgentMessage,
   AssistantContentBlock,
@@ -54,7 +55,11 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [activeLeafId, setActiveLeafId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [entryIds, setEntryIds] = useState<string[]>([]);
-  const [streamState, dispatch] = useReducer(streamReducer, { isStreaming: false, streamingMessage: null });
+  const [streamState, dispatch] = useReducer(streamReducer, {
+    isStreaming: false,
+    streamingMessage: null,
+    streamingEntryId: null,
+  });
   const [agentRunning, setAgentRunning] = useState(false);
   const [modelNames, setModelNames] = useState<Record<string, string>>({});
   const [modelList, setModelList] = useState<ModelEntry[]>([]);
@@ -90,6 +95,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [interactiveTools] = useState(
     () => new InteractiveToolStore(session?.id ?? null, sendAgentCommand, toolDraftStorage()),
   );
+  const [unsavedMessages] = useState(() => unsavedMessagesFor(session?.id ?? null, newSessionCwd));
   const [extensionStatuses, setExtensionStatuses] = useState<ExtensionStatusItem[]>([]);
   const [extensionWidgets, setExtensionWidgets] = useState<ExtensionWidgetItem[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessages>({ steering: [], followUp: [] });
@@ -169,6 +175,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   return {
     loadedMessagesRef,
     loadedEntryIdsRef,
+    unsavedMessages,
     setMessages,
     setEntryIds,
     historyRevisionRef,

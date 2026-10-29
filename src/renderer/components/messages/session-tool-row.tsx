@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { useSessionActivity } from "@/lib/session-catalog";
+import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { readSessionToolTarget, readSessionUnavailableModel } from "@shared/session-orchestration";
 import { SessionTargetLink, type SessionCardTarget } from "./session-links";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
@@ -21,15 +21,20 @@ export function SessionToolRow({
   result,
   duration,
   startedAt,
+  stateKey,
+  expansionStore,
   onLoadDeferredContent,
 }: {
   block: ToolCallContent;
   result?: ToolResultMessage;
   duration?: number;
   startedAt?: number;
+  stateKey: string;
+  expansionStore?: ThinkingExpansionStore;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [remembered, toggle] = useExpansion(expansionStore, stateKey);
+  const expanded = remembered ?? false;
   const { t } = useI18n();
   const detailMounted = useDelayedUnmount(expanded);
   const isRunning = !result;
@@ -63,7 +68,7 @@ export function SessionToolRow({
           type="button"
           className="chat-session-tool-toggle"
           aria-expanded={expanded}
-          onClick={() => setExpanded((open) => !open)}
+          onClick={() => toggle(expanded)}
         >
           <span className={`chat-tool-icon${isError ? " is-error" : ""}`} aria-hidden="true">
             {isRunning ? <span className="chat-tool-spinner" /> : <SessionToolGlyph toolName={block.toolName} />}

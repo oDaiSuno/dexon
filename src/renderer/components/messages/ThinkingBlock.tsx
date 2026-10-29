@@ -1,6 +1,5 @@
-import { useMemo, useRef, useSyncExternalStore } from "react";
 import { useI18n } from "@/i18n";
-import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { useDelayedUnmount } from "./shared";
 import type { ThinkingContent } from "@/lib/types";
 
@@ -22,14 +21,10 @@ export function ThinkingBlock({
   store?: ThinkingExpansionStore;
   streaming?: boolean;
 }) {
-  const localStoreRef = useRef<ThinkingExpansionStore | null>(null);
-  if (!localStoreRef.current) localStoreRef.current = new ThinkingExpansionStore();
-  const stateStore = store ?? localStoreRef.current;
-  const getSnapshot = useMemo(() => () => stateStore.getSnapshot(stateKey), [stateKey, stateStore]);
-  const expanded = useSyncExternalStore(stateStore.subscribe, getSnapshot, getSnapshot);
+  const [expanded, toggle] = useExpansion(store, stateKey);
   const { t } = useI18n();
   const isWorking = streaming === true && duration === undefined;
-  const showTrace = expanded || isWorking;
+  const showTrace = expanded ?? isWorking;
   const traceMounted = useDelayedUnmount(showTrace);
   const preview = block.thinking.trim().replace(/\s+/g, " ");
 
@@ -39,7 +34,7 @@ export function ThinkingBlock({
         type="button"
         className="chat-quiet-head chat-think-row"
         aria-expanded={showTrace}
-        onClick={() => stateStore.toggle(stateKey)}
+        onClick={() => toggle(showTrace)}
       >
         <span className="chat-tool-icon chat-think-spark" aria-hidden="true">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
