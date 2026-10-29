@@ -19,6 +19,7 @@ await runRendererElectronCheck({
     "native-search-and-rename",
     "05-collapsed-light",
     "08-session-tree-light",
+    "09-status-motion-stays-off-layout",
     "06-narrow-expanded-dark",
     "07-narrow-collapsed-dark",
   ],
