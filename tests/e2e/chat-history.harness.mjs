@@ -224,7 +224,7 @@ async function moveUp(point, mode) {
 
 async function reachTop(point, mode) {
   for (let step = 0; step < 120; step += 1) {
-    if ((await scrollTop()) <= 0) return;
+    if ((await scrollTop()) <= 1) return;
     await moveUp(point, mode);
   }
   throw new Error("the reader never reached the top of the loaded window");
