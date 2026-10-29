@@ -329,16 +329,16 @@ async function run() {
     return { ...measurement, restoredHistory: nativeHistoryTitle };
   });
   await scene("09-space-menu-keyboard", async () => {
-    const focus = await focusByTab("Actions for Default space");
-    assert.equal(focus.name, "Actions for Default space");
+    const focus = await focusByTab("Switch or add project");
+    assert.equal(focus.name, "Switch or add project");
     assert.ok(
       focus.focusVisible && focus.outlineWidth > 0 && focus.outlineStyle !== "none",
-      "workspace has a visible real-keyboard focus ring",
+      "the project spaces header has a visible real-keyboard focus ring",
     );
     await key("Enter");
-    await waitFor(() => exists("menu", "Default space"), "the space menu opened by Enter");
+    await waitFor(() => exists("menu", "Default space"), "the project switcher card opened by Enter");
     await key("Escape");
-    await waitFor(async () => !(await exists("menu", "Default space")), "the space menu closed by Escape");
+    await waitFor(async () => !(await exists("menu", "Default space")), "the project switcher card closed by Escape");
     return { focus, keyboardOpenAndClose: true };
   });
   await scene("10-minimum-window-width", async () => {

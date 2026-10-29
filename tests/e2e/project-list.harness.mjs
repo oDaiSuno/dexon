@@ -94,7 +94,7 @@ async function scene(name, check) {
 const sameOrder = (expected) => async () => JSON.stringify(await page("order")) === JSON.stringify(expected);
 
 async function openFolder(folder) {
-  await click("button", "Actions for Default space");
+  await click("button", "Switch or add project");
   await waitFor(() => page("exists", { role: "searchbox", name: "Search or open a project…" }), "the project switcher");
   await window.webContents.insertText(folder);
   await waitFor(() => page("exists", { role: "menuitem", name: `Open ${folder}` }), `the offer to open ${folder}`);
@@ -102,8 +102,8 @@ async function openFolder(folder) {
   await waitFor(async () => (await page("order")).includes(path.basename(folder)), `${folder} in the project list`);
 }
 
-async function backToDefault(current) {
-  await click("button", `Actions for ${current}`);
+async function backToDefault() {
+  await click("button", "Switch or add project");
   await waitFor(() => page("exists", { role: "menuitem", name: "Back to default space" }), "the project card");
   await click("menuitem", "Back to default space");
   await waitFor(() => page("isCurrent", { name: "Default space" }), "the default space");
@@ -152,11 +152,11 @@ async function runFirst(folders) {
   });
   await scene("02-folders-joined", async () => {
     await openFolder(folders.alpha);
-    await backToDefault("alpha");
+    await backToDefault();
     await openFolder(folders.beta);
-    await backToDefault("beta");
+    await backToDefault();
     await openFolder(folders.gamma);
-    await backToDefault("gamma");
+    await backToDefault();
     await waitFor(sameOrder(["Default space", "gamma", "beta", "alpha"]), "newest folders right below the default");
     const order = await page("order");
     return { order };
