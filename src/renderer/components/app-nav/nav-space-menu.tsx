@@ -1,16 +1,10 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import { useEffect, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
-import { abbreviateHomePath } from "@/lib/display-path";
-import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
-import { getParentFilePath } from "@shared/file-paths";
 import { ProjectMenuContent } from "./project-menu";
-import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-card";
+import { useAnchoredPopover } from "./use-anchored-popover";
 
-const CARD_WIDTH = 280;
 const MENU_WIDTH = 216;
-const CARD_MARGIN = 8;
-const CARD_GAP = 4;
 
 const TRIGGER_STYLE: CSSProperties = {
   display: "flex",
@@ -29,102 +23,35 @@ const TRIGGER_STYLE: CSSProperties = {
 export interface NavProjectMenuProps {
   spaceName: string;
   projectPath: string;
-  homeDir: string;
   revealed?: boolean;
   missing?: boolean;
-  variant?: "card" | "menu";
-  currentRow?: boolean;
-  projects?: readonly SwitcherProject[];
-  inspectFolder?: (typed: string) => Promise<string | null>;
-  onOpenFolder?: (folder: string) => void;
-  onChooseFolder: () => void;
-  onBackToPersonalSpace: () => void;
   canMoveUp?: boolean;
   canMoveDown?: boolean;
   canClose?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onClose?: () => void;
-  closeProject?: () => void;
 }
 
 export function NavSpaceMenu({
   spaceName,
   projectPath,
-  homeDir,
   revealed = true,
   missing = false,
-  variant = "card",
-  currentRow = true,
-  projects = [],
-  inspectFolder,
-  onOpenFolder,
-  onChooseFolder,
-  onBackToPersonalSpace,
   canMoveUp = false,
   canMoveDown = false,
   canClose = false,
   onMoveUp,
   onMoveDown,
   onClose,
-  closeProject,
 }: NavProjectMenuProps) {
   const { t } = useI18n();
-  const [position, setPosition] = useState<CSSProperties | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const open = position !== null;
-  const card = variant === "card";
-  const width = card ? CARD_WIDTH : MENU_WIDTH;
-
-  const show = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    setPosition({
-      top: rect.bottom + CARD_GAP,
-      left: Math.max(CARD_MARGIN, Math.min(rect.right - width, window.innerWidth - width - CARD_MARGIN)),
-    });
-  };
-
-  const close = () => {
-    setPosition(null);
-    triggerRef.current?.focus();
-  };
-
-  const choose = (run: () => void) => {
-    close();
-    run();
-  };
-
-  const showRef = useRef(show);
-  showRef.current = show;
-
-  useEffect(() => subscribeProjectSwitcherRequest(() => showRef.current()), []);
+  const popover = useAnchoredPopover(MENU_WIDTH);
+  const { open, popoverRef: menuRef } = popover;
 
   useEffect(() => {
-    if (!open || card) return;
-    menuRef.current?.focus();
-  }, [open, card]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (!triggerRef.current?.contains(target) && !menuRef.current?.contains(target)) setPosition(null);
-    };
-    const onDismiss = (event: Event) => {
-      if (!menuRef.current?.contains(event.target as Node)) setPosition(null);
-    };
-    const onResize = () => setPosition(null);
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("scroll", onDismiss, true);
-    window.addEventListener("resize", onResize);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("scroll", onDismiss, true);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [open]);
+    if (open) menuRef.current?.focus();
+  }, [open, menuRef]);
 
   const focusMenuItem = (key: string): boolean => {
     const items = [...(menuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])].filter(
@@ -150,13 +77,8 @@ export function NavSpaceMenu({
   };
 
   const onMenuKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "Escape" || event.key === "Tab") {
-      event.preventDefault();
-      event.stopPropagation();
-      close();
-      return;
-    }
-    if (card || !focusMenuItem(event.key)) return;
+    if (popover.closeOnEscapeOrTab(event)) return;
+    if (!focusMenuItem(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
   };
@@ -164,9 +86,9 @@ export function NavSpaceMenu({
   return (
     <>
       <button
-        ref={triggerRef}
+        ref={popover.triggerRef}
         type="button"
-        onClick={() => (open ? close() : show())}
+        onClick={() => (open ? popover.close() : popover.show())}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={t("projectActionsFor", "Actions for {name}").replace("{name}", spaceName)}
@@ -185,7 +107,7 @@ export function NavSpaceMenu({
         </svg>
       </button>
 
-      {position &&
+      {popover.position &&
         createPortal(
           <div
             ref={menuRef}
@@ -198,43 +120,25 @@ export function NavSpaceMenu({
               position: "fixed",
               display: "flex",
               flexDirection: "column",
-              gap: card ? 2 : 0,
-              width,
-              padding: card ? 6 : 4,
+              width: MENU_WIDTH,
+              padding: 4,
               zIndex: 1000,
               background: "var(--fx-surface-raised)",
               border: "1px solid var(--fx-line-default)",
-              borderRadius: card ? "var(--radius-dialog)" : "var(--radius-menu)",
-              boxShadow: card ? "var(--shadow-popover)" : "var(--shadow-menu)",
-              ...position,
+              borderRadius: "var(--radius-menu)",
+              boxShadow: "var(--shadow-menu)",
+              ...popover.position,
             }}
           >
-            {card ? (
-              <ProjectSwitcherCard
-                spaceName={spaceName}
-                folderPath={abbreviateHomePath(getParentFilePath(projectPath), homeDir)}
-                homeDir={homeDir}
-                projects={projects}
-                inspectFolder={inspectFolder}
-                onOpenFolder={onOpenFolder}
-                onChooseFolder={onChooseFolder}
-                onBackToPersonalSpace={onBackToPersonalSpace}
-                showsCurrentProject={currentRow}
-                onCloseProject={closeProject}
-                canCloseProject={canClose}
-                onChoose={choose}
-              />
-            ) : (
-              <ProjectMenuContent
-                missing={missing}
-                canMoveUp={canMoveUp}
-                canMoveDown={canMoveDown}
-                canClose={canClose}
-                onMoveUp={() => choose(() => onMoveUp?.())}
-                onMoveDown={() => choose(() => onMoveDown?.())}
-                onClose={() => choose(() => onClose?.())}
-              />
-            )}
+            <ProjectMenuContent
+              missing={missing}
+              canMoveUp={canMoveUp}
+              canMoveDown={canMoveDown}
+              canClose={canClose}
+              onMoveUp={() => popover.choose(() => onMoveUp?.())}
+              onMoveDown={() => popover.choose(() => onMoveDown?.())}
+              onClose={() => popover.choose(() => onClose?.())}
+            />
           </div>,
           document.body,
         )}

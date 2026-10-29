@@ -6,6 +6,7 @@ import { sessionProjectKey } from "@/lib/session-list";
 import { PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory, type ListedProject } from "./nav-history";
 import { ProjectRowActions } from "./project-row-actions";
+import { ProjectSwitcherPopover } from "./project-switcher-popover";
 import { NavTopBar } from "./nav-top-bar";
 import { spaceFolderName } from "@/lib/space-identity";
 import { worktreePathsEqual } from "@shared/worktree-path";
@@ -313,25 +314,29 @@ export function NavSidebar({
             listedProjects,
             expandedProjects,
             onToggleProject,
-            onChooseFolder,
             onReorderProjects,
-            renderProjectActions: (name, revealed, project, switchTargets) => (
+            renderSwitcher: (switchTargets) => (
+              <ProjectSwitcherPopover
+                spaceName={nameOfProject(projectRoot)}
+                projectPath={projectRoot}
+                homeDir={homeDir}
+                projects={switchTargets}
+                inspectFolder={inspectFolder}
+                onOpenFolder={onOpenFolder}
+                onChooseFolder={onChooseFolder}
+                onBackToPersonalSpace={onBackToPersonalSpace}
+              />
+            ),
+            renderProjectActions: (name, revealed, project) => (
               <ProjectRowActions
                 name={name}
                 revealed={revealed}
                 project={project}
-                switchTargets={switchTargets}
-                currentProject={projectRoot}
-                homeDir={homeDir}
                 runningProjectKeys={runningProjectKeys}
                 isDefaultProject={isDefaultProject}
                 canMoveProject={canMoveProject}
                 onMoveProject={onMoveProject}
                 onCloseProject={onCloseProject}
-                onOpenFolder={onOpenFolder}
-                inspectFolder={inspectFolder}
-                onChooseFolder={onChooseFolder}
-                onBackToPersonalSpace={onBackToPersonalSpace}
               />
             ),
           }}

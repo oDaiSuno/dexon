@@ -55,11 +55,13 @@ test("New session on the main navigation replaces the open conversation with an 
   historyRows(scene, "Personal release notes", "Another personal conversation");
 });
 
-test("the navigation keeps a search box always visible and the project list offers adding a folder without a separate new-session control", async (t) => {
+test("the navigation keeps a search box always visible and the project spaces header offers the switcher card without a separate new-session control", async (t) => {
   const scene = await startNavigation(t);
   const history = await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
   control(scene.navigation(), "searchbox", "Search sessions");
-  control(history, "button", "Add project space from folder…");
+  await click(control(history, "button", "Switch or add project"));
+  const card = await waitFor(() => control(dom.window.document.body, "menu", "Default space"));
+  control(card, "menuitem", "Add project space from folder…");
   assert.equal(roles(history, "button", /^new session$/i).length, 0, "history has no new-session entry of its own");
 });
 

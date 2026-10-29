@@ -8,6 +8,7 @@ import {
   act,
   input,
   keyDown,
+  hover,
   waitFor,
   visibleText,
   textBlocks,
@@ -152,12 +153,18 @@ test("closing the current project from its row returns to the default space, and
   assert.equal(await reopened.currentFolder(), P.personal);
 });
 
-test("closing the current project from the project switcher card also returns to the default space", async (t) => {
+test("the project switcher card of the current project offers no way to close it", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
   await waitFor(() => control(scene.workspace(), "button", PROJECT));
-  await click(control(await scene.menu(PROJECT), "menuitem", "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
-  assert.equal(await scene.currentFolder(), P.personal);
+  const card = await scene.menu(PROJECT);
+  assert.equal(
+    roles(card, "menuitem", "Close project").length,
+    0,
+    "closing a project is done from its row, not the card",
+  );
+  await keyDown(card, "Escape");
+  await scene.settled();
+  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
 });
 
 test("a closed project brings its conversations back when its folder is opened again", async (t) => {
@@ -170,13 +177,16 @@ test("a closed project brings its conversations back when its folder is opened a
   await waitFor(() => control(scene.history(), "button", "Project release notes"));
 });
 
-test("the default space row of another current project offers no way to move or close it", async (t) => {
+test("the default space row offers no ⋯, whether or not it is the current project", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
   await waitFor(() => control(scene.workspace(), "button", PROJECT));
-  const menu = await projectMenu(scene, DEFAULT);
-  unavailableAction(menu, "Move up");
-  unavailableAction(menu, "Move down");
-  unavailableAction(menu, "Close project");
+  const row = projectItem(scene, DEFAULT);
+  await hover(row);
+  assert.equal(
+    roles(row, "button", `Actions for ${DEFAULT}`).length,
+    0,
+    "the default space cannot be moved or closed, so its row has no ⋯",
+  );
 });
 
 test("the project card of the current default space offers no Close project", async (t) => {
