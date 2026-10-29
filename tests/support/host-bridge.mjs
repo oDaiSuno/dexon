@@ -118,9 +118,10 @@ export function installHostBridge(target, { call, subscribe } = {}) {
       if (type === "message") windowMessages.delete(listener);
       else remove?.(type, listener, options);
     };
+    const supplied = target.piBridge;
     target.piBridge = {
-      ...target.piBridge,
-      getHostStatus: async () => "ready",
+      ...supplied,
+      getHostStatus: supplied?.getHostStatus ?? (async () => "ready"),
       requestHostPort() {
         globalThis.queueMicrotask(() => {
           for (const listener of windowMessages)

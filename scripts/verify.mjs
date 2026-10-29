@@ -48,6 +48,7 @@ run("test infrastructure invariants", "node", ["scripts/check-test-infra.mjs"]);
 run("build", "npm", ["run", "build"]);
 run("production artifact isolation", "node", ["scripts/check-production-artifacts.mjs"]);
 run("smoke electron", "npm", ["run", "smoke"]);
+run("Agent Host liveness Electron integration", "npm", ["run", "test:host-liveness-electron"]);
 run("Interactive tool cards Electron integration", "npm", ["run", "test:interactive-tools-electron"]);
 run("Real chat layout and composer Electron integration", "npm", ["run", "test:chat-layout-electron"]);
 run("Long history reading Electron integration", "npm", ["run", "test:chat-history-electron"]);

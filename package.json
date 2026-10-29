@@ -61,6 +61,7 @@
     "test:project-list-electron": "node scripts/test-project-list-electron.mjs",
     "test:reading-position-electron": "node scripts/test-reading-position-electron.mjs",
     "test:browser-agent-e2e": "node scripts/test-browser-agent-e2e.mjs",
+    "test:host-liveness-electron": "node scripts/test-host-liveness-electron.mjs",
     "test:build-watch": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-tsup-watch.mjs",
     "test:managed-process-flood": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-managed-process-flood.mjs",
     "test:managed-process-workflows": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types scripts/test-managed-process-workflows.mjs",

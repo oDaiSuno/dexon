@@ -29,6 +29,7 @@ import { BrowserService } from "./browser/browser-service";
 import { findDesktopDeepLink, parseDesktopDeepLink } from "./deep-link";
 import { restartHostAfterExit } from "./host-install-recovery";
 import { ManagedProcessReaper, secureWindowsReaperDirectory } from "./managed-process/reaper";
+import { canRestartHostAfterCleanup } from "./managed-process/restart-gate";
 import { beforeDeadline, cleanupManagedProcessContainment } from "./managed-process/shutdown-cleanup";
 import {
   resolveWindowsManagedProcessHelper,
@@ -585,7 +586,7 @@ function startMainProcess(): void {
       appendMainLog(
         `managed process pre-restart reap ready=${status.ready} records=${status.records}${status.errorCode ? ` error=${status.errorCode}` : ""}`,
       );
-      if (!status.ready || status.records !== 0) {
+      if (!canRestartHostAfterCleanup(status)) {
         throw new Error(`Managed process cleanup blocked Host restart (${status.errorCode ?? "unknown"})`);
       }
     });
