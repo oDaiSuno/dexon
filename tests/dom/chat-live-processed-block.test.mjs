@@ -62,9 +62,9 @@ function thinkingRows(container) {
   );
 }
 
-function copyControls(container) {
+function footerCopies(container) {
   return [...messagesArea(container).querySelectorAll("button")].filter(
-    (node) => accessibleName(node) === "Copy message",
+    (node) => accessibleName(node) === "Copy message" && node.classList.contains("message-hover-action"),
   );
 }
 
@@ -230,7 +230,7 @@ test("when the live reply ends, its blocks keep their place and numbers and only
   });
 
   assert.match(labelOf(root), /Processed 40s/, "the block reports its number while the reply is being written");
-  assert.equal(copyControls(root).length, 0, "a reply that is still being written offers no footer");
+  assert.equal(footerCopies(root).length, 0, "a reply that is still being written offers no footer");
   setDetail([
     QUESTION,
     {
@@ -248,9 +248,9 @@ test("when the live reply ends, its blocks keep their place and numbers and only
 
   assert.equal(processGroups(root).length, 1, "the finished reply shows the same single block");
   assert.match(labelOf(root), /Processed 40s/, "the number does not change when the reply ends");
-  assert.equal(copyControls(root).length, 1, "only now does the reply offer its footer");
+  assert.equal(footerCopies(root).length, 1, "only now does the reply offer its footer");
   assert.ok(text(messagesArea(root), CONCLUSION), "the answer text stays on screen after the reply ends");
-  isBefore(processGroups(root)[0], copyControls(root)[0], "the block stays above the footer");
+  isBefore(processGroups(root)[0], footerCopies(root)[0], "the block stays above the footer");
 });
 
 test("when a live reply fails and is retried, it shows two Processed blocks before and after the failure", async (t) => {
