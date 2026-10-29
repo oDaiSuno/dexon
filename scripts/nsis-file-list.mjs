@@ -1,8 +1,8 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
+import { locate7za } from "./seven-zip.mjs";
 
 const REQUIRED_EXECUTABLE = "Dexon.exe";
 const UNINSTALLER = "Uninstall Dexon.exe";
@@ -115,12 +115,6 @@ function listArchive(sevenZip, archive) {
     encoding: "utf8",
     maxBuffer: 32 * 1024 * 1024,
   });
-}
-
-async function locate7za() {
-  const fromElectronBuilder = createRequire(createRequire(import.meta.url).resolve("electron-builder"));
-  const fromAppBuilderLib = createRequire(fromElectronBuilder.resolve("app-builder-lib"));
-  return fromAppBuilderLib("builder-util").getPath7za();
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {

@@ -298,6 +298,7 @@ jobs:
     timeout-minutes: 35
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      CSC_FOR_PULL_REQUEST: "true"
       RUSTUP_TOOLCHAIN: 1.96.1
     steps:
       - name: Check out repository

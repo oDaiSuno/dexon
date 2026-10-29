@@ -17,7 +17,7 @@ function workflows() {
   });
   return {
     packaging: {
-      mac: { identity: null, notarize: false },
+      mac: { identity: "-", notarize: false },
       win: { artifactName: "Dexon-Unsigned-Beta-Setup-${version}.${ext}" },
     },
     ci: {
@@ -192,12 +192,13 @@ test("complete read-only CI and isolated publication are accepted without depend
   assert.deepEqual(workflowViolations(ci, release, packaging), []);
 });
 
-test("macOS packaging stays unsigned even when the build machine has a certificate", () => {
+test("macOS packaging stays ad-hoc signed even when the build machine has a certificate", () => {
   for (const mac of [
     {},
     { identity: "Developer ID Application: Example", notarize: false },
-    { identity: null },
-    { identity: null, notarize: true },
+    { identity: null, notarize: false },
+    { identity: "-" },
+    { identity: "-", notarize: true },
   ]) {
     const { ci, release, packaging } = workflows();
     packaging.mac = mac;

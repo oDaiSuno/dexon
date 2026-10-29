@@ -13,8 +13,8 @@ export function workflowViolations(ci, release, packaging) {
     if (!condition) failures.push(message);
   };
   check(
-    packaging?.mac?.identity === null && packaging.mac.notarize === false,
-    "macOS packages must explicitly disable certificate identity selection and notarization",
+    packaging?.mac?.identity === "-" && packaging.mac.notarize === false,
+    "macOS packages must use ad-hoc signing without certificate identity selection or notarization",
   );
   check(
     packaging?.win?.artifactName === "Dexon-Unsigned-Beta-Setup-${version}.${ext}" && !packaging.win.publisherName,

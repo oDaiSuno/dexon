@@ -3,10 +3,9 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createRequire } from "node:module";
 import test from "node:test";
+import { locate7za } from "./seven-zip.mjs";
 
-const project = path.resolve(import.meta.dirname, "..");
 const script = path.join(import.meta.dirname, "nsis-file-list.mjs");
 const sevenZip = await locate7za();
 
@@ -17,14 +16,6 @@ const LEGACY_FILES = [
   "resources/managed-process/win32-x64/pi-managed-process-helper.exe",
   "locales/en-US.pak",
 ];
-
-async function locate7za() {
-  const fromElectronBuilder = createRequire(
-    createRequire(path.join(project, "package.json")).resolve("electron-builder"),
-  );
-  const fromAppBuilderLib = createRequire(fromElectronBuilder.resolve("app-builder-lib"));
-  return fromAppBuilderLib("builder-util").getPath7za();
-}
 
 function createPackage(t, { files, folders }) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dexon-nsis-file-list-"));

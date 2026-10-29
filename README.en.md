@@ -93,7 +93,7 @@ npm run dev
 
 The app reads sessions and configuration from `~/.pi/agent/`. If you already use the Pi CLI, existing data is reused without migration. Dexon discovers and verifies existing Node.js/npm, Python, Git, Bash, uv, jq, and Bun installs; bundled `rg`/`fd` keep search working offline.
 
-> macOS and Windows use explicitly labeled Unsigned Beta releases. macOS retains the unsigned distribution used in v0.1.0, without Apple signing or notarization credentials; Gatekeeper approval and automatic update installation are not guaranteed.
+> macOS and Windows use explicitly labeled Unsigned Beta releases. macOS builds are ad-hoc signed without a developer identity, Apple signing or notarization credentials. If the first launch is blocked, open System Settings → Privacy & Security and choose Open Anyway; Gatekeeper approval and automatic update installation are not guaranteed.
 
 ### Build targets
 
