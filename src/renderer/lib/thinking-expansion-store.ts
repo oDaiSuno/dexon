@@ -1,7 +1,8 @@
+import { useMemo, useRef, useSyncExternalStore } from "react";
+
 export class ThinkingExpansionStore {
   private readonly values = new Map<string, boolean>();
   private readonly listeners = new Set<() => void>();
-  private defaultExpanded = false;
   private readonly maxEntries: number;
 
   constructor(maxEntries = 500) {
@@ -13,30 +14,29 @@ export class ThinkingExpansionStore {
     return () => this.listeners.delete(listener);
   };
 
-  getSnapshot = (key: string): boolean => {
-    if (this.values.has(key)) return this.values.get(key)!;
-    // Capture the default on first observation. Later toggles may change the
-    // default for newly mounted blocks, but must not silently flip blocks that
-    // are already rendered and have never been clicked.
-    const initial = this.defaultExpanded;
-    this.values.set(key, initial);
-    this.prune();
-    return initial;
-  };
+  getSnapshot = (key: string): boolean | undefined => this.values.get(key);
 
-  toggle(key: string): void {
-    const next = !this.getSnapshot(key);
+  toggle(key: string, shown: boolean): void {
     this.values.delete(key);
-    this.values.set(key, next);
-    this.defaultExpanded = next;
+    this.values.set(key, !shown);
     this.prune();
     this.emit();
   }
 
+  adopt(fromEntryId: string, toEntryId: string): void {
+    let moved = false;
+    for (const [key, value] of [...this.values]) {
+      if (!key.split(":").includes(fromEntryId)) continue;
+      this.values.delete(key);
+      this.values.set(replacePart(key, fromEntryId, toEntryId), value);
+      moved = true;
+    }
+    if (moved) this.emit();
+  }
+
   clear(): void {
-    if (this.values.size === 0 && !this.defaultExpanded) return;
+    if (this.values.size === 0) return;
     this.values.clear();
-    this.defaultExpanded = false;
     this.emit();
   }
 
@@ -51,6 +51,25 @@ export class ThinkingExpansionStore {
       this.values.delete(oldest);
     }
   }
+}
+
+export function useExpansion(
+  store: ThinkingExpansionStore | undefined,
+  key: string,
+): [boolean | undefined, (shown: boolean) => void] {
+  const fallbackRef = useRef<ThinkingExpansionStore | null>(null);
+  if (!fallbackRef.current) fallbackRef.current = new ThinkingExpansionStore();
+  const target = store ?? fallbackRef.current;
+  const read = useMemo(() => () => target.getSnapshot(key), [key, target]);
+  const value = useSyncExternalStore(target.subscribe, read, read);
+  return [value, (shown: boolean) => target.toggle(key, shown)];
+}
+
+function replacePart(key: string, from: string, to: string): string {
+  return key
+    .split(":")
+    .map((part) => (part === from ? to : part))
+    .join(":");
 }
 
 export class ThinkingExpansionRegistry {

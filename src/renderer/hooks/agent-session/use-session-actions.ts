@@ -43,6 +43,7 @@ type Dependencies = Pick<
   | "setCompactError"
   | "setCompactResult"
 > &
+  Pick<SessionState, "unsavedMessages"> &
   Pick<SessionHistory, "updateHistory" | "loadContext" | "refreshContextUsage" | "contextGenRef" | "loadSession"> &
   Pick<SessionConnection, "ensureNewSession" | "ensureEventsConnected" | "promoteNewSession"> &
   Pick<SessionEvents, "waitForPromptSettlement"> &
@@ -96,6 +97,7 @@ export function useSessionActions(context: Dependencies) {
     setCompactError,
     setCompactResult,
     loadSession,
+    unsavedMessages,
   } = context;
 
   const handleSend = useCallback(
@@ -111,7 +113,8 @@ export function useSessionActions(context: Dependencies) {
         content: message,
         timestamp: Date.now(),
       };
-      updateHistory((current) => appendLocalHistoryMessage(current, userMsg));
+      const userMsgEntryId = unsavedMessages.nextEntryId();
+      updateHistory((current) => appendLocalHistoryMessage(current, userMsg, userMsgEntryId));
       optimisticUserMessageKeyRef.current = userMessageKey(userMsg);
       promptRunIdRef.current = promptRunId;
       agentRunningRef.current = true;
@@ -228,6 +231,7 @@ export function useSessionActions(context: Dependencies) {
       waitForPromptSettlement,
       addNotice,
       t,
+      unsavedMessages,
     ],
   );
 

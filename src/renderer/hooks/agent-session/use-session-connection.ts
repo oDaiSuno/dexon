@@ -1,6 +1,7 @@
 import { sendAgentCommand } from "@/lib/agent-client";
 import { newAgent, subscribeAgentEvents } from "@/lib/api-client";
 import { connectTimedEventStream, type EventStreamConnectionResult } from "@/lib/event-stream-connection";
+import { carryUnsavedMessages } from "@/lib/unsaved-messages";
 import type { InteractiveSnapshot } from "@shared/interactive-tools";
 import { useCallback } from "react";
 import {
@@ -53,6 +54,7 @@ export function useSessionConnection(context: Dependencies) {
       const sid = sessionIdRef.current;
       if (!isNew || !newSessionCwd || !sid || newSessionPromotedRef.current) return;
       newSessionPromotedRef.current = true;
+      carryUnsavedMessages(newSessionCwd, sid);
       onSessionCreated?.({
         id: sid,
         path: "",

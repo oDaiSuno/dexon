@@ -111,12 +111,13 @@ export function ChatMessages({
       const currentRefIdx = visibleRefIndexByMessage.get(idx);
       const renderRole = options.renderRole ?? "message";
       const renderKey = messageRenderKeys.keyFor(messages[idx], entryIds[idx], renderRole);
+      const screenKey = messageRenderKeys.screenKey(renderKey);
       const toolData = toolMessageIndex.get(messages[idx]);
       // The in-flight turn renders as a process stream: 8px rhythm,
       // no per-message footer — it settles into groups on completion.
       const compact = (agentRunning || streamState.isStreaming) && lastUserIdx !== -1 && idx > lastUserIdx;
       const view = (
-        <SessionProfiler key={renderKey} id="MessageView">
+        <SessionProfiler key={screenKey} id="MessageView">
           <MessageView
             sessionId={session?.id}
             message={msg}
@@ -141,7 +142,7 @@ export function ChatMessages({
       if (!isVisible || options.attachRef === false || currentRefIdx === undefined) return view;
       return (
         <div
-          key={renderKey}
+          key={screenKey}
           className={compact ? undefined : "chat-history-item"}
           ref={attachVisibleRef(idx, currentRefIdx)}
           {...readingAnchorAttributes(renderKey)}
@@ -155,7 +156,7 @@ export function ChatMessages({
       const toolData = toolMessageIndex.get(messages[piece.index]);
       return (
         <div
-          key={piece.key}
+          key={messageRenderKeys.screenKey(piece.key)}
           className="chat-history-item"
           ref={refForPiece(piece.refIndex)}
           {...readingAnchorAttributes(piece.key)}
@@ -179,7 +180,7 @@ export function ChatMessages({
     };
 
     const renderProcess = (piece: TurnProcessPiece): ReactNode => (
-      <div key={piece.key} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
+      <div key={messageRenderKeys.screenKey(piece.key)} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
         <ProcessDetailsGroup
           stateKey={piece.key}
           expansionStore={processDetailsExpansionStore}
@@ -201,7 +202,7 @@ export function ChatMessages({
 
     const renderFailure = (piece: TurnFailurePiece): ReactNode => (
       <div
-        key={piece.key}
+        key={messageRenderKeys.screenKey(piece.key)}
         className="chat-history-item"
         ref={refForPiece(piece.refIndex)}
         {...readingAnchorAttributes(piece.key)}
@@ -261,7 +262,7 @@ export function ChatMessages({
 
       rendered.push(
         <AnswerTurn
-          key={messageRenderKeys.keyFor(messages[idx], entryIds[idx], "turn")}
+          key={messageRenderKeys.screenKey(messageRenderKeys.keyFor(messages[idx], entryIds[idx], "turn"))}
           footer={layout.footer}
           modelNames={modelNames}
           onFork={agentRunning || isNew ? undefined : handleFork}

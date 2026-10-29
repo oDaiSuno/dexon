@@ -58,6 +58,11 @@ export function useChatWindow({
 
   const [restoreReadingPosition] = useState(() => Boolean(session && readingPositions?.get(session.id)));
 
+  const expansionStores = useMemo(
+    () => [thinkingExpansionStore, processDetailsExpansionStore],
+    [thinkingExpansionStore, processDetailsExpansionStore],
+  );
+
   // Wrap onAgentEnd to play the completion sound. This is more reliable than
   // wrapping handleAgentEventRef because useAgentSession overwrites that ref
   // on every render (it syncs the latest callback), which would blow away an
@@ -154,6 +159,7 @@ export function useChatWindow({
     onSessionStatsPanelOpen,
     readingVisible: visible,
     restoreReadingPosition,
+    expansionStores,
   });
 
   // Push session stats up to AppShell for the top bar.

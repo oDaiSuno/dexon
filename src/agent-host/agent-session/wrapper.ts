@@ -17,6 +17,7 @@ import { stripLegacyChannelPrompts, withExtensionTools } from "./compat";
 import { disposeSession } from "./dispose";
 import { SessionExtensionUi } from "./extension-ui";
 import { type ExternalTurnParams, runExternalTurn as runExternalTurnOn } from "./external-turn";
+import { announceSavedMessage } from "./message-saved";
 import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
 import { QueuedTurns } from "./queued-turns";
@@ -118,6 +119,11 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       this.retryOutcome.observe(event, this.inner.sessionManager);
       const displayEvent = this.withMessageSources(event);
       this.emit(displayEvent);
+      if (event.type === "message_end") {
+        announceSavedMessage(this.inner.sessionManager, event.message, (saved) => {
+          if (this._alive) this.emit(saved);
+        });
+      }
       try {
         this.externalTurnProgress?.(displayEvent);
       } catch {

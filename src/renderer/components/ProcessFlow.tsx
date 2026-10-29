@@ -47,6 +47,8 @@ export function ProcessFlow({
                   block={item.block}
                   result={item.result}
                   duration={item.duration}
+                  stateKey={`${item.entryId ?? "assistant"}:${item.blockIndex}`}
+                  expansionStore={thinkingExpansionStore}
                   onLoadDeferredContent={onLoadDeferredContent}
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />

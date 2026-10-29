@@ -1,4 +1,5 @@
 import { type EventStreamConnectionStatus } from "@/lib/event-stream-connection";
+import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ModelInfo, SessionDetail, SessionRuntimeState } from "@contract/types";
 import { isNearChatBottom } from "../chat-scroll-policy";
@@ -7,18 +8,22 @@ export type AgentStateResponse = SessionRuntimeState;
 export interface StreamingState {
   isStreaming: boolean;
   streamingMessage: Partial<AgentMessage> | null;
+  streamingEntryId: string | null;
 }
 export type StreamAction =
-  { type: "start" } | { type: "update"; message: Partial<AgentMessage> } | { type: "end" } | { type: "reset" };
+  | { type: "start" }
+  | { type: "update"; message: Partial<AgentMessage>; entryId: string }
+  | { type: "end" }
+  | { type: "reset" };
 export function streamReducer(state: StreamingState, action: StreamAction): StreamingState {
   switch (action.type) {
     case "start":
-      return { isStreaming: true, streamingMessage: null };
+      return { isStreaming: true, streamingMessage: null, streamingEntryId: null };
     case "update":
-      return { isStreaming: true, streamingMessage: action.message };
+      return { isStreaming: true, streamingMessage: action.message, streamingEntryId: action.entryId };
     case "end":
     case "reset":
-      return { isStreaming: false, streamingMessage: null };
+      return { isStreaming: false, streamingMessage: null, streamingEntryId: null };
     default:
       return state;
   }
@@ -96,6 +101,7 @@ export interface UseAgentSessionOptions {
    */
   readingVisible?: boolean;
   restoreReadingPosition?: boolean;
+  expansionStores?: readonly ThinkingExpansionStore[];
 }
 export type ThinkingLevelOption = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 export const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
