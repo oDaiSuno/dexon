@@ -99,7 +99,9 @@ export function ProjectRow({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const countId = useId();
-  const revealed = Boolean(actions) && (hovered || focused);
+  const active = hovered || focused;
+  const action = actions?.(active);
+  const revealed = active && action != null;
   return (
     <div
       role="listitem"
@@ -193,10 +195,8 @@ export function ProjectRow({
             </>
           )}
         </button>
-        {actions && (
-          <div style={{ position: "relative", gridArea: "1 / 1", justifySelf: "end", marginRight: 6 }}>
-            {actions(revealed)}
-          </div>
+        {action && (
+          <div style={{ position: "relative", gridArea: "1 / 1", justifySelf: "end", marginRight: 6 }}>{action}</div>
         )}
       </div>
       {children}

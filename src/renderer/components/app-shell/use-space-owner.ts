@@ -4,6 +4,7 @@ import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
 import { spaceDisplayName } from "@/lib/space-identity";
 import { useSessionProjectRoots } from "@/lib/session-catalog";
+import { requestProjectSwitcher } from "@/lib/project-switcher-request";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
 import { useComposerWorkspace } from "./composer-workspace";
 import type { SpaceCoordination } from "./use-space-coordination";
@@ -73,6 +74,7 @@ export function useSpaceOwner({
   const openProjectTree = useCallback(() => {
     closeWorktreeMenu();
     onOpenSidebar();
+    requestProjectSwitcher();
   }, [closeWorktreeMenu, onOpenSidebar]);
 
   const copyPath = useCallback(() => (projectPath ? copyText(projectPath) : Promise.resolve()), [projectPath]);

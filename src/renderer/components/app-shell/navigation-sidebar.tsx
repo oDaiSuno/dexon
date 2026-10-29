@@ -6,6 +6,7 @@ import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { subscribeModelSettingsRequest } from "@/lib/model-settings-request";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
+import { sessionProjectKey } from "@/lib/session-list";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
 import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-sidebar/project-workspace";
@@ -65,6 +66,7 @@ export function NavigationSidebar({
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [spaceError, setSpaceError] = useState<string | null>(null);
+  const [enteredProject, setEnteredProject] = useState("");
 
   useEffect(() => {
     setMobileReady(true);
@@ -90,6 +92,13 @@ export function NavigationSidebar({
     onSelectSession,
     onInitialRestoreDone,
   });
+
+  const currentProjectKey = sessionProjectKey(selectedProject ?? selectedCwd ?? coordination.attemptedCwd ?? "");
+  if (enteredProject !== currentProjectKey) {
+    setEnteredProject(currentProjectKey);
+    if (currentProjectKey && expandedProjects.get(currentProjectKey) === false)
+      setExpandedProjects(new Map(expandedProjects).set(currentProjectKey, true));
+  }
 
   const expanded = isMobile || open;
   const hidden = isMobile && !open;

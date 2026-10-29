@@ -4,19 +4,15 @@ import { FOLDER_PATH, HOUSE_PATHS, MenuIcon } from "./project-switcher-parts";
 export function spaceActions({
   labels,
   mac,
-  canCloseProject,
   onChooseFolder,
   onBackToPersonalSpace,
-  onCloseProject,
 }: {
-  labels: { add: string; back: string; close: string };
+  labels: { add: string; back: string };
   mac: boolean;
-  canCloseProject: boolean;
   onChooseFolder: () => void;
   onBackToPersonalSpace: () => void;
-  onCloseProject?: () => void;
 }): SwitcherRow[] {
-  const actions: SwitcherRow[] = [
+  return [
     {
       key: "add-folder",
       label: labels.add,
@@ -43,19 +39,4 @@ export function spaceActions({
       run: onBackToPersonalSpace,
     },
   ];
-  if (onCloseProject) {
-    actions.push({
-      key: "close-project",
-      label: labels.close,
-      icon: (
-        <MenuIcon>
-          <path d="M18 6 6 18" />
-          <path d="m6 6 12 12" />
-        </MenuIcon>
-      ),
-      disabled: !canCloseProject,
-      run: onCloseProject,
-    });
-  }
-  return actions;
 }
