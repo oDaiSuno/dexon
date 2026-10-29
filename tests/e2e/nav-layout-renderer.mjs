@@ -142,6 +142,7 @@ window.navLayout = {
     theme = "light",
     language = "en-US",
     scene = "default",
+    unfolded = false,
   } = {}) {
     currentSpaceName = spaceName;
     sessions = sessionLists[scene].map((item) => ({ ...item }));
@@ -156,7 +157,7 @@ window.navLayout = {
           expanded,
           spaceName,
           initialSessions: listed.sessions,
-          foldedSessionIds: treeScene ? sessionTreeFoldedIds : [],
+          foldedSessionIds: treeScene && !unfolded ? sessionTreeFoldedIds : [],
           liveStatuses: treeScene ? sessionTreeStatuses : {},
           runningSessionIds: treeScene ? sessionTreeRunningIds : [],
         }),

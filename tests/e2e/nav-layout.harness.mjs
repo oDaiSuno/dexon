@@ -204,10 +204,47 @@ async function run() {
 
   await measure({ expanded: false }, "05-collapsed-light");
   await measure({ scene: "tree" }, "08-session-tree-light");
+  await measureStatusMotion("09-status-motion-stays-off-layout");
   window.setContentSize(640, 760);
   await measure({ theme: "dark", language: "zh-CN", spaceName: longSpaceName }, "06-narrow-expanded-dark");
   await measure({ expanded: false, theme: "dark", language: "zh-CN" }, "07-narrow-collapsed-dark");
   assert.deepEqual(failures, [], "the native renderer reports no page errors");
+}
+
+async function measureStatusMotion(name) {
+  await js(`window.navLayout.configure({ scene: "tree", unfolded: true })`);
+  const visible = await js(
+    `({running:document.querySelectorAll('[aria-label="Agent running"]').length,waiting:document.querySelectorAll('[aria-label="Waiting for your answer"]').length})`,
+  );
+  assert.deepEqual(visible, { running: 2, waiting: 1 }, `${name}: two running rows and one waiting row are on screen`);
+  const debug = window.webContents.debugger;
+  debug.attach("1.3");
+  try {
+    await debug.sendCommand("Performance.enable");
+    const metrics = async () =>
+      Object.fromEntries((await debug.sendCommand("Performance.getMetrics")).metrics.map((m) => [m.name, m.value]));
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const before = await metrics();
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    const after = await metrics();
+    const layoutsPerSecond = (after.LayoutCount - before.LayoutCount) / (after.Timestamp - before.Timestamp);
+    assert.ok(
+      layoutsPerSecond <= 2,
+      `${name}: status icons keep animating without re-laying out the page (${layoutsPerSecond.toFixed(1)} layouts/s)`,
+    );
+    await debug.sendCommand("Emulation.setEmulatedMedia", {
+      features: [{ name: "prefers-reduced-motion", value: "reduce" }],
+    });
+    await js(`window.navLayout.configure({ scene: "tree", unfolded: true })`);
+    const runningAnimations = await js(
+      "document.getAnimations().filter(a=>a.playState==='running').map(a=>a.animationName||a.constructor.name)",
+    );
+    assert.deepEqual(runningAnimations, [], `${name}: under reduced motion no status animation keeps running`);
+    await debug.sendCommand("Emulation.setEmulatedMedia", { features: [] });
+    records.push({ name, visible, layoutsPerSecond, screenshot: await capture(name), pass: true });
+  } finally {
+    debug.detach();
+  }
 }
 
 function rowsByTitle(rows) {
