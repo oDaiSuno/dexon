@@ -45,10 +45,16 @@ async function measurement() {
   return js(`(() => {
     const bounds=e=>{const r=e.getBoundingClientRect();return {x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom};};
     const {editor,composer,card,messages,user,assistant,title}=window.chatLayout.elements();
+    const conversation=window.chatLayout.find('region','Conversation');
     const center=r=>({x:r.x+r.width/2,y:r.y+r.height/2});
     const reachable=e=>{if(!e)return false;const p=center(e.getBoundingClientRect());return e.contains(document.elementFromPoint(p.x,p.y));};
     return {editor:bounds(editor),composer:bounds(composer),card:card?bounds(card):null,
       messages:messages?bounds(messages):null,
+      conversation:conversation?bounds(conversation):null,
+      scrollbar:conversation?{clientWidth:conversation.clientWidth,offsetWidth:conversation.offsetWidth,
+        scrollHeight:conversation.scrollHeight,clientHeight:conversation.clientHeight,
+        width:getComputedStyle(conversation).scrollbarWidth,
+        gutter:getComputedStyle(conversation).scrollbarGutter}:null,
       editorFont:parseFloat(getComputedStyle(editor).fontSize),userFont:user?parseFloat(getComputedStyle(user).fontSize):null,
       assistantFont:assistant?parseFloat(getComputedStyle(assistant).fontSize):null,
       titleFont:title?parseFloat(getComputedStyle(title).fontSize):null,
@@ -59,6 +65,32 @@ async function measurement() {
 }
 function near(actual, expected, message, tolerance = 1) {
   assert.ok(Math.abs(actual - expected) < tolerance, `${message}: ${actual} vs ${expected}`);
+}
+const SCROLLBAR_GUTTER_PX = 16;
+function reservedGutter(value) {
+  return value.scrollbar.offsetWidth - value.scrollbar.clientWidth;
+}
+function showsScrollbarGutter(value, name) {
+  assert.ok(value.scrollbar, `${name} shows the conversation scroller`);
+  assert.notEqual(
+    value.scrollbar.width,
+    "none",
+    `${name} conversation does not hide its scrollbar (scrollbar-width: ${value.scrollbar.width})`,
+  );
+  assert.equal(
+    reservedGutter(value),
+    SCROLLBAR_GUTTER_PX,
+    `${name} conversation reserves the shared 8px scrollbar on each edge (offset ${value.scrollbar.offsetWidth} - client ${value.scrollbar.clientWidth} = ${reservedGutter(value)}px, scrollbar-gutter: ${value.scrollbar.gutter})`,
+  );
+}
+function showsThumb(value, name) {
+  assert.ok(
+    value.scrollbar.scrollHeight > value.scrollbar.clientHeight,
+    `${name} conversation shows a scrollbar thumb (scrollHeight ${value.scrollbar.scrollHeight} vs clientHeight ${value.scrollbar.clientHeight})`,
+  );
+}
+function centreX(bounds) {
+  return bounds.x + bounds.width / 2;
 }
 async function run() {
   await app.whenReady();
@@ -121,6 +153,8 @@ async function run() {
     near(value.messages.width, width, `${layout} transcript width`);
     near(value.card.width, width, `${layout} card width`);
     near(value.card.x, value.composer.x, `${layout} card/input alignment`);
+    showsScrollbarGutter(value, layout);
+    near(value.messages.x, value.composer.x, `${layout} message column aligns with the input column`);
     assert.ok(value.documentScrollWidth <= value.documentWidth + 1);
     records.push({
       name: `width-${layout}`,
@@ -129,6 +163,57 @@ async function run() {
       pass: true,
     });
   }
+  await configure({ conversation: "short" });
+  const shortConversation = await measurement();
+  await configure({ conversation: "long" });
+  await waitFor("document.body.textContent.includes('Long reply 12')");
+  const longConversation = await measurement();
+  assert.ok(
+    shortConversation.scrollbar.scrollHeight <= shortConversation.scrollbar.clientHeight,
+    `the short conversation fits one screen without a thumb (${shortConversation.scrollbar.scrollHeight} vs ${shortConversation.scrollbar.clientHeight})`,
+  );
+  assert.ok(
+    longConversation.scrollbar.scrollHeight > longConversation.scrollbar.clientHeight,
+    `the grown conversation is longer than one screen (${longConversation.scrollbar.scrollHeight} vs ${longConversation.scrollbar.clientHeight})`,
+  );
+  showsScrollbarGutter(shortConversation, "short conversation");
+  showsScrollbarGutter(longConversation, "long conversation");
+  showsThumb(longConversation, "long conversation");
+  assert.equal(
+    reservedGutter(shortConversation),
+    reservedGutter(longConversation),
+    "the reserved scrollbar gutter stays the same once the thumb appears",
+  );
+  near(
+    shortConversation.composer.x,
+    longConversation.composer.x,
+    "the input column does not shift when the thumb appears",
+    0.6,
+  );
+  near(
+    shortConversation.messages.x,
+    longConversation.messages.x,
+    "the message column does not shift when the thumb appears",
+    0.6,
+  );
+  near(
+    longConversation.messages.x,
+    longConversation.composer.x,
+    "the message column stays aligned with the input column once the thumb appears",
+    0.6,
+  );
+  records.push({
+    name: "scrollbar-gutter",
+    measurement: {
+      short: shortConversation.scrollbar,
+      long: longConversation.scrollbar,
+      messagesX: [shortConversation.messages.x, longConversation.messages.x],
+      composerX: [shortConversation.composer.x, longConversation.composer.x],
+    },
+    screenshot: await capture("scrollbar-gutter"),
+    pass: true,
+  });
+
   await configure({ welcome: true, font: "standard" });
   const welcomeStandard = await measurement();
   await configure({ welcome: true, font: "large" });
@@ -143,6 +228,8 @@ async function run() {
   assert.ok(narrow.documentScrollWidth <= narrow.documentWidth + 1, "narrow chat does not overflow horizontally");
   assert.equal(narrow.reachable, true);
   assert.ok(narrow.card.bottom <= narrow.composer.y + 1);
+  showsScrollbarGutter(narrow, "narrow");
+  near(centreX(narrow.messages), centreX(narrow.composer), "narrow message column keeps the input column's axis");
   records.push({ name: "narrow-chat", measurement: narrow, screenshot: await capture("narrow-chat"), pass: true });
   assert.deepEqual(failures, [], "the real ChatWindow reports no renderer errors");
 }

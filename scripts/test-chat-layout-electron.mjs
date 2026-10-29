@@ -16,6 +16,7 @@ await runRendererElectronCheck({
     "font-extra-large",
     "width-fixed",
     "width-wide",
+    "scrollbar-gutter",
     "welcome",
     "narrow-chat",
   ],

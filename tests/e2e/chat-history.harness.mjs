@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow } from "electron";
 import { configureSmokeEnvironment } from "../../src/smoke/environment.ts";
+import { createScrollbarTools } from "./chat-history-scrollbar.mjs";
+import { runScrollbarScenes } from "./chat-history-scrollbar-scenes.mjs";
 import { QUESTION_COUNT, buildHistory, turnName } from "./chat-history-session.mjs";
 
 configureSmokeEnvironment();
@@ -102,6 +104,26 @@ function centre(rect) {
 
 const scrollTop = async () => (await js("window.chatHistory.state()")).scrollTop;
 
+const tools = createScrollbarTools({
+  js,
+  sendInputEvent: (event) => window.webContents.sendInputEvent(event),
+  waitFor,
+});
+
+const { readState, assertScrollbar, dragThumbTo } = tools;
+
+async function setContentSize(width, height) {
+  window.setContentSize(width, height);
+  await sleep(200);
+}
+
+async function pressEnter() {
+  window.webContents.sendInputEvent({ type: "keyDown", keyCode: "Enter" });
+  window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
+  window.webContents.sendInputEvent({ type: "keyUp", keyCode: "Enter" });
+  await sleep(30);
+}
+
 async function scrollToBottom() {
   await js("window.chatHistory.scrollToBottom()");
   await waitFor("window.chatHistory.state().atBottom", 10_000);
@@ -180,8 +202,8 @@ async function scene(name, story) {
 }
 
 async function dragUp(amount = 900) {
-  const top = await scrollTop();
-  await js(`window.chatHistory.setScrollTop(${Math.max(0, top - amount)})`);
+  const state = await readState();
+  await dragThumbTo(state.scrollTop - amount, { steps: 6, stepMs: 20 });
   await sleep(40);
 }
 
@@ -202,7 +224,7 @@ async function moveUp(point, mode) {
 
 async function reachTop(point, mode) {
   for (let step = 0; step < 120; step += 1) {
-    if ((await scrollTop()) <= 0) return;
+    if ((await scrollTop()) <= 1) return;
     await moveUp(point, mode);
   }
   throw new Error("the reader never reached the top of the loaded window");
@@ -211,11 +233,7 @@ async function reachTop(point, mode) {
 // The reader's place is a sentence of the transcript. Reply paragraphs are
 // stable-height prose, so the same sentence can be measured before and after
 // the page arrives without process groups opening or closing underneath it.
-async function readSentenceNear(point, mode) {
-  if (mode === "key") await keyUntilPagePending(point);
-  else if (mode === "drag") await dragUntilPagePending();
-  else await wheelUntilPagePending(point);
-  await reachTop(point, mode);
+async function pickReadingSentence() {
   const sentences = await js("window.chatHistory.sentencesBetween(40, 700)");
   const replies = sentences.filter((sentence) => sentence.text.startsWith("Answer "));
   const pool = replies.length > 0 ? replies : sentences.filter((s) => s.top >= 300 && s.top <= 400);
@@ -223,6 +241,14 @@ async function readSentenceNear(point, mode) {
   return pool.reduce((best, candidate) =>
     Math.abs(candidate.top - 350) < Math.abs(best.top - 350) ? candidate : best,
   );
+}
+
+async function readSentenceNear(point, mode) {
+  if (mode === "key") await keyUntilPagePending(point);
+  else if (mode === "drag") await dragUntilPagePending();
+  else await wheelUntilPagePending(point);
+  await reachTop(point, mode);
+  return pickReadingSentence();
 }
 
 async function measureArrival(sentence, before, measurement) {
@@ -354,6 +380,7 @@ async function run(payload) {
     await scene(name, async (measurement) => {
       await loadFresh(payload);
       const point = await prepareBottom();
+      if (mode === "drag") assertScrollbar(await readState(), "while the reader drags its thumb");
       const sentence = await readSentenceNear(point, mode);
       const before = await js("window.chatHistory.state()");
       const { settled } = await measureArrival(sentence, before, measurement);
@@ -496,6 +523,28 @@ async function run(payload) {
     window.setContentSize(VIEWPORT.width, VIEWPORT.height);
     await waitFor("window.chatHistory.navigator().present", 10_000);
     return { screenshot: screenshot ?? scrolledScreenshot };
+  });
+
+  await runScrollbarScenes({
+    payload,
+    scene,
+    loadFresh,
+    prepareBottom,
+    capture,
+    clickAt,
+    centre,
+    wheelUp,
+    sleep,
+    js,
+    waitFor,
+    insertText: (text) => window.webContents.insertText(text),
+    pressEnter,
+    setContentSize,
+    viewport: VIEWPORT,
+    pickReadingSentence,
+    measureArrival,
+    lineHeight: LINE_HEIGHT,
+    tools,
   });
 }
 

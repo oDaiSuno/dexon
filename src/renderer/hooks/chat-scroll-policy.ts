@@ -41,6 +41,10 @@ export function didUserScrollUp(previousScrollTop: number, currentScrollTop: num
   return currentScrollTop < previousScrollTop - USER_SCROLL_UP_MIN_PX;
 }
 
+export function isScrollbarPointerDown(event: Event, scroller: Element | null): boolean {
+  return event.type === "pointerdown" && scroller !== null && event.target === scroller;
+}
+
 export interface ScrollMagnetDisengageInput {
   previousScrollTop: number;
   currentScrollTop: number;

@@ -165,7 +165,7 @@ export function ChatWindow(props: Props) {
               ref={scrollContainerRef}
               role="region"
               aria-label={t("chatConversation", "Conversation")}
-              className="relative z-[1] flex-1 overflow-y-auto pt-4 [scrollbar-width:none]"
+              className="relative z-[1] flex-1 overflow-y-auto pt-4 [scrollbar-gutter:stable_both-edges]"
             >
               <div
                 style={{

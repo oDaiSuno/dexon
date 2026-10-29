@@ -15,38 +15,63 @@ import "./production-styles.mjs";
 const window = globalThis.window;
 const document = globalThis.document;
 setAppLanguage("en-US");
-const detail = createSessionDetail("native-chat", {
-  messages: [
-    { role: "user", content: "Native user message", timestamp: 1 },
+const extensionState = {
+  running: false,
+  state: {
+    extensionUi: {
+      runtimeId: "native-runtime",
+      revision: 1,
+      completed: [],
+      requests: [
+        {
+          type: "extension_ui_request",
+          id: "native-question",
+          method: "confirm",
+          title: "Confirm native operation",
+          message: "The conversation stays usable while deciding.",
+        },
+      ],
+    },
+  },
+};
+const shortMessages = [
+  { role: "user", content: "Native user message", timestamp: 1 },
+  {
+    role: "assistant",
+    content: [{ type: "text", text: "Native assistant reply" }],
+    provider: "fixture",
+    model: "fixture-model",
+    stopReason: "stop",
+    timestamp: 2,
+  },
+];
+const longMessages = [
+  ...shortMessages,
+  ...Array.from({ length: 12 }, (_value, index) => [
+    {
+      role: "user",
+      content: `Long question ${index + 1} asks how the conversation is laid out.`,
+      timestamp: index * 2 + 3,
+    },
     {
       role: "assistant",
-      content: [{ type: "text", text: "Native assistant reply" }],
+      content: [
+        {
+          type: "text",
+          text: `Long reply ${index + 1} keeps the conversation taller than one screen so the scrollbar appears. It stays plain prose, like a real answer, so every line keeps the same height.`,
+        },
+      ],
       provider: "fixture",
       model: "fixture-model",
       stopReason: "stop",
-      timestamp: 2,
+      timestamp: index * 2 + 4,
     },
-  ],
-  agentState: {
-    running: false,
-    state: {
-      extensionUi: {
-        runtimeId: "native-runtime",
-        revision: 1,
-        completed: [],
-        requests: [
-          {
-            type: "extension_ui_request",
-            id: "native-question",
-            method: "confirm",
-            title: "Confirm native operation",
-            message: "The conversation stays usable while deciding.",
-          },
-        ],
-      },
-    },
-  },
-});
+  ]),
+].flat();
+function detailFor(messages) {
+  return createSessionDetail("native-chat", { messages, agentState: extensionState });
+}
+let detail = detailFor(shortMessages);
 const host = createSessionTestHost({
   getSession: async () => detail,
   agentState: async () => ({ running: false }),
@@ -77,7 +102,8 @@ window.chatLayout = {
       title: text(chat, "Dexon"),
     };
   },
-  configure({ font = "standard", layout = "fixed", theme = "light", welcome = false } = {}) {
+  configure({ font = "standard", layout = "fixed", theme = "light", welcome = false, conversation = "short" } = {}) {
+    detail = detailFor(conversation === "long" ? longMessages : shortMessages);
     applyChatAppearance(document.documentElement, { fontSize: font, layout });
     // A persisted preference keeps the real theme Hook from correctly
     // replacing a temporary class with the current OS theme after mounting.
