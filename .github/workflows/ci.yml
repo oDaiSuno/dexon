@@ -260,8 +260,6 @@ jobs:
         run: npm run build:windows-helper
   package:
     name: Final package (${{ matrix.name }})
-    needs:
-      - quality
     strategy:
       fail-fast: false
       matrix:
