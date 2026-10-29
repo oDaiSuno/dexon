@@ -1,5 +1,6 @@
 import { useCallback, type MutableRefObject } from "react";
 import {
+  isScrollbarPointerDown,
   isUpwardScrollKey,
   isUpwardTouchGesture,
   marksChatScrollIntent,
@@ -30,6 +31,8 @@ type Dependencies = Pick<
   | "userScrollIntentUntilRef"
   | "lastScrollTopRef"
   | "touchStartClientYRef"
+  | "scrollbarHoldRef"
+  | "scrollbarReleaseAtRef"
   | "sessionChangeIgnoreScrollUntilRef"
 > & { visualFrameIdsRef: MutableRefObject<Set<number>> };
 function distanceFromBottom(container: HTMLElement): number {
@@ -53,6 +56,8 @@ export function useSessionScroll(context: Dependencies) {
     userScrollIntentUntilRef,
     lastScrollTopRef,
     touchStartClientYRef,
+    scrollbarHoldRef,
+    scrollbarReleaseAtRef,
     sessionChangeIgnoreScrollUntilRef,
     visualFrameIdsRef,
   } = context;
@@ -181,6 +186,7 @@ export function useSessionScroll(context: Dependencies) {
     (event: Event) => {
       if (event instanceof KeyboardEvent && !marksChatScrollIntent(event, SCROLL_KEYS)) return;
       const container = scrollContainerRef.current;
+      if (event.type === "pointerdown") scrollbarHoldRef.current = isScrollbarPointerDown(event, container);
       if (container) lastScrollTopRef.current = container.scrollTop;
       userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
 
@@ -193,8 +199,21 @@ export function useSessionScroll(context: Dependencies) {
         (event instanceof KeyboardEvent && isUpwardScrollKey(event.key));
       if (isUpwardGesture) disengageAutoFollowForExplicitUpwardGesture();
     },
-    [disengageAutoFollowForExplicitUpwardGesture, lastScrollTopRef, scrollContainerRef, userScrollIntentUntilRef],
+    [
+      disengageAutoFollowForExplicitUpwardGesture,
+      lastScrollTopRef,
+      scrollbarHoldRef,
+      scrollContainerRef,
+      userScrollIntentUntilRef,
+    ],
   );
+
+  const endScrollbarHold = useCallback(() => {
+    if (!scrollbarHoldRef.current) return;
+    scrollbarHoldRef.current = false;
+    scrollbarReleaseAtRef.current = Date.now();
+    userScrollIntentUntilRef.current = scrollbarReleaseAtRef.current + USER_SCROLL_INTENT_MS;
+  }, [scrollbarHoldRef, scrollbarReleaseAtRef, userScrollIntentUntilRef]);
 
   const handleTouchStart = useCallback(
     (event: TouchEvent) => {
@@ -226,12 +245,17 @@ export function useSessionScroll(context: Dependencies) {
     const currentScrollTop = container.scrollTop;
     lastScrollTopRef.current = currentScrollTop;
     updateScrollPresence();
+    const now = Date.now();
+    const releasedScrollbarAt = now - scrollbarReleaseAtRef.current;
+    if (scrollbarHoldRef.current || releasedScrollbarAt <= USER_SCROLL_INTENT_MS) {
+      userScrollIntentUntilRef.current = now + USER_SCROLL_INTENT_MS;
+      if (currentScrollTop < previousScrollTop) disengageAutoFollowForExplicitUpwardGesture();
+    }
     if (!agentRunningRef.current) {
       // Idle upward movement normally disengages the magnet so the next run
       // does not unexpectedly resume auto-follow. During session transitions,
       // the policy filters synthetic movement but still accepts explicit user
       // input. Scrolling back to the bottom re-engages the magnet.
-      const now = Date.now();
       if (
         shouldDisengageScrollMagnet({
           previousScrollTop,
@@ -247,7 +271,6 @@ export function useSessionScroll(context: Dependencies) {
       }
       return;
     }
-    const now = Date.now();
     // Local prompts deliberately move the user's message to the top; retain
     // the old programmatic-scroll guard for that path. During external
     // auto-follow, explicit upward input must win even while follow frames are
@@ -272,9 +295,12 @@ export function useSessionScroll(context: Dependencies) {
     agentRunningRef,
     autoFollowMagnetRef,
     completionScrollAllowedRef,
+    disengageAutoFollowForExplicitUpwardGesture,
     externalTurnAutoFollowRef,
     ignoreProgrammaticScrollUntilRef,
     lastScrollTopRef,
+    scrollbarHoldRef,
+    scrollbarReleaseAtRef,
     scrollContainerRef,
     sessionChangeIgnoreScrollUntilRef,
     updateScrollPresence,
@@ -282,6 +308,7 @@ export function useSessionScroll(context: Dependencies) {
   ]);
   return {
     markUserScrollIntent,
+    endScrollbarHold,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,

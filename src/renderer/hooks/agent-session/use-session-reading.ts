@@ -28,10 +28,12 @@ type Dependencies = Pick<
   | "externalTurnAutoFollowRef"
   | "autoFollowMagnetRef"
   | "userScrollIntentUntilRef"
+  | "scrollbarHoldRef"
 > &
   Pick<
     SessionScroll,
     | "markUserScrollIntent"
+    | "endScrollbarHold"
     | "handleTouchStart"
     | "handleTouchMove"
     | "handleTouchEnd"
@@ -60,7 +62,9 @@ export function useSessionReading(context: Dependencies, visible: boolean, resto
     externalTurnAutoFollowRef,
     autoFollowMagnetRef,
     userScrollIntentUntilRef,
+    scrollbarHoldRef,
     markUserScrollIntent,
+    endScrollbarHold,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
@@ -74,13 +78,18 @@ export function useSessionReading(context: Dependencies, visible: boolean, resto
 
   useEffect(() => {
     if (!visible) return;
+    const holdOptions = { capture: true, passive: true } as const;
     window.addEventListener("keydown", markUserScrollIntent);
     window.addEventListener("pointerdown", markUserScrollIntent, { passive: true });
+    window.addEventListener("pointerup", endScrollbarHold, holdOptions);
+    window.addEventListener("pointercancel", endScrollbarHold, holdOptions);
     return () => {
       window.removeEventListener("keydown", markUserScrollIntent);
       window.removeEventListener("pointerdown", markUserScrollIntent);
+      window.removeEventListener("pointerup", endScrollbarHold, holdOptions);
+      window.removeEventListener("pointercancel", endScrollbarHold, holdOptions);
     };
-  }, [visible, markUserScrollIntent]);
+  }, [visible, markUserScrollIntent, endScrollbarHold]);
 
   useEffect(() => {
     if (!visible) return;
@@ -151,6 +160,7 @@ export function useSessionReading(context: Dependencies, visible: boolean, resto
       if (cancelled || !visible) return;
       if (!completionScrollAllowedRef.current) return;
       if (!externalTurnAutoFollowRef.current && !autoFollowMagnetRef.current) return;
+      if (scrollbarHoldRef.current) return;
       if (Date.now() <= userScrollIntentUntilRef.current) return;
       scrollLiveContentToBottom();
     });
@@ -170,6 +180,7 @@ export function useSessionReading(context: Dependencies, visible: boolean, resto
     externalTurnAutoFollowRef,
     autoFollowMagnetRef,
     userScrollIntentUntilRef,
+    scrollbarHoldRef,
   ]);
 
   // Keep "away from bottom" fresh when the viewport or message layout changes.

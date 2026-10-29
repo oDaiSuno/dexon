@@ -120,6 +120,8 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const lastScrollTopRef = useRef(0);
   const touchStartClientYRef = useRef<number | null>(null);
+  const scrollbarHoldRef = useRef(false);
+  const scrollbarReleaseAtRef = useRef(0);
   const externalTurnAutoFollowRef = useRef(false);
   // Set when the user explicitly re-attaches the viewport to the newest
   // content (clicks "scroll to bottom"); live-follow then stays engaged until
@@ -251,6 +253,8 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     initialScrollDoneRef,
     userScrollIntentUntilRef,
     touchStartClientYRef,
+    scrollbarHoldRef,
+    scrollbarReleaseAtRef,
     sessionChangeIgnoreScrollUntilRef,
     onSystemPromptChange,
     systemPrompt,
