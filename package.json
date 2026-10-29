@@ -1,6 +1,6 @@
 {
   "name": "dexon",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "description": "Dexon — pure Electron desktop app for the pi coding agent",
   "homepage": "https://github.com/oDaiSuno/dexon#readme",
@@ -116,7 +116,7 @@
     "@types/yauzl": "3.4.0",
     "@vitejs/plugin-react": "^4.7.0",
     "electron": "43.1.1",
-    "electron-builder": "26.0.12",
+    "electron-builder": "26.18.0",
     "esbuild": "0.27.7",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",

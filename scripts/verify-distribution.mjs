@@ -72,7 +72,7 @@ function verifyApplication(container, resources) {
 
 function verifyMacApplication(container) {
   const app = path.join(container, "Dexon.app");
-
+  run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
   verifyApplication(container, path.join(app, "Contents/Resources"));
 }
 

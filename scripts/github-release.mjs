@@ -41,7 +41,7 @@ export function createReleaseDraft(repository, tag) {
       draft: true,
       prerelease: false,
       generate_release_notes: true,
-      body: "macOS: **Unsigned Beta** — no Developer ID signature and not notarized by Apple. macOS may block opening the download; automatic update installation is not guaranteed.\n\nWindows: **Unsigned Beta — Unknown Publisher**. Do not describe this as a certificate-backed trusted Windows build.\n\nFinal installation files were verified without rebuilding or resigning. Candidate manifests record their SHA-256 digests and CI identity. Installer lifecycle coverage is not a test of in-app update discovery or download.\n\nReview the successful workflow and enable immutable releases before publishing this draft.",
+      body: "macOS: **Unsigned Beta** — ad-hoc signed only, with no Developer ID signature and not notarized by Apple. If macOS blocks the first launch, open System Settings → Privacy & Security and choose Open Anyway; automatic update installation is not guaranteed.\n\nWindows: **Unsigned Beta — Unknown Publisher**. Do not describe this as a certificate-backed trusted Windows build.\n\nFinal installation files were verified without rebuilding or resigning. Candidate manifests record their SHA-256 digests and CI identity. Installer lifecycle coverage is not a test of in-app update discovery or download.\n\nReview the successful workflow and enable immutable releases before publishing this draft.",
     }),
   });
 }
