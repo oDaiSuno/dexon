@@ -20,5 +20,13 @@ await runRendererElectronCheck({
     "jump-to-unloaded-question",
     "navigator-follows-current",
     "existing-behaviour",
+    "scrollbar-shown-wide-and-narrow",
+    "streaming-fast-thumb-drag-holds-position",
+    "streaming-held-then-slow-thumb-drag-holds-position",
+    "streaming-track-click-holds-position",
+    "streaming-press-in-message-text-keeps-following",
+    "streaming-press-and-release-thumb-keeps-following",
+    "idle-thumb-drag-to-top-shows-earlier-messages",
+    "idle-thumb-drag-then-send-matches-wheel",
   ],
 });
