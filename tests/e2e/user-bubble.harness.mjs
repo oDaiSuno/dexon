@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, clipboard } from "electron";
 import { configureSmokeEnvironment } from "../../src/smoke/environment.ts";
+import { runFoldScenes } from "./user-bubble-fold-scenes.mjs";
 
 configureSmokeEnvironment();
 const output = process.env.DEXON_RENDERER_OUT;
@@ -26,6 +27,7 @@ const THUMB_PATH = "/tmp/tall-shot.png";
 
 const js = (source) => window.webContents.executeJavaScript(source, true);
 const page = (call) => js(`window.userBubble.${call}`);
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function settle() {
   await js("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
@@ -89,6 +91,34 @@ async function show(marker, theme = "light") {
 
 function near(actual, expected, message, tolerance = 0.1) {
   assert.ok(Math.abs(actual - expected) < tolerance, `${message}: ${actual} vs ${expected}`);
+}
+
+async function scene(name, story) {
+  const measurement = {};
+  try {
+    const result = await story(measurement);
+    records.push({ name, measurement, screenshot: result?.screenshot, pass: true });
+    console.log(`[user-bubble] ${name}: pass ${JSON.stringify(measurement)}`);
+  } catch (error) {
+    failures.push(`${name}: ${error.message}`);
+    records.push({ name, measurement, pass: false, error: error.message });
+    console.error(`[user-bubble] ${name}: FAIL ${error.message} ${JSON.stringify(measurement)}`);
+    if (window && !window.isDestroyed()) await capture(`failure-${name}`).catch(() => {});
+  }
+}
+
+async function setContentSize(width, height) {
+  window.setContentSize(width, height);
+  await paint();
+  await sleep(250);
+}
+
+async function setReducedMotion(enabled) {
+  if (!window.webContents.debugger.isAttached()) window.webContents.debugger.attach("1.3");
+  await window.webContents.debugger.sendCommand("Emulation.setEmulatedMedia", {
+    features: enabled ? [{ name: "prefers-reduced-motion", value: "reduce" }] : [],
+  });
+  await settle();
 }
 
 function verticallyOverlaps(left, right) {
@@ -445,6 +475,25 @@ async function run() {
       pass: true,
     });
   }
+
+  await runFoldScenes({
+    page,
+    js,
+    waitFor,
+    paint,
+    sleep,
+    capture,
+    click,
+    hover,
+    key,
+    near,
+    scene,
+    clipboard,
+    setContentSize,
+    setReducedMotion,
+    consoleErrors: () => [...failures],
+    records: () => records,
+  });
 
   assert.deepEqual(failures, [], "the real chat window reports no renderer errors");
 }

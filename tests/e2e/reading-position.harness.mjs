@@ -8,10 +8,13 @@ import { pingProductionHost, waitForProductionRenderer } from "../../src/smoke/p
 import { readingPositionPage } from "./reading-position-page.mjs";
 import { createConversationReader } from "./reading-position-reader.mjs";
 import {
+  foldReadingMarker,
+  foldReadingTitle,
   longReadingQuestions,
   longReadingTitle,
   parentReadingReply,
   parentReadingTitle,
+  questionLine,
   readingPositionScenes as requiredScenes,
   seedReadingPositionSessions,
   shortReadingTitle,
@@ -131,6 +134,61 @@ async function scene(name, check) {
 
 async function latestDistance() {
   return (await page("conversation")).distanceFromBottom;
+}
+
+const LONG_PROMPT_OFFSET = -400;
+const FAR_FROM_MESSAGE_TOP = -300;
+
+async function readIntoLongPrompt(marker) {
+  await page("scrollLongPromptTo", { marker, top: LONG_PROMPT_OFFSET });
+  await nextFrames();
+  return page("longPrompt", { marker });
+}
+
+async function settledLongPrompt(marker) {
+  const deadline = Date.now() + 20000;
+  let previous = null;
+  let stable = 0;
+  while (Date.now() < deadline) {
+    const state = await page("longPrompt", { marker });
+    stable = state && state.anchorTop === previous ? stable + 1 : 0;
+    previous = state?.anchorTop ?? null;
+    if (stable >= 3) return state;
+    await sleep(60);
+  }
+  throw new Error(`the long prompt never settled after returning (${previous})`);
+}
+
+async function settledAnchor() {
+  const deadline = Date.now() + 20000;
+  let previous = null;
+  let stable = 0;
+  let current;
+  while (Date.now() < deadline) {
+    current = (await page("readingAnchors")).find((anchor) => anchor.top + anchor.height > 0) ?? null;
+    stable = current && current.top === previous ? stable + 1 : 0;
+    previous = current?.top ?? null;
+    if (stable >= 3) return current;
+    await sleep(60);
+  }
+  throw new Error(`the reading position never settled (${previous})`);
+}
+
+async function settleAtText(text, top) {
+  const deadline = Date.now() + 20000;
+  let previous = null;
+  let stable = 0;
+  let current;
+  while (Date.now() < deadline) {
+    await page("scrollTextTo", { text, top });
+    await nextFrames();
+    current = await page("offset", { text });
+    stable = current !== null && current === previous ? stable + 1 : 0;
+    previous = current;
+    if (stable >= 3) return current;
+    await sleep(80);
+  }
+  throw new Error(`the conversation never settled ${top}px into “${text}” (${previous})`);
 }
 
 const loadedWindow = new Promise((resolve, reject) => {
@@ -306,6 +364,81 @@ async function run() {
     const measurement = await expectSamePosition(watched, "child from parent link");
     return { ...measurement, clicksNeeded: attempts, rows: { parent: parentRow, child: childRow } };
   });
+  await scene("09-long-prompt-return", async () => {
+    await openConversation(foldReadingTitle, foldReadingMarker);
+    await waitFor(
+      async () => (await page("longPrompt", { marker: foldReadingMarker }))?.folded === true,
+      "the folded long prompt",
+    );
+    const folded = await page("longPrompt", { marker: foldReadingMarker });
+    await clickPoint(await page("longPromptTogglePoint", { marker: foldReadingMarker }));
+    await waitFor(
+      async () => (await page("longPrompt", { marker: foldReadingMarker }))?.expanded === "true",
+      "the long prompt to open",
+    );
+    const opened = await page("longPrompt", { marker: foldReadingMarker });
+    const reading = await readIntoLongPrompt(foldReadingMarker);
+    assert.ok(
+      reading.anchorTop <= -250,
+      `the reader stops in the open prompt, past what stays visible when folded (${reading.anchorTop}px from the top)`,
+    );
+
+    await openConversation(shortReadingTitle, `Question 01 of ${shortReadingTitle}`);
+    await clickHistory(foldReadingTitle);
+    await waitFor(
+      async () => (await page("longPrompt", { marker: foldReadingMarker }))?.rendered === true,
+      "the long prompt again",
+    );
+    const settled = await settledLongPrompt(foldReadingMarker);
+    assert.equal(settled.folded, true, "coming back folds the long prompt again");
+    assert.equal(settled.expanded, "false", "the folded prompt reports its collapsed state");
+    assert.ok(
+      settled.textTop !== null && settled.textTop >= 0 && settled.textTop <= 60,
+      `the prompt starts at the top of the viewport (its text begins at ${settled.textTop}px)`,
+    );
+    assert.ok(
+      Math.abs(settled.anchorTop - 16) <= 12,
+      `the prompt top lands 16px from the top of the viewport (it is at ${settled.anchorTop}px)`,
+    );
+    return {
+      folded: { folded: folded.folded, expanded: folded.expanded, toggle: folded.toggleName },
+      opened: { expanded: opened.expanded, height: opened.textHeight },
+      reading: { anchorTop: reading.anchorTop, scrollTop: reading.scrollTop },
+      settled,
+    };
+  });
+  await scene("10-other-positions-unchanged", async () => {
+    await openConversation(foldReadingTitle, foldReadingMarker);
+    await settledAnchor();
+    const question = questionLine(foldReadingTitle, 4);
+    const top = await settleAtText(question, FAR_FROM_MESSAGE_TOP);
+    const anchor = await settledAnchor();
+    assert.ok(anchor, "the remembered position sits on a message");
+    assert.ok(
+      Math.abs(top - 16) > 8 * RECORD_TOLERANCE,
+      `the remembered position is far from a message top plus 16px (${top}px below the top of the viewport)`,
+    );
+    assert.ok(
+      anchor.top <= -100,
+      `the remembered message starts well above the viewport (${anchor.top}px from the top of the viewport)`,
+    );
+    assert.ok(!anchor.text.includes(foldReadingMarker), "the remembered position is not on the folded prompt");
+    await sleep(150);
+    await openConversation(shortReadingTitle, `Question 01 of ${shortReadingTitle}`);
+    await clickHistory(foldReadingTitle);
+    await waitFor(
+      async () => (await conversationShown()) && (await page("text")).includes(question),
+      "the conversation holding the long prompt again",
+    );
+    const measurement = await expectSamePosition({ text: question, top }, "long prompt conversation");
+    const restoredAnchor = await settledAnchor();
+    assert.equal(restoredAnchor?.key, anchor.key, "coming back restores the message the reader left");
+    assert.ok(
+      Math.abs(restoredAnchor.top - anchor.top) <= RECORD_TOLERANCE,
+      `the remembered message sits where the reader left it (${anchor.top} → ${restoredAnchor?.top})`,
+    );
+    return { ...measurement, anchor, restoredAnchor };
+  });
   assert.deepEqual(consoleErrors, [], "production renderer emitted no errors");
 }
 
@@ -324,7 +457,13 @@ app.once("will-quit", () => {
         pass,
         entry,
         evidenceDirectory: output,
-        seeds: { longFile: seeded.longFile, longBytes: seeded.longBytes, longId: seeded.longId },
+        seeds: {
+          longFile: seeded.longFile,
+          longBytes: seeded.longBytes,
+          longId: seeded.longId,
+          foldFile: seeded.foldFile,
+          foldId: seeded.foldId,
+        },
         shutdown: "will-quit",
         platform: process.platform,
         arch: process.arch,
