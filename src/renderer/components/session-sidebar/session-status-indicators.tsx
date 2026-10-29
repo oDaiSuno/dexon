@@ -1,35 +1,8 @@
-import { useSyncExternalStore, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import { RowIcon } from "./session-relation-glyphs";
 
-// Phase 4 (review R2): the built-in SVG (SMIL) animations ignore CSS
-// prefers-reduced-motion handling, so under the reduced-motion preference the
-// indicators render their static, still-recognizable marks instead of the
-// animated ones. Normal (non-reduced) rendering is unchanged.
-
-const REDUCE_QUERY = "(prefers-reduced-motion: reduce)";
-
-function subscribe(callback: () => void): () => void {
-  if (typeof window === "undefined" || !window.matchMedia) return () => {};
-  const query = window.matchMedia(REDUCE_QUERY);
-  query.addEventListener("change", callback);
-  return () => query.removeEventListener("change", callback);
-}
-
-function getMatches(): boolean {
-  if (typeof window === "undefined" || !window.matchMedia) return false;
-  return window.matchMedia(REDUCE_QUERY).matches;
-}
-
-function getMatchesServer(): boolean {
-  return false;
-}
-
-function usePrefersReducedMotion(): boolean {
-  return useSyncExternalStore(subscribe, getMatches, getMatchesServer);
-}
-
-export function LoaderGlyph({ size, spinning = false }: { size: number; spinning?: boolean }) {
+export function LoaderGlyph({ size }: { size: number }) {
   return (
     <RowIcon size={size} strokeWidth={2}>
       <g>
@@ -41,29 +14,18 @@ export function LoaderGlyph({ size, spinning = false }: { size: number; spinning
         <path d="m4.9 19.1 2.9-2.9" />
         <path d="M2 12h4" />
         <path d="m4.9 4.9 2.9 2.9" />
-        {spinning && (
-          <animateTransform
-            attributeName="transform"
-            type="rotate"
-            from="0 12 12"
-            to="360 12 12"
-            dur="1.1s"
-            repeatCount="indefinite"
-          />
-        )}
       </g>
     </RowIcon>
   );
 }
 
-export function QuestionGlyph({ size, pulsing = false }: { size: number; pulsing?: boolean }) {
+export function QuestionGlyph({ size }: { size: number }) {
   return (
     <RowIcon size={size} strokeWidth={2}>
       <g>
         <circle cx="12" cy="12" r="10" />
         <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
         <path d="M12 17h.01" />
-        {pulsing && <animate attributeName="opacity" values="1;0.45;1" dur="2.4s" repeatCount="indefinite" />}
       </g>
     </RowIcon>
   );
@@ -122,26 +84,30 @@ function StatusPill({ tone, label, icon }: { tone: keyof typeof PILL_TONES; labe
 
 export function RunningSessionIndicator() {
   const { t } = useI18n();
-  const reduced = usePrefersReducedMotion();
   return (
     <span
       title={t("agentRunning", "Agent is running…")}
       aria-label={t("agentRunningStatus", "Agent running")}
       style={{ display: "inline-flex", flexShrink: 0, color: "var(--fx-accent-blue-text)" }}
     >
-      <LoaderGlyph size={13} spinning={!reduced} />
+      <span className="session-status-spin">
+        <LoaderGlyph size={13} />
+      </span>
     </span>
   );
 }
 
 export function AwaitingInputSessionIndicator() {
   const { t } = useI18n();
-  const reduced = usePrefersReducedMotion();
   return (
     <StatusPill
       tone="warning"
       label={t("sessionStatusAwaitingInput", "Waiting for your answer")}
-      icon={<QuestionGlyph size={12} pulsing={!reduced} />}
+      icon={
+        <span className="session-status-pulse">
+          <QuestionGlyph size={12} />
+        </span>
+      }
     />
   );
 }

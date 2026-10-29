@@ -10,3 +10,25 @@
 .session-rename-input::selection {
   background: var(--fx-accent-blue-soft);
 }
+
+.session-status-spin,
+.session-status-pulse {
+  display: inline-flex;
+}
+.session-status-spin {
+  animation: chat-spin 1.1s var(--ease-linear) infinite;
+}
+.session-status-pulse {
+  animation: session-status-pulse 2.4s var(--ease-linear) infinite;
+}
+@keyframes session-status-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-status-spin,
+  .session-status-pulse {
+    animation: none;
+  }
+}
