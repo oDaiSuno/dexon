@@ -70,6 +70,7 @@ if (
     installUpdate: () => ipcRenderer.invoke("desktop:update:install"),
     setAutomaticUpdateChecks: (enabled) => ipcRenderer.invoke("desktop:update:set-automatic-checks", enabled),
     getHostStatus: () => ipcRenderer.invoke("desktop:get-host-status"),
+    restartHost: () => ipcRenderer.invoke("desktop:restart-host"),
     getToolchainState: (cwd) => ipcRenderer.invoke("desktop:toolchains:get-state", cwd),
     rescanToolchains: (cwd) => ipcRenderer.invoke("desktop:toolchains:rescan", cwd),
     performToolchainAction: (request) => ipcRenderer.invoke("desktop:toolchains:action", request),

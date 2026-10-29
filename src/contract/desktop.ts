@@ -167,6 +167,7 @@ export interface PiBridge {
   installUpdate: () => Promise<void>;
   setAutomaticUpdateChecks: (enabled: boolean) => Promise<DesktopUpdateState>;
   getHostStatus: () => Promise<HostStatus>;
+  restartHost: () => Promise<void>;
   getToolchainState: (cwd?: string) => Promise<PublicToolchainState>;
   rescanToolchains: (cwd?: string) => Promise<PublicToolchainState>;
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;

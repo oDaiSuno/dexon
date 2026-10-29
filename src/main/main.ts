@@ -401,7 +401,7 @@ function startMainProcess(): void {
       appendMainLog(
         windowsManagedProcessHelper.ok
           ? `windows managed process helper verified build=${windowsManagedProcessHelper.descriptor.buildId} provenance=${windowsManagedProcessHelper.descriptor.provenance}`
-          : `windows managed process helper unavailable error=${windowsManagedProcessHelper.errorCode}`,
+          : `windows managed process helper unavailable error=${windowsManagedProcessHelper.errorCode}${"reason" in windowsManagedProcessHelper ? ` reason=${windowsManagedProcessHelper.reason}` : ""}`,
       );
     }
     const reaperDirectory = path.join(app.getPath("userData"), "managed-process-reaper");

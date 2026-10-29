@@ -19,7 +19,8 @@ export type ManagedProcessReaperStatus = {
   ready: boolean;
   revision: number;
   records: number;
-  errorCode?: "PLATFORM_UNSUPPORTED" | "JOURNAL_INVALID" | "IDENTITY_UNCERTAIN" | "REAP_FAILED";
+  errorCode?:
+    "PLATFORM_UNSUPPORTED" | "JOURNAL_INVALID" | "IDENTITY_UNCERTAIN" | "REAP_FAILED" | "CONTAINMENT_UNAVAILABLE";
 };
 
 export interface ManagedProcessReaperOptions {
@@ -251,7 +252,7 @@ export class ManagedProcessReaper {
     }
     this.ready = this.platform !== "win32" || Boolean(this.windowsHelper || this.reapWindows);
     if (!this.ready) {
-      this.errorCode = "REAP_FAILED";
+      this.errorCode = "CONTAINMENT_UNAVAILABLE";
       return this.status();
     }
     if (this.records.size > 0) await this.reapAll();
