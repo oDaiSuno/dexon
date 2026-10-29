@@ -1,6 +1,6 @@
-import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { isSessionToolName } from "@shared/session-orchestration";
+import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { SessionToolRow } from "./session-tool-row";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
@@ -13,6 +13,8 @@ interface ToolCallBlockProps {
   result?: ToolResultMessage;
   duration?: number;
   startedAt?: number;
+  stateKey: string;
+  expansionStore?: ThinkingExpansionStore;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
 }
 
@@ -20,8 +22,17 @@ export function ToolCallBlock(props: ToolCallBlockProps) {
   return isSessionToolName(props.block.toolName) ? <SessionToolRow {...props} /> : <GenericToolRow {...props} />;
 }
 
-function GenericToolRow({ block, result, duration, startedAt, onLoadDeferredContent }: ToolCallBlockProps) {
-  const [expanded, setExpanded] = useState(false);
+function GenericToolRow({
+  block,
+  result,
+  duration,
+  startedAt,
+  stateKey,
+  expansionStore,
+  onLoadDeferredContent,
+}: ToolCallBlockProps) {
+  const [remembered, toggle] = useExpansion(expansionStore, stateKey);
+  const expanded = remembered ?? false;
   const { t } = useI18n();
   const detailMounted = useDelayedUnmount(expanded);
   const inputStr = JSON.stringify(block.input, null, 2);
@@ -51,7 +62,7 @@ function GenericToolRow({ block, result, duration, startedAt, onLoadDeferredCont
           type="button"
           className={`chat-tool-row chat-quiet-head${isRunning ? " is-running" : ""}${isError ? " is-error" : ""}`}
           aria-expanded={expanded}
-          onClick={() => setExpanded((v) => !v)}
+          onClick={() => toggle(expanded)}
         >
           <span className={`chat-tool-icon${isError ? " is-error" : ""}`} aria-hidden="true">
             {isRunning ? <span className="chat-tool-spinner" /> : <ToolGlyph toolName={block.toolName} />}

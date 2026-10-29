@@ -215,7 +215,7 @@ export function AssistantMessageView({
             cwd={cwd}
             onOpenFile={onOpenFile}
             onLoadDeferredContent={onLoadDeferredContent}
-            thinkingStateKey={`${entryId ?? "assistant"}:${originalIndex}`}
+            blockStateKey={`${entryId ?? "assistant"}:${originalIndex}`}
             thinkingExpansionStore={thinkingExpansionStore}
           />
         ))}
@@ -238,7 +238,7 @@ function BlockView({
   cwd,
   onOpenFile,
   onLoadDeferredContent,
-  thinkingStateKey,
+  blockStateKey,
   thinkingExpansionStore,
 }: {
   block: AssistantContentBlock;
@@ -250,7 +250,7 @@ function BlockView({
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
-  thinkingStateKey: string;
+  blockStateKey: string;
   thinkingExpansionStore?: ThinkingExpansionStore;
 }) {
   if (block.type === "text") {
@@ -262,7 +262,7 @@ function BlockView({
         <ThinkingBlock
           block={block as ThinkingContent}
           duration={streamingDuration}
-          stateKey={thinkingStateKey}
+          stateKey={blockStateKey}
           store={thinkingExpansionStore}
           streaming={isStreaming}
         />
@@ -281,6 +281,8 @@ function BlockView({
           result={result}
           duration={duration}
           startedAt={toolStartedAt}
+          stateKey={blockStateKey}
+          expansionStore={thinkingExpansionStore}
           onLoadDeferredContent={onLoadDeferredContent}
         />
         <DeferredContentActions content={[block]} onLoad={onLoadDeferredContent} />

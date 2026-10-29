@@ -38,7 +38,14 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const deferredContent = useSessionDeferredContent({ ...state, ...history });
   const connection = useSessionConnection({ ...state, ...history });
   const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
-  const events = useSessionEvents({ ...state, ...history, ...connection, ...extensions, readingVisibleRef });
+  const events = useSessionEvents({
+    ...state,
+    ...history,
+    ...connection,
+    ...extensions,
+    readingVisibleRef,
+    expansionStores: opts.expansionStores,
+  });
   const actions = useSessionActions({ ...state, ...history, ...connection, ...extensions, ...events });
   const versions = useSessionVersions({ ...state, ...history, ...connection, ...extensions, ...events });
   const models = useSessionModels({ ...state, ...history, ...connection, ...extensions, ...events, ...actions });

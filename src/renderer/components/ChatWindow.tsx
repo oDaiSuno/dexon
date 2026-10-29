@@ -219,7 +219,7 @@ export function ChatWindow(props: Props) {
                         isStreaming
                         cwd={messageCwd}
                         onOpenFile={onOpenFile}
-                        entryId="streaming"
+                        entryId={streamState.streamingEntryId ?? undefined}
                         thinkingExpansionStore={thinkingExpansionStore}
                         compact
                       />

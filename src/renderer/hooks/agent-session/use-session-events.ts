@@ -1,8 +1,14 @@
 import { agentState } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
-import { appendLocalHistoryMessage, replaceLastHistoryMessage } from "@/lib/session-history-update";
+import {
+  appendLocalHistoryMessage,
+  nameLastHistoryEntry,
+  renameHistoryEntry,
+  replaceLastHistoryMessage,
+} from "@/lib/session-history-update";
+import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, ExtensionUiRequest } from "@/lib/types";
-import { useCallback, useEffect, type MutableRefObject } from "react";
+import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import {
   AGENT_STATE_RECONCILE_MS,
   AgentEvent,
@@ -45,8 +51,10 @@ type Dependencies = Pick<
   | "setCompactError"
   | "setCompactResult"
   | "handleAgentEventRef"
+  | "unsavedMessages"
 > & {
   readingVisibleRef: MutableRefObject<boolean>;
+  expansionStores?: readonly ThinkingExpansionStore[];
 } & Pick<SessionHistory, "loadSession" | "updateHistory"> &
   Pick<SessionExtensions, "addNotice" | "handleExtensionUiRequest">;
 export function useSessionEvents(context: Dependencies) {
@@ -80,6 +88,8 @@ export function useSessionEvents(context: Dependencies) {
     handleExtensionUiRequest,
     handleAgentEventRef,
     readingVisibleRef,
+    unsavedMessages,
+    expansionStores,
   } = context;
 
   const finishPromptWithoutStream = useCallback(
@@ -217,6 +227,8 @@ export function useSessionEvents(context: Dependencies) {
     agentRunningRef.current = agentRunning;
   }, [agentRunning, agentRunningRef]);
 
+  const expansionStoresRef = useRef<readonly ThinkingExpansionStore[]>(expansionStores ?? []);
+  expansionStoresRef.current = expansionStores ?? [];
   const handleAgentEvent = useCallback(
     (event: AgentEvent) => {
       switch (event.type) {
@@ -235,6 +247,7 @@ export function useSessionEvents(context: Dependencies) {
           break;
         case "agent_start":
           agentRunningRef.current = true;
+          unsavedMessages.endStreaming();
           setAgentRunning(true);
           setAgentPhase({ kind: "waiting_model" });
           setRetryInfo((current) => (current ? { ...current, waiting: false } : current));
@@ -249,6 +262,7 @@ export function useSessionEvents(context: Dependencies) {
             break;
           }
           agentRunningRef.current = false;
+          unsavedMessages.endStreaming();
           setAgentRunning(false);
           setAgentPhase(null);
           setRetryInfo(null);
@@ -299,7 +313,11 @@ export function useSessionEvents(context: Dependencies) {
             break;
           }
           if (msg) {
-            dispatch({ type: "update", message: normalizeToolCalls(msg as AgentMessage) });
+            dispatch({
+              type: "update",
+              message: normalizeToolCalls(msg as AgentMessage),
+              entryId: unsavedMessages.streamingEntryId(msg.timestamp),
+            });
           }
           setAgentPhase(null);
           break;
@@ -310,6 +328,7 @@ export function useSessionEvents(context: Dependencies) {
           // appending it again would duplicate it.
           if (!agentRunningRef.current) break;
           const completed = event.message as AgentMessage | undefined;
+          const streamingEntryId = unsavedMessages.endStreaming();
           if (completed && completed.role === "user") {
             // Delivered steering/follow-up messages surface here as user
             // messages. The run's initial prompt also emits one, but handleSend
@@ -319,22 +338,38 @@ export function useSessionEvents(context: Dependencies) {
             const deliveredKey = userMessageKey(delivered);
             const optimisticKey = optimisticUserMessageKeyRef.current;
             optimisticUserMessageKeyRef.current = null;
+            let questionEntryId = unsavedMessages.nextEntryId();
             updateHistory((current) => {
-              const last = current.messages[current.messages.length - 1];
-              if (optimisticKey && last?.role === "user" && userMessageKey(last) === optimisticKey) {
-                return optimisticKey === deliveredKey ? current : replaceLastHistoryMessage(current, delivered);
-              }
-              return appendLocalHistoryMessage(current, delivered);
+              const index = current.messages.length - 1;
+              const last = current.messages[index];
+              const keepsOptimistic =
+                !!optimisticKey && last?.role === "user" && userMessageKey(last) === optimisticKey;
+              if (!keepsOptimistic) return appendLocalHistoryMessage(current, delivered, questionEntryId);
+              questionEntryId = current.entryIds[index] || questionEntryId;
+              return optimisticKey === deliveredKey
+                ? nameLastHistoryEntry(current, questionEntryId)
+                : replaceLastHistoryMessage(current, delivered, questionEntryId);
             });
+            unsavedMessages.awaitSave(questionEntryId);
           } else if (completed) {
             // pi stamps event messages at their START; the event itself fires
             // at completion. Stamp receive time so duration math (turn header,
             // thinking rows) stays valid until the post-run session reload.
             const stamped = { ...normalizeToolCalls(completed), timestamp: Date.now() } as AgentMessage;
-            updateHistory((current) => appendLocalHistoryMessage(current, stamped));
+            const entryId = streamingEntryId ?? unsavedMessages.nextEntryId();
+            updateHistory((current) => appendLocalHistoryMessage(current, stamped, entryId));
+            unsavedMessages.awaitSave(entryId);
           }
           dispatch({ type: "reset" });
           setAgentPhase({ kind: "waiting_model" });
+          break;
+        }
+        case "message_saved": {
+          const savedEntryId = event.entryId as string | undefined;
+          const unsavedEntryId = unsavedMessages.takeAwaitingSave();
+          if (!savedEntryId || !unsavedEntryId) break;
+          for (const store of expansionStoresRef.current) store.adopt(unsavedEntryId, savedEntryId);
+          updateHistory((current) => renameHistoryEntry(current, unsavedEntryId, savedEntryId));
           break;
         }
         case "tool_execution_start": {
@@ -427,6 +462,7 @@ export function useSessionEvents(context: Dependencies) {
       setRetryInfo,
       setSystemPrompt,
       t,
+      unsavedMessages,
       updateHistory,
       readingVisibleRef,
     ],
