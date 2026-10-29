@@ -127,7 +127,7 @@ export function navigationBoundary({
   };
   const announceSession = (detail) => {
     for (const listener of sessionChangedListeners)
-      listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
+      listener({ cwd: detail.info.cwd, sessionId: detail.sessionId, session: structuredClone(detail.info) });
   };
   const call = async (method, params) => {
     switch (method) {
@@ -529,7 +529,7 @@ export function navigationBoundary({
       detail.context.historyRevision = `${sessionId}-revision-appended-${added + 2}`;
       detail.info.messageCount = (detail.info.messageCount ?? added) + 2;
       for (const listener of sessionChangedListeners)
-        listener({ cwd: detail.info.cwd, session: structuredClone(detail.info) });
+        listener({ cwd: detail.info.cwd, sessionId: detail.sessionId, session: structuredClone(detail.info) });
     },
     runningSubscribers: () => runningListeners.size,
     sessionChangedSubscribers: () => sessionChangedListeners.size,
