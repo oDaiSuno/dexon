@@ -148,6 +148,22 @@ export class HostManager {
     return exitPromise;
   }
 
+  async restartAfterCrash(): Promise<void> {
+    if (this.status !== "crashed" || this.child) return;
+    this.restartTimes = [];
+    this.setStatus("starting", "Restarting Host on request");
+    try {
+      await this.beforeRestartHandler?.();
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      appendMainLog(`agent-host manual restart blocked: ${reason}`);
+      this.setStatus("crashed", reason);
+      throw error;
+    }
+    if (this.getStatus() !== "starting" || this.child) return;
+    this.spawn();
+  }
+
   /** Hand a MessagePort to the Host so a renderer can talk to it directly. */
   attachRendererPort(port: MessagePortMain): void {
     if (!this.child || this.status !== "ready") {
@@ -400,6 +416,7 @@ export class HostManager {
   private startPing(): void {
     this.clearPing();
     this.lastPingTick = Date.now();
+    this.lastPong = this.lastPingTick;
     this.pingTimer = setInterval(() => {
       if (!this.child) return;
       const now = Date.now();

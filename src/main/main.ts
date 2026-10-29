@@ -29,6 +29,7 @@ import { BrowserService } from "./browser/browser-service";
 import { findDesktopDeepLink, parseDesktopDeepLink } from "./deep-link";
 import { restartHostAfterExit } from "./host-install-recovery";
 import { ManagedProcessReaper, secureWindowsReaperDirectory } from "./managed-process/reaper";
+import { canRestartHostAfterCleanup } from "./managed-process/restart-gate";
 import { beforeDeadline, cleanupManagedProcessContainment } from "./managed-process/shutdown-cleanup";
 import {
   resolveWindowsManagedProcessHelper,
@@ -400,7 +401,7 @@ function startMainProcess(): void {
       appendMainLog(
         windowsManagedProcessHelper.ok
           ? `windows managed process helper verified build=${windowsManagedProcessHelper.descriptor.buildId} provenance=${windowsManagedProcessHelper.descriptor.provenance}`
-          : `windows managed process helper unavailable error=${windowsManagedProcessHelper.errorCode}`,
+          : `windows managed process helper unavailable error=${windowsManagedProcessHelper.errorCode}${"reason" in windowsManagedProcessHelper ? ` reason=${windowsManagedProcessHelper.reason}` : ""}`,
       );
     }
     const reaperDirectory = path.join(app.getPath("userData"), "managed-process-reaper");
@@ -585,7 +586,7 @@ function startMainProcess(): void {
       appendMainLog(
         `managed process pre-restart reap ready=${status.ready} records=${status.records}${status.errorCode ? ` error=${status.errorCode}` : ""}`,
       );
-      if (!status.ready || status.records !== 0) {
+      if (!canRestartHostAfterCleanup(status)) {
         throw new Error(`Managed process cleanup blocked Host restart (${status.errorCode ?? "unknown"})`);
       }
     });

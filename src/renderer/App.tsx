@@ -1,4 +1,13 @@
-import { Component, type CSSProperties, type ErrorInfo, type ReactNode, useEffect, useState } from "react";
+import {
+  Component,
+  type CSSProperties,
+  type ErrorInfo,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { AppShell } from "@/components/AppShell";
 import { ensureRpc, resetRpc } from "@/lib/api-client";
 import { useChatAppearance } from "@/hooks/useChatAppearance";
@@ -38,26 +47,27 @@ export function App() {
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
+  const cancelledRef = useRef(false);
+
+  const connect = useCallback(() => {
+    ensureRpc()
+      .then(() => {
+        if (!cancelledRef.current) {
+          setReady(true);
+          setError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelledRef.current) {
+          setError(err instanceof Error ? err.message : String(err));
+          setReady(false);
+        }
+      });
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    cancelledRef.current = false;
     setStatus(window.piBridge ? "Waiting for Agent Host…" : "piBridge missing (preload failed?)");
-
-    const connect = () => {
-      ensureRpc()
-        .then(() => {
-          if (!cancelled) {
-            setReady(true);
-            setError(null);
-          }
-        })
-        .catch((err) => {
-          if (!cancelled) {
-            setError(err instanceof Error ? err.message : String(err));
-            setReady(false);
-          }
-        });
-    };
 
     connect();
 
@@ -85,13 +95,26 @@ export function App() {
     window.addEventListener("focus", onFocus);
 
     return () => {
-      cancelled = true;
+      cancelledRef.current = true;
       offRestart?.();
       offCrash?.();
       offMenuDiag?.();
       window.removeEventListener("focus", onFocus);
     };
-  }, []);
+  }, [connect]);
+
+  const retry = useCallback(async () => {
+    try {
+      await window.piBridge?.restartHost?.();
+    } catch (err) {
+      if (!cancelledRef.current) setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    if (cancelledRef.current) return;
+    setError(null);
+    setStatus("Waiting for Agent Host…");
+    connect();
+  }, [connect]);
 
   if (error) {
     return (
@@ -102,7 +125,7 @@ export function App() {
           <p style={{ ...bodyStyle, fontSize: "var(--text-label)" }}>
             Host must be running (utilityProcess). Check logs if this persists.
           </p>
-          <button type="button" onClick={() => window.location.reload()} style={btnPrimary}>
+          <button type="button" onClick={() => void retry()} style={btnPrimary}>
             Retry
           </button>
           <button type="button" onClick={() => void window.piBridge?.openLogs()} style={btnSecondary}>

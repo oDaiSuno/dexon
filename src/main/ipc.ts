@@ -139,6 +139,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     return updateManager.setAutomaticChecksEnabled(enabled);
   });
   trustedHandle("desktop:get-host-status", () => getHostManager()?.getStatus() ?? "stopped");
+  trustedHandle("desktop:restart-host", () => getHostManager()?.restartAfterCrash());
   trustedHandle("desktop:toolchains:get-state", (_event, cwd: unknown) => {
     return getToolchainState(validateOptionalToolchainCwd(cwd));
   });

@@ -12,9 +12,13 @@ export interface WindowsManagedProcessHelperDescriptor {
   sha256: string;
 }
 
+export type WindowsManagedProcessHelperIntegrityReason =
+  "content-mismatch" | "version-check-timeout" | "version-check-failed";
+
 export type WindowsManagedProcessHelperResolution =
   | { ok: true; descriptor: WindowsManagedProcessHelperDescriptor }
-  | { ok: false; errorCode: "HELPER_MISSING" | "HELPER_INTEGRITY" };
+  | { ok: false; errorCode: "HELPER_MISSING" }
+  | { ok: false; errorCode: "HELPER_INTEGRITY"; reason: WindowsManagedProcessHelperIntegrityReason };
 
 type HelperManifest = {
   schemaVersion: 1;
@@ -77,27 +81,34 @@ function containedFile(directory: string, file: string): string | null {
     : null;
 }
 
-function versionMatches(executable: string, manifest: HelperManifest): boolean {
+function versionMatches(
+  executable: string,
+  manifest: HelperManifest,
+): "match" | WindowsManagedProcessHelperIntegrityReason {
   const result = spawnSync(executable, ["--version-json-v1"], {
     encoding: "utf8",
-    timeout: 2_000,
+    timeout: 10_000,
     windowsHide: true,
     shell: false,
     stdio: ["ignore", "pipe", "ignore"],
   });
-  if (result.status !== 0 || result.signal || result.error) return false;
+  if ((result.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") return "version-check-timeout";
+  if (result.status !== 0 || result.signal || result.error) return "version-check-failed";
+  let parsed: unknown;
   try {
-    const version = JSON.parse(result.stdout) as Record<string, unknown>;
-    return (
-      Object.keys(version).sort().join("\0") === "arch\0buildId\0protocolVersion\0provenance" &&
-      version.protocolVersion === manifest.protocolVersion &&
-      version.buildId === manifest.buildId &&
-      version.arch === manifest.arch &&
-      version.provenance === manifest.provenance
-    );
+    parsed = JSON.parse(result.stdout);
   } catch {
-    return false;
+    return "version-check-failed";
   }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return "content-mismatch";
+  const version = parsed as Record<string, unknown>;
+  return Object.keys(version).sort().join("\0") === "arch\0buildId\0protocolVersion\0provenance" &&
+    version.protocolVersion === manifest.protocolVersion &&
+    version.buildId === manifest.buildId &&
+    version.arch === manifest.arch &&
+    version.provenance === manifest.provenance
+    ? "match"
+    : "content-mismatch";
 }
 
 export function resolveWindowsManagedProcessHelper(options: {
@@ -114,18 +125,20 @@ export function resolveWindowsManagedProcessHelper(options: {
     const manifestPath = containedFile(directory, "manifest.json");
     if (!manifestPath) return { ok: false, errorCode: "HELPER_MISSING" };
     const stat = fs.statSync(manifestPath);
-    if (stat.size <= 0 || stat.size > 16 * 1024) return { ok: false, errorCode: "HELPER_INTEGRITY" };
+    if (stat.size <= 0 || stat.size > 16 * 1024)
+      return { ok: false, errorCode: "HELPER_INTEGRITY", reason: "content-mismatch" };
     manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
   } catch {
     return { ok: false, errorCode: "HELPER_MISSING" };
   }
-  if (!validManifest(manifest)) return { ok: false, errorCode: "HELPER_INTEGRITY" };
+  if (!validManifest(manifest)) return { ok: false, errorCode: "HELPER_INTEGRITY", reason: "content-mismatch" };
   const executable = containedFile(directory, manifest.file);
   if (!executable) return { ok: false, errorCode: "HELPER_MISSING" };
   const actualHash = createHash("sha256").update(fs.readFileSync(executable)).digest("hex");
-  if (actualHash !== manifest.sha256) return { ok: false, errorCode: "HELPER_INTEGRITY" };
-  if (options.verifyExecutable !== false && !versionMatches(executable, manifest)) {
-    return { ok: false, errorCode: "HELPER_INTEGRITY" };
+  if (actualHash !== manifest.sha256) return { ok: false, errorCode: "HELPER_INTEGRITY", reason: "content-mismatch" };
+  if (options.verifyExecutable !== false) {
+    const version = versionMatches(executable, manifest);
+    if (version !== "match") return { ok: false, errorCode: "HELPER_INTEGRITY", reason: version };
   }
   return {
     ok: true,

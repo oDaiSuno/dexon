@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
+import { mkdir, chmod, mkdtemp, readFile, realpath, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -32,6 +32,36 @@ async function fixture(packaged = false) {
   await writeFile(path.join(directory, manifest.file), bytes);
   await writeFile(path.join(directory, "manifest.json"), JSON.stringify(manifest));
   return { root, directory, manifest, bytes };
+}
+
+async function executableFixture(script) {
+  const root = await mkdtemp(path.join(tmpdir(), "pi-helper-resolution-"));
+  const directory = path.join(root, "out", "native", "windows-managed-process-helper");
+  await mkdir(directory, { recursive: true });
+  const bytes = Buffer.from(script);
+  const manifest = {
+    schemaVersion: 1,
+    protocolVersion: 1,
+    buildId: "pimpd-0.1.13-p1-abcdef123456",
+    arch: "x64",
+    provenance: "windows-native-dev",
+    file: "pi-managed-process-helper.exe",
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+    sourceRevision: "abcdef123456",
+    targetTriple: "x86_64-pc-windows-msvc",
+  };
+  const file = path.join(directory, manifest.file);
+  await writeFile(file, bytes);
+  await chmod(file, 0o755);
+  await writeFile(path.join(directory, "manifest.json"), JSON.stringify(manifest));
+  return { root, directory, manifest, file };
+}
+
+const helperVersion = (buildId) =>
+  JSON.stringify({ protocolVersion: 1, buildId, arch: "x64", provenance: "windows-native-dev" });
+
+function resolveFrom(root) {
+  return resolveWindowsManagedProcessHelper({ isPackaged: false, resourcesPath: root, projectRoot: root });
 }
 
 test("Windows helper resolution accepts only the fixed development or packaged directory", async () => {
@@ -66,7 +96,7 @@ test("Windows helper resolution fails closed on manifest drift and byte tamperin
       projectRoot: value.root,
       verifyExecutable: false,
     }),
-    { ok: false, errorCode: "HELPER_INTEGRITY" },
+    { ok: false, errorCode: "HELPER_INTEGRITY", reason: "content-mismatch" },
   );
   await writeFile(path.join(value.directory, "manifest.json"), JSON.stringify(value.manifest));
   await writeFile(path.join(value.directory, value.manifest.file), Buffer.from("tampered"));
@@ -77,9 +107,69 @@ test("Windows helper resolution fails closed on manifest drift and byte tamperin
       projectRoot: value.root,
       verifyExecutable: false,
     }),
-    { ok: false, errorCode: "HELPER_INTEGRITY" },
+    { ok: false, errorCode: "HELPER_INTEGRITY", reason: "content-mismatch" },
   );
 });
+
+test(
+  "a helper that needs 3 seconds to answer its version check is accepted",
+  { skip: process.platform === "win32", timeout: 30_000 },
+  async () => {
+    const value = await executableFixture(
+      `#!/bin/sh\nsleep 3\nprintf '%s' '${helperVersion("pimpd-0.1.13-p1-abcdef123456")}'\n`,
+    );
+    const result = resolveFrom(value.root);
+    assert.equal(result.ok, true);
+  },
+);
+
+test(
+  "a helper that never answers its version check is reported as a version-check timeout",
+  { skip: process.platform === "win32", timeout: 30_000 },
+  async () => {
+    const value = await executableFixture("#!/bin/sh\nexec sleep 30\n");
+    const started = Date.now();
+    const result = resolveFrom(value.root);
+    const elapsed = Date.now() - started;
+    assert.deepEqual(result, {
+      ok: false,
+      errorCode: "HELPER_INTEGRITY",
+      reason: "version-check-timeout",
+    });
+    assert.ok(
+      elapsed >= 9_000 && elapsed < 20_000,
+      `the version check waited about 10 seconds before giving up (waited ${elapsed} ms)`,
+    );
+  },
+);
+
+test(
+  "a helper that crashes during its version check is reported as a run failure",
+  { skip: process.platform === "win32", timeout: 30_000 },
+  async () => {
+    const value = await executableFixture("#!/bin/sh\nexit 3\n");
+    assert.deepEqual(resolveFrom(value.root), {
+      ok: false,
+      errorCode: "HELPER_INTEGRITY",
+      reason: "version-check-failed",
+    });
+  },
+);
+
+test(
+  "a helper that reports a different build is reported as a content mismatch",
+  { skip: process.platform === "win32", timeout: 30_000 },
+  async () => {
+    const value = await executableFixture(
+      `#!/bin/sh\nprintf '%s' '${helperVersion("pimpd-0.1.13-p1-000000000000")}'\n`,
+    );
+    assert.deepEqual(resolveFrom(value.root), {
+      ok: false,
+      errorCode: "HELPER_INTEGRITY",
+      reason: "content-mismatch",
+    });
+  },
+);
 
 test("Windows update gate proves the fixed helper can be atomically moved and restored", async () => {
   const value = await fixture(false);
