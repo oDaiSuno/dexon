@@ -1,7 +1,6 @@
 import { subscribeSessionsChanged } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { useEffect, type MutableRefObject } from "react";
-import { subscribeActiveSessionLiveSync } from "../active-session-live-sync";
 import { EventStreamConnectionError, ThinkingLevelOption, normalizeQueuedMessages } from "./shared";
 import type { SessionActions } from "./use-session-actions";
 import type { SessionConnection } from "./use-session-connection";
@@ -102,7 +101,7 @@ export function useSessionLifecycle(context: Dependencies) {
   // Load session on mount
   useEffect(() => {
     let disposed = false;
-    let unsubscribeLiveSync: (() => void) | undefined;
+    let unsubscribeEvents: (() => void) | undefined;
     const frameIds = visualFrameIdsRef.current;
     historyGenerationRef.current += 1;
     historyRevisionRef.current = null;
@@ -122,23 +121,11 @@ export function useSessionLifecycle(context: Dependencies) {
       // Subscribe even when the session is currently idle. IM turns can start
       // without a desktop prompt, so waiting for agentState.running would miss
       // the entire external turn until this component is remounted.
-      void subscribeActiveSessionLiveSync({
-        sessionId: session.id,
-        connectAgentEvents: async (sessionId) => {
-          const result = await connectEvents(sessionId);
+      void connectEvents(session.id)
+        .then((result) => {
           if (result.status !== "connected") throw new EventStreamConnectionError(result.status);
-          return result.unsubscribe;
-        },
-        subscribeSessionChanges: subscribeSessionsChanged,
-        onSessionChanged: () => {
-          // includeState so externally-driven turns (messaging channels)
-          // also refresh the context usage, not just the message list.
-          if (!disposed) void loadSession(session.id, false, true);
-        },
-      })
-        .then((unsubscribe) => {
-          if (disposed) unsubscribe();
-          else unsubscribeLiveSync = unsubscribe;
+          if (disposed) result.unsubscribe();
+          else unsubscribeEvents = result.unsubscribe;
         })
         .catch((cause) => {
           if (!disposed) console.error("Failed to subscribe to active session updates:", cause);
@@ -178,11 +165,34 @@ export function useSessionLifecycle(context: Dependencies) {
       historyGenerationRef.current += 1;
       for (const frameId of frameIds) cancelAnimationFrame(frameId);
       frameIds.clear();
-      unsubscribeLiveSync?.();
+      unsubscribeEvents?.();
       eventConnectionManager.invalidate();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity owns this lifecycle effect.
   }, []);
+
+  const liveSessionId = session?.id ?? null;
+  useEffect(() => {
+    if (!liveSessionId) return;
+    let disposed = false;
+    let unsubscribe: (() => void) | undefined;
+    void subscribeSessionsChanged((event) => {
+      // includeState so externally-driven turns (messaging channels)
+      // also refresh the context usage, not just the message list.
+      if (!disposed && event.sessionId === liveSessionId) void loadSession(liveSessionId, false, true);
+    })
+      .then((off) => {
+        if (disposed) off();
+        else unsubscribe = off;
+      })
+      .catch((cause) => {
+        if (!disposed) console.error("Failed to subscribe to active session updates:", cause);
+      });
+    return () => {
+      disposed = true;
+      unsubscribe?.();
+    };
+  }, [liveSessionId, loadSession]);
 
   useEffect(() => {
     readingVisibleRef.current = readingVisible;
