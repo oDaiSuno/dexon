@@ -187,9 +187,11 @@ export function useSessionScroll(context: Dependencies) {
   }, [autoFollowMagnetRef, completionScrollAllowedRef, externalTurnAutoFollowRef]);
 
   const disengageAutoFollow = useCallback(() => {
+    userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
+    if (!agentRunningRef.current) return;
     disengageAutoFollowForExplicitUpwardGesture();
     setFollowSuspended(true);
-  }, [disengageAutoFollowForExplicitUpwardGesture]);
+  }, [agentRunningRef, disengageAutoFollowForExplicitUpwardGesture, userScrollIntentUntilRef]);
 
   const markUserScrollIntent = useCallback(
     (event: Event) => {

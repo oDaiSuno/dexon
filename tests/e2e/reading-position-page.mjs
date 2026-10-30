@@ -55,6 +55,19 @@ export function readingPositionPage(operation, args = {}) {
     return { x, y: Math.round(rect.y + rect.height / 2), hit: false, coveredBy };
   };
   const conversation = () => find("region", "Conversation");
+  const longPromptToggle = (marker) =>
+    [...document.querySelectorAll("button[aria-controls]")].find((button) => {
+      const controlled = document.getElementById(button.getAttribute("aria-controls"));
+      return Boolean(controlled) && (controlled.textContent ?? "").includes(marker);
+    }) ?? null;
+  const longPromptText = (marker) => {
+    const region = conversation();
+    if (!region) return null;
+    const paragraphs = [...region.querySelectorAll("p")].filter((element) =>
+      (element.textContent ?? "").includes(marker),
+    );
+    return paragraphs.at(-1) ?? null;
+  };
   const sentences = () => {
     const region = conversation();
     if (!region) return [];
@@ -71,6 +84,68 @@ export function readingPositionPage(operation, args = {}) {
       top: element.getBoundingClientRect().top - top,
     }));
   };
+  if (operation === "longPrompt") {
+    const region = conversation();
+    if (!region) return null;
+    const origin = region.getBoundingClientRect().top;
+    const toggle = longPromptToggle(args.marker);
+    const controlled = toggle ? document.getElementById(toggle.getAttribute("aria-controls")) : null;
+    const text = longPromptText(args.marker);
+    const block = controlled ?? text;
+    const anchor = block?.closest("[data-reading-anchor]") ?? null;
+    const relative = (element) => (element ? Math.round(element.getBoundingClientRect().top - origin) : null);
+    return {
+      rendered: Boolean(text && text.getClientRects().length),
+      anchorTop: relative(anchor),
+      textTop: relative(block),
+      textHeight: block ? Math.round(block.getBoundingClientRect().height) : null,
+      folded: Boolean(toggle),
+      expanded: toggle ? toggle.getAttribute("aria-expanded") : null,
+      toggleName: toggle ? nameOf(toggle) : null,
+      scrollTop: Math.round(region.scrollTop),
+    };
+  }
+  if (operation === "longPromptTogglePoint") {
+    const toggle = longPromptToggle(args.marker);
+    return toggle ? centerOf(toggle) : null;
+  }
+  if (operation === "scrollLongPromptTo") {
+    const region = conversation();
+    const toggle = longPromptToggle(args.marker);
+    const controlled = toggle ? document.getElementById(toggle.getAttribute("aria-controls")) : null;
+    const block = controlled ?? longPromptText(args.marker);
+    const anchor = block?.closest("[data-reading-anchor]") ?? block;
+    if (!region || !anchor) return null;
+    const origin = region.getBoundingClientRect().top;
+    const current = anchor.getBoundingClientRect().top - origin;
+    region.scrollTop += current - args.top;
+    return { scrollTop: Math.round(region.scrollTop) };
+  }
+  if (operation === "scrollTextTo") {
+    const region = conversation();
+    if (!region) return null;
+    const element = [...region.querySelectorAll("*")].find(
+      (candidate) => (candidate.textContent ?? "").replace(/\s+/g, " ").trim() === args.text,
+    );
+    if (!element) return null;
+    const origin = region.getBoundingClientRect().top;
+    region.scrollTop += element.getBoundingClientRect().top - origin - args.top;
+    return { scrollTop: Math.round(region.scrollTop) };
+  }
+  if (operation === "readingAnchors") {
+    const region = conversation();
+    if (!region) return [];
+    const origin = region.getBoundingClientRect().top;
+    return [...region.querySelectorAll("[data-reading-anchor]")].map((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        key: element.getAttribute("data-reading-anchor"),
+        top: Math.round(rect.top - origin),
+        height: Math.round(rect.height),
+        text: (element.textContent ?? "").replace(/\s+/g, " ").trim().slice(0, 80),
+      };
+    });
+  }
   if (operation === "text") return document.body.innerText;
   if (operation === "exists") return Boolean(find(args.role, args.name));
   if (operation === "conversation") {

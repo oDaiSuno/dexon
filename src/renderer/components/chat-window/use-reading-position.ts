@@ -4,6 +4,8 @@ import {
   READING_ANCHOR_ATTRIBUTE,
   alignReadingPosition,
   captureReadingAnchor,
+  clampedReadingOffset,
+  readReadingAnchorHeight,
   readReadingAnchorOffset,
 } from "@/lib/reading-anchor";
 import type { ReadingPosition, ReadingPositionRegistry } from "@/lib/reading-position-store";
@@ -141,7 +143,7 @@ export function useReadingPosition({
       const current = () => mountedRef.current && alignRunRef.current === run && gestureRef.current === gesture;
       alignReadingPosition({
         container,
-        target: target.offsetTop,
+        target: () => clampedReadingOffset(target.offsetTop, readReadingAnchorHeight(container, target.key)),
         measure: () => messageOffset(container, target.key),
         shouldStop: () => !visibleRef.current || !current(),
         onSettled: () => {

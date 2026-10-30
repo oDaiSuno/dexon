@@ -6,8 +6,9 @@ export class CopyFeedbackTimer {
   private readonly cancel: (timer: TimerHandle) => void;
 
   constructor(
-    schedule: (callback: () => void, delayMs: number) => TimerHandle = setTimeout,
-    cancel: (timer: TimerHandle) => void = clearTimeout,
+    schedule: (callback: () => void, delayMs: number) => TimerHandle = (callback, delayMs) =>
+      setTimeout(callback, delayMs),
+    cancel: (timer: TimerHandle) => void = (timer) => clearTimeout(timer),
   ) {
     this.schedule = schedule;
     this.cancel = cancel;

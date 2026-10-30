@@ -14,6 +14,19 @@ import { installRendererApi } from "../support/renderer-api.mjs";
 import { accessibleName, allByRole, byRole, text } from "../support/dom-queries.mjs";
 import { createSessionTestHost } from "../fixtures/session-host.mjs";
 import { createSessionDetail } from "../../src/renderer/hooks/agent-session/session-hook-fixtures.mjs";
+import {
+  CHANNEL_PROMPT,
+  CHIP_PROMPT,
+  HANDOFF_PROMPT,
+  IMAGE_PROMPT_LINES,
+  LONG_PROMPT,
+  OFFSCREEN_PROMPT,
+  PICTURE_PROMPT,
+  PREVIEW_PROMPT,
+  WRAP_PROMPT_PARTS,
+  flowingPrompt,
+} from "../fixtures/long-prompt.mjs";
+import { createFoldQueries } from "./user-bubble-fold-page.mjs";
 import "./production-styles.mjs";
 
 const window = globalThis.window;
@@ -32,6 +45,8 @@ const DELEGATED = "请在另一个会话里开始迁移";
 const DELEGATED_REPLY = "已交给另一个会话";
 const THUMB_PATH = "/tmp/tall-shot.png";
 const THUMB_PROSE = "缩略图夹在句中 @/tmp/tall-shot.png 之后继续写字";
+const THUMB_BASE64 = tallShotPng();
+const LARGE_SHOT_BASE64 = shotPng(240, 160);
 
 const SENTENCES = [SENTENCE, COMMAND, QUOTED, SPECIAL, SKILLED];
 
@@ -105,17 +120,77 @@ const transcript = [
   },
 ];
 
-const detail = createSessionDetail("user-bubble", {
+const foldTranscript = (wrapParts) => [
+  { role: "user", content: LONG_PROMPT, timestamp: 19 },
+  ...replyAfter(20, "长提问甲的回复"),
+  { role: "user", content: flowingPrompt(wrapParts), timestamp: 21 },
+  ...replyAfter(22, "拉宽窗口以后行数变少的回复"),
+  {
+    role: "user",
+    content: [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: LARGE_SHOT_BASE64 } },
+      { type: "text", text: IMAGE_PROMPT_LINES },
+    ],
+    timestamp: 23,
+  },
+  ...replyAfter(24, "大图那条的回复"),
+  { role: "user", content: PREVIEW_PROMPT, timestamp: 25 },
+  ...replyAfter(26, "预览图那条的回复"),
+  { role: "user", content: CHANNEL_PROMPT, channelSource: "feishu", timestamp: 27 },
+  ...replyAfter(28, "渠道消息的回复"),
+  {
+    role: "user",
+    content: HANDOFF_PROMPT,
+    sessionSource: { sessionId: "bubble-source", title: "委派会话" },
+    timestamp: 29,
+  },
+  ...replyAfter(30, "转交消息的回复"),
+  { role: "user", content: OFFSCREEN_PROMPT, timestamp: 31 },
+  ...replyAfter(32, "屏幕外那条的回复"),
+  { role: "user", content: CHIP_PROMPT, timestamp: 33 },
+  ...replyAfter(34, "被遮住的附件那条的回复"),
+  {
+    role: "user",
+    content: [
+      { type: "image", source: { type: "base64", media_type: "image/png", data: LARGE_SHOT_BASE64 } },
+      { type: "text", text: PICTURE_PROMPT },
+    ],
+    timestamp: 35,
+  },
+  ...replyAfter(36, "大图加长文字那条的回复"),
+];
+
+const streamTranscript = [{ role: "user", content: LONG_PROMPT, timestamp: 1 }, ...replyAfter(2, "")];
+
+const detailsByWrapParts = new Map();
+
+function detailWithWrapParts(wrapParts) {
+  if (!detailsByWrapParts.has(wrapParts)) {
+    const messages = [...transcript, ...foldTranscript(wrapParts)];
+    detailsByWrapParts.set(
+      wrapParts,
+      createSessionDetail("user-bubble", {
+        cwd: CWD,
+        messages,
+        entryIds: messages.map((_message, index) => `entry-${index}`),
+      }),
+    );
+  }
+  return detailsByWrapParts.get(wrapParts);
+}
+
+const streamDetail = createSessionDetail("user-bubble-stream", {
   cwd: CWD,
-  messages: transcript,
-  entryIds: transcript.map((_, index) => `entry-${index}`),
+  messages: streamTranscript,
+  entryIds: ["entry-stream-prompt", "entry-stream-reply"],
 });
 
-const THUMB_BASE64 = tallShotPng();
+let activeDetail = detailWithWrapParts(WRAP_PROMPT_PARTS);
+let streaming = false;
 const revealed = [];
 const sessionHost = createSessionTestHost({
-  getSession: async () => detail,
-  agentState: async () => ({ running: false }),
+  getSession: async () => activeDetail,
+  agentState: async () => (streaming ? { running: true, state: { isStreaming: true } } : { running: false }),
 });
 const host = {
   ...sessionHost,
@@ -191,11 +266,19 @@ const thinkingExpansionStore = new ThinkingExpansionStore();
 const processDetailsExpansionStore = new ThinkingExpansionStore();
 let epoch = 0;
 
-function render(theme) {
-  applyChatAppearance(document.documentElement, { fontSize: "standard", layout: "fixed" });
+function render({
+  theme = "light",
+  fontSize = "standard",
+  layout = "fixed",
+  session = "default",
+  wrapParts = WRAP_PROMPT_PARTS,
+} = {}) {
+  applyChatAppearance(document.documentElement, { fontSize, layout });
   window.localStorage.setItem("pi-theme", theme);
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.style.colorScheme = theme;
+  activeDetail = session === "streaming" ? streamDetail : detailWithWrapParts(wrapParts);
+  streaming = session === "streaming";
   document.getElementById("root").style.height = "100vh";
   flushSync(() =>
     root.render(
@@ -218,7 +301,7 @@ function render(theme) {
           { style: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" } },
           createElement(ChatWindow, {
             key: ++epoch,
-            session: detail.info,
+            session: activeDetail.info,
             newSessionCwd: null,
             thinkingExpansionStore,
             processDetailsExpansionStore,
@@ -232,10 +315,23 @@ function render(theme) {
   );
 }
 
-function tallShotPng() {
+function replyAfter(timestamp, text) {
+  return [
+    {
+      role: "assistant",
+      content: [{ type: "text", text }],
+      provider: "fixture",
+      model: "fixture-model",
+      stopReason: "stop",
+      timestamp,
+    },
+  ];
+}
+
+function shotPng(width, height) {
   const canvas = document.createElement("canvas");
-  canvas.width = 40;
-  canvas.height = 120;
+  canvas.width = width;
+  canvas.height = height;
   const context = canvas.getContext("2d");
   const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, "#2f6feb");
@@ -243,6 +339,10 @@ function tallShotPng() {
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/png").split(",")[1];
+}
+
+function tallShotPng() {
+  return shotPng(40, 120);
 }
 
 function bounds(target) {
@@ -393,9 +493,42 @@ function styleSummary(element) {
   };
 }
 
+const foldQueries = createFoldQueries({ document, window, bubbleOf, bounds });
+
+function emit(event) {
+  for (const sink of sessionHost.eventSinks) if (sink.active) sink.onEvent(event);
+}
+
+function firstFrames(marker) {
+  const frames = [];
+  return new Promise((resolve) => {
+    let count = 0;
+    const tick = () => {
+      const snapshot = foldQueries.fold(marker);
+      frames.push({
+        frame: count,
+        exists: snapshot.exists,
+        folded: Boolean(snapshot.bar),
+        expanded: snapshot.bar?.buttons?.[0]?.expanded ?? null,
+        height: snapshot.region ? Math.round(snapshot.region.rect.height) : 0,
+        lines: snapshot.region ? snapshot.region.lines : 0,
+        lineHeight: snapshot.region ? snapshot.region.lineHeight : 0,
+      });
+      count += 1;
+      const laidOut = frames.filter((entry) => entry.exists && entry.lines > 0).length;
+      if (count >= 30 || laidOut >= 8) resolve(frames);
+      else window.requestAnimationFrame(tick);
+    };
+    window.requestAnimationFrame(tick);
+  });
+}
+
 window.userBubble = {
-  configure({ theme = "light" } = {}) {
-    render(theme);
+  ...foldQueries,
+  async configure({ language, sample, ...options } = {}) {
+    if (language) setAppLanguage(language);
+    render(options);
+    return sample ? firstFrames(sample) : null;
   },
   layout,
   scrollTo(marker) {
@@ -518,6 +651,44 @@ window.userBubble = {
       pageBackground: window.getComputedStyle(document.body).backgroundColor,
     };
   },
+  chipRect(marker, title) {
+    const scope = bubbleOf(marker);
+    const chip = scope ? chipsIn(scope).find((element) => element.getAttribute("title") === title) : null;
+    return chip ? bounds(chip) : null;
+  },
+  buttonPoint(name) {
+    const button = byRole(document, "button", name);
+    if (!button) return null;
+    const rect = button.getBoundingClientRect();
+    const x = Math.round(rect.x + rect.width / 2);
+    const y = Math.round(rect.y + rect.height / 2);
+    const hit = document.elementFromPoint(x, y);
+    return { x, y, hits: Boolean(hit && (button.contains(hit) || hit.contains(button))) };
+  },
+  startStream() {
+    emit({ type: "agent_start" });
+  },
+  streamTick(paragraphs = 1) {
+    const text = Array.from(
+      { length: paragraphs },
+      (_value, index) => `Streaming paragraph ${index + 1} keeps a growing reply below the question the reader opened.`,
+    ).join("\n\n");
+    emit({
+      type: "message_update",
+      message: {
+        role: "assistant",
+        provider: "fixture",
+        model: "fixture-model",
+        stopReason: "stop",
+        timestamp: Date.now(),
+        content: [{ type: "text", text }],
+      },
+    });
+  },
+  endStream() {
+    streaming = false;
+    emit({ type: "agent_end" });
+  },
   close() {
     try {
       flushSync(() => root.unmount());
@@ -528,4 +699,4 @@ window.userBubble = {
 };
 
 publishSessionCatalog(catalog);
-render("light");
+render();

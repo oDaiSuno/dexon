@@ -232,6 +232,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/chat-shared.css",
   "styles/messages-process.css",
   "styles/messages-failure.css",
+  "styles/messages-long-prompt.css",
   "styles/messages-stream.css",
   "styles/tool-cards.css",
 ];

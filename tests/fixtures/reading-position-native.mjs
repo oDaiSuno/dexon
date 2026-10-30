@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { READING_PROMPT, READING_PROMPT_MARKER } from "./long-prompt.mjs";
 
 export const readingPositionScenes = [
   "01-first-open",
@@ -10,6 +11,8 @@ export const readingPositionScenes = [
   "06-earlier-page-return",
   "07-independent",
   "08-child-from-parent-link",
+  "09-long-prompt-return",
+  "10-other-positions-unchanged",
 ];
 
 export const longReadingTitle = "Long reading A";
@@ -17,8 +20,11 @@ export const parentReadingTitle = "Parent reading P";
 export const parentReadingQuestion = "Where did the long reading stop?";
 export const parentReadingReply = "The child conversation holds the long reading.";
 export const shortReadingTitle = "Short reading B";
+export const foldReadingTitle = "Long reading F";
+export const foldReadingMarker = READING_PROMPT_MARKER;
 export const longReadingQuestions = 55;
 export const shortReadingQuestions = 12;
+const foldReadingTurns = 5;
 export const minimumSessionBytes = 4 * 1024 * 1024;
 
 const pad = (value) => String(value).padStart(2, "0");
@@ -157,9 +163,11 @@ function sessionNewResult(childId, title) {
   };
 }
 
-function fillConversation(history, title, turns) {
+function fillConversation(history, title, turns, options = {}) {
   for (let turn = 1; turn <= turns; turn += 1) {
-    history.appendMessage({ role: "user", content: questionLine(title, turn), timestamp: turn * 2 - 1 });
+    if (!(options.skipFirstQuestion && turn === 1)) {
+      history.appendMessage({ role: "user", content: questionLine(title, turn), timestamp: turn * 2 - 1 });
+    }
     history.appendMessage(assistantReply(title, turn));
   }
   history.appendSessionInfo(title);
@@ -199,6 +207,9 @@ export async function seedReadingPositionSessions() {
   parent.appendSessionInfo(parentReadingTitle);
   const short = SessionManager.create(personal, sessions);
   fillConversation(short, shortReadingTitle, shortReadingQuestions);
+  const fold = SessionManager.create(personal, sessions);
+  fold.appendMessage({ role: "user", content: READING_PROMPT, timestamp: 1 });
+  fillConversation(fold, foldReadingTitle, foldReadingTurns, { skipFirstQuestion: true });
   return {
     personal,
     longId,
@@ -208,5 +219,7 @@ export async function seedReadingPositionSessions() {
     parentFile: parent.getSessionFile(),
     shortId: short.getSessionId(),
     shortFile: short.getSessionFile(),
+    foldId: fold.getSessionId(),
+    foldFile: fold.getSessionFile(),
   };
 }
