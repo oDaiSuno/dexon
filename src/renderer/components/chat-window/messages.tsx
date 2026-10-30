@@ -1,6 +1,6 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
 import { readingAnchorAttributes } from "@/lib/reading-anchor";
-import type { AgentMessage } from "@/lib/types";
+import type { AgentMessage, AssistantMessage } from "@/lib/types";
 import { type ReactNode } from "react";
 import { MessageView } from "../MessageView";
 import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
@@ -39,6 +39,7 @@ export function ChatMessages({
   thinkingExpansionStore,
   assistantBlockCache,
   processDetailsExpansionStore,
+  disengageAutoFollow,
 }: Pick<
   ChatWindowState,
   | "messages"
@@ -63,11 +64,18 @@ export function ChatMessages({
   | "thinkingExpansionStore"
   | "assistantBlockCache"
   | "processDetailsExpansionStore"
+  | "disengageAutoFollow"
 >) {
   return (() => {
+    const streaming = streamState.streamingMessage;
+    const streamingMessage = streaming?.role === "assistant" ? (streaming as AssistantMessage) : undefined;
+    const replyInProgress = agentRunning || streamState.isStreaming;
+    const shownMessages: AgentMessage[] = streamingMessage ? [...messages, streamingMessage] : messages;
+    const shownEntryIds: string[] = streamingMessage ? [...entryIds, streamState.streamingEntryId ?? ""] : entryIds;
+
     let lastUserIdx = -1;
-    for (let i = messages.length - 1; i >= 0; i--) {
-      if (messages[i].role === "user") {
+    for (let i = shownMessages.length - 1; i >= 0; i--) {
+      if (shownMessages[i].role === "user") {
         lastUserIdx = i;
         break;
       }
@@ -77,7 +85,7 @@ export function ChatMessages({
 
     const visibleRefIndexByMessage = new Map<number, number>();
     let refIdx = 0;
-    messages.forEach((msg, idx) => {
+    shownMessages.forEach((msg, idx) => {
       if (msg.role === "user" || msg.role === "assistant") {
         visibleRefIndexByMessage.set(idx, refIdx++);
       }
@@ -105,17 +113,14 @@ export function ChatMessages({
         messageOverride?: AgentMessage;
       } = {},
     ): ReactNode => {
-      const msg = options.messageOverride ?? messages[idx];
-      const prevIsAssistant = msg.role === "user" && idx > 0 && messages[idx - 1].role === "assistant";
+      const msg = options.messageOverride ?? shownMessages[idx];
+      const prevIsAssistant = msg.role === "user" && idx > 0 && shownMessages[idx - 1].role === "assistant";
       const isVisible = msg.role === "user" || msg.role === "assistant";
       const currentRefIdx = visibleRefIndexByMessage.get(idx);
       const renderRole = options.renderRole ?? "message";
-      const renderKey = messageRenderKeys.keyFor(messages[idx], entryIds[idx], renderRole);
+      const renderKey = messageRenderKeys.keyFor(shownMessages[idx], entryIds[idx], renderRole);
       const screenKey = messageRenderKeys.screenKey(renderKey);
-      const toolData = toolMessageIndex.get(messages[idx]);
-      // The in-flight turn renders as a process stream: 8px rhythm,
-      // no per-message footer — it settles into groups on completion.
-      const compact = (agentRunning || streamState.isStreaming) && lastUserIdx !== -1 && idx > lastUserIdx;
+      const toolData = toolMessageIndex.get(shownMessages[idx]);
       const view = (
         <SessionProfiler key={screenKey} id="MessageView">
           <MessageView
@@ -132,9 +137,10 @@ export function ChatMessages({
             agentRunning={agentRunning}
             onLoadDeferredContent={loadDeferredContent}
             afterAssistant={prevIsAssistant}
-            prevTimestamp={idx > 0 ? (messages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined}
+            prevTimestamp={
+              idx > 0 ? (shownMessages[idx - 1] as AgentMessage & { timestamp?: number }).timestamp : undefined
+            }
             thinkingExpansionStore={thinkingExpansionStore}
-            compact={compact}
             retried={retriedFailureIndices.has(idx)}
           />
         </SessionProfiler>
@@ -143,7 +149,7 @@ export function ChatMessages({
       return (
         <div
           key={screenKey}
-          className={compact ? undefined : "chat-history-item"}
+          className="chat-history-item"
           ref={attachVisibleRef(idx, currentRefIdx)}
           {...readingAnchorAttributes(renderKey)}
         >
@@ -152,19 +158,20 @@ export function ChatMessages({
       );
     };
 
-    const renderAnswer = (piece: TurnAnswerPiece): ReactNode => {
-      const toolData = toolMessageIndex.get(messages[piece.index]);
+    const renderAnswer = (piece: TurnAnswerPiece, writing: boolean): ReactNode => {
+      const toolData = toolMessageIndex.get(shownMessages[piece.index]);
       return (
         <div
           key={messageRenderKeys.screenKey(piece.key)}
           className="chat-history-item"
           ref={refForPiece(piece.refIndex)}
-          {...readingAnchorAttributes(piece.key)}
+          {...readingAnchorAttributes(piece.anchor)}
         >
           <SessionProfiler id="MessageView">
             <MessageView
               sessionId={session?.id}
               message={piece.body}
+              isStreaming={writing}
               toolResults={toolData?.results}
               toolCallDurations={toolData?.durations}
               cwd={messageCwd}
@@ -179,8 +186,13 @@ export function ChatMessages({
       );
     };
 
-    const renderProcess = (piece: TurnProcessPiece): ReactNode => (
-      <div key={messageRenderKeys.screenKey(piece.key)} className="chat-history-item" ref={refForPiece(piece.refIndex)}>
+    const renderProcess = (piece: TurnProcessPiece, inProgress: boolean): ReactNode => (
+      <div
+        key={messageRenderKeys.screenKey(piece.key)}
+        className="chat-history-item"
+        ref={refForPiece(piece.refIndex)}
+        {...readingAnchorAttributes(piece.anchor)}
+      >
         <ProcessDetailsGroup
           stateKey={piece.key}
           expansionStore={processDetailsExpansionStore}
@@ -188,6 +200,8 @@ export function ChatMessages({
           toolCallCount={piece.flow.toolCallCount}
           createdSessionCount={piece.flow.createdSessionCount}
           durationSeconds={piece.durationSeconds}
+          liveStartedAt={piece.liveStartedAt}
+          onReaderAction={inProgress ? disengageAutoFollow : undefined}
         >
           <ProcessFlow
             items={piece.flow.items}
@@ -195,6 +209,7 @@ export function ChatMessages({
             onOpenFile={onOpenFile}
             onLoadDeferredContent={loadDeferredContent}
             thinkingExpansionStore={thinkingExpansionStore}
+            speedHint={piece.liveStartedAt === undefined ? undefined : streamingMessage}
           />
         </ProcessDetailsGroup>
       </div>
@@ -205,7 +220,7 @@ export function ChatMessages({
         key={messageRenderKeys.screenKey(piece.key)}
         className="chat-history-item"
         ref={refForPiece(piece.refIndex)}
-        {...readingAnchorAttributes(piece.key)}
+        {...readingAnchorAttributes(piece.anchor)}
       >
         <SessionProfiler id="MessageView">
           <MessageView
@@ -222,37 +237,37 @@ export function ChatMessages({
       </div>
     );
 
-    const renderPiece = (piece: TurnPiece): ReactNode => {
-      if (piece.kind === "answer") return renderAnswer(piece);
-      if (piece.kind === "process") return renderProcess(piece);
+    const renderPiece = (piece: TurnPiece, inProgress: boolean, writing: boolean): ReactNode => {
+      if (piece.kind === "answer") return renderAnswer(piece, writing);
+      if (piece.kind === "process") return renderProcess(piece, inProgress);
       return renderFailure(piece);
     };
 
     const rendered: ReactNode[] = [];
-    for (let idx = 0; idx < messages.length;) {
-      const userIdx = messages[idx].role === "user" ? idx : -1;
+    for (let idx = 0; idx < shownMessages.length;) {
+      const userIdx = shownMessages[idx].role === "user" ? idx : -1;
       let endIdx = userIdx + 1;
-      while (endIdx < messages.length && messages[endIdx].role !== "user") endIdx += 1;
+      while (endIdx < shownMessages.length && shownMessages[endIdx].role !== "user") endIdx += 1;
 
-      const isLiveTail =
-        (agentRunning || streamState.isStreaming) && endIdx === messages.length && userIdx === lastUserIdx;
-      const layout = isLiveTail
-        ? null
-        : buildTurnLayout({
-            messages,
-            userIdx,
-            endIdx,
-            entryIds,
-            toolData: toolMessageIndex,
-            refIndexFor: (messageIndex) => visibleRefIndexByMessage.get(messageIndex),
-            keyFor: (message, entryId, role) => messageRenderKeys.keyFor(message, entryId, role),
-            retriedIndices: retriedFailureIndices,
-            resolvedIndices: resolvedFailureIndices,
-            cache: assistantBlockCache,
-          });
+      const isLiveTurn =
+        replyInProgress && endIdx === shownMessages.length && userIdx !== -1 && userIdx === lastUserIdx;
+      const layout = buildTurnLayout({
+        messages: shownMessages,
+        userIdx,
+        endIdx,
+        entryIds: shownEntryIds,
+        toolData: toolMessageIndex,
+        refIndexFor: (messageIndex) => (isLiveTurn ? undefined : visibleRefIndexByMessage.get(messageIndex)),
+        keyFor: (message, entryId, role) => messageRenderKeys.keyFor(message, entryId, role),
+        retriedIndices: retriedFailureIndices,
+        resolvedIndices: resolvedFailureIndices,
+        cache: assistantBlockCache,
+        live: isLiveTurn,
+        streamingMessage: isLiveTurn ? streamingMessage : undefined,
+      });
 
       if (userIdx !== -1) rendered.push(renderMessage(userIdx));
-      if (!layout || layout.lastAssistantIndex === -1) {
+      if (layout.lastAssistantIndex === -1) {
         for (let renderIdx = userIdx + 1; renderIdx < endIdx; renderIdx++) {
           rendered.push(renderMessage(renderIdx));
         }
@@ -263,12 +278,14 @@ export function ChatMessages({
       rendered.push(
         <AnswerTurn
           key={messageRenderKeys.screenKey(messageRenderKeys.keyFor(messages[idx], entryIds[idx], "turn"))}
-          footer={layout.footer}
+          footer={isLiveTurn ? null : layout.footer}
           modelNames={modelNames}
           onFork={agentRunning || isNew ? undefined : handleFork}
           forking={layout.footer?.forkEntryId !== undefined && forkingEntryId === layout.footer.forkEntryId}
         >
-          {layout.pieces.map(renderPiece)}
+          {layout.pieces.map((piece, index) =>
+            renderPiece(piece, replyInProgress, isLiveTurn && index === layout.pieces.length - 1),
+          )}
         </AnswerTurn>,
       );
       for (let renderIdx = layout.lastAssistantIndex + 1; renderIdx < endIdx; renderIdx++) {

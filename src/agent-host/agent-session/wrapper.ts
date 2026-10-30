@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import type { ChannelId } from "../../shared/channel-types";
 import type { AgentSessionLike, ExtensionUiContextLike } from "../../shared/pi-types";
 import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-orchestration";
-import type { ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
+import type { AgentMessage, ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { setBrowserSessionSource } from "../browser-tools";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
@@ -12,6 +12,7 @@ import { stripToolchainMarkers } from "../session-entry-compat";
 import { setDesktopSessionToolNames } from "../session-tool-store";
 
 import { notifyRunningChange } from "../rpc-manager";
+import { BlockTimingRecorder } from "./block-timing";
 import { sendSessionCommand } from "./commands";
 import { stripLegacyChannelPrompts, withExtensionTools } from "./compat";
 import { disposeSession } from "./dispose";
@@ -49,6 +50,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   public readonly queuedTurns = new QueuedTurns();
   private readonly turnStatus = new SessionTurnStatus();
   private readonly retryOutcome = new RetryOutcomeRecorder();
+  private readonly blockTiming = new BlockTimingRecorder();
   protected externalTurnActive = false;
   private externalTurnChannel: ChannelId | null = null;
   private externalTurnAttachments: ChannelMessageAttachment[] | null = null;
@@ -107,6 +109,12 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     );
   }
 
+  streamingMessage(): AgentMessage | null {
+    const message = this.inner.agent.state?.streamingMessage;
+    if (!message || typeof message !== "object") return null;
+    return this.blockTiming.decorate(message) as AgentMessage;
+  }
+
   recordTurnError(message: string): void {
     this.turnStatus.fail(message);
     notifyRunningChange();
@@ -117,7 +125,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       this.resetIdleTimer();
       this.turnStatus.observe(event);
       this.retryOutcome.observe(event, this.inner.sessionManager);
-      const displayEvent = this.withMessageSources(event);
+      const displayEvent = this.withMessageSources(this.blockTiming.observe(event));
       this.emit(displayEvent);
       if (event.type === "message_end") {
         announceSavedMessage(this.inner.sessionManager, event.message, (saved) => {
@@ -471,6 +479,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       markTurnStopped: () => this.turnStatus.stop(),
       promptRunning: this.promptRunning,
       isRunning: () => this.isRunning(),
+      streamingMessage: () => this.streamingMessage(),
       currentModelRef: () => this.sessionModel.current(this.inner),
       assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
       getExtensionStatuses: this.getExtensionStatuses.bind(this),

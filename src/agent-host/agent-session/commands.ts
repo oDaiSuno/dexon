@@ -3,8 +3,7 @@ import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionModelRef } from "../../shared/session-orchestration";
 import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
-import type { ExtensionUiResponse, ExtensionWidgetItem } from "../../shared/types";
-import type { SessionEntry } from "../../shared/types";
+import type { AgentMessage, ExtensionUiResponse, ExtensionWidgetItem, SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { describeLiveContextUsage } from "../session-context-usage";
 import { rememberLeafChoice } from "../session-leaf-store";
@@ -27,6 +26,7 @@ export interface SessionCommandContext {
   sessionId: string;
   promptRunning: boolean;
   isRunning(): boolean;
+  streamingMessage(): AgentMessage | null;
   currentModelRef(): SessionModelRef | null;
   assertModelUsable(): Promise<void>;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
@@ -197,7 +197,7 @@ export async function sendSessionCommand(
         sessionId: context.inner.sessionId,
         sessionFile: context.inner.sessionFile ?? "",
         isStreaming: context.inner.isStreaming,
-        streamingMessage: context.inner.agent.state?.streamingMessage ?? null,
+        streamingMessage: context.streamingMessage(),
         isPromptRunning: context.promptRunning,
         isCompacting: context.inner.isCompacting,
         autoCompactionEnabled: context.inner.autoCompactionEnabled,

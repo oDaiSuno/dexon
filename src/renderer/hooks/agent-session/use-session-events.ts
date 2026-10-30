@@ -19,6 +19,7 @@ import {
   delay,
   isNearBottomExcludingSpacer,
   normalizeQueuedMessages,
+  phaseForStreamingMessage,
   readCompactResult,
   userMessageKey,
 } from "./shared";
@@ -302,16 +303,13 @@ export function useSessionEvents(context: Dependencies) {
             message: (event.error as string | undefined) ?? t("extensionCommandFailed", "Extension command failed"),
           });
           break;
-        case "message_start":
-        case "message_update": {
+        case "message_start": {
           // Ignore streaming events arriving after this run already finished
           // (e.g. stream data buffered while the tab was frozen, flushed after
           // reconcile) — they would resurrect a ghost streaming bubble.
           if (!agentRunningRef.current) break;
           const msg = event.message as Partial<AgentMessage> | undefined;
-          if (msg?.role === "user") {
-            break;
-          }
+          if (msg?.role === "user") break;
           if (msg) {
             dispatch({
               type: "update",
@@ -319,7 +317,21 @@ export function useSessionEvents(context: Dependencies) {
               entryId: unsavedMessages.streamingEntryId(msg.timestamp),
             });
           }
-          setAgentPhase(null);
+          setAgentPhase({ kind: "waiting_model" });
+          break;
+        }
+        case "message_update": {
+          if (!agentRunningRef.current) break;
+          const msg = event.message as Partial<AgentMessage> | undefined;
+          if (msg?.role === "user") break;
+          if (msg) {
+            dispatch({
+              type: "update",
+              message: normalizeToolCalls(msg as AgentMessage),
+              entryId: unsavedMessages.streamingEntryId(msg.timestamp),
+            });
+          }
+          setAgentPhase(phaseForStreamingMessage(msg));
           break;
         }
         case "message_end": {

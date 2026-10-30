@@ -61,6 +61,8 @@ test("the public return shape of useAgentSession is stable for consumers", async
     "isNew",
     "isAwayFromBottom",
     "reattachAutoFollow",
+    "disengageAutoFollow",
+    "isFollowingSuspended",
     "settleAtLatest",
     // Refs
     "sessionIdRef",

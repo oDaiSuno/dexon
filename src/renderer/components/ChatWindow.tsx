@@ -1,15 +1,13 @@
-import type { AgentMessage } from "@/lib/types";
 import { DragOverlay } from "./chat-window/drag-overlay";
 import { ChatMessages } from "./chat-window/messages";
 import { OlderHistoryZone } from "./chat-window/older-history-zone";
 import { ScrollToBottomButton } from "./chat-window/scroll-to-bottom";
-import { CHAT_COLUMN_PADDING, Props, phaseLabel } from "./chat-window/shared";
+import { CHAT_COLUMN_PADDING, Props, isAnswerTextStreaming, phaseLabel } from "./chat-window/shared";
 import { ExtensionStatusBar, ExtensionWidgets, NoticeShelf } from "./chat-window/status";
 import { TurnNavigator } from "./chat-window/turn-navigator";
 import { useChatWindow } from "./chat-window/use-chat-window";
 import { Welcome } from "./chat-window/welcome";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
-import { MessageView } from "./MessageView";
 import { RetryCountdownLine } from "./messages/FailureLine";
 import { SessionProfiler } from "./SessionProfiler";
 import { useLayoutEffect } from "react";
@@ -86,6 +84,8 @@ export function ChatWindow(props: Props) {
     turnJump,
     isAwayFromBottom,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended,
     belowEditorWidgets,
     chatInputElement,
   } = useChatWindow(props);
@@ -209,22 +209,8 @@ export function ChatWindow(props: Props) {
                     thinkingExpansionStore={thinkingExpansionStore}
                     assistantBlockCache={assistantBlockCache}
                     processDetailsExpansionStore={processDetailsExpansionStore}
+                    disengageAutoFollow={disengageAutoFollow}
                   />
-
-                  {streamState.isStreaming && streamState.streamingMessage && (
-                    <SessionProfiler id="MessageView">
-                      <MessageView
-                        sessionId={session?.id}
-                        message={streamState.streamingMessage as AgentMessage}
-                        isStreaming
-                        cwd={messageCwd}
-                        onOpenFile={onOpenFile}
-                        entryId={streamState.streamingEntryId ?? undefined}
-                        thinkingExpansionStore={thinkingExpansionStore}
-                        compact
-                      />
-                    </SessionProfiler>
-                  )}
 
                   {agentRunning && retryInfo?.waiting && (
                     <RetryCountdownLine
@@ -234,7 +220,7 @@ export function ChatWindow(props: Props) {
                     />
                   )}
 
-                  {agentRunning && !retryInfo?.waiting && !streamState.streamingMessage && (
+                  {agentRunning && !retryInfo?.waiting && !isAnswerTextStreaming(streamState.streamingMessage) && (
                     <div className="py-2">
                       <span className="chat-shimmer-text type-body-medium">{phaseLabel(agentPhase, t)}</span>
                     </div>
@@ -260,7 +246,7 @@ export function ChatWindow(props: Props) {
               </SessionProfiler>
             )}
 
-            {isAwayFromBottom && (
+            {(isAwayFromBottom || isFollowingSuspended) && (
               <ScrollToBottomButton
                 label={t("scrollToBottom", "Scroll to bottom")}
                 title={agentRunning ? t("jumpToLatest", "Jump to latest") : t("scrollToBottom", "Scroll to bottom")}

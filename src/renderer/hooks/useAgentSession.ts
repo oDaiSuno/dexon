@@ -150,6 +150,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     agentPhase,
     isAwayFromBottom,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended,
     settleAtLatest,
     sessionIdRef,
     eventUnsubRef,
@@ -250,6 +252,8 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     // "Scroll to bottom" affordance state + action
     isAwayFromBottom,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended,
     settleAtLatest,
     // Refs
     sessionIdRef,

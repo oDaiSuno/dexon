@@ -1,4 +1,4 @@
-import { useCallback, type MutableRefObject } from "react";
+import { useCallback, useState, type MutableRefObject } from "react";
 import {
   isScrollbarPointerDown,
   isUpwardScrollKey,
@@ -62,6 +62,8 @@ export function useSessionScroll(context: Dependencies) {
     visualFrameIdsRef,
   } = context;
 
+  const [followSuspended, setFollowSuspended] = useState(false);
+
   const scheduleVisualFrame = useCallback(
     (callback: () => void) => {
       if (typeof globalThis.requestAnimationFrame !== "function") return;
@@ -116,6 +118,7 @@ export function useSessionScroll(context: Dependencies) {
   // "Scroll to bottom": snap to the end and re-magnet the viewport so the next
   // streaming ticks keep following until the user scrolls away again.
   const reattachAutoFollow = useCallback(() => {
+    setFollowSuspended(false);
     completionScrollAllowedRef.current = true;
     externalTurnAutoFollowRef.current = false;
     autoFollowMagnetRef.current = true;
@@ -136,6 +139,7 @@ export function useSessionScroll(context: Dependencies) {
   const settleAtLatest = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    setFollowSuspended(false);
     autoFollowMagnetRef.current = true;
     completionScrollAllowedRef.current = true;
     scrollToBottom("auto");
@@ -181,6 +185,11 @@ export function useSessionScroll(context: Dependencies) {
     externalTurnAutoFollowRef.current = false;
     autoFollowMagnetRef.current = false;
   }, [autoFollowMagnetRef, completionScrollAllowedRef, externalTurnAutoFollowRef]);
+
+  const disengageAutoFollow = useCallback(() => {
+    disengageAutoFollowForExplicitUpwardGesture();
+    setFollowSuspended(true);
+  }, [disengageAutoFollowForExplicitUpwardGesture]);
 
   const markUserScrollIntent = useCallback(
     (event: Event) => {
@@ -318,6 +327,8 @@ export function useSessionScroll(context: Dependencies) {
     scrollLiveContentToBottom,
     updateScrollPresence,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended: followSuspended,
     settleAtLatest,
   };
 }
