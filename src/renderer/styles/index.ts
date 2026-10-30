@@ -24,5 +24,6 @@ import "./notice-shelf.css";
 import "./chat-shared.css";
 import "./messages-process.css";
 import "./messages-failure.css";
+import "./messages-long-prompt.css";
 import "./messages-stream.css";
 import "./tool-cards.css";

@@ -1,5 +1,7 @@
 export const READING_ANCHOR_ATTRIBUTE = "data-reading-anchor";
 
+export const MESSAGE_TOP_GAP = 16;
+
 const STABLE_FRAMES = 3;
 const MAX_FRAMES = 90;
 
@@ -14,7 +16,7 @@ export interface ReadingAnchor {
 
 export interface ReadingAlignment {
   container: HTMLElement;
-  target: number;
+  target: number | (() => number);
   measure: () => number | null;
   shouldStop?: () => boolean;
   onSettled?: () => void;
@@ -38,7 +40,18 @@ export function readReadingAnchorOffset(container: HTMLElement, key: string): nu
   return element.getBoundingClientRect().top - container.getBoundingClientRect().top;
 }
 
+export function readReadingAnchorHeight(container: HTMLElement, key: string): number | null {
+  const element = findReadingAnchor(container, key);
+  if (!element) return null;
+  return element.getBoundingClientRect().height;
+}
+
+export function clampedReadingOffset(offsetTop: number, height: number | null): number {
+  return height !== null && height > 0 && offsetTop < -height ? MESSAGE_TOP_GAP : offsetTop;
+}
+
 export function alignReadingPosition({ container, target, measure, shouldStop, onSettled }: ReadingAlignment) {
+  const targetOf = typeof target === "function" ? target : () => target;
   let frameId = 0;
   let frames = 0;
   let stable = 0;
@@ -57,7 +70,7 @@ export function alignReadingPosition({ container, target, measure, shouldStop, o
     frames += 1;
     const offset = measure();
     if (offset === null) return finish();
-    const delta = offset - target;
+    const delta = offset - targetOf();
     if (Math.abs(delta) < 1) {
       stable += 1;
       if (stable >= STABLE_FRAMES) return finish();

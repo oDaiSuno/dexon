@@ -4,6 +4,7 @@ import { OlderHistoryZone } from "./chat-window/older-history-zone";
 import { ScrollToBottomButton } from "./chat-window/scroll-to-bottom";
 import { CHAT_COLUMN_PADDING, Props, isAnswerTextStreaming, phaseLabel } from "./chat-window/shared";
 import { ExtensionStatusBar, ExtensionWidgets, NoticeShelf } from "./chat-window/status";
+import { ReaderActionProvider } from "./chat-window/reader-action";
 import { TurnNavigator } from "./chat-window/turn-navigator";
 import { useChatWindow } from "./chat-window/use-chat-window";
 import { Welcome } from "./chat-window/welcome";
@@ -186,31 +187,33 @@ export function ChatWindow(props: Props) {
                   <ExtensionStatusBar statuses={extensionStatuses} />
                   <ExtensionWidgets widgets={aboveEditorWidgets} />
 
-                  <ChatMessages
-                    messages={messages}
-                    messageRefs={messageRefs}
-                    lastUserMsgRef={lastUserMsgRef}
-                    entryIds={entryIds}
-                    messageRenderKeys={messageRenderKeys}
-                    toolMessageIndex={toolMessageIndex}
-                    agentRunning={agentRunning}
-                    streamState={streamState}
-                    session={session}
-                    modelNames={modelNames}
-                    messageCwd={messageCwd}
-                    onOpenFile={onOpenFile}
-                    isNew={isNew}
-                    handleFork={handleFork}
-                    forkingEntryId={forkingEntryId}
-                    editDraft={editDraft}
-                    editHandlers={editHandlers}
-                    handleSwitchVersion={handleSwitchVersion}
-                    loadDeferredContent={loadDeferredContent}
-                    thinkingExpansionStore={thinkingExpansionStore}
-                    assistantBlockCache={assistantBlockCache}
-                    processDetailsExpansionStore={processDetailsExpansionStore}
-                    disengageAutoFollow={disengageAutoFollow}
-                  />
+                  <ReaderActionProvider onReaderAction={disengageAutoFollow}>
+                    <ChatMessages
+                      messages={messages}
+                      messageRefs={messageRefs}
+                      lastUserMsgRef={lastUserMsgRef}
+                      entryIds={entryIds}
+                      messageRenderKeys={messageRenderKeys}
+                      toolMessageIndex={toolMessageIndex}
+                      agentRunning={agentRunning}
+                      streamState={streamState}
+                      session={session}
+                      modelNames={modelNames}
+                      messageCwd={messageCwd}
+                      onOpenFile={onOpenFile}
+                      isNew={isNew}
+                      handleFork={handleFork}
+                      forkingEntryId={forkingEntryId}
+                      editDraft={editDraft}
+                      editHandlers={editHandlers}
+                      handleSwitchVersion={handleSwitchVersion}
+                      loadDeferredContent={loadDeferredContent}
+                      thinkingExpansionStore={thinkingExpansionStore}
+                      assistantBlockCache={assistantBlockCache}
+                      processDetailsExpansionStore={processDetailsExpansionStore}
+                      disengageAutoFollow={disengageAutoFollow}
+                    />
+                  </ReaderActionProvider>
 
                   {agentRunning && retryInfo?.waiting && (
                     <RetryCountdownLine

@@ -3,6 +3,7 @@ import { MarkdownBody, type InlineChips } from "../MarkdownBody";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
 import { AttachmentChip, SkillChip } from "./message-chips";
+import { LongPromptFold } from "./long-prompt-fold";
 import { SessionSourceChip } from "./session-links";
 import { DeferredContentActions } from "./shared";
 import type { ImageContent, UserMessage } from "@/lib/types";
@@ -135,9 +136,11 @@ export function UserMessageBubble({
           </div>
         )}
         {(prose.trim() || leadingSkillName) && (
-          <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile} inlineChips={inlineChips}>
-            {prose}
-          </MarkdownBody>
+          <LongPromptFold>
+            <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile} inlineChips={inlineChips}>
+              {prose}
+            </MarkdownBody>
+          </LongPromptFold>
         )}
         {imageTokenPreviews.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
