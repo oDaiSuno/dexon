@@ -82,7 +82,6 @@ export const CHIP_PROMPT = promptLines(CHIP_PROMPT_TAG, LONG_PROMPT_LINES)
 export const CHIP_PROMPT_MARKER = promptLine(CHIP_PROMPT_TAG, 0);
 
 export const WRAP_PROMPT_PARTS = 34;
-export const WRAP_PROMPT = flowingPrompt(WRAP_PROMPT_PARTS);
 export const WRAP_PROMPT_MARKER = STAGES[0];
 
 export const IMAGE_PROMPT_LINES = ["大图配两行字", "图片本身不该被折叠"].join("\n");

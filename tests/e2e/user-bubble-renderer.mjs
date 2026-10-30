@@ -23,7 +23,8 @@ import {
   OFFSCREEN_PROMPT,
   PICTURE_PROMPT,
   PREVIEW_PROMPT,
-  WRAP_PROMPT,
+  WRAP_PROMPT_PARTS,
+  flowingPrompt,
 } from "../fixtures/long-prompt.mjs";
 import { createFoldQueries } from "./user-bubble-fold-page.mjs";
 import "./production-styles.mjs";
@@ -119,10 +120,10 @@ const transcript = [
   },
 ];
 
-const foldTranscript = [
+const foldTranscript = (wrapParts) => [
   { role: "user", content: LONG_PROMPT, timestamp: 19 },
   ...replyAfter(20, "长提问甲的回复"),
-  { role: "user", content: WRAP_PROMPT, timestamp: 21 },
+  { role: "user", content: flowingPrompt(wrapParts), timestamp: 21 },
   ...replyAfter(22, "拉宽窗口以后行数变少的回复"),
   {
     role: "user",
@@ -161,11 +162,22 @@ const foldTranscript = [
 
 const streamTranscript = [{ role: "user", content: LONG_PROMPT, timestamp: 1 }, ...replyAfter(2, "")];
 
-const detail = createSessionDetail("user-bubble", {
-  cwd: CWD,
-  messages: [...transcript, ...foldTranscript],
-  entryIds: [...transcript, ...foldTranscript].map((_, index) => `entry-${index}`),
-});
+const detailsByWrapParts = new Map();
+
+function detailWithWrapParts(wrapParts) {
+  if (!detailsByWrapParts.has(wrapParts)) {
+    const messages = [...transcript, ...foldTranscript(wrapParts)];
+    detailsByWrapParts.set(
+      wrapParts,
+      createSessionDetail("user-bubble", {
+        cwd: CWD,
+        messages,
+        entryIds: messages.map((_message, index) => `entry-${index}`),
+      }),
+    );
+  }
+  return detailsByWrapParts.get(wrapParts);
+}
 
 const streamDetail = createSessionDetail("user-bubble-stream", {
   cwd: CWD,
@@ -173,7 +185,7 @@ const streamDetail = createSessionDetail("user-bubble-stream", {
   entryIds: ["entry-stream-prompt", "entry-stream-reply"],
 });
 
-let activeDetail = detail;
+let activeDetail = detailWithWrapParts(WRAP_PROMPT_PARTS);
 let streaming = false;
 const revealed = [];
 const sessionHost = createSessionTestHost({
@@ -254,12 +266,18 @@ const thinkingExpansionStore = new ThinkingExpansionStore();
 const processDetailsExpansionStore = new ThinkingExpansionStore();
 let epoch = 0;
 
-function render({ theme = "light", fontSize = "standard", layout = "fixed", session = "default" } = {}) {
+function render({
+  theme = "light",
+  fontSize = "standard",
+  layout = "fixed",
+  session = "default",
+  wrapParts = WRAP_PROMPT_PARTS,
+} = {}) {
   applyChatAppearance(document.documentElement, { fontSize, layout });
   window.localStorage.setItem("pi-theme", theme);
   document.documentElement.classList.toggle("dark", theme === "dark");
   document.documentElement.style.colorScheme = theme;
-  activeDetail = session === "streaming" ? streamDetail : detail;
+  activeDetail = session === "streaming" ? streamDetail : detailWithWrapParts(wrapParts);
   streaming = session === "streaming";
   document.getElementById("root").style.height = "100vh";
   flushSync(() =>

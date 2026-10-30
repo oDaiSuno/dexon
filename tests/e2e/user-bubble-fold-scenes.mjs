@@ -15,6 +15,7 @@ import {
   PICTURE_PROMPT_MARKER,
   PREVIEW_PROMPT_MARKER,
   WRAP_PROMPT_MARKER,
+  WRAP_PROMPT_PARTS,
 } from "../fixtures/long-prompt.mjs";
 import {
   EN,
@@ -28,6 +29,10 @@ import {
 } from "./user-bubble-fold-checks.mjs";
 
 const previewsOf = (snapshot) => snapshot.images.filter((image) => !image.inRegion && !image.inChip);
+
+const ABOUT_TEN_LINES = 10;
+const ABOUT_TEN_LINES_SLACK = 1;
+const CLEARLY_PAST_THE_THRESHOLD_LINES = 16;
 
 export async function runFoldScenes(context) {
   const {
@@ -50,17 +55,46 @@ export async function runFoldScenes(context) {
   const { fold, foldPoint, foldedHeight, isFolded, isOpen, follows, waitUntil, show, assertFolded } =
     createFoldChecks(context);
 
-  await scene("long-prompt-about-ten-lines-shows-in-full", async (measurement) => {
+  let wrapSample = null;
+
+  const wrapLinesAtWideWidth = async (parts) => {
     await setContentSize(VIEWPORT.width, VIEWPORT.height);
-    const snapshot = await show(WRAP_PROMPT_MARKER);
+    const snapshot = await show(WRAP_PROMPT_MARKER, { wrapParts: parts });
+    return snapshot.region.lines;
+  };
+
+  const aboutTenLineWrapSample = async () => {
+    if (wrapSample) return wrapSample;
+    let parts = WRAP_PROMPT_PARTS;
+    let lines = 0;
+    for (let attempt = 0; attempt < 6; attempt += 1) {
+      lines = await wrapLinesAtWideWidth(parts);
+      if (Math.abs(lines - ABOUT_TEN_LINES) <= ABOUT_TEN_LINES_SLACK) {
+        wrapSample = { parts, lines };
+        return wrapSample;
+      }
+      const next = Math.max(1, Math.round((parts * ABOUT_TEN_LINES) / Math.max(lines, 1)));
+      if (next === parts) break;
+      parts = next;
+    }
+    throw new Error(
+      `the sample does not wrap to about ten lines at ${VIEWPORT.width}px (${lines} lines from ${parts} parts)`,
+    );
+  };
+
+  await scene("long-prompt-about-ten-lines-shows-in-full", async (measurement) => {
+    const { parts } = await aboutTenLineWrapSample();
+    await setContentSize(VIEWPORT.width, VIEWPORT.height);
+    const snapshot = await show(WRAP_PROMPT_MARKER, { wrapParts: parts });
     Object.assign(measurement, {
+      parts,
       lines: snapshot.region.lines,
       height: Math.round(snapshot.region.rect.height),
       bubbleHeight: Math.round(snapshot.bubble.height),
     });
     assert.equal(snapshot.bar, null, "a prompt that fits shows no fold bar");
     assert.ok(
-      snapshot.region.lines >= 8 && snapshot.region.lines <= FOLD_THRESHOLD_LINES,
+      Math.abs(snapshot.region.lines - ABOUT_TEN_LINES) <= ABOUT_TEN_LINES_SLACK,
       `a prompt of about ten rendered lines stays under the threshold (${snapshot.region.lines})`,
     );
     near(
@@ -126,8 +160,9 @@ export async function runFoldScenes(context) {
   });
 
   await scene("window-width-decides-the-fold-by-rendered-lines", async (measurement) => {
+    const { parts } = await aboutTenLineWrapSample();
     await setContentSize(VIEWPORT.width, VIEWPORT.height);
-    const wide = await show(WRAP_PROMPT_MARKER);
+    const wide = await show(WRAP_PROMPT_MARKER, { wrapParts: parts });
     const wrapsPastTheThreshold = (snapshot) => snapshot.region.lines > FOLD_THRESHOLD_LINES;
     const policy = (snapshot) => wrapsPastTheThreshold(snapshot) === Boolean(snapshot.bar);
     assert.ok(
@@ -147,10 +182,15 @@ export async function runFoldScenes(context) {
       "the narrow window to wrap the prompt past the threshold",
     );
     Object.assign(measurement, {
+      parts,
       wideLines: wide.region.lines,
       narrowLines: narrow.region.lines,
       narrowHeight: Math.round(narrow.region.clientHeight),
     });
+    assert.ok(
+      narrow.region.lines >= CLEARLY_PAST_THE_THRESHOLD_LINES,
+      `the narrow window wraps the prompt well past the threshold (${narrow.region.lines} lines)`,
+    );
     assert.ok(
       policy(narrow),
       `at ${NARROW_WIDTH}px the fold follows the rendered lines (${narrow.region.lines} lines, fold bar ${Boolean(narrow.bar)})`,
@@ -174,6 +214,19 @@ export async function runFoldScenes(context) {
       "the widened prompt is shown in full again",
       2,
     );
+
+    await setContentSize(NARROW_WIDTH, VIEWPORT.height);
+    const narrowedAgain = await waitUntil(
+      WRAP_PROMPT_MARKER,
+      (snapshot) => snapshot.region.lines > FOLD_THRESHOLD_LINES,
+      "the narrow window to fold the prompt again",
+    );
+    Object.assign(measurement, { foldedAgainLines: narrowedAgain.region.lines });
+    assert.ok(
+      policy(narrowedAgain),
+      `at ${NARROW_WIDTH}px the fold follows the rendered lines again (${narrowedAgain.region.lines} lines, fold bar ${Boolean(narrowedAgain.bar)})`,
+    );
+    assertFolded(narrowedAgain, "the prompt narrowed again");
     return { screenshot: await capture("15-width-decides") };
   });
 
