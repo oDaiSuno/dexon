@@ -145,6 +145,8 @@ export function useChatWindow({
     loadDeferredContent,
     isAwayFromBottom,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended,
     settleAtLatest,
   } = useAgentSession({
     session,
@@ -488,6 +490,8 @@ export function useChatWindow({
     turnJump,
     isAwayFromBottom,
     reattachAutoFollow,
+    disengageAutoFollow,
+    isFollowingSuspended,
     belowEditorWidgets,
     chatInputElement,
   };

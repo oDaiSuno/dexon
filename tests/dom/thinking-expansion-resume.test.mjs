@@ -31,9 +31,19 @@ async function emit(host, event) {
 
 const thinkingRows = (root) =>
   [...root.querySelectorAll("button[aria-expanded]")].filter((node) => /Deep thinking/.test(node.textContent));
+const groupRows = (root) =>
+  [...root.querySelectorAll("button[aria-expanded]")].filter((node) =>
+    /Processed|Process details/.test(node.textContent),
+  );
 const states = (buttons) =>
   buttons.map((node) => (node.getAttribute("aria-expanded") === "true" ? "open" : "closed")).join(",");
 const anchorOf = (row) => row.closest("[data-reading-anchor]")?.getAttribute("data-reading-anchor");
+
+async function openGroup(root) {
+  const [group] = groupRows(root);
+  assert.ok(group, "the process of the reply waits behind a block the reader can open");
+  if (group.getAttribute("aria-expanded") === "false") await click(group);
+}
 
 async function resumedScene(t, id) {
   const reply = assistantReply([thinkingBlock("第1段思考")], "toolUse", 1004);
@@ -77,6 +87,7 @@ async function resumedScene(t, id) {
 test("when the reader opens a session whose reply is already running, the segment they close stays closed through the next update and after the message is saved", async (t) => {
   const id = "resume";
   const { root, host, setDetail } = await resumedScene(t, id);
+  await openGroup(root);
   assert.ok(thinkingRows(root).length === 1, "the running reply is on screen");
   assert.equal(states(thinkingRows(root)), "open", "an untouched live segment shows its text without being asked");
 
@@ -98,6 +109,7 @@ test("when the reader opens a session whose reply is already running, the segmen
   setDetail(turnDetail(id, [userTurn(), finished]));
   await emit(host, { type: "message_saved", entryId: `${id}-entry-1` });
 
+  await openGroup(root);
   assert.equal(states(thinkingRows(root)), "open", "the choice carries over to the saved id instead of being lost");
   assert.equal(anchorOf(thinkingRows(root)[0]), `entry:${id}-entry-1:message`, "it now answers to the saved id");
   await click(thinkingRows(root)[0]);

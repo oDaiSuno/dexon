@@ -1,6 +1,6 @@
 import { type EventStreamConnectionStatus } from "@/lib/event-stream-connection";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
-import type { AgentMessage, SessionInfo, SessionTreeNode } from "@/lib/types";
+import type { AgentMessage, AssistantContentBlock, SessionInfo, SessionTreeNode } from "@/lib/types";
 import type { ModelInfo, SessionDetail, SessionRuntimeState } from "@contract/types";
 import { isNearChatBottom } from "../chat-scroll-policy";
 export type SessionData = SessionDetail;
@@ -49,9 +49,18 @@ export function normalizeQueuedMessages(q?: { steering?: string[]; followUp?: st
 export type { NoticeItem } from "@/lib/notice-queue";
 export type AgentPhase =
   | { kind: "waiting_model" }
+  | { kind: "thinking" }
   | { kind: "running_command" }
   | { kind: "running_tools"; tools: { id: string; name: string }[] }
   | null;
+export function phaseForStreamingMessage(message: Partial<AgentMessage> | null | undefined): AgentPhase {
+  const blocks = (message as { content?: unknown } | null | undefined)?.content;
+  if (!Array.isArray(blocks) || blocks.length === 0) return { kind: "waiting_model" };
+  const last = blocks[blocks.length - 1] as AssistantContentBlock | undefined;
+  if (last?.type === "thinking") return last.thinking.trim() === "" ? { kind: "waiting_model" } : { kind: "thinking" };
+  if (last?.type === "toolCall") return { kind: "thinking" };
+  return { kind: "waiting_model" };
+}
 export interface RetryInfo {
   attempt: number;
   maxAttempts: number;

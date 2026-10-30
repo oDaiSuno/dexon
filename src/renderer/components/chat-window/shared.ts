@@ -53,6 +53,21 @@ export function phaseLabel(phase: AgentPhase, t: (key: string, fallback: string)
   if (phase?.kind === "running_command") return t("runningCommand", "Running command…");
   return t("thinking", "Thinking…");
 }
+
+export function isAnswerTextStreaming(message: Partial<AgentMessage> | null | undefined): boolean {
+  const blocks = message?.content;
+  if (!Array.isArray(blocks)) return false;
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index];
+    if (!block) continue;
+    if (block.type === "text") {
+      if (block.text.trim() === "") continue;
+      return true;
+    }
+    return false;
+  }
+  return false;
+}
 export const CHAT_COLUMN_PADDING = 16;
 export interface NavigatorTurn {
   key: string;

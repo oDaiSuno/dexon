@@ -1,8 +1,12 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
 import { isAssistantFailure, splitAssistantBlockRuns, type AssistantBlockItem } from "@/lib/message-display";
 import {
+  blockEndedAt,
+  blockStartedAt,
   buildProcessFlowItems,
   computeTurnDurationSeconds,
+  elapsedSeconds,
+  recordedBlocks,
   type ProcessFlow,
   type ProcessFlowSource,
 } from "@/lib/process-flow";
@@ -23,6 +27,7 @@ export interface TurnFooter {
 export interface TurnAnswerPiece {
   kind: "answer";
   key: string;
+  anchor: string;
   refIndex?: number;
   index: number;
   entryId?: string;
@@ -33,14 +38,19 @@ export interface TurnAnswerPiece {
 export interface TurnProcessPiece {
   kind: "process";
   key: string;
+  anchor: string;
   refIndex?: number;
   flow: ProcessFlow;
   durationSeconds?: number;
+  startedAt?: number;
+  liveStartedAt?: number;
+  open: boolean;
 }
 
 export interface TurnFailurePiece {
   kind: "failure";
   key: string;
+  anchor: string;
   refIndex?: number;
   index: number;
   message: AssistantMessage;
@@ -123,13 +133,19 @@ export interface TurnLayoutInput {
   retriedIndices: ReadonlySet<number>;
   resolvedIndices: ReadonlySet<number>;
   cache: AssistantBlockCache;
+  live?: boolean;
+  streamingMessage?: AssistantMessage;
 }
 
 interface OpenGroup {
   key: string;
+  anchor: string;
   refIndex?: number;
   sources: ProcessFlowSource[];
   startTimestamp?: number;
+  recordedEnd?: number;
+  answerStartedAt?: number;
+  nextBlockStarted: boolean;
 }
 
 function timestampOf(message: AgentMessage | undefined): number | undefined {
@@ -149,6 +165,79 @@ function lastProcessingTimestamp(sources: ProcessFlowSource[], flow: ProcessFlow
     if (item.kind === "toolCall") latest = laterOf(latest, item.result?.timestamp);
   }
   return latest;
+}
+
+function lastToolResultTimestamp(flow: ProcessFlow): number | undefined {
+  let latest: number | undefined;
+  for (const item of flow.items) {
+    if (item.kind === "toolCall") latest = laterOf(latest, item.result?.timestamp);
+  }
+  return latest;
+}
+
+function sourceBlockItems(source: ProcessFlowSource): AssistantBlockItem[] {
+  const message = source.message as AssistantMessage;
+  return source.blockItems ?? (message.content ?? []).map((block, index) => ({ block, index }));
+}
+
+interface SourceTail {
+  end?: number;
+  nextBlockStarted: boolean;
+  answerStartedAt?: number;
+}
+
+const NO_TAIL: SourceTail = { nextBlockStarted: false };
+
+function isAnswerBlock(block: AssistantContentBlock | undefined): boolean {
+  return block?.type === "text" || block?.type === "image";
+}
+
+function tailOf(source: ProcessFlowSource): SourceTail {
+  if (source.message.role !== "assistant") return NO_TAIL;
+  const message = source.message as AssistantMessage;
+  const blocks = recordedBlocks(message);
+  const items = sourceBlockItems(source);
+  const last = items[items.length - 1];
+  if (!blocks || !last) return NO_TAIL;
+  let end: number | undefined;
+  for (const item of items) end = laterOf(end, blockEndedAt(blocks, item.index));
+  const content = message.content ?? [];
+  let answerStartedAt: number | undefined;
+  for (let index = last.index + 1; index < content.length; index += 1) {
+    if (!isAnswerBlock(content[index])) continue;
+    answerStartedAt = blockStartedAt(blocks, index);
+    break;
+  }
+  return { end, nextBlockStarted: blockStartedAt(blocks, last.index + 1) !== undefined, answerStartedAt };
+}
+
+function leadingAnswerStart(message: AssistantMessage): number | undefined {
+  if (!isAnswerBlock((message.content ?? [])[0])) return undefined;
+  return blockStartedAt(recordedBlocks(message), 0);
+}
+
+function recordedBlockStart(source: ProcessFlowSource, blockIndex: number | undefined): number | undefined {
+  if (blockIndex === undefined || source.message.role !== "assistant") return undefined;
+  return blockStartedAt(recordedBlocks(source.message as AssistantMessage), blockIndex);
+}
+
+function groupStartTimestamp(
+  source: ProcessFlowSource,
+  firstBlockIndex: number | undefined,
+  hasPriorContent: boolean,
+): number | undefined {
+  if (!hasPriorContent) return source.prevTimestamp;
+  return recordedBlockStart(source, firstBlockIndex) ?? source.prevTimestamp;
+}
+
+function groupDurationSeconds(
+  startedAt: number | undefined,
+  timedEnd: number | undefined,
+  legacyEnd: number | undefined,
+): number | undefined {
+  if (startedAt === undefined) return undefined;
+  if (timedEnd !== undefined) return elapsedSeconds(timedEnd - startedAt);
+  return computeTurnDurationSeconds(startedAt, legacyEnd);
 }
 
 function sumUsage(messages: AgentMessage[], userIdx: number, endIdx: number): AssistantUsage | undefined {
@@ -214,7 +303,15 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
 
   const pieces: TurnPiece[] = [];
   const claimedRefs = new Set<number>();
+  const startedMessages = new Set<number>();
   let group: OpenGroup | null = null;
+  let hasPriorContent = false;
+
+  const pieceAnchor = (messageIndex: number, message: object, entryId: string | undefined, key: string): string => {
+    if (startedMessages.has(messageIndex)) return key;
+    startedMessages.add(messageIndex);
+    return input.keyFor(message, entryId, "message");
+  };
 
   const claimRef = (messageIndex: number): number | undefined => {
     const refIndex = input.refIndexFor(messageIndex);
@@ -223,23 +320,54 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
     return refIndex;
   };
 
-  const joinGroup = (messageIndex: number, key: string, source: ProcessFlowSource) => {
-    if (!group) group = { key, sources: [], startTimestamp: source.prevTimestamp };
+  const joinGroup = (
+    messageIndex: number,
+    key: string,
+    source: ProcessFlowSource,
+    firstBlockIndex: number | undefined,
+  ) => {
+    if (!group) {
+      group = {
+        key,
+        anchor: pieceAnchor(messageIndex, source.message, source.entryId, key),
+        sources: [],
+        startTimestamp: groupStartTimestamp(source, firstBlockIndex, hasPriorContent),
+        recordedEnd: undefined,
+        nextBlockStarted: false,
+      };
+    }
+    startedMessages.add(messageIndex);
     if (group.refIndex === undefined) group.refIndex = claimRef(messageIndex);
+    const tail = tailOf(source);
+    group.recordedEnd = laterOf(group.recordedEnd, tail.end);
+    group.nextBlockStarted = tail.nextBlockStarted;
+    group.answerStartedAt ??= tail.answerStartedAt;
     group.sources.push(source);
   };
 
-  const flushGroup = () => {
+  const flushGroup = (answerStartedAt?: number) => {
     if (!group) return;
+    const closingAt = answerStartedAt ?? group.answerStartedAt;
     const flow = buildProcessFlowItems(group.sources, (message, entryId) => input.keyFor(message, entryId, "process"));
-    const end = lastProcessingTimestamp(group.sources, flow);
+    const timedEnd =
+      closingAt ??
+      (group.recordedEnd === undefined ? undefined : laterOf(group.recordedEnd, lastToolResultTimestamp(flow)));
+    const durationSeconds = groupDurationSeconds(
+      group.startTimestamp,
+      timedEnd,
+      lastProcessingTimestamp(group.sources, flow),
+    );
     pieces.push({
       kind: "process",
       key: group.key,
+      anchor: group.anchor,
       refIndex: group.refIndex,
       flow,
-      durationSeconds: computeTurnDurationSeconds(group.startTimestamp, end),
+      durationSeconds,
+      startedAt: group.startTimestamp,
+      open: !group.nextBlockStarted && closingAt === undefined,
     });
+    hasPriorContent = true;
     group = null;
   };
 
@@ -248,22 +376,29 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
     const entryId = entryIds[index];
     const prevTimestamp = timestampOf(messages[index - 1]);
     if (message.role === "custom") {
-      joinGroup(index, input.keyFor(message, entryId, "process"), {
-        message: message as CustomMessage,
-        entryId,
-        prevTimestamp,
-      });
+      joinGroup(
+        index,
+        input.keyFor(message, entryId, "process"),
+        { message: message as CustomMessage, entryId, prevTimestamp },
+        undefined,
+      );
       continue;
     }
     if (message.role !== "assistant") continue;
     const assistant = message as AssistantMessage;
     const toolData = input.toolData.get(assistant);
+    const live = input.live === true;
+    const leadingAnswerStartedAt = leadingAnswerStart(assistant);
+    if (leadingAnswerStartedAt !== undefined) flushGroup(leadingAnswerStartedAt);
     for (const piece of cache.piecesFor(assistant)) {
       if (piece.kind === "answer") {
-        flushGroup();
+        flushGroup(blockStartedAt(recordedBlocks(assistant), piece.firstIndex));
+        hasPriorContent = true;
+        const key = `${input.keyFor(assistant, entryId, "answer")}:${piece.firstIndex}`;
         pieces.push({
           kind: "answer",
-          key: `${input.keyFor(assistant, entryId, "answer")}:${piece.firstIndex}`,
+          key,
+          anchor: pieceAnchor(index, assistant, entryId, key),
           refIndex: claimRef(index),
           index,
           entryId,
@@ -272,20 +407,29 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
         });
         continue;
       }
-      joinGroup(index, `${input.keyFor(assistant, entryId, "process")}:${piece.firstIndex}`, {
-        message: assistant,
-        blockItems: piece.blockItems,
-        entryId,
-        prevTimestamp,
-        toolData,
-      });
+      joinGroup(
+        index,
+        `${input.keyFor(assistant, entryId, "process")}:${piece.firstIndex}`,
+        {
+          message: assistant,
+          blockItems: piece.blockItems,
+          entryId,
+          prevTimestamp,
+          toolData,
+          live,
+          streaming: assistant === input.streamingMessage,
+        },
+        piece.firstIndex,
+      );
     }
     if (isAssistantFailure(assistant)) {
       flushGroup();
       if (!resolvedIndices.has(index)) {
+        const key = input.keyFor(assistant, entryId, "failure");
         pieces.push({
           kind: "failure",
-          key: input.keyFor(assistant, entryId, "failure"),
+          key,
+          anchor: pieceAnchor(index, assistant, entryId, key),
           refIndex: claimRef(index),
           index,
           message: failureOnlyMessage(assistant),
@@ -296,5 +440,14 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
   }
   flushGroup();
 
+  markOpenBlock(pieces, input.live === true);
+
   return { pieces, lastAssistantIndex, footer: footerFor(input, pieces, lastAssistantIndex) };
+}
+
+function markOpenBlock(pieces: TurnPiece[], live: boolean): void {
+  if (!live) return;
+  const newest = pieces[pieces.length - 1];
+  if (newest?.kind !== "process" || !newest.open || newest.startedAt === undefined) return;
+  newest.liveStartedAt = newest.startedAt;
 }

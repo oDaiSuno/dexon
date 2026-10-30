@@ -146,7 +146,7 @@ export function useSessionLifecycle(context: Dependencies) {
                 ? {
                     type: "update",
                     message: normalizeToolCalls(partialReply),
-                    entryId: unsavedMessages.streamingEntryId(partialReply.timestamp),
+                    entryId: unsavedMessages.resumeStreaming(partialReply.timestamp),
                   }
                 : { type: "start" },
             );

@@ -237,3 +237,65 @@ export function silentAbortTurn(id = "answer-new-session-silent-abort") {
     toolOutput("call-read-1", TOOL_OUTPUT, 1007),
   ]);
 }
+
+export function timedBlocksTurn(id = "answer-timing-blocks") {
+  return turnDetail(id, [
+    timedQuestion(),
+    {
+      ...assistantReply([thinkingBlock(ANALYSIS), readStep("call-read-1")], "toolUse", at(30)),
+      dexonTiming: {
+        blocks: [
+          { startedAt: at(1), endedAt: at(20) },
+          { startedAt: at(20), endedAt: at(30) },
+        ],
+      },
+    },
+    toolOutput("call-read-1", TOOL_OUTPUT, at(32)),
+    {
+      ...assistantReply([thinkingBlock(REANALYSIS), textBlock(CONCLUSION)], "stop", at(65)),
+      dexonTiming: {
+        blocks: [
+          { startedAt: at(33), endedAt: at(40) },
+          { startedAt: at(40), endedAt: at(65) },
+        ],
+      },
+    },
+  ]);
+}
+
+export function untimedBlocksTurn(id = "answer-timing-legacy") {
+  return turnDetail(id, [
+    timedQuestion(),
+    assistantReply([thinkingBlock(ANALYSIS), readStep("call-read-1")], "toolUse", at(30)),
+    toolOutput("call-read-1", TOOL_OUTPUT, at(40)),
+    assistantReply([thinkingBlock(REANALYSIS), textBlock(CONCLUSION)], "stop", at(65)),
+  ]);
+}
+
+export function timedToolEndedBlocksTurn(id = "answer-timing-tool-ended") {
+  return turnDetail(id, [
+    timedQuestion(),
+    {
+      ...assistantReply([thinkingBlock(ANALYSIS), readStep("call-read-1")], "toolUse", at(25)),
+      dexonTiming: {
+        blocks: [
+          { startedAt: at(1), endedAt: at(20) },
+          { startedAt: at(20), endedAt: at(25) },
+        ],
+      },
+    },
+    toolOutput("call-read-1", TOOL_OUTPUT, at(32)),
+  ]);
+}
+
+export function retriedBlocksTurn(id = "answer-timing-retried") {
+  return turnDetail(id, [
+    timedQuestion(),
+    assistantReply([thinkingBlock(ANALYSIS), readStep("call-read-1")], "toolUse", at(10)),
+    toolOutput("call-read-1", TOOL_OUTPUT, at(12)),
+    { ...assistantReply([], "error", at(13)), errorMessage: FAILURE_DETAIL },
+    assistantReply([thinkingBlock(REANALYSIS), readStep("call-read-2", "src/main.ts")], "toolUse", at(30)),
+    toolOutput("call-read-2", SECOND_TOOL_OUTPUT, at(31)),
+    assistantReply([textBlock(CONCLUSION)], "stop", at(40)),
+  ]);
+}

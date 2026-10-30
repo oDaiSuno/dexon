@@ -36,6 +36,7 @@ const thinkingRows = (root) => rows(root, /Deep thinking/);
 const groupRows = (root) => rows(root, /Processed|Process details/);
 const states = (buttons) =>
   buttons.map((node) => (node.getAttribute("aria-expanded") === "true" ? "open" : "closed")).join(",");
+
 const anchored = (root, sentence) =>
   [...root.querySelectorAll("[data-reading-anchor]")].find((node) => node.textContent.includes(sentence));
 
@@ -79,10 +80,14 @@ test("when the reader clicks the thinking that is still being written closed and
   const tapTrace = () => click(thinkingRows(root)[0]);
   await emit(host, { type: "agent_start" });
   await emit(host, { type: "message_start", message: reply });
+  await click(groupRows(root)[0]);
+  await settle();
+  assert.equal(states(groupRows(root)), "open", "the reader opens the block of the reply that is being written");
   await tapTrace();
   await tapTrace();
   await emit(host, { type: "message_end", message: reply });
   await emit(host, { type: "message_saved", entryId: `${id}-entry-1` });
+  assert.equal(states(groupRows(root)), "open", "the saved id does not close the block the reader opened");
   assert.equal(
     states(thinkingRows(root)),
     "open",
@@ -90,8 +95,7 @@ test("when the reader clicks the thinking that is still being written closed and
   );
   setDetail(turnDetail(id, [userTurn(), reply]));
   await emit(host, { type: "agent_end" });
-  assert.equal(states(groupRows(root)), "closed", "the Processed block starts closed");
-  await click(groupRows(root)[0]);
+  assert.equal(states(groupRows(root)), "open", "the end of the reply does not close the block either");
   assert.equal(states(thinkingRows(root)), "open", "reading the finished reply again finds the same trace open");
 });
 

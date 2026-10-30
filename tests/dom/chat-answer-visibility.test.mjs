@@ -233,7 +233,7 @@ test("when the reader opens and closes the process groups, every sentence stays 
   assertCanonicalLayout(view);
 });
 
-test("when a turn streams its sentences one after another, they are readable while streaming and stay so once the turn completes", async (t) => {
+test("when a turn streams its sentences one after another, its process waits behind a group while the turn is written and the sentences stay readable in order", async (t) => {
   const sessionId = "answer-visibility-live";
   const before = turnDetail(sessionId, [userTurn()]);
   const completed = interleavedMultiMessageTurn(sessionId);
@@ -247,6 +247,11 @@ test("when a turn streams its sentences one after another, they are readable whi
     message: assistantReply([textBlock(OPENING), readStep("call-read-1", "src/app.ts")], "toolUse"),
   });
   assertReadingOrder(view, [OPENING]);
+  assert.equal(
+    collapsedGroups(messagesOf(view)).length,
+    1,
+    "the tool call of the turn being written already waits behind one collapsed group",
+  );
   await emit(host, {
     type: "message_end",
     message: assistantReply([textBlock(OPENING), readStep("call-read-1", "src/app.ts")], "toolUse"),
@@ -259,6 +264,19 @@ test("when a turn streams its sentences one after another, they are readable whi
     message: assistantReply([textBlock(MIDWAY), thinkingBlock(ANALYSIS), textBlock(CONCLUSION)], "stop"),
   });
   assertReadingOrder(view, [OPENING, MIDWAY, CONCLUSION]);
+  const liveGroups = collapsedGroups(messagesOf(view));
+  assert.equal(
+    liveGroups.length,
+    2,
+    "thinking written after the answer text opens a group of its own instead of joining the tool call",
+  );
+  comesBefore(
+    onScreen(view, MIDWAY),
+    liveGroups[1],
+    "the second sentence is read before the group of the thinking that follows it",
+  );
+  comesBefore(liveGroups[1], onScreen(view, CONCLUSION), "the group of that thinking ends before the last sentence");
+  assert.ok(!text(messagesOf(view), ANALYSIS), "the thinking of the turn being written is not readable as reply text");
   await emit(host, {
     type: "message_end",
     message: assistantReply([textBlock(MIDWAY), thinkingBlock(ANALYSIS), textBlock(CONCLUSION)], "stop"),

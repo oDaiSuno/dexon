@@ -44,6 +44,12 @@ const groupRows = (root) => rows(root, /Processed|Process details/);
 const states = (buttons) =>
   buttons.map((node) => (node.getAttribute("aria-expanded") === "true" ? "open" : "closed")).join(",");
 
+async function openGroup(root) {
+  const [group] = groupRows(root);
+  assert.ok(group, "the process of the reply waits behind a block the reader can open");
+  if (group.getAttribute("aria-expanded") === "false") await click(group);
+}
+
 async function scene(t, id, initial = [userTurn()]) {
   let current = turnDetail(id, initial);
   const host = createSessionTestHost({
@@ -109,6 +115,7 @@ test("when only the first finished thinking segment is clicked mid-reply, only i
   await emit(host, { type: "agent_start" });
   await finish(host, id, 1, turn[0]);
   await finish(host, id, 3, turn[1]);
+  await openGroup(root);
   await click(thinkingRows(root)[0]);
   assert.equal(states(thinkingRows(root)), "open,closed", "only the clicked segment opens");
   await finish(host, id, 5, turn[2]);
@@ -116,8 +123,7 @@ test("when only the first finished thinking segment is clicked mid-reply, only i
   assert.equal(states(thinkingRows(root)), "open,closed,closed,closed", "segments that appear later stay closed");
   setDetail(turnDetail(id, [userTurn(), ...saved(turn)]));
   await emit(host, { type: "agent_end" });
-  assert.equal(states(groupRows(root)), "closed", "the Processed block starts closed");
-  await click(groupRows(root)[0]);
+  assert.equal(states(groupRows(root)), "open", "the block opened while the reply was written stays open");
   assert.equal(states(thinkingRows(root)), "open,closed,closed,closed", "the finished reply keeps what the reader did");
 });
 
@@ -129,6 +135,7 @@ test("when the reader clicks the segment that is still thinking, it closes at on
     type: "message_start",
     message: assistantReply([thinkingBlock("第1段思考")], "toolUse", 1004),
   });
+  await openGroup(root);
   assert.equal(states(thinkingRows(root)), "open", "an untouched live segment shows its live text");
   await click(thinkingRows(root)[0]);
   assert.equal(states(thinkingRows(root)), "closed", "one click closes it immediately");
@@ -152,6 +159,7 @@ test("when the reader never touches the live segment, it is open while thinking 
     type: "message_start",
     message: assistantReply([thinkingBlock("第1段思考")], "toolUse", 1004),
   });
+  await openGroup(root);
   assert.equal(states(thinkingRows(root)), "open", "the live segment shows its text without being asked");
   await emit(host, { type: "message_end", message: step(1) });
   assert.equal(states(thinkingRows(root)), "closed", "it closes by itself once thinking ends");
@@ -163,11 +171,12 @@ test("when the reader opened things in the first reply, the second reply's segme
   const first = [step(1), step(9, true)];
   await emit(host, { type: "agent_start" });
   await finish(host, id, 1, first[0]);
+  await openGroup(root);
   await click(thinkingRows(root)[0]);
   await finish(host, id, 3, first[1]);
   setDetail(turnDetail(id, [userTurn(), ...saved(first)]));
   await emit(host, { type: "agent_end" });
-  await click(groupRows(root)[0]);
+  await openGroup(root);
   const followUp = { role: "user", content: "再查一次", timestamp: 2000 };
   await emit(host, { type: "agent_start" });
   await emit(host, { type: "message_start", message: step(2) });
@@ -188,11 +197,12 @@ test("when the reader opens a tool row while the reply is generating, it is stil
   const toolRow = () => rows(root, /config\.json/)[0];
   await emit(host, { type: "agent_start" });
   await finish(host, id, 1, turn[0]);
+  await openGroup(root);
   await click(toolRow());
   await finish(host, id, 3, turn[1]);
   setDetail(turnDetail(id, [userTurn(), ...saved(turn)]));
   await emit(host, { type: "agent_end" });
-  if (groupRows(root)[0].getAttribute("aria-expanded") === "false") await click(groupRows(root)[0]);
+  await openGroup(root);
   assert.equal(toolRow().getAttribute("aria-expanded"), "true", "the row the reader opened stays open");
 });
 
@@ -272,6 +282,7 @@ test("when the reader opens a row for another session while the reply is generat
   await emit(host, { type: "message_saved", entryId: `${id}-entry-1` });
   await emit(host, { type: "message_end", message: launched });
   await emit(host, { type: "message_saved", entryId: `${id}-entry-2` });
+  await openGroup(root);
   assert.ok(sessionRow(), "the row for the other session is on screen while the reply goes on");
   await click(sessionRow());
   assert.equal(sessionRow().getAttribute("aria-expanded"), "true", "the reader opened it");
@@ -280,6 +291,6 @@ test("when the reader opens a row for another session while the reply is generat
   await emit(host, { type: "message_saved", entryId: `${id}-entry-3` });
   setDetail(turnDetail(id, [userTurn(), handedOver, launched, closing]));
   await emit(host, { type: "agent_end" });
-  if (groupRows(root)[0].getAttribute("aria-expanded") === "false") await click(groupRows(root)[0]);
+  await openGroup(root);
   assert.equal(sessionRow().getAttribute("aria-expanded"), "true", "the row the reader opened stays open");
 });

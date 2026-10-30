@@ -1,7 +1,9 @@
 import { Fragment } from "react";
 import type { ProcessFlowItem } from "@/lib/process-flow";
+import type { AssistantMessage } from "@/lib/types";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { CompactionMessageView, CustomMessageView } from "./messages/SystemMessages";
+import { StreamSpeedHint } from "./messages/StreamSpeedHint";
 import { DeferredContentActions } from "./messages/shared";
 import { ThinkingBlock } from "./messages/ThinkingBlock";
 import { ToolCallBlock } from "./messages/ToolCallBlock";
@@ -17,15 +19,18 @@ export function ProcessFlow({
   onOpenFile,
   onLoadDeferredContent,
   thinkingExpansionStore,
+  speedHint,
 }: {
   items: ProcessFlowItem[];
   cwd?: string;
   onOpenFile?: (filePath: string) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
+  speedHint?: AssistantMessage;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+      {speedHint && <StreamSpeedHint message={speedHint} />}
       {items.map((item) => {
         switch (item.kind) {
           case "thinking":
@@ -36,6 +41,7 @@ export function ProcessFlow({
                   duration={item.duration}
                   stateKey={`${item.entryId ?? "assistant"}:${item.blockIndex}`}
                   store={thinkingExpansionStore}
+                  streaming={item.streaming}
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />
               </Fragment>
@@ -47,6 +53,7 @@ export function ProcessFlow({
                   block={item.block}
                   result={item.result}
                   duration={item.duration}
+                  startedAt={item.startedAt}
                   stateKey={`${item.entryId ?? "assistant"}:${item.blockIndex}`}
                   expansionStore={thinkingExpansionStore}
                   onLoadDeferredContent={onLoadDeferredContent}

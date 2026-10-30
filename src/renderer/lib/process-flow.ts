@@ -1,4 +1,11 @@
-import type { AssistantMessage, CustomMessage, ThinkingContent, ToolCallContent, ToolResultMessage } from "./types";
+import type {
+  AssistantMessage,
+  BlockTiming,
+  CustomMessage,
+  ThinkingContent,
+  ToolCallContent,
+  ToolResultMessage,
+} from "./types";
 import type { ToolMessageData } from "./tool-message-index";
 import { isEmptyThinkingBlock, type AssistantBlockItem } from "../../shared/message-display.ts";
 
@@ -16,6 +23,7 @@ export type ProcessFlowItem =
       blockIndex: number;
       entryId?: string;
       duration?: number;
+      streaming?: boolean;
     }
   | {
       kind: "toolCall";
@@ -25,6 +33,7 @@ export type ProcessFlowItem =
       entryId?: string;
       result?: ToolResultMessage;
       duration?: number;
+      startedAt?: number;
     }
   | { kind: "custom"; key: string; message: CustomMessage; entryId?: string };
 
@@ -36,6 +45,8 @@ export interface ProcessFlowSource {
   /** Timestamp of the preceding message, used to derive thinking durations. */
   prevTimestamp?: number;
   toolData?: ToolMessageData;
+  streaming?: boolean;
+  live?: boolean;
 }
 
 export type ProcessFlowKeyFor = (message: object, entryId?: string) => string;
@@ -66,6 +77,7 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
       continue;
     }
     const message = source.message as AssistantMessage;
+    const blocks = recordedBlocks(message);
     const blockItems = source.blockItems ?? (message.content ?? []).map((block, index) => ({ block, index }));
     let contributed = false;
     for (const { block, index: blockIndex } of blockItems) {
@@ -79,7 +91,8 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
           block,
           blockIndex,
           entryId,
-          duration: thinkingDurationSeconds(message, source.prevTimestamp),
+          duration: thinkingDurationSeconds(message, blockIndex, source.prevTimestamp),
+          streaming: source.streaming === true && blockEndedAt(blocks, blockIndex) === undefined,
         });
       } else if (block.type === "toolCall") {
         contributed = true;
@@ -94,6 +107,7 @@ export function buildProcessFlowItems(sources: ProcessFlowSource[], keyFor: Proc
           entryId,
           result,
           duration: source.toolData?.durations.get(block.toolCallId),
+          startedAt: source.live === true && !result ? toolRunStartedAt(blocks, blockIndex, message) : undefined,
         });
       }
     }
@@ -110,6 +124,10 @@ export function computeTurnDurationSeconds(userTimestamp?: number, finalTimestam
   return seconds > 0 ? seconds : undefined;
 }
 
+export function elapsedSeconds(elapsedMs: number): number {
+  return Math.max(0, Math.floor(elapsedMs / 1000));
+}
+
 /** Compact turn duration: 42s · 2m11s · 1h2m */
 export function formatTurnDuration(totalSeconds: number): string {
   const seconds = Math.max(0, Math.floor(totalSeconds));
@@ -121,7 +139,38 @@ export function formatTurnDuration(totalSeconds: number): string {
   return `${rest}s`;
 }
 
-function thinkingDurationSeconds(message: AssistantMessage, prevTimestamp?: number): number | undefined {
+export function recordedBlocks(message: AssistantMessage): readonly BlockTiming[] | undefined {
+  const blocks = message.dexonTiming?.blocks;
+  return blocks && blocks.length > 0 ? blocks : undefined;
+}
+
+export function blockStartedAt(blocks: readonly BlockTiming[] | undefined, index: number): number | undefined {
+  return blocks?.[index]?.startedAt;
+}
+
+export function blockEndedAt(blocks: readonly BlockTiming[] | undefined, index: number): number | undefined {
+  return blocks?.[index]?.endedAt;
+}
+
+function toolRunStartedAt(
+  blocks: readonly BlockTiming[] | undefined,
+  blockIndex: number,
+  message: AssistantMessage,
+): number | undefined {
+  return blocks ? blockEndedAt(blocks, blockIndex) : message.timestamp;
+}
+
+export function thinkingDurationSeconds(
+  message: AssistantMessage,
+  blockIndex: number,
+  prevTimestamp?: number,
+): number | undefined {
+  const blocks = recordedBlocks(message);
+  if (blocks) {
+    const block = blocks[blockIndex];
+    if (block?.endedAt === undefined) return undefined;
+    return elapsedSeconds(block.endedAt - block.startedAt);
+  }
   if (!message.timestamp || !prevTimestamp) return undefined;
   const seconds = Math.round((message.timestamp - prevTimestamp) / 1000);
   return seconds > 0 ? seconds : undefined;

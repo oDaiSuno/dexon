@@ -81,6 +81,15 @@ export interface ChannelMessageAttachment {
   mime?: string;
 }
 
+export interface BlockTiming {
+  startedAt: number;
+  endedAt?: number;
+}
+
+export interface DexonTiming {
+  blocks: BlockTiming[];
+}
+
 export interface AssistantMessage {
   role: "assistant";
   content: AssistantContentBlock[];
@@ -89,6 +98,7 @@ export interface AssistantMessage {
   stopReason?: string;
   errorMessage?: string;
   retry?: { attempt: number; maxAttempts: number };
+  dexonTiming?: DexonTiming;
   timestamp?: number;
   usage?: {
     input: number;

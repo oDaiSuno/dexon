@@ -31,9 +31,19 @@ async function emit(host, event) {
 
 const thinkingRows = (root) =>
   [...root.querySelectorAll("button[aria-expanded]")].filter((node) => /Deep thinking/.test(node.textContent));
+const groupRows = (root) =>
+  [...root.querySelectorAll("button[aria-expanded]")].filter((node) =>
+    /Processed|Process details/.test(node.textContent),
+  );
 const states = (buttons) =>
   buttons.map((node) => (node.getAttribute("aria-expanded") === "true" ? "open" : "closed")).join(",");
 const anchorOf = (row) => row.closest("[data-reading-anchor]")?.getAttribute("data-reading-anchor");
+
+async function openGroup(root) {
+  const [group] = groupRows(root);
+  assert.ok(group, "the process of the reply waits behind a block the reader can open");
+  if (group.getAttribute("aria-expanded") === "false") await click(group);
+}
 
 test("when the reader closes the segment that is still thinking, leaves for another conversation and returns while it is still generating, that segment is still closed and then answers to the saved id", async (t) => {
   const id = "away-and-back";
@@ -50,12 +60,13 @@ test("when the reader closes the segment that is still thinking, leaves for anot
   t.after(() => boundary.close());
 
   const thinkingExpansionStore = new ThinkingExpansionStore();
+  const processDetailsExpansionStore = new ThinkingExpansionStore();
   const openPage = async () => {
     const view = await mount(t, ChatWindow, {
       session: current.info,
       newSessionCwd: null,
       thinkingExpansionStore,
-      processDetailsExpansionStore: new ThinkingExpansionStore(),
+      processDetailsExpansionStore,
     });
     await settle();
     return view;
@@ -66,6 +77,7 @@ test("when the reader closes the segment that is still thinking, leaves for anot
   await emit(host, { type: "message_end", message: question });
   await emit(host, { type: "message_saved", entryId: `${id}-entry-0` });
   await emit(host, { type: "message_update", message: reply });
+  await openGroup(first.container);
   assert.equal(states(thinkingRows(first.container)), "open", "the segment that is still thinking shows its text");
   await click(thinkingRows(first.container)[0]);
   assert.equal(states(thinkingRows(first.container)), "closed", "the reader closes it while the reply is generating");
@@ -78,6 +90,11 @@ test("when the reader closes the segment that is still thinking, leaves for anot
   });
   const second = await openPage();
   assert.equal(
+    states(groupRows(second.container)),
+    "open",
+    "returning to the conversation while it is still generating keeps the block the reader opened",
+  );
+  assert.equal(
     states(thinkingRows(second.container)),
     "closed",
     "returning to the conversation while it is still generating keeps the segment the reader closed",
@@ -87,6 +104,7 @@ test("when the reader closes the segment that is still thinking, leaves for anot
   await emit(host, { type: "message_end", message: finished });
   await emit(host, { type: "message_saved", entryId: `${id}-entry-1` });
   current = turnDetail(id, [question, finished]);
+  assert.equal(states(groupRows(second.container)), "open", "the block stays open once the reply is saved");
   assert.equal(states(thinkingRows(second.container)), "closed", "the choice follows the message to its saved id");
   assert.equal(anchorOf(thinkingRows(second.container)[0]), `entry:${id}-entry-1:message`);
 });

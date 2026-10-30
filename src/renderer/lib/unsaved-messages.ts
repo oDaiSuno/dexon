@@ -9,11 +9,18 @@ export class UnsavedMessages {
     return `live-${temporaryIds}`;
   }
 
-  streamingEntryId(startedAt?: number): string {
-    if (this.streaming === null || this.streaming.startedAt !== startedAt) {
-      this.streaming = { entryId: this.nextEntryId(), startedAt };
-    }
+  startStreaming(startedAt?: number): string {
+    this.streaming = { entryId: this.nextEntryId(), startedAt };
     return this.streaming.entryId;
+  }
+
+  streamingEntryId(startedAt?: number): string {
+    return this.streaming?.entryId ?? this.startStreaming(startedAt);
+  }
+
+  resumeStreaming(startedAt?: number): string {
+    if (this.streaming && this.streaming.startedAt !== startedAt) return this.startStreaming(startedAt);
+    return this.streamingEntryId(startedAt);
   }
 
   endStreaming(): string | null {

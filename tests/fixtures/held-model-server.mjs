@@ -31,8 +31,8 @@ function firstUserText(messages) {
   return messageText(messages.find((message) => message.role === "user"));
 }
 
-function heldStep({ partial, rest }) {
-  return { partial, rest, partialSent: createDeferred(), released: createDeferred() };
+function heldStep(step) {
+  return { ...step, partialSent: createDeferred(), released: createDeferred() };
 }
 
 function providerConfig(baseUrl, models, apiKey) {
@@ -170,7 +170,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
       };
     },
     script(prompt, steps) {
-      const normalized = steps.map((step) => (step.hold ? heldStep({ partial: step.partial, rest: step.rest }) : step));
+      const normalized = steps.map((step) => (step.hold ? heldStep(step) : step));
       scripts.push({ prompt, steps: normalized, index: 0 });
       return {
         partialSent: (index) => normalized[index].partialSent.promise,
