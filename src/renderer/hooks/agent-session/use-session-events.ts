@@ -314,7 +314,7 @@ export function useSessionEvents(context: Dependencies) {
             dispatch({
               type: "update",
               message: normalizeToolCalls(msg as AgentMessage),
-              entryId: unsavedMessages.streamingEntryId(msg.timestamp),
+              entryId: unsavedMessages.startStreaming(msg.timestamp),
             });
           }
           setAgentPhase({ kind: "waiting_model" });
