@@ -80,6 +80,7 @@ export function createFoldQueries({ document, window, bubbleOf, bounds }) {
       clientHeight: region.clientHeight,
       scrollHeight: region.scrollHeight,
       scrollTop: region.scrollTop,
+      animating: region.getAnimations().length > 0,
       lineHeight: Number.parseFloat(style.lineHeight),
       lines: rangeLines(region),
       text: region.textContent ?? "",

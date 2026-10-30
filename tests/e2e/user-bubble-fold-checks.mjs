@@ -33,10 +33,15 @@ export function createFoldChecks({ page, waitFor, paint, sleep, near }) {
 
   const conversation = () => page("conversation()");
   const foldedHeight = (snapshot) => FOLDED_LINES * snapshot.region.lineHeight;
+  const settled = (snapshot) => Boolean(snapshot.region) && !snapshot.region.animating;
   const isFolded = (snapshot) =>
-    Boolean(snapshot.region && snapshot.bar) && Math.abs(snapshot.region.clientHeight - foldedHeight(snapshot)) <= 2;
+    Boolean(snapshot.region && snapshot.bar) &&
+    settled(snapshot) &&
+    Math.abs(snapshot.region.clientHeight - foldedHeight(snapshot)) <= 2;
   const isOpen = (snapshot) =>
-    Boolean(snapshot.region && snapshot.bar) && snapshot.region.clientHeight >= snapshot.region.scrollHeight - 2;
+    Boolean(snapshot.region && snapshot.bar) &&
+    settled(snapshot) &&
+    snapshot.region.clientHeight >= snapshot.region.scrollHeight;
 
   const follows = async (label, timeout = 10000) => {
     const deadline = Date.now() + timeout;
@@ -61,6 +66,7 @@ export function createFoldChecks({ page, waitFor, paint, sleep, near }) {
               text: snapshot.region.scrollHeight,
               lines: snapshot.region.lines,
               folded: Boolean(snapshot.bar),
+              animating: snapshot.region.animating,
               expanded: snapshot.bar?.buttons?.[0]?.expanded ?? null,
             }
           : null;

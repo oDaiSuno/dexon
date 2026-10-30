@@ -281,11 +281,21 @@ export async function runFoldScenes(context) {
       `!!window.userBubble.fold(${quote(LONG_PROMPT_MARKER)}).exists`,
       "the prompt of the streaming session",
     );
+    const atRest = (snapshot) => Math.abs(snapshot.conversation.distanceToLiveEnd) <= 2;
+    const replyParagraphsThatOutgrowTheWindow = 16;
     await page("startStream()");
-    await page("streamTick(2)");
+    await page(`streamTick(${replyParagraphsThatOutgrowTheWindow})`);
     await follows("the reply to follow its own growth");
+    await waitUntil(LONG_PROMPT_MARKER, atRest, "the view to come to rest at the newest content");
 
     const before = await fold(LONG_PROMPT_MARKER);
+    const contentHeight = before.conversation.scrollHeight - before.conversation.spacerHeight;
+    const windowHeight = before.conversation.clientHeight;
+    Object.assign(measurement, { contentHeight, windowHeight });
+    assert.ok(
+      contentHeight > windowHeight,
+      `the prompt and the reply together are taller than the window before the reader opens the prompt (${contentHeight} vs ${windowHeight}px)`,
+    );
     const point = await foldPoint(LONG_PROMPT_MARKER);
     assert.ok(point.hits, "the expand control is reachable while the reply streams");
     await click(point);
@@ -312,6 +322,7 @@ export async function runFoldScenes(context) {
     await page("streamTick(4)");
     const resumed = await follows("the reply to keep following after the reader returns");
     Object.assign(measurement, { resumedDistance: resumed.distanceToLiveEnd });
+    await waitUntil(LONG_PROMPT_MARKER, atRest, "the view to come to rest after the reader returns");
 
     const collapse = await foldPoint(LONG_PROMPT_MARKER);
     assert.ok(collapse.hits, "the collapse control is reachable while the reply streams");
