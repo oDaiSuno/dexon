@@ -149,8 +149,12 @@ const PATTERN_BANS = [
     message: "会话导航由外层统一处理，不得恢复旧的重复路由订阅",
   },
   {
-    name: "焦点延迟属主（侧栏）",
-    files: ["src/renderer/components/session-sidebar/worktree-switcher.tsx"],
+    name: "焦点延迟属主（工作区卡片）",
+    files: [
+      "src/renderer/components/chat-input/workspace-card.tsx",
+      "src/renderer/components/chat-input/workspace-branch-list.tsx",
+      "src/renderer/components/chat-input/workspace-project-list.tsx",
+    ],
     forbidden: /setTimeout\([^;]*\.focus\(/,
     message: "焦点请求必须经侧栏属主的 deferFocus，不得自建 setTimeout 焦点",
   },

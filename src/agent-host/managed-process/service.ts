@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { realpathSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +45,7 @@ import {
   validateManagedProcessCommand,
 } from "../../shared/managed-process-policy.ts";
 import { ToolchainError } from "../../shared/toolchains/errors.ts";
+import { folderContains } from "../../shared/worktree-list.ts";
 import { callMain } from "../parent-rpc.ts";
 import { getProcessStartFingerprint, terminatePosixProcessGroup } from "../process-tree.ts";
 import { toolchainRuntime, type ToolchainRuntime } from "../toolchain-runtime.ts";
@@ -62,6 +64,15 @@ const HOST_INSTANCE_ID = randomUUID();
 
 type Waiter = { resolve: () => void };
 type Deferred = { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void };
+
+function realFolder(target: string): string {
+  const resolveReal = realpathSync.native ?? realpathSync;
+  try {
+    return resolveReal(target);
+  } catch {
+    return target;
+  }
+}
 
 type ManagedRecord = {
   processId: string;
@@ -642,16 +653,19 @@ export class ManagedProcessService {
   }
 
   activeWithinCwd(cwd: string): ManagedProcessPublicInfo[] {
-    const relativeTo = path.resolve(cwd);
+    const relativeTo = realFolder(cwd);
     return [...this.records.values()]
       .filter((record) => {
         if (!isManagedProcessActiveState(record.state)) return false;
-        const relative = path.relative(relativeTo, record.cwd);
-        return (
-          relative === "" || (!relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative))
-        );
+        return folderContains(relativeTo, realFolder(record.cwd));
       })
       .map((record) => this.publicInfo(record));
+  }
+
+  activeCwds(): string[] {
+    return [...this.records.values()]
+      .filter((record) => isManagedProcessActiveState(record.state))
+      .map((record) => record.cwd);
   }
 
   async stopAll(

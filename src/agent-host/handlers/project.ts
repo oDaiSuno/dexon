@@ -6,22 +6,25 @@ import { RpcError } from "../../contract/types";
 import { allowFileRoot, assertPathAllowed, getAllowedFileRoots, isFilePathAllowed } from "../file-access";
 import { validateExistingDirectory } from "../file-access-core";
 import type { ManagedProcessService } from "../managed-process/service";
+import { listBranches, switchBranch } from "../../shared/git-branches";
 import {
   addWorktree,
   getGitBranch,
   getGitHeadContent,
   getGitStatus,
   isDirtyWorktreeError,
+  invalidateProjectCache,
   listWorktrees,
   removeWorktree,
   resolveProject,
 } from "../../shared/worktree";
 export interface ProjectHandlerDeps {
   managedProcesses: ManagedProcessService;
+  runningSessionCwds: () => readonly string[];
 }
 
 export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerDeps): void {
-  const { managedProcesses } = deps;
+  const { managedProcesses, runningSessionCwds } = deps;
 
   server.handle({
     "worktrees.list": async (params) => {
@@ -87,6 +90,37 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
         throw error;
       }
       return { ok: true as const };
+    },
+
+    "worktrees.branches": async (params) => {
+      const { cwd } = params as { cwd: string };
+      return listBranches(cwd);
+    },
+
+    "worktrees.switchBranch": async (params) => {
+      const body = params as { cwd: string; branch: string };
+      const allowed = await getAllowedFileRoots();
+      if (!isFilePathAllowed(body.cwd, allowed)) {
+        throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
+      }
+      const project = await resolveProject(body.cwd);
+      if (!project.isTopLevel) {
+        throw new RpcError({ code: "BAD_REQUEST", message: "Only the root of a checkout can switch branches" });
+      }
+      const listing = await listBranches(body.cwd);
+      if (!listing.isGit) {
+        throw new RpcError({ code: "BAD_REQUEST", message: "Not a Git repository" });
+      }
+      const result = await switchBranch(body.cwd, body.branch, {
+        runningSessionCwds,
+        activeProcessCwds: () => managedProcesses.activeCwds(),
+        worktreePaths: [
+          ...listing.branches.flatMap((entry) => (entry.worktreePath ? [entry.worktreePath] : [])),
+          ...listing.detached.map((entry) => entry.path),
+        ],
+      });
+      if (result.ok) invalidateProjectCache();
+      return result;
     },
 
     "git.status": async (params) => {

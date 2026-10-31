@@ -32,6 +32,8 @@ import type {
   PluginsResponse,
   SkillRecord,
   SkillUpdateParams,
+  WorktreeBranchesResult,
+  WorktreeSwitchBranchResult,
 } from "../shared/api-types";
 import type { SessionLiveStatus } from "../shared/session-orchestration";
 import type {
@@ -173,6 +175,14 @@ export interface Api {
   "worktrees.remove": {
     params: { path: string; cwd?: string; force?: boolean };
     result: { ok: true };
+  };
+  "worktrees.branches": {
+    params: { cwd: string };
+    result: WorktreeBranchesResult;
+  };
+  "worktrees.switchBranch": {
+    params: { cwd: string; branch: string };
+    result: WorktreeSwitchBranchResult;
   };
 
   "git.status": {

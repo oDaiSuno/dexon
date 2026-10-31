@@ -1,5 +1,11 @@
 [
+  "components/app-shell/composer-workspace.ts",
+  "components/app-shell/use-shell-space.ts",
+  "components/app-shell/use-space-owner.ts",
+  "components/app-shell/use-workspace-card.ts",
+  "components/chat-input/workspace-branch-list.tsx",
+  "components/chat-input/workspace-card.tsx",
   "components/chat-input/workspace-menu.tsx",
-  "components/chat-input/workspace-trigger.tsx",
-  "components/app-shell/use-space-owner.ts"
+  "components/chat-input/workspace-project-list.tsx",
+  "components/chat-input/workspace-trigger.tsx"
 ]

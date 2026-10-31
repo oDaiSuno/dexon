@@ -4,7 +4,6 @@ import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { getFileName } from "@/lib/file-paths";
-import { defaultSpaceFolder } from "@/lib/space-identity";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { buildAtMentionText } from "@/lib/file-fuzzy";
 import { ReadingPositionRegistry } from "@/lib/reading-position-store";
@@ -27,8 +26,7 @@ import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
-import { useSpaceOwner } from "./app-shell/use-space-owner";
-import { useOpenProjects } from "./app-shell/use-open-projects";
+import { useShellSpace } from "./app-shell/use-shell-space";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -188,27 +186,19 @@ export function AppShell({
   const mainCovered = settingsOpen || remoteShown;
   const mainSuspended = onResources || settingsOpen;
 
-  const space = useSpaceOwner({
+  const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
+  const handleExplorerRefresh = useCallback(() => {
+    bumpRefresh();
+    setExplorerRefreshKey((k) => k + 1);
+  }, [bumpRefresh]);
+  const { space, openProjects, composerWorkspace } = useShellSpace({
     refreshKey,
     coordination,
+    selectedSession,
+    chatInputRef,
     onCwdCommitted: handleCwdChange,
     onCoordinatorCwd: noteCoordinatorCwd,
-    onOpenSidebar: openSidebarForSwitchSession,
-  });
-
-  const openProjects = useOpenProjects({
-    defaultSpace:
-      coordination.personalCwd ??
-      (coordination.spacePhase.phase === "idle" ||
-      (coordination.spacePhase.phase === "preparing" && coordination.spacePhase.target === "personal")
-        ? null
-        : defaultSpaceFolder(null, space.homeDir)),
-    currentProject:
-      (selectedSession ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd)) : null) ??
-      space.workspace.selectedProject ??
-      coordination.attemptedCwd,
-    refreshKey,
-    onCloseCurrent: space.handleReturnToPersonalSpace,
+    onBranchSwitched: handleExplorerRefresh,
   });
 
   const dock = useRightPanelDock({
@@ -228,11 +218,7 @@ export function AppShell({
 
   const info = useSessionInfo();
 
-  const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
-  const handleAgentEnd = useCallback(() => {
-    bumpRefresh();
-    setExplorerRefreshKey((k) => k + 1);
-  }, [bumpRefresh]);
+  const handleAgentEnd = handleExplorerRefresh;
 
   // Same @mention format as the chat input's @ autocomplete, so the agent's
   // read tool resolves it the same way (it strips the @ prefix).
@@ -420,7 +406,7 @@ export function AppShell({
                     channelSnapshot={channels.channelSnapshot}
                     onChannelSnapshotChange={channels.setChannelSnapshot}
                     navigation={composerNavigation}
-                    workspace={space.composerWorkspace}
+                    workspace={composerWorkspace}
                     thinkingExpansionStore={thinkingExpansionRegistryRef.current.get(
                       selectedSession?.id ?? `new:${effectiveNewSessionCwd ?? "untitled"}`,
                     )}

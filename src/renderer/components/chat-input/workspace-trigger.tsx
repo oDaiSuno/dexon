@@ -5,11 +5,12 @@ import { ChevronDownIcon } from "./icons";
 import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import type { ComposerWorkspace } from "./types";
 import { ELLIPSIS, GLYPH, GitBranchGlyph } from "./workspace-chrome";
+import { FolderGitGlyph, LockKeyholeGlyph } from "./workspace-glyphs";
 import { WorkspaceMenu } from "./workspace-menu";
 
 export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerWorkspace; isMobile: boolean }) {
   const { t } = useI18n();
-  const { project, current, currentPath, menuOpen, closeMenu } = workspace;
+  const { project, branch, menuOpen, closeMenu } = workspace;
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -22,6 +23,8 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      const card = menuId ? document.getElementById(menuId) : null;
+      if (card && target && card.contains(target)) return;
       if (event.key !== "Escape") return;
       event.stopPropagation();
       closeMenu();
@@ -33,10 +36,11 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
       document.removeEventListener("mousedown", onMouseDown);
       document.removeEventListener("keydown", onKeyDown, true);
     };
-  }, [menuOpen, closeMenu]);
+  }, [menuOpen, closeMenu, menuId]);
 
-  const branch = current?.branch ?? null;
-  const canPick = workspace.checkouts.length > 0;
+  const switchable = workspace.mode === "switchable";
+  const canPick = switchable && workspace.checkouts.length > 0;
+  const currentPath = switchable ? workspace.currentPath : null;
   const title = canPick
     ? currentPath
       ? t("switchWorktreePath", "Switch worktree: {path}").replace("{path}", currentPath)
@@ -73,6 +77,7 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
           borderRadius: "var(--radius-control)",
           color: "var(--fx-text-primary)",
           cursor: "pointer",
+          outline: "none",
           transition: QUICK,
         }}
         onMouseEnter={(event) => paint(event, HOVER)}
@@ -89,7 +94,7 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
               style={{ width: 3, height: 3, flexShrink: 0, borderRadius: 2, background: "var(--fx-text-faint)" }}
             />
             <span style={{ ...GLYPH, color: "var(--fx-text-tertiary)" }}>
-              <GitBranchGlyph size={13} />
+              {workspace.isWorktree ? <FolderGitGlyph size={12} /> : <GitBranchGlyph size={13} />}
             </span>
             <span className="type-mono-label" style={{ ...ELLIPSIS, flexShrink: 1, color: "var(--fx-text-secondary)" }}>
               {branch}
@@ -97,10 +102,18 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
           </>
         )}
         <span style={{ ...GLYPH, color: "var(--fx-text-tertiary)" }}>
-          <ChevronDownIcon size={12} />
+          {switchable ? <ChevronDownIcon size={12} /> : <LockKeyholeGlyph size={11} />}
         </span>
       </button>
-      {menuOpen && <WorkspaceMenu id={menuId} workspace={workspace} />}
+      {menuOpen && (
+        <WorkspaceMenu
+          id={menuId}
+          workspace={workspace}
+          anchorRef={buttonRef}
+          isMobile={isMobile}
+          onFocusTrigger={() => buttonRef.current?.focus()}
+        />
+      )}
     </div>
   );
 }

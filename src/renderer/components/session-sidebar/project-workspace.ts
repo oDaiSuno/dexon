@@ -163,61 +163,66 @@ export function useProjectWorkspace({
     [openDirectory],
   );
 
-  const createWorktree = useCallback(async () => {
-    const branch = wtNewBranch.trim();
-    if (!branch || wtBusy || !worktreeState) return;
-    setWtBusy(true);
-    setWtError(null);
-    try {
-      const { call } = await import("@/lib/api-client");
-      const { worktree } = await call("worktrees.create", {
-        projectRoot: worktreeState.projectRoot,
-        cwd: worktreeState.projectRoot,
-        branch,
-      });
-      // Optimistically register the new worktree so projectRootFor() resolves
-      // it to the main repo before the refetch lands (keeps AppShell from
-      // treating the new cwd as a different project).
-      setWorktreeState((prev) =>
-        prev
-          ? {
-              ...prev,
-              forCwd: worktree.path,
-              worktrees: [...prev.worktrees, { path: worktree.path, branch, isMain: false }],
-            }
-          : prev,
-      );
-      setSelectedCwd(worktree.path);
-      setWtRefreshKey((k) => k + 1);
-      setWtNewOpen(false);
-      setWtNewBranch("");
-      setWtDropdownOpen(false);
-    } catch (e) {
-      setWtError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setWtBusy(false);
-    }
-  }, [wtNewBranch, wtBusy, worktreeState]);
+  const createWorktreeAt = useCallback(
+    async (target: { projectRoot: string; branch?: string } | null): Promise<string | null> => {
+      const branch = (target?.branch ?? wtNewBranch).trim();
+      const projectRoot = target?.projectRoot ?? worktreeState?.projectRoot;
+      if (!branch || wtBusy || !projectRoot) return null;
+      setWtBusy(true);
+      setWtError(null);
+      try {
+        const { call } = await import("@/lib/api-client");
+        const { worktree } = await call("worktrees.create", {
+          projectRoot,
+          cwd: projectRoot,
+          branch,
+        });
+        setWorktreeState((prev) => {
+          const entry = { path: worktree.path, branch, isMain: false };
+          const sameProject = Boolean(prev && worktreePathsEqual(prev.projectRoot, projectRoot));
+          return {
+            forCwd: worktree.path,
+            projectRoot,
+            isGit: true,
+            isTopLevel: true,
+            worktrees: sameProject && prev ? [...prev.worktrees, entry] : [entry],
+          };
+        });
+        setSelectedCwd(worktree.path);
+        setWtRefreshKey((k) => k + 1);
+        setWtNewOpen(false);
+        setWtNewBranch("");
+        setWtDropdownOpen(false);
+        return worktree.path;
+      } catch (e) {
+        setWtError(e instanceof Error ? e.message : String(e));
+        return null;
+      } finally {
+        setWtBusy(false);
+      }
+    },
+    [wtNewBranch, wtBusy, worktreeState],
+  );
 
   const handleCreateWorktree = useCallback(() => {
-    if (!wtNewBranch.trim() || wtBusy || !worktreeState) return;
-    void createWorktree();
-  }, [wtNewBranch, wtBusy, worktreeState, createWorktree]);
+    void createWorktreeAt(null);
+  }, [createWorktreeAt]);
 
   const handleRemoveWorktree = useCallback(
-    async (path: string, force: boolean) => {
-      if (!worktreeState || wtBusy) return;
+    async (path: string, force: boolean, projectCwd?: string) => {
+      const cwd = projectCwd ?? worktreeState?.projectRoot;
+      if (!cwd || wtBusy) return;
       setWtBusy(true);
       setWtError(null);
       try {
         const { call } = await import("@/lib/api-client");
         await call("worktrees.remove", {
-          cwd: worktreeState.projectRoot,
+          cwd,
           path,
           force,
         });
         setWtConfirmRemove(null);
-        if (selectedCwd === path) setSelectedCwd(worktreeState.projectRoot);
+        if (selectedCwd === path) setSelectedCwd(cwd);
         setWtRefreshKey((k) => k + 1);
       } catch (e) {
         if (!force && (e as { detail?: { dirty?: boolean } }).detail?.dirty) {
@@ -295,6 +300,7 @@ export function useProjectWorkspace({
     showWorktreeSwitcher,
     selectDirectoryFromPicker,
     openDirectory,
+    wtRefreshKey,
     wtDropdownOpen,
     toggleWorktreeDropdown,
     resetWorktreeDropdownForOutsideClick,
@@ -308,6 +314,7 @@ export function useProjectWorkspace({
     wtConfirmRemove,
     cancelWorktreeRemove,
     handleCreateWorktree,
+    createWorktreeAt,
     handleRemoveWorktree,
     handleSelectWorktree,
   };

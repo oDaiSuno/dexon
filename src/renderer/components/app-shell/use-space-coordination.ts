@@ -249,6 +249,13 @@ export function useSpaceCoordination({
     await io.openDirectory(current.cwd);
   }, [io]);
 
+  const openFolder = useCallback(
+    async (path: string) => {
+      await io.openDirectory(path);
+    },
+    [io],
+  );
+
   return {
     spaceCwd: spacePhase.phase === "ready" ? spacePhase.cwd : null,
     spacePhase,
@@ -260,6 +267,7 @@ export function useSpaceCoordination({
     retry,
     returnToPersonalSpace,
     openCurrentFolder,
+    openFolder,
   };
 }
 

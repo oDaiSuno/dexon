@@ -427,3 +427,8 @@
     transition: none;
   }
 }
+
+.workspace-card,
+.workspace-card :where(button, input, [tabindex]):focus-visible {
+  outline: none !important;
+}

@@ -54,6 +54,34 @@ export interface GitBranchResult {
   branch: string | null;
 }
 
+export interface WorktreeBranchInfo {
+  name: string;
+  isCurrent: boolean;
+  committedAt: string;
+  worktreePath: string | null;
+  isMainFolder: boolean;
+  stalePath: string | null;
+}
+
+export interface WorktreeDetachedInfo {
+  path: string;
+  commit: string;
+  isMainFolder: false;
+}
+
+export interface WorktreeBranchesResult {
+  projectRoot: string;
+  isGit: boolean;
+  isTopLevel: boolean;
+  current: string | null;
+  mainFolder: string | null;
+  branches: WorktreeBranchInfo[];
+  detached: WorktreeDetachedInfo[];
+}
+
+export type WorktreeSwitchBranchResult =
+  { ok: true } | { ok: false; reason: "occupied" | "stale" | "dirty" | "busy"; path?: string };
+
 export interface GitHeadContentResult {
   comparable: boolean;
   content: string;

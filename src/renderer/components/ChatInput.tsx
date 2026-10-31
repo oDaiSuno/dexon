@@ -340,6 +340,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         editableRef.current?.replaceAll(combined);
         suggestions.clearAtQuery();
       },
+      takeDraft() {
+        const text = draftValueRef.current;
+        clearInput();
+        suggestions.clearAtQuery();
+        return text;
+      },
       insertText(text: string) {
         editableRef.current?.insertTextAtCaret(text);
         suggestions.clearAtQuery();
@@ -355,7 +361,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         editableRef.current?.insertSkillAtStart(name);
       },
     }),
-    [attachments, draftValueRef, suggestions, visible],
+    [attachments, clearInput, draftValueRef, suggestions, visible],
   );
 
   return (
