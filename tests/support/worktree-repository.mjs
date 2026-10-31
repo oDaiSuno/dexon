@@ -6,7 +6,7 @@ import path from "node:path";
 // Real Git, real folders, disposable temporary repositories. Everything here
 // only sets up a world; the behavior under test is the Host's own.
 export function sandbox(prefix) {
-  return realpathSync(mkdtempSync(path.join(tmpdir(), prefix)));
+  return realpathSync.native(mkdtempSync(path.join(tmpdir(), prefix)));
 }
 
 export function git(repository, ...args) {
@@ -124,13 +124,13 @@ export function branchWorld(root) {
   branchAt(repository, "chore/gamma", commitDates.stale);
   const worktrees = path.join(root, "project-worktrees");
   const review = worktreeAdd(repository, path.join(worktrees, "review"), "review");
-  const stale = worktreeAdd(repository, path.join(worktrees, "gamma"), "chore/gamma");
+  const stale = realpathSync.native(worktreeAdd(repository, path.join(worktrees, "gamma"), "chore/gamma"));
   rmSync(stale, { recursive: true, force: true });
   const detached = detachedWorktreeAdd(repository, path.join(worktrees, "bisect"));
   return {
-    repository: realpathSync(repository),
-    review: realpathSync(review),
+    repository: realpathSync.native(repository),
+    review: realpathSync.native(review),
     stale,
-    detached: realpathSync(detached),
+    detached: realpathSync.native(detached),
   };
 }
