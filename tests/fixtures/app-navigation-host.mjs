@@ -1,13 +1,14 @@
 import { createDeferred } from "#test-timing";
 import { browserState } from "../support/browser-state.mjs";
 import {
-  createdWorktreeBranch,
   forkedConversation,
   initialSkillContent,
   personalPrepareReason,
   navigationConversations,
   navigationPaths,
+  navigationRepositories,
   navigationResources,
+  notesConversation,
   reloadedPluginStatus,
   startedConversation,
   toolConversation,
@@ -25,8 +26,12 @@ export function navigationBoundary({
   personalPrepareFailures = 0,
   forks = false,
   dirtyWorktrees = [],
+  dirtyFolders = [],
+  busyFolders = [],
+  platform = "darwin",
   streamingSessionId = null,
   toolHistory = false,
+  notesHistory = false,
   browserTabs = [],
   sessionOverrides = {},
   generatedTitle = null,
@@ -34,6 +39,7 @@ export function navigationBoundary({
   const details = history ? navigationConversations() : [];
   if (history && forks) details.push(forkedConversation());
   if (history && toolHistory) details.push(toolConversation());
+  if (history && notesHistory) details.push(notesConversation());
   for (const [sessionId, patch] of Object.entries(sessionOverrides)) {
     const detail = details.find((item) => item.sessionId === sessionId);
     if (!detail) throw new Error(`Fixture cannot override unknown session ${sessionId}`);
@@ -69,24 +75,59 @@ export function navigationBoundary({
   const uiState = { lastSpaceCwd, chatAppearance: { fontSize: "standard", layout: "fixed" } };
   if (openProjects !== undefined) uiState.openProjects = structuredClone(openProjects);
   const missingFolders = new Map(Object.entries(unavailableSpaces));
+  missingFolders.set(navigationPaths.staleCheckout, "Directory does not exist");
   const existingFolders = new Set([
     navigationPaths.personal,
     navigationPaths.project,
     navigationPaths.worktree,
+    navigationPaths.bisect,
+    navigationPaths.alphaWorktree,
     navigationPaths.createdWorktree,
+    navigationPaths.subfolder,
+    navigationPaths.other,
+    navigationPaths.otherWorktree,
     navigationPaths.terminalOnly,
     navigationPaths.empty,
   ]);
   const updateState = { phase: "idle", currentVersion: "0.1.0", automaticChecksEnabled: false };
   const desktop = { selectedDirectory: null, openedDirectory: null, directoryRequests: 0, openedFiles: [] };
   const unexpected = [];
+  const requests = [];
   const activity = { pending: 0, started: 0 };
   const runningListeners = new Set();
   const sessionChangedListeners = new Set();
-  const projectWorktrees = [
-    { path: navigationPaths.project, branch: "main", isMain: true },
-    { path: navigationPaths.worktree, branch: "review", isMain: false },
-  ];
+  const repositories = new Map(
+    navigationRepositories.map((repository) => [repository.root, structuredClone(repository)]),
+  );
+  const folderOf = (value) => (typeof value === "string" ? value.replace(/[\\/]+$/, "") : "");
+  const repositoryAt = (value) => {
+    const folder = folderOf(value);
+    for (const repository of repositories.values()) {
+      if (repository.branches.some((entry) => entry.worktreePath === folder))
+        return { repository, isTopLevel: true, folder };
+      if (repository.detached.some((entry) => entry.path === folder)) return { repository, isTopLevel: true, folder };
+    }
+    const exact = repositories.get(folder);
+    if (exact) return { repository: exact, isTopLevel: true, folder };
+    for (const repository of repositories.values()) {
+      if (folder.startsWith(`${repository.root}/`)) return { repository, isTopLevel: false, folder };
+    }
+    return null;
+  };
+  const checkoutAt = (repository, folder) => {
+    const branch = repository.branches.find((entry) => entry.worktreePath === folder);
+    if (branch) return { branch };
+    const detached = repository.detached.find((entry) => entry.path === folder);
+    return detached ? { detached } : null;
+  };
+  const mainFolderBranch = (repository) =>
+    repository.branches.find((entry) => entry.worktreePath === repository.mainFolder)?.name ?? null;
+  const branchOfFolder = (repository, found) => {
+    const checkout = checkoutAt(repository, found.folder);
+    if (checkout?.branch) return checkout.branch.name;
+    if (checkout?.detached) return null;
+    return found.isTopLevel ? null : mainFolderBranch(repository);
+  };
   let remainingPrepareFailures = personalPrepareFailures;
   const toolchainState = {
     schemaVersion: 1,
@@ -279,40 +320,130 @@ export function navigationBoundary({
           conflicted: 0,
           entries: [],
         };
-      case "git.branch":
-        return { isGit: false, branch: null };
+      case "git.branch": {
+        const found = repositoryAt(params.path);
+        if (!found) return { isGit: false, branch: null };
+        return { isGit: true, branch: branchOfFolder(found.repository, found) };
+      }
       case "git.headContent":
         return { comparable: false, content: "" };
-      case "files.list":
-        return { entries: [] };
+      case "files.list": {
+        const found = repositoryAt(params.path);
+        if (!found) return { entries: [] };
+        const names = found.repository.files?.[branchOfFolder(found.repository, found)] ?? [];
+        return {
+          entries: names.map((name) => ({ name, type: "file", isDir: false, size: 1, mtime: 0 })),
+        };
+      }
       case "files.watchStart":
       case "files.watchStop":
         return { ok: true };
-      case "worktrees.list":
-        return projectWorktrees.some((worktree) => worktree.path === params.projectRoot)
-          ? {
-              projectRoot: navigationPaths.project,
-              isGit: true,
-              isTopLevel: true,
-              worktrees: structuredClone(projectWorktrees),
-            }
-          : { projectRoot: params.projectRoot, isGit: false, isTopLevel: false, worktrees: [] };
+      case "worktrees.list": {
+        const found = repositoryAt(params.projectRoot);
+        if (!found) return { projectRoot: params.projectRoot, isGit: false, isTopLevel: false, worktrees: [] };
+        const { repository, isTopLevel } = found;
+        const worktrees = [
+          ...repository.branches
+            .filter((entry) => entry.worktreePath)
+            .map((entry) => ({
+              path: entry.worktreePath,
+              branch: entry.name,
+              isMain: entry.worktreePath === repository.mainFolder,
+            })),
+          ...repository.detached.map((entry) => ({ path: entry.path, branch: null, isMain: false })),
+        ].sort((left, right) => Number(right.isMain) - Number(left.isMain));
+        return { projectRoot: repository.root, isGit: true, isTopLevel, worktrees };
+      }
+      case "worktrees.branches": {
+        const found = repositoryAt(params.cwd);
+        if (!found)
+          return {
+            projectRoot: params.cwd,
+            isGit: false,
+            isTopLevel: false,
+            current: null,
+            mainFolder: null,
+            branches: [],
+            detached: [],
+          };
+        const { repository, isTopLevel, folder } = found;
+        const checkout = checkoutAt(repository, folder);
+        return {
+          projectRoot: repository.root,
+          isGit: true,
+          isTopLevel,
+          current: checkout?.branch?.name ?? null,
+          mainFolder: repository.mainFolder,
+          branches: [...repository.branches]
+            .sort((left, right) => right.committedAt.localeCompare(left.committedAt))
+            .map((entry) => ({
+              name: entry.name,
+              isCurrent: entry.worktreePath === folder,
+              committedAt: entry.committedAt,
+              worktreePath: entry.worktreePath ?? null,
+              isMainFolder: entry.worktreePath === repository.mainFolder,
+              stalePath: entry.worktreePath ? null : (entry.stalePath ?? null),
+            })),
+          detached: repository.detached.map((entry) => ({
+            path: entry.path,
+            commit: entry.commit,
+            isMainFolder: false,
+          })),
+        };
+      }
+      case "worktrees.switchBranch": {
+        const found = repositoryAt(params.cwd);
+        if (!found || !found.isTopLevel) throw new Error(`Fixture cannot switch branch in ${params.cwd}`);
+        const { repository, folder } = found;
+        const target = repository.branches.find((entry) => entry.name === params.branch);
+        if (!target) throw new Error(`Fixture has no branch ${params.branch}`);
+        const holder = repository.branches.find(
+          (entry) => entry.name === params.branch && entry.worktreePath && entry.worktreePath !== folder,
+        );
+        if (holder) return { ok: false, reason: "occupied", path: holder.worktreePath };
+        if (!target.worktreePath && target.stalePath) return { ok: false, reason: "stale", path: target.stalePath };
+        if (dirtyFolders.includes(folder)) return { ok: false, reason: "dirty" };
+        if (busyFolders.includes(folder)) return { ok: false, reason: "busy" };
+        const current = repository.branches.find((entry) => entry.worktreePath === folder);
+        if (current) delete current.worktreePath;
+        target.worktreePath = folder;
+        return { ok: true };
+      }
       case "worktrees.create": {
-        if (params.projectRoot !== navigationPaths.project || params.branch !== createdWorktreeBranch)
-          throw new Error(`Fixture cannot create worktree ${params.branch} in ${params.projectRoot}`);
-        const worktree = { path: navigationPaths.createdWorktree, branch: params.branch, isMain: false };
-        projectWorktrees.push(worktree);
-        return { worktree: structuredClone(worktree) };
+        const found = repositoryAt(params.cwd ?? params.projectRoot);
+        if (!found) throw new Error(`Fixture cannot create worktree ${params.branch} in ${params.projectRoot}`);
+        const { repository } = found;
+        if (repository.branches.some((entry) => entry.name === params.branch && entry.worktreePath))
+          throw new Error(`Fixture branch ${params.branch} is already checked out`);
+        const path = `${repository.root}-worktrees/${params.branch.replace(/[/\\:*?"<>|\s]+/g, "-")}`;
+        const known = repository.branches.find((entry) => entry.name === params.branch);
+        if (known) {
+          known.worktreePath = path;
+          delete known.stalePath;
+        } else {
+          repository.branches.push({
+            name: params.branch,
+            committedAt: repository.branches[0].committedAt,
+            worktreePath: path,
+          });
+        }
+        existingFolders.add(path);
+        return { worktree: { path, branch: params.branch, isMain: false } };
       }
       case "worktrees.remove": {
-        const index = projectWorktrees.findIndex((worktree) => worktree.path === params.path && !worktree.isMain);
-        if (index < 0) throw new Error(`Fixture cannot remove worktree ${params.path}`);
+        const found = repositoryAt(params.cwd ?? params.path);
+        if (!found) throw new Error(`Fixture cannot remove worktree ${params.path}`);
+        const { repository } = found;
+        const target = repository.branches.find(
+          (entry) => entry.worktreePath === params.path && entry.worktreePath !== repository.mainFolder,
+        );
+        if (!target) throw new Error(`Fixture cannot remove worktree ${params.path}`);
         if (dirtyWorktrees.includes(params.path) && params.force !== true)
           throw Object.assign(new Error("Fixture worktree has uncommitted changes"), {
             code: "CONFLICT",
             detail: { dirty: true },
           });
-        projectWorktrees.splice(index, 1);
+        delete target.worktreePath;
         return { ok: true };
       }
       case "plugins.list":
@@ -388,7 +519,7 @@ export function navigationBoundary({
     for (const listener of browserListeners) listener(event);
   };
   const desktopBridge = {
-    platform: "darwin",
+    platform,
     getUiState: async () => structuredClone(uiState),
     setUiState: async (patch) => {
       Object.assign(uiState, patch);
@@ -465,6 +596,7 @@ export function navigationBoundary({
     host: {
       call: (method, params) =>
         tracked(async () => {
+          requests.push({ method, params: structuredClone(params ?? null) });
           await passGate(method, params);
           return call(method, params);
         }),
@@ -475,6 +607,7 @@ export function navigationBoundary({
     failures,
     unexpected,
     activity: () => ({ ...activity }),
+    requests: (method) => requests.filter((entry) => entry.method === method).map((entry) => entry.params),
     rememberedSpace: () => uiState.lastSpaceCwd,
     // The folder disappears from (or comes back to) this computer.
     removeFolder(folder, reason = "Fixture folder was removed from this computer") {

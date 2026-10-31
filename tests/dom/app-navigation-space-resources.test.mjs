@@ -3,17 +3,23 @@ import test, { after } from "node:test";
 import {
   startNavigation,
   control,
-  roles,
   visibleText,
   click,
   waitFor,
-  pathChoice,
   expectScope,
   restoreGlobals,
 } from "../support/app-navigation.mjs";
+import {
+  branchesPane,
+  branchRow,
+  installBrowserEvents,
+  openCard,
+  triggerName,
+} from "../support/app-navigation-workspace.mjs";
 import { navigationPaths } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
+after(installBrowserEvents());
 
 test("choosing another folder from Resources rescopes plugins to that project without hiding global resources", async (t) => {
   const scene = await startNavigation(t);
@@ -59,15 +65,11 @@ test("returning from a project to personal space restores personal resources whi
   assert.ok(!scene.resourcePanel().textContent.includes("project-checklist"));
 });
 
-test("switching a Git worktree from the composer footer scopes resources to the checkout", async (t) => {
+test("switching a Git worktree from the composer card scopes resources to the checkout", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
-  const switcher = await waitFor(() => {
-    const matches = roles(scene.container, "button").filter((element) => element.title.startsWith("Switch worktree:"));
-    assert.equal(matches.length, 1);
-    return matches[0];
-  });
-  await click(switcher);
-  await click(await waitFor(() => pathChoice(scene.container, navigationPaths.worktree)));
+  await openCard(scene);
+  await click(branchRow(await waitFor(() => branchesPane(scene, "navigation-project")), "review"));
+  await waitFor(() => assert.equal(triggerName(scene), "Workspace: navigation-project, branch review"));
   await scene.resources();
   await expectScope(scene, "npm:review-navigation-plugin", { absent: ["npm:project-navigation-plugin"] });
 });

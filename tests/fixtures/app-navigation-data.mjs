@@ -6,11 +6,54 @@ export const navigationPaths = {
   personal: "/Users/navigation-fixture/.dexon",
   project: "/work/navigation-project",
   worktree: "/work/navigation-project-review",
-  createdWorktree: "/work/navigation-project-release",
+  bisect: "/work/navigation-project-bisect",
+  staleCheckout: "/work/navigation-project-worktrees/gamma",
+  alphaWorktree: "/work/navigation-project-worktrees/feat-alpha",
+  createdWorktree: "/work/navigation-project-worktrees/release",
+  subfolder: "/work/navigation-project/packages/app",
+  other: "/work/paper-notes",
+  otherWorktree: "/work/paper-notes-worktrees/exp-retrieval",
   removed: "/work/removed-project",
   terminalOnly: "/work/terminal-only-project",
   empty: "/work/empty-project",
 };
+
+const branch = (name, committedAt, extra = {}) => ({ name, committedAt, ...extra });
+
+// Branch tables the fixture Host answers with. Declaration order, alphabetical
+// order and commit order are deliberately all different, so a test that only
+// passes for one of them cannot pass by accident.
+export const navigationRepositories = [
+  {
+    root: navigationPaths.project,
+    mainFolder: navigationPaths.project,
+    branches: [
+      branch("feat/beta", "2026-09-02T09:00:00.000Z"),
+      branch("chore/gamma", "2026-09-05T12:00:00.000Z", { stalePath: navigationPaths.staleCheckout }),
+      branch("wip/idea", "2026-09-01T09:00:00.000Z"),
+      branch("main", "2026-09-06T09:00:00.000Z", { worktreePath: navigationPaths.project }),
+      branch("review", "2026-09-05T09:00:00.000Z", { worktreePath: navigationPaths.worktree }),
+      branch("audit/cleanup", "2026-09-03T09:00:00.000Z"),
+      branch("feat/alpha", "2026-09-04T09:00:00.000Z"),
+    ],
+    detached: [{ path: navigationPaths.bisect, commit: "a3f9c21" }],
+    files: {
+      main: ["main-plan.md", "shared-notes.md"],
+      "feat/alpha": ["alpha-report.md", "shared-notes.md"],
+    },
+  },
+  {
+    root: navigationPaths.other,
+    mainFolder: navigationPaths.other,
+    branches: [
+      branch("data/2026-q3", "2026-08-31T09:00:00.000Z"),
+      branch("main", "2026-09-06T09:00:00.000Z", { worktreePath: navigationPaths.other }),
+      branch("exp/retrieval", "2026-09-04T09:00:00.000Z"),
+    ],
+    detached: [],
+    files: {},
+  },
+];
 export const removedSpaceReason = "Fixture folder was removed from this computer";
 export const personalPrepareReason = "Fixture could not create the personal folder";
 export const createdWorktreeBranch = "release";
@@ -37,6 +80,41 @@ export const navigationLabels = {
     skillAction: /^Use a skill/,
     skillPicker: "Use a skill",
     skillContent: "Skill markdown content",
+    chat: "Chat",
+    triggerPrefix: "Workspace:",
+    triggerLabel: "Workspace: {project}",
+    triggerLabelWithBranch: "Workspace: {project}, branch {branch}",
+    workspace: "Workspace",
+    projects: "Projects",
+    defaultSpaceNote: "Not in any repository",
+    notGitRepo: "Not a git repository",
+    showBranches: "Show branches of {project}",
+    showBranchesPrefix: "Show branches of ",
+    branchesOf: "{project} branches",
+    branchFilter: "Filter branches…",
+    sectionCurrent: "Current",
+    sectionInFolders: "In their own folders",
+    sectionOtherLocal: "Other local branches",
+    sortByRecentCommit: "By recent commit",
+    mainFolder: "Main folder",
+    detachedNote: "Not on any branch",
+    staleNote: "Still registered to missing folder",
+    newWorktree: "New worktree…",
+    removeWorktreePrefix: "Remove worktree",
+    blockedDirty: "This folder has uncommitted changes",
+    blockedDirtyOther: "{project}'s main folder has uncommitted changes",
+    blockedDirtyDetail: "Switching now would carry these changes to the other branch.",
+    blockedBusy: "A session or process is running in this folder",
+    blockedBusyOther: "A session or process is running in {project}'s main folder",
+    blockedBusyDetail: "Switching now would change the files it is reading.",
+    openInNewWorktree: "Open in new worktree",
+    cancel: "Cancel",
+    notGitTitle: "{project} is not a git repository",
+    notGitBody: "There are no branches here. Press Enter or click the row on the left to switch to this folder.",
+    switchTo: "Switch to {project}",
+    copyPath: "Copy path",
+    openInFinder: "Open in Finder",
+    readOnlyNote: "This session was created here. To work elsewhere, start a new session.",
   },
   "zh-CN": {
     navigation: "主导航",
@@ -59,6 +137,41 @@ export const navigationLabels = {
     skillAction: /^使用技能/,
     skillPicker: "使用技能",
     skillContent: "技能 Markdown 内容",
+    chat: "聊天",
+    triggerPrefix: "工作区：",
+    triggerLabel: "工作区：{project}",
+    triggerLabelWithBranch: "工作区：{project}，分支 {branch}",
+    workspace: "工作区",
+    projects: "项目",
+    defaultSpaceNote: "不属于任何仓库",
+    notGitRepo: "不是 git 仓库",
+    showBranches: "查看 {project} 的分支",
+    showBranchesPrefix: "查看 ",
+    branchesOf: "{project} 的分支",
+    branchFilter: "筛选分支…",
+    sectionCurrent: "当前",
+    sectionInFolders: "在各自文件夹中",
+    sectionOtherLocal: "其他本地分支",
+    sortByRecentCommit: "按最近提交",
+    mainFolder: "主文件夹",
+    detachedNote: "未在任何分支上",
+    staleNote: "仍登记在已不存在的文件夹",
+    newWorktree: "新建 worktree…",
+    removeWorktreePrefix: "移除 worktree",
+    blockedDirty: "当前文件夹有未提交的改动",
+    blockedDirtyOther: "{project} 的主文件夹有未提交的改动",
+    blockedDirtyDetail: "现在切分支，这些改动会被带到另一个分支。",
+    blockedBusy: "有会话或进程正在这个文件夹里运行",
+    blockedBusyOther: "{project} 的主文件夹里有会话或进程正在运行",
+    blockedBusyDetail: "现在切分支，它读到的文件会突然变掉。",
+    openInNewWorktree: "在新 worktree 中打开",
+    cancel: "取消",
+    notGitTitle: "{project} 不是 git 仓库",
+    notGitBody: "这里没有分支可选。按回车或点左侧这一行，直接切换到这个文件夹。",
+    switchTo: "切换到 {project}",
+    copyPath: "复制路径",
+    openInFinder: "在访达中打开",
+    readOnlyNote: "会话创建时就定在这里。想换位置，请新建会话。",
   },
 };
 export const reloadedPluginStatus = "Navigation plugin ready after explicit reload";
@@ -119,6 +232,10 @@ export function navigationConversations() {
       "Removed project conversation marker",
     ),
   ];
+}
+
+export function notesConversation() {
+  return conversation("notes-history", "Notes release plan", navigationPaths.other, "Notes conversation marker");
 }
 
 export function forkedConversation() {
@@ -245,7 +362,24 @@ export function navigationResources() {
         skills: [skill("review-checklist", "/work/navigation-project-review/.pi/skills/review-checklist"), sharedSkill],
       },
     ],
+    [
+      navigationPaths.bisect,
+      {
+        packages: [plugin("npm:bisect-navigation-plugin"), sharedPlugin],
+        skills: [sharedSkill],
+      },
+    ],
+    [
+      navigationPaths.other,
+      {
+        packages: [plugin("npm:notes-navigation-plugin"), sharedPlugin],
+        skills: [skill("notes-checklist", "/work/paper-notes/.pi/skills/notes-checklist"), sharedSkill],
+      },
+    ],
+    [navigationPaths.otherWorktree, { packages: [sharedPlugin], skills: [sharedSkill] }],
+    [navigationPaths.alphaWorktree, { packages: [sharedPlugin], skills: [sharedSkill] }],
     [navigationPaths.createdWorktree, { packages: [sharedPlugin], skills: [sharedSkill] }],
+    [navigationPaths.subfolder, { packages: [sharedPlugin], skills: [sharedSkill] }],
     [navigationPaths.terminalOnly, { packages: [sharedPlugin], skills: [sharedSkill] }],
     [navigationPaths.empty, { packages: [sharedPlugin], skills: [sharedSkill] }],
   ]);
