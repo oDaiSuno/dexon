@@ -1,98 +1,54 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { createDeferred, createManualScheduler } from "#test-timing";
-import { act, click, createElement, dom, loadRenderer, mount, restoreGlobals } from "../support/renderer.mjs";
-import { installApiHostBridge } from "../support/api-host.mjs";
+import { act, click, control, hover, startNavigation, waitFor, restoreGlobals } from "../support/app-navigation.mjs";
+import {
+  branchesPane,
+  branchRow,
+  browseUp,
+  card,
+  installBrowserEvents,
+  mentions,
+  openCard,
+  projectRow,
+  removeWorktreeButton,
+  triggerName,
+} from "../support/app-navigation-workspace.mjs";
+import { navigationPaths as P } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
-const { resetRpc, useProjectWorkspace, useComposerWorkspace, WorkspaceTrigger } = await loadRenderer(
-  "worktree-lifecycle-dom",
-  'export {useProjectWorkspace} from "./src/renderer/components/session-sidebar/project-workspace.ts";\n' +
-    'export {useComposerWorkspace} from "./src/renderer/components/app-shell/composer-workspace.ts";\n' +
-    'export {WorkspaceTrigger} from "./src/renderer/components/chat-input/workspace-trigger.tsx";',
-  { define: { setTimeout: "window.setTimeout", clearTimeout: "window.clearTimeout" } },
-);
+after(installBrowserEvents());
 
-const git = {
-  projectRoot: "/repo",
-  isGit: true,
-  isTopLevel: true,
-  worktrees: [
-    { path: "/repo", branch: "main", isMain: true },
-    { path: "/repo/wt", branch: "feat", isMain: false },
-  ],
-};
+test("a removal still in flight keeps its control disabled when the card is closed and opened again", async (t) => {
+  const scene = await startNavigation(t, { lastSpaceCwd: P.project, openProjects: [P.personal, P.project] });
+  await openCard(scene);
+  await hover(branchRow(await waitFor(() => branchesPane(scene, "navigation-project")), "review"));
+  const hold = scene.external.hold("worktrees.remove");
+  await click(removeWorktreeButton(scene, P.worktree));
+  await waitFor(() => assert.equal(hold.reached(), true, "the removal reached the Host"));
 
-function WorkspaceScene({ cwd }) {
-  const workspace = useProjectWorkspace({ sessions: [], selectedCwdProp: cwd, onCwdChange: () => {}, refreshKey: 0 });
-  const composer = useComposerWorkspace({
-    workspace,
-    project: { name: "repo", path: "/repo", displayPath: "/repo" },
-    onSwitchProject: () => {},
-    onOpenInFinder: async () => {},
-    onCopyPath: async () => {},
-  });
-  return composer ? createElement(WorkspaceTrigger, { workspace: composer, isMobile: false }) : null;
-}
+  await browseUp(scene, () => mentions(card(scene), "Default space is not a git repository"));
+  await click(control(card(scene), "button", "Switch to Default space"));
+  await waitFor(() => assert.equal(triggerName(scene), "Workspace: Default space"));
+  await openCard(scene);
+  await click(projectRow(scene, "navigation-project"));
+  await waitFor(() => assert.equal(triggerName(scene), "Workspace: navigation-project, branch main"));
 
-async function workspace(t, props, remove = async () => ({})) {
-  const clock = createManualScheduler();
-  const originals = ["setTimeout", "clearTimeout"].map((name) => [
-    name,
-    Object.getOwnPropertyDescriptor(dom.window, name),
-  ]);
-  dom.window.setTimeout = clock.setTimeout;
-  dom.window.clearTimeout = clock.clearTimeout;
-  const removals = [];
-  const host = installApiHostBridge(
-    dom.window,
-    () => ({
-      async call(method, params) {
-        if (method === "worktrees.list")
-          return params.projectRoot === "/repo"
-            ? git
-            : { projectRoot: params.projectRoot, isGit: false, isTopLevel: true, worktrees: [] };
-        if (method === "worktrees.remove") {
-          removals.push(params);
-          return remove();
-        }
-        throw new Error(`unexpected worktree request ${method}`);
-      },
-    }),
-    resetRpc,
-  );
-  const view = await mount(t, WorkspaceScene, props, {
-    release() {
-      try {
-        host.close();
-      } finally {
-        for (const [name, descriptor] of originals) Object.defineProperty(dom.window, name, descriptor);
-      }
-    },
-  });
-  return { ...view, clock, removals };
-}
-
-const removalButton = (view) =>
-  [...view.container.querySelectorAll("button")].find((control) => control.title.includes("Remove worktree checkout"));
-const trigger = (view) =>
-  [...view.container.querySelectorAll("button")].find((control) => control.title.startsWith("Switch worktree"));
-
-test("an in-flight removal stays protected when the switcher disappears and returns", async (t) => {
-  const response = createDeferred();
-  const view = await workspace(t, { cwd: "/repo" }, () => response.promise);
-  await click(trigger(view));
-  await click(removalButton(view));
-  assert.equal(view.removals.length, 1);
-  await view.update({ cwd: "/other" });
-  assert.equal(removalButton(view), undefined);
-  await view.update({ cwd: "/repo" });
-  if (!removalButton(view)) await click(trigger(view));
-  const protectedControl = removalButton(view);
-  assert.ok(protectedControl);
-  assert.equal(protectedControl.disabled, true, "the returned view cannot submit another pending removal");
+  await openCard(scene);
+  await hover(branchRow(await waitFor(() => branchesPane(scene, "navigation-project")), "review"));
+  const protectedControl = await waitFor(() => removeWorktreeButton(scene, P.worktree));
+  assert.equal(protectedControl.disabled, true, "the returned card cannot submit another pending removal");
   await act(async () => protectedControl.click());
-  assert.equal(view.removals.length, 1, "disabled interaction produces no duplicate removal");
-  await act(async () => response.reject(Object.assign(new Error("dirty worktree"), { detail: { dirty: true } })));
-  assert.match(view.container.textContent, /Uncommitted changes\./);
+  await scene.settled({ held: 1 });
+  assert.deepEqual(
+    scene.external.requests("worktrees.remove").map((params) => params.path),
+    [P.worktree],
+    "the disabled interaction produced no duplicate removal",
+  );
+
+  hold.release();
+  await waitFor(() => {
+    const pane = branchesPane(scene, "navigation-project");
+    assert.ok(!branchRow(pane, "review").textContent.includes(P.worktree), "the removal finished");
+  });
+  assert.equal(triggerName(scene), "Workspace: navigation-project, branch main");
 });

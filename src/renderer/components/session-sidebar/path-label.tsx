@@ -9,9 +9,10 @@ import type { CSSProperties } from "react";
  * to the left edge; the inner plaintext bidi isolation keeps the path itself
  * rendered strictly left-to-right (no punctuation reordering).
  */
-export function PathLabel({ text, style }: { text: string; style?: CSSProperties }) {
+export function PathLabel({ text, style, className }: { text: string; style?: CSSProperties; className?: string }) {
   return (
     <span
+      className={className}
       style={{
         overflow: "hidden",
         textOverflow: "ellipsis",

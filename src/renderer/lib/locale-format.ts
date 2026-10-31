@@ -56,6 +56,27 @@ export function calendarDaysBetween(earlier: Date, later: Date): number {
   return Math.round((end - start) / 86_400_000);
 }
 
+export function formatRelativeCommitTime(
+  value: string | number | Date,
+  language: AppLanguage,
+  now: number | Date = Date.now(),
+): string {
+  const date = value instanceof Date ? value : new Date(value);
+  const nowMs = now instanceof Date ? now.getTime() : now;
+  if (Number.isNaN(date.getTime())) return "";
+
+  const diffSeconds = Math.round((date.getTime() - nowMs) / 1000);
+  const absoluteSeconds = Math.abs(diffSeconds);
+  const formatter = new Intl.RelativeTimeFormat(language, { numeric: "auto" });
+  if (absoluteSeconds < 60) return formatter.format(0, "second");
+  if (absoluteSeconds < 3600) return formatter.format(Math.round(diffSeconds / 60), "minute");
+  if (absoluteSeconds < 86_400) return formatter.format(Math.round(diffSeconds / 3600), "hour");
+  if (absoluteSeconds < 7 * 86_400) return formatter.format(Math.round(diffSeconds / 86_400), "day");
+  if (absoluteSeconds < 30 * 86_400) return formatter.format(Math.round(diffSeconds / (7 * 86_400)), "week");
+  if (absoluteSeconds < 365 * 86_400) return formatter.format(Math.round(diffSeconds / (30 * 86_400)), "month");
+  return formatter.format(Math.round(diffSeconds / (365 * 86_400)), "year");
+}
+
 export function formatFileSize(bytes: number, language: AppLanguage): string {
   if (!Number.isFinite(bytes) || bytes < 0) return "";
   const units = ["B", "KB", "MB", "GB", "TB"];

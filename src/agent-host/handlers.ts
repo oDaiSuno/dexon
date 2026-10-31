@@ -20,7 +20,12 @@ import { registerProjectHandlers } from "./handlers/project";
 import { registerResourceHandlers } from "./handlers/resources";
 import { registerSessionHandlers } from "./handlers/sessions";
 import { initializeManagedProcessService } from "./managed-process/runtime";
-import { getRpcSessionStatuses, subscribeRunningSessions, syncSessionToolsForAllSessions } from "./rpc-manager";
+import {
+  getRpcSessionStatuses,
+  listRpcSessions,
+  subscribeRunningSessions,
+  syncSessionToolsForAllSessions,
+} from "./rpc-manager";
 import { initializeSessionLauncher } from "./session-launcher";
 import { initializeSessionOrchestrationService } from "./session-orchestration/service";
 import { initializeSessionOrchestrationSettings } from "./session-orchestration/settings";
@@ -61,7 +66,13 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
   const modelsCleanup = registerModelHandlers(server);
   registerModelsConfigHandlers(server);
   registerAuthHandlers(server);
-  registerProjectHandlers(server, { managedProcesses });
+  registerProjectHandlers(server, {
+    managedProcesses,
+    runningSessionCwds: () =>
+      listRpcSessions()
+        .filter((session) => session.isRunning())
+        .map((session) => session.cwd),
+  });
   registerResourceHandlers(server);
   registerHostHandlers(server);
 

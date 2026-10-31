@@ -6,10 +6,10 @@ import {
   roles,
   textBlocks,
   click,
+  hover,
   keyDown,
   input,
   waitFor,
-  pathChoice,
   menuAction,
   historyRows,
   noHistoryRows,
@@ -18,6 +18,17 @@ import {
 } from "../support/app-navigation.mjs";
 import { accessibleName } from "../support/dom-queries.mjs";
 import {
+  branchesPane,
+  branchRow,
+  branchRowNames,
+  card,
+  installBrowserEvents,
+  isDisabled,
+  openCard,
+  projectsPane,
+  triggerName,
+} from "../support/app-navigation-workspace.mjs";
+import {
   createdWorktreeBranch,
   navigationPaths,
   personalPrepareReason,
@@ -25,9 +36,11 @@ import {
 } from "../fixtures/app-navigation-data.mjs";
 
 after(restoreGlobals);
+after(installBrowserEvents());
 
 const projectRows = ["Project release notes", "Review branch notes"];
 const personalRows = ["Personal release notes", "Another personal conversation"];
+const removeHint = (folder) => `Remove worktree checkout ${folder}; the branch is kept`;
 
 async function expectProjectSpace(scene) {
   await waitFor(() => historyRows(scene, ...projectRows));
@@ -35,10 +48,17 @@ async function expectProjectSpace(scene) {
   control(scene.workspace(), "button", "navigation-project");
 }
 
-function worktreeSwitcher(scene) {
-  const matches = roles(scene.container, "button").filter((element) => element.title.startsWith("Switch worktree:"));
-  assert.equal(matches.length, 1);
-  return matches[0];
+async function openProjectCard(scene) {
+  const menu = await openCard(scene);
+  await waitFor(() => branchesPane(scene, "navigation-project"));
+  return menu;
+}
+
+const removeControls = (scene, folder) =>
+  roles(card(scene), "button").filter((element) => element.title === removeHint(folder));
+
+async function removeControl(scene, folder) {
+  return waitFor(() => removeControls(scene, folder)[0] ?? null);
 }
 
 test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the two space actions", async (t) => {
@@ -61,29 +81,32 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.doesNotMatch(scene.navigation().textContent, /worktree|repo root/i);
 });
 
-function composerWorkspaceButton(scene) {
-  return waitFor(() => control(scene.container, "button", "Workspace: Default space"));
-}
-
-test("Open in Finder in the composer's workspace menu asks the operating-system boundary to open the active personal directory", async (t) => {
+test("Open in Finder in the composer's workspace card asks the operating-system boundary to open the active personal directory", async (t) => {
   const scene = await startNavigation(t, { history: false });
-  await click(await composerWorkspaceButton(scene));
+  await openCard(scene);
   await click(await waitFor(() => control(scene.container, "button", "Open in Finder")));
   await waitFor(() => assert.equal(scene.external.desktop.openedDirectory, navigationPaths.personal));
 });
 
-test("Switch project… in the composer's workspace menu brings back the collapsed sidebar with its project tree, and no separate list of spaces appears", async (t) => {
-  const scene = await startNavigation(t, { openProjects: [navigationPaths.personal, navigationPaths.project] });
-  await waitFor(() => historyRows(scene, ...personalRows));
+test("choosing another project in the composer card switches the space and leaves the sidebar exactly as it was", async (t) => {
+  const scene = await startNavigation(t, {
+    lastSpaceCwd: navigationPaths.project,
+    openProjects: [navigationPaths.personal, navigationPaths.project, navigationPaths.empty],
+  });
+  await expectProjectSpace(scene);
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
-  await click(await composerWorkspaceButton(scene));
-  await click(await waitFor(() => control(scene.container, "button", "Switch project…")));
-  await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"));
-  historyRows(scene, ...personalRows);
-  control(scene.history(), "button", "navigation-project");
+  await openCard(scene);
+  await click(control(projectsPane(scene), "button", "empty-project"));
+  await waitFor(() => assert.equal(triggerName(scene), "Workspace: empty-project"));
+  control(scene.navigation(), "button", "Show sidebar");
   await scene.settled();
-  assert.equal(roles(dom.window.document.body, "menu", "Switch space").length, 0, "no extra list of spaces is opened");
+  assert.equal(await scene.currentFolder(), navigationPaths.empty);
+  assert.equal(
+    roles(dom.window.document.body, "menu", "Switch space").length,
+    0,
+    "no separate list of spaces is opened",
+  );
 });
 
 test("choosing another folder moves the sidebar to that project and shows all of its worktree histories", async (t) => {
@@ -142,17 +165,17 @@ test("returning from a project to personal space restores the personal history",
 test("switching a Git worktree moves to that checkout while keeping both histories in the same project", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
-  await click(await waitFor(() => worktreeSwitcher(scene)));
-  await click(await waitFor(() => pathChoice(scene.container, navigationPaths.worktree)));
-  await waitFor(() => assert.equal(worktreeSwitcher(scene).title, `Switch worktree: ${navigationPaths.worktree}`));
+  await openProjectCard(scene);
+  await click(branchRow(branchesPane(scene, "navigation-project"), "review"));
+  await waitFor(() => assert.equal(triggerName(scene), "Workspace: navigation-project, branch review"));
   historyRows(scene, ...projectRows);
   assert.equal(await scene.currentFolder(), navigationPaths.worktree);
 });
 
-test("creating a worktree from the composer footer moves to the new checkout and keeps the project history", async (t) => {
+test("creating a worktree from the card moves to the new checkout and keeps the project history", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
-  await click(await waitFor(() => worktreeSwitcher(scene)));
+  await openProjectCard(scene);
   await click(await waitFor(() => menuAction(scene.container, "New worktree…")));
   const branch = await waitFor(() => {
     const fields = roles(scene.container, "textbox").filter((element) => element.placeholder === "branch name");
@@ -162,17 +185,34 @@ test("creating a worktree from the composer footer moves to the new checkout and
   await input(branch, createdWorktreeBranch);
   await keyDown(branch, "Enter");
   await waitFor(() =>
-    assert.equal(worktreeSwitcher(scene).title, `Switch worktree: ${navigationPaths.createdWorktree}`),
+    assert.equal(triggerName(scene), `Workspace: navigation-project, branch ${createdWorktreeBranch}`),
   );
   historyRows(scene, ...projectRows);
   assert.equal(await scene.currentFolder(), navigationPaths.createdWorktree);
 });
 
-test("removing another worktree from the composer footer drops it from the choices and keeps the current checkout", async (t) => {
+test("removing another worktree drops its folder from the list but keeps the branch itself", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: navigationPaths.project });
   await expectProjectSpace(scene);
-  await click(await openRemoveControl(scene, navigationPaths.worktree));
-  await waitFor(() => assert.equal(worktreeChoices(scene, navigationPaths.worktree).length, 0));
+  await openProjectCard(scene);
+  await hover(branchRow(branchesPane(scene, "navigation-project"), "review"));
+  await click(await waitFor(() => removeControl(scene, navigationPaths.worktree)));
+  await waitFor(() =>
+    assert.equal(removeControls(scene, navigationPaths.worktree).length, 0, "the worktree's remove control is gone"),
+  );
+  const after = branchesPane(scene, "navigation-project");
+  assert.deepEqual(branchRowNames(after, scene.labels), [
+    "main",
+    "a3f9c21",
+    "review",
+    "feat/alpha",
+    "audit/cleanup",
+    "feat/beta",
+    "wip/idea",
+    "chore/gamma",
+  ]);
+  assert.equal(isDisabled(branchRow(after, "review")), false, "the branch is an ordinary local branch now");
+  assert.ok(!branchRow(after, "review").textContent.includes(navigationPaths.worktree));
   await scene.settled();
   historyRows(scene, ...projectRows);
   assert.equal(await scene.currentFolder(), navigationPaths.project);
@@ -187,34 +227,22 @@ test("opening a conversation from another worktree of the project moves the curr
   assert.equal(await scene.currentFolder(), navigationPaths.worktree);
 });
 
-async function openRemoveControl(scene, path) {
-  await click(await waitFor(() => worktreeSwitcher(scene)));
-  const remove = `Remove worktree checkout ${path}; the branch is kept`;
-  return waitFor(() => {
-    const matches = roles(scene.container, "button").filter((element) => element.title === remove);
-    assert.equal(matches.length, 1, "Expected one remove control for the review worktree");
-    return matches[0];
-  });
-}
-
-function worktreeChoices(scene, path) {
-  return [...roles(scene.container, "button"), ...roles(scene.container, "menuitemradio")].filter(
-    (element) => element.title === path,
-  );
-}
-
 test("removing a worktree with uncommitted changes asks first and keeps it when the user cancels", async (t) => {
   const scene = await startNavigation(t, {
     lastSpaceCwd: navigationPaths.project,
     dirtyWorktrees: [navigationPaths.worktree],
   });
   await expectProjectSpace(scene);
-  await click(await openRemoveControl(scene, navigationPaths.worktree));
-  await waitFor(() => control(scene.container, "button", "Force"));
-  await click(control(scene.container, "button", "Cancel"));
-  await waitFor(() => assert.equal(roles(scene.container, "button", "Force").length, 0));
+  await openProjectCard(scene);
+  await hover(branchRow(branchesPane(scene, "navigation-project"), "review"));
+  await click(await waitFor(() => removeControl(scene, navigationPaths.worktree)));
+  await waitFor(() => control(card(scene), "button", "Force"));
+  await click(control(card(scene), "button", "Cancel"));
+  await waitFor(() => assert.equal(roles(card(scene), "button", "Force").length, 0));
   await scene.settled();
-  assert.equal(worktreeChoices(scene, navigationPaths.worktree).length, 1, "the review worktree is kept");
+  assert.ok(
+    branchRow(branchesPane(scene, "navigation-project"), "review").textContent.includes(navigationPaths.worktree),
+  );
   assert.equal(await scene.currentFolder(), navigationPaths.project);
 });
 
@@ -224,9 +252,16 @@ test("removing a worktree with uncommitted changes removes it after the user con
     dirtyWorktrees: [navigationPaths.worktree],
   });
   await expectProjectSpace(scene);
-  await click(await openRemoveControl(scene, navigationPaths.worktree));
-  await click(await waitFor(() => control(scene.container, "button", "Force")));
-  await waitFor(() => assert.equal(worktreeChoices(scene, navigationPaths.worktree).length, 0));
+  await openProjectCard(scene);
+  await hover(branchRow(branchesPane(scene, "navigation-project"), "review"));
+  await click(await waitFor(() => removeControl(scene, navigationPaths.worktree)));
+  await click(await waitFor(() => control(card(scene), "button", "Force")));
+  await waitFor(() => {
+    const pane = branchesPane(scene, "navigation-project");
+    const review = roles(pane, "button", "review");
+    assert.equal(review.length, 1, "the branch itself is still listed");
+    assert.ok(!review[0].textContent.includes(navigationPaths.worktree), "its folder is gone");
+  });
   await scene.settled();
   historyRows(scene, ...projectRows);
   assert.equal(await scene.currentFolder(), navigationPaths.project);

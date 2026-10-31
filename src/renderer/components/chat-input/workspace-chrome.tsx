@@ -1,8 +1,15 @@
 import type { CSSProperties } from "react";
 import { Icon } from "./icons";
-import { QUICK } from "./menu-chrome";
 
-export const SELECTED = "var(--fx-surface-selected)";
+export const HOVER_OVERLAY = "var(--fx-surface-hover-overlay)";
+export const HOVER_OVERLAY_STRONG = "var(--fx-surface-hover-overlay-strong)";
+export const SURFACE_SIDEBAR = "var(--fx-surface-sidebar)";
+export const SURFACE_INSET = "var(--fx-surface-inset)";
+export const SURFACE_RAISED = "var(--fx-surface-raised)";
+
+export const CARD_WIDTH = 600;
+export const PROJECTS_PANE_WIDTH = 216;
+export const OUTLINE_NONE: CSSProperties = { outline: "none" };
 
 export const ELLIPSIS: CSSProperties = {
   overflow: "hidden",
@@ -16,29 +23,12 @@ export const GLYPH: CSSProperties = { display: "flex", flexShrink: 0 };
 export const SECTION: CSSProperties = {
   display: "flex",
   alignItems: "center",
+  gap: 8,
   height: 28,
   flexShrink: 0,
   padding: "0 8px",
   color: "var(--fx-text-tertiary)",
 };
-
-export const ROW: CSSProperties = {
-  display: "flex",
-  alignItems: "center",
-  gap: 10,
-  width: "100%",
-  height: 32,
-  flexShrink: 0,
-  boxSizing: "border-box",
-  padding: "0 8px",
-  border: "none",
-  borderRadius: "var(--radius-control)",
-  cursor: "pointer",
-  textAlign: "left",
-  transition: QUICK,
-};
-
-export const SEPARATOR: CSSProperties = { height: 1, flexShrink: 0, background: SELECTED };
 
 export function GitBranchGlyph({ size = 15 }: { size?: number }) {
   return (

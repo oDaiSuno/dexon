@@ -155,6 +155,27 @@ export function resetDraftCache(): void {
   drafts.clear();
 }
 
+export function mergeCarriedDraft(existing: ChatDraft | null, carried: string): ChatDraft | null {
+  const brought = carried.replace(/\s+$/, "");
+  const already = existing?.value ?? "";
+  const value = brought ? (already.trim() ? `${brought}\n\n${already}` : brought) : already;
+  if (!value) return null;
+  return {
+    value,
+    ...(existing?.images ? { images: existing.images.map((image) => ({ ...image })) } : {}),
+    ...(existing?.files ? { files: existing.files.map((file) => ({ ...file })) } : {}),
+  };
+}
+
+export function withoutCarriedDraft(existing: ChatDraft | null, carried: string): ChatDraft | null {
+  const brought = carried.replace(/\s+$/, "");
+  const value = existing?.value ?? "";
+  if (!brought || !value.startsWith(brought)) return existing;
+  const rest = value.slice(brought.length).replace(/^\n\n/, "");
+  if (!rest) return null;
+  return { ...existing, value: rest };
+}
+
 interface DraftPersistenceDependencies {
   stage: (key: string, draft: ChatDraft) => void;
   flush: (key: string) => boolean | void;

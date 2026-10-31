@@ -68,30 +68,109 @@ export interface ComposerProject {
   displayPath: string;
 }
 
-export interface ComposerWorkspace {
+export type ComposerProjectIcon = "house" | "folder" | "folder-open" | "folder-missing";
+
+export interface ComposerCardProject {
+  path: string;
+  name: string;
+  displayPath: string;
+  subline: string;
+  sublineKind: "branch" | "note";
+  icon: ComposerProjectIcon;
+  current: boolean;
+  browsed: boolean;
+  missing: boolean;
+}
+
+export type ComposerBranchKind = "current" | "folder" | "detached" | "local" | "stale";
+
+export type ComposerBranchIdentity = "branch" | "worktree" | "detached" | "stale";
+
+export interface ComposerCardBranch {
+  key: string;
+  name: string;
+  kind: ComposerBranchKind;
+  identity: ComposerBranchIdentity;
+  path: string | null;
+  pathLabel: string | null;
+  isMainFolder: boolean;
+  timeLabel: string | null;
+  blocked: boolean;
+  disabled: boolean;
+  removable: boolean;
+}
+
+export interface ComposerCardSections {
+  current: ComposerCardBranch[];
+  folders: ComposerCardBranch[];
+  others: ComposerCardBranch[];
+  stale: ComposerCardBranch[];
+}
+
+export type ComposerCardPane =
+  { state: "loading" } | { state: "not-repo" } | { state: "ready"; count: number; sections: ComposerCardSections };
+
+export interface ComposerCardBlocked {
+  reason: "dirty" | "busy";
+  branch: string;
+  projectPath: string;
+  title: string;
+  detail: string;
+}
+
+export interface ComposerWorkspaceCard {
+  projects: ComposerCardProject[];
+  pane: ComposerCardPane;
+  browsedName: string;
+  folder: string;
+  showFilter: boolean;
+  filter: string;
+  setFilter: (next: string) => void;
+  blocked: ComposerCardBlocked | null;
+  dismissBlocked: () => void;
+  openBlockedInNewWorktree: () => void;
+  newEntryOpen: boolean;
+  newBranch: string;
+  setNewBranch: (branch: string) => void;
+  openNewEntry: () => void;
+  closeNewEntry: () => void;
+  createCheckout: () => void;
+  removeCheckout: (path: string, force: boolean) => void;
+  confirmRemovePath: string | null;
+  cancelRemove: () => void;
+  busy: boolean;
+  error: string | null;
+  activateProject: (path: string) => void;
+  browseProject: (path: string) => void;
+  activateBranch: (key: string) => void;
+}
+
+export interface ComposerWorkspaceBase {
   project: ComposerProject;
+  branch: string | null;
+  isWorktree: boolean;
+  path: string;
+  menuOpen: boolean;
+  toggleMenu: () => void;
+  closeMenu: () => void;
+  openInFinder: () => Promise<void>;
+  copyPath: () => Promise<void>;
+  error: string | null;
+}
+
+export interface ComposerWorkspaceSwitchable extends ComposerWorkspaceBase {
+  mode: "switchable";
   checkouts: ComposerCheckout[];
   current: ComposerCheckout | null;
   currentPath: string | null;
-  menuOpen: boolean;
-  newEntryOpen: boolean;
-  newBranch: string;
-  busy: boolean;
-  error: string | null;
-  confirmRemovePath: string | null;
-  toggleMenu: () => void;
-  closeMenu: () => void;
-  selectCheckout: (path: string) => void;
-  openNewEntry: () => void;
-  closeNewEntry: () => void;
-  setNewBranch: (branch: string) => void;
-  createCheckout: () => void;
-  removeCheckout: (path: string, force: boolean) => void;
-  cancelRemove: () => void;
-  switchProject: () => void;
-  openInFinder: () => Promise<void>;
-  copyPath: () => Promise<void>;
+  card: ComposerWorkspaceCard;
 }
+
+export interface ComposerWorkspaceReadOnly extends ComposerWorkspaceBase {
+  mode: "read-only";
+}
+
+export type ComposerWorkspace = ComposerWorkspaceSwitchable | ComposerWorkspaceReadOnly;
 
 export interface ComposerRemote {
   sessionId: string;
@@ -120,6 +199,7 @@ export interface ChatInputHandle {
   insertText: (text: string) => void;
   prependText: (text: string) => void;
   addFiles: (files: File[]) => void;
+  takeDraft: () => string;
 }
 
 export type ChatInputPropsWithVisible = ChatInputProps & { visible: boolean };

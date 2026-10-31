@@ -1,47 +1,16 @@
-import { execFile } from "child_process";
 import { existsSync, mkdirSync, realpathSync } from "fs";
 import { basename, dirname, join, resolve } from "path";
-import { promisify } from "util";
 import { allowFileRoot } from "./allowed-roots.ts";
 import type { GitBranchResult, GitHeadContentResult, GitStatusResult } from "./api-types";
+import { git, gitRaw } from "./git-command.ts";
 import { parseAheadBehind, parseGitStatusPorcelain } from "./git-status.ts";
+import { parseWorktreeList } from "./worktree-list.ts";
 import { worktreePathsEqual } from "./worktree-path.ts";
 export { parseGitStatusPorcelain } from "./git-status.ts";
+export { setGitCommandRunner } from "./git-command.ts";
+export type { GitCommandRunner, GitCommandRunOptions } from "./git-command.ts";
 export { normalizeWorktreePathForComparison, worktreePathsEqual } from "./worktree-path.ts";
-
-const execFileAsync = promisify(execFile);
-
-export interface GitCommandRunOptions {
-  timeout: number;
-  maxBuffer: number;
-  env: NodeJS.ProcessEnv;
-}
-
-export interface GitCommandRunner {
-  run(cwd: string, args: string[], options: GitCommandRunOptions): Promise<{ stdout: string }>;
-}
-
-const defaultGitCommandRunner: GitCommandRunner = {
-  async run(cwd, args, options) {
-    const { stdout } = await execFileAsync("git", ["-C", cwd, ...args], {
-      timeout: options.timeout,
-      maxBuffer: options.maxBuffer,
-      encoding: "utf8",
-      env: options.env,
-    });
-    return { stdout: String(stdout) };
-  },
-};
-
-let gitCommandRunner: GitCommandRunner = defaultGitCommandRunner;
-
-export function setGitCommandRunner(runner: GitCommandRunner): () => void {
-  const previous = gitCommandRunner;
-  gitCommandRunner = runner;
-  return () => {
-    if (gitCommandRunner === runner) gitCommandRunner = previous;
-  };
-}
+export { parseWorktreeList, type ParsedWorktree } from "./worktree-list.ts";
 
 // ============================================================================
 // Project resolution: cwd → { projectRoot, branch }
@@ -89,26 +58,6 @@ export function invalidateProjectCache(): void {
 
 export function getProjectCacheRevision(): number {
   return projectCacheRevision;
-}
-
-async function git(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await gitCommandRunner.run(cwd, args, {
-    timeout: 10_000,
-    maxBuffer: 1024 * 1024,
-    // Pin the message locale so error-text matching (e.g. the dirty-worktree
-    // detection in the DELETE route) works regardless of system language.
-    env: { ...process.env, LC_ALL: "C" },
-  });
-  return stdout.trim();
-}
-
-async function gitRaw(cwd: string, args: string[]): Promise<string> {
-  const { stdout } = await gitCommandRunner.run(cwd, args, {
-    timeout: 10_000,
-    maxBuffer: 20 * 1024 * 1024,
-    env: { ...process.env, LC_ALL: "C" },
-  });
-  return stdout;
 }
 
 /** List repository files through the configured Git runtime. */
@@ -203,6 +152,7 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
   if (cached && cached.expiresAt > Date.now()) return cached.info;
 
   let info: ProjectInfo;
+  let cacheable = true;
   try {
     if (!existsSync(cwd)) {
       info = inferRemovedWorktree(cwd) ?? { projectRoot: cwd, branch: null, isWorktree: false, isTopLevel: false };
@@ -248,12 +198,20 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
       isWorktree: isWorktreeTopLevel,
       isTopLevel,
     };
-  } catch {
+  } catch (error) {
+    cacheable = !isToolchainUnavailable(error);
     info = { projectRoot: cwd, branch: null, isWorktree: false, isTopLevel: false };
   }
 
-  cache.set(cwd, { info, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
+  if (cacheable) cache.set(cwd, { info, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
   return info;
+}
+
+function isToolchainUnavailable(error: unknown): boolean {
+  const code = (error as { code?: unknown }).code;
+  if (code === "TOOLCHAIN_GIT_REQUIRED" || code === "ENOENT") return true;
+  const message = error instanceof Error ? error.message : String(error);
+  return /TOOLCHAIN_GIT_REQUIRED|spawn git ENOENT/.test(message);
 }
 
 function missingProjectInfo(root: string | null): ProjectInfo | null {
@@ -315,42 +273,9 @@ async function getRepoRoot(cwd: string): Promise<string> {
 
 export async function listWorktrees(cwd: string): Promise<WorktreeInfo[]> {
   const out = await git(cwd, ["worktree", "list", "--porcelain"]);
-  const worktrees: WorktreeInfo[] = [];
-  let current: (Partial<WorktreeInfo> & { prunable?: boolean }) | null = null;
-
-  const flush = () => {
-    if (current?.path) {
-      // Prunable worktrees point at missing/broken gitdirs and cannot be
-      // browsed or selected usefully. Also skip vanished paths even if git has
-      // not marked them prunable yet.
-      if (!current.prunable && existsSync(current.path)) {
-        worktrees.push({
-          path: current.path,
-          branch: current.branch ?? null,
-          isMain: worktrees.length === 0,
-        });
-      }
-    }
-    current = null;
-  };
-
-  for (const line of out.split("\n")) {
-    if (line.startsWith("worktree ")) {
-      flush();
-      current = { path: line.slice("worktree ".length).trim() };
-    } else if (line.startsWith("branch ") && current) {
-      current.branch = line
-        .slice("branch ".length)
-        .trim()
-        .replace(/^refs\/heads\//, "");
-    } else if (line.startsWith("prunable") && current) {
-      current.prunable = true;
-    } else if (line.trim() === "") {
-      flush();
-    }
-  }
-  flush();
-  return worktrees;
+  return parseWorktreeList(out)
+    .filter((entry) => !entry.stale)
+    .map((entry) => ({ path: entry.path, branch: entry.branch, isMain: entry.isMain }));
 }
 
 function sanitizeBranchForDir(branch: string): string {

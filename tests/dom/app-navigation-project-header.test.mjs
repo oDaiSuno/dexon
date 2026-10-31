@@ -15,10 +15,17 @@ import {
   restoreGlobals,
 } from "../support/app-navigation.mjs";
 import { projectOrder, projectItem, projectMenu, unavailableAction } from "../support/app-navigation-projects.mjs";
+import {
+  installBrowserEvents,
+  openCard as openWorkspaceCard,
+  projectsPane,
+  triggerName,
+} from "../support/app-navigation-workspace.mjs";
 import { navigationPaths as P } from "../fixtures/app-navigation-data.mjs";
 import { accessibleName, precedes } from "../support/dom-queries.mjs";
 
 after(restoreGlobals);
+after(installBrowserEvents());
 
 const DEFAULT = "Default space";
 const PROJECT = "navigation-project";
@@ -236,23 +243,17 @@ test("switching projects from the card still works while the session search hide
   await waitFor(async () => assert.equal(await scene.currentFolder(), P.empty));
 });
 
-test("Switch project… in the composer workspace menu brings the sidebar back and opens the card itself", async (t) => {
+test("a project chosen in the composer card is switched to directly, without bringing the sidebar's project card back", async (t) => {
   const scene = await ready(t);
   await click(control(scene.navigation(), "button", "Hide sidebar"));
   await waitFor(() => control(scene.navigation(), "button", "Show sidebar"));
-  await click(await waitFor(() => control(scene.container, "button", `Workspace: ${PROJECT}, branch main`)));
-  await click(await waitFor(() => control(scene.container, "button", "Switch project…")));
-  await waitFor(() => control(scene.navigation(), "button", "Hide sidebar"), "the sidebar comes back");
-  const card = await waitFor(() => {
-    const open = cards();
-    assert.equal(open.length, 1, "the switcher card is already open");
-    return open[0];
-  });
-  assert.equal(accessibleName(card), PROJECT);
-  assert.ok(
-    dom.window.document.activeElement === control(card, "searchbox", SEARCH_CARD),
-    "the cursor is in the search box",
-  );
+  await openWorkspaceCard(scene);
+  await click(control(projectsPane(scene), "button", EMPTY));
+  await waitFor(() => assert.equal(triggerName(scene), `Workspace: ${EMPTY}`));
+  await scene.settled();
+  assert.equal(await scene.currentFolder(), P.empty);
+  assert.equal(cards().length, 0, "no separate project switcher card was opened");
+  control(scene.navigation(), "button", "Show sidebar");
 });
 
 test("Collapse all projects folds every open row, the ones opened by hand included, and the button then offers Expand current project", async (t) => {
