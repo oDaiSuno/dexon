@@ -90,7 +90,7 @@ test("a branch of another project is switched in that project's own folder, and 
   await waitFor(() => assert.equal(hold.reached(), true, "the switch request reached the Host"));
   assert.equal(triggerName(scene), "Workspace: navigation-project, branch main", "the space waits for the answer");
   await scene.settled({ held: 1 });
-  assert.equal(await scene.currentFolder(), P.project);
+  assert.equal(scene.external.rememberedSpace(), P.project);
   hold.release();
   await waitFor(() => assert.equal(triggerName(scene), "Workspace: paper-notes, branch exp/retrieval"));
   await scene.settled();
