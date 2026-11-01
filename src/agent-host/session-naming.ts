@@ -126,43 +126,37 @@ function applyLiveSessionNameIfEmpty(sessionId: string, name: string): boolean |
   return setLiveSessionName(sessionId, name);
 }
 
-export async function applySessionName(sessionId: string, name: string): Promise<boolean> {
+async function writeSessionName(sessionId: string, name: string, options: { onlyIfEmpty: boolean }): Promise<boolean> {
   const normalized = name.trim();
   if (!normalized) return false;
 
-  const liveResult = setLiveSessionName(sessionId, normalized);
-  if (liveResult !== null) return liveResult;
+  const writeIfLive = () =>
+    options.onlyIfEmpty
+      ? applyLiveSessionNameIfEmpty(sessionId, normalized)
+      : setLiveSessionName(sessionId, normalized);
+
+  const liveBeforePathLookup = writeIfLive();
+  if (liveBeforePathLookup !== null) return liveBeforePathLookup;
 
   const filePath = await resolveSessionPath(sessionId);
   if (!filePath) return false;
 
-  const liveResultAfterLookup = setLiveSessionName(sessionId, normalized);
-  if (liveResultAfterLookup !== null) return liveResultAfterLookup;
+  const liveAfterPathLookup = writeIfLive();
+  if (liveAfterPathLookup !== null) return liveAfterPathLookup;
 
-  SessionManager.open(filePath, undefined).appendSessionInfo(normalized);
+  const manager = SessionManager.open(filePath, undefined);
+  if (options.onlyIfEmpty && Boolean(manager.getSessionName()?.trim())) return false;
+  manager.appendSessionInfo(normalized);
   invalidateSessionContent(filePath);
   return true;
 }
 
+export async function applySessionName(sessionId: string, name: string): Promise<boolean> {
+  return writeSessionName(sessionId, name, { onlyIfEmpty: false });
+}
+
 export async function applySessionNameIfEmpty(sessionId: string, name: string): Promise<boolean> {
-  const normalized = name.trim();
-  if (!normalized) return false;
-
-  const liveResult = applyLiveSessionNameIfEmpty(sessionId, normalized);
-  if (liveResult !== null) return liveResult;
-
-  const filePath = await resolveSessionPath(sessionId);
-  if (!filePath) return false;
-
-  const liveResultAfterLookup = applyLiveSessionNameIfEmpty(sessionId, normalized);
-  if (liveResultAfterLookup !== null) return liveResultAfterLookup;
-
-  const manager = SessionManager.open(filePath, undefined);
-  const storedName = manager.getSessionName();
-  if (typeof storedName === "string" && storedName.trim().length > 0) return false;
-  manager.appendSessionInfo(normalized);
-  invalidateSessionContent(filePath);
-  return true;
+  return writeSessionName(sessionId, name, { onlyIfEmpty: true });
 }
 
 async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessionTarget | null> {
