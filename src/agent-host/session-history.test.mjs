@@ -531,3 +531,27 @@ test("when one block is read back for display, its model-only signatures are not
     thinkingSignature: "thinking-sig",
   });
 });
+
+test("navigating to the empty root branch returns an empty page and outline instead of falling back to the last entry", () => {
+  const entries = chain([user("first question"), assistant([{ type: "text", text: "first answer" }])]);
+  const fullRoot = buildSessionHistoryPage({
+    modelChoice,
+    entries,
+    leafId: null,
+    historyRevision: "root-revision",
+  });
+  assert.deepEqual(fullRoot.messages, []);
+  assert.deepEqual(fullRoot.entryIds, []);
+  assert.deepEqual(fullRoot.outline, []);
+
+  const pagedRoot = buildSessionHistoryPage({
+    modelChoice,
+    entries,
+    leafId: null,
+    historyWindow: { maxTurns: 5, maxBytes: 64 * 1024 },
+    historyRevision: "root-revision",
+  });
+  assert.deepEqual(pagedRoot.messages, []);
+  assert.deepEqual(pagedRoot.entryIds, []);
+  assert.deepEqual(pagedRoot.outline, []);
+});

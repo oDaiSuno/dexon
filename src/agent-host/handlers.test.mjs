@@ -389,16 +389,18 @@ test("sessions.get reconstructs context usage when no live agent session exists"
     totalTokens: 350,
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
   };
-  const writeFixture = (sessionId, extraEntries, model = "context-model") => {
+  const writeFixture = (sessionId, extraEntries, model = "context-model", leadingEntries = []) => {
+    const firstParentId = leadingEntries.at(-1)?.id ?? null;
     const sessionPath = path.join(fixtureDirectory, `2026-08-17T00-00-00-000Z_${sessionId}.jsonl`);
     writeFileSync(
       sessionPath,
       [
         JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp, cwd: root }),
+        ...leadingEntries.map((entry) => JSON.stringify(entry)),
         JSON.stringify({
           type: "message",
           id: "caaaaaaa",
-          parentId: null,
+          parentId: firstParentId,
           timestamp,
           message: { role: "user", content: "hello", timestamp: 1 },
         }),
@@ -424,6 +426,72 @@ test("sessions.get reconstructs context usage when no live agent session exists"
   };
 
   writeFixture("context-usage-reconstructed", []);
+  writeFixture("context-usage-aliased-model", [], "upstream-proxy-signature:1017", [
+    {
+      type: "model_change",
+      id: "c0000000",
+      parentId: null,
+      timestamp,
+      provider: "context-provider",
+      modelId: "context-model",
+    },
+  ]);
+  writeFixture("context-usage-signed-fallback", [], "context-model", [
+    {
+      type: "model_change",
+      id: "c0000000",
+      parentId: null,
+      timestamp,
+      provider: "context-provider",
+      modelId: "removed-catalog-model",
+    },
+  ]);
+  writeFixture("context-usage-branched", [
+    JSON.stringify({
+      type: "message",
+      id: "cddddddd",
+      parentId: "caaaaaaa",
+      timestamp,
+      message: { role: "user", content: "other branch", timestamp: 3 },
+    }),
+    JSON.stringify({
+      type: "message",
+      id: "ceeeeeee",
+      parentId: "cddddddd",
+      timestamp,
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "other branch reply" }],
+        provider: "context-provider",
+        model: "context-model",
+        usage: {
+          input: 700,
+          output: 100,
+          cacheRead: 0,
+          cacheWrite: 0,
+          totalTokens: 800,
+          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        },
+        stopReason: "stop",
+        timestamp: 4,
+      },
+    }),
+  ]);
+  const leafChoicesDir = path.join(process.env.PI_CODING_AGENT_DIR, "desktop");
+  mkdirSync(leafChoicesDir, { recursive: true });
+  writeFileSync(
+    path.join(leafChoicesDir, "session-leaf-choices.json"),
+    JSON.stringify({
+      version: 1,
+      sessions: {
+        "context-usage-branched": {
+          leafId: "cbbbbbbb",
+          lastEntryId: "ceeeeeee",
+        },
+      },
+    }),
+    "utf8",
+  );
   writeFixture("context-usage-compacted", [
     JSON.stringify({
       type: "compaction",
@@ -467,6 +535,31 @@ test("sessions.get reconstructs context usage when no live agent session exists"
   assert.equal(restored.contextUsage.tokens, 350);
   assert.equal(restored.contextUsage.contextWindow, 1000);
   assert.ok(Math.abs(restored.contextUsage.percent - 35) < 1e-9);
+
+  const aliased = await handlers["sessions.get"]({ id: "context-usage-aliased-model", includeState: true });
+  assert.deepEqual(aliased.context.model, { provider: "context-provider", modelId: "context-model" });
+  assert.ok(
+    aliased.contextUsage,
+    "usage must resolve from the user-selected model when assistant signature is an upstream alias",
+  );
+  assert.equal(aliased.contextUsage.tokens, 350);
+  assert.equal(aliased.contextUsage.contextWindow, 1000);
+  assert.ok(Math.abs(aliased.contextUsage.percent - 35) < 1e-9);
+
+  const signedFallback = await handlers["sessions.get"]({ id: "context-usage-signed-fallback", includeState: true });
+  assert.ok(
+    signedFallback.contextUsage,
+    "usage must fall back to the assistant-signed model when the chosen model was removed from catalog",
+  );
+  assert.equal(signedFallback.contextUsage.tokens, 350);
+  assert.equal(signedFallback.contextUsage.contextWindow, 1000);
+
+  const branched = await handlers["sessions.get"]({ id: "context-usage-branched", includeState: true });
+  assert.equal(branched.leafId, "cbbbbbbb");
+  assert.deepEqual(branched.context.entryIds, ["caaaaaaa", "cbbbbbbb"]);
+  assert.ok(branched.contextUsage, "usage must be reconstructed for the resolved active branch");
+  assert.equal(branched.contextUsage.tokens, 350);
+  assert.ok(Math.abs(branched.contextUsage.percent - 35) < 1e-9);
 
   const compacted = await handlers["sessions.get"]({ id: "context-usage-compacted", includeState: true });
   assert.deepEqual(compacted.contextUsage, { tokens: null, percent: null, contextWindow: 1000 });
