@@ -11,7 +11,7 @@ interface Indexed {
   children: Map<string, SessionEntry[]>;
 }
 
-function indexEntries(entries: SessionEntry[]): Indexed {
+function indexEntries(entries: readonly SessionEntry[]): Indexed {
   const byId = new Map<string, SessionEntry>();
   const position = new Map<string, number>();
   const children = new Map<string, SessionEntry[]>();
@@ -53,7 +53,10 @@ function newerThan(left: SessionEntry, right: SessionEntry, position: Map<string
 
 export function versionAnchorOf(entry: SessionEntry, byId: Map<string, SessionEntry>): string | null {
   let current = entry.parentId ? byId.get(entry.parentId) : undefined;
+  const visited = new Set<string>();
   while (current && !isConversationRecord(current)) {
+    if (visited.has(current.id)) return null;
+    visited.add(current.id);
     current = current.parentId ? byId.get(current.parentId) : undefined;
   }
   return current ? current.id : null;
@@ -68,7 +71,7 @@ function orderedOldestFirst(group: SessionEntry[], position: Map<string, number>
   });
 }
 
-export function versionsByEntryId(entries: SessionEntry[]): Map<string, MessageVersions> {
+export function versionsByEntryId(entries: readonly SessionEntry[]): Map<string, MessageVersions> {
   const { byId, position } = indexEntries(entries);
   const groups = new Map<string, SessionEntry[]>();
   for (const entry of entries) {

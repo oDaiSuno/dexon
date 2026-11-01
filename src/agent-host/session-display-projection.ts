@@ -40,7 +40,7 @@ export function withoutModelOnlyFields(message: AgentMessage): AgentMessage {
   return changed ? ({ ...message, content } as AgentMessage) : message;
 }
 
-export function projectDisplayMessages(path: SessionEntry[]): ProjectedMessage[] {
+export function projectDisplayMessages(path: readonly SessionEntry[]): ProjectedMessage[] {
   const retryByEntryId = retryOutcomesByEntryId(path);
   const projected: ProjectedMessage[] = [];
   let pendingChannelSource: ReturnType<typeof parseChannelSourceMarker> = null;
@@ -90,7 +90,7 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value > 0;
 }
 
-function retryOutcomesByEntryId(path: SessionEntry[]): Map<string, RetryOutcome> {
+function retryOutcomesByEntryId(path: readonly SessionEntry[]): Map<string, RetryOutcome> {
   const outcomes = new Map<string, RetryOutcome>();
   for (const entry of path) {
     if (entry.type !== "custom" || !isRetryOutcomeType(entry.customType) || !entry.parentId) continue;
@@ -108,7 +108,7 @@ function withRetry(message: AgentMessage, retry: RetryOutcome): AgentMessage {
 export function attachRetryOutcomes(
   messages: AgentMessage[],
   entryIds: string[],
-  path: SessionEntry[],
+  path: readonly SessionEntry[],
 ): AgentMessage[] {
   const outcomes = retryOutcomesByEntryId(path);
   if (outcomes.size === 0) return messages;

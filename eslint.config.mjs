@@ -76,6 +76,12 @@ export default tseslint.config(
             "CallExpression[callee.property.name='prompt'][callee.object.property.name='inner'], CallExpression[callee.property.name='prompt'][callee.object.name='inner']",
           message: "Start turns through promptOnChosenModel so the chosen model is recorded on the active branch.",
         },
+        {
+          selector:
+            "ImportSpecifier[imported.name='buildSessionContext'][parent.source.value='@earendil-works/pi-coding-agent']",
+          message:
+            "Use SessionBranch (branchAt / resolveSessionBranch / buildBranchLlmMessages) instead of pi's buildSessionContext so branch leaf and model choice stay aligned.",
+        },
       ],
     },
   },

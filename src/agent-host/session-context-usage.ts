@@ -16,6 +16,8 @@ import {
   getLatestCompactionEntry,
 } from "@earendil-works/pi-coding-agent";
 import type { ContextUsageBreakdown, ContextUsageInfo } from "../contract/types";
+import type { SessionModelRef } from "../shared/session-orchestration";
+import { buildBranchLlmMessages, type SessionBranch } from "./session-branch";
 
 export interface ContextUsageSnapshot {
   percent: number | null;
@@ -43,17 +45,9 @@ interface BranchEntryLike {
 }
 
 export interface SessionContextUsageSource {
-  /** Resolved LLM context messages (SessionManager.buildSessionContext().messages). */
   messages: unknown[];
-  /** Raw entries on the active branch (SessionManager.getBranch()). */
-  branchEntries: unknown[];
-  /** Context window of the model this session used; unknown when unresolvable. */
+  branchEntries: readonly unknown[];
   contextWindow: number | null | undefined;
-}
-
-interface SessionManagerLike {
-  buildSessionContext(): { messages: unknown[]; model: { provider: string; modelId: string } | null };
-  getBranch(fromId?: string): unknown[];
 }
 
 /** Identical arithmetic to pi's calculateContextTokens, tolerant of partial usage. */
@@ -104,7 +98,7 @@ export function computeSessionContextUsage(source: SessionContextUsageSource): C
   // Mirrors pi's AgentSession.getContextUsage(): after a compaction, the last
   // assistant usage reflects the pre-compaction context size, so the token
   // count stays unknown until an assistant responds after the boundary.
-  const branchEntries = source.branchEntries as BranchEntryLike[];
+  const branchEntries = source.branchEntries as readonly BranchEntryLike[];
   const latestCompaction = getLatestCompactionEntry(
     source.branchEntries as Parameters<typeof getLatestCompactionEntry>[0],
   );
@@ -124,22 +118,21 @@ export function computeSessionContextUsage(source: SessionContextUsageSource): C
   return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 };
 }
 
-/**
- * Full reconstruction for one session snapshot: resolve the context window of
- * the model the session used, then compute usage over the active branch.
- * Returns null when the model (or its context window) cannot be determined.
- */
 export async function reconstructSessionContextUsage(options: {
-  manager: SessionManagerLike;
-  resolveContextWindow: (model: { provider: string; modelId: string } | null) => Promise<number | null | undefined>;
+  branch: SessionBranch;
+  resolveContextWindow: (model: SessionModelRef | null) => Promise<number | null | undefined>;
 }): Promise<ContextUsageSnapshot | null> {
-  const context = options.manager.buildSessionContext();
-  const contextWindow = await options.resolveContextWindow(context.model ?? null);
-  return computeSessionContextUsage({
-    messages: context.messages,
-    branchEntries: options.manager.getBranch(),
-    contextWindow,
-  });
+  let contextWindow: number | null = null;
+  for (const candidate of options.branch.modelCandidates) {
+    const resolved = await options.resolveContextWindow(candidate);
+    if (typeof resolved === "number" && resolved > 0) {
+      contextWindow = resolved;
+      break;
+    }
+  }
+  if (contextWindow === null) return null;
+  const messages = buildBranchLlmMessages(options.branch);
+  return computeSessionContextUsage({ messages, branchEntries: options.branch.path, contextWindow });
 }
 
 interface LiveContextSource {

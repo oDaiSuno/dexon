@@ -35,9 +35,8 @@ import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
 import { deleteSessionLeafChoice } from "../session-leaf-store";
 import { deleteSessionOrigin } from "../session-origin-store";
-import { resolveSessionLeafId } from "../session-leaf";
+import { resolveSessionBranch } from "../session-leaf";
 import { removeSessionTranscript } from "../session-orchestration/transcript";
-import { modelChoiceAt } from "../session-orchestration/model-view";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
   logSessionPerformance,
@@ -234,29 +233,20 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         const { filePath, manager: sm, entries, historyRevision } = source;
 
         const contextStartedAt = performance.now();
-        const leafId = resolveSessionLeafId(id, entries, sm.getLeafId());
+        const branch = resolveSessionBranch(id, entries, { fallbackLeafId: sm.getLeafId() });
         const tree = projectSessionTreeForResponse(sm.getTree() as never) as SessionTreeNode[];
-        const context = buildSessionHistoryPage({
-          entries,
-          leafId,
-          historyWindow,
-          historyRevision,
-          modelChoice: modelChoiceAt(id, entries, leafId),
-        });
+        const context = buildSessionHistoryPage({ branch, historyWindow, historyRevision });
         const stats = computeSessionStats(entries);
         const contextMs = performance.now() - contextStartedAt;
 
         const infoStartedAt = performance.now();
         const contextUsagePromise: Promise<SessionDetail["contextUsage"]> = (async () => {
           if (!includeState) return undefined;
-          // Live state is authoritative — including its "unknown after
-          // compaction" answer. Reconstruct from the session file only when no
-          // live runtime remains (idle eviction, app restart).
           const state = await agentStatePromise;
           if (state?.running) return undefined;
           try {
             return await reconstructSessionContextUsage({
-              manager: sm,
+              branch,
               resolveContextWindow: resolveSessionContextWindow,
             });
           } catch (error) {
@@ -279,7 +269,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           sessionId: id,
           filePath,
           info,
-          leafId,
+          leafId: branch.leafId,
           tree,
           context,
           stats,
@@ -315,16 +305,14 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     },
 
     "sessions.context": async (params) => {
-      const { id, leafId, historyWindow } = params as { id: string; leafId?: string; historyWindow?: HistoryWindow };
+      const { id, leafId, historyWindow } = params as {
+        id: string;
+        leafId?: string | null;
+        historyWindow?: HistoryWindow;
+      };
       const { entries, historyRevision } = await requireSessionSource(id);
-      const resolvedLeafId = leafId ?? resolveSessionLeafId(id, entries, entries.at(-1)?.id ?? null);
-      const context = buildSessionHistoryPage({
-        entries,
-        leafId: resolvedLeafId,
-        historyWindow,
-        historyRevision,
-        modelChoice: modelChoiceAt(id, entries, resolvedLeafId),
-      });
+      const branch = resolveSessionBranch(id, entries, { requestedLeafId: leafId });
+      const context = buildSessionHistoryPage({ branch, historyWindow, historyRevision });
       return { context };
     },
 
@@ -338,13 +326,12 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const { entries, historyRevision } = await requireSessionSource(id);
       try {
         const decodedCursor = decodeHistoryCursor(cursor);
+        const branch = resolveSessionBranch(id, entries, { requestedLeafId: decodedCursor.anchorLeafId });
         const context = buildSessionHistoryPage({
-          entries,
-          leafId: decodedCursor.anchorLeafId,
+          branch,
           historyWindow: { maxTurns, maxBytes },
           historyRevision,
           cursor: decodedCursor,
-          modelChoice: modelChoiceAt(id, entries, decodedCursor.anchorLeafId),
         });
         return { context };
       } catch (error) {

@@ -3,9 +3,8 @@ import type { SessionModelRef } from "../../shared/session-orchestration";
 import type { SessionEntry } from "../../shared/types";
 import type { AgentSessionWrapper } from "../rpc-manager";
 import { getRpcSession } from "../rpc-manager";
-import { chosenSessionModel, type ChosenSessionModel } from "../session-model";
-import { usableModels } from "../session-model";
-import { resolveSessionLeafId } from "../session-leaf";
+import { usableModels, type ChosenSessionModel } from "../session-model";
+import { resolveSessionBranch } from "../session-leaf";
 import { openSessionSource } from "../session-source";
 
 export interface SessionModelView extends ChosenSessionModel {
@@ -15,17 +14,6 @@ export interface SessionModelView extends ChosenSessionModel {
 export interface SessionModelChoice extends SessionModelRef {
   name: string;
   thinkingLevels: string[];
-}
-
-function branchEntries(entries: readonly SessionEntry[], leafId: string | null): SessionEntry[] {
-  const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const path: SessionEntry[] = [];
-  let current = leafId === null ? undefined : byId.get(leafId);
-  while (current) {
-    path.push(current);
-    current = current.parentId ? byId.get(current.parentId) : undefined;
-  }
-  return path.reverse();
 }
 
 export function modelAvailableIn(
@@ -48,7 +36,8 @@ export function modelChoiceAt(
   entries: readonly SessionEntry[],
   leafId: string | null,
 ): ChosenSessionModel {
-  return liveModelChoice(sessionId, leafId) ?? chosenSessionModel(branchEntries(entries, leafId));
+  const { model, thinkingLevel } = resolveSessionBranch(sessionId, entries, { requestedLeafId: leafId });
+  return { model, thinkingLevel };
 }
 
 export async function chosenModelView(sessionId: string): Promise<ChosenSessionModel> {
@@ -56,8 +45,10 @@ export async function chosenModelView(sessionId: string): Promise<ChosenSessionM
   if (live) return live;
   const source = await openSessionSource(sessionId);
   if (!source) return { model: null, thinkingLevel: null };
-  const leafId = resolveSessionLeafId(sessionId, source.entries, source.manager.getLeafId());
-  return modelChoiceAt(sessionId, source.entries, leafId);
+  const { model, thinkingLevel } = resolveSessionBranch(sessionId, source.entries, {
+    fallbackLeafId: source.manager.getLeafId(),
+  });
+  return { model, thinkingLevel };
 }
 
 export async function sessionModelView(
