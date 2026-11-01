@@ -390,3 +390,68 @@ test("a malformed naming preference is ignored instead of blocking regeneration"
     [heldModel.modelId],
   );
 });
+
+test("first-prompt naming uses the current model while a new conversation is still streaming", async (t) => {
+  const prompt = "Name this conversation while its first reply is still streaming";
+  const script = model.script(prompt, [
+    { hold: true, partial: "Conversation reply", rest: " complete" },
+    { text: "Live conversation title" },
+  ]);
+  const { sessionId } = await client.call("agent.new", {
+    cwd: workspace,
+    type: "ensure_session",
+    ...conversationModel,
+  });
+  t.after(async () => {
+    script.releaseAll();
+    await client.call("agent.command", { sessionId, command: { type: "abort" } });
+  });
+  await client.call("agent.command", { sessionId, command: { type: "prompt", message: prompt } });
+  await script.partialSent(0);
+  const state = await client.call("agent.state", { sessionId });
+  assert.equal(state.running, true);
+  assert.equal(state.state.isStreaming, true);
+  assert.deepEqual(state.state.model, { provider: heldModel.provider, id: heldModel.modelId });
+  const before = model.requests().length;
+
+  const result = await client.call("agent.generateTitle", { sessionId, trigger: "first-prompt", prompt });
+  assert.deepEqual(result, { title: "Live conversation title" });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
+  assert.equal((await client.call("sessions.get", { id: sessionId })).info.name, "Live conversation title");
+
+  const afterNaming = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "first-prompt", prompt }), {
+    title: null,
+  });
+  assert.equal(model.requests().length, afterNaming);
+});
+
+test("a manual rename wins over automatic naming in a live session and later first-prompt requests do nothing", async (t) => {
+  const sessionId = "live-manual-wins";
+  const prompt = "Keep the live session's manual name during automatic naming";
+  const storedName = await titleSession(sessionId, { prompt });
+  await client.call("agent.command", { sessionId, command: { type: "get_state" } });
+  assert.equal((await client.call("agent.state", { sessionId })).running, true);
+  const held = model.hold(prompt, { partial: "Automatic", rest: " name" });
+  t.after(() => held.release());
+  const pending = client.call("agent.generateTitle", { sessionId, trigger: "first-prompt", prompt });
+  await held.partialSent();
+
+  await client.call("sessions.rename", { id: sessionId, name: "Live manual choice" });
+  held.release();
+  assert.deepEqual(await pending, { title: null });
+  assert.equal((await client.call("sessions.get", { id: sessionId })).info.name, "Live manual choice");
+  assert.equal(storedName(), "Live manual choice");
+
+  const before = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "first-prompt", prompt }), {
+    title: null,
+  });
+  assert.equal(model.requests().length, before);
+});
