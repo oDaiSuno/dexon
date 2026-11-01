@@ -1,3 +1,4 @@
+import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
@@ -110,7 +111,8 @@ export function useSessionActions(context: Dependencies) {
       const trimmedMessage = message.trim();
       if (!trimmedMessage) return;
       if (agentRunning) return;
-      const isSlashCommandPrompt = trimmedMessage.startsWith("/");
+      const intent = readPromptIntent(message);
+      const isConversationTurn = intent.kind !== "command";
       const promptRunId = promptRunIdRef.current + 1;
 
       const userMsg: AgentMessage = {
@@ -124,7 +126,7 @@ export function useSessionActions(context: Dependencies) {
       promptRunIdRef.current = promptRunId;
       agentRunningRef.current = true;
       setAgentRunning(true);
-      setAgentPhase(isSlashCommandPrompt ? { kind: "running_command" } : { kind: "waiting_model" });
+      setAgentPhase(isConversationTurn ? { kind: "waiting_model" } : { kind: "running_command" });
       dispatch({ type: "start" });
       pendingScrollToUserRef.current = true;
       completionScrollAllowedRef.current = true;
@@ -159,12 +161,12 @@ export function useSessionActions(context: Dependencies) {
               type: "prompt",
               message,
             });
-            promoteNewSession(1, message);
+            promoteNewSession(1, promptIntentText(intent));
             // Auto-title the brand-new session from its first message. Fire and
             // forget: generation is a silent background LLM request and the Host
             // applies it with a rename guard (a manual rename always wins).
             const titleModel = newSessionModel ?? newSessionDefaultModel;
-            if (shouldAutoTitleMessage(trimmedMessage)) {
+            if (shouldAutoTitleMessage(message)) {
               void trackSessionNaming(sid, () =>
                 requestAutoSessionTitle({
                   sessionId: sid,
@@ -182,7 +184,7 @@ export function useSessionActions(context: Dependencies) {
             message,
           });
         }
-        if (isSlashCommandPrompt && sentSessionId) {
+        if (!isConversationTurn && sentSessionId) {
           void waitForPromptSettlement(sentSessionId, promptRunId);
         }
       } catch (e) {

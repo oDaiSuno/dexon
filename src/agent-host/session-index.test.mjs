@@ -14,9 +14,12 @@ process.env.PI_CODING_AGENT_SESSION_DIR = sessionsRoot;
 process.env.PI_CODING_AGENT_DIR = fixtureRoot;
 test.after(() => rmSync(fixtureRoot, { recursive: true, force: true }));
 const { SessionManager } = await import("@earendil-works/pi-coding-agent");
-const { SessionIndex } = await importTestBundle("src/agent-host/session-index", {
+const { SessionIndex, listAllSessions } = await importTestBundle("src/agent-host/session-index", {
   packages: "external",
-  entryPoints: [path.join(import.meta.dirname, "session-index.ts")],
+  stdin: {
+    contents: 'export { SessionIndex } from "./session-index"; export { listAllSessions } from "./session-reader";',
+    resolveDir: import.meta.dirname,
+  },
 });
 
 function writeSession(id, options = {}) {
@@ -150,4 +153,25 @@ test("a file appended during parsing is retried before its info is committed", a
   assert.equal(appended, true);
   assert.equal(info.messageCount, 2);
   assert.equal(index.getMetrics().invalidFiles, 0);
+});
+
+test("skill session previews match in the index and when the index is unavailable", async (t) => {
+  const expanded = '<skill name="fast-context" location="/x/SKILL.md">\nSkill body\n</skill>\n\n帮我梳理架构';
+  writeSession("skill-preview", { message: expanded });
+  const index = new SessionIndex();
+  await index.refreshAll();
+  assert.equal(
+    (await index.getAll()).find((session) => session.id === "skill-preview").firstMessage,
+    "/skill:fast-context 帮我梳理架构",
+  );
+
+  t.mock.method(SessionIndex.prototype, "refreshAll", async () => {
+    throw new Error("Index unavailable");
+  });
+  t.mock.method(console, "error", () => {});
+  const fallback = await listAllSessions();
+  assert.equal(
+    fallback.find((session) => session.id === "skill-preview").firstMessage,
+    "/skill:fast-context 帮我梳理架构",
+  );
 });

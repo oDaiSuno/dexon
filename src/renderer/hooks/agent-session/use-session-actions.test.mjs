@@ -132,6 +132,21 @@ test("the first message of a new session prepares, connects, prompts and promote
   assert.equal(host.autoTitleRequests[0].sessionId, "fresh-1");
 });
 
+test("a new skill prompt waits for the model, promotes the user's goal, and requests a name", async (t) => {
+  const promoted = [];
+  const host = createSessionTestHost({ newAgent: async () => ({ sessionId: "fresh-skill" }) });
+  const h = await createSessionHookHarness(t, { bundleName: "session-actions-skill", host });
+  await h.mount({ session: null, newSessionCwd: "/fixture", onSessionCreated: (info) => promoted.push(info) });
+
+  await h.act(() => h.state.handleSend("/skill:fast-context 帮我梳理架构"));
+  await h.flush();
+
+  assert.deepEqual(h.state.agentPhase, { kind: "waiting_model" });
+  assert.equal(promoted[0].firstMessage, "/skill:fast-context 帮我梳理架构");
+  assert.equal(host.autoTitleRequests.length, 1);
+  assert.equal(host.autoTitleRequests[0].sessionId, "fresh-skill");
+});
+
 test("a chosen model is applied to an already-created new session before prompting", async (t) => {
   const detail = createSessionDetail("s-1");
   const host = createSessionTestHost({
