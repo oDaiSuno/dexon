@@ -112,6 +112,7 @@ extraResources:
 mac:
   identity: "-"
   notarize: false
+  sign: ./scripts/sign-mac.mjs
   category: public.app-category.developer-tools
   hardenedRuntime: true
   gatekeeperAssess: false
