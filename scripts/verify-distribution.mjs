@@ -73,6 +73,19 @@ function verifyApplication(container, resources) {
 function verifyMacApplication(container) {
   const app = path.join(container, "Dexon.app");
   run("codesign", ["--verify", "--deep", "--strict", "--verbose=2", app]);
+  run("codesign", ["--verify", "--deep", "--strict", "--test-requirement", '=identifier "app.dexon.desktop"', app]);
+  const designated = spawnSync("codesign", ["-d", "-r-", app], {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  assertSuccessfulSpawn(designated, "codesign -d -r-");
+  const requirementOutput = `${designated.stdout ?? ""}\n${designated.stderr ?? ""}`;
+  assert.match(
+    requirementOutput,
+    /designated => identifier "app\.dexon\.desktop"/,
+    "macOS bundle designated requirement must be anchored to the bundle identifier rather than a single build cdhash",
+  );
   verifyApplication(container, path.join(app, "Contents/Resources"));
 }
 
