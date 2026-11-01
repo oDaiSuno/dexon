@@ -5,8 +5,7 @@ import { getSessionDisplayTitle } from "@/lib/session-list";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { formatNumber, formatRelativeDateTime, formatShortRelativeTime } from "@/lib/locale-format";
 import { useSessionNaming } from "@/lib/session-naming-store";
-import { getSessionNamingModel, regenerateSessionTitle } from "@/lib/auto-session-title";
-import { requestModelSettings } from "@/lib/model-settings-request";
+import { regenerateSessionTitle } from "@/lib/auto-session-title";
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import type { SubtreeActivity } from "@/lib/session-tree-status";
 import {
@@ -99,11 +98,9 @@ export function SessionItem({
 
   const title = getSessionDisplayTitle(session);
   const regenerate = actionsOpen
-    ? !getSessionNamingModel()
-      ? "needs-model"
-      : naming || session.messageCount === 0 || !session.firstMessage.trim()
-        ? "unavailable"
-        : "ready"
+    ? naming || session.messageCount === 0 || !session.firstMessage.trim()
+      ? "unavailable"
+      : "ready"
     : "unavailable";
   const foldedDescendants = hasChildren && collapsed ? descendants : null;
   const details = [
@@ -164,15 +161,6 @@ export function SessionItem({
       });
     },
     [closeActionsMenu, onRenamed, session.id],
-  );
-
-  const openNamingSettings = useCallback(
-    (event: React.MouseEvent) => {
-      event.stopPropagation();
-      closeActionsMenu();
-      requestModelSettings();
-    },
-    [closeActionsMenu],
   );
 
   const ITEM_HEIGHT = 30;
@@ -412,7 +400,6 @@ export function SessionItem({
                 onRename={startRename}
                 regenerate={regenerate}
                 onRegenerate={regenerateName}
-                onOpenNamingSettings={openNamingSettings}
                 onDelete={deletion.requestDelete}
               />
             )}

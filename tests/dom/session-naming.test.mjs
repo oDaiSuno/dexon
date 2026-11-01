@@ -128,18 +128,22 @@ test("a failed regeneration keeps the row usable and does not report a rename", 
   assert.deepEqual(renamed, []);
 });
 
-test("without a naming model, Regenerate name is greyed out, points to Settings and never asks for a name", async (t) => {
+test("without a naming preference, Regenerate name stays available and lets the Host use the conversation model", async (t) => {
   useNamingModel(t, null);
-  const view = await mountRow(t);
+  const renamed = [];
+  const view = await mountRow(t, { onRenamed: () => renamed.push("renamed") });
   const menu = await openMenu(view);
-  const item = byRole(menu, "menuitem", "Regenerate name: choose a naming model in Settings");
-  assert.ok(item, "the item explains that a naming model is needed");
-  assert.match(item.textContent, /Regenerate name/);
-  assert.match(item.textContent, /Go to settings/);
-  assert.equal(item.disabled, false, "the item stays reachable so it can lead to Settings");
+  const item = byRole(menu, "menuitem", "Regenerate name");
+  assert.ok(item);
+  assert.equal(item.disabled, false);
+  assert.doesNotMatch(menu.textContent, /Go to settings/);
   await click(item);
+  await waitFor(() => assert.equal(renamed.length, 1));
   assert.equal(view.container.querySelector('[role="menu"]'), null);
-  assert.deepEqual(view.titleRequests(), []);
+  assert.deepEqual(
+    view.titleRequests().map((request) => request.params),
+    [{ sessionId: "s1", trigger: "regenerate" }],
+  );
 });
 
 test("automatic naming forwards the naming preference without replacing the conversation model", async (t) => {
@@ -249,7 +253,7 @@ test("the Naming model setting lists only enabled models and starts unset", asyn
   assert.equal(select.selectedOptions[0].textContent, "Not set");
 });
 
-test("a chosen naming model is remembered on this computer and enables Regenerate name in the session menu", async (t) => {
+test("a chosen naming model is remembered on this computer and forwarded when regenerating a name", async (t) => {
   useNamingModel(t, null);
   const first = await mountModels(t);
   const chosen = [...first.select.options].find((option) => option.textContent === "DeepSeek V3 · deepseek-chat");
@@ -274,8 +278,8 @@ test("the session naming card shows the fixed example of a first message turning
   assert.match(text, /Shown in the sidebar as/);
 });
 
-test("a session with no messages yet cannot have its name regenerated", async (t) => {
-  useNamingModel(t, NAMING_MODEL);
+test("a session with no messages yet cannot have its name regenerated even without a naming preference", async (t) => {
+  useNamingModel(t, null);
   const view = await mountRow(t, { session: session({ messageCount: 0, firstMessage: "(no messages)" }) });
   const menu = await openMenu(view);
   assert.equal(byRole(menu, "menuitem", "Regenerate name").disabled, true);

@@ -86,12 +86,9 @@ test("when a rename is saved from the open conversation's history row, the title
   await waitFor(() => assert.equal(title(scene), "Weekly report draft"));
 });
 
-test("when a name is regenerated for the open conversation, the title shows it as soon as the history row does", async (t) => {
+test("without a naming preference, regenerating the open conversation updates its title as soon as the history row", async (t) => {
   const scene = await openConversation(t, { generatedTitle: "Weekly standup notes" });
-  dom.window.localStorage.setItem(
-    "dexon:sessionNamingModel",
-    JSON.stringify({ provider: "deepseek", modelId: "deepseek-chat" }),
-  );
+  assert.equal(dom.window.localStorage.getItem("dexon:sessionNamingModel"), null);
   const menu = await openActions(scene, OLD_NAME);
   await click(control(menu, "menuitem", "Regenerate name"));
   await waitFor(() => historyRow(scene, "Weekly standup notes"));
