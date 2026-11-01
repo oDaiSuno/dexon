@@ -112,26 +112,41 @@
   padding-left: 0;
   list-style: none;
 }
+.markdown-body .contains-task-list > li:not(.task-list-item) {
+  margin-inline-start: 22px;
+}
 .markdown-body .task-list-item {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1fr);
-  gap: 7px;
-  align-items: start;
+  --markdown-task-marker-size: 14px;
+  --markdown-task-content-inset: 25px;
+  display: flow-root;
+  position: relative;
+  min-inline-size: 0;
+  min-block-size: max(1lh, var(--markdown-task-marker-size));
   padding-left: 0;
+  padding-inline-start: var(--markdown-task-content-inset);
+  list-style: none;
 }
 .markdown-body .task-list-item::marker {
   content: "";
 }
 .markdown-body .task-list-item input[type="checkbox"] {
   appearance: none;
-  width: 14px;
-  height: 14px;
-  margin: 5px 0 0;
+  box-sizing: border-box;
+  inline-size: var(--markdown-task-marker-size);
+  block-size: var(--markdown-task-marker-size);
+  margin: 0;
+  padding: 0;
+  font: inherit;
   border: 1px solid var(--fx-line-default);
   border-radius: 4px;
   background: var(--fx-surface-main);
   display: inline-grid;
   place-content: center;
+}
+.markdown-body :is(li.task-list-item, li.task-list-item > p:first-child) > input[type="checkbox"]:first-child {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: max(0px, calc((1lh - var(--markdown-task-marker-size)) / 2));
 }
 .markdown-body .task-list-item input[type="checkbox"]:checked {
   border-color: color-mix(in srgb, var(--fx-accent-blue) 55%, var(--fx-line-default));
