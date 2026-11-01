@@ -284,3 +284,13 @@ test("a session with no messages yet cannot have its name regenerated even witho
   const menu = await openMenu(view);
   assert.equal(byRole(menu, "menuitem", "Regenerate name").disabled, true);
 });
+
+test("a session whose first prompt is a command or bare skill cannot have its name regenerated", async (t) => {
+  useNamingModel(t, NAMING_MODEL);
+  for (const firstMessage of ["/model gpt-5", "/skill:groksearch", "a"]) {
+    const view = await mountRow(t, { session: session({ firstMessage }) });
+    const menu = await openMenu(view);
+    assert.equal(byRole(menu, "menuitem", "Regenerate name").disabled, true, firstMessage);
+    await view.unmount();
+  }
+});

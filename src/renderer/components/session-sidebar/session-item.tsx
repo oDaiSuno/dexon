@@ -6,6 +6,7 @@ import { abbreviateHomePath } from "@/lib/display-path";
 import { formatNumber, formatRelativeDateTime, formatShortRelativeTime } from "@/lib/locale-format";
 import { useSessionNaming } from "@/lib/session-naming-store";
 import { regenerateSessionTitle } from "@/lib/auto-session-title";
+import { readPromptIntent, titleSourceOf } from "@shared/prompt-intent";
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import type { SubtreeActivity } from "@/lib/session-tree-status";
 import {
@@ -98,7 +99,7 @@ export function SessionItem({
 
   const title = getSessionDisplayTitle(session);
   const regenerate = actionsOpen
-    ? naming || session.messageCount === 0 || !session.firstMessage.trim()
+    ? naming || session.messageCount === 0 || titleSourceOf(readPromptIntent(session.firstMessage)) === null
       ? "unavailable"
       : "ready"
     : "unavailable";
