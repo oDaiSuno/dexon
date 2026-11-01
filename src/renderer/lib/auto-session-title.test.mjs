@@ -52,6 +52,25 @@ test("slash commands never qualify", () => {
   assert.equal(shouldAutoTitleMessage("/model gpt-4o"), false);
 });
 
+test("skill prompts qualify only when the user's goal has at least two code points", () => {
+  assert.equal(shouldAutoTitleMessage("/skill:fast-context 帮我梳理架构"), true);
+  assert.equal(shouldAutoTitleMessage("/skill:fast-context"), false);
+  assert.equal(shouldAutoTitleMessage("/skill:fast-context 好"), false);
+  assert.equal(shouldAutoTitleMessage("/skill:fast-context 😂😂"), true);
+  assert.equal(
+    shouldAutoTitleMessage('<skill name="fast-context" location="/x/SKILL.md">\nSkill body\n</skill>\n\n帮我梳理架构'),
+    true,
+  );
+  assert.equal(
+    shouldAutoTitleMessage('<skill name="fast-context" location="/x/SKILL.md">\nSkill body\n</skill>'),
+    false,
+  );
+});
+
+test("command classification preserves leading whitespace just like the prompt transport", () => {
+  assert.equal(shouldAutoTitleMessage(" /model gpt-4o"), true);
+});
+
 test("messages shorter than two characters never qualify", () => {
   assert.equal(shouldAutoTitleMessage("a"), false);
   assert.equal(shouldAutoTitleMessage("好"), false);

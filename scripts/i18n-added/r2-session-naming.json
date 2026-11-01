@@ -1,7 +1,5 @@
 [
   "regenerateSessionName",
-  "regenerateSessionNameNeedsModel",
-  "sessionNamingGoToSettings",
   "sessionNamingModel",
   "sessionNamingModelDescription",
   "sessionNamingModelUnset",

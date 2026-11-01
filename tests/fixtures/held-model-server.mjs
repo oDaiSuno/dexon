@@ -69,7 +69,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
     }
   };
 
-  const record = (messages, tools) => {
+  const record = (messages, tools, model) => {
     const names = new Map();
     for (const message of messages) {
       for (const call of message.tool_calls ?? []) names.set(call.id, call.function?.name ?? "");
@@ -83,7 +83,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
         content: messageText(message),
       });
     }
-    requests.push({ messages, tools });
+    requests.push({ messages, tools, model });
     settleResultsWaiter();
   };
 
@@ -139,7 +139,7 @@ export async function startHeldModelServer({ otherReply = "Held fixture title" }
     request.on("end", () => {
       const parsed = parsedBody(body);
       const messages = parsed.messages ?? [];
-      record(messages, parsed.tools);
+      record(messages, parsed.tools, parsed.model);
       const script = pickScript(messages);
       if (!script) {
         response.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });

@@ -3,7 +3,6 @@ import test from "node:test";
 import {
   findLeadingSkillCommand,
   isValidSkillName,
-  parseExpandedSkillMessage,
   skillCommandText,
   splitLeadingSkillCommand,
 } from "./skill-commands.ts";
@@ -55,22 +54,6 @@ test("isValidSkillName enforces pi name rules", () => {
 test("splitLeadingSkillCommand splits badge from prose and keeps the separator", () => {
   const split = splitLeadingSkillCommand("/skill:fast-context 帮我梳理架构");
   assert.deepEqual(split, { name: "fast-context", rest: " 帮我梳理架构" });
-});
-
-test("parseExpandedSkillMessage parses pi's expanded <skill> block", () => {
-  const expanded =
-    '<skill name="fast-context" location="/home/u/.pi/agent/skills/fast-context/SKILL.md">\nReferences are relative to /home/u/.pi/agent/skills/fast-context.\n\nBody line one.\nBody line two.\n</skill>\n\n帮我梳理架构';
-  assert.deepEqual(parseExpandedSkillMessage(expanded), {
-    name: "fast-context",
-    rest: "帮我梳理架构",
-  });
-  // no trailing args: rest is empty
-  const bare = '<skill name="groksearch" location="/x/SKILL.md">\nrefs\n\nbody\n</skill>';
-  assert.deepEqual(parseExpandedSkillMessage(bare), { name: "groksearch", rest: "" });
-  // unterminated block stays prose; invalid names stay prose
-  assert.equal(parseExpandedSkillMessage('<skill name="fast" location="/x">\nno close'), null);
-  assert.equal(parseExpandedSkillMessage('<skill name="-bad" location="/x">\nb\n</skill>\n\nrest'), null);
-  assert.equal(parseExpandedSkillMessage('plain message with <skill name="x"> text'), null);
 });
 
 test("splitLeadingSkillCommand requires a separator or end of text after the name", () => {

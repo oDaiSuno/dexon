@@ -18,6 +18,7 @@ import type {
 import type { SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
+import { promptIntentText, readPromptIntent } from "../shared/prompt-intent";
 import { versionsByEntryId } from "./session-versions";
 import { branchAt, type SessionBranch } from "./session-branch";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
@@ -66,7 +67,7 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
       created: s.created instanceof Date ? s.created.toISOString() : String(s.created),
       modified: s.modified instanceof Date ? s.modified.toISOString() : String(s.modified),
       messageCount: s.messageCount,
-      firstMessage: s.firstMessage || "(no messages)",
+      firstMessage: toFirstMessage(s.firstMessage),
       parentSessionId: s.parentSessionPath ? pathToId.get(s.parentSessionPath) : undefined,
       projectRoot: project?.projectRoot ?? s.cwd,
       ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
@@ -128,6 +129,17 @@ function getMessageTextContent(message: unknown): string {
     .join(" ");
 }
 
+export function firstPromptRaw(entries: readonly SessionEntry[]): string {
+  const firstUserEntry = entries.find(
+    (entry) => entry.type === "message" && (entry.message as unknown as { role?: unknown }).role === "user",
+  );
+  return firstUserEntry?.type === "message" ? getMessageTextContent(firstUserEntry.message) : "";
+}
+
+export function toFirstMessage(raw: string): string {
+  return raw ? promptIntentText(readPromptIntent(raw)) : "(no messages)";
+}
+
 function getMessageActivityTime(entry: SessionEntry): number | undefined {
   if (entry.type !== "message") return undefined;
   const message = entry.message as unknown as { role?: unknown; timestamp?: unknown };
@@ -150,15 +162,12 @@ export async function buildSessionInfoFromManager(
 
   if (filePath) cacheSessionPath(header.id, filePath);
   let messageCount = 0;
-  let firstMessage = "";
   let lastActivityTime: number | undefined;
   for (const entry of entries) {
     if (entry.type !== "message") continue;
     messageCount += 1;
     const activityTime = getMessageActivityTime(entry);
     if (activityTime !== undefined) lastActivityTime = Math.max(lastActivityTime ?? 0, activityTime);
-    const message = entry.message as unknown as { role?: unknown };
-    if (!firstMessage && message.role === "user") firstMessage = getMessageTextContent(entry.message);
   }
 
   const headerTime = Date.parse(header.timestamp);
@@ -179,7 +188,7 @@ export async function buildSessionInfoFromManager(
     created,
     modified,
     messageCount,
-    firstMessage: firstMessage || "(no messages)",
+    firstMessage: toFirstMessage(firstPromptRaw(entries)),
     ...(parentSessionId ? { parentSessionId } : {}),
     projectRoot: located?.projectRoot ?? header.cwd,
     ...(located?.worktreeBranch ? { worktreeBranch: located.worktreeBranch } : {}),

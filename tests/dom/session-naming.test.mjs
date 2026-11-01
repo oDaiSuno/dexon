@@ -100,7 +100,7 @@ test("regenerating asks the naming model to rename from the first message, even 
   await waitFor(() => assert.equal(renamed.length, 1));
   assert.deepEqual(
     view.titleRequests().map((request) => request.params),
-    [{ sessionId: "s1", message: FIRST_MESSAGE, provider: "deepseek", modelId: "deepseek-chat", replace: true }],
+    [{ sessionId: "s1", trigger: "regenerate", namingModel: NAMING_MODEL }],
   );
   assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu closes once the request starts");
 });
@@ -128,21 +128,25 @@ test("a failed regeneration keeps the row usable and does not report a rename", 
   assert.deepEqual(renamed, []);
 });
 
-test("without a naming model, Regenerate name is greyed out, points to Settings and never asks for a name", async (t) => {
+test("without a naming preference, Regenerate name stays available and lets the Host use the conversation model", async (t) => {
   useNamingModel(t, null);
-  const view = await mountRow(t);
+  const renamed = [];
+  const view = await mountRow(t, { onRenamed: () => renamed.push("renamed") });
   const menu = await openMenu(view);
-  const item = byRole(menu, "menuitem", "Regenerate name: choose a naming model in Settings");
-  assert.ok(item, "the item explains that a naming model is needed");
-  assert.match(item.textContent, /Regenerate name/);
-  assert.match(item.textContent, /Go to settings/);
-  assert.equal(item.disabled, false, "the item stays reachable so it can lead to Settings");
+  const item = byRole(menu, "menuitem", "Regenerate name");
+  assert.ok(item);
+  assert.equal(item.disabled, false);
+  assert.doesNotMatch(menu.textContent, /Go to settings/);
   await click(item);
+  await waitFor(() => assert.equal(renamed.length, 1));
   assert.equal(view.container.querySelector('[role="menu"]'), null);
-  assert.deepEqual(view.titleRequests(), []);
+  assert.deepEqual(
+    view.titleRequests().map((request) => request.params),
+    [{ sessionId: "s1", trigger: "regenerate" }],
+  );
 });
 
-test("automatic naming uses the chosen naming model instead of the conversation's model", async (t) => {
+test("automatic naming forwards the naming preference without replacing the conversation model", async (t) => {
   useNamingModel(t, NAMING_MODEL);
   const requests = [];
   const boundary = installRendererApi(dom.window, api, () => ({
@@ -154,9 +158,7 @@ test("automatic naming uses the chosen naming model instead of the conversation'
   t.after(boundary.close);
   const title = await api.requestAutoSessionTitle({
     sessionId: "fresh-1",
-    message: "Fix the login page styling",
-    provider: "openai",
-    modelId: "gpt-5",
+    prompt: "Fix the login page styling",
   });
   assert.equal(title, "Login page styling");
   assert.deepEqual(requests, [
@@ -164,15 +166,15 @@ test("automatic naming uses the chosen naming model instead of the conversation'
       method: "agent.generateTitle",
       params: {
         sessionId: "fresh-1",
-        message: "Fix the login page styling",
-        provider: "deepseek",
-        modelId: "deepseek-chat",
+        trigger: "first-prompt",
+        prompt: "Fix the login page styling",
+        namingModel: NAMING_MODEL,
       },
     },
   ]);
 });
 
-test("without a naming model, automatic naming keeps using the conversation's model", async (t) => {
+test("without a naming preference, automatic naming leaves model selection to the Host", async (t) => {
   useNamingModel(t, null);
   const requests = [];
   const boundary = installRendererApi(dom.window, api, () => ({
@@ -184,15 +186,12 @@ test("without a naming model, automatic naming keeps using the conversation's mo
   t.after(boundary.close);
   await api.requestAutoSessionTitle({
     sessionId: "fresh-2",
-    message: "Fix the login page",
-    provider: "openai",
-    modelId: "gpt-5",
+    prompt: "Fix the login page",
   });
   assert.deepEqual(requests[0].params, {
     sessionId: "fresh-2",
-    message: "Fix the login page",
-    provider: "openai",
-    modelId: "gpt-5",
+    trigger: "first-prompt",
+    prompt: "Fix the login page",
   });
 });
 
@@ -254,7 +253,7 @@ test("the Naming model setting lists only enabled models and starts unset", asyn
   assert.equal(select.selectedOptions[0].textContent, "Not set");
 });
 
-test("a chosen naming model is remembered on this computer and enables Regenerate name in the session menu", async (t) => {
+test("a chosen naming model is remembered on this computer and forwarded when regenerating a name", async (t) => {
   useNamingModel(t, null);
   const first = await mountModels(t);
   const chosen = [...first.select.options].find((option) => option.textContent === "DeepSeek V3 · deepseek-chat");
@@ -267,8 +266,7 @@ test("a chosen naming model is remembered on this computer and enables Regenerat
   const row = await mountRow(t);
   await click(byRole(await openMenu(row), "menuitem", "Regenerate name"));
   await waitFor(() => assert.equal(row.titleRequests().length, 1));
-  assert.equal(row.titleRequests()[0].params.provider, "deepseek");
-  assert.equal(row.titleRequests()[0].params.modelId, "deepseek-chat");
+  assert.deepEqual(row.titleRequests()[0].params.namingModel, NAMING_MODEL);
 });
 
 test("the session naming card shows the fixed example of a first message turning into a sidebar name", async (t) => {
@@ -280,9 +278,19 @@ test("the session naming card shows the fixed example of a first message turning
   assert.match(text, /Shown in the sidebar as/);
 });
 
-test("a session with no messages yet cannot have its name regenerated", async (t) => {
-  useNamingModel(t, NAMING_MODEL);
+test("a session with no messages yet cannot have its name regenerated even without a naming preference", async (t) => {
+  useNamingModel(t, null);
   const view = await mountRow(t, { session: session({ messageCount: 0, firstMessage: "(no messages)" }) });
   const menu = await openMenu(view);
   assert.equal(byRole(menu, "menuitem", "Regenerate name").disabled, true);
+});
+
+test("a session whose first prompt is a command or bare skill cannot have its name regenerated", async (t) => {
+  useNamingModel(t, NAMING_MODEL);
+  for (const firstMessage of ["/model gpt-5", "/skill:groksearch", "a"]) {
+    const view = await mountRow(t, { session: session({ firstMessage }) });
+    const menu = await openMenu(view);
+    assert.equal(byRole(menu, "menuitem", "Regenerate name").disabled, true, firstMessage);
+    await view.unmount();
+  }
 });

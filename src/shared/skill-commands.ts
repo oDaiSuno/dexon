@@ -53,17 +53,3 @@ export function splitLeadingSkillCommand(text: string): { name: string; rest: st
   if (charAfter !== "" && !/\s/.test(charAfter)) return null;
   return { name: match.name, rest: text.slice(match.end) };
 }
-
-/**
- * Pi expands a leading `/skill:name args` into a `<skill>` block before the
- * message enters the session, so transcripts store — and pi echoes back —
- * the expanded form, not the command. Parse it back into the badge pair.
- * Requires the closing tag so hand-typed half-XML stays prose.
- */
-const EXPANDED_SKILL_RE = /^<skill name="([^"]+)" location="[^"]*">\n([\s\S]*?)\n<\/skill>(?:\n\n([\s\S]*))?$/;
-
-export function parseExpandedSkillMessage(text: string): { name: string; rest: string } | null {
-  const match = EXPANDED_SKILL_RE.exec(text);
-  if (!match || !isValidSkillName(match[1])) return null;
-  return { name: match[1], rest: match[3] ?? "" };
-}

@@ -35,7 +35,7 @@ import type {
   WorktreeBranchesResult,
   WorktreeSwitchBranchResult,
 } from "../shared/api-types";
-import type { SessionLiveStatus } from "../shared/session-orchestration";
+import type { SessionLiveStatus, SessionModelRef } from "../shared/session-orchestration";
 import type {
   ChannelAccountConfig,
   ChannelBinding,
@@ -62,7 +62,10 @@ import type {
   ManagedProcessWriteParams,
 } from "./processes";
 
-/** Request/response API surface (replaces HTTP routes). */
+export type GenerateTitleParams =
+  | { sessionId: string; trigger: "first-prompt"; prompt: string; namingModel?: SessionModelRef }
+  | { sessionId: string; trigger: "regenerate"; namingModel?: SessionModelRef };
+
 export interface Api {
   "host.ping": { params: void; result: { ok: true; ts: number } };
   "host.toolchain": {
@@ -224,15 +227,8 @@ export interface Api {
     params: { sessionId: string };
     result: { running: boolean; state?: unknown };
   };
-  /** Generate a concise session title from the first user message (silent LLM request, never touches session history). */
   "agent.generateTitle": {
-    params: {
-      sessionId: string;
-      message: string;
-      provider?: string;
-      modelId?: string;
-      replace?: boolean;
-    };
+    params: GenerateTitleParams;
     result: { title: string | null };
   };
 

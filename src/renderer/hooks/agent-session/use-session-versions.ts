@@ -1,3 +1,4 @@
+import { readPromptIntent } from "@shared/prompt-intent";
 import { sendAgentCommand } from "@/lib/agent-client";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { appendLocalHistoryMessage } from "@/lib/session-history-update";
@@ -110,7 +111,8 @@ export function useSessionVersions(context: Dependencies) {
           message: trimmedMessage,
           ...(images.length > 0 ? { images } : {}),
         });
-        if (trimmedMessage.startsWith("/")) void waitForPromptSettlement(sid, promptRunIdRef.current);
+        if (readPromptIntent(trimmedMessage).kind === "command")
+          void waitForPromptSettlement(sid, promptRunIdRef.current);
       } catch (e) {
         console.error("Failed to edit message:", e);
         updateHistory(() => previousHistory);

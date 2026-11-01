@@ -114,15 +114,18 @@ export function planModelAnchor(
   return plan.model || plan.thinkingLevel ? plan : null;
 }
 
+export function reachableModels(runtime: ModelAvailability): readonly AvailableModel[] {
+  const disabled = disabledProviderIds();
+  return runtime.getAvailableSnapshot().filter((model) => !disabled.has(model.provider));
+}
+
 export async function usableModels(
   modelRuntime: ModelAvailability,
   settingsManager: SettingsManager,
 ): Promise<readonly AvailableModel[]> {
   await settingsManager.reload();
   await modelRuntime.refresh({ allowNetwork: false });
-  const disabled = disabledProviderIds();
-  const available = [...modelRuntime.getAvailableSnapshot()].filter((model) => !disabled.has(model.provider));
-  return filterByExactEnabledModels(available, settingsManager.getEnabledModels());
+  return filterByExactEnabledModels([...reachableModels(modelRuntime)], settingsManager.getEnabledModels());
 }
 
 export async function isModelUsable(

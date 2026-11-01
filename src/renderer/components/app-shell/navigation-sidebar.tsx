@@ -4,7 +4,6 @@ import { useI18n } from "@/i18n";
 import { call } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
-import { subscribeModelSettingsRequest } from "@/lib/model-settings-request";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
 import { sessionProjectKey } from "@/lib/session-list";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
@@ -160,8 +159,6 @@ export function NavigationSidebar({
     const result = await call("projects.inspectFolder", { path: typed });
     return result.ok && result.path ? result.path : null;
   }, []);
-
-  useEffect(() => subscribeModelSettingsRequest(() => onOpenSettings("models")), [onOpenSettings]);
 
   useEffect(() => {
     const offToggle = window.piBridge?.onMenu?.("toggle-sidebar", handleToggle);
