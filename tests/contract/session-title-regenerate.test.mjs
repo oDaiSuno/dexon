@@ -25,6 +25,7 @@ const restoreMainProcess = installMainProcessPort();
 const model = await startHeldModelServer({ otherReply: "Login page styling fix" });
 model.configure(agent, {
   models: [{ id: heldModel.modelId }, { id: "naming-model" }],
+  extraProviders: [{ provider: "disabled-naming", models: [{ id: "disabled-model" }] }],
   settings: { defaultModel: "naming-model" },
 });
 
@@ -327,4 +328,65 @@ test("invalid naming requests fail at the RPC boundary", async () => {
   ]) {
     await assert.rejects(client.call("agent.generateTitle", params), (error) => error.code === "BAD_REQUEST");
   }
+});
+
+test("a disabled naming provider is skipped without replacing the conversation model", async (t) => {
+  t.after(() => client.call("modelsConfig.channels.setEnabled", { provider: "disabled-naming", enabled: true }));
+  await client.call("modelsConfig.channels.setEnabled", { provider: "disabled-naming", enabled: false });
+  await titleSession("regenerate-disabled-provider");
+  const before = model.requests().length;
+  const result = await client.call("agent.generateTitle", {
+    sessionId: "regenerate-disabled-provider",
+    trigger: "regenerate",
+    namingModel: { provider: "disabled-naming", modelId: "disabled-model" },
+  });
+  assert.deepEqual(result, { title: "Login page styling fix" });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
+});
+
+test("naming can use the conversation model even when the picker only lists other models", async (t) => {
+  t.after(() => client.call("models.preferences.set", { cwd: workspace, enabledModels: null }));
+  const preferences = await client.call("models.preferences.set", {
+    cwd: workspace,
+    enabledModels: [`${heldModel.provider}/naming-model`],
+  });
+  assert.deepEqual(preferences.enabledModels, [`${heldModel.provider}/naming-model`]);
+  await titleSession("regenerate-outside-picker");
+  const before = model.requests().length;
+  const result = await client.call("agent.generateTitle", {
+    sessionId: "regenerate-outside-picker",
+    trigger: "regenerate",
+  });
+  assert.deepEqual(result, { title: "Login page styling fix" });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
+});
+
+test("a malformed naming preference is ignored instead of blocking regeneration", async () => {
+  await titleSession("regenerate-malformed-preference");
+  const before = model.requests().length;
+  const result = await client.call("agent.generateTitle", {
+    sessionId: "regenerate-malformed-preference",
+    trigger: "regenerate",
+    namingModel: { provider: 123, modelId: "naming-model" },
+  });
+  assert.deepEqual(result, { title: "Login page styling fix" });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
 });

@@ -218,6 +218,25 @@ test("a slash-command send settles through the host poll when no stream event ar
   assert.equal(onAgentEnd.length, 1, "completion notified exactly once");
 });
 
+test("editing a skill prompt keeps waiting for the model instead of ending through the command poll", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
+  const setup = await existingSessionHarness(t, {
+    agentState: async () => ({ running: false, state: { isStreaming: false, isPromptRunning: false } }),
+  });
+  const { h, host } = setup;
+  await setup.mountVisible();
+  await h.act(() => h.state.handleEditMessage(h.state.entryIds[0], "/skill:fast-context 帮我梳理架构"));
+  await act(async () => t.mock.timers.tick(1_000));
+  await h.flush();
+
+  assert.equal(h.state.agentRunning, true);
+  assert.deepEqual(h.state.agentPhase, { kind: "waiting_model" });
+  assert.equal(
+    host.sendCommands.find((command) => command.payload.type === "edit_message").payload.message,
+    "/skill:fast-context 帮我梳理架构",
+  );
+});
+
 test("a settlement poll for a superseded run cannot finish the newer run", async (t) => {
   t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const onAgentEnd = [];
