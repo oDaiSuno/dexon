@@ -37,6 +37,7 @@ import { deleteSessionLeafChoice } from "../session-leaf-store";
 import { deleteSessionOrigin } from "../session-origin-store";
 import { resolveSessionLeafId } from "../session-leaf";
 import { removeSessionTranscript } from "../session-orchestration/transcript";
+import { modelChoiceAt } from "../session-orchestration/model-view";
 import { projectSessionTreeForResponse } from "../project-tree";
 import {
   logSessionPerformance,
@@ -235,7 +236,13 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         const contextStartedAt = performance.now();
         const leafId = resolveSessionLeafId(id, entries, sm.getLeafId());
         const tree = projectSessionTreeForResponse(sm.getTree() as never) as SessionTreeNode[];
-        const context = buildSessionHistoryPage({ entries, leafId, historyWindow, historyRevision });
+        const context = buildSessionHistoryPage({
+          entries,
+          leafId,
+          historyWindow,
+          historyRevision,
+          modelChoice: modelChoiceAt(id, entries, leafId),
+        });
         const stats = computeSessionStats(entries);
         const contextMs = performance.now() - contextStartedAt;
 
@@ -311,7 +318,13 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const { id, leafId, historyWindow } = params as { id: string; leafId?: string; historyWindow?: HistoryWindow };
       const { entries, historyRevision } = await requireSessionSource(id);
       const resolvedLeafId = leafId ?? resolveSessionLeafId(id, entries, entries.at(-1)?.id ?? null);
-      const context = buildSessionHistoryPage({ entries, leafId: resolvedLeafId, historyWindow, historyRevision });
+      const context = buildSessionHistoryPage({
+        entries,
+        leafId: resolvedLeafId,
+        historyWindow,
+        historyRevision,
+        modelChoice: modelChoiceAt(id, entries, resolvedLeafId),
+      });
       return { context };
     },
 
@@ -324,12 +337,14 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       };
       const { entries, historyRevision } = await requireSessionSource(id);
       try {
+        const decodedCursor = decodeHistoryCursor(cursor);
         const context = buildSessionHistoryPage({
           entries,
-          leafId: resolveSessionLeafId(id, entries, entries.at(-1)?.id ?? null),
+          leafId: decodedCursor.anchorLeafId,
           historyWindow: { maxTurns, maxBytes },
           historyRevision,
-          cursor: decodeHistoryCursor(cursor),
+          cursor: decodedCursor,
+          modelChoice: modelChoiceAt(id, entries, decodedCursor.anchorLeafId),
         });
         return { context };
       } catch (error) {

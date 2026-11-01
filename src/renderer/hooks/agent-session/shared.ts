@@ -112,7 +112,11 @@ export interface UseAgentSessionOptions {
   restoreReadingPosition?: boolean;
   expansionStores?: readonly ThinkingExpansionStore[];
 }
-export type ThinkingLevelOption = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
+const THINKING_LEVEL_OPTIONS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
+export type ThinkingLevelOption = (typeof THINKING_LEVEL_OPTIONS)[number];
+export function isThinkingLevelOption(value: unknown): value is ThinkingLevelOption {
+  return (THINKING_LEVEL_OPTIONS as readonly unknown[]).includes(value);
+}
 export const PROGRAMMATIC_SCROLL_IGNORE_MS = 700;
 export const USER_SCROLL_INTENT_MS = 1200;
 export function isNearBottomExcludingSpacer(container: HTMLElement): boolean {

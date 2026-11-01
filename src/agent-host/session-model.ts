@@ -1,7 +1,6 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type { SettingsManager } from "@earendil-works/pi-coding-agent";
 import type { SessionModelRef } from "../shared/session-orchestration";
-import type { SessionEntry } from "../shared/types";
 import { disabledProviderIds } from "./provider-channels";
 
 const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
@@ -49,16 +48,55 @@ function signedModelOf(message: { role: string; provider?: unknown; model?: unkn
   return provider && modelId ? { provider, modelId } : null;
 }
 
-export function chosenSessionModel(entries: readonly SessionEntry[]): ChosenSessionModel {
+export type SessionModelEntry =
+  | { type: "model_change"; provider: string; modelId: string }
+  | { type: "thinking_level_change"; thinkingLevel: string }
+  | { type: "message"; message: { role: string; provider?: unknown; model?: unknown } }
+  | { type: string };
+
+export function chosenSessionModel(entries: readonly SessionModelEntry[]): ChosenSessionModel {
   let changed: SessionModelRef | null = null;
   let signed: SessionModelRef | null = null;
   let thinkingLevel: string | null = null;
   for (const entry of entries) {
-    if (entry.type === "model_change") changed = { provider: entry.provider, modelId: entry.modelId };
-    else if (entry.type === "thinking_level_change") thinkingLevel = entry.thinkingLevel;
-    else if (entry.type === "message") signed = signedModelOf(entry.message) ?? signed;
+    if (entry.type === "model_change" && "provider" in entry && "modelId" in entry) {
+      changed = { provider: entry.provider, modelId: entry.modelId };
+    } else if (entry.type === "thinking_level_change" && "thinkingLevel" in entry) {
+      thinkingLevel = entry.thinkingLevel;
+    } else if (entry.type === "message" && "message" in entry) {
+      signed = signedModelOf(entry.message) ?? signed;
+    }
   }
   return { model: changed ?? signed, thinkingLevel };
+}
+
+export interface ModelAnchorPlan {
+  model?: SessionModelRef;
+  thinkingLevel?: string;
+}
+
+export function sameModelRef(
+  left: SessionModelRef | null | undefined,
+  right: SessionModelRef | null | undefined,
+): boolean {
+  if (!left || !right) return left === right;
+  return left.provider === right.provider && left.modelId === right.modelId;
+}
+
+export function planModelAnchor(
+  branch: readonly SessionModelEntry[],
+  live: ChosenSessionModel,
+): ModelAnchorPlan | null {
+  const recorded = chosenSessionModel(branch);
+  const hasExplicitModel = branch.some((entry) => entry.type === "model_change");
+  const plan: ModelAnchorPlan = {};
+  if (live.model && (!hasExplicitModel || !sameModelRef(live.model, recorded.model))) {
+    plan.model = live.model;
+  }
+  if (live.thinkingLevel && live.thinkingLevel !== recorded.thinkingLevel) {
+    plan.thinkingLevel = live.thinkingLevel;
+  }
+  return plan.model || plan.thinkingLevel ? plan : null;
 }
 
 export async function usableModels(

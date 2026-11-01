@@ -17,9 +17,9 @@ import {
   HISTORY_PAGE_MAX_BYTES,
   INITIAL_HISTORY_TURNS,
   SessionData,
-  ThinkingLevelOption,
   normalizeQueuedMessages,
 } from "./shared";
+import { choiceOfContext } from "./model-choice-ledger";
 import type { SessionState } from "./use-session-state";
 import { useSessionHistoryVisuals } from "./use-session-history-visuals";
 type Dependencies = Pick<
@@ -46,10 +46,10 @@ type Dependencies = Pick<
   | "deferredContentCacheRef"
   | "deferredContentRequestRef"
   | "completionScrollAllowedRef"
-  | "setCurrentModelOverride"
+  | "modelChoice"
+  | "snapshotOrder"
   | "setContextUsage"
   | "setSystemPrompt"
-  | "setThinkingLevel"
   | "setExtensionStatuses"
   | "setExtensionWidgets"
   | "setQueuedMessages"
@@ -98,10 +98,10 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     deferredContentCacheRef,
     deferredContentRequestRef,
     completionScrollAllowedRef,
-    setCurrentModelOverride,
+    modelChoice,
+    snapshotOrder,
     setContextUsage,
     setSystemPrompt,
-    setThinkingLevel,
     setExtensionStatuses,
     setExtensionWidgets,
     setQueuedMessages,
@@ -152,20 +152,29 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           setLoadingOlder(false);
         }
         const loadGeneration = historyGenerationRef.current;
+        const ticket = snapshotOrder.issue({ resetHistory });
+        const isCurrentLoad = () => sessionIdRef.current === sid && loadGeneration === historyGenerationRef.current;
         let result: SessionData;
         try {
           markSessionLoadPhase(trace, "rpc-start");
-          result = await getSession(sid, includeState, trace.id, {
-            maxTurns: INITIAL_HISTORY_TURNS,
-            maxBytes: HISTORY_PAGE_MAX_BYTES,
-          });
+          result = await modelChoice.observe(
+            () =>
+              getSession(sid, includeState, trace.id, {
+                maxTurns: INITIAL_HISTORY_TURNS,
+                maxBytes: HISTORY_PAGE_MAX_BYTES,
+              }),
+            (detail) =>
+              isCurrentLoad() && snapshotOrder.canCommit(ticket)
+                ? choiceOfContext(detail.context, includeState ? detail.agentState?.state?.thinkingLevel : undefined)
+                : null,
+          );
           markSessionLoadPhase(trace, "rpc-end");
         } catch (e) {
           failSessionLoadTrace(trace);
           traceFailed = true;
           const msg = e instanceof Error ? e.message : String(e);
           if (msg.includes("not found") || msg.includes("NOT_FOUND")) {
-            if (showLoading) {
+            if (showLoading && isCurrentLoad() && snapshotOrder.canCommit(ticket)) {
               setData(null);
               setActiveLeafId(null);
               commitHistory([], []);
@@ -176,60 +185,60 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           throw e;
         }
         const d = result;
-        if (sessionIdRef.current !== sid || loadGeneration !== historyGenerationRef.current) {
+        if (!isCurrentLoad()) {
           failSessionLoadTrace(trace);
           traceFailed = true;
           return null;
         }
 
-        setData(d);
-        setActiveLeafId(d.leafId);
-        const replacedCommitTrace = pendingSessionLoadTraceRef.current;
-        if (replacedCommitTrace && replacedCommitTrace !== trace) failSessionLoadTrace(replacedCommitTrace);
-        pendingSessionLoadTraceRef.current = trace;
-        const mergedHistory = mergeHistoryTail(
-          {
-            messages: loadedMessagesRef.current,
-            entryIds: loadedEntryIdsRef.current,
-            revision: historyRevisionRef.current,
-            previousCursor: previousCursorRef.current,
-          },
-          d.context,
-          resetHistory,
-        );
-        if (mergedHistory.revision !== historyRevisionRef.current) {
-          deferredContentCacheRef.current.clear();
-          deferredContentRequestRef.current.clear();
+        const history = snapshotOrder.admitHistory(ticket);
+        if (history.admitted) {
+          setData(d);
+          setActiveLeafId(d.leafId);
+          const replacedCommitTrace = pendingSessionLoadTraceRef.current;
+          if (replacedCommitTrace && replacedCommitTrace !== trace) failSessionLoadTrace(replacedCommitTrace);
+          pendingSessionLoadTraceRef.current = trace;
+          const mergedHistory = mergeHistoryTail(
+            {
+              messages: loadedMessagesRef.current,
+              entryIds: loadedEntryIdsRef.current,
+              revision: historyRevisionRef.current,
+              previousCursor: previousCursorRef.current,
+            },
+            d.context,
+            history.resetHistory,
+          );
+          if (mergedHistory.revision !== historyRevisionRef.current) {
+            deferredContentCacheRef.current.clear();
+            deferredContentRequestRef.current.clear();
+          }
+          commitHistory(mergedHistory.messages, mergedHistory.entryIds);
+          updatePagingState(mergedHistory.revision!, mergedHistory.previousCursor ?? undefined);
+          setOlderOutline(outlineBeyondWindow(d.context.outline, mergedHistory.entryIds));
+          setError(null);
+        } else {
+          failSessionLoadTrace(trace);
+          traceFailed = true;
         }
-        commitHistory(mergedHistory.messages, mergedHistory.entryIds);
-        updatePagingState(mergedHistory.revision!, mergedHistory.previousCursor ?? undefined);
-        setOlderOutline(outlineBeyondWindow(d.context.outline, mergedHistory.entryIds));
-        setCurrentModelOverride(null);
-        setError(null);
-        const liveState = d.agentState?.state;
-        if (includeState && d.agentState && interactiveVersion === interactiveTools.getVersion()) {
+        if (!includeState || !d.agentState) return d.agentState ?? null;
+        const runtime = snapshotOrder.admitRuntime(ticket, d.agentState);
+        if (!runtime.current) return runtime.latest;
+        const liveState = d.agentState.state;
+        if (interactiveVersion === interactiveTools.getVersion()) {
           interactiveTools.reconcile(liveState?.extensionUi ?? null);
         }
         if (liveState) {
           if (liveState.contextUsage !== undefined) setContextUsage(liveState.contextUsage ?? null);
           if (liveState.systemPrompt !== undefined) setSystemPrompt(liveState.systemPrompt ?? null);
-          if (liveState.thinkingLevel !== undefined)
-            setThinkingLevel((liveState.thinkingLevel as ThinkingLevelOption) ?? null);
           if (liveState.extensionStatuses !== undefined) setExtensionStatuses(liveState.extensionStatuses ?? []);
           if (liveState.extensionWidgets !== undefined) setExtensionWidgets(liveState.extensionWidgets ?? []);
           if (liveState.queuedMessages !== undefined)
             setQueuedMessages(normalizeQueuedMessages(liveState.queuedMessages));
-        } else if (d.agentState && !d.agentState.running) {
+        } else if (!d.agentState.running) {
           setQueuedMessages({ steering: [], followUp: [] });
-          // Sessions without a live runtime carry a file-reconstructed usage
-          // on the detail itself (see sessions.get). Undefined means "not
-          // computable" — keep the current state instead of fabricating one.
           if (d.contextUsage !== undefined) setContextUsage(d.contextUsage ?? null);
         }
-        if (!liveState?.thinkingLevel && d.context.thinkingLevel) {
-          setThinkingLevel(d.context.thinkingLevel as ThinkingLevelOption);
-        }
-        return d.agentState ?? null;
+        return d.agentState;
       } catch (e) {
         if (!traceFailed) failSessionLoadTrace(trace);
         setError(sessionClientErrorMessage(e, t, t("sessionLoadFailed", "Failed to load session.")));
@@ -252,8 +261,8 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       previousCursorRef,
       sessionIdRef,
       setActiveLeafId,
+      modelChoice,
       setContextUsage,
-      setCurrentModelOverride,
       setData,
       setError,
       setExtensionStatuses,
@@ -263,17 +272,12 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       setOlderOutline,
       setQueuedMessages,
       setSystemPrompt,
-      setThinkingLevel,
+      snapshotOrder,
       t,
       updatePagingState,
     ],
   );
 
-  /**
-   * Pull the authoritative context usage for a live session (model switch,
-   * branch navigation, compaction) without touching other state. Failures
-   * keep the last known value; the next refresh path retries.
-   */
   const refreshContextUsage = useCallback(
     async (sid: string | null = sessionIdRef.current) => {
       if (!sid) return;
@@ -282,7 +286,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         const state = d.state as AgentStateResponse | undefined;
         if (state?.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
       } catch {
-        // Keep the last known usage.
+        return;
       }
     },
     [sessionIdRef, setContextUsage],
@@ -323,16 +327,20 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
 
   const loadContext = useCallback(
     async (sid: string, leafId: string | null) => {
-      // ISSUE-007: only apply the latest navigation result
       const gen = ++contextGenRef.current;
       historyGenerationRef.current += 1;
       olderRequestRef.current = null;
       setLoadingOlder(false);
       try {
-        const d = await getSessionContext(sid, leafId ?? undefined, {
-          maxTurns: INITIAL_HISTORY_TURNS,
-          maxBytes: HISTORY_PAGE_MAX_BYTES,
-        });
+        const d = await modelChoice.observe(
+          () =>
+            getSessionContext(sid, leafId ?? undefined, {
+              maxTurns: INITIAL_HISTORY_TURNS,
+              maxBytes: HISTORY_PAGE_MAX_BYTES,
+            }),
+          (detail) =>
+            gen === contextGenRef.current && sessionIdRef.current === sid ? choiceOfContext(detail.context) : null,
+        );
         if (gen !== contextGenRef.current) return;
         commitHistory(d.context.messages, d.context.entryIds ?? []);
         updatePagingState(d.context.historyRevision, d.context.previousCursor);
@@ -342,7 +350,16 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         console.error("Failed to load context:", e);
       }
     },
-    [commitHistory, historyGenerationRef, olderRequestRef, setLoadingOlder, setOlderOutline, updatePagingState],
+    [
+      commitHistory,
+      historyGenerationRef,
+      modelChoice,
+      olderRequestRef,
+      sessionIdRef,
+      setLoadingOlder,
+      setOlderOutline,
+      updatePagingState,
+    ],
   );
 
   const loadOlder = useCallback(

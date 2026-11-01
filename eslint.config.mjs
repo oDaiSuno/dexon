@@ -66,6 +66,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/agent-host/**/*.{ts,tsx,mjs}"],
+    ignores: ["src/agent-host/agent-session/chosen-model-prompt.ts"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "CallExpression[callee.property.name='prompt'][callee.object.property.name='inner'], CallExpression[callee.property.name='prompt'][callee.object.name='inner']",
+          message: "Start turns through promptOnChosenModel so the chosen model is recorded on the active branch.",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/renderer/**/*.{ts,tsx}"],
     plugins: {
       "react-hooks": reactHooks,

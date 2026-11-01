@@ -179,3 +179,42 @@ test("a refused model switch keeps a reasoning change that the host accepted", a
   assert.deepEqual(h.state.currentModel, MODEL_A);
   assert.equal(h.state.thinkingLevel, "high");
 });
+
+test("a refused newer model choice returns to the confirmed model instead of reviving an older pending choice", async (t) => {
+  const { h, commands } = await mountIdleSession(t, "model-sync-superseded-choice-refused");
+  const { pending: first } = await start(h, () => h.state.handleModelChange(MODEL_B.provider, MODEL_B.modelId));
+  const { pending: second } = await start(h, () => h.state.handleModelChange(MODEL_C.provider, MODEL_C.modelId));
+
+  await settle(h, async () => {
+    commands.calls[1].reject(new Error("host refused the newest model"));
+    await second;
+  });
+  assert.deepEqual(h.state.currentModel, MODEL_A, "a refused choice falls back to the last confirmed model");
+
+  await settle(h, async () => {
+    commands.calls[0].resolve({ thinkingLevel: "medium" });
+    await first;
+  });
+  assert.deepEqual(h.state.currentModel, MODEL_A, "a superseded reply cannot take ownership back");
+  assert.equal(h.state.thinkingLevel, "off");
+});
+
+test("a confirmed newer model choice stays visible when the older model choice finally succeeds", async (t) => {
+  const { h, commands } = await mountIdleSession(t, "model-sync-newest-model-confirmed");
+  const { pending: first } = await start(h, () => h.state.handleModelChange(MODEL_B.provider, MODEL_B.modelId));
+  const { pending: second } = await start(h, () => h.state.handleModelChange(MODEL_C.provider, MODEL_C.modelId));
+
+  await settle(h, async () => {
+    commands.calls[1].resolve({ thinkingLevel: "high" });
+    await second;
+  });
+  assert.deepEqual(h.state.currentModel, MODEL_C);
+  assert.equal(h.state.thinkingLevel, "high");
+
+  await settle(h, async () => {
+    commands.calls[0].resolve({ thinkingLevel: "medium" });
+    await first;
+  });
+  assert.deepEqual(h.state.currentModel, MODEL_C, "an older successful reply cannot replace the newest choice");
+  assert.equal(h.state.thinkingLevel, "high");
+});

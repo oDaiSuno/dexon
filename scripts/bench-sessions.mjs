@@ -105,6 +105,7 @@ try {
         leafId: opened.value.getLeafId(),
         historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
         historyRevision: buildHistoryRevision(largest.session.path, largest.session.id),
+        modelChoice: { model: context.value.model, thinkingLevel: context.value.thinkingLevel },
       }),
     );
     const info = await buildSessionInfoFromManager(largest.session.path, opened.value, entries);

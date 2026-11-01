@@ -9,6 +9,7 @@ const { buildSessionHistoryPage, decodeHistoryCursor, readSessionEntryContent, S
   });
 
 const timestamp = "2026-08-06T00:00:00.000Z";
+const modelChoice = { model: { provider: "provider", modelId: "model" }, thinkingLevel: null };
 
 function chain(definitions) {
   let parentId = null;
@@ -50,6 +51,7 @@ test("history pages preserve complete turns and reconstruct the full display his
   ]);
   const revision = "revision-one";
   const newest = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1, maxBytes: 128 * 1024 },
     historyRevision: revision,
@@ -62,6 +64,7 @@ test("history pages preserve complete turns and reconstruct the full display his
 
   const middleCursor = decodeHistoryCursor(newest.previousCursor);
   const middle = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1, maxBytes: 128 * 1024 },
     historyRevision: revision,
@@ -73,6 +76,7 @@ test("history pages preserve complete turns and reconstruct the full display his
   );
 
   const oldest = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1, maxBytes: 128 * 1024 },
     historyRevision: revision,
@@ -80,7 +84,7 @@ test("history pages preserve complete turns and reconstruct the full display his
   });
   const reconstructedMessages = [...oldest.messages, ...middle.messages, ...newest.messages];
   const reconstructedEntryIds = [...oldest.entryIds, ...middle.entryIds, ...newest.entryIds];
-  const full = buildSessionHistoryPage({ entries, historyRevision: revision });
+  const full = buildSessionHistoryPage({ modelChoice, entries, historyRevision: revision });
   assert.deepEqual(reconstructedMessages, full.messages);
   assert.deepEqual(reconstructedEntryIds, full.entryIds);
 });
@@ -95,6 +99,7 @@ test("oversized text blocks are deferred within the byte budget and can be read 
   ]);
   const maxBytes = 96 * 1024;
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 20, maxBytes },
     historyRevision: "revision-two",
@@ -115,6 +120,7 @@ test("oversized inline images are deferred and restored as the original block", 
   };
   const entries = chain([user("image"), assistant([image, { type: "text", text: "caption" }])]);
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1, maxBytes: 64 * 1024 },
     historyRevision: "image-revision",
@@ -137,6 +143,7 @@ test("oversized thinking and tool inputs cannot empty the newest page", () => {
   const entries = chain([user("generate"), assistant([thinking, toolCall]), toolResult("large-call", "done")]);
   const maxBytes = 96 * 1024;
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1, maxBytes },
     historyRevision: "large-process-revision",
@@ -149,7 +156,7 @@ test("oversized thinking and tool inputs cannot empty the newest page", () => {
   assert.deepEqual(readSessionEntryContent(entries, "entry-1", 1), toolCall);
 });
 
-test("channel markers cross page boundaries and settings match the active branch", () => {
+test("channel markers cross page boundaries and settings preserve the resolved model choice", () => {
   const entries = chain([
     user("old"),
     assistant([{ type: "text", text: "old answer" }]),
@@ -167,6 +174,7 @@ test("channel markers cross page boundaries and settings match the active branch
     entries,
     historyWindow: { maxTurns: 1, maxBytes: 64 * 1024 },
     historyRevision: "revision-three",
+    modelChoice: { model: { provider: "next-provider", modelId: "next-model" }, thinkingLevel: "high" },
   });
   assert.equal(page.messages[0].role, "user");
   assert.equal(page.messages[0].channelSource, "telegram");
@@ -193,11 +201,12 @@ test("compaction and branch summaries survive page boundaries with aligned entry
     assistant([{ type: "text", text: "new answer" }]),
   ]);
   const revision = "summary-revision";
-  const full = buildSessionHistoryPage({ entries, historyRevision: revision });
+  const full = buildSessionHistoryPage({ modelChoice, entries, historyRevision: revision });
   const pages = [];
   let cursor;
   do {
     const page = buildSessionHistoryPage({
+      modelChoice,
       entries,
       historyWindow: { maxTurns: 1, maxBytes: 64 * 1024 },
       historyRevision: revision,
@@ -227,6 +236,7 @@ test("compaction and branch summaries survive page boundaries with aligned entry
 test("stale or malformed cursors are rejected", () => {
   const entries = chain([user("one"), assistant([{ type: "text", text: "answer" }]), user("two")]);
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1 },
     historyRevision: "current-revision",
@@ -235,6 +245,7 @@ test("stale or malformed cursors are rejected", () => {
   assert.throws(
     () =>
       buildSessionHistoryPage({
+        modelChoice,
         entries,
         historyWindow: { maxTurns: 1 },
         historyRevision: "replacement-revision",
@@ -254,6 +265,7 @@ test("append-only growth keeps cursors valid while truncation invalidates them",
   ]);
   const revision = "append-stable-revision";
   const newest = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 1 },
     historyRevision: revision,
@@ -267,6 +279,7 @@ test("append-only growth keeps cursors valid while truncation invalidates them",
     user("three"),
   ]);
   const older = buildSessionHistoryPage({
+    modelChoice,
     entries: appended,
     historyWindow: { maxTurns: 1 },
     historyRevision: revision,
@@ -276,6 +289,7 @@ test("append-only growth keeps cursors valid while truncation invalidates them",
   assert.throws(
     () =>
       buildSessionHistoryPage({
+        modelChoice,
         entries: entries.slice(0, 2),
         historyWindow: { maxTurns: 1 },
         historyRevision: revision,
@@ -319,6 +333,7 @@ function reportedSampleTurn() {
 test("when the reported long session is reopened, the whole conversation is visible because hidden signatures no longer count", () => {
   const entries = reportedSampleTurn();
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
     historyRevision: "reported-sample-revision",
@@ -333,6 +348,7 @@ test("when the reported long session is reopened, the whole conversation is visi
 test("when the newest turn cannot fit the byte budget, the newest page still returns visible messages and a cursor", () => {
   const { entries } = longToolTurn();
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
     historyRevision: "long-session-revision",
@@ -347,6 +363,7 @@ function readAllPages(entries, historyWindow, historyRevision) {
   let cursor;
   do {
     const page = buildSessionHistoryPage({
+      modelChoice,
       entries,
       historyWindow,
       historyRevision,
@@ -433,6 +450,7 @@ test("when one message alone exceeds the page budget, it is still returned with 
     assistant([{ type: "text", text: "noted" }]),
   ]);
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 20, maxBytes: 1024 * 1024 },
     historyRevision: "giant-revision",
@@ -489,6 +507,7 @@ function signedAssistant() {
 test("when a history page is projected for display, thinking, text and tool-call signatures are not shipped", () => {
   const entries = signedAssistant();
   const page = buildSessionHistoryPage({
+    modelChoice,
     entries,
     historyWindow: { maxTurns: 20, maxBytes: 64 * 1024 },
     historyRevision: "signature-revision",

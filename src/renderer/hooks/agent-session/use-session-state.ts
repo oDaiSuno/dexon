@@ -3,6 +3,7 @@ import { sendAgentCommand } from "@/lib/agent-client";
 import { EventStreamConnectionManager } from "@/lib/event-stream-connection";
 import { InteractiveToolStore, toolDraftStorage } from "@/lib/interactive-tool-store";
 import { LatestRequestGate } from "@/lib/latest-request-gate";
+import { SnapshotOrder } from "@/lib/snapshot-order";
 import { noticeReducer } from "@/lib/notice-queue";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { type SessionLoadTrace } from "@/lib/session-performance";
@@ -18,6 +19,7 @@ import type {
 } from "@/lib/types";
 import type { ContextUsageInfo, ModelCatalogStatus, TurnOutlineItem } from "@contract/types";
 import { useReducer, useRef, useState } from "react";
+import { ModelChoiceLedger, useModelChoice } from "./model-choice-ledger";
 import {
   AgentEvent,
   AgentPhase,
@@ -77,12 +79,10 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [modelEffectiveThinkingLevels, setModelEffectiveThinkingLevels] = useState<Record<string, string>>({});
   const [newSessionModel, setNewSessionModel] = useState<SelectedModel | null>(null);
   const [newSessionDefaultModel, setNewSessionDefaultModel] = useState<SelectedModel | null>(null);
-  const [thinkingLevel, setThinkingLevel] = useState<ThinkingLevelOption | null>(null);
   const [retryInfo, setRetryInfo] = useState<RetryInfo | null>(null);
   const [contextUsage, setContextUsage] = useState<ContextUsageInfo | null>(null);
   const [systemPrompt, setSystemPrompt] = useState<string | null>(null);
   const [forkingEntryId, setForkingEntryId] = useState<string | null>(null);
-  const [currentModelOverride, setCurrentModelOverride] = useState<{ provider: string; modelId: string } | null>(null);
   const [pendingModel, setPendingModel] = useState<{ provider: string; modelId: string } | null>(null);
   const [isCompacting, setIsCompacting] = useState(false);
   const [compactError, setCompactError] = useState<string | null>(null);
@@ -92,6 +92,10 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [slashCommandsLoading, setSlashCommandsLoading] = useState(false);
   const [noticeState, dispatchNotice] = useReducer(noticeReducer, { visible: [], pending: [] });
   const [sessionStatsOverride, setSessionStatsOverride] = useState<SessionStatsInfo | null>(null);
+  const [modelChoice] = useState(() => new ModelChoiceLedger());
+  const [snapshotOrder] = useState(() => new SnapshotOrder<NonNullable<SessionData["agentState"]>>());
+  const choice = useModelChoice(modelChoice);
+  const thinkingLevel = choice.thinkingLevel;
   const [interactiveTools] = useState(
     () => new InteractiveToolStore(session?.id ?? null, sendAgentCommand, toolDraftStorage()),
   );
@@ -150,7 +154,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     Map<string, Promise<AssistantContentBlock | TextContent | ImageContent | undefined>>
   >(new Map());
 
-  const currentModel = currentModelOverride ?? data?.context.model ?? pendingModel ?? null;
+  const currentModel = choice.model ?? pendingModel ?? null;
   const displayModel = isNew ? (newSessionModel ?? newSessionDefaultModel) : currentModel;
   const announcedThinkingLevel = displayModel
     ? modelEffectiveThinkingLevels[`${displayModel.provider}:${displayModel.modelId}`]
@@ -193,10 +197,10 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     pendingSessionLoadTraceRef,
     deferredContentCacheRef,
     deferredContentRequestRef,
-    setCurrentModelOverride,
+    modelChoice,
+    snapshotOrder,
     setContextUsage,
     setSystemPrompt,
-    setThinkingLevel,
     setExtensionStatuses,
     setExtensionWidgets,
     setQueuedMessages,
