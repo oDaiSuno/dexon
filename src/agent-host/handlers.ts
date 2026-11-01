@@ -30,7 +30,7 @@ import { initializeSessionLauncher } from "./session-launcher";
 import { initializeSessionOrchestrationService } from "./session-orchestration/service";
 import { initializeSessionOrchestrationSettings } from "./session-orchestration/settings";
 
-export { applySessionNameIfEmpty, generateSessionTitleWithFallback } from "./handlers/agent";
+export { applySessionNameIfEmpty } from "./session-naming";
 export { credentialMutationFailure } from "./handlers/auth";
 export { initializeChannels } from "./handlers/channels";
 export { projectModelsList } from "./handlers/models";

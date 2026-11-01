@@ -159,11 +159,11 @@ export function SessionItem({
     (event: React.MouseEvent) => {
       event.stopPropagation();
       closeActionsMenu(true);
-      void regenerateSessionTitle(session.id, session.firstMessage).then((name) => {
+      void regenerateSessionTitle(session.id).then((name) => {
         if (name) onRenamed?.();
       });
     },
-    [closeActionsMenu, onRenamed, session.firstMessage, session.id],
+    [closeActionsMenu, onRenamed, session.id],
   );
 
   const openNamingSettings = useCallback(

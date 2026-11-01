@@ -1,13 +1,3 @@
-/**
- * ChatGPT-style auto session titles.
- *
- * When a brand-new session receives its first user message, we ask the Host to
- * generate a short title from that message via a silent LLM request (it never
- * enters the session's message history or context window). The Host applies the
- * title itself with an internal "already named?" guard so a manual rename
- * always wins, and falls back to a local first-N-characters title when the LLM
- * call fails — the sidebar never shows an untitled session.
- */
 import { readPromptIntent, titleSourceOf } from "@shared/prompt-intent";
 import { call } from "./api-client";
 import { trackSessionNaming } from "./session-naming-store";
@@ -81,26 +71,17 @@ export function shouldAutoTitleMessage(message: string): boolean {
 
 export interface AutoSessionTitleOptions {
   sessionId: string;
-  message: string;
-  provider?: string;
-  modelId?: string;
+  prompt: string;
 }
 
-/**
- * Fire the silent title request; the Host generates and applies the title with
- * its own rename guard. Never throws: all failures (model unavailable, timeout,
- * session gone) are swallowed because the auto title is best-effort and must
- * never interrupt the conversation.
- */
 export async function requestAutoSessionTitle(options: AutoSessionTitleOptions): Promise<string | null> {
   try {
-    const model =
-      getSessionNamingModel() ??
-      (options.provider && options.modelId ? { provider: options.provider, modelId: options.modelId } : null);
+    const namingModel = getSessionNamingModel();
     const result = await call("agent.generateTitle", {
       sessionId: options.sessionId,
-      message: options.message,
-      ...(model ? { provider: model.provider, modelId: model.modelId } : {}),
+      trigger: "first-prompt",
+      prompt: options.prompt,
+      ...(namingModel ? { namingModel } : {}),
     });
     return result.title;
   } catch {
@@ -108,17 +89,14 @@ export async function requestAutoSessionTitle(options: AutoSessionTitleOptions):
   }
 }
 
-export async function regenerateSessionTitle(sessionId: string, message: string): Promise<string | null> {
-  const model = getSessionNamingModel();
-  if (!model) return null;
+export async function regenerateSessionTitle(sessionId: string): Promise<string | null> {
+  const namingModel = getSessionNamingModel();
   return trackSessionNaming(sessionId, async () => {
     try {
       const result = await call("agent.generateTitle", {
         sessionId,
-        message,
-        provider: model.provider,
-        modelId: model.modelId,
-        replace: true,
+        trigger: "regenerate",
+        ...(namingModel ? { namingModel } : {}),
       });
       return result.title;
     } catch {

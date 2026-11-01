@@ -108,7 +108,6 @@ test("the first message of a new session prepares, connects, prompts and promote
       return { sessionId: "fresh-1" };
     },
     getSession: async () => detail,
-    shouldAutoTitleMessage: (message) => !message.startsWith("/"),
   });
   const h = await createSessionHookHarness(t, { bundleName: "session-actions-new", host });
 
@@ -129,7 +128,11 @@ test("the first message of a new session prepares, connects, prompts and promote
   assert.equal(h.state.isNew, true, "hook stays in the new-session shape until the owner swaps the session prop");
   assert.equal(h.state.agentRunning, true);
   assert.equal(host.autoTitleRequests.length, 1, "auto title requested for the first real message");
-  assert.equal(host.autoTitleRequests[0].sessionId, "fresh-1");
+  assert.deepEqual(host.autoTitleRequests[0], {
+    sessionId: "fresh-1",
+    trigger: "first-prompt",
+    prompt: "kick things off",
+  });
 });
 
 test("a new skill prompt waits for the model, promotes the user's goal, and requests a name", async (t) => {
@@ -144,7 +147,11 @@ test("a new skill prompt waits for the model, promotes the user's goal, and requ
   assert.deepEqual(h.state.agentPhase, { kind: "waiting_model" });
   assert.equal(promoted[0].firstMessage, "/skill:fast-context 帮我梳理架构");
   assert.equal(host.autoTitleRequests.length, 1);
-  assert.equal(host.autoTitleRequests[0].sessionId, "fresh-skill");
+  assert.deepEqual(host.autoTitleRequests[0], {
+    sessionId: "fresh-skill",
+    trigger: "first-prompt",
+    prompt: "/skill:fast-context 帮我梳理架构",
+  });
 });
 
 test("a chosen model is applied to an already-created new session before prompting", async (t) => {

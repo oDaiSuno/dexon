@@ -103,15 +103,6 @@ test("agent.new uses a unique temporary lock key for every request", async () =>
   assert.ok(keys.every((key) => /^__new__[0-9a-f-]{36}$/.test(key)));
 });
 
-test("auto-title keeps the local fallback when service creation fails", async () => {
-  const { generateSessionTitleWithFallback } = await loadHandlersModule();
-  const title = await generateSessionTitleWithFallback(async () => {
-    throw new Error("project resources unavailable");
-  }, "  Fix\n the login page  ");
-
-  assert.equal(title, "Fix the login page");
-});
-
 test("conditional auto-title writes never replace a manual session name", async (t) => {
   const fixtureDirectory = path.join(process.env.PI_CODING_AGENT_SESSION_DIR, "auto-title-fixture");
   mkdirSync(fixtureDirectory, { recursive: true });

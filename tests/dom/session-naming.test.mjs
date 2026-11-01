@@ -100,7 +100,7 @@ test("regenerating asks the naming model to rename from the first message, even 
   await waitFor(() => assert.equal(renamed.length, 1));
   assert.deepEqual(
     view.titleRequests().map((request) => request.params),
-    [{ sessionId: "s1", message: FIRST_MESSAGE, provider: "deepseek", modelId: "deepseek-chat", replace: true }],
+    [{ sessionId: "s1", trigger: "regenerate", namingModel: NAMING_MODEL }],
   );
   assert.equal(view.container.querySelector('[role="menu"]'), null, "the menu closes once the request starts");
 });
@@ -142,7 +142,7 @@ test("without a naming model, Regenerate name is greyed out, points to Settings 
   assert.deepEqual(view.titleRequests(), []);
 });
 
-test("automatic naming uses the chosen naming model instead of the conversation's model", async (t) => {
+test("automatic naming forwards the naming preference without replacing the conversation model", async (t) => {
   useNamingModel(t, NAMING_MODEL);
   const requests = [];
   const boundary = installRendererApi(dom.window, api, () => ({
@@ -154,9 +154,7 @@ test("automatic naming uses the chosen naming model instead of the conversation'
   t.after(boundary.close);
   const title = await api.requestAutoSessionTitle({
     sessionId: "fresh-1",
-    message: "Fix the login page styling",
-    provider: "openai",
-    modelId: "gpt-5",
+    prompt: "Fix the login page styling",
   });
   assert.equal(title, "Login page styling");
   assert.deepEqual(requests, [
@@ -164,15 +162,15 @@ test("automatic naming uses the chosen naming model instead of the conversation'
       method: "agent.generateTitle",
       params: {
         sessionId: "fresh-1",
-        message: "Fix the login page styling",
-        provider: "deepseek",
-        modelId: "deepseek-chat",
+        trigger: "first-prompt",
+        prompt: "Fix the login page styling",
+        namingModel: NAMING_MODEL,
       },
     },
   ]);
 });
 
-test("without a naming model, automatic naming keeps using the conversation's model", async (t) => {
+test("without a naming preference, automatic naming leaves model selection to the Host", async (t) => {
   useNamingModel(t, null);
   const requests = [];
   const boundary = installRendererApi(dom.window, api, () => ({
@@ -184,15 +182,12 @@ test("without a naming model, automatic naming keeps using the conversation's mo
   t.after(boundary.close);
   await api.requestAutoSessionTitle({
     sessionId: "fresh-2",
-    message: "Fix the login page",
-    provider: "openai",
-    modelId: "gpt-5",
+    prompt: "Fix the login page",
   });
   assert.deepEqual(requests[0].params, {
     sessionId: "fresh-2",
-    message: "Fix the login page",
-    provider: "openai",
-    modelId: "gpt-5",
+    trigger: "first-prompt",
+    prompt: "Fix the login page",
   });
 });
 
@@ -267,8 +262,7 @@ test("a chosen naming model is remembered on this computer and enables Regenerat
   const row = await mountRow(t);
   await click(byRole(await openMenu(row), "menuitem", "Regenerate name"));
   await waitFor(() => assert.equal(row.titleRequests().length, 1));
-  assert.equal(row.titleRequests()[0].params.provider, "deepseek");
-  assert.equal(row.titleRequests()[0].params.modelId, "deepseek-chat");
+  assert.deepEqual(row.titleRequests()[0].params.namingModel, NAMING_MODEL);
 });
 
 test("the session naming card shows the fixed example of a first message turning into a sidebar name", async (t) => {

@@ -35,7 +35,6 @@ type Dependencies = Pick<
   | "sessionIdRef"
   | "ensuringNewSessionRef"
   | "setPendingModel"
-  | "newSessionDefaultModel"
   | "session"
   | "t"
   | "setForkingEntryId"
@@ -84,7 +83,6 @@ export function useSessionActions(context: Dependencies) {
     setPendingModel,
     ensureEventsConnected,
     promoteNewSession,
-    newSessionDefaultModel,
     session,
     waitForPromptSettlement,
     addNotice,
@@ -162,18 +160,8 @@ export function useSessionActions(context: Dependencies) {
               message,
             });
             promoteNewSession(1, promptIntentText(intent));
-            // Auto-title the brand-new session from its first message. Fire and
-            // forget: generation is a silent background LLM request and the Host
-            // applies it with a rename guard (a manual rename always wins).
-            const titleModel = newSessionModel ?? newSessionDefaultModel;
             if (shouldAutoTitleMessage(message)) {
-              void trackSessionNaming(sid, () =>
-                requestAutoSessionTitle({
-                  sessionId: sid,
-                  message: trimmedMessage,
-                  ...(titleModel ? { provider: titleModel.provider, modelId: titleModel.modelId } : {}),
-                }),
-              );
+              void trackSessionNaming(sid, () => requestAutoSessionTitle({ sessionId: sid, prompt: message }));
             }
           }
         } else if (session) {
@@ -231,7 +219,6 @@ export function useSessionActions(context: Dependencies) {
       ensureNewSession,
       ensureEventsConnected,
       promoteNewSession,
-      newSessionDefaultModel,
       setPendingModel,
       modelChoice,
       thinkingLevel,

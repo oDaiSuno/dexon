@@ -1,14 +1,29 @@
-/**
- * Pure helpers for ChatGPT-style auto session titles (no I/O, no SDK imports).
- *
- * The Host combines these two paths: a silent LLM request produced by the
- * configured conversation model is sanitized via {@link sanitizeGeneratedTitle};
- * when that call fails or is unavailable, {@link makeFallbackTitle} guarantees
- * the session still receives a non-empty title so the sidebar never shows an
- * untitled conversation.
- */
+import type { TitleSource } from "../shared/prompt-intent";
+import type { SessionModelRef } from "../shared/session-orchestration";
 
 export const AUTO_TITLE_MAX_LENGTH = 40;
+export const AUTO_TITLE_REQUEST_MAX_CHARS = 2000;
+export const AUTO_TITLE_TIMEOUT_MS = 15_000;
+export const AUTO_TITLE_ATTEMPT_TIMEOUT_MS = 5_000;
+
+export function titlePromptText(source: TitleSource): string {
+  const hint = source.skill ? `\n\n(Skill: ${source.skill})` : "";
+  return takeCodePoints(source.goal, AUTO_TITLE_REQUEST_MAX_CHARS - [...hint].length) + hint;
+}
+
+export function planNamingModels<T extends { provider: string; id: string }>(input: {
+  preference: SessionModelRef | null;
+  conversation: SessionModelRef | null;
+  reachable: readonly T[];
+}): readonly T[] {
+  const plan: T[] = [];
+  for (const ref of [input.preference, input.conversation]) {
+    if (!ref || plan.some((model) => model.provider === ref.provider && model.id === ref.modelId)) continue;
+    const model = input.reachable.find((model) => model.provider === ref.provider && model.id === ref.modelId);
+    if (model) plan.push(model);
+  }
+  return plan;
+}
 
 export function takeCodePoints(value: string, max: number): string {
   return [...value].slice(0, max).join("");
@@ -29,16 +44,6 @@ export function sanitizeGeneratedTitle(raw: string): string | null {
   const trimmed = stripped.replace(/[.。!！?？:：;；,\s]+$/u, "").trim();
   if (!trimmed) return null;
   return takeCodePoints(trimmed, AUTO_TITLE_MAX_LENGTH);
-}
-
-/**
- * Local fallback: reuse the first characters of the first user message as the
- * session title. Never returns an empty string.
- */
-export function makeFallbackTitle(message: string): string {
-  const normalized = message.replace(/\s+/g, " ").trim();
-  if (!normalized) return "New session";
-  return takeCodePoints(normalized, AUTO_TITLE_MAX_LENGTH);
 }
 
 /**
