@@ -10,6 +10,7 @@ import { projectExtensionDiagnostics } from "../extension-diagnostics";
 import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
 import { stripToolchainMarkers } from "../session-entry-compat";
 import { setDesktopSessionToolNames } from "../session-tool-store";
+import type { ChosenSessionModel } from "../session-model";
 
 import { notifyRunningChange } from "../rpc-manager";
 import { BlockTimingRecorder } from "./block-timing";
@@ -100,6 +101,10 @@ export class AgentSessionWrapper extends SessionExtensionUi {
 
   isAlive(): boolean {
     return this._alive;
+  }
+
+  chosenModel(): ChosenSessionModel {
+    return this.sessionModel.choice(this.inner);
   }
 
   isRunning(): boolean {
@@ -364,6 +369,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         sessionId: this.sessionId,
         enqueueTurn: (task) => this.enqueueTurn(task),
         queuedTurns: this.queuedTurns,
+        chosenModel: () => this.chosenModel(),
         waitForExtensionsBound: () => this.waitForExtensionsBound(),
         emit: (event) => this.emit(event),
         assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
@@ -383,6 +389,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         sessionId: this.sessionId,
         enqueueTurn: (task) => this.enqueueTurn(task),
         emit: (event) => this.emit(event),
+        chosenModel: () => this.chosenModel(),
         assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
         beginExternalTurn: (context) => {
           this.externalTurnActive = true;
@@ -480,7 +487,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       promptRunning: this.promptRunning,
       isRunning: () => this.isRunning(),
       streamingMessage: () => this.streamingMessage(),
-      currentModelRef: () => this.sessionModel.current(this.inner),
+      chosenModel: () => this.chosenModel(),
       assertModelUsable: () => this.sessionModel.assertUsable(this.inner),
       getExtensionStatuses: this.getExtensionStatuses.bind(this),
       getExtensionWidgets: this.getExtensionWidgets.bind(this),

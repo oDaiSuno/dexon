@@ -1,8 +1,8 @@
 import type { ChannelId } from "../../shared/channel-types";
-import type { AgentSessionLike } from "../../shared/pi-types";
 import type { ChannelMessageAttachment } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { CHANNEL_SOURCE_CANCELLED_TYPE, CHANNEL_SOURCE_TYPE } from "../session-entry-compat";
+import { promptOnChosenModel, type ChosenModelHost } from "./chosen-model-prompt";
 import type { AgentEvent } from "./types";
 
 export interface ExternalTurnParams {
@@ -21,8 +21,7 @@ export interface ExternalTurnContext {
   progress: ((event: AgentEvent) => void) | null;
 }
 
-export interface ExternalTurnHost {
-  readonly inner: AgentSessionLike;
+export interface ExternalTurnHost extends ChosenModelHost {
   readonly sessionId: string;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
@@ -62,7 +61,7 @@ export function runExternalTurn(
           { deliverAs: "nextTurn" },
         );
       }
-      await host.inner.prompt(params.message, {
+      await promptOnChosenModel(host, params.message, {
         ...(params.images?.length ? { images: params.images } : {}),
         expandPromptTemplates: false,
         source: "rpc",

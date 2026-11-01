@@ -550,3 +550,65 @@ test("when the settings change after a level was chosen by hand, a new conversat
     "a level chosen by hand survives the settings change that would otherwise announce another level",
   );
 });
+
+test("an end-of-answer refresh cannot replace the model and level the reader just chose", async (t) => {
+  const scene = await mountScene(t, {
+    session: {
+      id: "model-refresh-race",
+      options: {
+        model: { provider: PROVIDER, modelId: ALPHA.id },
+        thinkingLevel: "low",
+        agentState: { running: true },
+      },
+    },
+  });
+  const staleDetail = await scene.host.getSession("model-refresh-race");
+  let finishRefresh;
+  scene.host.getSession = () => new Promise((resolve) => (finishRefresh = resolve));
+  await emit(scene.host, { type: "agent_start" });
+  await emit(scene.host, { type: "agent_end" });
+  assert.equal(typeof finishRefresh, "function", "the end of the answer starts a history refresh");
+
+  await pickModel(scene.view, ALPHA.name, BETA.name);
+  assert.ok(modelChip(scene.view, BETA.name), "the model button names the newly chosen model");
+  assert.equal(shownLevel(scene.view), "Max");
+
+  await act(async () => finishRefresh(staleDetail));
+  await settle();
+  assert.ok(modelChip(scene.view, BETA.name), "an older answer refresh must not undo the chosen model");
+  assert.equal(shownLevel(scene.view), "Max", "an older answer refresh must not undo the reported level");
+});
+
+test("an end-of-answer refresh keeps a reasoning choice while the host is still confirming it", async (t) => {
+  const scene = await mountScene(t, {
+    session: {
+      id: "thinking-refresh-race",
+      options: {
+        model: { provider: PROVIDER, modelId: ALPHA.id },
+        thinkingLevel: "high",
+        agentState: { running: true },
+      },
+    },
+  });
+  const send = scene.host.sendAgentCommand;
+  let confirmChoice;
+  scene.host.sendAgentCommand = async (sid, command) => {
+    if (command.type === "set_thinking_level") {
+      await new Promise((resolve) => (confirmChoice = resolve));
+    }
+    return send(sid, command);
+  };
+
+  try {
+    await pickLevel(scene.view, "Low");
+    assert.equal(shownLevel(scene.view), "Low");
+    assert.equal(typeof confirmChoice, "function", "the reasoning choice is waiting for the host");
+    await emit(scene.host, { type: "agent_start" });
+    await emit(scene.host, { type: "agent_end" });
+    assert.equal(shownLevel(scene.view), "Low", "the pending reasoning choice takes precedence over the refresh");
+  } finally {
+    await act(async () => confirmChoice?.());
+    await settle();
+  }
+  assert.equal(shownLevel(scene.view), "Low");
+});

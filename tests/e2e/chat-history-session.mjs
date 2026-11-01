@@ -4,6 +4,7 @@ import { computeSessionStats } from "../../src/agent-host/session-stats.ts";
 const SESSION_ID = "native-long-history";
 const HISTORY_REVISION = "native-history";
 const HISTORY_WINDOW = { maxTurns: 20, maxBytes: 1024 * 1024 };
+const MODEL_CHOICE = { model: { provider: "provider", modelId: "model" }, thinkingLevel: "off" };
 
 export const QUESTION_COUNT = 100;
 
@@ -86,6 +87,7 @@ export function buildHistory() {
   const entries = buildEntries();
   const leafId = entries.at(-1).id;
   const newest = buildSessionHistoryPage({
+    modelChoice: MODEL_CHOICE,
     entries,
     leafId,
     historyWindow: HISTORY_WINDOW,
@@ -96,6 +98,7 @@ export function buildHistory() {
   let cursor = newest.previousCursor;
   while (cursor) {
     const older = buildSessionHistoryPage({
+      modelChoice: MODEL_CHOICE,
       entries,
       leafId,
       historyWindow: HISTORY_WINDOW,

@@ -4,7 +4,7 @@ import type { HistoryWindow, PagedContextInfo, TurnOutlineItem } from "../contra
 import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
 import { turnTitleOf } from "../shared/turn-title";
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
-import { chosenSessionModel } from "./session-model";
+import type { ChosenSessionModel } from "./session-model";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
 import {
   attachRetryOutcomes,
@@ -86,11 +86,6 @@ function buildEntryPath(entries: SessionEntry[], leafId?: string | null): Sessio
   return path.reverse();
 }
 
-function deriveContextSettings(path: SessionEntry[]): Pick<PagedContextInfo, "thinkingLevel" | "model"> {
-  const chosen = chosenSessionModel(path);
-  return { thinkingLevel: chosen.thinkingLevel ?? "off", model: chosen.model };
-}
-
 function groupTurns(messages: ProjectedMessage[]): ProjectedMessage[][] {
   const turns: ProjectedMessage[][] = [];
   let current: ProjectedMessage[] = [];
@@ -156,8 +151,10 @@ export function buildSessionHistoryPage(options: {
   historyWindow?: HistoryWindow;
   historyRevision: string;
   cursor?: HistoryCursorPayload;
+  modelChoice: ChosenSessionModel;
 }): PagedContextInfo {
-  const { entries, historyWindow, historyRevision, cursor } = options;
+  const { entries, historyWindow, historyRevision, cursor, modelChoice } = options;
+  const settings = { model: modelChoice.model, thinkingLevel: modelChoice.thinkingLevel ?? "off" };
   const anchorLeafId = cursor?.anchorLeafId ?? options.leafId ?? entries.at(-1)?.id ?? null;
   const path = buildEntryPath(entries, anchorLeafId);
   if (cursor) {
@@ -171,6 +168,7 @@ export function buildSessionHistoryPage(options: {
     const context = buildSessionContext(entries, options.leafId);
     return {
       ...context,
+      ...settings,
       messages: attachRetryOutcomes(context.messages, context.entryIds, path),
       totalMessages: context.messages.length,
       loadedMessages: context.messages.length,
@@ -180,7 +178,6 @@ export function buildSessionHistoryPage(options: {
     };
   }
 
-  const settings = deriveContextSettings(path);
   const allMessages = projectDisplayMessages(path);
   const beforePathIndex = cursor ? path.findIndex((entry) => entry.id === cursor.beforeEntryId) : path.length;
   if (beforePathIndex < 0) throw new StaleHistoryCursorError();

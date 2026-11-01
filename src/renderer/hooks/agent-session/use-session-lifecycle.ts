@@ -1,7 +1,7 @@
 import { subscribeSessionsChanged } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
 import { useEffect, type MutableRefObject } from "react";
-import { EventStreamConnectionError, ThinkingLevelOption, normalizeQueuedMessages } from "./shared";
+import { EventStreamConnectionError, normalizeQueuedMessages } from "./shared";
 import type { SessionActions } from "./use-session-actions";
 import type { SessionConnection } from "./use-session-connection";
 import type { SessionEvents } from "./use-session-events";
@@ -36,7 +36,8 @@ type Dependencies = Pick<
   | "setIsCompacting"
   | "setContextUsage"
   | "setSystemPrompt"
-  | "setThinkingLevel"
+  | "modelChoice"
+  | "snapshotOrder"
   | "setExtensionStatuses"
   | "setExtensionWidgets"
   | "setQueuedMessages"
@@ -83,7 +84,8 @@ export function useSessionLifecycle(context: Dependencies) {
     setIsCompacting,
     setContextUsage,
     setSystemPrompt,
-    setThinkingLevel,
+    modelChoice,
+    snapshotOrder,
     setExtensionStatuses,
     setExtensionWidgets,
     setQueuedMessages,
@@ -159,8 +161,6 @@ export function useSessionLifecycle(context: Dependencies) {
           if (agentState.state.isCompacting !== undefined) setIsCompacting(agentState.state.isCompacting);
           if (agentState.state.contextUsage !== undefined) setContextUsage(agentState.state.contextUsage ?? null);
           if (agentState.state.systemPrompt !== undefined) setSystemPrompt(agentState.state.systemPrompt ?? null);
-          if (agentState.state.thinkingLevel !== undefined)
-            setThinkingLevel((agentState.state.thinkingLevel as ThinkingLevelOption) ?? null);
           if (agentState.state.extensionStatuses !== undefined)
             setExtensionStatuses(agentState.state.extensionStatuses ?? []);
           if (agentState.state.extensionWidgets !== undefined)
@@ -173,6 +173,8 @@ export function useSessionLifecycle(context: Dependencies) {
     return () => {
       disposed = true;
       historyGenerationRef.current += 1;
+      modelChoice.reset();
+      snapshotOrder.reset();
       for (const frameId of frameIds) cancelAnimationFrame(frameId);
       frameIds.clear();
       unsubscribeEvents?.();

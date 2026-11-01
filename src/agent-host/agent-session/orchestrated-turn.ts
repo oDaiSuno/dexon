@@ -3,13 +3,13 @@ import type { AgentSessionLike } from "../../shared/pi-types";
 import type { SessionSourceRef } from "../../shared/session-orchestration";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { SESSION_SOURCE_TYPE } from "../session-entry-compat";
+import { promptOnChosenModel, type ChosenModelHost } from "./chosen-model-prompt";
 import { unavailableModelOf } from "./model-gate";
 import { type QueuedTurn, type QueuedTurns } from "./queued-turns";
 import { lastAssistantOutcome } from "./turn-status";
 import type { AgentEvent, OrchestratedTurnOutcome } from "./types";
 
-export interface OrchestratedTurnHost {
-  readonly inner: AgentSessionLike;
+export interface OrchestratedTurnHost extends ChosenModelHost {
   readonly sessionId: string;
   readonly queuedTurns: QueuedTurns;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
@@ -76,7 +76,7 @@ function runQueuedTurn(
         });
       }
       const before = messageList(host.inner).length;
-      await host.inner.prompt(params.message, { source: "rpc" });
+      await promptOnChosenModel(host, params.message, { source: "rpc" });
       const outcome = lastAssistantOutcome(messageList(host.inner).slice(before));
       if (outcome?.kind === "error") {
         host.emit({ type: "prompt_done" });

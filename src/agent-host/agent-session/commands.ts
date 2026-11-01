@@ -1,8 +1,7 @@
 import type { InteractiveReceipt, InteractiveSnapshot } from "../../shared/interactive-tools";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { SessionModelRef } from "../../shared/session-orchestration";
-import type { AgentSessionLike, ToolInfo } from "../../shared/pi-types";
+import type { ToolInfo } from "../../shared/pi-types";
 import type { AgentMessage, ExtensionUiResponse, ExtensionWidgetItem, SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { describeLiveContextUsage } from "../session-context-usage";
@@ -18,16 +17,15 @@ import {
 } from "../session-versions";
 import { setSessionOrigin } from "../session-origin-store";
 
+import { promptOnChosenModel, type ChosenModelHost } from "./chosen-model-prompt";
 import type { AgentEvent } from "./types";
-export interface SessionCommandContext {
-  inner: AgentSessionLike;
+export interface SessionCommandContext extends ChosenModelHost {
   getInteractiveSnapshot(): InteractiveSnapshot;
   cancelInteractiveRequests(): void;
   sessionId: string;
   promptRunning: boolean;
   isRunning(): boolean;
   streamingMessage(): AgentMessage | null;
-  currentModelRef(): SessionModelRef | null;
   assertModelUsable(): Promise<void>;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   emit(event: AgentEvent): void;
@@ -58,7 +56,7 @@ function startPromptTurn(context: SessionCommandContext, turn: PromptTurn): void
   if (!streamingBehavior) browserAgentRuntime.beginTurn(context.sessionId, "local");
   const invokePrompt = async () => {
     if (beforePrompt) await beforePrompt();
-    return context.inner.prompt(message, {
+    return promptOnChosenModel(context, message, {
       ...(images?.length ? { images } : {}),
       ...(streamingBehavior ? { streamingBehavior } : {}),
       source: "rpc",
@@ -192,7 +190,7 @@ export async function sendSessionCommand(
     }
 
     case "get_state": {
-      const model = context.currentModelRef();
+      const { model, thinkingLevel } = context.chosenModel();
       return {
         sessionId: context.inner.sessionId,
         sessionFile: context.inner.sessionFile ?? "",
@@ -211,7 +209,7 @@ export async function sendSessionCommand(
         },
         contextUsage: describeLiveContextUsage(context.inner),
         systemPrompt: context.inner.agent.state?.systemPrompt ?? "",
-        thinkingLevel: context.inner.agent.state?.thinkingLevel ?? "off",
+        thinkingLevel: thinkingLevel ?? "off",
         extensionUi: context.getInteractiveSnapshot(),
         extensionStatuses: context.getExtensionStatuses(),
         extensionWidgets: context.getExtensionWidgets(),

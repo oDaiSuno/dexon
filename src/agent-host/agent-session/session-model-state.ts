@@ -1,6 +1,6 @@
 import type { AgentSessionLike } from "../../shared/pi-types";
 import type { SessionModelRef } from "../../shared/session-orchestration";
-import { isNoModel } from "../session-model";
+import { isNoModel, type ChosenSessionModel } from "../session-model";
 import { assertModelUsable } from "./model-gate";
 
 type ModelHolder = Pick<AgentSessionLike, "model">;
@@ -23,9 +23,9 @@ export class SessionModelState {
     return { provider: model.provider, modelId: model.id };
   }
 
-  thinkingLevel(inner: Pick<AgentSessionLike, "agent">): string | null {
+  choice(inner: Pick<AgentSessionLike, "model" | "agent">): ChosenSessionModel {
     const level = inner.agent.state?.thinkingLevel;
-    return typeof level === "string" && level ? level : null;
+    return { model: this.current(inner), thinkingLevel: typeof level === "string" && level ? level : null };
   }
 
   async assertUsable(inner: AgentSessionLike): Promise<void> {

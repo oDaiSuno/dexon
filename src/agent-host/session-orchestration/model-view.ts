@@ -17,10 +17,10 @@ export interface SessionModelChoice extends SessionModelRef {
   thinkingLevels: string[];
 }
 
-function branchEntries(entries: SessionEntry[], leafId: string | null): SessionEntry[] {
+function branchEntries(entries: readonly SessionEntry[], leafId: string | null): SessionEntry[] {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   const path: SessionEntry[] = [];
-  let current = leafId ? byId.get(leafId) : entries.at(-1);
+  let current = leafId === null ? undefined : byId.get(leafId);
   while (current) {
     path.push(current);
     current = current.parentId ? byId.get(current.parentId) : undefined;
@@ -36,15 +36,28 @@ export function modelAvailableIn(
   return usable.some((model) => model.provider === ref.provider && model.id === ref.modelId);
 }
 
-export async function chosenModelView(sessionId: string): Promise<ChosenSessionModel> {
+export function liveModelChoice(sessionId: string, leafId?: string | null): ChosenSessionModel | null {
   const live = getRpcSession(sessionId);
-  if (live?.isAlive()) {
-    return { model: live.sessionModel.current(live.inner), thinkingLevel: live.sessionModel.thinkingLevel(live.inner) };
-  }
+  if (!live?.isAlive()) return null;
+  if (leafId !== undefined && leafId !== live.inner.sessionManager.getLeafId()) return null;
+  return live.chosenModel();
+}
+
+export function modelChoiceAt(
+  sessionId: string,
+  entries: readonly SessionEntry[],
+  leafId: string | null,
+): ChosenSessionModel {
+  return liveModelChoice(sessionId, leafId) ?? chosenSessionModel(branchEntries(entries, leafId));
+}
+
+export async function chosenModelView(sessionId: string): Promise<ChosenSessionModel> {
+  const live = liveModelChoice(sessionId);
+  if (live) return live;
   const source = await openSessionSource(sessionId);
   if (!source) return { model: null, thinkingLevel: null };
   const leafId = resolveSessionLeafId(sessionId, source.entries, source.manager.getLeafId());
-  return chosenSessionModel(branchEntries(source.entries, leafId));
+  return modelChoiceAt(sessionId, source.entries, leafId);
 }
 
 export async function sessionModelView(

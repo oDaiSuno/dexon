@@ -5,11 +5,11 @@ import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
-  "sessionIdRef" | "t" | "setQueuedMessages" | "setThinkingLevel" | "ensuringNewSessionRef"
+  "sessionIdRef" | "t" | "setQueuedMessages" | "modelChoice" | "ensuringNewSessionRef"
 > &
   Pick<SessionExtensions, "addNotice">;
 export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOptions) {
-  const { sessionIdRef, addNotice, t, setQueuedMessages, setThinkingLevel, ensuringNewSessionRef } = context;
+  const { sessionIdRef, addNotice, t, setQueuedMessages, modelChoice, ensuringNewSessionRef } = context;
 
   // Queued (undelivered) messages live in the queue panel only; the chat gets
   // the real user message when pi delivers it (user message_end event). An
@@ -130,16 +130,17 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
 
   const handleThinkingLevelChange = useCallback(
     async (level: ThinkingLevelOption) => {
-      setThinkingLevel(level);
-      const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
-      if (!sid) return;
       try {
-        await sendAgentCommand(sid, { type: "set_thinking_level", level });
+        await modelChoice.choose({ thinkingLevel: level }, async () => {
+          const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
+          if (sid) await sendAgentCommand(sid, { type: "set_thinking_level", level });
+          return {};
+        });
       } catch (e) {
         console.error("Failed to set thinking level:", e);
       }
     },
-    [ensuringNewSessionRef, sessionIdRef, setThinkingLevel],
+    [ensuringNewSessionRef, modelChoice, sessionIdRef],
   );
   return {
     handleSteer,

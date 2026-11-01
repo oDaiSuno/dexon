@@ -1,6 +1,8 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
 const { AgentSessionWrapper, getLegacySessionToolNames } = await importTestBundle(
   "src/agent-host/channels/channel-session-scheduler",
   {
@@ -22,9 +24,9 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
   });
   let last = "";
   let externalPromptOptions;
-  const customEntries = [];
   const customMessages = [];
   let sessionListener = () => undefined;
+  const workspaceCwd = path.resolve("/tmp/shared-workspace");
   const inner = {
     sessionId: "session-one",
     sessionFile: undefined,
@@ -34,12 +36,7 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
     autoRetryEnabled: true,
     model: undefined,
     modelRuntime: { getModel: () => undefined },
-    sessionManager: {
-      getHeader: () => ({ cwd: "/tmp/shared-workspace" }),
-      appendCustomEntry(customType, data) {
-        customEntries.push({ customType, data });
-      },
-    },
+    sessionManager: SessionManager.inMemory(workspaceCwd),
     settingsManager: {},
     agent: {
       state: {
@@ -84,7 +81,7 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
     getLastAssistantText: () => last,
   };
   const wrapper = new AgentSessionWrapper(inner);
-  assert.equal(wrapper.cwd, "/tmp/shared-workspace");
+  assert.equal(wrapper.cwd, workspaceCwd);
   assert.equal(inner.agent.state.messages[0].content[0].text, "legacy text");
   wrapper.extensionsBound = true;
   wrapper.start();
@@ -111,16 +108,19 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
   assert.equal(result.finalText, "reply:im");
   assert.deepEqual(externalPromptOptions.images, [{ type: "image", data: "aGVsbG8=", mimeType: "image/png" }]);
   assert.equal(externalPromptOptions.expandPromptTemplates, false);
-  assert.deepEqual(customEntries, [
-    {
-      customType: "dexon-channel-source",
-      data: {
-        runId: "run-one",
-        channel: "telegram",
-        attachments: [{ kind: "image", name: "photo.png", mime: "image/png" }],
+  assert.deepEqual(
+    inner.sessionManager.getEntries().map(({ customType, data }) => ({ customType, data })),
+    [
+      {
+        customType: "dexon-channel-source",
+        data: {
+          runId: "run-one",
+          channel: "telegram",
+          attachments: [{ kind: "image", name: "photo.png", mime: "image/png" }],
+        },
       },
-    },
-  ]);
+    ],
+  );
   assert.deepEqual(customMessages, [
     {
       message: {
@@ -219,7 +219,7 @@ test("a transient extension binding failure is retried by the next prompt", asyn
   const prompts = [];
   const inner = {
     sessionId: "extension-retry-session",
-    sessionManager: { getHeader: () => ({ cwd: "/tmp" }) },
+    sessionManager: SessionManager.inMemory("/tmp"),
     agent: { state: { messages: [] } },
     extensionRunner: {},
     async bindExtensions() {

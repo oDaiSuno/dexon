@@ -5,7 +5,13 @@ import { trackSessionNaming } from "@/lib/session-naming-store";
 import { appendLocalHistoryMessage, removeLastHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage } from "@/lib/types";
 import { useCallback } from "react";
-import { CompactCommandResult, ThinkingLevelOption, readCompactResult, userMessageKey } from "./shared";
+import {
+  CompactCommandResult,
+  ThinkingLevelOption,
+  isThinkingLevelOption,
+  readCompactResult,
+  userMessageKey,
+} from "./shared";
 import type { SessionConnection } from "./use-session-connection";
 import type { SessionEvents } from "./use-session-events";
 import type { SessionExtensions } from "./use-session-extensions";
@@ -35,9 +41,8 @@ type Dependencies = Pick<
   | "onSessionForked"
   | "setActiveLeafId"
   | "setNewSessionModel"
-  | "setCurrentModelOverride"
+  | "modelChoice"
   | "thinkingLevel"
-  | "setThinkingLevel"
   | "isCompacting"
   | "setIsCompacting"
   | "setCompactError"
@@ -50,10 +55,11 @@ type Dependencies = Pick<
   Pick<SessionExtensions, "addNotice">;
 
 type ModelCommandReply = { thinkingLevel?: unknown };
+type NavigateTreeResult = { cancelled?: boolean; leafId?: string | null };
 
 function reportedThinkingLevel(reply: ModelCommandReply | null | undefined): ThinkingLevelOption | null {
   const level = reply?.thinkingLevel;
-  return typeof level === "string" ? (level as ThinkingLevelOption) : null;
+  return isThinkingLevelOption(level) ? level : null;
 }
 
 export function useSessionActions(context: Dependencies) {
@@ -89,9 +95,8 @@ export function useSessionActions(context: Dependencies) {
     refreshContextUsage,
     contextGenRef,
     setNewSessionModel,
-    setCurrentModelOverride,
+    modelChoice,
     thinkingLevel,
-    setThinkingLevel,
     isCompacting,
     setIsCompacting,
     setCompactError,
@@ -136,17 +141,17 @@ export function useSessionActions(context: Dependencies) {
             if (selectedModel) {
               setPendingModel(selectedModel);
               if (existingSid) {
-                const reply = await sendAgentCommand<ModelCommandReply>(sid, {
-                  type: "set_model",
-                  provider: selectedModel.provider,
-                  modelId: selectedModel.modelId,
+                const chosenLevel = thinkingLevel;
+                await modelChoice.choose({ model: selectedModel }, async () => {
+                  const reply = await sendAgentCommand<ModelCommandReply>(sid, {
+                    type: "set_model",
+                    provider: selectedModel.provider,
+                    modelId: selectedModel.modelId,
+                  });
+                  if (!chosenLevel) return { thinkingLevel: reportedThinkingLevel(reply) };
+                  await sendAgentCommand(sid, { type: "set_thinking_level", level: chosenLevel });
+                  return { thinkingLevel: chosenLevel };
                 });
-                const reported = reportedThinkingLevel(reply);
-                if (thinkingLevel) {
-                  await sendAgentCommand(sid, { type: "set_thinking_level", level: thinkingLevel });
-                } else if (reported) {
-                  setThinkingLevel(reported);
-                }
               }
             }
             await ensureEventsConnected(sid);
@@ -226,8 +231,8 @@ export function useSessionActions(context: Dependencies) {
       promoteNewSession,
       newSessionDefaultModel,
       setPendingModel,
+      modelChoice,
       thinkingLevel,
-      setThinkingLevel,
       waitForPromptSettlement,
       addNotice,
       t,
@@ -274,19 +279,22 @@ export function useSessionActions(context: Dependencies) {
       const sid = sessionIdRef.current;
       if (!sid) return;
       const gen = ++contextGenRef.current;
+      let actualLeafId = leafId;
       if (leafId) {
         try {
-          await sendAgentCommand(sid, { type: "navigate_tree", targetId: leafId });
+          const result = await sendAgentCommand<NavigateTreeResult>(sid, { type: "navigate_tree", targetId: leafId });
+          if (result?.cancelled) return;
+          if (result?.leafId !== undefined) actualLeafId = result.leafId;
         } catch (e) {
           console.error("navigate_tree failed:", e);
           return;
         }
       }
       if (gen !== contextGenRef.current) return;
-      setActiveLeafId(leafId);
+      setActiveLeafId(actualLeafId);
       // loadContext bumps gen again — pass through by reusing after navigate
       contextGenRef.current = gen;
-      await loadContext(sid, leafId);
+      await loadContext(sid, actualLeafId);
       await refreshContextUsage(sid);
     },
     [contextGenRef, loadContext, refreshContextUsage, sessionIdRef, setActiveLeafId],
@@ -301,16 +309,17 @@ export function useSessionActions(context: Dependencies) {
 
   const handleModelChange = useCallback(
     async (provider: string, modelId: string) => {
+      const model = { provider, modelId };
       if (isNew) {
-        setThinkingLevel(null);
-        setNewSessionModel({ provider, modelId });
-        setPendingModel({ provider, modelId });
-        const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
-        if (!sid) return;
+        setNewSessionModel(model);
+        setPendingModel(model);
         try {
-          const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
-          const reported = reportedThinkingLevel(reply);
-          if (reported) setThinkingLevel(reported);
+          await modelChoice.choose({ model, thinkingLevel: null }, async () => {
+            const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
+            if (!sid) return {};
+            const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+            return { thinkingLevel: reportedThinkingLevel(reply) };
+          });
         } catch (e) {
           console.error("Failed to set model:", e);
         }
@@ -319,10 +328,10 @@ export function useSessionActions(context: Dependencies) {
       const sid = sessionIdRef.current;
       if (!sid) return;
       try {
-        const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
-        const reported = reportedThinkingLevel(reply);
-        if (reported) setThinkingLevel(reported);
-        setCurrentModelOverride({ provider, modelId });
+        await modelChoice.choose({ model }, async () => {
+          const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+          return { thinkingLevel: reportedThinkingLevel(reply) };
+        });
         // The context window may differ between models — refresh immediately
         // instead of waiting for the next agent_end.
         await refreshContextUsage(sid);
@@ -330,16 +339,7 @@ export function useSessionActions(context: Dependencies) {
         console.error("Failed to set model:", e);
       }
     },
-    [
-      ensuringNewSessionRef,
-      isNew,
-      refreshContextUsage,
-      sessionIdRef,
-      setCurrentModelOverride,
-      setNewSessionModel,
-      setPendingModel,
-      setThinkingLevel,
-    ],
+    [ensuringNewSessionRef, isNew, modelChoice, refreshContextUsage, sessionIdRef, setNewSessionModel, setPendingModel],
   );
 
   const handleCompact = useCallback(async () => {
