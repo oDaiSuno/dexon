@@ -5,6 +5,7 @@ import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCall
 import { turnTitleOf } from "../shared/turn-title";
 import { buildSessionContext, entryToUiMessage } from "./session-reader";
 import type { ChosenSessionModel } from "./session-model";
+import { branchAt, type SessionBranch } from "./session-branch";
 import { deferNewestMessage, fitUnitToBudget, measureItems } from "./session-history-budget";
 import {
   attachRetryOutcomes,
@@ -71,21 +72,6 @@ export function decodeHistoryCursor(cursor: string): HistoryCursorPayload {
   }
 }
 
-function buildEntryPath(entries: SessionEntry[], leafId?: string | null): SessionEntry[] {
-  if (leafId === null) return [];
-  const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  let current = leafId ? byId.get(leafId) : entries.at(-1);
-  if (!current) return [];
-  const path: SessionEntry[] = [];
-  const visited = new Set<string>();
-  while (current && !visited.has(current.id)) {
-    visited.add(current.id);
-    path.push(current);
-    current = current.parentId ? byId.get(current.parentId) : undefined;
-  }
-  return path.reverse();
-}
-
 function groupTurns(messages: ProjectedMessage[]): ProjectedMessage[][] {
   const turns: ProjectedMessage[][] = [];
   let current: ProjectedMessage[] = [];
@@ -146,26 +132,33 @@ function packPage(units: MessageUnit[], maxTurns: number, maxBytes: number): Pro
 }
 
 export function buildSessionHistoryPage(options: {
-  entries: SessionEntry[];
+  branch?: SessionBranch;
+  entries?: SessionEntry[];
   leafId?: string | null;
+  modelChoice?: ChosenSessionModel;
   historyWindow?: HistoryWindow;
   historyRevision: string;
   cursor?: HistoryCursorPayload;
-  modelChoice: ChosenSessionModel;
 }): PagedContextInfo {
-  const { entries, historyWindow, historyRevision, cursor, modelChoice } = options;
-  const settings = { model: modelChoice.model, thinkingLevel: modelChoice.thinkingLevel ?? "off" };
-  const anchorLeafId = cursor?.anchorLeafId ?? options.leafId ?? entries.at(-1)?.id ?? null;
-  const path = buildEntryPath(entries, anchorLeafId);
+  const { historyWindow, historyRevision, cursor, modelChoice } = options;
+  const allEntries = options.branch ? options.branch.allEntries : (options.entries ?? []);
+  const baseBranch = options.branch ?? branchAt(allEntries, options.leafId);
+  const branch =
+    cursor && baseBranch.leafId !== cursor.anchorLeafId ? branchAt(allEntries, cursor.anchorLeafId) : baseBranch;
+  const { path, leafId: anchorLeafId } = branch;
   if (cursor) {
     if (cursor.historyRevision !== historyRevision) throw new StaleHistoryCursorError();
+    if (branch.leafId !== cursor.anchorLeafId) throw new StaleHistoryCursorError();
     if (path.length < cursor.anchorPathLength) throw new StaleHistoryCursorError();
-    if (!path.some((entry) => entry.id === cursor.anchorLeafId)) throw new StaleHistoryCursorError();
     if (!path.some((entry) => entry.id === cursor.beforeEntryId)) throw new StaleHistoryCursorError();
   }
+  const settings = {
+    model: modelChoice ? modelChoice.model : branch.model,
+    thinkingLevel: (modelChoice ? modelChoice.thinkingLevel : branch.thinkingLevel) ?? "off",
+  };
 
   if (!historyWindow && !cursor) {
-    const context = buildSessionContext(entries, options.leafId);
+    const context = buildSessionContext(branch);
     return {
       ...context,
       ...settings,
@@ -201,7 +194,7 @@ export function buildSessionHistoryPage(options: {
       : undefined;
 
   return {
-    messages: withVersions(entries, selected),
+    messages: withVersions(branch.allEntries, selected),
     entryIds: selected.map((item) => item.entryId),
     ...settings,
     totalMessages: allMessages.length,
@@ -213,7 +206,7 @@ export function buildSessionHistoryPage(options: {
   };
 }
 
-function withVersions(entries: SessionEntry[], selected: ProjectedMessage[]): PagedContextInfo["messages"] {
+function withVersions(entries: readonly SessionEntry[], selected: ProjectedMessage[]): PagedContextInfo["messages"] {
   const versions = versionsByEntryId(entries);
   if (versions.size === 0) return selected.map((item) => item.message);
   return selected.map((item) => {

@@ -8,6 +8,11 @@ const { buildSessionHistoryPage, decodeHistoryCursor, readSessionEntryContent, S
     entryPoints: [path.join(import.meta.dirname, "session-history.ts")],
   });
 
+const { branchAt, withBranchModelChoice } = await importTestBundle("src/agent-host/session-branch-for-history", {
+  packages: "external",
+  entryPoints: [path.join(import.meta.dirname, "session-branch.ts")],
+});
+
 const timestamp = "2026-08-06T00:00:00.000Z";
 const modelChoice = { model: { provider: "provider", modelId: "model" }, thinkingLevel: null };
 
@@ -530,4 +535,129 @@ test("when one block is read back for display, its model-only signatures are not
     thinking: "why",
     thinkingSignature: "thinking-sig",
   });
+});
+
+test("navigating to the empty root branch returns an empty page and outline instead of falling back to the last entry", () => {
+  const entries = chain([user("first question"), assistant([{ type: "text", text: "first answer" }])]);
+  const fullRoot = buildSessionHistoryPage({
+    modelChoice,
+    entries,
+    leafId: null,
+    historyRevision: "root-revision",
+  });
+  assert.deepEqual(fullRoot.messages, []);
+  assert.deepEqual(fullRoot.entryIds, []);
+  assert.deepEqual(fullRoot.outline, []);
+
+  const pagedRoot = buildSessionHistoryPage({
+    modelChoice,
+    entries,
+    leafId: null,
+    historyWindow: { maxTurns: 5, maxBytes: 64 * 1024 },
+    historyRevision: "root-revision",
+  });
+  assert.deepEqual(pagedRoot.messages, []);
+  assert.deepEqual(pagedRoot.entryIds, []);
+  assert.deepEqual(pagedRoot.outline, []);
+});
+
+test("full and paged history terminate cyclic parent links and preserve the stored records", () => {
+  const entries = chain([user("first question"), assistant([{ type: "text", text: "first answer" }])]);
+  entries[0].parentId = entries[1].id;
+  const persisted = structuredClone(entries);
+  for (const historyWindow of [undefined, { maxTurns: 1 }]) {
+    const page = buildSessionHistoryPage({ entries, historyWindow, historyRevision: "cyclic-revision" });
+    assert.deepEqual(page.entryIds, ["entry-0", "entry-1"]);
+    assert.deepEqual(
+      page.messages.map((message) => message.role),
+      ["user", "assistant"],
+    );
+    assert.deepEqual(page.outline, [{ entryId: "entry-0", title: "first question" }]);
+    assert.equal(page.previousCursor, undefined);
+    assert.deepEqual(page.model, { provider: "provider", modelId: "model" });
+  }
+  assert.deepEqual(entries, persisted);
+});
+
+test("history remains readable when model and thinking records form a cycle before a question", () => {
+  const entries = chain([
+    { type: "model_change", provider: "provider", modelId: "catalog-model" },
+    { type: "thinking_level_change", thinkingLevel: "high" },
+    user("question after cyclic settings"),
+    assistant([{ type: "text", text: "answer" }]),
+  ]);
+  entries[0].parentId = entries[1].id;
+  for (const historyWindow of [undefined, { maxTurns: 1 }]) {
+    const page = buildSessionHistoryPage({ entries, historyWindow, historyRevision: "cyclic-settings-revision" });
+    assert.deepEqual(page.entryIds, ["entry-2", "entry-3"]);
+    assert.deepEqual(page.model, { provider: "provider", modelId: "catalog-model" });
+    assert.equal(page.thinkingLevel, "high");
+  }
+});
+
+test("paging a resolved branch retains its live choice and re-anchors other branches to the cursor's recorded choice", () => {
+  const entries = chain([
+    { type: "model_change", provider: "provider", modelId: "recorded-model" },
+    { type: "thinking_level_change", thinkingLevel: "high" },
+    user("first question"),
+    assistant([{ type: "text", text: "first answer" }]),
+    user("second question"),
+    assistant([{ type: "text", text: "second answer" }]),
+    { type: "model_change", provider: "provider", modelId: "other-model", parentId: "entry-3" },
+    user("alternate question"),
+    assistant([{ type: "text", text: "alternate answer" }]),
+  ]);
+  const liveChoice = { model: { provider: "provider", modelId: "live-model" }, thinkingLevel: "off" };
+  const liveBranch = withBranchModelChoice(branchAt(entries, "entry-5"), liveChoice);
+  const historyRevision = "anchored-branch-revision";
+  const historyWindow = { maxTurns: 1 };
+  const newest = buildSessionHistoryPage({ branch: liveBranch, historyWindow, historyRevision });
+  assert.deepEqual(newest.messages[0].versions, { entryIds: ["entry-4", "entry-7"], index: 0 });
+  const cursor = decodeHistoryCursor(newest.previousCursor);
+  const sameBranch = buildSessionHistoryPage({ branch: liveBranch, historyWindow, historyRevision, cursor });
+  assert.deepEqual(sameBranch.entryIds, ["entry-2", "entry-3"]);
+  assert.deepEqual(sameBranch.model, liveChoice.model);
+  assert.equal(sameBranch.thinkingLevel, "off");
+  const otherBranch = buildSessionHistoryPage({ branch: branchAt(entries), historyWindow, historyRevision, cursor });
+  assert.deepEqual(otherBranch.entryIds, ["entry-2", "entry-3"]);
+  assert.deepEqual(otherBranch.model, { provider: "provider", modelId: "recorded-model" });
+  assert.equal(otherBranch.thinkingLevel, "high");
+});
+
+test("a missing cursor anchor is rejected instead of silently paging the latest branch", () => {
+  const entries = chain([user("first"), assistant([{ type: "text", text: "answer" }]), user("second")]);
+  const historyRevision = "missing-anchor-revision";
+  const page = buildSessionHistoryPage({ entries, historyWindow: { maxTurns: 1 }, historyRevision });
+  const cursor = { ...decodeHistoryCursor(page.previousCursor), anchorLeafId: "missing-leaf" };
+  assert.throws(
+    () => buildSessionHistoryPage({ branch: branchAt(entries), historyRevision, cursor }),
+    StaleHistoryCursorError,
+  );
+});
+
+test("empty root settings stay empty unless an explicit model choice overrides them", () => {
+  const entries = chain([
+    { type: "model_change", provider: "provider", modelId: "catalog-model" },
+    { type: "thinking_level_change", thinkingLevel: "high" },
+    user("question"),
+    assistant([{ type: "text", text: "answer" }]),
+  ]);
+  for (const historyWindow of [undefined, { maxTurns: 1 }]) {
+    const options = { branch: branchAt(entries, null), historyWindow, historyRevision: "root-settings-revision" };
+    const root = buildSessionHistoryPage(options);
+    assert.equal(root.model, null);
+    assert.equal(root.thinkingLevel, "off");
+    assert.deepEqual(root.messages, []);
+    const chosen = buildSessionHistoryPage({ ...options, modelChoice });
+    assert.deepEqual(chosen.model, modelChoice.model);
+    assert.equal(chosen.thinkingLevel, "off");
+    const cleared = buildSessionHistoryPage({
+      branch: branchAt(entries),
+      historyWindow,
+      historyRevision: "cleared-choice-revision",
+      modelChoice: { model: null, thinkingLevel: null },
+    });
+    assert.equal(cleared.model, null);
+    assert.equal(cleared.thinkingLevel, "off");
+  }
 });

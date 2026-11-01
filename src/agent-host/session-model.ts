@@ -41,6 +41,10 @@ export interface ChosenSessionModel {
   thinkingLevel: string | null;
 }
 
+export interface SessionModelEvidence extends ChosenSessionModel {
+  readonly modelCandidates: readonly SessionModelRef[];
+}
+
 function signedModelOf(message: { role: string; provider?: unknown; model?: unknown }): SessionModelRef | null {
   if (message.role !== "assistant") return null;
   const provider = typeof message.provider === "string" ? message.provider.trim() : "";
@@ -54,7 +58,7 @@ export type SessionModelEntry =
   | { type: "message"; message: { role: string; provider?: unknown; model?: unknown } }
   | { type: string };
 
-export function chosenSessionModel(entries: readonly SessionModelEntry[]): ChosenSessionModel {
+export function foldSessionModelEvidence(entries: readonly SessionModelEntry[]): SessionModelEvidence {
   let changed: SessionModelRef | null = null;
   let signed: SessionModelRef | null = null;
   let thinkingLevel: string | null = null;
@@ -67,7 +71,18 @@ export function chosenSessionModel(entries: readonly SessionModelEntry[]): Chose
       signed = signedModelOf(entry.message) ?? signed;
     }
   }
-  return { model: changed ?? signed, thinkingLevel };
+  const modelCandidates: SessionModelRef[] = [];
+  for (const candidate of [changed, signed]) {
+    if (candidate && !modelCandidates.some((model) => sameModelRef(model, candidate))) {
+      modelCandidates.push(candidate);
+    }
+  }
+  return { model: modelCandidates[0] ?? null, thinkingLevel, modelCandidates };
+}
+
+export function chosenSessionModel(entries: readonly SessionModelEntry[]): ChosenSessionModel {
+  const { model, thinkingLevel } = foldSessionModelEvidence(entries);
+  return { model, thinkingLevel };
 }
 
 export interface ModelAnchorPlan {

@@ -1,8 +1,4 @@
-import {
-  SessionManager,
-  buildSessionContext as piBuildSessionContext,
-  getAgentDir,
-} from "@earendil-works/pi-coding-agent";
+import { SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
 import type { RpcServer } from "../contract/rpc";
 import {
@@ -19,11 +15,11 @@ import type {
   SessionContext,
   UserMessage,
 } from "../shared/types";
-import type { SessionEntry as PiSessionEntry, SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
+import type { SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
 import { versionsByEntryId } from "./session-versions";
-import { chosenSessionModel } from "./session-model";
+import { branchAt, type SessionBranch } from "./session-branch";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { locateSessionProject, type LocatedProject } from "./session-project";
 import { flushSessionProjects } from "./session-project-store";
@@ -195,43 +191,21 @@ export function getSessionEntries(filePath: string): SessionEntry[] {
   return entries as unknown as SessionEntry[];
 }
 
-export function buildSessionContext(entries: SessionEntry[], leafId?: string | null): SessionContext {
-  const byId = new Map<string, SessionEntry>();
-  for (const e of entries) byId.set(e.id, e);
+export function buildSessionContext(branch: SessionBranch): SessionContext;
+export function buildSessionContext(entries: SessionEntry[], leafId?: string | null): SessionContext;
+export function buildSessionContext(
+  branchOrEntries: SessionBranch | SessionEntry[],
+  leafId?: string | null,
+): SessionContext {
+  const branch = Array.isArray(branchOrEntries) ? branchAt(branchOrEntries, leafId) : branchOrEntries;
+  const thinkingLevel = branch.thinkingLevel ?? "off";
+  if (branch.path.length === 0) return { messages: [], entryIds: [], thinkingLevel, model: branch.model };
 
-  const piEntries = entries as unknown as PiSessionEntry[];
-  const piCtx = piBuildSessionContext(piEntries, leafId, byId as unknown as Map<string, PiSessionEntry>);
-
-  // Build entryIds: parallel array to messages[], mapping each message back to its entry id.
-  // Needed for fork and navigate_tree calls from the UI.
-  let targetLeaf: SessionEntry | undefined;
-  if (leafId !== null) {
-    targetLeaf = (leafId ? byId.get(leafId) : undefined) ?? entries[entries.length - 1];
-  }
-
-  // Walk path from target leaf to root
-  const path: SessionEntry[] = [];
-  let cur: SessionEntry | undefined = targetLeaf;
-  while (cur) {
-    path.unshift(cur);
-    cur = cur.parentId ? byId.get(cur.parentId) : undefined;
-  }
-
-  const chosen = chosenSessionModel(path);
-  const thinkingLevel = chosen.thinkingLevel ?? piCtx.thinkingLevel;
-  if (path.length === 0) return { messages: [], entryIds: [], thinkingLevel, model: chosen.model };
-
-  // Build UI history from the FULL branch path (root to leaf), without trimming.
-  // pi's buildSessionContext targets LLM context: it drops everything before the last
-  // compaction's firstKeptEntryId. Correct for the model, but it would hide compacted
-  // history from the UI. We keep piCtx only for thinkingLevel/model, and render every
-  // displayable entry on the path ourselves; compaction/branch_summary entries become
-  // inline summary messages so the user still sees where context was compressed.
   const messages: AgentMessage[] = [];
   const entryIds: string[] = [];
   let pendingChannelSource: ChannelSourceMarker | null = null;
   let pendingSessionSource: SessionSourceRef | null = null;
-  for (const e of path) {
+  for (const e of branch.path) {
     if (e.type === "custom" && isSessionSourceType(e.customType)) {
       pendingSessionSource = parseSessionSourceMarker(e.data);
       continue;
@@ -260,7 +234,7 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
     }
   }
 
-  const versions = versionsByEntryId(entries);
+  const versions = versionsByEntryId(branch.allEntries);
   if (versions.size > 0) {
     entryIds.forEach((entryId, index) => {
       const message = messages[index];
@@ -273,7 +247,7 @@ export function buildSessionContext(entries: SessionEntry[], leafId?: string | n
     messages,
     entryIds,
     thinkingLevel,
-    model: chosen.model,
+    model: branch.model,
   };
 }
 
