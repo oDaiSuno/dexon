@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { splitLeadingSkillCommand, parseExpandedSkillMessage, skillCommandText } from "@shared/skill-commands";
+import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
 import { CHANNEL_ATTACHMENT_PROMPT_PLACEHOLDER, channelAttachmentCopyText } from "@shared/channel-message";
 import { useI18n } from "@/i18n";
@@ -67,14 +67,10 @@ export function UserMessageView({
     : content;
   const copyableContent = isChannelAttachmentPlaceholder ? attachmentCopyContent : visibleContent;
 
-  // Pi rewrites a leading `/skill:name` into an expanded <skill> block before
-  // storing or echoing the message, so accept both shapes (history reloads too).
-  const leadingSkill = splitLeadingSkillCommand(visibleContent) ?? parseExpandedSkillMessage(visibleContent);
-  const prose = leadingSkill ? leadingSkill.rest.replace(/^\s/, "") : visibleContent;
-  const leadingSkillName = leadingSkill?.name ?? null;
-  const draftText = leadingSkill
-    ? [skillCommandText(leadingSkill.name), leadingSkill.rest.replace(/^\s+/, "")].filter(Boolean).join(" ")
-    : visibleContent;
+  const intent = readPromptIntent(visibleContent);
+  const prose = intent.kind === "skill" ? intent.goal : visibleContent;
+  const leadingSkillName = intent.kind === "skill" ? intent.name : null;
+  const draftText = promptIntentText(intent);
 
   const hasDeferredContent =
     Array.isArray(message.content) &&

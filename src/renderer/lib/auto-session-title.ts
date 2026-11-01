@@ -8,12 +8,12 @@
  * always wins, and falls back to a local first-N-characters title when the LLM
  * call fails — the sidebar never shows an untitled session.
  */
+import { readPromptIntent, titleSourceOf } from "@shared/prompt-intent";
 import { call } from "./api-client";
 import { trackSessionNaming } from "./session-naming-store";
 
 export const AUTO_TITLE_STORAGE_KEY = "dexon:autoSessionTitle";
 export const SESSION_NAMING_MODEL_STORAGE_KEY = "dexon:sessionNamingModel";
-export const AUTO_TITLE_MIN_MESSAGE_LENGTH = 2;
 
 export interface SessionNamingModel {
   provider: string;
@@ -75,16 +75,8 @@ export function setSessionNamingModel(model: SessionNamingModel | null): void {
   }
 }
 
-/**
- * A new-session first message qualifies when auto-titles are on and the message
- * is real text — not a slash command and long enough to summarize.
- */
 export function shouldAutoTitleMessage(message: string): boolean {
-  if (!isAutoSessionTitleEnabled()) return false;
-  const trimmed = message.trim();
-  if (!trimmed || trimmed.startsWith("/")) return false;
-  if ([...trimmed].length < AUTO_TITLE_MIN_MESSAGE_LENGTH) return false;
-  return true;
+  return isAutoSessionTitleEnabled() && titleSourceOf(readPromptIntent(message)) !== null;
 }
 
 export interface AutoSessionTitleOptions {
