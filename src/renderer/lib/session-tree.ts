@@ -25,7 +25,22 @@ function newest(values: string[]): string {
   return latest;
 }
 
-export function buildSessionTree(sessions: SessionInfo[]): SessionTreeNode[] {
+export function sessionAncestorIds(sessions: readonly SessionInfo[], sessionId: string): string[] {
+  const byId = new Map(sessions.map((session) => [session.id, session]));
+  const ancestors: string[] = [];
+  const visited = new Set([sessionId]);
+  let parentId = byId.get(sessionId)?.parentSessionId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = byId.get(parentId);
+    if (!parent) break;
+    ancestors.push(parent.id);
+    parentId = parent.parentSessionId;
+  }
+  return ancestors;
+}
+
+export function buildSessionTree(sessions: readonly SessionInfo[]): SessionTreeNode[] {
   const byId = new Map<string, SessionTreeNode>();
   for (const session of sessions) byId.set(session.id, { session, children: [], activity: session.modified });
 

@@ -1,9 +1,29 @@
 import { normalizeWorktreePathForComparison } from "../../shared/worktree-path.ts";
 import type { SessionInfo } from "./types";
 
+export type ProjectKey = string & { readonly __brand?: "ProjectKey" };
+
 export interface SessionProject {
   root: string;
   sessions: SessionInfo[];
+}
+
+export interface ListedProject {
+  root: string;
+  missing: boolean;
+}
+
+export interface ProjectSessions {
+  readonly key: ProjectKey;
+  readonly root: string;
+  readonly missing: boolean;
+  readonly sessions: readonly SessionInfo[];
+}
+
+export interface ProjectListing {
+  readonly currentProject: string;
+  readonly listedProjects?: readonly ListedProject[];
+  readonly isPinnedProject?: (root: string) => boolean;
 }
 
 export type SessionDateGroup = "today" | "recent" | "older";
@@ -45,13 +65,8 @@ export function sessionDateGroup(modified: string, now = new Date()): SessionDat
   return "older";
 }
 
-/**
- * Return all projects (deduped by projectRoot so worktrees collapse into their
- * main repo) sorted by most recent session activity. Moved verbatim from
- * SessionSidebar.tsx in Phase 2.
- */
 export function getRecentProjects(sessions: SessionInfo[]): string[] {
-  const latestByRoot = new Map<string, string>(); // projectRoot -> most recent modified
+  const latestByRoot = new Map<string, string>();
   for (const s of sessions) {
     const root = s.projectRoot ?? s.cwd;
     if (!root) continue;
@@ -63,12 +78,39 @@ export function getRecentProjects(sessions: SessionInfo[]): string[] {
   return [...latestByRoot.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([root]) => root);
 }
 
-export function sessionProjectKey(root: string): string {
+export function sessionProjectKey(root: string): ProjectKey {
   return normalizeWorktreePathForComparison(root);
 }
 
+export function sessionProjectKeyOf(session: SessionInfo): ProjectKey | null {
+  const root = session.projectRoot ?? session.cwd;
+  return root ? sessionProjectKey(root) : null;
+}
+
+export function projectSessionGroups(sessions: readonly SessionInfo[], listing: ProjectListing): ProjectSessions[] {
+  if (!listing.listedProjects) {
+    return groupSessionsByProject(sessions, listing.currentProject, listing.isPinnedProject).map((project) => ({
+      ...project,
+      key: sessionProjectKey(project.root),
+      missing: false,
+    }));
+  }
+  const byProject = new Map<ProjectKey, SessionInfo[]>();
+  for (const session of sessions) {
+    const key = sessionProjectKeyOf(session);
+    if (!key) continue;
+    const members = byProject.get(key);
+    if (members) members.push(session);
+    else byProject.set(key, [session]);
+  }
+  return listing.listedProjects.map((project) => {
+    const key = sessionProjectKey(project.root);
+    return { ...project, key, sessions: byProject.get(key) ?? [] };
+  });
+}
+
 export function groupSessionsByProject(
-  sessions: SessionInfo[],
+  sessions: readonly SessionInfo[],
   currentRoot: string,
   pinned: (root: string) => boolean = () => false,
 ): SessionProject[] {
