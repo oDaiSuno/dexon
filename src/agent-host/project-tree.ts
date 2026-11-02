@@ -75,7 +75,7 @@ function treeEntryPreview(entry: Record<string, unknown>): SessionTreeNode["entr
     message && ["user", "assistant", "toolResult", "custom"].includes(String(message.role))
       ? (message.role as SessionTreeNode["entry"]["role"])
       : undefined;
-  const content = message?.content;
+  const content = role ? message?.content : undefined;
   const text =
     typeof content === "string"
       ? content
