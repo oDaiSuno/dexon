@@ -3,13 +3,14 @@ import type { ComposerChange, ComposerSnapshot } from "./types";
 import { parseSlashQuery, type SlashQuery } from "./command-slot";
 
 export type ComposerTrigger =
-  { readonly kind: "slash"; readonly query: SlashQuery } | { readonly kind: "at"; readonly match: AtQueryMatch };
-
-export type TriggerMode = "closed" | "range-edit" | "open";
+  | { readonly kind: "slash"; readonly query: SlashQuery; readonly trailing: boolean }
+  | { readonly kind: "at"; readonly match: AtQueryMatch };
 
 export interface TriggerGate {
   readonly trigger: ComposerTrigger | null;
-  readonly mode: TriggerMode;
+  readonly restored: boolean;
+  readonly dismissedKey: string | null;
+  readonly open: boolean;
 }
 
 export type TriggerGateEvent =
@@ -17,14 +18,19 @@ export type TriggerGateEvent =
   | { readonly type: "dismissed" }
   | { readonly type: "reset" };
 
-export const initialTriggerGate: TriggerGate = { trigger: null, mode: "closed" };
+export const initialTriggerGate: TriggerGate = {
+  trigger: null,
+  restored: false,
+  dismissedKey: null,
+  open: false,
+};
 
 export function composerTrigger(snapshot: ComposerSnapshot | null, atEnabled: boolean): ComposerTrigger | null {
   if (!snapshot || snapshot.caret.kind !== "caret") return null;
   const before = snapshot.masked.slice(0, snapshot.caret.offset);
   const after = snapshot.masked.slice(snapshot.caret.offset);
   const query = parseSlashQuery({ before, after });
-  if (query) return { kind: "slash", query };
+  if (query) return { kind: "slash", query, trailing: after.length > 0 };
   if (!atEnabled) return null;
   const match = extractAtQuery(before);
   return match ? { kind: "at", match } : null;
@@ -44,25 +50,40 @@ export function triggersEqual(a: ComposerTrigger | null, b: ComposerTrigger | nu
 export function nextTriggerGate(gate: TriggerGate, event: TriggerGateEvent, atEnabled: boolean): TriggerGate {
   if (event.type === "reset") return initialTriggerGate;
   if (event.type === "dismissed") {
-    return gate.mode === "closed" ? gate : { trigger: gate.trigger, mode: "closed" };
+    const key = triggerKey(gate.trigger);
+    if (gate.restored || key === null) return gate;
+    if (!gate.open && gate.dismissedKey === key) return gate;
+    return { trigger: gate.trigger, restored: false, dismissedKey: key, open: false };
   }
-  const trigger = composerTrigger(event.change.snapshot, atEnabled);
-  let mode: TriggerMode;
-  if (event.change.cause === "restore") mode = "closed";
-  else if (event.change.cause === "edit") {
-    mode = trigger !== null ? "open" : event.change.snapshot.caret.kind === "range" ? "range-edit" : "closed";
-  } else if (gate.mode === "range-edit" && event.change.snapshot.caret.kind === "range") {
-    mode = "range-edit";
-  } else {
-    mode =
-      trigger !== null && (gate.mode === "range-edit" || (gate.mode === "open" && triggersEqual(trigger, gate.trigger)))
-        ? "open"
-        : "closed";
+  const { cause, snapshot } = event.change;
+  const trigger = composerTrigger(snapshot, atEnabled);
+  if (cause === "restore") {
+    return { trigger, restored: true, dismissedKey: null, open: false };
   }
-  if (triggersEqual(trigger, gate.trigger) && mode === gate.mode) return gate;
-  return { trigger, mode };
+  if (gate.restored && cause !== "edit") {
+    return { trigger, restored: true, dismissedKey: null, open: false };
+  }
+  const key = triggerKey(trigger);
+  const dismissedKey = cause === "edit" ? null : key === null || key === gate.dismissedKey ? gate.dismissedKey : null;
+  let open = false;
+  if (trigger !== null && key !== dismissedKey) {
+    if (cause === "edit" || trigger.kind === "at" || !trigger.trailing) {
+      open = true;
+    } else {
+      open = gate.open && triggersEqual(trigger, gate.trigger);
+    }
+  }
+  if (
+    triggersEqual(trigger, gate.trigger) &&
+    !gate.restored &&
+    dismissedKey === gate.dismissedKey &&
+    open === gate.open
+  ) {
+    return gate;
+  }
+  return { trigger, restored: false, dismissedKey, open };
 }
 
 export function openTrigger(gate: TriggerGate, visible: boolean): ComposerTrigger | null {
-  return visible && gate.mode === "open" ? gate.trigger : null;
+  return visible && gate.open ? gate.trigger : null;
 }
