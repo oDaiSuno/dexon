@@ -1,5 +1,6 @@
+import { statSync } from "node:fs";
 import path from "node:path";
-import { extractFile, listPackage } from "@electron/asar";
+import { extractFile, listPackage, statFile } from "@electron/asar";
 
 const piPackages = ["pi-ai", "pi-agent-core", "pi-coding-agent", "pi-codemode", "pi-mcp", "pi-telemetry", "pi-tui"];
 const packageRoots = [
@@ -31,6 +32,19 @@ export function verifyPiRuntimeAssets(resources, platform, arch, expectedPiVersi
   );
   const missing = required.filter((entry) => !entries.has(entry));
   if (missing.length > 0) throw new Error(`Packaged Pi runtime/authoring assets are missing: ${missing.join(", ")}`);
+  const missingUnpacked = required.filter((entry) => {
+    const metadata = statFile(asarPath, entry);
+    if (!metadata.unpacked) return false;
+    try {
+      const file = statSync(path.join(`${asarPath}.unpacked`, entry));
+      return !file.isFile() || file.size === 0 || (!entry.endsWith(".node") && file.size !== metadata.size);
+    } catch {
+      return true;
+    }
+  });
+  if (missingUnpacked.length > 0) {
+    throw new Error(`Packaged Pi unpacked assets are missing or incomplete: ${missingUnpacked.join(", ")}`);
+  }
 
   for (const packageRoot of packageRoots) {
     const packaged = JSON.parse(extractFile(asarPath, path.join(packageRoot, "package.json")).toString("utf8"));

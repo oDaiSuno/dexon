@@ -109,3 +109,26 @@ test("a package missing the directly imported typebox runtime blocks verificatio
   });
   assert.throws(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile), /typebox/);
 });
+
+test("an archive without the physical unpacked runtime files cannot pass verification", async (t) => {
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, { unpack: "**/*.{wasm,node}" });
+  assert.doesNotThrow(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile));
+  fs.rmSync(path.join(resources, "app.asar.unpacked"), { recursive: true });
+  assert.throws(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile), /unpacked.*quickjs\.wasm/);
+});
+
+test("a lockfile matching an obsolete Pi package does not override the required version", async (t) => {
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, { version: "0.84.4" });
+  for (const name of piPackages) lockfile.packages[`node_modules/@earendil-works/${name}`].version = "0.84.4";
+  assert.throws(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile), /does not match 1\.4\.0/);
+});
+
+test("signing an unpacked native module may change its size without making the package incomplete", async (t) => {
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, { unpack: "**/*.node" });
+  const native = path.join(
+    resources,
+    "app.asar.unpacked/node_modules/@earendil-works/pi-tui/native/darwin/prebuilds/darwin-arm64/darwin-platform.node",
+  );
+  fs.appendFileSync(native, "native signature");
+  assert.doesNotThrow(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile));
+});
