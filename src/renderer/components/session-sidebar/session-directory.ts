@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
@@ -7,6 +7,7 @@ import {
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
 } from "@/lib/unread-session-storage";
 import { applySessionChangedEvent } from "@/lib/session-sidebar-state";
+import { activityReducer, initialActivityState, parseLiveFrame, sessionActivityOf } from "@/lib/session-activity-state";
 import {
   clearSessionActivity,
   clearSessionCatalog,
@@ -23,13 +24,11 @@ function loadUnreadSessionIds(): Set<string> {
   }
 }
 
-function saveUnreadSessionIds(ids: Set<string>): void {
+function saveUnreadSessionIds(ids: ReadonlySet<string>): void {
   if (typeof window === "undefined") return;
   try {
     saveStoredUnreadSessionIds(window.localStorage, ids);
-  } catch {
-    // ignore storage quota / privacy-mode errors
-  }
+  } catch {}
 }
 
 export function useSessionDirectory({
@@ -46,13 +45,19 @@ export function useSessionDirectory({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sessionRefreshDone, setSessionRefreshDone] = useState(false);
-  const [runningSessionIds, setRunningSessionIds] = useState<Set<string>>(() => new Set());
-  const [liveStatuses, setLiveStatuses] = useState<Record<string, SessionLiveStatus>>({});
-  const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(() => loadUnreadSessionIds());
-  const previousRunningSessionIdsRef = useRef<Set<string>>(new Set());
-  // Once the live stream has delivered a frame it is the source of truth for
-  // running state; late session responses must not overwrite it.
-  const streamAuthoritativeRef = useRef(false);
+  const [ledger, dispatch] = useReducer(activityReducer, undefined, () => initialActivityState(loadUnreadSessionIds()));
+  if (ledger.selected !== selectedSessionId) dispatch({ type: "selected", sessionId: selectedSessionId });
+  const { live, unread } = ledger;
+  const runningSessionIds = useMemo(
+    () => new Set([...live].filter(([, entry]) => entry.status === "running").map(([id]) => id)),
+    [live],
+  );
+  const liveStatuses = useMemo<Record<string, SessionLiveStatus>>(
+    () => Object.fromEntries([...live].map(([id, entry]) => [id, entry.status])),
+    [live],
+  );
+  const unreadSessionIds = useMemo(() => new Set(unread), [unread]);
+  const activity = useMemo(() => sessionActivityOf({ live, unread }), [live, unread]);
   const sessionRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sidebarMountedRef = useRef(false);
 
@@ -84,26 +89,11 @@ export function useSessionDirectory({
                   ),
           );
         }
-        const data = (await res.json()) as {
-          sessions?: SessionInfo[];
-          runningSessionIds?: string[];
-          sessionStatuses?: Record<string, SessionLiveStatus>;
-        };
+        const data = (await res.json()) as { sessions?: SessionInfo[] };
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
         setAllSessions(sessions);
-        // Treat the fetched running set as an initial fallback only. Once the stream is
-        // live it owns this state, so a slow fetch can't revive a stale snapshot.
-        if (!streamAuthoritativeRef.current) {
-          setRunningSessionIds(new Set(data.runningSessionIds ?? []));
-          setLiveStatuses(data.sessionStatuses ?? {});
-        }
-        // Drop unread markers for sessions that no longer exist (e.g. deleted).
-        const existingIds = new Set(sessions.map((s) => s.id));
-        setUnreadSessionIds((prev) => {
-          if (prev.size === 0) return prev;
-          const next = new Set([...prev].filter((id) => existingIds.has(id)));
-          return next.size === prev.size ? prev : next;
-        });
+        dispatch({ type: "frame", source: "snapshot", live: parseLiveFrame(data), at: Date.now() });
+        dispatch({ type: "listed", sessionIds: new Set(sessions.map((session) => session.id)) });
         setError(null);
         if (!showLoading) {
           if (!sidebarMountedRef.current) return;
@@ -142,42 +132,27 @@ export function useSessionDirectory({
 
   useEffect(() => clearSessionActivity, []);
 
-  // Persist unread markers so they survive a browser refresh before the user
-  // has actually opened the completed session.
   useEffect(() => {
     saveUnreadSessionIds(unreadSessionIds);
   }, [unreadSessionIds]);
 
   useEffect(() => {
-    // Live running status via IPC stream (shimmed as EventSource).
-    // The shim pins the subscription to the current RPC client, so an Agent
-    // Host restart kills it silently. Reconnect on restart and drop the
-    // authoritative flag so the next fetch can repopulate the running set.
     let source: EventSource | null = null;
     const connectRunningStream = () => {
       source = new EventSource("/api/agent/running/events");
       source.onmessage = (e) => {
         try {
-          const data = JSON.parse(e.data) as {
-            type?: string;
-            runningSessionIds?: string[];
-            sessionIds?: string[];
-            sessionStatuses?: Record<string, SessionLiveStatus>;
-          };
-          if (data.type === "running") {
-            streamAuthoritativeRef.current = true;
-            setRunningSessionIds(new Set(data.runningSessionIds ?? data.sessionIds ?? []));
-            setLiveStatuses(data.sessionStatuses ?? {});
+          const data = JSON.parse(e.data) as { type?: string } | null;
+          if (data?.type === "running") {
+            dispatch({ type: "frame", source: "stream", live: parseLiveFrame(data), at: Date.now() });
           }
-        } catch {
-          // ignore malformed frames
-        }
+        } catch {}
       };
     };
     connectRunningStream();
 
     const offRestart = window.piBridge?.onHostRestarted?.(() => {
-      streamAuthoritativeRef.current = false;
+      dispatch({ type: "host_restarted" });
       source?.close();
       connectRunningStream();
       void loadSessions(false);
@@ -189,7 +164,6 @@ export function useSessionDirectory({
     };
   }, [loadSessions]);
 
-  // sessions.changed (CLI / disk watcher) → refresh sidebar without polling
   useEffect(() => {
     let unsub: (() => void) | undefined;
     let cancelled = false;
@@ -202,12 +176,7 @@ export function useSessionDirectory({
           setAllSessions((current) => applySessionChangedEvent(current, event) ?? current);
         }
         if (event.deleted && event.sessionId) {
-          setUnreadSessionIds((current) => {
-            if (!current.has(event.sessionId!)) return current;
-            const next = new Set(current);
-            next.delete(event.sessionId!);
-            return next;
-          });
+          dispatch({ type: "deleted", sessionId: event.sessionId });
           onSessionDeleted?.(event.sessionId);
         }
       }).then((u) => {
@@ -221,37 +190,11 @@ export function useSessionDirectory({
     };
   }, [loadSessions, onSessionDeleted]);
 
-  useEffect(() => {
-    const previous = previousRunningSessionIdsRef.current;
-    const completedInBackground = [...previous].filter((id) => !runningSessionIds.has(id) && id !== selectedSessionId);
-    const newlyRunning = [...runningSessionIds];
-
-    if (completedInBackground.length > 0 || newlyRunning.length > 0) {
-      setUnreadSessionIds((prev) => {
-        const next = new Set(prev);
-        newlyRunning.forEach((id) => next.delete(id));
-        completedInBackground.forEach((id) => next.add(id));
-        return next;
-      });
-    }
-
-    previousRunningSessionIdsRef.current = runningSessionIds;
-  }, [runningSessionIds, selectedSessionId]);
-
-  useEffect(() => {
-    if (!selectedSessionId) return;
-    setUnreadSessionIds((prev) => {
-      if (!prev.has(selectedSessionId)) return prev;
-      const next = new Set(prev);
-      next.delete(selectedSessionId);
-      return next;
-    });
-  }, [selectedSessionId]);
-
   return {
     sessions: allSessions,
     loading,
     error,
+    activity,
     runningSessionIds,
     liveStatuses,
     unreadSessionIds,

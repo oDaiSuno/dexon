@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { COUNTED_ACTIVITIES, type SessionActivityCounts } from "@/lib/session-tree-status";
 import { useI18n } from "@/i18n";
 import { RowIcon } from "./session-relation-glyphs";
 
@@ -41,23 +42,49 @@ export function AlertGlyph({ size }: { size: number }) {
   );
 }
 
-const PILL_TONES = {
-  warning: {
+export const ACTIVITY_TONE = {
+  awaiting_input: {
     border: "var(--fx-status-warning-border)",
     fill: "var(--fx-status-warning-soft)",
     icon: "var(--fx-status-warning)",
     text: "var(--fx-status-warning-text)",
+    dot: "var(--fx-status-warning)",
   },
-  danger: {
+  error: {
     border: "var(--fx-status-danger-border)",
     fill: "var(--fx-status-danger-soft)",
     icon: "var(--fx-status-danger)",
     text: "var(--fx-status-danger-text)",
+    dot: "var(--fx-status-danger)",
+  },
+  running: {
+    border: "var(--fx-line-subtle)",
+    fill: "var(--fx-surface-inset)",
+    icon: "var(--fx-accent-blue-text)",
+    text: "var(--fx-accent-blue-text)",
+    dot: "var(--fx-accent-blue)",
+  },
+  unread: {
+    dot: "var(--fx-accent-blue)",
   },
 };
 
-function StatusPill({ tone, label, icon }: { tone: keyof typeof PILL_TONES; label: string; icon: ReactNode }) {
-  const colors = PILL_TONES[tone];
+export function activityCountsPhrase(
+  counts: Readonly<SessionActivityCounts>,
+  t: (key: string, fallback: string) => string,
+): string {
+  const phrases = {
+    awaiting_input: t("sessionCountAwaitingInput", "{count} waiting for your answer"),
+    error: t("sessionCountError", "{count} failed"),
+    running: t("sessionCountRunning", "{count} running"),
+  };
+  return COUNTED_ACTIVITIES.filter((status) => counts[status] > 0)
+    .map((status) => phrases[status].replace("{count}", String(counts[status])))
+    .join(" · ");
+}
+
+function StatusPill({ tone, label, icon }: { tone: "awaiting_input" | "error"; label: string; icon: ReactNode }) {
+  const colors = ACTIVITY_TONE[tone];
   return (
     <span
       title={label}
@@ -88,7 +115,7 @@ export function RunningSessionIndicator() {
     <span
       title={t("agentRunning", "Agent is running…")}
       aria-label={t("agentRunningStatus", "Agent running")}
-      style={{ display: "inline-flex", flexShrink: 0, color: "var(--fx-accent-blue-text)" }}
+      style={{ display: "inline-flex", flexShrink: 0, color: ACTIVITY_TONE.running.icon }}
     >
       <span className="session-status-spin">
         <LoaderGlyph size={13} />
@@ -101,7 +128,7 @@ export function AwaitingInputSessionIndicator() {
   const { t } = useI18n();
   return (
     <StatusPill
-      tone="warning"
+      tone="awaiting_input"
       label={t("sessionStatusAwaitingInput", "Waiting for your answer")}
       icon={
         <span className="session-status-pulse">
@@ -114,7 +141,7 @@ export function AwaitingInputSessionIndicator() {
 
 export function FailedTurnSessionIndicator() {
   const { t } = useI18n();
-  return <StatusPill tone="danger" label={t("sessionStatusError", "Failed")} icon={<AlertGlyph size={12} />} />;
+  return <StatusPill tone="error" label={t("sessionStatusError", "Failed")} icon={<AlertGlyph size={12} />} />;
 }
 
 export function UnreadSessionIndicator() {
@@ -128,7 +155,7 @@ export function UnreadSessionIndicator() {
         height: 6,
         flexShrink: 0,
         borderRadius: "var(--radius-pill)",
-        background: "var(--fx-accent-blue)",
+        background: ACTIVITY_TONE.unread.dot,
       }}
     />
   );

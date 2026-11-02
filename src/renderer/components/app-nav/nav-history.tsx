@@ -1,12 +1,19 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
-import { filterSessionsForQuery, groupSessionsByProject, sessionProjectKey } from "@/lib/session-list";
+import { filterSessionsForQuery, projectSessionGroups, sessionProjectKey, type ProjectKey } from "@/lib/session-list";
 import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
+import { IDLE_PROJECT_ACTIVITY, type ProjectActivity } from "@/lib/sidebar-activity";
+import { projectRowFace } from "./project-row-status";
 import { ProjectRow } from "./project-row";
 import { useProjectDrag } from "./use-project-drag";
 import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
 import type { SwitcherProject } from "./project-switcher-card";
+
+export interface RevealRequest {
+  readonly seq: number;
+  readonly sessionId: string;
+}
 
 export interface ListedProject {
   root: string;
@@ -15,6 +22,7 @@ export interface ListedProject {
 
 export interface ProjectTreeOptions {
   currentProject: string;
+  projectActivity?: (key: ProjectKey) => ProjectActivity;
   projectName: (root: string) => string;
   isPinnedProject?: (root: string) => boolean;
   listedProjects?: readonly ListedProject[];
@@ -52,6 +60,7 @@ export function NavHistory({
   loading,
   error,
   tree,
+  revealRequest,
   ...handlers
 }: {
   sessions: SessionInfo[];
@@ -59,6 +68,7 @@ export function NavHistory({
   loading: boolean;
   error: string | null;
   tree: ProjectTreeOptions;
+  revealRequest?: RevealRequest | null;
 } & SessionListHandlers) {
   const { t } = useI18n();
   const [localOpen, setLocalOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
@@ -67,6 +77,13 @@ export function NavHistory({
     tree.onToggleProject ??
     ((key: string, open: boolean) => setLocalOpen((current) => new Map(current).set(key, open)));
   const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!revealRequest || revealRequest.sessionId !== handlers.selectedSessionId) return;
+    const row = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? [])].find(
+      (element) => element.dataset.sessionId === revealRequest.sessionId,
+    );
+    row?.scrollIntoView({ block: "nearest" });
+  }, [revealRequest, handlers.selectedSessionId]);
   const drag = useProjectDrag({
     listRef,
     onReorder: (from, to) => tree.onReorderProjects?.(from, to),
@@ -74,33 +91,18 @@ export function NavHistory({
 
   const searching = query.trim().length > 0;
   const currentKey = tree.currentProject ? sessionProjectKey(tree.currentProject) : "";
-  const base = useMemo(() => {
-    const listed = tree.listedProjects;
-    if (!listed) {
-      return groupSessionsByProject(sessions, tree.currentProject, tree.isPinnedProject).map((project) => ({
-        root: project.root,
-        key: sessionProjectKey(project.root),
-        missing: false,
-        sessions: project.sessions,
-      }));
-    }
-    const byProject = new Map<string, SessionInfo[]>();
-    for (const session of sessions) {
-      const root = session.projectRoot ?? session.cwd;
-      if (!root) continue;
-      const key = sessionProjectKey(root);
-      const members = byProject.get(key);
-      if (members) members.push(session);
-      else byProject.set(key, [session]);
-    }
-    return listed.map((project) => {
-      const key = sessionProjectKey(project.root);
-      return { root: project.root, key, missing: project.missing, sessions: byProject.get(key) ?? [] };
-    });
-  }, [sessions, tree.listedProjects, tree.currentProject, tree.isPinnedProject]);
+  const base = useMemo(
+    () =>
+      projectSessionGroups(sessions, {
+        listedProjects: tree.listedProjects,
+        currentProject: tree.currentProject,
+        isPinnedProject: tree.isPinnedProject,
+      }),
+    [sessions, tree.listedProjects, tree.currentProject, tree.isPinnedProject],
+  );
 
   const projects = base
-    .map((project) => ({ ...project, visible: filterSessionsForQuery(project.sessions, query) }))
+    .map((project) => ({ ...project, visible: filterSessionsForQuery([...project.sessions], query) }))
     .filter((project) => !searching || project.visible.length > 0);
   const switchTargets = base
     .filter((project) => project.key !== currentKey)
@@ -168,12 +170,20 @@ export function NavHistory({
               current={current}
               missing={project.missing}
               missingLabel={missingLabel}
+              face={projectRowFace({
+                open,
+                missing: project.missing,
+                totalSessions: count,
+                activity: tree.projectActivity?.(project.key) ?? IDLE_PROJECT_ACTIVITY,
+              })}
               dragging={drag.draggingIndex === index}
               onDragStart={
                 tree.onReorderProjects && !searching && index > 0 ? (event) => drag.start(index, event) : undefined
               }
               consumeDragClick={drag.consumeClick}
-              onToggle={() => toggleProject(project.key, !open)}
+              onToggle={() => {
+                if (!searching) toggleProject(project.key, !isOpen(project.key));
+              }}
               actions={
                 tree.renderProjectActions
                   ? (revealed) => tree.renderProjectActions?.(name, revealed, project)

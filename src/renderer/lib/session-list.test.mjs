@@ -5,7 +5,9 @@ import {
   filterSessionsForQuery,
   getSessionDisplayTitle,
   getRecentProjects,
+  projectSessionGroups,
   resolveInitialSessionRestore,
+  sessionProjectKeyOf,
   sessionDateGroup,
 } from "./session-list.ts";
 
@@ -20,6 +22,87 @@ function session(id, overrides = {}) {
     ...overrides,
   };
 }
+
+test("listed projects own only their normalized project sessions and retain the listed order", () => {
+  const sessions = Object.freeze([
+    session("worktree", { cwd: "/worktrees/alpha-feature", projectRoot: "/projects/alpha/" }),
+    session("beta", { cwd: "/projects/beta" }),
+    session("unlisted", { cwd: "/projects/hidden" }),
+    session("rootless", { cwd: "" }),
+  ]);
+  const groups = projectSessionGroups(sessions, {
+    currentProject: "/projects/hidden",
+    listedProjects: [
+      { root: "/projects/beta/", missing: true },
+      { root: "/projects/alpha", missing: false },
+      { root: "/projects/empty", missing: false },
+    ],
+    isPinnedProject: () => true,
+  });
+  assert.deepEqual(
+    groups.map(({ key, root, missing, sessions: members }) => ({
+      key,
+      root,
+      missing,
+      ids: members.map((member) => member.id),
+    })),
+    [
+      { key: "/projects/beta", root: "/projects/beta/", missing: true, ids: ["beta"] },
+      { key: "/projects/alpha", root: "/projects/alpha", missing: false, ids: ["worktree"] },
+      { key: "/projects/empty", root: "/projects/empty", missing: false, ids: [] },
+    ],
+  );
+});
+
+test("project ownership prefers the repository root and otherwise uses the cwd", () => {
+  assert.equal(
+    sessionProjectKeyOf(
+      session("worktree", {
+        cwd: "/worktrees/feature",
+        projectRoot: "/projects/repository/",
+      }),
+    ),
+    "/projects/repository",
+  );
+  assert.equal(sessionProjectKeyOf(session("plain", { cwd: "/projects/plain/" })), "/projects/plain");
+  assert.equal(sessionProjectKeyOf(session("rootless", { cwd: "" })), null);
+});
+
+test("without a project list grouping preserves pins, the empty current project, and recency order", () => {
+  const groups = projectSessionGroups(
+    Object.freeze([
+      session("latest", { cwd: "/projects/latest", modified: "2026-07-15T12:00:00.000Z" }),
+      session("pinned", { cwd: "/projects/pinned", modified: "2026-07-01T12:00:00.000Z" }),
+      session("worktree", { cwd: "/worktrees/latest", projectRoot: "/projects/latest/" }),
+    ]),
+    {
+      currentProject: "/projects/empty",
+      isPinnedProject: (root) => root === "/projects/pinned",
+    },
+  );
+  assert.deepEqual(
+    groups.map(({ root, missing, sessions: members }) => ({
+      root,
+      missing,
+      ids: members.map((member) => member.id),
+    })),
+    [
+      { root: "/projects/pinned", missing: false, ids: ["pinned"] },
+      { root: "/projects/empty", missing: false, ids: [] },
+      { root: "/projects/latest", missing: false, ids: ["latest", "worktree"] },
+    ],
+  );
+});
+
+test("an explicitly empty project list excludes every session including the current project", () => {
+  assert.deepEqual(
+    projectSessionGroups([session("a")], {
+      currentProject: "/workspace/dexon",
+      listedProjects: [],
+    }),
+    [],
+  );
+});
 
 test("groups sessions into calendar-aware recency buckets", () => {
   const localDate = (day, hour) => new Date(2026, 6, day, hour).toISOString();

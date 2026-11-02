@@ -26,6 +26,20 @@ test("loads sessions and the fetched running fallback on mount", async () => {
   });
 });
 
+test("bootstrap running sessions have an unknown run age instead of a fabricated start", async () => {
+  await withEnvironment({ responses: respondWithSessions([session("a")], ["a"]) }, async (env) => {
+    const { state, Probe } = createProbe();
+    const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+    assert.deepEqual(state.value.activity.runAge("a", "2026-07-15T12:00:00.000Z"), {
+      kind: "unknown",
+      fallbackModifiedMs: 1784116800000,
+    });
+    assert.equal(state.value.activity.of("a"), "running");
+    assert.deepEqual(state.value.activity.runAge("idle"), { kind: "not-running" });
+    await mounted.unmount();
+  });
+});
+
 test("the live running stream outranks later fetched snapshots", async () => {
   await withEnvironment({ responses: respondWithSessions([session("a")], ["a"]) }, async (env) => {
     const { state, Probe } = createProbe();
@@ -81,6 +95,33 @@ test("flags background completions as unread and clears them when running again"
     await mounted.unmount();
   });
 });
+
+for (const status of ["awaiting_input", "error"]) {
+  test(`a background session entering ${status} and then idle never becomes unread`, async () => {
+    await withEnvironment({ responses: respondWithSessions([session("a")]) }, async (env) => {
+      const { state, Probe } = createProbe();
+      const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+      await act(async () => {
+        env.running({ sessionIds: ["a"], sessionStatuses: { a: "running" } });
+      });
+      assert.deepEqual([...state.value.runningSessionIds], ["a"]);
+      await act(async () => {
+        env.running({ sessionIds: [], sessionStatuses: { a: status } });
+      });
+      assert.equal(state.value.liveStatuses.a, status);
+      assert.equal(state.value.activity.of("a"), status);
+      assert.deepEqual([...state.value.unreadSessionIds], []);
+      assert.equal(env.store.getItem(UNREAD_STORAGE_KEY), null);
+      await act(async () => {
+        env.running({ sessionIds: [] });
+      });
+      assert.equal(state.value.activity.of("a"), "idle");
+      assert.deepEqual([...state.value.unreadSessionIds], []);
+      assert.equal(env.store.getItem(UNREAD_STORAGE_KEY), null);
+      await mounted.unmount();
+    });
+  });
+}
 
 test("keeps a completion of the selected session out of the unread set", async () => {
   await withEnvironment({ responses: respondWithSessions([session("a"), session("b")]) }, async (env) => {
@@ -216,7 +257,6 @@ test("persists unread markers and prunes ids that no longer exist", async () => 
     });
     assert.deepEqual([...state.value.unreadSessionIds], ["b"]);
     assert.deepEqual(JSON.parse(env.store.getItem(UNREAD_STORAGE_KEY)), ["b"]);
-    // A later list without "b" must prune the stale unread marker and persist the cleanup.
     let refreshCount = 0;
     env.setReplies((method) => {
       if (method === "sessions.list") {

@@ -2,11 +2,12 @@ import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { buildSessionTree } from "@/lib/session-tree";
-import type { SessionActivitySignals } from "@/lib/session-tree-status";
+import type { SessionActivity, SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionTreeItem } from "./session-tree-item";
 
 export interface SessionListHandlers {
   selectedSessionId: string | null;
+  activity?: SessionActivity;
   liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
@@ -53,7 +54,7 @@ export function SessionListStatus({
 }
 
 export function ProjectSessionList({ sessions, ...handlers }: { sessions: SessionInfo[] } & SessionListHandlers) {
-  const signals: SessionActivitySignals = {
+  const signals: SessionActivity | SessionActivitySignals = handlers.activity ?? {
     liveStatuses: handlers.liveStatuses ?? {},
     runningSessionIds: handlers.runningSessionIds,
     unreadSessionIds: handlers.unreadSessionIds,

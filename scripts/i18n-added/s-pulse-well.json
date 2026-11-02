@@ -1,0 +1,20 @@
+[
+  "pulseActiveSessions",
+  "pulseCollapse",
+  "pulseExpand",
+  "pulseCountWaiting",
+  "pulseWaiting",
+  "pulseRunning",
+  "pulseSubagents",
+  "pulseObservedAge",
+  "pulseUnknownAge",
+  "pulseRunStartUnknown",
+  "pulseShowLess",
+  "pulseShowAll",
+  "pulseAllTasks",
+  "pulseMoreTasks",
+  "pulseLess",
+  "pulseAll",
+  "pulseCountError",
+  "pulseCountRunning"
+]

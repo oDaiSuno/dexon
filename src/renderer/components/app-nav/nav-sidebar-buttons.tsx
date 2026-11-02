@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import type { CountedActivity } from "@/lib/session-tree-status";
+import { ACTIVITY_TONE } from "../session-sidebar/session-status-indicators";
 import { CircleArrowUpIcon, SettingsIcon } from "./nav-icons";
 
 const NAV_ICON_SIZE = 18;
@@ -10,11 +12,13 @@ export function RailButton({
   label,
   onClick,
   active = false,
+  status,
   children,
 }: {
   label: string;
   onClick: () => void;
   active?: boolean;
+  status?: { activity: CountedActivity; label?: string } | null;
   children: ReactNode;
 }) {
   return (
@@ -24,7 +28,9 @@ export function RailButton({
       title={label}
       aria-label={label}
       aria-current={active ? "page" : undefined}
+      aria-description={status?.label}
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -49,6 +55,13 @@ export function RailButton({
       }}
     >
       {children}
+      {status && (
+        <CornerDot
+          color={ACTIVITY_TONE[status.activity].dot}
+          activity={status.activity}
+          pulse={status.activity === "running"}
+        />
+      )}
     </button>
   );
 }
@@ -120,19 +133,38 @@ export function UpdateButton({ label, onClick }: { label: string; onClick: () =>
       }}
     >
       <CircleArrowUpIcon size={NAV_ICON_SIZE} />
-      <span
-        aria-hidden="true"
-        style={{
-          position: "absolute",
-          top: 4,
-          right: 4,
-          width: 9,
-          height: 9,
-          borderRadius: "50%",
-          background: "var(--fx-accent-blue)",
-          border: "1.5px solid var(--fx-surface-sidebar)",
-        }}
-      />
+      <CornerDot color="var(--fx-accent-blue)" inset={4} />
     </button>
+  );
+}
+
+function CornerDot({
+  color,
+  inset = 3,
+  activity,
+  pulse = false,
+}: {
+  color: string;
+  inset?: number;
+  activity?: CountedActivity;
+  pulse?: boolean;
+}) {
+  return (
+    <span
+      aria-hidden="true"
+      data-activity={activity}
+      className={pulse ? "session-status-pulse" : undefined}
+      style={{
+        position: "absolute",
+        top: inset,
+        right: inset,
+        width: 9,
+        height: 9,
+        borderRadius: "50%",
+        background: color,
+        border: "1.5px solid var(--fx-surface-sidebar)",
+        pointerEvents: "none",
+      }}
+    />
   );
 }

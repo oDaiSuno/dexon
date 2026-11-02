@@ -1,6 +1,6 @@
 import type { SessionActivityStatus, SessionRelation } from "@shared/session-orchestration";
 import type { CountedActivity, SessionActivityCounts, SubtreeActivity } from "@/lib/session-tree-status";
-import { COUNTED_ACTIVITIES, isCountedActivity } from "@/lib/session-tree-status";
+import { COUNTED_ACTIVITIES, indicatedActivity, isCountedActivity } from "@/lib/session-tree-status";
 import {
   AwaitingInputSessionIndicator,
   FailedTurnSessionIndicator,
@@ -144,8 +144,7 @@ export function sessionRowIndicatedActivity(
   activity: SessionActivityStatus,
   descendants: SubtreeActivity | null,
 ): SessionActivityStatus {
-  if (activity !== "idle" || !descendants?.status) return activity;
-  return isCountedActivity(descendants.status) ? descendants.status : activity;
+  return indicatedActivity(activity, descendants);
 }
 
 export function SessionRowStatusSlot({ activity }: { activity: SessionActivityStatus }) {

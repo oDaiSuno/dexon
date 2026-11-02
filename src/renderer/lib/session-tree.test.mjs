@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildSessionTree } from "./session-tree.ts";
+import { buildSessionTree, sessionAncestorIds } from "./session-tree.ts";
 
 function session(id, overrides = {}) {
   return {
@@ -19,6 +19,44 @@ function session(id, overrides = {}) {
 function ids(nodes) {
   return nodes.map((node) => node.session.id);
 }
+
+test("revealing a session returns its loaded ancestors nearest first without including the session", () => {
+  const sessions = Object.freeze([
+    session("root"),
+    session("parent", { parentSessionId: "root" }),
+    session("target", { parentSessionId: "parent" }),
+    session("sibling", { parentSessionId: "root" }),
+  ]);
+  assert.deepEqual(sessionAncestorIds(sessions, "target"), ["parent", "root"]);
+  assert.deepEqual(sessionAncestorIds(sessions, "root"), []);
+  assert.deepEqual(sessionAncestorIds(sessions, "not-loaded"), []);
+});
+
+test("ancestor traversal stops at missing parents, self-links, and repeated ancestors", () => {
+  const sessions = Object.freeze([
+    session("a", { parentSessionId: "b" }),
+    session("b", { parentSessionId: "a" }),
+    session("tail", { parentSessionId: "a" }),
+    session("self", { parentSessionId: "self" }),
+    session("orphan", { parentSessionId: "missing" }),
+  ]);
+  assert.deepEqual(sessionAncestorIds(sessions, "a"), ["b"]);
+  assert.deepEqual(sessionAncestorIds(sessions, "tail"), ["a", "b"]);
+  assert.deepEqual(sessionAncestorIds(sessions, "self"), []);
+  assert.deepEqual(sessionAncestorIds(sessions, "orphan"), []);
+});
+
+test("tree building accepts a readonly session list without reordering its caller's data", () => {
+  const sessions = Object.freeze([
+    Object.freeze(session("old", { modified: "2026-07-10T12:00:00.000Z" })),
+    Object.freeze(session("new", { modified: "2026-07-15T12:00:00.000Z" })),
+  ]);
+  assert.deepEqual(ids(buildSessionTree(sessions)), ["new", "old"]);
+  assert.deepEqual(
+    sessions.map((item) => item.id),
+    ["old", "new"],
+  );
+});
 
 test("builds a flat forest sorted by most recent modification", () => {
   const tree = buildSessionTree([
@@ -94,8 +132,6 @@ test("a session whose direct parent is missing stays at root level", () => {
 });
 
 test("sessions whose parents reference each other stay out of the root list", () => {
-  // Documents current behavior: mutual parentSessionId references hide both
-  // sessions from the rendered tree instead of surfacing them as roots.
   const tree = buildSessionTree([
     session("a", { parentSessionId: "b", modified: "2026-07-10T12:00:00.000Z" }),
     session("b", { parentSessionId: "a", modified: "2026-07-11T12:00:00.000Z" }),
