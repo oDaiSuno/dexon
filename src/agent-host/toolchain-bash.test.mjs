@@ -3,7 +3,10 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createToolchainBashOptions } from "./toolchain-bash.ts";
+import { SessionManager } from "@earendil-works/pi-coding-agent";
+import * as toolchainBash from "./toolchain-bash.ts";
+
+const { createToolchainBashOptions } = toolchainBash;
 
 const POLL_INTERVAL_MS = 50;
 const windowsSystemEntry = /[\\/]windows(?:[\\/]|$)/i;
@@ -65,6 +68,28 @@ function context(commands) {
     summary: [],
   };
 }
+
+test("Desktop Bash declares coding ownership and preserves the supplied shell execution boundary", async () => {
+  assert.equal(typeof toolchainBash.createDesktopBashToolDefinition, "function");
+  const tool = toolchainBash.createDesktopBashToolDefinition("/workspace", {
+    operations: {
+      async exec(_command, _cwd, options) {
+        options.onData(Buffer.from("resolved shell output\n"));
+        return { exitCode: 0 };
+      },
+    },
+  });
+  assert.equal(tool.name, "bash");
+  assert.equal(tool.dexonOwner, "coding");
+  assert.equal(tool.exposure, "direct");
+  assert.equal(tool.defaultActive, true);
+  assert.ok(tool.promptSnippet.trim().length > 0 && tool.promptSnippet.length <= 120);
+  assert.doesNotMatch(tool.promptSnippet, /[\r\n]/u);
+  const result = await tool.execute("bash-owner", { command: "echo fixture" }, undefined, undefined, {
+    sessionManager: SessionManager.inMemory("/workspace"),
+  });
+  assert.equal(result.content[0].text, "resolved shell output\n");
+});
 
 test("pins Agent Bash to the resolved executable and context-local environment", () => {
   // The host may legitimately export this revision (e.g. running the suite

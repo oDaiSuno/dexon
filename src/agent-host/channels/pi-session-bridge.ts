@@ -18,7 +18,8 @@ import {
 import type { ChannelTurnProgressEvent, StagedInboundAttachment } from "./types";
 import { resolveSessionPath } from "../session-reader";
 import { collectOutboundFiles } from "./outbound-files";
-import { setDesktopSessionToolNames } from "../session-tool-store";
+import { desktopToolIntents } from "../session-tool-store";
+import { toolIntentFromNames, type ToolIntentStore } from "../agent-session/tool-intent";
 
 const OUTBOUND_FILE_CONTEXT = [
   "This IM transport can send files from the current workspace when the user explicitly asks to receive them.",
@@ -37,14 +38,14 @@ type OpenedSession = { session: AgentSessionWrapper; sessionId: string; cwd: str
 
 export class PiSessionBridge {
   private readonly onSession: (session: AgentSessionWrapper, sessionId: string) => void;
-  private readonly persistToolNames: (sessionId: string, toolNames: string[]) => void;
+  private readonly intents: ToolIntentStore;
 
   constructor(
     onSession: (session: AgentSessionWrapper, sessionId: string) => void,
-    persistToolNames: (sessionId: string, toolNames: string[]) => void = setDesktopSessionToolNames,
+    intents: ToolIntentStore = desktopToolIntents,
   ) {
     this.onSession = onSession;
-    this.persistToolNames = persistToolNames;
+    this.intents = intents;
   }
 
   private prepareWorkspace(binding: ChannelBinding): void {
@@ -100,7 +101,7 @@ export class PiSessionBridge {
       await existing.send({ type: "set_tools", toolNames });
       return;
     }
-    this.persistToolNames(binding.sessionId, toolNames);
+    this.intents.set(binding.sessionId, toolIntentFromNames(toolNames));
   }
 
   async runCommand(

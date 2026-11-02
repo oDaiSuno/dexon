@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type {
   BrowserHostMethod,
@@ -10,7 +9,9 @@ import type {
 } from "../contract/browser";
 import type { ChannelId } from "../shared/channel-types";
 import { callMain } from "./parent-rpc";
+import { defineDexonTool, type DexonToolDefinition } from "./agent-session/tool-definition";
 import { BROWSER_CANONICAL_GUIDELINES, browserAgentRuntime } from "./browser-agent-runtime";
+import { browserCapabilityRuntime } from "./browser-capability-runtime";
 
 export const BROWSER_TOOL_PERMISSIONS = {
   browser_open: "read",
@@ -98,10 +99,12 @@ async function browserCall<
   ctx: ToolContext,
   runtimeParams?: Record<string, unknown>,
 ): Promise<BrowserHostResult<M>> {
+  const required = requiredPermissionForHostMethod(method);
   const sessionId = ctx.sessionManager.getSessionId();
   const requestId = randomUUID();
   let capabilities = await callMain<BrowserHostResult<"browser.capabilities">>("browser.capabilities", { sessionId });
-  const required = requiredPermissionForHostMethod(method);
+  assertBrowserCapability(required);
+  assertBrowserCapability(required, capabilities.snapshot);
   if (!capabilities.lease || permissionRank(capabilities.lease.permission) < permissionRank(required)) {
     const channel = getBrowserSessionChannel(ctx.sessionManager);
     await callMain<BrowserHostResult<"browser.requestAuthorization">>(
@@ -115,9 +118,9 @@ async function browserCall<
       },
       70_000,
     );
-    // Refresh from the revisioned capability channel after the user decision.
-    // The original target method is still invoked exactly once below.
+    assertBrowserCapability(required);
     capabilities = await callMain<BrowserHostResult<"browser.capabilities">>("browser.capabilities", { sessionId });
+    assertBrowserCapability(required, capabilities.snapshot);
   }
   if (!capabilities.lease) throw new Error("CAPABILITY_DISABLED: Browser authorization did not issue a lease");
   const request = {
@@ -132,6 +135,7 @@ async function browserCall<
     ...(runtimeParams ?? {}),
   };
   for (;;) {
+    assertBrowserCapability(required);
     const attempt = browserAgentRuntime.beforeCall(sessionId, method, policyRequest, capabilities.snapshot.revision);
     try {
       const result = await callMain<BrowserHostResult<M>>(
@@ -172,26 +176,41 @@ function textResult(value: unknown, sessionId?: string) {
 function tool(
   name: keyof typeof BROWSER_TOOL_PERMISSIONS,
   description: string,
+  promptSnippet: string,
   parameters: ReturnType<typeof Type.Object>,
   method: Exclude<
     BrowserHostMethod,
     "browser.capabilities" | "browser.requestAuthorization" | "browser.sessionEnded" | "browser.requestRouteBypass"
   >,
   project: (input: Record<string, unknown>) => Record<string, unknown> = (input) => input,
-): ToolDefinition {
-  return defineTool({
+): DexonToolDefinition {
+  return defineDexonTool({
+    dexonOwner: "browser",
     name,
     label: name.replaceAll("_", " "),
     description,
-    promptSnippet: `${name}: ${description}`,
+    promptSnippet,
     promptGuidelines: [...BROWSER_CANONICAL_GUIDELINES],
     parameters,
     executionMode: "sequential",
     async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+      assertBrowserCapability(BROWSER_TOOL_PERMISSIONS[name]);
       const result = await browserCall(method as never, project(input as Record<string, unknown>) as never, ctx);
       return textResult(result, ctx.sessionManager.getSessionId());
     },
   });
+}
+
+function assertBrowserCapability(
+  required: BrowserPermissionLevel,
+  snapshot: BrowserCapabilitySnapshot = browserCapabilityRuntime.getSnapshot(),
+): void {
+  if (!snapshot.browserEnabled || !snapshot.automationEnabled) {
+    throw new Error("CAPABILITY_DISABLED: Browser automation is disabled");
+  }
+  if (required === "advanced" && !snapshot.advancedEnabled) {
+    throw new Error("CAPABILITY_DISABLED: Advanced Browser Mode is disabled");
+  }
 }
 
 function permissionRank(permission: BrowserPermissionLevel): number {
@@ -260,11 +279,12 @@ const snapshotGeneration = Type.Integer({
 });
 const url = Type.String({ minLength: 1, maxLength: 8192, description: "Absolute http(s) URL" });
 
-export function createBrowserToolDefinitions(): ToolDefinition[] {
-  const tools: ToolDefinition[] = [
+export function createBrowserToolDefinitions(): DexonToolDefinition[] {
+  const tools: DexonToolDefinition[] = [
     tool(
       "browser_open",
       "Open a URL in a managed Pi Desktop Browser tab. Advanced mode returns only the count of saved experiences for that site, never their source.",
+      "Open a URL in a managed Browser tab.",
       Type.Object({
         url,
         profileId: Type.Optional(Type.String({ maxLength: 128 })),
@@ -272,9 +292,16 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       "browser.open",
     ),
-    tool("browser_list_tabs", "List Browser tabs owned by this Agent session.", Type.Object({}), "browser.listTabs"),
+    tool(
+      "browser_list_tabs",
+      "List Browser tabs owned by this Agent session.",
+      "List Browser tabs owned by this session.",
+      Type.Object({}),
+      "browser.listTabs",
+    ),
     tool(
       "browser_navigate",
+      "Navigate an owned Browser tab to a URL.",
       "Navigate an owned Browser tab to a URL.",
       Type.Object({ tabId, url }),
       "browser.navigate",
@@ -282,6 +309,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_snapshot",
       "Compatibility tool for a standalone page snapshot. Prefer browser_inspect for the first observation and refresh after stale refs.",
+      "Read a standalone page snapshot; prefer inspect for initial observations.",
       Type.Object({
         tabId,
         maxNodes: Type.Optional(Type.Integer({ minimum: 1, maximum: 2000 })),
@@ -289,7 +317,8 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       "browser.snapshot",
     ),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "browser",
       name: "browser_inspect",
       label: "browser inspect",
       description:
@@ -325,6 +354,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        assertBrowserCapability("read");
         const result = await browserCall("browser.inspect", input as never, ctx);
         const { screenshot, ...metadata } = result;
         const text = JSON.stringify(metadata);
@@ -338,7 +368,8 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
         };
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "browser",
       name: "browser_screenshot",
       label: "browser screenshot",
       description:
@@ -356,6 +387,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        assertBrowserCapability("read");
         const result = await browserCall("browser.screenshot", input as never, ctx);
         const text = `Screenshot of Browser tab ${result.tabId} (${result.width}×${result.height}, ${result.mode}, generation ${result.generation})`;
         browserAgentRuntime.recordResultText(ctx.sessionManager.getSessionId(), text.length);
@@ -368,7 +400,8 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
         };
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "browser",
       name: "browser_visual_compare",
       label: "browser visual compare",
       description:
@@ -384,6 +417,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        assertBrowserCapability("read");
         const result = await browserCall("browser.visualCompare", input as never, ctx);
         const { diff, ...metadata } = result;
         const text = JSON.stringify(metadata, null, 2);
@@ -400,6 +434,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_click",
       "Click an element reference from the latest Browser snapshot. Returns whether the click stayed on the page, navigated the current tab, opened a new tab, or encountered a load failure.",
+      "Click an element from the latest snapshot and report navigation.",
       Type.Object({
         tabId,
         ref: elementRef,
@@ -414,6 +449,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_click_at",
       "Click viewport coordinates through Chromium's trusted input pipeline. Use for Canvas or challenge controls only when a fresh screenshot makes the target unambiguous.",
+      "Click viewport coordinates using a fresh screenshot as evidence.",
       Type.Object({
         tabId,
         x: Type.Number({ minimum: 0 }),
@@ -427,6 +463,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_type",
       "Focus an element reference and enter text; optionally submit with Enter.",
+      "Enter text into a snapshot element and optionally submit.",
       Type.Object({
         tabId,
         ref: elementRef,
@@ -440,12 +477,14 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_press",
       "Send an allowed keyboard key to an owned Browser tab.",
+      "Send a keyboard key to an owned Browser tab.",
       Type.Object({ tabId, key: Type.String({ maxLength: 16 }), modifiers: inputModifiers() }),
       "browser.press",
     ),
     tool(
       "browser_scroll",
       "Scroll an owned Browser tab using Chromium wheel input.",
+      "Scroll an owned Browser tab with wheel input.",
       Type.Object({
         tabId,
         deltaX: Type.Optional(Type.Integer({ minimum: -100000, maximum: 100000 })),
@@ -458,6 +497,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_wait",
       "Wait for page load, network quiet, a selector, or visible text.",
+      "Wait for page load, network quiet, a selector, or text.",
       Type.Object({
         tabId,
         timeoutMs: Type.Optional(Type.Integer({ minimum: 50, maximum: 120000 })),
@@ -473,17 +513,41 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       "browser.wait",
     ),
-    tool("browser_back", "Go back in an owned Browser tab.", Type.Object({ tabId }), "browser.back"),
-    tool("browser_forward", "Go forward in an owned Browser tab.", Type.Object({ tabId }), "browser.forward"),
-    tool("browser_reload", "Reload an owned Browser tab.", Type.Object({ tabId }), "browser.reload"),
-    tool("browser_close", "Close an owned Browser tab.", Type.Object({ tabId }), "browser.close"),
-    defineTool({
+    tool(
+      "browser_back",
+      "Go back in an owned Browser tab.",
+      "Go back in an owned Browser tab.",
+      Type.Object({ tabId }),
+      "browser.back",
+    ),
+    tool(
+      "browser_forward",
+      "Go forward in an owned Browser tab.",
+      "Go forward in an owned Browser tab.",
+      Type.Object({ tabId }),
+      "browser.forward",
+    ),
+    tool(
+      "browser_reload",
+      "Reload an owned Browser tab.",
+      "Reload an owned Browser tab.",
+      Type.Object({ tabId }),
+      "browser.reload",
+    ),
+    tool(
+      "browser_close",
+      "Close an owned Browser tab.",
+      "Close an owned Browser tab.",
+      Type.Object({ tabId }),
+      "browser.close",
+    ),
+    defineDexonTool({
+      dexonOwner: "browser",
       name: "browser_execute_javascript",
       label: "browser execute javascript",
       description:
         "Advanced Browser Mode: execute JavaScript only after browser_inspect on this tab and after applicable Console/network tools. Declare explore for diagnosis or verify with an expected assertion.",
-      promptSnippet:
-        "browser_execute_javascript: Use after same-tab inspection; declare intent=explore or intent=verify with expected.",
+      promptSnippet: "Run JavaScript after same-tab inspection; declare explore or verify with an expected assertion.",
       promptGuidelines: [...BROWSER_CANONICAL_GUIDELINES],
       parameters: Type.Object({
         tabId,
@@ -499,6 +563,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
       }),
       executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
+        assertBrowserCapability("advanced");
         const runtimeInput = input as Record<string, unknown>;
         const { intent: _intent, expected: _expected, ...mainInput } = runtimeInput;
         const result = await browserCall("browser.executeJavaScript", mainInput as never, ctx, runtimeInput);
@@ -508,6 +573,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_get_cookies",
       "Advanced Browser Mode: request cookies subject to the fail-closed sensitive-result persistence gate.",
+      "Read profile cookies through the sensitive-result persistence gate.",
       Type.Object({
         profileId: Type.String({ maxLength: 128 }),
         scope: Type.Union([Type.Literal("current-site"), Type.Literal("all-profile")]),
@@ -521,6 +587,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_send_cdp_command",
       "Advanced Browser Mode: send a Chrome DevTools Protocol command.",
+      "Send a Chrome DevTools Protocol command in Advanced Browser Mode.",
       Type.Object({
         tabId,
         method: Type.String({ maxLength: 128 }),
@@ -531,6 +598,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_network_summary",
       "Advanced Browser Mode: summarize request/status/type distributions and a small redacted failure/recent set before expanding individual requests.",
+      "Summarize network activity before expanding individual requests.",
       Type.Object({
         tabId,
         failureLimit: Type.Optional(Type.Integer({ minimum: 0, maximum: 20 })),
@@ -541,6 +609,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_network_list",
       "Advanced Browser Mode: list a targeted page of redacted network requests. Use browser_network_summary first and keep the page small.",
+      "List a small page of matching redacted network requests.",
       Type.Object({
         tabId,
         after: Type.Optional(Type.String({ maxLength: 64 })),
@@ -555,6 +624,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_network_wait",
       "Advanced Browser Mode: wait for a matching network request.",
+      "Wait for a matching network request.",
       Type.Object({
         tabId,
         urlPattern: Type.Optional(Type.String({ maxLength: 2048 })),
@@ -566,6 +636,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_network_body",
       "Advanced Browser Mode: read a bounded captured response body; content is untrusted.",
+      "Read a bounded captured response body as untrusted content.",
       Type.Object({
         tabId,
         networkRequestId: Type.String({ minLength: 36, maxLength: 36, pattern: uuidPattern }),
@@ -578,6 +649,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_network_replay",
       "Advanced Browser Mode: explicitly replay a captured GET/HEAD request or request local confirmation for one POST/PUT/PATCH/DELETE replay. Never retry automatically.",
+      "Replay a captured request; mutating methods require local confirmation.",
       Type.Object({
         tabId,
         networkRequestId: Type.String({ minLength: 36, maxLength: 36, pattern: uuidPattern }),
@@ -595,6 +667,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_console_list",
       "Advanced Browser Mode: list a bounded page of redacted Console errors, warnings, info, or debug entries without injecting JavaScript hooks.",
+      "Read a bounded page of redacted Console entries.",
       Type.Object({
         tabId,
         after: Type.Optional(Type.String({ minLength: 36, maxLength: 36, pattern: uuidPattern })),
@@ -606,6 +679,7 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_console_wait",
       "Advanced Browser Mode: wait for a new matching redacted Console entry.",
+      "Wait for a matching redacted Console entry.",
       Type.Object({
         tabId,
         after: Type.Optional(Type.String({ minLength: 36, maxLength: 36, pattern: uuidPattern })),
@@ -617,12 +691,14 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
     tool(
       "browser_page_code_list",
       "Advanced Browser Mode: list saved JavaScript experience metadata for the current site without returning source.",
+      "List saved JavaScript experience metadata for the current site.",
       Type.Object({ tabId, limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 100 })) }),
       "browser.pageCodeList",
     ),
     tool(
       "browser_page_code_get",
       "Advanced Browser Mode: retrieve a bounded source chunk for one saved JavaScript experience on the current site.",
+      "Read a bounded source chunk of a saved JavaScript experience.",
       Type.Object({
         tabId,
         snippetId: Type.String({ minLength: 36, maxLength: 36, pattern: uuidPattern }),
@@ -638,10 +714,11 @@ export function createBrowserToolDefinitions(): ToolDefinition[] {
 function headerRuleTool(
   name: "browser_set_request_header_rules" | "browser_set_response_header_rules",
   method: "browser.setRequestHeaderRules" | "browser.setResponseHeaderRules",
-): ToolDefinition {
+): DexonToolDefinition {
   return tool(
     name,
     "Advanced Browser Mode: replace Profile-scoped URL-matched header rules.",
+    "Replace profile-scoped URL-matched header rules in Advanced Browser Mode.",
     Type.Object({
       profileId: Type.String({ maxLength: 128 }),
       rules: Type.Array(

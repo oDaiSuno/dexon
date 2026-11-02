@@ -30,6 +30,21 @@ function context(commands) {
   };
 }
 
+test("Desktop search tools declare coding ownership and remain active by default", () => {
+  const tools = createDesktopSearchToolDefinitions("/workspace", context({}));
+  assert.deepEqual(
+    tools.map((tool) => tool.name),
+    ["grep", "find"],
+  );
+  for (const tool of tools) {
+    assert.equal(tool.dexonOwner, "coding", tool.name);
+    assert.equal(tool.exposure, "direct", tool.name);
+    assert.equal(tool.defaultActive, true, tool.name);
+    assert.ok(tool.promptSnippet.trim().length > 0 && tool.promptSnippet.length <= 120, tool.name);
+    assert.doesNotMatch(tool.promptSnippet, /[\r\n]/u, tool.name);
+  }
+});
+
 test("Desktop grep/find use only injected absolute descriptors and disable upstream downloads", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "pi-search-runtime-"));
   try {

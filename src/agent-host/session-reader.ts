@@ -1,5 +1,5 @@
-import { SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { existsSync } from "node:fs";
+import { SessionManager, getAgentDir, parseSessionEntries } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync } from "node:fs";
 import type { RpcServer } from "../contract/rpc";
 import {
   isChannelAttachmentContextType,
@@ -18,6 +18,7 @@ import type {
 import type { SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
+import { toDisplayMessage } from "./display-message";
 import { promptIntentText, readPromptIntent } from "../shared/prompt-intent";
 import { versionsByEntryId } from "./session-versions";
 import { branchAt, type SessionBranch } from "./session-branch";
@@ -66,7 +67,7 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
       name: s.name,
       created: s.created instanceof Date ? s.created.toISOString() : String(s.created),
       modified: s.modified instanceof Date ? s.modified.toISOString() : String(s.modified),
-      messageCount: s.messageCount,
+      messageCount: countConversationMessages(getSessionEntries(s.path)),
       firstMessage: toFirstMessage(s.firstMessage),
       parentSessionId: s.parentSessionPath ? pathToId.get(s.parentSessionPath) : undefined,
       projectRoot: project?.projectRoot ?? s.cwd,
@@ -140,6 +141,10 @@ export function toFirstMessage(raw: string): string {
   return raw ? promptIntentText(readPromptIntent(raw)) : "(no messages)";
 }
 
+function countConversationMessages(entries: readonly SessionEntry[]): number {
+  return entries.filter((entry) => entry.type === "message" && toDisplayMessage(entry.message) !== null).length;
+}
+
 function getMessageActivityTime(entry: SessionEntry): number | undefined {
   if (entry.type !== "message") return undefined;
   const message = entry.message as unknown as { role?: unknown; timestamp?: unknown };
@@ -161,11 +166,10 @@ export async function buildSessionInfoFromManager(
   if (!header) return null;
 
   if (filePath) cacheSessionPath(header.id, filePath);
-  let messageCount = 0;
+  const messageCount = countConversationMessages(entries);
   let lastActivityTime: number | undefined;
   for (const entry of entries) {
     if (entry.type !== "message") continue;
-    messageCount += 1;
     const activityTime = getMessageActivityTime(entry);
     if (activityTime !== undefined) lastActivityTime = Math.max(lastActivityTime ?? 0, activityTime);
   }
@@ -196,7 +200,8 @@ export async function buildSessionInfoFromManager(
 }
 
 export function getSessionEntries(filePath: string): SessionEntry[] {
-  const entries = SessionManager.open(filePath).getEntries();
+  const parsed = parseSessionEntries(readFileSync(filePath, "utf8")).filter(Boolean);
+  const entries = SessionManager.inMemory(undefined, undefined, parsed).getEntries();
   return entries as unknown as SessionEntry[];
 }
 
@@ -365,12 +370,12 @@ function parseEntryTimestamp(timestamp: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-// Convert a session entry on the active branch into a UI message.
-// Returns null for entries that do not map to chat history (metadata, non-message types).
 export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
   switch (entry.type) {
     case "message": {
-      const message = normalizeToolCalls(entry.message);
+      const displayMessage = toDisplayMessage(entry.message);
+      if (!displayMessage) return null;
+      const message = normalizeToolCalls(displayMessage);
       // pi stamps message.timestamp at message START; the entry is written at
       // message COMPLETION. Prefer the entry time so duration math (turn
       // length, thinking/tool durations) reflects actual elapsed work.
@@ -407,6 +412,8 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
         details: entry.details,
         timestamp: parseEntryTimestamp(entry.timestamp),
       };
+    case "usage":
+    case "context_edit":
     default:
       return null;
   }

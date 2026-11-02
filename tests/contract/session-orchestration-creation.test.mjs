@@ -203,3 +203,23 @@ test(
     assert.equal(row.cwd, worktree);
   },
 );
+
+test("a child inherits agent mode without coding tools instead of becoming bare", { timeout: 60_000 }, async () => {
+  const parent = await host.createUserSession({ cwd: host.workspace("empty-coding-parent") });
+  await host.command(parent, { type: "set_tools", toolNames: ["session_new"] });
+  const childMessage = "Continue collaboration without coding tools";
+  host.model.script(childMessage, [{ text: "Ready to collaborate" }]);
+  const [received] = await runAgentTurn(host, parent, {
+    prompt: "Delegate with the same mode",
+    steps: [toolCall("session_new", { message: childMessage }), { text: "Delegated" }],
+  });
+  const { sessionId } = expectToolPayload(received, "the child is created");
+  await waitUntil(
+    async () => (await host.detail(sessionId)).context.messages.some((message) => message.role === "assistant"),
+    { timeoutMs: 8_000, label: "the child to finish its first reply" },
+  );
+  const tools = await host.command(sessionId, { type: "get_tools" });
+  assert.equal(tools.find((tool) => tool.name === "session_new")?.active, true);
+  assert.equal(tools.find((tool) => tool.name === "read")?.active, false);
+  assert.notEqual((await host.command(sessionId, { type: "get_state" })).systemPrompt, "");
+});

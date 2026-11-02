@@ -10,7 +10,6 @@ import type { ToolchainSnapshot } from "../shared/toolchains/types";
 import { installToolchainGitRunner } from "./toolchain-git";
 import type { BrowserCapabilitySnapshot } from "../contract/browser";
 import { browserCapabilityRuntime } from "./browser-capability-runtime";
-import { syncBrowserToolsForAllSessions } from "./rpc-manager";
 import { readPiRuntimeVersion } from "./runtime-version";
 import { applyManagedProcessOwnerIdentity } from "./managed-process/owner-identity";
 
@@ -88,7 +87,6 @@ if (parentPort) {
       try {
         if (!msg.snapshot) throw new Error("missing snapshot");
         browserCapabilityRuntime.apply(msg.snapshot as BrowserCapabilitySnapshot);
-        syncBrowserToolsForAllSessions();
         parentPort.postMessage({ type: "browser:ack", revision: msg.snapshot.revision });
         log(`browser ${msg.type === "browser:init" ? "initialized" : "updated"} revision=${msg.snapshot.revision}`);
       } catch (error) {

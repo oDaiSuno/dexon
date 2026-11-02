@@ -137,6 +137,38 @@ export interface CustomMessage {
 
 export type AgentMessage = UserMessage | AssistantMessage | ToolResultMessage | CustomMessage;
 
+export interface SystemRecord {
+  readonly role: "system";
+  readonly content: string | TextContent[];
+  readonly sections?: Readonly<Record<string, string | null>>;
+  readonly toolsAdded?: ReadonlyArray<{
+    readonly name: string;
+    readonly description?: string;
+    readonly parameters?: unknown;
+  }>;
+  readonly toolsRemoved?: ReadonlyArray<{ readonly name: string }>;
+  readonly timestamp: number;
+}
+
+export type PersistedMessage = AgentMessage | SystemRecord;
+
+export interface Usage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
+  cacheWrite1h?: number;
+  reasoning?: number;
+  totalTokens: number;
+  cost: {
+    input: number;
+    output: number;
+    cacheRead: number;
+    cacheWrite: number;
+    total: number;
+  };
+}
+
 export type ExtensionUiRequest =
   | QuestionnaireRequest
   | {
@@ -236,7 +268,7 @@ export interface ExtensionWidgetItem {
 
 export interface SessionMessageEntry extends SessionEntryBase {
   type: "message";
-  message: AgentMessage;
+  message: PersistedMessage;
 }
 
 export interface ThinkingLevelChangeEntry extends SessionEntryBase {
@@ -256,7 +288,24 @@ export interface CompactionEntry extends SessionEntryBase {
   firstKeptEntryId: string;
   tokensBefore: number;
   details?: unknown;
+  usage?: Usage;
   fromHook?: boolean;
+  systemMessage?: SystemRecord;
+}
+
+export interface UsageEntry extends SessionEntryBase {
+  type: "usage";
+  kind: string;
+  provider: string;
+  model: string;
+  usage: Usage;
+  note?: string;
+}
+
+export interface ContextEditEntry extends SessionEntryBase {
+  type: "context_edit";
+  targetId: string;
+  replacement: { content: string | AssistantContentBlock[] } | null;
 }
 
 export interface BranchSummaryEntry extends SessionEntryBase {
@@ -301,7 +350,9 @@ export type SessionEntry =
   | CustomEntry
   | CustomMessageEntry
   | LabelEntry
-  | SessionInfoEntry;
+  | SessionInfoEntry
+  | UsageEntry
+  | ContextEditEntry;
 
 export type FileEntry = SessionHeader | SessionEntry;
 

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 
-const { computeSessionContextUsage, describeLiveContextUsage, reconstructSessionContextUsage } = await importTestBundle(
+const { computeSessionContextUsage, describeLiveContextUsage, describeStoredContextUsage } = await importTestBundle(
   "src/agent-host/session-context-usage",
   {
     packages: "external",
@@ -123,13 +123,13 @@ test("reconstruction restores usage from a branch with an assistant-signed model
     messageEntry("e1", "e0", assistantMessage({ usage: usage(300, 50) })),
   ];
   const branch = branchAt(entries);
-  const result = await reconstructSessionContextUsage({
+  const result = await describeStoredContextUsage({
     branch,
     resolveContextWindow: async (model) => (model?.provider === "provider" ? CONTEXT_WINDOW : null),
   });
   assert.deepEqual(result, { tokens: 350, contextWindow: CONTEXT_WINDOW, percent: 35 });
 
-  const unknownModel = await reconstructSessionContextUsage({
+  const unknownModel = await describeStoredContextUsage({
     branch,
     resolveContextWindow: async () => null,
   });
@@ -172,7 +172,7 @@ test("reconstruction prefers the chosen catalog model over the assistant signatu
     messageEntry("e1", "e0", assistantMessage({ model: "proxy-signature", usage: usage(300, 50) })),
   ]);
   const windows = { "catalog-model": 1000, "proxy-signature": 2000 };
-  const result = await reconstructSessionContextUsage({
+  const result = await describeStoredContextUsage({
     branch,
     resolveContextWindow: async (model) => windows[model?.modelId] ?? null,
   });
@@ -185,7 +185,7 @@ test("reconstruction falls back to the assistant signature when the chosen model
     messageEntry("e0", "m0", userMessage("hi")),
     messageEntry("e1", "e0", assistantMessage({ usage: usage(300, 50) })),
   ]);
-  const result = await reconstructSessionContextUsage({
+  const result = await describeStoredContextUsage({
     branch,
     resolveContextWindow: async (model) => (model?.modelId === "model" ? CONTEXT_WINDOW : null),
   });
@@ -198,12 +198,12 @@ test("reconstruction ignores non-positive windows and returns unknown when neith
     messageEntry("e0", "m0", assistantMessage({ usage: usage(300, 50) })),
   ]);
   for (const unavailable of [undefined, null, 0, -1, NaN]) {
-    const result = await reconstructSessionContextUsage({
+    const result = await describeStoredContextUsage({
       branch,
       resolveContextWindow: async (model) => (model?.modelId === "model" ? CONTEXT_WINDOW : unavailable),
     });
     assert.deepEqual(result, { tokens: 350, contextWindow: CONTEXT_WINDOW, percent: 35 });
-    assert.equal(await reconstructSessionContextUsage({ branch, resolveContextWindow: async () => unavailable }), null);
+    assert.equal(await describeStoredContextUsage({ branch, resolveContextWindow: async () => unavailable }), null);
   }
 });
 
@@ -218,9 +218,9 @@ test("reconstruction uses the requested branch's model and usage instead of the 
   ];
   const windows = { "original-model": 1000, "other-model": 2000 };
   const resolveContextWindow = async (model) => windows[model?.modelId] ?? null;
-  const result = await reconstructSessionContextUsage({ branch: branchAt(entries, "e1"), resolveContextWindow });
+  const result = await describeStoredContextUsage({ branch: branchAt(entries, "e1"), resolveContextWindow });
   assert.deepEqual(result, { tokens: 350, contextWindow: 1000, percent: 35 });
-  const compacted = await reconstructSessionContextUsage({ branch: branchAt(entries), resolveContextWindow });
+  const compacted = await describeStoredContextUsage({ branch: branchAt(entries), resolveContextWindow });
   assert.deepEqual(compacted, { tokens: null, contextWindow: 2000, percent: null });
 });
 
@@ -235,12 +235,12 @@ test("reconstruction respects a live model choice without changing the recorded 
     model: { provider: "provider", modelId: "live-model" },
     thinkingLevel: "high",
   });
-  assert.deepEqual(await reconstructSessionContextUsage({ branch: live, resolveContextWindow }), {
+  assert.deepEqual(await describeStoredContextUsage({ branch: live, resolveContextWindow }), {
     tokens: 350,
     contextWindow: 2000,
     percent: 17.5,
   });
-  assert.deepEqual(await reconstructSessionContextUsage({ branch, resolveContextWindow }), {
+  assert.deepEqual(await describeStoredContextUsage({ branch, resolveContextWindow }), {
     tokens: 350,
     contextWindow: 1000,
     percent: 35,
@@ -250,10 +250,7 @@ test("reconstruction respects a live model choice without changing the recorded 
 test("reconstruction returns unknown for an empty root branch instead of using the latest reply", async () => {
   const entries = [messageEntry("e0", null, assistantMessage({ usage: usage(300, 50) }))];
   for (const branch of [branchAt(entries, null), branchAt([])]) {
-    assert.equal(
-      await reconstructSessionContextUsage({ branch, resolveContextWindow: async () => CONTEXT_WINDOW }),
-      null,
-    );
+    assert.equal(await describeStoredContextUsage({ branch, resolveContextWindow: async () => CONTEXT_WINDOW }), null);
   }
 });
 
@@ -263,7 +260,7 @@ test("reconstruction terminates cyclic parent links without mutating persisted e
     messageEntry("e1", "e0", assistantMessage({ usage: usage(300, 50) })),
   ];
   const persisted = structuredClone(entries);
-  const result = await reconstructSessionContextUsage({
+  const result = await describeStoredContextUsage({
     branch: branchAt(entries, "e1"),
     resolveContextWindow: async () => CONTEXT_WINDOW,
   });
@@ -271,34 +268,31 @@ test("reconstruction terminates cyclic parent links without mutating persisted e
   assert.deepEqual(entries, persisted);
 });
 
-function liveSession({ tokens = 2000, autoCompaction = true, activeTools = ["read"] } = {}) {
+function recordedSystem() {
   return {
-    autoCompactionEnabled: autoCompaction,
-    settingsManager: { getCompactionReserveTokens: () => 1600 },
-    getContextUsage: () => ({ tokens, contextWindow: 10_000, percent: tokens === null ? null : tokens / 100 }),
-    agent: {
-      state: {
-        systemPrompt: "p".repeat(1200),
-        messages: [
-          userMessage("u".repeat(400)),
-          {
-            role: "toolResult",
-            toolCallId: "c1",
-            toolName: "read",
-            content: [{ type: "text", text: "r".repeat(1200) }],
-          },
-        ],
+    role: "system",
+    content: "",
+    sections: { preamble: "p".repeat(798), project_context: "a".repeat(400) },
+    toolsAdded: [{ name: "read", description: "Read a file", parameters: { type: "object" } }],
+    timestamp: 0,
+  };
+}
+
+function liveSession({ tokens = 2000, autoCompaction = true } = {}) {
+  return {
+    profile: "agent",
+    usage: { tokens, contextWindow: 10_000, percent: tokens === null ? null : tokens / 100 },
+    ...(autoCompaction ? { reserveTokens: 1600 } : {}),
+    messages: [
+      recordedSystem(),
+      userMessage("u".repeat(400)),
+      {
+        role: "toolResult",
+        toolCallId: "c1",
+        toolName: "read",
+        content: [{ type: "text", text: "r".repeat(1200) }],
       },
-    },
-    resourceLoader: {
-      getAgentsFiles: () => ({ agentsFiles: [{ path: "/p/AGENTS.md", content: "a".repeat(400) }] }),
-      getSkills: () => ({ skills: [] }),
-    },
-    getAllTools: () => [
-      { name: "read", description: "Read a file", parameters: { type: "object" } },
-      { name: "write", description: "Write a file", parameters: { type: "object" } },
     ],
-    getActiveToolNames: () => activeTools,
   };
 }
 
@@ -327,4 +321,77 @@ test("right after compaction a live session has no split to show, only the reser
   assert.equal(result.tokens, null);
   assert.equal(result.reserveTokens, 1600);
   assert.equal("breakdown" in result, false);
+});
+
+test("stored context omits a context-edited message without deleting raw history", async () => {
+  const entries = [
+    messageEntry("u", null, userMessage("x".repeat(400))),
+    messageEntry("a", "u", assistantMessage()),
+    { type: "context_edit", id: "edit", parentId: "a", timestamp: TIMESTAMP, targetId: "u", replacement: null },
+  ];
+  const persisted = structuredClone(entries);
+  const result = await describeStoredContextUsage({
+    branch: branchAt(entries),
+    resolveContextWindow: async () => CONTEXT_WINDOW,
+  });
+  assert.deepEqual(result, { tokens: 2, contextWindow: CONTEXT_WINDOW, percent: 0.2 });
+  assert.deepEqual(entries, persisted);
+});
+
+test("live breakdown never attributes system records to conversation", () => {
+  const source = liveSession();
+  source.messages.unshift(recordedSystem());
+  assert.deepEqual(describeLiveContextUsage(source).breakdown, {
+    systemPrompt: 200,
+    tools: 19,
+    agentsAndSkills: 100,
+    conversation: 420,
+    toolResults: 1261,
+  });
+});
+
+test("live breakdown replays prompt section replacements and removed tools", () => {
+  const source = liveSession();
+  source.messages[0] = {
+    role: "system",
+    content: "",
+    sections: { preamble: "old prompt", project_context: "old instructions" },
+    toolsAdded: [{ name: "write", description: "old tool", parameters: { type: "object" } }],
+    timestamp: 0,
+  };
+  source.messages.push({ ...recordedSystem(), toolsRemoved: [{ name: "write" }] });
+  assert.deepEqual(describeLiveContextUsage(source).breakdown, {
+    systemPrompt: 200,
+    tools: 19,
+    agentsAndSkills: 100,
+    conversation: 420,
+    toolResults: 1261,
+  });
+});
+
+test("a fresh live session reports zero fixed context before any system record is committed", () => {
+  const result = describeLiveContextUsage({
+    profile: "agent",
+    messages: [],
+    usage: { tokens: 0, contextWindow: 1000, percent: 0 },
+  });
+  assert.deepEqual(result.breakdown, {
+    systemPrompt: 0,
+    tools: 0,
+    agentsAndSkills: 0,
+    conversation: 0,
+    toolResults: 0,
+  });
+});
+
+test("live bare profiles suppress structured prompt, tool and resource attribution", () => {
+  const source = liveSession();
+  source.profile = "bare";
+  assert.deepEqual(describeLiveContextUsage(source).breakdown, {
+    systemPrompt: 0,
+    tools: 0,
+    agentsAndSkills: 0,
+    conversation: 500,
+    toolResults: 1500,
+  });
 });

@@ -12,6 +12,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { ToolExecutionContext } from "../shared/toolchains/types.ts";
 import { toolchainRuntime, type ToolchainRuntime } from "./toolchain-runtime.ts";
+import { defineDexonTool, type DexonToolMetadata } from "./agent-session/tool-definition.ts";
 
 const DEFAULT_RESULT_LIMIT = 100;
 const SEARCH_OUTPUT_LIMIT = 2 * 1024 * 1024;
@@ -182,7 +183,10 @@ export function createDesktopSearchToolDefinitions(
   cwd: string,
   context: ToolExecutionContext,
   runtime: ToolchainRuntime = toolchainRuntime,
-): [ReturnType<typeof createGrepToolDefinition>, ReturnType<typeof createFindToolDefinition>] {
+): [
+  ReturnType<typeof createGrepToolDefinition> & DexonToolMetadata,
+  ReturnType<typeof createFindToolDefinition> & DexonToolMetadata,
+] {
   const grep = createGrepToolDefinition(cwd);
   grep.execute = async (_toolCallId, input, signal) => {
     const searchPath = resolveSearchPath(cwd, input.path);
@@ -262,5 +266,16 @@ export function createDesktopSearchToolDefinitions(
     },
   });
 
-  return [grep, find];
+  return [
+    defineDexonTool({
+      ...grep,
+      dexonOwner: "coding",
+      promptSnippet: "Search file contents with the project-resolved ripgrep executable.",
+    }),
+    defineDexonTool({
+      ...find,
+      dexonOwner: "coding",
+      promptSnippet: "Find files by glob using the project-resolved fd executable.",
+    }),
+  ];
 }

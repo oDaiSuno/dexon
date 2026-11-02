@@ -1,7 +1,6 @@
 import type { InteractiveReceipt, InteractiveSnapshot } from "../../shared/interactive-tools";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { ToolInfo } from "../../shared/pi-types";
 import type { AgentMessage, ExtensionUiResponse, ExtensionWidgetItem, SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { describeLiveContextUsage } from "../session-context-usage";
@@ -18,6 +17,8 @@ import {
 import { setSessionOrigin } from "../session-origin-store";
 
 import { promptOnChosenModel, type ChosenModelHost } from "./chosen-model-prompt";
+import type { RunPolicy } from "./run-policy";
+import { toolIntentFromNames } from "./tool-intent";
 import type { AgentEvent } from "./types";
 export interface SessionCommandContext extends ChosenModelHost {
   getInteractiveSnapshot(): InteractiveSnapshot;
@@ -34,11 +35,8 @@ export interface SessionCommandContext extends ChosenModelHost {
   getExtensionStatuses(): Array<{ key: string; text: string }>;
   getExtensionWidgets(): ExtensionWidgetItem[];
   dispose(options: { abort?: boolean; reason?: string }): Promise<void>;
-  applyRequestedTools(names: string[]): void;
-  persistToolNames(sessionId: string, names: string[]): void;
+  runPolicy: RunPolicy;
   reloadSessionResources(): Promise<void>;
-  syncBrowserToolActivation(): void;
-  syncSessionToolActivation(): void;
   resolveExtensionUiResponse(response: ExtensionUiResponse): InteractiveReceipt;
   handleExtensionUiInput(id: string, data: string): void;
 }
@@ -89,18 +87,28 @@ function createSettlement(): {
   return { settled, settle };
 }
 
-function syncAgentMessages(context: SessionCommandContext): void {
-  const state = context.inner.agent.state;
-  if (state) state.messages = context.inner.sessionManager.buildSessionContext().messages;
+function moveLeaf(context: SessionCommandContext, entryId: string | null): void {
+  if (entryId === null) context.inner.sessionManager.resetLeaf();
+  else context.inner.sessionManager.branch(entryId);
+  context.inner.refreshContext();
+  context.runPolicy.reconcileLiveToolsFromBranch();
+}
+
+function describeCommandContextUsage(context: SessionCommandContext) {
+  const inner = context.inner;
+  return describeLiveContextUsage({
+    messages: inner.agent.state?.messages ?? [],
+    profile: context.runPolicy.view().profile,
+    usage: inner.getContextUsage(),
+    ...(inner.autoCompactionEnabled ? { reserveTokens: inner.settingsManager.getCompactionReserveTokens() } : {}),
+  });
 }
 
 async function moveBeforeEntry(context: SessionCommandContext, entryId: string): Promise<void> {
   const sessionManager = context.inner.sessionManager;
   if (sessionManager.getLeafId() === entryId) {
     const parentId = sessionManager.getEntry(entryId)?.parentId ?? null;
-    if (parentId) sessionManager.branch(parentId);
-    else sessionManager.resetLeaf();
-    syncAgentMessages(context);
+    moveLeaf(context, parentId);
     return;
   }
   const result = await context.inner.navigateTree(entryId, {});
@@ -110,8 +118,7 @@ async function moveBeforeEntry(context: SessionCommandContext, entryId: string):
 function commitLeaf(context: SessionCommandContext, tip: string): void {
   const sessionManager = context.inner.sessionManager;
   if (sessionManager.getLeafId() === tip) return;
-  sessionManager.branch(tip);
-  syncAgentMessages(context);
+  moveLeaf(context, tip);
 }
 
 export async function sendSessionCommand(
@@ -207,8 +214,8 @@ export async function sendSessionCommand(
           steering: [...context.inner.getSteeringMessages()],
           followUp: [...context.inner.getFollowUpMessages()],
         },
-        contextUsage: describeLiveContextUsage(context.inner),
-        systemPrompt: context.inner.agent.state?.systemPrompt ?? "",
+        contextUsage: describeCommandContextUsage(context),
+        systemPrompt: context.runPolicy.view().systemPrompt,
         thinkingLevel: thinkingLevel ?? "off",
         extensionUi: context.getInteractiveSnapshot(),
         extensionStatuses: context.getExtensionStatuses(),
@@ -308,7 +315,7 @@ export async function sendSessionCommand(
         sessionName: context.inner.sessionManager.getSessionName(),
         costs: stats.costs,
         lastCompactionAt: stats.lastCompactionAt,
-        contextUsage: describeLiveContextUsage(context.inner) ?? undefined,
+        contextUsage: describeCommandContextUsage(context) ?? undefined,
       };
     }
 
@@ -340,12 +347,10 @@ export async function sendSessionCommand(
     }
 
     case "get_tools": {
-      const all: ToolInfo[] = context.inner.getAllTools();
-      const active = new Set<string>(context.inner.getActiveToolNames());
-      return all.map((t) => ({
-        name: t.name,
-        description: t.description,
-        active: active.has(t.name),
+      return context.runPolicy.view().tools.map(({ name, description, active }) => ({
+        name,
+        description,
+        active,
       }));
     }
 
@@ -380,16 +385,12 @@ export async function sendSessionCommand(
     }
 
     case "set_tools": {
-      const toolNames = command.toolNames as string[];
-      context.applyRequestedTools(toolNames);
-      context.persistToolNames(context.sessionId, toolNames);
+      context.runPolicy.setToolIntent(toolIntentFromNames(command.toolNames as string[]));
       return null;
     }
 
     case "reload": {
       await context.enqueueTurn(() => context.reloadSessionResources());
-      context.syncBrowserToolActivation();
-      context.syncSessionToolActivation();
       return { success: true };
     }
 

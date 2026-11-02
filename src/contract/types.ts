@@ -83,6 +83,12 @@ export interface SessionStatsSummary {
   cost: number;
   costs: { input: number; output: number; cacheRead: number; cacheWrite: number };
   lastCompactionAt: string | null;
+  auxiliaryUsage?: Array<{
+    kind: string;
+    tokens: SessionStatsSummary["tokens"];
+    cost: number;
+    costs: SessionStatsSummary["costs"];
+  }>;
 }
 
 export interface ContextInfo {

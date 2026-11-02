@@ -19,7 +19,7 @@ const PROVIDER_NAMES: Record<string, string> = {
   "amazon-bedrock": "Amazon Bedrock",
   "ant-ling": "Ant Ling",
   anthropic: "Anthropic",
-  "azure-openai-responses": "Azure OpenAI",
+  azure: "Azure OpenAI",
   baseten: "Baseten",
   cerebras: "Cerebras",
   "cloudflare-ai-gateway": "Cloudflare AI Gateway",

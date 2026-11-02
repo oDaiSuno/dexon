@@ -19,25 +19,81 @@ const { createManagedProcessToolDefinitions, ManagedProcessService, setBrowserSe
   },
 );
 
-test("managed process tools activate only with a non-empty local tool selection", async () => {
-  const { withExtensionTools } = await importTestBundle("src/agent-host/rpc-manager", {
+test("all managed process tools declare coding ownership and a concise prompt snippet", () => {
+  const service = new ManagedProcessService({ emit() {} });
+  const tools = createManagedProcessToolDefinitions("/tmp", true, service);
+  assert.deepEqual(
+    tools.map((tool) => tool.name),
+    [
+      "process_start",
+      "process_list",
+      "process_read",
+      "process_wait",
+      "process_write",
+      "process_stop",
+      "process_restart",
+    ],
+  );
+  for (const tool of tools) {
+    assert.equal(tool.dexonOwner, "coding", tool.name);
+    assert.equal(tool.exposure, "direct", tool.name);
+    assert.equal(tool.defaultActive, true, tool.name);
+    assert.equal(typeof tool.promptSnippet, "string", tool.name);
+    assert.ok(tool.promptSnippet.trim().length > 0 && tool.promptSnippet.length <= 120, tool.name);
+    assert.doesNotMatch(tool.promptSnippet, /[\r\n]/u, tool.name);
+  }
+});
+
+test("managed process declarations follow the selected coding tools and bare sessions declare nothing", async () => {
+  const { RunPolicy } = await importTestBundle("managed-process-run-policy", {
     packages: "external",
     absWorkingDir: root,
-    entryPoints: ["src/agent-host/rpc-manager.ts"],
+    entryPoints: ["src/agent-host/agent-session/run-policy.ts"],
   });
+  const definitions = createManagedProcessToolDefinitions("/tmp", true, new ManagedProcessService({ emit() {} }));
   const session = {
-    getAllTools() {
-      return [
-        { name: "read" },
-        { name: "browser_open" },
-        { name: "process_start" },
-        { name: "process_stop" },
-        { name: "extension_tool" },
-      ];
-    },
+    sessionId: "process-tool-selection",
+    agent: { state: { messages: [], systemPrompt: "" } },
+    getAllTools: () => [
+      { name: "read", description: "Read", exposure: "direct", sourceInfo: { source: "builtin" } },
+      ...definitions.map(({ name, description, exposure }) => ({
+        name,
+        description,
+        exposure,
+        sourceInfo: { source: "custom" },
+      })),
+    ],
+    getToolDefinition: (name) => definitions.find((definition) => definition.name === name),
+    getActiveToolNames: () => [],
+    setActiveToolsByName: () => undefined,
   };
-  assert.deepEqual(withExtensionTools(session, []), []);
-  assert.deepEqual(withExtensionTools(session, ["read"]), ["read", "process_start", "process_stop", "extension_tool"]);
+  const policy = new RunPolicy({
+    session,
+    toolchain: null,
+    intents: new Map(),
+    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false }),
+  });
+  const declared = () =>
+    policy
+      .view()
+      .tools.filter((tool) => tool.active)
+      .map((tool) => tool.name);
+  assert.deepEqual(declared(), [
+    "read",
+    "process_start",
+    "process_list",
+    "process_read",
+    "process_wait",
+    "process_write",
+    "process_stop",
+    "process_restart",
+  ]);
+  policy.setToolIntent({ kind: "agent", coding: ["read"] });
+  assert.deepEqual(declared(), ["read"]);
+  policy.setToolIntent({ kind: "agent", coding: ["process_start"] });
+  assert.deepEqual(declared(), ["process_start"]);
+  policy.setToolIntent({ kind: "bare" });
+  assert.deepEqual(declared(), []);
 });
 
 test("managed process tools reject a real messaging-channel context without creating a process", async () => {

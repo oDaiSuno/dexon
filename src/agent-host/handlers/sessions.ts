@@ -30,7 +30,8 @@ import {
   openSessionSource,
   type SessionSource,
 } from "../session-source";
-import { reconstructSessionContextUsage } from "../session-context-usage";
+import { describeStoredContextUsage } from "../session-context-usage";
+import { getDesktopSessionToolIntent } from "../session-tool-store";
 import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
 import { deleteSessionLeafChoice } from "../session-leaf-store";
@@ -245,8 +246,9 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           const state = await agentStatePromise;
           if (state?.running) return undefined;
           try {
-            return await reconstructSessionContextUsage({
+            return await describeStoredContextUsage({
               branch,
+              profile: getDesktopSessionToolIntent(id)?.kind ?? "agent",
               resolveContextWindow: resolveSessionContextWindow,
             });
           } catch (error) {

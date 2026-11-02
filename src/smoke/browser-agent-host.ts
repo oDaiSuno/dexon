@@ -7,7 +7,7 @@ import { browserCapabilityRuntime } from "../agent-host/browser-capability-runti
 import { registerHandlers } from "../agent-host/handlers";
 import { applyManagedProcessOwnerIdentity } from "../agent-host/managed-process/owner-identity";
 import { installToolchainGitRunner } from "../agent-host/toolchain-git";
-import { getRpcSession, syncBrowserToolsForAllSessions } from "../agent-host/rpc-manager";
+import { getRpcSession } from "../agent-host/rpc-manager";
 import { startSessionWatcher } from "../agent-host/session-watcher";
 import { toolchainRuntime } from "../agent-host/toolchain-runtime";
 import type { ToolchainSnapshot } from "../shared/toolchains/types";
@@ -329,8 +329,10 @@ function fixtureStatus(sessionId: string): BrowserAgentFixtureStatus {
     ...((session.inner as unknown as { sessionFile?: string }).sessionFile
       ? { sessionFile: (session.inner as unknown as { sessionFile: string }).sessionFile }
       : {}),
-    activeTools: session.inner
-      .getActiveToolNames()
+    activeTools: session.runPolicy
+      .view()
+      .tools.filter((tool) => tool.active)
+      .map((tool) => tool.name)
       .filter((name) => name.startsWith("browser_") || name.startsWith("process_")),
     isRunning: session.isRunning(),
     isStreaming: session.inner.isStreaming,
@@ -482,7 +484,6 @@ parentPort.on("message", (event) => {
   if (message.type === "browser:init" || message.type === "browser:changed") {
     if (!message.snapshot) throw new Error("Browser Agent E2E Host received an empty Browser snapshot");
     browserCapabilityRuntime.apply(message.snapshot as BrowserCapabilitySnapshot);
-    syncBrowserToolsForAllSessions();
     parentPort.postMessage({ type: "browser:ack", revision: message.snapshot.revision });
     return;
   }

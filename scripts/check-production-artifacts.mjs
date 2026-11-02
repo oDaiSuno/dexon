@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from "node:fs";
+import { findMissingPiAuthoringAssets } from "./pi-authoring-assets.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -54,36 +55,7 @@ const requiredPackageExclusions = [
   '"!node_modules/@earendil-works/pi-coding-agent/examples/**/*"',
 ];
 const missingPackageExclusions = requiredPackageExclusions.filter((pattern) => !builderConfig.includes(pattern));
-const requiredPiAuthoringAssetMarkers = [
-  "from: node_modules/@earendil-works/pi-coding-agent",
-  "to: node_modules/@earendil-works/pi-coding-agent",
-  "- README.md",
-  '- "docs/**/*"',
-  '- "examples/**/*"',
-  '- "dist/**/*.d.ts"',
-  "from: node_modules/@earendil-works/pi-ai/dist",
-  "to: node_modules/@earendil-works/pi-ai/dist",
-  "from: node_modules/@earendil-works/pi-telemetry",
-  "to: node_modules/@earendil-works/pi-telemetry",
-  "from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai",
-  "to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-ai",
-  "from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui",
-  "to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-tui",
-  "from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client",
-  "to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-client",
-  "from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol",
-  "to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-protocol",
-  "from: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry",
-  "to: node_modules/@earendil-works/pi-coding-agent/node_modules/@earendil-works/pi-telemetry",
-  "- CHANGELOG.md",
-  "- package.json",
-  '- "dist/**/*.js"',
-  '- "dist/**/*.json"',
-  '- "**/*.d.ts"',
-  '- "dist/**/*.d.ts"',
-  '- "native/**/*"',
-];
-const missingPiAuthoringAssets = requiredPiAuthoringAssetMarkers.filter((marker) => !builderConfig.includes(marker));
+const missingPiAuthoringAssets = findMissingPiAuthoringAssets(builderConfig);
 const toolchainCatalogPackagingIsValid =
   builderConfig.includes("from: THIRD_PARTY_NOTICES.md") &&
   builderConfig.includes("to: THIRD_PARTY_NOTICES.md") &&
