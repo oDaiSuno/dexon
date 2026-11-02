@@ -54,3 +54,55 @@ test("a session that was never compacted has no last compaction time", () => {
   const stats = computeSessionStats([assistant("a1", { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 })]);
   assert.equal(stats.lastCompactionAt, null);
 });
+
+test("system records are not conversation messages in session statistics", () => {
+  const stats = computeSessionStats([
+    {
+      type: "message",
+      id: "system",
+      parentId: null,
+      timestamp: "2026-10-01T10:00:00.000Z",
+      message: { role: "system", content: "private", timestamp: 1 },
+    },
+    assistant("a1", { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }),
+  ]);
+  assert.equal(stats.totalMessages, 1);
+  assert.equal(stats.assistantMessages, 1);
+});
+
+test("auxiliary usage is grouped by kind without inflating conversation tokens or cost", () => {
+  const auxiliary = (id, kind) => ({
+    type: "usage",
+    id,
+    parentId: null,
+    timestamp: "2026-10-01T10:00:00.000Z",
+    provider: "provider",
+    model: "model",
+    kind,
+    usage: usage({ input: 0, output: 0, cacheRead: 0.0625, cacheWrite: 0 }),
+  });
+  const stats = computeSessionStats([
+    assistant("a", { input: 1, output: 0, cacheRead: 0, cacheWrite: 0 }),
+    auxiliary("u1", "cache_warm"),
+    auxiliary("u2", "cache_warm"),
+    auxiliary("u3", "future_operation"),
+  ]);
+  assert.equal(stats.totalMessages, 1);
+  assert.equal(stats.tokens.total, 1160);
+  assert.equal(stats.cost, 1);
+  assert.deepEqual(stats.auxiliaryUsage, [
+    {
+      kind: "cache_warm",
+      tokens: { input: 200, output: 20, cacheRead: 2000, cacheWrite: 100, total: 2320 },
+      cost: 0.125,
+      costs: { input: 0, output: 0, cacheRead: 0.125, cacheWrite: 0 },
+    },
+    {
+      kind: "future_operation",
+      tokens: { input: 100, output: 10, cacheRead: 1000, cacheWrite: 50, total: 1160 },
+      cost: 0.0625,
+      costs: { input: 0, output: 0, cacheRead: 0.0625, cacheWrite: 0 },
+    },
+  ]);
+  assert.equal("auxiliaryUsage" in computeSessionStats([]), false);
+});

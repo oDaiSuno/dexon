@@ -7,6 +7,7 @@ import type { AgentMessage, ChannelMessageAttachment, ExtensionUiRequest } from 
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { setBrowserSessionSource } from "../browser-tools";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
+import { isDisplayEvent } from "../display-message";
 import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
 import { stripToolchainMarkers } from "../session-entry-compat";
 import { setDesktopSessionToolNames } from "../session-tool-store";
@@ -128,6 +129,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   start(): void {
     this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
       this.resetIdleTimer();
+      if (!isDisplayEvent(event)) return;
       this.turnStatus.observe(event);
       this.retryOutcome.observe(event, this.inner.sessionManager);
       const displayEvent = this.withMessageSources(this.blockTiming.observe(event));

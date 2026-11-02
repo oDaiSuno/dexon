@@ -165,3 +165,21 @@ test("a session that cannot say which entry was saved last keeps running and rep
   assert.ok(wrapper.isAlive(), "the session keeps running");
   assert.equal(wrapper.cwd, "/tmp/simplified-workspace");
 });
+
+test("system records never reach live conversation subscribers", async (t) => {
+  const inner = simplifiedSession();
+  const wrapper = new AgentSessionWrapper(inner, undefined, () => {});
+  t.after(() => wrapper.dispose({ abort: false, reason: "test" }));
+  const events = [];
+  wrapper.onEvent((event) => events.push(event));
+  wrapper.start();
+  const message = { role: "system", content: "private prompt", timestamp: 1 };
+  inner.announce({ type: "message_start", message });
+  inner.announce({ type: "message_update", message });
+  inner.announce({ type: "message_end", message });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(
+    events.filter((event) => event.type.startsWith("message_")),
+    [],
+  );
+});
