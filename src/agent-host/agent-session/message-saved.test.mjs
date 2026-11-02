@@ -23,12 +23,12 @@ const { AgentSessionWrapper } = await importTestBundle("agent-session-message-sa
 
 const MESSAGE_EVENT = /^message_(?:start|end|saved)$/;
 
-function savedMessageIds(sessionFile) {
+function savedDisplayMessageIds(sessionFile) {
   return readFileSync(sessionFile, "utf8")
     .trim()
     .split("\n")
     .map((line) => JSON.parse(line))
-    .filter((entry) => entry.type === "message")
+    .filter((entry) => entry.type === "message" && entry.message.role !== "system")
     .map((entry) => entry.id);
 }
 
@@ -73,7 +73,7 @@ async function realSession(t, responses) {
     ],
   });
   await session.setModel(session.modelRuntime.getModel(api, "faux-model"));
-  const wrapper = new AgentSessionWrapper(session, undefined, () => {});
+  const wrapper = new AgentSessionWrapper(session, { intents: new Map() });
   wrapper.start();
   t.after(async () => {
     await wrapper.dispose({ abort: false, reason: "test" });
@@ -109,7 +109,7 @@ function simplifiedSession() {
   };
 }
 
-test("after every message is saved, the agent host tells the renderer the id the session file holds, before anything about the next message arrives", async (t) => {
+test("after every visible message is saved, the agent host reports its stored id before the next message arrives", async (t) => {
   const { sessionManager, wrapper } = await realSession(t, [
     fauxAssistantMessage([fauxThinking("先看看配置。"), fauxToolCall("read", { path: "missing-config.toml" })], {
       stopReason: "toolUse",
@@ -141,7 +141,7 @@ test("after every message is saved, the agent host tells the renderer the id the
     );
   }
 
-  const fileIds = savedMessageIds(sessionManager.getSessionFile());
+  const fileIds = savedDisplayMessageIds(sessionManager.getSessionFile());
   const announced = events.filter((event) => event.type === "message_saved").map((event) => event.entryId);
   assert.deepEqual(
     announced,
@@ -152,7 +152,7 @@ test("after every message is saved, the agent host tells the renderer the id the
 
 test("a session that cannot say which entry was saved last keeps running and reports nothing", async (t) => {
   const inner = simplifiedSession();
-  const wrapper = new AgentSessionWrapper(inner, undefined, () => {});
+  const wrapper = new AgentSessionWrapper(inner, { intents: new Map() });
   t.after(() => wrapper.dispose({ abort: false, reason: "test" }));
   const events = [];
   wrapper.onEvent((event) => events.push(event));
@@ -168,7 +168,7 @@ test("a session that cannot say which entry was saved last keeps running and rep
 
 test("system records never reach live conversation subscribers", async (t) => {
   const inner = simplifiedSession();
-  const wrapper = new AgentSessionWrapper(inner, undefined, () => {});
+  const wrapper = new AgentSessionWrapper(inner, { intents: new Map() });
   t.after(() => wrapper.dispose({ abort: false, reason: "test" }));
   const events = [];
   wrapper.onEvent((event) => events.push(event));

@@ -1,10 +1,14 @@
 import type { Api, Model } from "@earendil-works/pi-ai";
 import type {
   AgentSessionEvent,
+  SessionEntry as PiSessionEntry,
   SessionManager,
   SettingsManager,
   SlashCommandInfo,
+  ToolExposure as PiToolExposure,
+  ToolInfo as PiToolInfo,
 } from "@earendil-works/pi-coding-agent";
+import type { PersistedMessage, SessionEntry } from "./types";
 
 export interface ContextUsage {
   percent: number | null;
@@ -17,11 +21,26 @@ export interface ModelLike {
   provider: string;
 }
 
-export interface ToolInfo {
-  name: string;
-  description: string;
-  parameters?: unknown;
+export type ToolExposure = PiToolExposure;
+
+export type DexonToolOwner = "coding" | "browser" | "orchestration";
+
+export interface ToolDefinitionMetadata {
+  readonly defaultActive?: boolean;
+  readonly promptSnippet?: string;
+  readonly dexonOwner?: DexonToolOwner;
 }
+
+export interface ToolLoadoutReader {
+  getAllTools(): PiToolInfo[];
+  getActiveToolNames(): string[];
+  getToolDefinition(name: string): ToolDefinitionMetadata | undefined;
+  setActiveToolsByName(names: string[]): void;
+}
+
+type AssertNever<T extends never> = T;
+
+export type PiEntryTypesCovered = AssertNever<Exclude<PiSessionEntry["type"], SessionEntry["type"]>>;
 
 export interface NavigateTreeResult {
   editorText?: string;
@@ -139,13 +158,19 @@ export interface AgentSessionLike {
   readonly sessionManager: SessionManager;
   readonly settingsManager: SettingsManager;
   readonly agent: {
-    state?: { systemPrompt?: string; thinkingLevel?: string; messages?: unknown[]; streamingMessage?: unknown };
+    readonly state?: {
+      readonly systemPrompt: string;
+      thinkingLevel?: string;
+      readonly messages: readonly PersistedMessage[];
+      readonly streamingMessage?: unknown;
+    };
   };
   readonly extensionRunner: ExtensionRunnerLike;
   readonly promptTemplates: readonly PromptTemplateLike[];
   readonly resourceLoader: ResourceLoaderLike;
 
   readonly bindExtensions?: unknown;
+  refreshContext(): void;
   reload(options?: { beforeSessionStart?: () => void | Promise<void> }): Promise<void>;
   subscribe(listener: (event: AgentSessionEvent) => void): () => void;
   prompt(
@@ -176,15 +201,20 @@ export interface AgentSessionLike {
   getLastAssistantText(): string | undefined;
   setAutoCompactionEnabled(enabled: boolean): void;
   setAutoRetryEnabled(enabled: boolean): void;
-  steer(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
-  followUp(text: string, images?: Array<{ type: "image"; data: string; mimeType: string }>): Promise<void>;
+  steer(
+    text: string,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+    options?: { source?: "interactive" | "rpc" | "extension" },
+  ): Promise<"handled" | "queued">;
+  followUp(
+    text: string,
+    images?: Array<{ type: "image"; data: string; mimeType: string }>,
+    options?: { source?: "interactive" | "rpc" | "extension" },
+  ): Promise<"handled" | "queued">;
   readonly pendingMessageCount: number;
   getSteeringMessages(): readonly string[];
   getFollowUpMessages(): readonly string[];
   clearQueue(): { steering: string[]; followUp: string[] };
-  getAllTools(): ToolInfo[];
-  getActiveToolNames(): string[];
-  setActiveToolsByName(names: string[]): void;
   abortCompaction(): void;
   getContextUsage(): ContextUsage | undefined;
 }

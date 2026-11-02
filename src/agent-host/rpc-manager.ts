@@ -17,18 +17,22 @@ import { chosenSessionModel } from "./session-model";
 import { cacheSessionPath } from "./session-reader";
 import { configuredSessionDir } from "./session-dir";
 import { applyStoredLeafChoice, rememberLeafChoice } from "./session-leaf-store";
-import { getDesktopSessionToolNames, setDesktopSessionToolNames } from "./session-tool-store";
+import { adoptBirthToolIntent, type ToolIntent } from "./agent-session/tool-intent";
+import { renderToolchainSection, RunPolicy } from "./agent-session/run-policy";
+import { desktopToolIntents } from "./session-tool-store";
 import { createDesktopBashToolDefinition, createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
 import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 
-import { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
+import { getLegacySessionToolNames } from "./agent-session/compat";
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
 import { AgentSessionWrapper } from "./agent-session/wrapper";
+import type { AgentSessionLike, ToolLoadoutReader } from "../shared/pi-types";
 import type { SessionLiveStatus } from "../shared/session-orchestration";
 import type { SessionEntry } from "../shared/types";
-export { getLegacySessionToolNames, withExtensionTools } from "./agent-session/compat";
+export { getLegacySessionToolNames } from "./agent-session/compat";
 export type { AgentEvent, ExternalSessionCommand, OrchestratedTurnOutcome } from "./agent-session/types";
+export { renderToolchainSection, RunPolicy } from "./agent-session/run-policy";
 export { AgentSessionWrapper } from "./agent-session/wrapper";
 // ============================================================================
 // Session registry
@@ -66,10 +70,6 @@ export async function disposeAllRpcSessions(reason = "host-shutdown"): Promise<v
   await Promise.all([...getRegistry().values()].map((session) => session.dispose({ abort: true, reason })));
 }
 
-export function syncBrowserToolsForAllSessions(): void {
-  for (const session of getRegistry().values()) session.syncBrowserToolActivation();
-}
-
 export function getRunningRpcSessionIds(): string[] {
   const ids = new Set<string>();
   for (const [sessionId, session] of getRegistry()) {
@@ -85,10 +85,6 @@ export function getRpcSessionStatuses(): Record<string, SessionLiveStatus> {
     if (status !== "idle") statuses[session.sessionId || sessionId] = status;
   }
   return statuses;
-}
-
-export function syncSessionToolsForAllSessions(): void {
-  for (const session of getRegistry().values()) session.syncSessionToolActivation();
 }
 
 // ----------------------------------------------------------------------------
@@ -137,16 +133,11 @@ export function notifyRunningChange(): void {
   }
 }
 
-/**
- * Get or create an AgentSession for the given session.
- * For new sessions (sessionFile === ""), pi generates its own id.
- * Pass toolNames to pre-configure active tools (empty array = all tools disabled).
- */
 export async function startRpcSession(
   sessionId: string,
   sessionFile: string,
   cwd: string,
-  toolNames?: string[],
+  tools?: ToolIntent | readonly string[],
   initialModel?: { provider: string; modelId: string },
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
   const registry = getRegistry();
@@ -170,13 +161,7 @@ export async function startRpcSession(
     // remains unaffected. Read the old custom entry only for one-way migration.
     const managerSessionId = sessionManager.getSessionId();
     applyStoredLeafChoice(managerSessionId, sessionManager);
-    const desktopToolNames = getDesktopSessionToolNames(managerSessionId);
-    const legacyToolNames = desktopToolNames === undefined ? getLegacySessionToolNames(sessionManager) : undefined;
-    const persistedToolNames = desktopToolNames ?? legacyToolNames;
-    const sessionToolNames = persistedToolNames ?? toolNames;
 
-    // Build services first so extension-registered providers are available
-    // before the SDK restores the saved model from the session file.
     const bridge: { wrapper?: AgentSessionWrapper } = {};
     const events = createEventBus();
     const services = await createAgentSessionServices({
@@ -191,6 +176,7 @@ export async function startRpcSession(
             return bridge.wrapper.requestQuestionnaire(questions, signal);
           },
         }),
+        extensionFactories: [RunPolicy.extension(() => bridge.wrapper?.runPolicy)],
       },
     });
     const executionContext = await toolchainRuntime.createExecutionContext({
@@ -240,22 +226,19 @@ export async function startRpcSession(
       excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
     });
     const realSessionId = inner.sessionId as string;
+    adoptBirthToolIntent(desktopToolIntents, realSessionId, {
+      requested: tools,
+      legacy: getLegacySessionToolNames(sessionManager),
+    });
 
-    // Keep every tool registered so a session initialized with no tools can enable
-    // them later. Narrow only the active set, never the registry allow-list.
-    if (sessionToolNames !== undefined) {
-      inner.setActiveToolsByName(withExtensionTools(inner, sessionToolNames));
-      if (desktopToolNames === undefined) setDesktopSessionToolNames(realSessionId, sessionToolNames);
-    }
-
-    const wrapper = new AgentSessionWrapper(inner, sessionToolNames);
+    const wrapper = new AgentSessionWrapper(inner as unknown as AgentSessionLike & ToolLoadoutReader, {
+      intents: desktopToolIntents,
+      toolchain: renderToolchainSection(executionContext.inventoryRevision, executionContext.summary),
+    });
     if (chosen.model && !chosenModel) wrapper.sessionModel.adopt(chosen.model);
     bridge.wrapper = wrapper;
     wrapper.setRuntimeDiagnostics(services.diagnostics);
-    wrapper.setToolchainSummary(executionContext.inventoryRevision, executionContext.summary);
     wrapper.start();
-    wrapper.syncBrowserToolActivation();
-    wrapper.syncSessionToolActivation();
 
     const realSessionFile = inner.sessionFile as string | undefined;
     if (realSessionFile) cacheSessionPath(realSessionId, realSessionFile);
@@ -265,7 +248,7 @@ export async function startRpcSession(
       registry.delete(realSessionId);
     });
     registry.set(realSessionId, wrapper);
-    wrapper.beginExtensionBinding({ forceEmptySystemPrompt: sessionToolNames?.length === 0 });
+    wrapper.beginExtensionBinding();
 
     return { session: wrapper, realSessionId };
   })().finally(() => locks.delete(sessionId));

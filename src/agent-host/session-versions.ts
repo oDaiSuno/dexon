@@ -30,7 +30,7 @@ function indexEntries(entries: readonly SessionEntry[]): Indexed {
 }
 
 function isConversationRecord(entry: SessionEntry): boolean {
-  if (entry.type === "message") return true;
+  if (entry.type === "message") return entry.message.role !== "system";
   if (entry.type === "custom_message") return entry.display !== false;
   return entry.type === "compaction" || entry.type === "branch_summary";
 }

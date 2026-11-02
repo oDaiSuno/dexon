@@ -1,7 +1,7 @@
 import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { TSchema } from "typebox";
 
-export type DexonToolOwner = "coding" | "browser" | "orchestration";
+import type { DexonToolOwner } from "../../shared/pi-types";
 
 export interface DexonToolMetadata {
   readonly dexonOwner: DexonToolOwner;

@@ -1,5 +1,7 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
@@ -88,4 +90,49 @@ test("session list counts conversation records but not system records", async ()
   const info = await buildSessionInfoFromManager("", manager, manager.getEntries(), { resolveProjectInfo: false });
   assert.equal(info.messageCount, 1);
   assert.equal(info.firstMessage, "hello");
+});
+
+test("reading legacy entries normalizes them in memory without rewriting the transcript", async (t) => {
+  const { getSessionEntries } = await loadSubject();
+  const directory = mkdtempSync(path.join(tmpdir(), "dexon-history-legacy-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "legacy.jsonl");
+  const raw = [
+    { type: "session", version: 2, id: "legacy", cwd: directory, timestamp: "2026-01-01T00:00:00.000Z" },
+    {
+      type: "message",
+      id: "old",
+      parentId: null,
+      timestamp: "2026-01-01T00:00:01.000Z",
+      message: { role: "hookMessage", customType: "note", content: "legacy content", display: true, timestamp: 1 },
+    },
+  ]
+    .map((entry) => JSON.stringify(entry))
+    .join("\n");
+  writeFileSync(file, raw);
+  const entries = getSessionEntries(file);
+  assert.equal(entries[0].message.role, "custom");
+  assert.equal(entries[0].id, "old");
+  assert.equal(readFileSync(file, "utf8"), raw);
+});
+
+test("reading entries skips null and malformed JSONL lines without losing future metadata", async (t) => {
+  const { getSessionEntries } = await loadSubject();
+  const directory = mkdtempSync(path.join(tmpdir(), "dexon-history-partial-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "partial.jsonl");
+  const timestamp = "2026-01-01T00:00:00.000Z";
+  const entries = [
+    { type: "session", version: 3, id: "partial", cwd: directory, timestamp },
+    { type: "message", id: "user", parentId: null, timestamp, message: { role: "user", content: "hello" } },
+    { type: "future_metadata", id: "future", parentId: "user", timestamp },
+  ];
+  const raw = entries.map((entry) => JSON.stringify(entry)).join("\n") + "\nnull\n{unfinished";
+  writeFileSync(file, raw);
+  const read = getSessionEntries(file);
+  assert.deepEqual(
+    read.map((entry) => entry.id),
+    ["user", "future"],
+  );
+  assert.equal(readFileSync(file, "utf8"), raw);
 });

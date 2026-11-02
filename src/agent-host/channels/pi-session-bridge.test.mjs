@@ -99,13 +99,13 @@ process.parentPort = {
     });
   },
 };
-const { PiSessionBridge, disposeAllRpcSessions, getDesktopSessionToolNames } = await importTestBundle(
+const { PiSessionBridge, disposeAllRpcSessions, getDesktopSessionToolIntent } = await importTestBundle(
   "real-pi-session-bridge",
   {
     packages: "external",
     stdin: {
       contents:
-        'export {PiSessionBridge} from "./pi-session-bridge.ts"; export {disposeAllRpcSessions} from "../rpc-manager.ts"; export {getDesktopSessionToolNames} from "../session-tool-store.ts";',
+        'export {PiSessionBridge} from "./pi-session-bridge.ts"; export {disposeAllRpcSessions} from "../rpc-manager.ts"; export {getDesktopSessionToolIntent} from "../session-tool-store.ts";',
       resolveDir: import.meta.dirname,
       loader: "ts",
     },
@@ -207,7 +207,7 @@ test("tool synchronization changes a live session's active tools and its persist
   const created = await bridge.newSession(binding(), []);
   await bridge.syncTools(binding({ sessionId: created.sessionId }), ["read"]);
   assert.deepEqual(await activeTools(opened), ["read"]);
-  assert.deepEqual(getDesktopSessionToolNames(created.sessionId), ["read"]);
+  assert.deepEqual(getDesktopSessionToolIntent(created.sessionId), { kind: "agent", coding: ["read"] });
 });
 
 test("SDK PowerShell stays unavailable even when global defaultTools lists it", async () => {
@@ -269,7 +269,7 @@ test("tool synchronization persists an inactive session's selection without star
     throw new Error("inactive synchronization must not start a session");
   });
   await bridge.syncTools(binding({ sessionId: "inactive-session" }), ["read"]);
-  assert.deepEqual(getDesktopSessionToolNames("inactive-session"), ["read"]);
+  assert.deepEqual(getDesktopSessionToolIntent("inactive-session"), { kind: "agent", coding: ["read"] });
   assert.deepEqual(bridge.getSessionStatus(binding({ sessionId: "inactive-session" })), {
     hasSession: true,
     running: false,

@@ -1,5 +1,5 @@
-import { SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
-import { existsSync } from "node:fs";
+import { SessionManager, getAgentDir, parseSessionEntries } from "@earendil-works/pi-coding-agent";
+import { existsSync, readFileSync } from "node:fs";
 import type { RpcServer } from "../contract/rpc";
 import {
   isChannelAttachmentContextType,
@@ -200,7 +200,8 @@ export async function buildSessionInfoFromManager(
 }
 
 export function getSessionEntries(filePath: string): SessionEntry[] {
-  const entries = SessionManager.open(filePath).getEntries();
+  const parsed = parseSessionEntries(readFileSync(filePath, "utf8")).filter(Boolean);
+  const entries = SessionManager.inMemory(undefined, undefined, parsed).getEntries();
   return entries as unknown as SessionEntry[];
 }
 
@@ -369,8 +370,6 @@ function parseEntryTimestamp(timestamp: string): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-// Convert a session entry on the active branch into a UI message.
-// Returns null for entries that do not map to chat history (metadata, non-message types).
 export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
   switch (entry.type) {
     case "message": {

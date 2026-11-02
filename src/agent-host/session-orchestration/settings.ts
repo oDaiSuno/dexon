@@ -8,7 +8,6 @@ import { callMain } from "../parent-rpc";
 const SETTINGS_PULL_TIMEOUT_MS = 5_000;
 
 let current: SessionOrchestrationSettings = { ...DEFAULT_SESSION_ORCHESTRATION_SETTINGS };
-let onSettingsChanged: (() => void) | null = null;
 const installedPorts = new WeakSet<object>();
 
 export function getSessionOrchestrationSettings(): SessionOrchestrationSettings {
@@ -27,13 +26,7 @@ function unwrapSettings(result: unknown): unknown {
 }
 
 function applySettings(value: unknown): void {
-  const next = normalizeSessionOrchestrationSettings(value);
-  const previous = current;
-  current = next;
-  const changed = (Object.keys(next) as Array<keyof SessionOrchestrationSettings>).some(
-    (key) => JSON.stringify(next[key]) !== JSON.stringify(previous[key]),
-  );
-  if (changed) onSettingsChanged?.();
+  current = normalizeSessionOrchestrationSettings(value);
 }
 
 async function pullFromMain(): Promise<unknown> {
@@ -50,8 +43,7 @@ export async function refreshSessionOrchestrationSettings(): Promise<void> {
   applySettings(unwrapSettings(answer));
 }
 
-export function initializeSessionOrchestrationSettings(options: { onSettingsChanged: () => void }): void {
-  onSettingsChanged = options.onSettingsChanged;
+export function initializeSessionOrchestrationSettings(): void {
   const port = process.parentPort;
   if (!port || installedPorts.has(port)) return;
   installedPorts.add(port);

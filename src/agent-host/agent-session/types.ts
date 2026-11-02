@@ -21,10 +21,6 @@ export type ExtensionCommandContextActionsLike = {
   reload: () => Promise<void>;
 };
 
-export type ExtensionBindingOptions = {
-  forceEmptySystemPrompt?: boolean;
-};
-
 export type ExternalSessionCommand = "compact" | "reload";
 
 export interface OrchestratedTurnOutcome {

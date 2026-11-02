@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-This notice was reviewed against the Dexon v0.1.13 production dependency graph. The license links below
+This notice was reviewed against the production dependency graph in this source tree. The license links below
 identify the upstream terms that apply to each component; Dexon does not modify or replace those terms.
 A reference-only entry records project lineage and does not mean that the referenced project is bundled with the
 application.
@@ -14,13 +14,13 @@ been modified for Dexon.
 | -------------------------------------- | ---------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `@agegr/pi-web`                        | Reference        | Early UI reference; not bundled                     | [MIT](https://github.com/agegr/pi-web/blob/main/LICENSE)                                                                         | [agegr/pi-web](https://github.com/agegr/pi-web); Copyright © 2026 agegr                                                |
 | Pi Agent Desktop (upstream project)    | 0.1.14           | Project lineage: Dexon derives from it; not bundled | [Apache-2.0](https://github.com/DLYZZT/pi-desktop/blob/v0.1.14/LICENSE)                                                          | [DLYZZT/pi-desktop](https://github.com/DLYZZT/pi-desktop/tree/v0.1.14); Copyright © DLYZZT                             |
-| `@earendil-works/pi-ai`                | 0.84.4           | Unified model-provider API                          | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-agent-core`        | 0.84.4           | Agent runtime                                       | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-coding-agent`      | 0.84.4           | Coding Agent and extension runtime                  | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-tui`               | 0.84.4           | Pi runtime dependency                               | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-client`            | 0.84.4           | Pi client protocol implementation                   | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-protocol`          | 0.84.4           | Pi protocol types                                   | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
-| `@earendil-works/pi-telemetry`         | 0.84.4           | Pi runtime telemetry API                            | [MIT](https://github.com/earendil-works/pi/blob/v0.84.4/LICENSE)                                                                 | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v0.84.4); Copyright © 2025 Mario Zechner                 |
+| `@earendil-works/pi-ai`                | 1.4.0            | Unified model-provider API                          | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-agent-core`        | 1.4.0            | Agent runtime                                       | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-codemode`          | 1.4.0            | Sandboxed tool execution                            | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-mcp`               | 1.4.0            | Model Context Protocol client                       | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-coding-agent`      | 1.4.0            | Coding Agent and extension runtime                  | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-tui`               | 1.4.0            | Pi runtime dependency                               | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
+| `@earendil-works/pi-telemetry`         | 1.4.0            | Pi runtime telemetry API                            | [MIT](https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE)                                                                  | [earendil-works/pi](https://github.com/earendil-works/pi/tree/v1.4.0); Copyright © 2025 Mario Zechner                  |
 | Tencent `openclaw-weixin` adapted code | 2.4.6            | Weixin channel transport                            | [MIT](https://github.com/Tencent/openclaw-weixin/blob/v2.4.6/LICENSE)                                                            | [Tencent/openclaw-weixin](https://github.com/Tencent/openclaw-weixin/tree/v2.4.6); Copyright © 2026 Tencent            |
 | `@rc-component/qrcode`                 | 2.0.0            | QR-code settings UI                                 | [MIT](https://github.com/react-component/qrcode/blob/master/LICENSE)                                                             | [react-component/qrcode](https://github.com/react-component/qrcode); Copyright © 2015-present Alipay.com               |
 | `@larksuiteoapi/node-sdk`              | 1.71.1           | Feishu/Lark channel transport                       | [MIT](https://github.com/larksuite/node-sdk/blob/main/LICENSE)                                                                   | [larksuite/node-sdk](https://github.com/larksuite/node-sdk); Copyright © 2022 Lark Technologies Pte. Ltd.              |
@@ -33,15 +33,47 @@ been modified for Dexon.
 | `windows-link`                         | 0.2.1            | Windows import-link support                         | [Apache-2.0 OR MIT](https://github.com/microsoft/windows-rs/tree/0.61.2/license-mit)                                             | [microsoft/windows-rs](https://github.com/microsoft/windows-rs/tree/0.61.2)                                            |
 | Microsoft Visual C++ runtime           | Per release SBOM | Statically linked into the Windows helper           | [Microsoft software license terms](https://go.microsoft.com/fwlink/?LinkId=2086102)                                              | The authoritative native toolset version is recorded in the Windows CycloneDX SBOM                                     |
 
-## Pi 0.84 runtime dependencies
+## Pi 1.4 runtime dependencies
 
 | Component         | Version | License                                                                                  | Attribution / source                                                                                                          |
 | ----------------- | ------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `grok-mermaid`    | 0.2.2   | [Apache-2.0](https://github.com/xl0/grok-mermaid/blob/v0.2.2/LICENSE)                    | [xl0/grok-mermaid](https://github.com/xl0/grok-mermaid/tree/v0.2.2); Copyright © 2023-2026 SpaceXAI and © 2026 Alexey Zaytsev |
-| `typebox`         | 1.3.7   | [MIT](https://github.com/sinclairzx81/typebox/blob/main/license)                         | [sinclairzx81/typebox](https://github.com/sinclairzx81/typebox)                                                               |
-| `undici`          | 8.9.0   | [MIT](https://github.com/nodejs/undici/blob/v8.9.0/LICENSE)                              | [nodejs/undici](https://github.com/nodejs/undici/tree/v8.9.0)                                                                 |
+| `grok-mermaid`    | 0.2.3   | [Apache-2.0](https://github.com/xl0/grok-mermaid/blob/v0.2.3/LICENSE)                    | [xl0/grok-mermaid](https://github.com/xl0/grok-mermaid/tree/v0.2.3); Copyright © 2023-2026 SpaceXAI and © 2026 Alexey Zaytsev |
+| `typebox`         | 1.3.27  | [MIT](https://github.com/sinclairzx81/typebox/blob/main/license)                         | [sinclairzx81/typebox](https://github.com/sinclairzx81/typebox)                                                               |
+| `undici`          | 8.10.2  | [MIT](https://github.com/nodejs/undici/blob/v8.10.2/LICENSE)                             | [nodejs/undici](https://github.com/nodejs/undici/tree/v8.10.2)                                                                |
 | `protobufjs`      | 7.6.5   | [BSD-3-Clause](https://github.com/protobufjs/protobuf.js/blob/protobufjs-v7.6.5/LICENSE) | [protobufjs/protobuf.js](https://github.com/protobufjs/protobuf.js/tree/protobufjs-v7.6.5)                                    |
-| `brace-expansion` | 5.0.9   | [MIT](https://github.com/juliangruber/brace-expansion/blob/v5.0.9/LICENSE)               | [juliangruber/brace-expansion](https://github.com/juliangruber/brace-expansion/tree/v5.0.9)                                   |
+| `brace-expansion` | 5.0.12  | [MIT](https://github.com/juliangruber/brace-expansion/blob/v5.0.12/LICENSE)              | [juliangruber/brace-expansion](https://github.com/juliangruber/brace-expansion/tree/v5.0.12)                                  |
+| `quickjs-wasi`    | 3.6.2   | [MIT](https://spdx.org/licenses/MIT.html)                                                | [vercel-labs/quickjs-wasi](https://github.com/vercel-labs/quickjs-wasi); Copyright © 2026 Vercel, Inc.                        |
+
+### QuickJS-NG attribution
+
+`quickjs-wasi` compiles QuickJS-NG to WebAssembly. Its bundled QuickJS-NG revision is not separately identified in the npm package. The following upstream MIT notice is reproduced from the [QuickJS-NG license](https://github.com/quickjs-ng/quickjs/blob/master/LICENSE).
+
+```text
+The MIT License (MIT)
+
+Copyright (c) 2017-2026 Fabrice Bellard
+Copyright (c) 2017-2024 Charlie Gordon
+Copyright (c) 2023-2026 Ben Noordhuis
+Copyright (c) 2023-2026 Saúl Ibarra Corretgé
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL
+THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+```
 
 ## Developer toolchains
 
