@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import { importTestBundle } from "#test-bundle";
 
@@ -8,11 +9,11 @@ const statusApi = await importTestBundle("session-tree-status", {
       'export * from "./src/renderer/lib/session-tree-status.ts";' +
       'export * from "./src/renderer/lib/session-activity-state.ts";' +
       'export { buildSessionTree } from "./src/renderer/lib/session-tree.ts";',
-    resolveDir: new URL("../../../", import.meta.url).pathname,
+    resolveDir: path.join(import.meta.dirname, "../../.."),
     sourcefile: "session-tree-status-test-entry.ts",
     loader: "ts",
   },
-  tsconfig: new URL("../../../tsconfig.renderer.json", import.meta.url).pathname,
+  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
 });
 
 const { buildSessionTree, descendantActivity } = statusApi;

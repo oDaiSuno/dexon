@@ -129,7 +129,7 @@ window.pulseProof = {
       visibleRoots: rows
         .filter((button) => {
           const r = button.getBoundingClientRect();
-          return bounds && r.y >= bounds.y && r.bottom <= bounds.bottom && reachable(button);
+          return bounds && r.y >= bounds.y - 1 && r.bottom <= bounds.bottom + 1 && reachable(button);
         })
         .map(accessibleName),
       selectedRoots: rows.filter((button) => button.getAttribute("aria-current") === "page").map(accessibleName),

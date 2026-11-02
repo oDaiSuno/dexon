@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import { importTestBundle } from "#test-bundle";
 
 const activityApi = await importTestBundle("session-activity-state", {
-  entryPoints: [new URL("./session-activity-state.ts", import.meta.url).pathname],
-  tsconfig: new URL("../../../tsconfig.renderer.json", import.meta.url).pathname,
+  entryPoints: [path.join(import.meta.dirname, "session-activity-state.ts")],
+  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
 });
 
 const { activityReducer, initialActivityState, parseLiveFrame, sessionActivityOf } = activityApi;

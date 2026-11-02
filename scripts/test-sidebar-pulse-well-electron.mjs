@@ -2,7 +2,7 @@ import path from "node:path";
 import { runRendererElectronCheck } from "./renderer-electron-check.mjs";
 
 const index = process.argv.indexOf("--out");
-const output = path.resolve(index >= 0 ? process.argv[index + 1] : ".artifacts/sidebar-pulse-well-electron");
+const output = path.resolve(index >= 0 ? process.argv[index + 1] : ".artifacts/nav-layout-electron/sidebar-pulse-well");
 await runRendererElectronCheck({
   name: "sidebar-pulse-well",
   renderer: "tests/e2e/sidebar-pulse-well-renderer.mjs",

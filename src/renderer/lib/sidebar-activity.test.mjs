@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import path from "node:path";
 import test from "node:test";
 import { importTestBundle } from "#test-bundle";
 
@@ -8,11 +9,11 @@ const api = await importTestBundle("sidebar-activity", {
       'export * from "./src/renderer/lib/sidebar-activity.ts";' +
       'export * from "./src/renderer/lib/session-activity-state.ts";' +
       'export { projectSessionGroups, sessionProjectKey } from "./src/renderer/lib/session-list.ts";',
-    resolveDir: new URL("../../../", import.meta.url).pathname,
+    resolveDir: path.join(import.meta.dirname, "../../.."),
     sourcefile: "sidebar-activity-test-entry.ts",
     loader: "ts",
   },
-  tsconfig: new URL("../../../tsconfig.renderer.json", import.meta.url).pathname,
+  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
 });
 
 function session(id, overrides = {}) {
