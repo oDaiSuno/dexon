@@ -5,11 +5,11 @@ import { parseSlashQuery, type SlashQuery } from "./command-slot";
 export type ComposerTrigger =
   { readonly kind: "slash"; readonly query: SlashQuery } | { readonly kind: "at"; readonly match: AtQueryMatch };
 
-type TriggerSuppression = { readonly kind: "restore" } | { readonly kind: "dismissed"; readonly key: string };
+export type TriggerMode = "closed" | "range-edit" | "open";
 
 export interface TriggerGate {
   readonly trigger: ComposerTrigger | null;
-  readonly suppression: TriggerSuppression | null;
+  readonly mode: TriggerMode;
 }
 
 export type TriggerGateEvent =
@@ -17,8 +17,7 @@ export type TriggerGateEvent =
   | { readonly type: "dismissed" }
   | { readonly type: "reset" };
 
-export const initialTriggerGate: TriggerGate = { trigger: null, suppression: null };
-const RESTORED_SUPPRESSION: TriggerSuppression = { kind: "restore" };
+export const initialTriggerGate: TriggerGate = { trigger: null, mode: "closed" };
 
 export function composerTrigger(snapshot: ComposerSnapshot | null, atEnabled: boolean): ComposerTrigger | null {
   if (!snapshot || snapshot.caret.kind !== "caret") return null;
@@ -45,24 +44,25 @@ export function triggersEqual(a: ComposerTrigger | null, b: ComposerTrigger | nu
 export function nextTriggerGate(gate: TriggerGate, event: TriggerGateEvent, atEnabled: boolean): TriggerGate {
   if (event.type === "reset") return initialTriggerGate;
   if (event.type === "dismissed") {
-    const key = triggerKey(gate.trigger);
-    if (gate.suppression?.kind === "restore" || key === null) return gate;
-    return { trigger: gate.trigger, suppression: { kind: "dismissed", key } };
+    return gate.mode === "closed" ? gate : { trigger: gate.trigger, mode: "closed" };
   }
   const trigger = composerTrigger(event.change.snapshot, atEnabled);
-  const key = triggerKey(trigger);
-  let suppression = gate.suppression;
-  if (event.change.cause === "restore") suppression = RESTORED_SUPPRESSION;
-  else if (suppression?.kind === "restore") {
-    if (event.change.cause === "edit") suppression = null;
-  } else if (suppression?.kind === "dismissed" && suppression.key !== key) suppression = null;
-  if (triggersEqual(trigger, gate.trigger) && suppression === gate.suppression) return gate;
-  return { trigger, suppression };
+  let mode: TriggerMode;
+  if (event.change.cause === "restore") mode = "closed";
+  else if (event.change.cause === "edit") {
+    mode = trigger !== null ? "open" : event.change.snapshot.caret.kind === "range" ? "range-edit" : "closed";
+  } else if (gate.mode === "range-edit" && event.change.snapshot.caret.kind === "range") {
+    mode = "range-edit";
+  } else {
+    mode =
+      trigger !== null && (gate.mode === "range-edit" || (gate.mode === "open" && triggersEqual(trigger, gate.trigger)))
+        ? "open"
+        : "closed";
+  }
+  if (triggersEqual(trigger, gate.trigger) && mode === gate.mode) return gate;
+  return { trigger, mode };
 }
 
 export function openTrigger(gate: TriggerGate, visible: boolean): ComposerTrigger | null {
-  if (!visible || !gate.trigger || gate.suppression?.kind === "restore") return null;
-  return gate.suppression?.kind === "dismissed" && triggerKey(gate.trigger) === gate.suppression.key
-    ? null
-    : gate.trigger;
+  return visible && gate.mode === "open" ? gate.trigger : null;
 }

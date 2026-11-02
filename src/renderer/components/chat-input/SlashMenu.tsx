@@ -157,7 +157,7 @@ const LIST_STYLE = {
   maxHeight: 222,
   overflowY: "auto",
   overscrollBehavior: "contain",
-  padding: "6px var(--space-2) 10px",
+  padding: "6px 6px 10px",
 } as const;
 
 function SlashCommandCard({
@@ -191,7 +191,7 @@ function SlashCommandCard({
         display: "flex",
         flexDirection: "column",
         gap: 3,
-        padding: "9px 10px",
+        padding: "8px 7px",
         border: active && skill ? "1px solid var(--fx-accent-blue-border)" : "1px solid transparent",
         boxSizing: "border-box",
         borderRadius: "var(--radius-control)",
@@ -206,10 +206,10 @@ function SlashCommandCard({
         transition: "background var(--duration-quick, 150ms) var(--ease-smooth-out, ease)",
       }}
     >
-      <span style={{ width: "100%", minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+      <span style={{ width: "100%", minWidth: 0, display: "flex", alignItems: "center", gap: 4 }}>
         {skill && (
           <span style={{ display: "inline-flex", flexShrink: 0, color: "var(--fx-accent-blue-text)" }}>
-            <PackageIcon size={13} />
+            <PackageIcon size={12} />
           </span>
         )}
         <span
@@ -227,9 +227,8 @@ function SlashCommandCard({
             {item.argumentHint}
           </span>
         )}
-        <span aria-hidden style={{ flex: 1, minWidth: 0 }} />
         {active && (
-          <span style={{ flexShrink: 0, whiteSpace: "nowrap" }}>
+          <span style={{ marginLeft: "auto", flexShrink: 0, whiteSpace: "nowrap" }}>
             <KeyHint keyLabel="↵" label={completeLabel} />
           </span>
         )}

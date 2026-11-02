@@ -410,6 +410,28 @@ test("a dismissed leading command stays closed across caret movement until the c
   assert.equal(trigger.openTrigger(gate, true)?.kind, "slash");
 });
 
+test("undoing a completion keeps suggestions available when a range notification precedes End", () => {
+  const text = "/potet";
+  const snapshot = { text, masked: text, caret: { kind: "range", start: 0, end: 6 } };
+  let gate = trigger.nextTriggerGate(
+    trigger.initialTriggerGate,
+    { type: "changed", change: { cause: "edit", snapshot } },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true), null);
+  gate = trigger.nextTriggerGate(gate, { type: "changed", change: { cause: "caret", snapshot } }, true);
+  assert.equal(trigger.openTrigger(gate, true), null);
+  gate = trigger.nextTriggerGate(
+    gate,
+    {
+      type: "changed",
+      change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset: 6 } } },
+    },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true)?.kind, "slash", "End must reopen the undone completion query");
+});
+
 test("restored queries stay closed when the caret moves from the start to a slash or file query", () => {
   for (const text of ["/potet", "look @src/"]) {
     const snapshot = { text, masked: text, caret: { kind: "caret", offset: 0 } };

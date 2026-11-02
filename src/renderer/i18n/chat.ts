@@ -289,7 +289,7 @@ export const zhCN: Record<string, string> = {
   slashGroupPrompts: "提示词",
   slashGroupSkills: "技能",
   slashKeyUseSkill: "设为技能",
-  slashFromSkillsBareMatch: "来自 技能 · 按裸名前缀匹配（无需手打 skill:）",
+  slashFromSkillsBareMatch: "来自 技能 · 按技能名匹配（无需手打 skill:）",
   slashKeyEditQuery: "修改拼写",
   slashKeyDismissToSend: "关闭并允许发送",
   slashEnterBlockedHint: "回车已拦截防误发",
