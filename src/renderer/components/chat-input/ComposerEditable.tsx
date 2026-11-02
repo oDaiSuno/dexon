@@ -334,6 +334,7 @@ export function ComposerEditable({
       aria-multiline="true"
       data-placeholder={placeholder}
       data-empty={value === "" ? "" : undefined}
+      onFocus={() => publish("caret")}
       onInput={(e) => {
         if (!visible) return;
         syncEditorHeight(e.currentTarget);

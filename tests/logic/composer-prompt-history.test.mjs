@@ -350,3 +350,39 @@ test("restoring a slash or at prompt suppresses its menu through caret movement 
     assert.equal(trigger.openTrigger(edited, true)?.kind, text.startsWith("/") ? "slash" : "at");
   }
 });
+
+test("restored queries stay closed when the caret moves from the start to a slash or file query", () => {
+  for (const text of ["/potet", "look @src/"]) {
+    const snapshot = { text, masked: text, caret: { kind: "caret", offset: 0 } };
+    let gate = trigger.nextTriggerGate(
+      trigger.initialTriggerGate,
+      { type: "changed", change: { cause: "restore", snapshot } },
+      true,
+    );
+    gate = trigger.nextTriggerGate(gate, { type: "dismissed" }, true);
+    for (const offset of [text.length, 0, text.length]) {
+      gate = trigger.nextTriggerGate(
+        gate,
+        {
+          type: "changed",
+          change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+        },
+        true,
+      );
+      assert.equal(trigger.openTrigger(gate, true), null, "caret movement must not open a restored query");
+    }
+    const changed = `${text}m`;
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: {
+          cause: "edit",
+          snapshot: { text: changed, masked: changed, caret: { kind: "caret", offset: changed.length } },
+        },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true)?.kind, text.startsWith("/") ? "slash" : "at");
+  }
+});

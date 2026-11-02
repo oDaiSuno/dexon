@@ -261,9 +261,112 @@ async function run() {
     await waitFor(`window.composerEditing.menuItemCenter("fast-context", "Use a skill")`, "the skill is listed");
     await click(await page(`menuItemCenter("fast-context", "Use a skill")`));
     assert.deepEqual((await view()).chips, ["fast-context", "a.ts"]);
+    const screenshot = await capture("12-skill-command-slot");
     await key("Enter");
     assert.deepEqual(await sent(), ["/skill:fast-context\nexplain @/tmp/a.ts"]);
-    return { screenshot: await capture("12-skill-command-slot") };
+    await page(`insertText("/potet\\tkeep")`);
+    await click(await page(`elementCenter("button", "Add images or local file references")`));
+    await click(await page(`menuItemCenter("Use a skill")`));
+    await waitFor(`window.composerEditing.menuItemCenter("fast-context", "Use a skill")`, "the skill is listed");
+    await click(await page(`menuItemCenter("fast-context", "Use a skill")`));
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/skill:fast-context\nexplain @/tmp/a.ts", "/skill:fast-context\tkeep"]);
+    return { screenshot };
+  });
+
+  await scene("slash-skill-completion-preserves-text-attachments-and-undo", async () => {
+    await type(" explain ");
+    await page(`addFiles([{ name: "a.ts", testPath: "/tmp/a.ts", type: "text/plain" }])`);
+    await type("tail");
+    await key("Home");
+    await type("/potet");
+    await waitFor("window.composerEditing.hasSuggestion('/skill:poteto-help')", "bare skill names are suggested");
+    const screenshot = await capture("13-slash-skill-recommendations");
+    await key("Enter");
+    assert.deepEqual((await view()).text, "[poteto-help] explain [a.ts] tail");
+    assert.deepEqual(await sent(), []);
+    await menu("undo");
+    assert.deepEqual((await view()).text, "/potet explain [a.ts] tail");
+    await menu("redo");
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/skill:poteto-help explain @/tmp/a.ts tail"]);
+    return { screenshot };
+  });
+
+  await scene("plus-skill-picker-replaces-an-open-slash-query", async () => {
+    await type("/potet");
+    await click(await page(`elementCenter("button", "Add images or local file references")`));
+    await click(await page(`menuItemCenter("Use a skill")`));
+    await waitFor(
+      `window.composerEditing.menuItemCenter("fast-context")`,
+      "the skill picker is not covered by slash suggestions",
+    );
+    await click(await page(`menuItemCenter("fast-context", "Use a skill")`));
+    assert.deepEqual((await view()).text, "[fast-context] ");
+    assert.deepEqual(await sent(), []);
+  });
+
+  await scene("pointer-skill-and-command-completion-keep-trailing-files", async () => {
+    await type(" keep ");
+    await page(`addFiles([{ name: "b.md", testPath: "/tmp/b.md", type: "text/markdown" }])`);
+    await key("Home");
+    await type("/potet");
+    await waitFor("window.composerEditing.hasSuggestion('/skill:poteto-mode')", "the skill card is visible");
+    await click(await page(`optionCenter("/skill:poteto-mode")`));
+    assert.deepEqual((await view()).text, "[poteto-mode] keep [b.md] ");
+    assert.equal(await js("document.querySelector('[data-skill-token]').title"), "Installed skill");
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/skill:poteto-mode keep @/tmp/b.md"]);
+    await type(" keep ");
+    await page(`addFiles([{ name: "b.md", testPath: "/tmp/b.md", type: "text/markdown" }])`);
+    await key("Home");
+    await type("/rel");
+    await waitFor("window.composerEditing.hasSuggestion('/reload')", "the command card is visible");
+    await key("Tab");
+    assert.deepEqual((await view()).text, "/reload keep [b.md] ");
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/skill:poteto-mode keep @/tmp/b.md", "/reload keep @/tmp/b.md"]);
+  });
+
+  await scene("slash-query-narrowing-chooses-the-best-skill", async () => {
+    await type("/");
+    await press("Right", 10);
+    await type("potet");
+    await waitFor("window.composerEditing.hasSuggestion('/skill:poteto-help')", "skill results are visible");
+    await key("Tab");
+    assert.deepEqual((await view()).chips, ["poteto-help"]);
+    assert.deepEqual(await sent(), []);
+    return { screenshot: await capture("14-completed-skill-pill") };
+  });
+
+  await scene("unmatched-slash-commands-send-only-after-escape", async () => {
+    await type("/poteto-mdoe");
+    await key("Enter");
+    await key("Tab");
+    assert.deepEqual(await sent(), []);
+    assert.deepEqual((await view()).text, "/poteto-mdoe");
+    const screenshot = await capture("15-zero-match-enter-blocked");
+    await key("Escape");
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/poteto-mdoe"]);
+    return { screenshot };
+  });
+
+  await scene("loading-slash-palette-blocks-send-and-uses-ready-skills", async () => {
+    await fresh({ deferSkills: true, slashCommandsLoading: true });
+    await type("/potet");
+    await key("Enter");
+    await key("Tab");
+    assert.deepEqual(await sent(), []);
+    await page("releaseSkills()");
+    await waitFor(
+      "window.composerEditing.hasSuggestion('/skill:poteto-mode')",
+      "skills render before session commands finish",
+    );
+    await key("Right");
+    await key("Tab");
+    assert.deepEqual((await view()).chips, ["poteto-mode"]);
+    assert.deepEqual(await sent(), []);
   });
 
   await scene("line-breaks-spaces-and-adjacent-attachments-survive-sending", async () => {
@@ -336,6 +439,47 @@ async function run() {
       0,
       "a saved slash draft stays menu-free after remount and caret movement",
     );
+  });
+
+  await scene("slash-menu-keys-take-priority-over-prompt-history", async () => {
+    await hover({ x: 8, y: 8 });
+    await page(`configure({ promptHistory: [{ text: "older prompt", at: 1 }] })`);
+    await type("/potet");
+    for (const direction of ["Up", "Down", "Right", "Left"]) {
+      await key(direction);
+      assert.equal((await view()).text, "/potet", "menu arrows must not recall history or move the caret");
+      assert.equal(await page("caretAtEnd()"), true);
+      assert.equal(await page("openSuggestionCount()"), 1);
+    }
+    await key("Tab");
+    assert.deepEqual((await view()).chips, ["poteto-help"]);
+    assert.deepEqual(await sent(), []);
+    await menu("undo");
+    await key("End");
+    await waitFor("window.composerEditing.hasSuggestion('/skill:poteto-help')", "the restored query is complete");
+    await key("Enter");
+    assert.deepEqual((await view()).chips, ["poteto-help"]);
+    assert.deepEqual(await sent(), []);
+    await menu("undo");
+    await key("End");
+    await key("Escape");
+    assert.equal((await view()).text, "/potet", "Escape closes the menu without recalling history");
+    assert.equal(await page("openSuggestionCount()"), 0);
+    await key("Home");
+    await key("Up");
+    assert.equal((await view()).text, "older prompt");
+    await key("Escape");
+    assert.equal((await view()).text, "/potet");
+    assert.equal(await page("openSuggestionCount()"), 0, "returning to the draft keeps suggestions closed");
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/potet"]);
+    await type("/potet");
+    await key("Tab");
+    await type("@src/ma");
+    await waitFor("window.composerEditing.hasSuggestion('src/main.ts')", "file suggestions work after a skill");
+    await key("Tab");
+    assert.deepEqual((await view()).chips, ["poteto-help", "main.ts"]);
+    return { screenshot: await capture("16-slash-keys-before-history") };
   });
 
   await scene("wrapped-history-keeps-native-row-navigation", async () => {

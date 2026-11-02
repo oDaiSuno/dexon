@@ -24,7 +24,7 @@ import type { ThinkingLevel } from "./thinking-art";
 import { SlashMenu } from "./SlashMenu";
 import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SubmissionNotice } from "./use-composer-draft";
-import type { SlashCommandPaletteItem } from "./slash-commands";
+import type { SlashPaletteView } from "./use-slash-palette";
 import { PlusIcon } from "./icons";
 import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
@@ -74,14 +74,7 @@ export interface ComposerViewProps {
   skillRevealName: string | null;
   onCloseSkillPicker: () => void;
   onCloseSkillReveal: () => void;
-  slashMenuOpen: boolean;
-  slashCommands: SlashCommandPaletteItem[];
-  slashQuery: string;
-  slashLoading?: boolean;
-  slashActiveIndex: number;
-  slashItemRefs: MutableRefObject<(HTMLButtonElement | null)[]>;
-  onApplySlash: (command: SlashCommandPaletteItem) => void;
-  onHoverSlash: (index: number) => void;
+  slashMenu: SlashPaletteView | null;
   atMenuOpen: boolean;
   atQuery: { start: number; query: string; quoted: boolean } | null;
   atSuggestionState: AtSuggestionState | null;
@@ -181,14 +174,7 @@ export function ComposerView(props: ComposerViewProps) {
     skillRevealName,
     onCloseSkillPicker,
     onCloseSkillReveal,
-    slashMenuOpen,
-    slashCommands,
-    slashQuery,
-    slashLoading,
-    slashActiveIndex,
-    slashItemRefs,
-    onApplySlash,
-    onHoverSlash,
+    slashMenu,
     atMenuOpen,
     atQuery,
     atSuggestionState,
@@ -325,17 +311,7 @@ export function ComposerView(props: ComposerViewProps) {
               onClose={onCloseSkillReveal}
             />
           )}
-          {slashMenuOpen && (
-            <SlashMenu
-              commands={slashCommands}
-              query={slashQuery}
-              loading={slashLoading}
-              activeIndex={slashActiveIndex}
-              itemRefs={slashItemRefs}
-              onApply={onApplySlash}
-              onHover={onHoverSlash}
-            />
-          )}
+          {slashMenu && <SlashMenu view={slashMenu} />}
           {atMenuOpen && atQuery && (
             <AtMenu
               suggestionState={atSuggestionState}

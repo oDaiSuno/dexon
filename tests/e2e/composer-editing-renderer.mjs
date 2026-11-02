@@ -14,12 +14,12 @@ const document = globalThis.document;
 setAppLanguage("en-US");
 
 const PROJECT_FILES = ["src/main.ts", "src/renderer/App.tsx", "README.md"];
-const SKILLS = ["fast-context", "groksearch"].map((name) => ({
+const SKILLS = ["fast-context", "groksearch", "poteto-help", "poteto-mode"].map((name) => ({
   name,
   description: "Installed skill",
   filePath: `/skills/${name}/SKILL.md`,
   baseDir: `/skills/${name}`,
-  disableModelInvocation: false,
+  disableModelInvocation: name.startsWith("poteto"),
   sourceInfo: { scope: "user" },
 }));
 
@@ -28,6 +28,7 @@ const staged = [];
 const revealed = [];
 let sendReply = () => undefined;
 let stagedCount = 0;
+let releaseSkills;
 
 // Only the other process answers here: project search, installed skills,
 // clipboard image staging and the OS file reveal. The composer stays real.
@@ -36,7 +37,13 @@ const boundary = installRendererApi(
   { installApiShims, resetRpc },
   () => ({
     call(method) {
-      if (method === "skills.list") return { skills: SKILLS };
+      if (method === "skills.list") {
+        return props.deferSkills
+          ? new Promise((resolve) => {
+              releaseSkills = () => resolve({ skills: SKILLS });
+            })
+          : { skills: SKILLS };
+      }
       if (method === "files.index") return { files: PROJECT_FILES, truncated: false };
       throw new Error(`Unexpected composer Host request: ${method}`);
     },
@@ -75,6 +82,11 @@ function render() {
           promptHistory: props.promptHistory,
           visible: props.visible,
           isStreaming: false,
+          slashCommands: props.slashCommands ?? [
+            { name: "inspect", source: "extension" },
+            { name: "review-pr", source: "prompt" },
+          ],
+          slashCommandsLoading: props.slashCommandsLoading === true,
           model: { provider: "fixture", modelId: "fixture-model" },
           modelList: [{ id: "fixture-model", name: "Fixture", provider: "fixture" }],
           onAbort() {},
@@ -126,8 +138,12 @@ window.composerEditing = {
     staged.length = 0;
     revealed.length = 0;
     sendReply = () => undefined;
-    props = { ...props, ...next, epoch: props.epoch + 1 };
+    props = { ...props, deferSkills: false, slashCommandsLoading: false, ...next, epoch: props.epoch + 1 };
     render();
+  },
+  releaseSkills() {
+    props.deferSkills = false;
+    releaseSkills?.();
   },
   focus() {
     editor().focus();

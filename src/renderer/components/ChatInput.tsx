@@ -162,6 +162,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   );
 
   const suggestions = useComposerSuggestions({
+    skillCatalog,
     cwd,
     isStreaming,
     visible,
@@ -372,7 +373,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       attachmentTokens={attachments.attachmentTokens}
       onOpenPicker={openPicker}
       plusMenuOpen={skills.plusMenuOpen}
-      onTogglePlusMenu={skills.openPlusMenu}
+      onTogglePlusMenu={() => {
+        suggestions.dismiss();
+        skills.openPlusMenu();
+      }}
       onOpenSkillPicker={skills.openSkillPicker}
       remotePanelOpen={skills.remotePanelOpen}
       onOpenRemotePanel={skills.openRemotePanel}
@@ -389,14 +393,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       skillRevealName={skills.skillRevealName}
       onCloseSkillPicker={skills.closeTransientMenus}
       onCloseSkillReveal={() => skills.setSkillRevealName(null)}
-      slashMenuOpen={suggestions.slashMenuOpen}
-      slashCommands={suggestions.filteredSlashCommands}
-      slashQuery={suggestions.slashQuery ?? ""}
-      slashLoading={suggestions.slashCommandsLoading}
-      slashActiveIndex={suggestions.slashActiveIndex}
-      slashItemRefs={suggestions.slashItemRefs}
-      onApplySlash={suggestions.applySlashCommand}
-      onHoverSlash={suggestions.setSlashActiveIndex}
+      slashMenu={suggestions.slashMenu}
       atMenuOpen={suggestions.atMenuOpen}
       atQuery={suggestions.atQuery}
       atSuggestionState={suggestions.activeSuggestionState}

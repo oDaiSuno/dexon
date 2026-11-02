@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
-import { useI18n } from "@/i18n";
 import { type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
 import {
   FileSuggestionLruCache,
@@ -8,13 +7,15 @@ import {
 } from "@/lib/file-suggestion-client";
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
 import type { SessionCommandInfo } from "@/hooks/useAgentSession";
-import { builtinSlashCommands, compareSlashCommands, type SlashCommandPaletteItem } from "./slash-commands";
+import { useSlashPalette } from "./use-slash-palette";
+import type { SkillCatalog } from "./use-skill-catalog";
 import type { ComposerChange, ComposerEditableHandle } from "./types";
 import { initialTriggerGate, nextTriggerGate, openTrigger, triggerKey, type ComposerTrigger } from "./composer-trigger";
 import type { AtSuggestionState } from "./AtMenu";
 
 interface Options {
   cwd?: string | null;
+  skillCatalog: SkillCatalog;
   isStreaming: boolean;
   visible: boolean;
   slashCommands?: SessionCommandInfo[];
@@ -26,6 +27,7 @@ interface Options {
 
 export function useComposerSuggestions({
   cwd,
+  skillCatalog,
   isStreaming,
   visible,
   slashCommands,
@@ -34,13 +36,9 @@ export function useComposerSuggestions({
   editableRef,
   onAtEscape,
 }: Options) {
-  const { t } = useI18n();
   const [gate, setGate] = useState(initialTriggerGate);
-  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
   const [atActiveIndex, setAtActiveIndex] = useState(0);
   const [atSuggestionState, setAtSuggestionState] = useState<AtSuggestionState | null>(null);
-  const slashCommandsRequestedRef = useRef(false);
-  const slashItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const atItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const fileSuggestionCacheRef = useRef(new FileSuggestionLruCache());
   const fileSuggestionRequestRef = useRef(new LatestAbortableRequest());
@@ -58,43 +56,21 @@ export function useComposerSuggestions({
   const open: ComposerTrigger | null = openTrigger(gate, visible);
   const slashTrigger = open?.kind === "slash" ? open : null;
   const atTrigger = open?.kind === "at" ? open : null;
-  const slashQueryText = slashTrigger?.query ?? null;
-  const slashQuery = slashQueryText?.toLowerCase() ?? null;
   const atQuery: AtQueryMatch | null = atTrigger?.match ?? null;
-  const slashMenuOpen = slashTrigger !== null;
   const atMenuOpen = atTrigger !== null;
-
-  const builtinCommands = useMemo(() => builtinSlashCommands(t), [t]);
-  const filteredSlashCommands = useMemo(() => {
-    if (slashQuery === null) return [];
-    const commands = [...(isStreaming ? [] : builtinCommands), ...(slashCommands ?? [])];
-    return commands
-      .filter((command) => {
-        const name = command.name.toLowerCase();
-        const description = command.description?.toLowerCase() ?? "";
-        return name.includes(slashQuery) || description.includes(slashQuery);
-      })
-      .sort((a, b) => compareSlashCommands(a, b, slashQuery));
-  }, [builtinCommands, isStreaming, slashCommands, slashQuery]);
+  const slash = useSlashPalette({
+    query: slashTrigger?.query ?? null,
+    isStreaming,
+    sessionCommands: slashCommands,
+    sessionCommandsLoading: slashCommandsLoading === true,
+    onLoadSessionCommands: onLoadSlashCommands,
+    skillCatalog,
+    editableRef,
+    onDismiss: dismiss,
+  });
 
   const atQueryText = atQuery?.query ?? null;
   const atTokenKey = triggerKey(atTrigger);
-
-  useEffect(() => {
-    setSlashActiveIndex(0);
-  }, [slashQueryText]);
-
-  useEffect(() => {
-    if (!slashMenuOpen) {
-      slashCommandsRequestedRef.current = false;
-      return;
-    }
-    if (slashCommandsRequestedRef.current || !onLoadSlashCommands) return;
-    slashCommandsRequestedRef.current = true;
-    Promise.resolve(onLoadSlashCommands()).catch(() => {
-      slashCommandsRequestedRef.current = false;
-    });
-  }, [onLoadSlashCommands, slashMenuOpen]);
 
   useEffect(() => {
     setAtActiveIndex(0);
@@ -175,93 +151,9 @@ export function useComposerSuggestions({
     [atQuery, editableRef],
   );
 
-  const applySlashCommand = useCallback(
-    (command: SlashCommandPaletteItem) => {
-      editableRef.current?.replaceAll(`/${command.name} `);
-      setSlashActiveIndex(0);
-    },
-    [editableRef],
-  );
-
-  const getNextSlashIndex = useCallback(
-    (direction: "up" | "down" | "left" | "right") => {
-      const lastIndex = filteredSlashCommands.length - 1;
-      if (lastIndex < 0) return 0;
-      if (direction === "left") return Math.max(0, slashActiveIndex - 1);
-      if (direction === "right") return Math.min(lastIndex, slashActiveIndex + 1);
-      const currentNode = slashItemRefs.current[slashActiveIndex];
-      if (!currentNode)
-        return direction === "down" ? Math.min(lastIndex, slashActiveIndex + 1) : Math.max(0, slashActiveIndex - 1);
-      const currentRect = currentNode.getBoundingClientRect();
-      const currentX = currentRect.left + currentRect.width / 2;
-      const currentY = currentRect.top + currentRect.height / 2;
-      let bestIndex = -1;
-      let bestScore = Number.POSITIVE_INFINITY;
-      for (let index = 0; index <= lastIndex; index += 1) {
-        if (index === slashActiveIndex) continue;
-        const node = slashItemRefs.current[index];
-        if (!node) continue;
-        const rect = node.getBoundingClientRect();
-        const verticalDelta = rect.top + rect.height / 2 - currentY;
-        if (direction === "down" ? verticalDelta <= 4 : verticalDelta >= -4) continue;
-        const candidateX = rect.left + rect.width / 2;
-        const score = Math.abs(verticalDelta) * 1000 + Math.abs(candidateX - currentX);
-        if (score < bestScore) {
-          bestIndex = index;
-          bestScore = score;
-        }
-      }
-      return bestIndex >= 0
-        ? bestIndex
-        : direction === "down"
-          ? Math.min(lastIndex, slashActiveIndex + 1)
-          : Math.max(0, slashActiveIndex - 1);
-    },
-    [filteredSlashCommands.length, slashActiveIndex],
-  );
-
   const handleMenuKey = useCallback(
     (event: KeyboardEvent<HTMLDivElement>): boolean => {
-      if (slashMenuOpen && slashQuery !== null) {
-        if (event.key === "ArrowDown") {
-          event.preventDefault();
-          setSlashActiveIndex(getNextSlashIndex("down"));
-          return true;
-        }
-        if (event.key === "ArrowUp") {
-          event.preventDefault();
-          setSlashActiveIndex(getNextSlashIndex("up"));
-          return true;
-        }
-        if (event.key === "ArrowRight") {
-          event.preventDefault();
-          setSlashActiveIndex(getNextSlashIndex("right"));
-          return true;
-        }
-        if (event.key === "ArrowLeft") {
-          event.preventDefault();
-          setSlashActiveIndex(getNextSlashIndex("left"));
-          return true;
-        }
-        if (event.key === "Escape") {
-          event.preventDefault();
-          dismiss();
-          return true;
-        }
-        if (event.key === "Tab" && slashCommandsLoading === true) {
-          event.preventDefault();
-          return true;
-        }
-        if (
-          (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) &&
-          slashCommandsLoading !== true &&
-          filteredSlashCommands[slashActiveIndex]
-        ) {
-          event.preventDefault();
-          applySlashCommand(filteredSlashCommands[slashActiveIndex]);
-          return true;
-        }
-      }
+      if (slash.handleKey(event)) return true;
       if (atMenuOpen && atQuery !== null) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -287,36 +179,9 @@ export function useComposerSuggestions({
       }
       return false;
     },
-    [
-      applyAtCompletion,
-      applySlashCommand,
-      atActiveIndex,
-      atMatches,
-      atMenuOpen,
-      atQuery,
-      filteredSlashCommands,
-      getNextSlashIndex,
-      dismiss,
-      slashActiveIndex,
-      slashCommandsLoading,
-      slashMenuOpen,
-      slashQuery,
-      onAtEscape,
-    ],
+    [applyAtCompletion, atActiveIndex, atMatches, atMenuOpen, atQuery, dismiss, onAtEscape, slash],
   );
 
-  useEffect(() => {
-    if (slashActiveIndex >= filteredSlashCommands.length) {
-      setSlashActiveIndex(Math.max(0, filteredSlashCommands.length - 1));
-    }
-  }, [filteredSlashCommands.length, slashActiveIndex]);
-  useEffect(() => {
-    slashItemRefs.current.length = filteredSlashCommands.length;
-  }, [filteredSlashCommands.length]);
-  useEffect(() => {
-    if (visible && slashMenuOpen)
-      slashItemRefs.current[slashActiveIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [slashActiveIndex, slashMenuOpen, visible]);
   useEffect(() => {
     if (atActiveIndex >= atMatches.length) setAtActiveIndex(Math.max(0, atMatches.length - 1));
   }, [atActiveIndex, atMatches.length]);
@@ -331,14 +196,7 @@ export function useComposerSuggestions({
   return {
     observe,
     dismiss,
-    slashMenuOpen,
-    slashActiveIndex,
-    setSlashActiveIndex,
-    slashItemRefs,
-    slashQuery: slashQueryText,
-    filteredSlashCommands,
-    slashCommandsLoading,
-    applySlashCommand,
+    slashMenu: slash.view,
     atQuery,
     atMenuOpen,
     atActiveIndex,
