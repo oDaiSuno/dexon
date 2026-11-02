@@ -10,7 +10,6 @@ import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
 import type { SlashCommandInfo } from "@/hooks/useAgentSession";
 import { builtinSlashCommands, compareSlashCommands, type SlashCommandPaletteItem } from "./slash-commands";
 import type { ComposerChange, ComposerEditableHandle } from "./types";
-import { compositionEnterAction } from "./composition-guard";
 import { initialTriggerGate, nextTriggerGate, openTrigger, triggerKey, type ComposerTrigger } from "./composer-trigger";
 import type { AtSuggestionState } from "./AtMenu";
 
@@ -45,8 +44,6 @@ export function useComposerSuggestions({
   const atItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const fileSuggestionCacheRef = useRef(new FileSuggestionLruCache());
   const fileSuggestionRequestRef = useRef(new LatestAbortableRequest());
-  const isComposingRef = useRef(false);
-  const lastCompositionEndAtRef = useRef(0);
 
   const atEnabled = Boolean(cwd);
   const observe = useCallback(
@@ -57,7 +54,6 @@ export function useComposerSuggestions({
     () => setGate((current) => nextTriggerGate(current, { type: "dismissed" }, atEnabled)),
     [atEnabled],
   );
-  const reset = useCallback(() => setGate(initialTriggerGate), []);
 
   const open: ComposerTrigger | null = openTrigger(gate, visible);
   const slashTrigger = open?.kind === "slash" ? open : null;
@@ -226,16 +222,6 @@ export function useComposerSuggestions({
 
   const handleMenuKey = useCallback(
     (event: KeyboardEvent<HTMLDivElement>): boolean => {
-      const nativeEvent = event.nativeEvent;
-      const enterAction = compositionEnterAction(
-        nativeEvent,
-        { composing: isComposingRef.current, endedAt: lastCompositionEndAtRef.current },
-        Date.now(),
-      );
-      if (event.key === "Enter" && !event.shiftKey && enterAction !== "send") {
-        if (enterAction === "prevent") event.preventDefault();
-        return true;
-      }
       if (slashMenuOpen && slashQuery !== null) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
@@ -276,8 +262,7 @@ export function useComposerSuggestions({
           return true;
         }
       }
-      const composing = isComposingRef.current || nativeEvent.isComposing === true || nativeEvent.keyCode === 229;
-      if (atMenuOpen && atQuery !== null && !composing) {
+      if (atMenuOpen && atQuery !== null) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setAtActiveIndex((index) => Math.min(Math.max(0, atMatches.length - 1), index + 1));
@@ -343,18 +328,9 @@ export function useComposerSuggestions({
       atItemRefs.current[atActiveIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [atActiveIndex, atMenuOpen, visible]);
 
-  const onCompositionStart = useCallback(() => {
-    isComposingRef.current = true;
-  }, []);
-  const onCompositionEnd = useCallback(() => {
-    isComposingRef.current = false;
-    lastCompositionEndAtRef.current = Date.now();
-  }, []);
-
   return {
     observe,
     dismiss,
-    reset,
     slashMenuOpen,
     slashActiveIndex,
     setSlashActiveIndex,
@@ -372,7 +348,5 @@ export function useComposerSuggestions({
     atMatches,
     applyAtCompletion,
     handleMenuKey,
-    onCompositionStart,
-    onCompositionEnd,
   };
 }

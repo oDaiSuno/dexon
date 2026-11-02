@@ -235,10 +235,20 @@ export function inspectLogicalCaretEdge(text: string, offset: number): LogicalCa
   };
 }
 
+function caretRowTop(root: HTMLElement, map: ComposerTextMap, offset: number): number | undefined {
+  const top = rangeAtOffsets(map, root, offset, offset).getClientRects?.()[0]?.top;
+  if (top !== undefined) return top;
+  for (const run of map.runs) {
+    if (run.kind !== "atom" || !(run.node instanceof HTMLElement)) continue;
+    if (offset === run.start || offset === run.start + run.value.length) return run.node.getClientRects()[0]?.top;
+  }
+  return undefined;
+}
+
 function onSameVisualRow(root: HTMLElement, map: ComposerTextMap, from: number, to: number): boolean {
   if (from === to) return true;
-  const fromTop = rangeAtOffsets(map, root, from, from).getClientRects?.()[0]?.top;
-  const toTop = rangeAtOffsets(map, root, to, to).getClientRects?.()[0]?.top;
+  const fromTop = caretRowTop(root, map, from);
+  const toTop = caretRowTop(root, map, to);
   if (fromTop === undefined || toTop === undefined) return true;
   const style = root.ownerDocument.defaultView?.getComputedStyle(root);
   const lineHeight = Number.parseFloat(style?.lineHeight ?? "") || Number.parseFloat(style?.fontSize ?? "") || 16;

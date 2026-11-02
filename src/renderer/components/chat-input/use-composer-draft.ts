@@ -1,19 +1,46 @@
-import { useCallback, useEffect, useRef, useState, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { DraftPersistenceController, getDraft } from "@/lib/draft-store";
-import {
-  failedComposerSubmissionAction,
-  failedComposerSubmissionValue,
-  type ComposerSubmissionSnapshot,
-} from "@/lib/composer-submission";
 import { insertAttachmentToken } from "@shared/attachment-tokens";
 import { registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
+import {
+  browseBuffer,
+  editBuffer,
+  loadedBuffer,
+  migratedBuffer,
+  restoreCaretOf,
+  restoreFailedBuffer,
+  returnedBuffer,
+  shownText,
+  submitBuffer,
+  takeBuffer,
+  type ComposerBuffer,
+  type RecallDirection,
+  type SubmissionTicket,
+} from "./composer-buffer";
+import { carryLocalCommands, type PromptHistory } from "./prompt-history";
+import type { CaretPlacement } from "./types";
 
 type Translate = (key: string, fallback: string) => string;
 
 export interface SubmissionNotice {
-  tone: "error" | "warning";
-  message: string;
-  canResend: boolean;
+  readonly tone: "error" | "warning";
+  readonly message: string;
+  readonly canResend: boolean;
+}
+
+export interface ComposerDraft {
+  readonly shown: string;
+  readonly restoreCaret: CaretPlacement;
+  readonly recalling: boolean;
+  readonly submissionNotice: SubmissionNotice | null;
+  edit(text: string): void;
+  browse(direction: RecallDirection, source: () => PromptHistory | null): boolean;
+  returnToDraft(): boolean;
+  submit(): SubmissionTicket | null;
+  restoreFailed(ticket: SubmissionTicket, kind: "send" | "queue", reason: string | null): void;
+  takeDraft(): string;
+  commit(): void;
+  dismissSubmissionNotice(): void;
 }
 
 function failureReason(reason: string | null, t: Translate): string {
@@ -36,6 +63,24 @@ function extensionForImageMime(mimeType: string): string | null {
   }
 }
 
+function isNewWorkspaceScopeKey(scopeKey: string | undefined): scopeKey is string {
+  return Boolean(scopeKey?.startsWith("new:"));
+}
+
+async function stageLegacyImage(image: { data: string; mimeType: string }): Promise<string | null> {
+  try {
+    const result = await window.piBridge?.stageClipboardImage?.({
+      base64: image.data,
+      ext: extensionForImageMime(image.mimeType) ?? "",
+    });
+    if (!result?.ok) return null;
+    registerStagedPreviewUrl(result.staged.path, `data:${image.mimeType};base64,${image.data}`);
+    return result.staged.path;
+  } catch {
+    return null;
+  }
+}
+
 interface Options {
   draftKey?: string;
   t: Translate;
@@ -47,12 +92,11 @@ interface PendingLegacyMigration {
   revision: number;
 }
 
-export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
-  const [value, setValueState] = useState(() => (draftKey ? (getDraft(draftKey)?.value ?? "") : ""));
+export function useComposerDraft({ draftKey, t, onImageNotice }: Options): ComposerDraft {
+  const [buffer, setBuffer] = useState(() => loadedBuffer(draftKey ? (getDraft(draftKey)?.value ?? "") : "", null));
+  const bufferRef = useRef(buffer);
   const [submissionNotice, setSubmissionNotice] = useState<SubmissionNotice | null>(null);
   const draftKeyRef = useRef<string | undefined>(undefined);
-  const valueRef = useRef(value);
-  const inputRevisionRef = useRef(0);
   const migrationGenerationRef = useRef(0);
   const pendingLegacyMigrationRef = useRef<PendingLegacyMigration | null>(null);
   const imageNoticeRef = useRef(onImageNotice);
@@ -73,42 +117,76 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
     persistenceRef.current = new DraftPersistenceController(500, undefined, () => persistenceErrorRef.current());
   }
 
-  const setValue = useCallback((next: SetStateAction<string>) => {
-    const pendingMigration = pendingLegacyMigrationRef.current;
-    if (
-      pendingMigration &&
-      pendingMigration.key === draftKeyRef.current &&
-      pendingMigration.revision === inputRevisionRef.current
-    ) {
-      // A deliberate edit supersedes migration. Invalidate the async result and
-      // allow the edited text to become the new durable draft instead.
+  const apply = useCallback((next: ComposerBuffer) => {
+    bufferRef.current = next;
+    setBuffer(next);
+  }, []);
+
+  const supersedeMigration = useCallback(() => {
+    const pending = pendingLegacyMigrationRef.current;
+    if (pending?.key === draftKeyRef.current && pending?.revision === bufferRef.current.draft.revision) {
       pendingLegacyMigrationRef.current = null;
       migrationGenerationRef.current += 1;
     }
-    const resolved = typeof next === "function" ? next(valueRef.current) : next;
-    inputRevisionRef.current += 1;
-    valueRef.current = resolved;
-    setValueState(resolved);
   }, []);
-  valueRef.current = value;
 
-  const clearInput = useCallback(() => {
-    setValue("");
+  const edit = useCallback(
+    (text: string) => {
+      const next = editBuffer(bufferRef.current, text);
+      if (next === bufferRef.current) return;
+      supersedeMigration();
+      apply(next);
+    },
+    [apply, supersedeMigration],
+  );
+
+  const clearStoredDraft = useCallback(() => {
     if (draftKey) persistenceRef.current?.clear(draftKey);
     if (draftKeyRef.current && draftKeyRef.current !== draftKey) persistenceRef.current?.clear(draftKeyRef.current);
-  }, [draftKey, setValue]);
+  }, [draftKey]);
 
-  const restoreFailedSubmission = useCallback(
-    (
-      snapshot: ComposerSubmissionSnapshot,
-      clearedAtRevision: number,
-      kind: "send" | "queue",
-      reason: string | null,
-    ) => {
-      const action = failedComposerSubmissionAction(clearedAtRevision, inputRevisionRef.current);
-      if (action === "restore") setValue(failedComposerSubmissionValue(snapshot));
+  const commit = useCallback(() => {
+    const key = draftKeyRef.current;
+    if (!key) return;
+    const pending = pendingLegacyMigrationRef.current;
+    if (pending?.key === key && pending.revision === bufferRef.current.draft.revision) return;
+    persistenceRef.current?.commit(key, { value: bufferRef.current.draft.text });
+  }, []);
+
+  const browse = useCallback(
+    (direction: RecallDirection, source: () => PromptHistory | null) => {
+      const next = browseBuffer(bufferRef.current, direction, source);
+      if (!next) return false;
+      apply(next);
+      return true;
+    },
+    [apply],
+  );
+
+  const returnToDraft = useCallback(() => {
+    const next = returnedBuffer(bufferRef.current);
+    if (next === bufferRef.current) return false;
+    apply(next);
+    return true;
+  }, [apply]);
+
+  const submit = useCallback(() => {
+    const result = submitBuffer(bufferRef.current, draftKeyRef.current);
+    if (!result) return null;
+    setSubmissionNotice(null);
+    commit();
+    if (result.clearsStoredDraft) supersedeMigration();
+    apply(result.buffer);
+    if (result.clearsStoredDraft) clearStoredDraft();
+    return result.ticket;
+  }, [apply, clearStoredDraft, commit, supersedeMigration]);
+
+  const restoreFailed = useCallback(
+    (ticket: SubmissionTicket, kind: "send" | "queue", reason: string | null) => {
+      const result = restoreFailedBuffer(bufferRef.current, ticket);
+      if (result.action === "restore") apply(result.buffer);
       const template =
-        action === "restore"
+        result.action === "restore"
           ? kind === "send"
             ? t("messageNotSentDraftRestored", "Not sent: {reason}. Your draft was kept.")
             : t("messageNotQueuedDraftRestored", "Not queued: {reason}. Your draft was kept.")
@@ -121,50 +199,45 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
       setSubmissionNotice({
         tone: "error",
         message: template.replace("{reason}", failureReason(reason, t)),
-        canResend: action === "restore" && kind === "send",
+        canResend: result.action === "restore" && kind === "send",
       });
     },
-    [setValue, t],
+    [apply, t],
   );
 
-  const commitCurrentDraft = useCallback(() => {
-    const key = draftKeyRef.current;
-    if (!key) return;
-    const pendingMigration = pendingLegacyMigrationRef.current;
-    if (pendingMigration?.key === key && pendingMigration.revision === inputRevisionRef.current) {
-      // Keep the original v2 record restartable until every attachment has
-      // either been converted or deliberately superseded by a user edit.
-      return;
-    }
-    persistenceRef.current?.commit(key, { value: valueRef.current });
-  }, []);
+  const takeDraft = useCallback(() => {
+    const result = takeBuffer(bufferRef.current);
+    supersedeMigration();
+    apply(result.buffer);
+    clearStoredDraft();
+    return result.text;
+  }, [apply, clearStoredDraft, supersedeMigration]);
 
   useEffect(() => {
     if (!draftKey || draftKeyRef.current !== draftKey) return;
-    const pendingMigration = pendingLegacyMigrationRef.current;
-    if (pendingMigration?.key === draftKey && pendingMigration.revision === inputRevisionRef.current) return;
-    persistenceRef.current?.schedule(draftKey, { value });
-  }, [draftKey, value]);
+    const pending = pendingLegacyMigrationRef.current;
+    if (pending?.key === draftKey && pending.revision === bufferRef.current.draft.revision) return;
+    persistenceRef.current?.schedule(draftKey, { value: buffer.draft.text });
+  }, [draftKey, buffer.draft.text]);
 
   useEffect(() => {
     const previousKey = draftKeyRef.current;
     const previousMigration = pendingLegacyMigrationRef.current;
     if (previousKey && previousKey !== draftKey) {
-      const migrationStillOwnsCurrentValue =
-        previousMigration?.key === previousKey && previousMigration.revision === inputRevisionRef.current;
-      if (!migrationStillOwnsCurrentValue) {
-        persistenceRef.current?.commit(previousKey, { value: valueRef.current });
+      const migrationStillOwnsDraft =
+        previousMigration?.key === previousKey && previousMigration.revision === bufferRef.current.draft.revision;
+      if (!migrationStillOwnsDraft)
+        persistenceRef.current?.commit(previousKey, { value: bufferRef.current.draft.text });
+      if (isNewWorkspaceScopeKey(previousKey) && draftKey && !isNewWorkspaceScopeKey(draftKey)) {
+        carryLocalCommands(previousKey, draftKey);
       }
     }
-    // A cleanup/replay or key change must not replace a still-pending legacy
-    // source with a text-only v3 draft. The source remains in the draft store
-    // until this setup either completes migration or a newer edit takes over.
     pendingLegacyMigrationRef.current = null;
     const generation = ++migrationGenerationRef.current;
     const draft = draftKey ? getDraft(draftKey) : null;
     draftKeyRef.current = draftKey;
-    setValue(draft?.value ?? "");
-    const migrationRevision = inputRevisionRef.current;
+    apply(loadedBuffer(draft?.value ?? "", bufferRef.current));
+    const migrationRevision = bufferRef.current.draft.revision;
     if (!draftKey || (!draft?.images?.length && !draft?.files?.length)) {
       return () => {
         migrationGenerationRef.current += 1;
@@ -175,22 +248,12 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
       const notices: string[] = [];
       let nextValue = draft.value;
       for (const image of draft.images ?? []) {
-        try {
-          const result = await window.piBridge?.stageClipboardImage?.({
-            base64: image.data,
-            ext: extensionForImageMime(image.mimeType) ?? "",
-          });
-          if (result?.ok) {
-            registerStagedPreviewUrl(result.staged.path, `data:${image.mimeType};base64,${image.data}`);
-            nextValue = insertAttachmentToken(nextValue, null, result.staged.path).value;
-          }
-        } catch {
-          // The migration is best effort; the notice below explains removal.
-        }
+        const stagedPath = await stageLegacyImage(image);
+        if (stagedPath) nextValue = insertAttachmentToken(nextValue, null, stagedPath).value;
         if (
           generation !== migrationGenerationRef.current ||
           draftKeyRef.current !== draftKey ||
-          inputRevisionRef.current !== migrationRevision
+          bufferRef.current.draft.revision !== migrationRevision
         )
           return;
       }
@@ -198,14 +261,11 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
       if (
         generation !== migrationGenerationRef.current ||
         draftKeyRef.current !== draftKey ||
-        inputRevisionRef.current !== migrationRevision
+        bufferRef.current.draft.revision !== migrationRevision
       )
         return;
-      // Mark the source converted before publishing the migrated value. The
-      // value effect may schedule persistence immediately after this call, and
-      // cleanup must no longer defer that durable v3 result.
       pendingLegacyMigrationRef.current = null;
-      if (nextValue !== draft.value) setValue(nextValue);
+      if (nextValue !== draft.value) apply(migratedBuffer(bufferRef.current, nextValue));
       persistenceRef.current?.schedule(draftKey, { value: nextValue });
       if (draft.images?.length) {
         notices.push(
@@ -217,26 +277,30 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options) {
     return () => {
       migrationGenerationRef.current += 1;
     };
-  }, [draftKey, setValue, t]);
+  }, [apply, draftKey, t]);
 
   useEffect(
     () => () => {
-      commitCurrentDraft();
+      commit();
       persistenceRef.current?.dispose();
     },
-    [commitCurrentDraft],
+    [commit],
   );
 
+  const dismissSubmissionNotice = useCallback(() => setSubmissionNotice(null), []);
+
   return {
-    value,
-    valueRef,
-    draftKeyRef,
-    inputRevisionRef,
-    setValue,
-    clearInput,
-    restoreFailedSubmission,
-    commitCurrentDraft,
+    shown: shownText(buffer),
+    restoreCaret: restoreCaretOf(buffer),
+    recalling: buffer.recall !== null,
     submissionNotice,
-    setSubmissionNotice,
+    edit,
+    browse,
+    returnToDraft,
+    submit,
+    restoreFailed,
+    takeDraft,
+    commit,
+    dismissSubmissionNotice,
   };
 }

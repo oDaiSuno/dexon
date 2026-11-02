@@ -9,6 +9,9 @@ import type { ModelCatalogStatus } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 import type { ThinkingLevel } from "./thinking-art";
+import type { RecallablePrompt } from "./prompt-history";
+
+export type { RecallablePrompt } from "./prompt-history";
 
 export interface ChatInputProps {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -47,6 +50,7 @@ export interface ChatInputProps {
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
   draftKey?: string;
+  promptHistory?: readonly RecallablePrompt[];
   /** Session working directory — enables the @ file autocomplete menu. */
   cwd?: string | null;
   /** Whether this input is currently user-visible and interactive. */

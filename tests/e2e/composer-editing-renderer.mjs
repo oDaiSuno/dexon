@@ -59,7 +59,7 @@ const boundary = installRendererApi(
 
 const root = createRoot(document.getElementById("root"));
 const handle = createRef();
-let props = { draftKey: "composer-a", visible: true, epoch: 0 };
+let props = { draftKey: "composer-a", visible: true, promptHistory: [], epoch: 0 };
 
 function render() {
   flushSync(() =>
@@ -72,6 +72,7 @@ function render() {
           ref: handle,
           cwd: "/workspace/project",
           draftKey: props.draftKey,
+          promptHistory: props.promptHistory,
           visible: props.visible,
           isStreaming: false,
           model: { provider: "fixture", modelId: "fixture-model" },
@@ -143,6 +144,25 @@ window.composerEditing = {
     editor().focus();
     document.getSelection().selectAllChildren(editor());
   },
+  caretAtStart() {
+    const selection = document.getSelection();
+    if (!selection?.isCollapsed || !selection.rangeCount) return false;
+    const before = selection.getRangeAt(0).cloneRange();
+    before.selectNodeContents(editor());
+    before.setEnd(selection.anchorNode, selection.anchorOffset);
+    return before.toString() === "";
+  },
+  caretAtEnd() {
+    const selection = document.getSelection();
+    if (!selection?.isCollapsed || !selection.rangeCount) return false;
+    const after = selection.getRangeAt(0).cloneRange();
+    after.selectNodeContents(editor());
+    after.setStart(selection.anchorNode, selection.anchorOffset);
+    return after.toString() === "";
+  },
+  openSuggestionCount() {
+    return allByRole(document, "group", /^(Slash commands|Files) ·/).length;
+  },
   view() {
     const element = editor();
     return {
@@ -192,6 +212,12 @@ window.composerEditing = {
   },
   insertText(text) {
     handle.current.insertText(text);
+  },
+  prependText(text) {
+    handle.current.prependText(text);
+  },
+  takeDraft() {
+    return handle.current.takeDraft();
   },
   sendFails(enabled) {
     sendReply = enabled ? () => ({ ok: false }) : () => undefined;

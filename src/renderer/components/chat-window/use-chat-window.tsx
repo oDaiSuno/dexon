@@ -9,6 +9,7 @@ import { buildToolMessageIndex } from "@/lib/tool-message-index";
 import type { ImageContent } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "../ChatInput";
+import { recallablePrompts } from "../chat-input/prompt-history";
 import {
   flatImageOf,
   type EditDraft,
@@ -46,16 +47,11 @@ export function useChatWindow({
   workspace,
 }: Props) {
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
-
   const isMobile = useIsMobile(visible);
-
   const { t } = useI18n();
-
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
-
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
-
   const [restoreReadingPosition] = useState(() => Boolean(session && readingPositions?.get(session.id)));
 
   const expansionStores = useMemo(
@@ -280,6 +276,7 @@ export function useChatWindow({
   );
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
+  const promptHistory = useMemo(() => recallablePrompts(messages), [messages]);
 
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
   const editDraftRef = useRef<EditDraft | null>(null);
@@ -389,6 +386,7 @@ export function useChatWindow({
   const chatInputElement = (
     <ChatInput
       ref={chatInputRef}
+      promptHistory={promptHistory}
       onSend={handleSend}
       onAbort={handleAbort}
       onSteer={agentRunning ? handleSteer : undefined}

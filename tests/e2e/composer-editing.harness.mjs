@@ -266,6 +266,8 @@ async function run() {
     await type("end");
     await key("Enter");
     assert.deepEqual(await sent(), ["a  b\n\nc @/a.ts @/b.ts end"]);
+    await page(`prependText("a\\n")`);
+    assert.equal(await page("takeDraft()"), "a\n", "prepending preserves a trailing newline byte for byte");
   });
 
   await scene("copy-cut-and-paste-carry-full-paths", async () => {
@@ -304,6 +306,123 @@ async function run() {
     await key("Enter");
     await waitFor("window.composerEditing.view().text==='draft one'", "the failed message is restored");
     await page("sendFails(false)");
+    await page(`configure({ draftKey: "composer-saved-slash" })`);
+    await settle();
+    await page("focus()");
+    await type("/compact");
+    await key("Escape");
+    await page(`remount({ draftKey: "composer-saved-slash" })`);
+    await settle();
+    await page("focus()");
+    await key("Left");
+    assert.equal((await view()).text, "/compact");
+    assert.equal(
+      await page("openSuggestionCount()"),
+      0,
+      "a saved slash draft stays menu-free after remount and caret movement",
+    );
+  });
+
+  await scene("wrapped-history-keeps-native-row-navigation", async () => {
+    const prose = "wrapped prompt words ".repeat(30);
+    const prompt = `/skill:fast-context ${prose}`;
+    await page(
+      `configure(${JSON.stringify({
+        promptHistory: [
+          { text: "older than wrapped", at: 1 },
+          { text: prompt, at: 2 },
+        ],
+      })})`,
+    );
+    await type("working draft");
+    await press("Up", 2);
+    const shown = `[fast-context] ${prose}`;
+    assert.equal((await view()).text, shown);
+    await key("Down");
+    assert.equal(
+      (await view()).text,
+      shown,
+      "Down on the first wrapped row moves the caret instead of leaving history",
+    );
+    assert.equal(await page("caretAtStart()"), false);
+    await key("Down");
+    assert.equal((await view()).text, shown, "Down within wrapped text keeps the recalled prompt");
+    await key("Up");
+    assert.equal(
+      (await view()).text,
+      shown,
+      "Up on a later wrapped row moves the caret instead of recalling an older prompt",
+    );
+    return { screenshot: await capture("12-wrapped-history-row-navigation") };
+  });
+
+  await scene("arrow-up-recalls-history-without-opening-menus-or-losing-draft", async () => {
+    const draftKey = `composer-${records.length}`;
+    const working = "working draft";
+    await page(
+      `configure(${JSON.stringify({
+        promptHistory: [
+          { text: "oldest first line\noldest second line", at: 1 },
+          { text: "/compact", at: 2 },
+          { text: "/skill:fast-context ", at: 3 },
+          { text: "query @sr", at: 3.5 },
+          { text: "newest @src/main.ts", at: 4 },
+        ],
+      })})`,
+    );
+    await type(working);
+    await waitFor(`window.composerEditing.storedDraft(${JSON.stringify(draftKey)})===${JSON.stringify(working)}`);
+    await key("Up");
+    assert.equal((await view()).text, working, "the first Up keeps the working draft");
+    assert.equal(await page("caretAtStart()"), true, "the first Up moves the caret to the start");
+    await key("Up");
+    assert.equal((await view()).text, "newest [main.ts]", "the second Up recalls the newest prompt");
+    for (const expected of ["query @sr", "[fast-context] ", "/compact", "oldest first line\noldest second line"]) {
+      await key("Up");
+      assert.equal((await view()).text, expected, "one Up recalls the next older prompt");
+      assert.equal(await page("caretAtStart()"), true, "each older prompt restores the caret to the start");
+      assert.equal(await page("openSuggestionCount()"), 0, "restoring a prompt never opens suggestions");
+    }
+    await js("new Promise(resolve=>setTimeout(resolve,700))");
+    assert.equal(
+      await page(`storedDraft(${JSON.stringify(draftKey)})`),
+      working,
+      "previewing never overwrites storage",
+    );
+    const screenshot = await capture("11-arrow-up-history-preview");
+    await page("placeCaretAtEnd()");
+    for (const expected of ["/compact", "[fast-context] ", "query @sr", "newest [main.ts]", working]) {
+      await key("Down");
+      assert.equal((await view()).text, expected, "one Down recalls the next prompt or the working draft");
+      assert.equal(await page("caretAtEnd()"), true, "each newer prompt restores the caret to the end");
+      assert.equal(await page("openSuggestionCount()"), 0, "moving forward never opens suggestions");
+    }
+    await press("Up", 2);
+    await click(await page(`elementCenter("button", "Add images or local file references")`));
+    await page("focus()");
+    await key("Escape");
+    assert.equal(
+      (await view()).text,
+      "newest [main.ts]",
+      "the first Escape closes the plus menu without leaving history",
+    );
+    await key("Escape");
+    assert.equal((await view()).text, working, "Escape returns to the working draft");
+    await press("Up", 2);
+    await key("Enter");
+    assert.deepEqual(await sent(), ["newest @src/main.ts"], "Enter sends the unchanged preview");
+    assert.equal((await view()).text, working, "sending a preview restores the working draft");
+    assert.equal(await page(`storedDraft(${JSON.stringify(draftKey)})`), working);
+    await press("Up", 2);
+    await type("edited ");
+    assert.equal((await view()).text, "edited newest [main.ts]", "editing promotes the recalled prompt");
+    await waitFor(
+      `window.composerEditing.storedDraft(${JSON.stringify(draftKey)})==='edited newest @src/main.ts'`,
+      "the edited preview becomes the stored draft",
+    );
+    await key("Escape");
+    assert.equal((await view()).text, "edited newest [main.ts]", "Escape does not discard a promoted draft");
+    return { screenshot, workingDraftPreserved: true, previewSent: true, editedPreviewPersisted: true };
   });
 
   await scene("composition-enter-does-not-send", async () => {

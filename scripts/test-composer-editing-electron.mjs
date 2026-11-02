@@ -21,6 +21,8 @@ await runRendererElectronCheck({
     "line-breaks-spaces-and-adjacent-attachments-survive-sending",
     "copy-cut-and-paste-carry-full-paths",
     "drafts-keep-separate-content-and-history",
+    "wrapped-history-keeps-native-row-navigation",
+    "arrow-up-recalls-history-without-opening-menus-or-losing-draft",
     "composition-enter-does-not-send",
   ],
 });
