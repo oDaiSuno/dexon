@@ -5,7 +5,9 @@ import { call } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
-import { sessionProjectKey } from "@/lib/session-list";
+import { sessionAncestorIds } from "@/lib/session-tree";
+import type { RevealRequest } from "../app-nav/nav-history";
+import { sessionProjectKey, sessionProjectKeyOf } from "@/lib/session-list";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
 import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-sidebar/project-workspace";
@@ -64,6 +66,7 @@ export function NavigationSidebar({
   const [mobileReady, setMobileReady] = useState(false);
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
+  const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [spaceError, setSpaceError] = useState<string | null>(null);
   const [enteredProject, setEnteredProject] = useState("");
 
@@ -124,12 +127,23 @@ export function NavigationSidebar({
 
   const selectSession = useCallback(
     (session: SessionInfo) => {
+      const key = sessionProjectKeyOf(session);
+      if (key)
+        setExpandedProjects((current) => (current.get(key) === true ? current : new Map(current).set(key, true)));
+      const ancestors = sessionAncestorIds(sessions, session.id);
+      setFoldedSessionIds((current) => {
+        if (!ancestors.some((id) => current.has(id))) return current;
+        const next = new Set(current);
+        for (const id of ancestors) next.delete(id);
+        return next;
+      });
+      setRevealRequest((previous) => ({ seq: (previous?.seq ?? 0) + 1, sessionId: session.id }));
       const projectRoot = session.projectRoot ?? session.cwd;
       const readableOnly = openProjects.isMissing(projectRoot);
       if (session.cwd && !readableOnly) setSelectedCwd(session.cwd);
       onSelectSession(session, false, readableOnly);
     },
-    [openProjects, setSelectedCwd, onSelectSession],
+    [sessions, openProjects, setSelectedCwd, onSelectSession],
   );
 
   const createSession = useCallback(() => {
@@ -228,6 +242,7 @@ export function NavigationSidebar({
       >
         <NavSidebar
           expanded={expanded}
+          visible={!hidden}
           page={page}
           settingsOpen={settingsOpen}
           spaceName={spaceName}
@@ -247,6 +262,8 @@ export function NavigationSidebar({
           loading={directory.loading}
           error={directory.error}
           selectedSessionId={shownSessionId}
+          revealRequest={revealRequest}
+          activity={directory.activity}
           liveStatuses={directory.liveStatuses}
           runningSessionIds={directory.runningSessionIds}
           unreadSessionIds={directory.unreadSessionIds}

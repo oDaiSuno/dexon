@@ -1,7 +1,12 @@
 import { useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { MAX_TREE_INDENT_DEPTH, sessionRelation, type SessionTreeNode } from "@/lib/session-tree";
-import { descendantActivity, ownActivity, type SessionActivitySignals } from "@/lib/session-tree-status";
+import {
+  descendantActivity,
+  ownActivity,
+  type SessionActivity,
+  type SessionActivitySignals,
+} from "@/lib/session-tree-status";
 import type { SessionRelation } from "@shared/session-orchestration";
 import { SessionItem } from "./session-item";
 
@@ -58,7 +63,7 @@ export function SessionTreeItem({
 }: {
   node: SessionTreeNode;
   selectedSessionId: string | null;
-  signals: SessionActivitySignals;
+  signals: SessionActivity | SessionActivitySignals;
   onSelectSession: (s: SessionInfo) => void;
   onRenamed?: () => void;
   onSessionDeleted?: (id: string) => void;

@@ -1,8 +1,3 @@
-#!/usr/bin/env node
-/**
- * ISSUE-010: single quality gate that blocks pack/dist.
- * format → lint → typecheck → unit → contract → security → build → smoke
- */
 import { spawnSync } from "child_process";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -55,6 +50,7 @@ run("Long history reading Electron integration", "npm", ["run", "test:chat-histo
 run("Composer editing Electron integration", "npm", ["run", "test:composer-editing-electron"]);
 run("User bubble chips Electron integration", "npm", ["run", "test:user-bubble-electron"]);
 run("Navigation layout and keyboard Electron integration", "npm", ["run", "test:nav-layout-electron"]);
+run("Sidebar background activity Electron integration", "npm", ["run", "test:sidebar-pulse-well-electron"]);
 run("Browser Electron integration", "npm", ["run", "test:browser-electron"]);
 run("Browser real Agent E2E", "npm", ["run", "test:browser-agent-e2e"]);
 

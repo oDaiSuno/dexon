@@ -182,6 +182,7 @@ export function SessionItem({
     <div
       ref={rowRef}
       role="listitem"
+      data-session-id={session.id}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => {
         setHovered(false);
@@ -292,7 +293,7 @@ export function SessionItem({
               className={titleTone.className}
               style={{
                 flex: 1,
-                minWidth: 0,
+                minWidth: indicated === "awaiting_input" || indicated === "error" ? 48 : 0,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
@@ -302,7 +303,14 @@ export function SessionItem({
               {title}
             </span>
             {foldedDescendants && <SessionRowCount count={descendantCount} />}
-            {!naming && <SessionRowStatusSlot activity={indicated} />}
+            {!naming && indicated !== "idle" && (
+              <span
+                className="[&>span]:max-w-full [&>span>span:last-child]:truncate"
+                style={{ display: "inline-flex", flexShrink: 1, minWidth: 0 }}
+              >
+                <SessionRowStatusSlot activity={indicated} />
+              </span>
+            )}
             {showTime && (
               <span
                 data-session-row-time

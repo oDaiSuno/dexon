@@ -8,7 +8,8 @@ import { sessionActivityFromLegacySignals } from "@/lib/session-activity-state";
 import { buildSidebarActivity } from "@/lib/sidebar-activity";
 import { activityCountsPhrase } from "../session-sidebar/session-status-indicators";
 import { PanelLeftIcon } from "./nav-space-menu";
-import { NavHistory, type ListedProject } from "./nav-history";
+import { NavHistory, type ListedProject, type RevealRequest } from "./nav-history";
+import { RecessedPulseWell } from "./recessed-pulse-well";
 import { ProjectRowActions } from "./project-row-actions";
 import { ProjectSwitcherPopover } from "./project-switcher-popover";
 import { NavTopBar } from "./nav-top-bar";
@@ -37,6 +38,7 @@ type MainEntry = {
 
 export function NavSidebar({
   expanded,
+  visible = true,
   page,
   settingsOpen = false,
   spaceName: spaceNameProp,
@@ -45,6 +47,7 @@ export function NavSidebar({
   loading,
   error,
   selectedSessionId,
+  revealRequest,
   activity,
   liveStatuses,
   runningSessionIds,
@@ -79,6 +82,7 @@ export function NavSidebar({
   onReorderProjects,
 }: {
   expanded: boolean;
+  visible?: boolean;
   page: NavPage;
   settingsOpen?: boolean;
   spaceName?: string;
@@ -87,6 +91,7 @@ export function NavSidebar({
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
+  revealRequest?: RevealRequest | null;
   activity?: SessionActivity;
   liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
@@ -316,6 +321,14 @@ export function NavSidebar({
         })}
       </div>
 
+      <RecessedPulseWell
+        model={sidebar.pulse}
+        visible={visible}
+        searching={query.trim().length > 0}
+        selectedSessionId={selectedSessionId}
+        onOpenSession={onSelectSession}
+      />
+
       <div
         style={{
           flex: "1 1 auto",
@@ -326,11 +339,13 @@ export function NavSidebar({
       >
         <NavHistory
           sessions={sessions}
+          revealRequest={revealRequest}
           query={query}
           loading={loading}
           error={error}
           tree={{
             currentProject: projectRoot,
+            projectActivity: sidebar.project,
             projectName: nameOfProject,
             isPinnedProject,
             listedProjects,
@@ -363,6 +378,7 @@ export function NavSidebar({
             ),
           }}
           selectedSessionId={selectedSessionId}
+          activity={resolvedActivity}
           liveStatuses={liveStatuses}
           runningSessionIds={runningSessionIds}
           unreadSessionIds={unreadSessionIds}
