@@ -1,7 +1,7 @@
 import * as React from "react";
 import { isImagePath } from "@shared/attachment-tokens";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
-import type { ComposerEditableHandle } from "./types";
+import type { CaretEdge, CaretPlacement, ComposerChange, ComposerChangeCause, ComposerEditableHandle } from "./types";
 import {
   createSkillChip,
   createTokenChip,
@@ -24,13 +24,16 @@ import {
   type ComposerEdit,
 } from "./composer-edit";
 import {
+  caretEdge,
+  placeCaret,
+  readSnapshot,
   readComposerText,
-  selectOffsets,
   selectionInComposer,
   type ComposerSelection,
   type ComposerTextMap,
 } from "./composer-text-map";
 import { useComposerEditorEvents } from "./use-composer-editor-events";
+
 /**
  * Native rich-text composer surface. The DOM is the source of truth: text
  * nodes plus atomic chips (attachment `@path`, skill `/skill:name`), all
@@ -40,12 +43,12 @@ import { useComposerEditorEvents } from "./use-composer-editor-events";
  */
 export function ComposerEditable({
   value,
+  restoreCaret = "end",
   visible = true,
   handleRef,
   placeholder,
   ariaLabel,
-  onValueChange,
-  onSelectionChange,
+  onChange,
   onKeyDown,
   onPaste,
   onCompositionStart,
@@ -59,12 +62,12 @@ export function ComposerEditable({
   skillRemoveLabel,
 }: {
   value: string;
+  restoreCaret?: CaretPlacement;
   visible?: boolean;
   handleRef: React.MutableRefObject<ComposerEditableHandle | null>;
   placeholder: string;
   ariaLabel?: string;
-  onValueChange: (text: string) => void;
-  onSelectionChange: (textBeforeCaret: string) => void;
+  onChange: (change: ComposerChange) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLDivElement>) => void;
   onPaste: (e: React.ClipboardEvent<HTMLDivElement>) => void;
   onCompositionStart: () => void;
@@ -80,14 +83,17 @@ export function ComposerEditable({
   const editorRef = React.useRef<HTMLDivElement>(null);
   const visibleRef = React.useRef(visible);
   visibleRef.current = visible;
+  const restoreCaretRef = React.useRef(restoreCaret);
+  restoreCaretRef.current = restoreCaret;
   const lastSerializedRef = React.useRef(value);
+  const previousRestoreRef = React.useRef({ value, restoreCaret });
   const lastSelectionRef = React.useRef<ComposerSelection | null>(null);
   const domMaterializedRef = React.useRef(false);
   const isComposingRef = React.useRef(false);
   const deferredEditsRef = React.useRef<Array<() => void>>([]);
   const propsRef = React.useRef({
-    onValueChange,
-    onSelectionChange,
+    value,
+    onChange,
     previewsByPath,
     missingByPath,
     removeLabel,
@@ -95,8 +101,8 @@ export function ComposerEditable({
     skillRemoveLabel,
   });
   propsRef.current = {
-    onValueChange,
-    onSelectionChange,
+    value,
+    onChange,
     previewsByPath,
     missingByPath,
     removeLabel,
@@ -128,29 +134,27 @@ export function ComposerEditable({
     [visualFor],
   );
 
-  const publishSerializedValue = React.useCallback((text: string) => {
-    lastSerializedRef.current = text;
-    propsRef.current.onValueChange(text);
-  }, []);
-  const serializedValue = React.useCallback(() => {
-    const el = getEditor();
-    return visibleRef.current && el ? readComposerText(el).text : lastSerializedRef.current;
-  }, [getEditor]);
-  const emit = React.useCallback(() => {
-    publishSerializedValue(serializedValue());
-  }, [publishSerializedValue, serializedValue]);
-  const notifySelection = React.useCallback(() => {
-    const el = getEditor();
-    if (!el) return;
-    const map = readComposerText(el);
-    const selection = selectionInComposer(el, map);
-    if (selection) lastSelectionRef.current = selection;
-    const collapsed = selection !== null && selection.start === selection.end;
-    propsRef.current.onSelectionChange(collapsed ? map.masked.slice(0, selection.start) : "");
-  }, [getEditor]);
+  const publish = React.useCallback(
+    (cause: ComposerChangeCause) => {
+      const el = getEditor();
+      if (!el) return;
+      const snapshot = visibleRef.current
+        ? readSnapshot(el)
+        : { text: lastSerializedRef.current, masked: lastSerializedRef.current, caret: { kind: "outside" as const } };
+      lastSerializedRef.current = snapshot.text;
+      if (snapshot.caret.kind === "caret") {
+        lastSelectionRef.current = { start: snapshot.caret.offset, end: snapshot.caret.offset };
+      } else if (snapshot.caret.kind === "range") {
+        lastSelectionRef.current = { start: snapshot.caret.start, end: snapshot.caret.end };
+      }
+      const effective = cause === "edit" && snapshot.text === propsRef.current.value ? "caret" : cause;
+      propsRef.current.onChange({ cause: effective, snapshot });
+    },
+    [getEditor],
+  );
 
-  const resetContent = React.useCallback(
-    (text: string) => {
+  const resetDom = React.useCallback(
+    (text: string, placement: CaretPlacement) => {
       const el = getEditor();
       if (!el) return;
       const hadFocus = el.ownerDocument.activeElement === el;
@@ -159,18 +163,24 @@ export function ComposerEditable({
       lastSelectionRef.current = null;
       if (!visibleRef.current) return;
       if (hadFocus) el.focus({ preventScroll: true });
-      const map = readComposerText(el);
-      selectOffsets(el, map, map.text.length, map.text.length);
+      placeCaret(el, placement);
       syncEditorHeight(el);
     },
     [chips, getEditor],
   );
+  const restore = React.useCallback(
+    (text: string) => {
+      resetDom(text, restoreCaretRef.current);
+      publish("restore");
+    },
+    [publish, resetDom],
+  );
   const replaceInBackground = React.useCallback(
     (text: string) => {
-      resetContent(text);
-      publishSerializedValue(text);
+      resetDom(text, "end");
+      publish("edit");
     },
-    [publishSerializedValue, resetContent],
+    [publish, resetDom],
   );
 
   const edit = React.useCallback(
@@ -187,12 +197,11 @@ export function ComposerEditable({
       if (!request) return false;
       el.focus({ preventScroll: true });
       if (!applyComposerEdit(el, request, chips)) return false;
-      emit();
       syncEditorHeight(el);
-      notifySelection();
+      publish("edit");
       return true;
     },
-    [chips, emit, getEditor, notifySelection],
+    [chips, getEditor, publish],
   );
 
   const whenNotComposing = React.useCallback((run: () => void) => {
@@ -205,7 +214,10 @@ export function ComposerEditable({
 
   const handle = React.useMemo<ComposerEditableHandle>(
     () => ({
-      getValue: () => serializedValue(),
+      getValue: () => {
+        const el = getEditor();
+        return visibleRef.current && el ? readComposerText(el).text : lastSerializedRef.current;
+      },
       replaceAll: (text: string) =>
         whenNotComposing(() => {
           if (visibleRef.current) edit((map) => planReplaceAll(map, text));
@@ -236,8 +248,16 @@ export function ComposerEditable({
       focus: () => {
         if (visibleRef.current) getEditor()?.focus();
       },
+      caretEdge: (): CaretEdge | null => {
+        const el = getEditor();
+        return visibleRef.current && el ? caretEdge(el) : null;
+      },
+      placeCaret: (placement: CaretPlacement) => {
+        const el = getEditor();
+        if (visibleRef.current && el) placeCaret(el, placement);
+      },
     }),
-    [edit, getEditor, replaceInBackground, serializedValue, whenNotComposing],
+    [edit, getEditor, replaceInBackground, whenNotComposing],
   );
 
   React.useEffect(() => {
@@ -250,12 +270,17 @@ export function ComposerEditable({
   React.useLayoutEffect(() => {
     const el = getEditor();
     if (!el) return;
+    const previous = previousRestoreRef.current;
+    previousRestoreRef.current = { value, restoreCaret };
     if (!domMaterializedRef.current || value !== lastSerializedRef.current) {
       domMaterializedRef.current = true;
-      resetContent(value);
+      restore(value);
+    } else if (visible && previous.value === value && previous.restoreCaret !== restoreCaret) {
+      placeCaret(el, restoreCaret);
+      publish("restore");
     }
     if (visible) syncEditorHeight(el);
-  }, [getEditor, resetContent, value, visible]);
+  }, [getEditor, publish, restore, restoreCaret, value, visible]);
 
   React.useEffect(() => {
     if (visible || !isComposingRef.current) return;
@@ -274,11 +299,11 @@ export function ComposerEditable({
     const el = getEditor();
     if (!el) return;
     const listener = () => {
-      if (document.activeElement === el || el.contains(document.activeElement)) notifySelection();
+      if (document.activeElement === el || el.contains(document.activeElement)) publish("caret");
     };
     document.addEventListener("selectionchange", listener);
     return () => document.removeEventListener("selectionchange", listener);
-  }, [getEditor, notifySelection, visible]);
+  }, [getEditor, publish, visible]);
 
   const editorEvents = useComposerEditorEvents({
     visible,
@@ -304,9 +329,8 @@ export function ComposerEditable({
       data-empty={value === "" ? "" : undefined}
       onInput={(e) => {
         if (!visible) return;
-        emit();
         syncEditorHeight(e.currentTarget);
-        notifySelection();
+        publish("edit");
       }}
       onKeyDown={editorEvents.handleEditorKeyDown}
       onPaste={(e) => {
@@ -323,9 +347,8 @@ export function ComposerEditable({
       }}
       onCompositionEnd={() => {
         isComposingRef.current = false;
-        if (visible) emit();
+        if (visible) publish("edit");
         onCompositionEnd();
-        if (visible) notifySelection();
         flushDeferredEdits();
       }}
     />

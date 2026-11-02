@@ -19,7 +19,7 @@ import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
 import { useComposerSkills } from "./chat-input/use-composer-skills";
 import { useComposerSuggestions } from "./chat-input/use-composer-suggestions";
-import type { ChatInputHandle, ChatInputProps, ComposerEditableHandle } from "./chat-input/types";
+import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableHandle } from "./chat-input/types";
 
 export type { ChatInputHandle } from "./chat-input/types";
 export type { ChatInputProps as Props } from "./chat-input/types";
@@ -79,7 +79,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRootRef = useRef<HTMLDivElement>(null);
-  const clearAtQueryRef = useRef<() => void>(() => {});
   const [imageAttachNotice, setImageAttachNotice] = useState<string | null>(null);
 
   const draft = useComposerDraft({
@@ -113,7 +112,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   const clearCurrentInput = useCallback(() => {
     clearInput();
-    clearAtQueryRef.current();
   }, [clearInput]);
   const handleAbort = useCallback(() => {
     if (visible) onAbort();
@@ -210,27 +208,45 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   );
 
   const suggestions = useComposerSuggestions({
-    value: draftValue,
     cwd,
     isStreaming,
     visible,
     slashCommands,
     slashCommandsLoading,
     onLoadSlashCommands,
-    onFollowUp,
-    handleSend,
-    sendQueued,
     editableRef,
     onAtEscape: closeTransientMenus,
   });
-  clearAtQueryRef.current = suggestions.clearAtQuery;
-  const clearAtQueryOnKeyChange = suggestions.clearAtQuery;
-  const closeMenusOnKeyChange = suggestions.closeMenus;
+  const { dismiss: dismissSuggestions, handleMenuKey, observe: observeComposerChange } = suggestions;
 
   useEffect(() => {
-    clearAtQueryOnKeyChange();
-    closeMenusOnKeyChange();
-  }, [clearAtQueryOnKeyChange, closeMenusOnKeyChange, draftKey]);
+    dismissSuggestions();
+  }, [dismissSuggestions, draftKey]);
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (handleMenuKey(event)) return;
+      if (event.key !== "Enter" || event.shiftKey) return;
+      event.preventDefault();
+      if (isStreaming) {
+        if (onFollowUp) void sendQueued("followup");
+      } else {
+        void handleSend();
+      }
+    },
+    [handleMenuKey, handleSend, isStreaming, onFollowUp, sendQueued],
+  );
+
+  const handleComposerChange = useCallback(
+    (change: ComposerChange) => {
+      if (change.cause === "edit") {
+        setValue(change.snapshot.text);
+        closePlusMenu();
+      }
+      observeComposerChange(change);
+    },
+    [closePlusMenu, observeComposerChange, setValue],
+  );
 
   const controls = useComposerControls({
     visible,
@@ -291,14 +307,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     [skills.skillsState.skills],
   );
 
-  const handleValueChange = useCallback(
-    (nextValue: string) => {
-      setValue(nextValue);
-      closePlusMenu();
-    },
-    [closePlusMenu, setValue],
-  );
-
   const openPicker = useCallback(() => {
     if (!visible) return;
     closePlusMenu();
@@ -338,17 +346,17 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         const combined = [text, draftValueRef.current].filter((item) => item.trim()).join("\n\n");
         if (visible) editableRef.current?.focus();
         editableRef.current?.replaceAll(combined);
-        suggestions.clearAtQuery();
+        suggestions.dismiss();
       },
       takeDraft() {
         const text = draftValueRef.current;
         clearInput();
-        suggestions.clearAtQuery();
+        suggestions.dismiss();
         return text;
       },
       insertText(text: string) {
         editableRef.current?.insertTextAtCaret(text);
-        suggestions.clearAtQuery();
+        suggestions.dismiss();
       },
       addFiles(files: File[]) {
         void attachments.processFiles(files);
@@ -379,9 +387,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onSend={() => void handleSend()}
       onAbort={handleAbort}
       onQueue={() => void sendQueued("followup")}
-      onValueChange={handleValueChange}
-      onSelectionChange={suggestions.updateAtQuery}
-      onKeyDown={suggestions.handleKeyDown}
+      onChange={handleComposerChange}
+      onKeyDown={handleKeyDown}
       onPaste={attachments.handlePaste}
       onCompositionStart={suggestions.onCompositionStart}
       onCompositionEnd={suggestions.onCompositionEnd}

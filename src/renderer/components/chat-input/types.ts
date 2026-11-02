@@ -184,6 +184,43 @@ export interface ComposerNavigation {
   openModelSettings: () => void;
 }
 
+export type ComposerCaret =
+  | { readonly kind: "caret"; readonly offset: number }
+  | { readonly kind: "range"; readonly start: number; readonly end: number }
+  | { readonly kind: "outside" };
+
+export interface ComposerSnapshot {
+  readonly text: string;
+  readonly masked: string;
+  readonly caret: ComposerCaret;
+}
+
+export type ComposerChangeCause = "edit" | "caret" | "restore";
+
+export interface ComposerChange {
+  readonly cause: ComposerChangeCause;
+  readonly snapshot: ComposerSnapshot;
+}
+
+export type CaretPlacement = "start" | "end";
+
+export interface LogicalCaretEdge {
+  readonly atStart: boolean;
+  readonly atEnd: boolean;
+  readonly onFirstLogicalLine: boolean;
+  readonly onLastLogicalLine: boolean;
+}
+
+export type CaretEdge =
+  | { readonly kind: "range" }
+  | {
+      readonly kind: "caret";
+      readonly atStart: boolean;
+      readonly atEnd: boolean;
+      readonly onFirstRow: boolean;
+      readonly onLastRow: boolean;
+    };
+
 export interface ComposerEditableHandle {
   getValue(): string;
   replaceAll(text: string): void;
@@ -193,6 +230,8 @@ export interface ComposerEditableHandle {
   insertSkillAtStart(name: string): void;
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
   focus(): void;
+  caretEdge(): CaretEdge | null;
+  placeCaret(placement: CaretPlacement): void;
 }
 
 export interface ChatInputHandle {
