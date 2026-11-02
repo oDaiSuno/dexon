@@ -25,6 +25,7 @@ export type {
   RetryInfo,
   SessionData,
   SlashCommandInfo,
+  SessionCommandInfo,
   ThinkingLevelOption,
   UseAgentSessionOptions,
 } from "./agent-session/shared";

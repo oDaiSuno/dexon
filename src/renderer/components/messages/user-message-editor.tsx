@@ -41,7 +41,7 @@ export function flatImageOf(block: ImageContent): OutgoingImage | null {
 
 const NO_PREVIEWS = new Map<string, string | null>();
 const NO_MISSING = new Map<string, boolean>();
-const NO_SKILL_DESCRIPTIONS = new Map<string, string>();
+const NO_SKILLS = new Map<string, { readonly description: string }>();
 
 const ignoreReveal = () => undefined;
 
@@ -178,7 +178,7 @@ export function UserMessageEditor({
           onRevealToken={ignoreReveal}
           onSkillReveal={ignoreReveal}
           removeLabel={t("remove", "Remove")}
-          skillDescriptions={NO_SKILL_DESCRIPTIONS}
+          skillsByName={NO_SKILLS}
           skillRemoveLabel={t("removeSkill", "Remove skill")}
         />
       </div>

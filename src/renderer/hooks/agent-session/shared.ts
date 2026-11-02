@@ -86,6 +86,12 @@ export interface SlashCommandInfo {
     baseDir?: string;
   };
 }
+export type SessionCommandInfo = SlashCommandInfo & { readonly source: "extension" | "prompt" };
+
+export function isSessionCommand(command: SlashCommandInfo): command is SessionCommandInfo {
+  return command.source === "extension" || command.source === "prompt";
+}
+
 export type BuiltinSlashCommandResult =
   { handled: false } | { handled: true; message?: string; error?: string; action?: "openSessionStats" };
 export interface UseAgentSessionOptions {

@@ -2,7 +2,7 @@ import type {
   BuiltinSlashCommandResult,
   CompactResultInfo,
   QueuedMessages,
-  SlashCommandInfo,
+  SessionCommandInfo,
 } from "@/hooks/useAgentSession";
 import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
@@ -43,9 +43,9 @@ export interface ChatInputProps {
   thinkingLevelMap?: Record<string, string | null> | null;
   queuedMessages?: QueuedMessages | null;
   onRecallQueue?: () => void;
-  slashCommands?: SlashCommandInfo[];
+  slashCommands?: SessionCommandInfo[];
   slashCommandsLoading?: boolean;
-  onLoadSlashCommands?: () => Promise<SlashCommandInfo[]> | SlashCommandInfo[];
+  onLoadSlashCommands?: () => Promise<SessionCommandInfo[]> | SessionCommandInfo[];
   onBuiltinCommand?: (message: string) => Promise<BuiltinSlashCommandResult>;
   soundEnabled?: boolean;
   onSoundToggle?: () => void;

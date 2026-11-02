@@ -10,6 +10,7 @@ import {
   syncChipVisuals,
   syncEditorHeight,
   type PillVisual,
+  type ChipVisuals,
 } from "./composer-dom";
 import {
   applyComposerEdit,
@@ -58,7 +59,7 @@ export function ComposerEditable({
   onRevealToken,
   onSkillReveal,
   removeLabel,
-  skillDescriptions,
+  skillsByName,
   skillRemoveLabel,
 }: {
   value: string;
@@ -77,7 +78,7 @@ export function ComposerEditable({
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
   removeLabel: string;
-  skillDescriptions: ReadonlyMap<string, string>;
+  skillsByName: ReadonlyMap<string, { readonly description: string }>;
   skillRemoveLabel: string;
 }): React.ReactElement {
   const editorRef = React.useRef<HTMLDivElement>(null);
@@ -97,7 +98,7 @@ export function ComposerEditable({
     previewsByPath,
     missingByPath,
     removeLabel,
-    skillDescriptions,
+    skillsByName,
     skillRemoveLabel,
   });
   propsRef.current = {
@@ -106,7 +107,7 @@ export function ComposerEditable({
     previewsByPath,
     missingByPath,
     removeLabel,
-    skillDescriptions,
+    skillsByName,
     skillRemoveLabel,
   };
 
@@ -122,16 +123,22 @@ export function ComposerEditable({
     [],
   );
 
-  const chips = React.useMemo<ChipFactory>(
+  const visuals = React.useMemo<ChipVisuals>(
     () => ({
-      attachment: (path) => createTokenChip(path, visualFor(path)),
-      skill: (name) =>
-        createSkillChip(name, {
-          description: propsRef.current.skillDescriptions.get(name) ?? null,
-          removeLabel: propsRef.current.skillRemoveLabel,
-        }),
+      attachment: visualFor,
+      skill: (name) => ({
+        description: propsRef.current.skillsByName.get(name)?.description ?? null,
+        removeLabel: propsRef.current.skillRemoveLabel,
+      }),
     }),
     [visualFor],
+  );
+  const chips = React.useMemo<ChipFactory>(
+    () => ({
+      attachment: (path) => createTokenChip(path, visuals.attachment(path)),
+      skill: (name) => createSkillChip(name, visuals.skill(name)),
+    }),
+    [visuals],
   );
 
   const publish = React.useCallback(
@@ -291,8 +298,8 @@ export function ComposerEditable({
 
   React.useEffect(() => {
     const el = getEditor();
-    if (el) syncChipVisuals(el, visualFor, previewsByPath, missingByPath);
-  }, [getEditor, missingByPath, previewsByPath, visualFor]);
+    if (el) syncChipVisuals(el, visuals);
+  }, [getEditor, missingByPath, previewsByPath, removeLabel, skillRemoveLabel, skillsByName, visuals]);
 
   React.useEffect(() => {
     if (!visible) return;

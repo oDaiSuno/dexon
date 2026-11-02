@@ -29,7 +29,7 @@ import {
   RetryInfo,
   SelectedModel,
   SessionData,
-  SlashCommandInfo,
+  SessionCommandInfo,
   ThinkingLevelOption,
   UseAgentSessionOptions,
   streamReducer,
@@ -88,7 +88,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [compactError, setCompactError] = useState<string | null>(null);
   const [compactResult, setCompactResult] = useState<CompactResultInfo | null>(null);
   const [agentPhase, setAgentPhase] = useState<AgentPhase>(null);
-  const [slashCommands, setSlashCommands] = useState<SlashCommandInfo[]>([]);
+  const [slashCommands, setSlashCommands] = useState<SessionCommandInfo[]>([]);
   const [slashCommandsLoading, setSlashCommandsLoading] = useState(false);
   const [noticeState, dispatchNotice] = useReducer(noticeReducer, { visible: [], pending: [] });
   const [sessionStatsOverride, setSessionStatsOverride] = useState<SessionStatsInfo | null>(null);

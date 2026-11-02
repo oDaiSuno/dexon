@@ -2,7 +2,7 @@ import type { MutableRefObject, RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession";
 import type { ModelCatalogStatus } from "@contract/types";
-import type { SkillRecord } from "@/lib/api-types";
+import type { CatalogSkill } from "./use-skill-catalog";
 import { ComposerEditable } from "./ComposerEditable";
 import type {
   CaretPlacement,
@@ -53,7 +53,7 @@ export interface ComposerViewProps {
   missingTokenInspections: ReadonlyMap<string, boolean>;
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
-  skillDescriptions: ReadonlyMap<string, string>;
+  skillsByName: ReadonlyMap<string, CatalogSkill>;
   attachmentTokens: { path: string }[];
   onOpenPicker: () => void;
   plusMenuOpen: boolean;
@@ -65,14 +65,13 @@ export interface ComposerViewProps {
   onCloseMenus: () => void;
   remote?: ComposerRemote | null;
   navigation?: ComposerNavigation;
-  skills: SkillRecord[];
+  skills: readonly CatalogSkill[];
   skillsLoading: boolean;
   skillsError: boolean;
-  onPickSkill: (skill: SkillRecord) => void;
+  onPickSkill: (skill: CatalogSkill) => void;
   onRetrySkills: () => void;
   skillPickerOpen: boolean;
   skillRevealName: string | null;
-  skillRecordsRef: MutableRefObject<Map<string, SkillRecord>>;
   onCloseSkillPicker: () => void;
   onCloseSkillReveal: () => void;
   slashMenuOpen: boolean;
@@ -161,7 +160,7 @@ export function ComposerView(props: ComposerViewProps) {
     missingTokenInspections,
     onRevealToken,
     onSkillReveal,
-    skillDescriptions,
+    skillsByName,
     attachmentTokens,
     onOpenPicker,
     plusMenuOpen,
@@ -180,7 +179,6 @@ export function ComposerView(props: ComposerViewProps) {
     onRetrySkills,
     skillPickerOpen,
     skillRevealName,
-    skillRecordsRef,
     onCloseSkillPicker,
     onCloseSkillReveal,
     slashMenuOpen,
@@ -322,8 +320,8 @@ export function ComposerView(props: ComposerViewProps) {
           {skillRevealName && (
             <SkillRevealCard
               name={skillRevealName}
-              description={skillRecordsRef.current.get(skillRevealName)?.description ?? null}
-              filePath={skillRecordsRef.current.get(skillRevealName)?.filePath ?? null}
+              description={skillsByName.get(skillRevealName)?.description ?? null}
+              filePath={skillsByName.get(skillRevealName)?.filePath ?? null}
               onClose={onCloseSkillReveal}
             />
           )}
@@ -412,7 +410,7 @@ export function ComposerView(props: ComposerViewProps) {
                   onRevealToken={onRevealToken}
                   onSkillReveal={onSkillReveal}
                   removeLabel={t("remove", "Remove")}
-                  skillDescriptions={skillDescriptions}
+                  skillsByName={skillsByName}
                   skillRemoveLabel={t("removeSkill", "Remove skill")}
                 />
               </div>

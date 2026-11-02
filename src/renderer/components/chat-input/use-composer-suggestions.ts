@@ -7,7 +7,7 @@ import {
   projectFileSuggestionResponse,
 } from "@/lib/file-suggestion-client";
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
-import type { SlashCommandInfo } from "@/hooks/useAgentSession";
+import type { SessionCommandInfo } from "@/hooks/useAgentSession";
 import { builtinSlashCommands, compareSlashCommands, type SlashCommandPaletteItem } from "./slash-commands";
 import type { ComposerChange, ComposerEditableHandle } from "./types";
 import { initialTriggerGate, nextTriggerGate, openTrigger, triggerKey, type ComposerTrigger } from "./composer-trigger";
@@ -17,9 +17,9 @@ interface Options {
   cwd?: string | null;
   isStreaming: boolean;
   visible: boolean;
-  slashCommands?: SlashCommandInfo[];
+  slashCommands?: SessionCommandInfo[];
   slashCommandsLoading?: boolean;
-  onLoadSlashCommands?: () => Promise<SlashCommandInfo[]> | SlashCommandInfo[];
+  onLoadSlashCommands?: () => Promise<SessionCommandInfo[]> | SessionCommandInfo[];
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
   onAtEscape?: () => void;
 }
