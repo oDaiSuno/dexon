@@ -251,6 +251,21 @@ async function run() {
     ]);
   });
 
+  await scene("skill-picker-replaces-leading-query-without-changing-the-draft", async () => {
+    await type("/potet");
+    await key("Enter", ["shift"]);
+    await type("explain ");
+    await page(`addFiles([{ name: "a.ts", testPath: "/tmp/a.ts", type: "text/plain" }])`);
+    await click(await page(`elementCenter("button", "Add images or local file references")`));
+    await click(await page(`menuItemCenter("Use a skill")`));
+    await waitFor(`window.composerEditing.menuItemCenter("fast-context", "Use a skill")`, "the skill is listed");
+    await click(await page(`menuItemCenter("fast-context", "Use a skill")`));
+    assert.deepEqual((await view()).chips, ["fast-context", "a.ts"]);
+    await key("Enter");
+    assert.deepEqual(await sent(), ["/skill:fast-context\nexplain @/tmp/a.ts"]);
+    return { screenshot: await capture("12-skill-command-slot") };
+  });
+
   await scene("line-breaks-spaces-and-adjacent-attachments-survive-sending", async () => {
     await type("a  b");
     await key("Enter", ["shift"]);

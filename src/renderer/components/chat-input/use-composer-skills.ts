@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 
 import { useI18n } from "@/i18n";
 import type { SkillRecord } from "@/lib/api-types";
 import type { ComposerEditableHandle } from "./types";
+import { toSkillName } from "./command-slot";
 
 interface Options {
   cwd?: string | null;
@@ -42,9 +43,11 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
 
   const pickSkill = useCallback(
     (skill: SkillRecord) => {
+      const name = toSkillName(skill.name);
+      if (!name) return;
       setSkillPickerOpen(false);
       if (visible) editableRef.current?.focus();
-      editableRef.current?.insertSkillAtStart(skill.name);
+      editableRef.current?.fillCommandSlot({ kind: "skill", name });
     },
     [editableRef, visible],
   );

@@ -5,7 +5,7 @@ import {
   segmentByAttachmentTokens,
 } from "@shared/attachment-tokens";
 import { attachmentGlyphSvg, SKILL_CHIP_SVG } from "./chip-glyphs";
-import { findLeadingSkillCommand, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
+import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
 
 /**
  * Pure DOM helpers for the composer editable surface: chip construction. No
@@ -29,11 +29,6 @@ export function insertSerializedText(value: string, text: string): string {
 
 export function insertSerializedAttachment(value: string, path: string): string {
   return insertAttachmentToken(value, null, path).value;
-}
-
-export function insertSerializedSkill(value: string, name: string): string {
-  const rest = splitLeadingSkillCommand(value)?.rest ?? value;
-  return `${skillCommandText(name)}${rest ? (/^\s/.test(rest) ? rest : ` ${rest}`) : " "}`;
 }
 
 const CHIP_REMOVE_SVG = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg>`;

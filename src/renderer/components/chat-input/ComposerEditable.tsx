@@ -6,7 +6,6 @@ import {
   createSkillChip,
   createTokenChip,
   insertSerializedAttachment,
-  insertSerializedSkill,
   insertSerializedText,
   syncChipVisuals,
   syncEditorHeight,
@@ -18,7 +17,7 @@ import {
   planInsertAttachment,
   planInsertText,
   planReplaceAll,
-  planSkillAtStart,
+  planFillCommandSlot,
   resetComposerContent,
   type ChipFactory,
   type ComposerEdit,
@@ -33,6 +32,7 @@ import {
   type ComposerTextMap,
 } from "./composer-text-map";
 import { useComposerEditorEvents } from "./use-composer-editor-events";
+import { fillSerializedCommandSlot, type SlashCompletion } from "./command-slot";
 
 /**
  * Native rich-text composer surface. The DOM is the source of truth: text
@@ -237,10 +237,10 @@ export function ComposerEditable({
           if (visibleRef.current) edit((map, selection) => planInsertAttachment(map, selection, path));
           else replaceInBackground(insertSerializedAttachment(lastSerializedRef.current, path));
         }),
-      insertSkillAtStart: (name: string) =>
+      fillCommandSlot: (completion: SlashCompletion) =>
         whenNotComposing(() => {
-          if (visibleRef.current) edit((map) => planSkillAtStart(map, name));
-          else replaceInBackground(insertSerializedSkill(lastSerializedRef.current, name));
+          if (visibleRef.current) edit((map) => planFillCommandSlot(map, completion));
+          else replaceInBackground(fillSerializedCommandSlot(lastSerializedRef.current, completion));
         }),
       completeAtQuery: (atQuery: AtQueryMatch, entryPath: string, isDir: boolean) => {
         edit((map, selection) => planCompleteQuery(map, selection, atQuery, entryPath, isDir));

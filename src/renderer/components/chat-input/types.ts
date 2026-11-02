@@ -10,6 +10,7 @@ import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 import type { ThinkingLevel } from "./thinking-art";
 import type { RecallablePrompt } from "./prompt-history";
+import type { SlashCompletion } from "./command-slot";
 
 export type { RecallablePrompt } from "./prompt-history";
 
@@ -231,7 +232,7 @@ export interface ComposerEditableHandle {
   insertTextAtCaret(text: string): void;
   pasteTextAtCaret(text: string): void;
   insertTokenAtCaret(path: string): void;
-  insertSkillAtStart(name: string): void;
+  fillCommandSlot(completion: SlashCompletion): void;
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
   focus(): void;
   caretEdge(): CaretEdge | null;
@@ -243,6 +244,7 @@ export interface ChatInputHandle {
   prependText: (text: string) => void;
   addFiles: (files: File[]) => void;
   takeDraft: () => string;
+  insertSkill: (name: string) => void;
 }
 
 export type ChatInputPropsWithVisible = ChatInputProps & { visible: boolean };

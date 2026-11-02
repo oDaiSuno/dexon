@@ -18,6 +18,7 @@ await runRendererElectronCheck({
     "typed-reference-closes-on-space-and-undo-keeps-it-text",
     "remove-button-and-reveal-act-on-the-attachment",
     "skills-start-the-message-and-are-replaced-not-stacked",
+    "skill-picker-replaces-leading-query-without-changing-the-draft",
     "line-breaks-spaces-and-adjacent-attachments-survive-sending",
     "copy-cut-and-paste-carry-full-paths",
     "drafts-keep-separate-content-and-history",

@@ -19,6 +19,7 @@ import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
 import { useComposerKeys } from "./chat-input/use-composer-keys";
 import { useComposerSkills } from "./chat-input/use-composer-skills";
+import { toSkillName } from "./chat-input/command-slot";
 import { useComposerSuggestions } from "./chat-input/use-composer-suggestions";
 import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableHandle } from "./chat-input/types";
 
@@ -335,9 +336,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       insertToken(path: string) {
         attachments.insertAttachmentPath(path);
       },
-      insertSkill(name: string) {
+      insertSkill(raw: string) {
+        const name = toSkillName(raw);
+        if (!name) return;
         if (visible) editableRef.current?.focus();
-        editableRef.current?.insertSkillAtStart(name);
+        editableRef.current?.fillCommandSlot({ kind: "skill", name });
       },
     }),
     [attachments, draft, suggestions, visible],
