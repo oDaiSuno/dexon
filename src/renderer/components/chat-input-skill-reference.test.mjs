@@ -60,6 +60,7 @@ async function mount(props = {}) {
       (props.sent ?? []).push(message);
     },
     navigation: props.navigation,
+    draftKey: props.draftKey,
     ref: handle,
   });
   await act(async () => {
@@ -187,6 +188,30 @@ test("a failed skill list can be retried from the skill picker", async () => {
       ["fast-context", "groksearch"],
     ),
   );
+});
+
+test("a restored skill gets its description and open details when the catalog arrives without opening ＋", async () => {
+  let finish;
+  skillsReply = () =>
+    new Promise((resolve) => {
+      finish = resolve;
+    });
+  harness.storedValues.set(
+    "dexon-draft:catalog",
+    JSON.stringify({ schemaVersion: 3, value: "/skill:fast-context body" }),
+  );
+  await mount({ draftKey: "catalog" });
+  assert.equal(typeof finish, "function", "a visible composer loads its skill catalog");
+  const chip = editorEl().querySelector("[data-skill-token]");
+  assert.equal(chip.title, "/skill:fast-context");
+  await click(chip);
+  await act(async () => finish({ skills: installedSkills }));
+  await waitFor(() => {
+    assert.equal(chip.title, "Installed skill");
+    const details = allByRole(rootEl, "dialog", "Skill details")[0];
+    assert.match(details.textContent, /Installed skill/);
+    assert.match(details.textContent, /\/skills\/fast-context\/SKILL.md/);
+  });
 });
 
 test("a search with no matching skill names the keyword and leads to Plugins & Skills", async () => {

@@ -19,6 +19,8 @@ import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
 import { useComposerKeys } from "./chat-input/use-composer-keys";
 import { useComposerSkills } from "./chat-input/use-composer-skills";
+import { useSkillCatalog } from "./chat-input/use-skill-catalog";
+import { toSkillName } from "./chat-input/command-slot";
 import { useComposerSuggestions } from "./chat-input/use-composer-suggestions";
 import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableHandle } from "./chat-input/types";
 
@@ -89,7 +91,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onImageNotice: setImageAttachNotice,
   });
   const { commit, returnToDraft } = draft;
-  const skills = useComposerSkills({ cwd, visible, editableRef });
+  const skillCatalog = useSkillCatalog({ cwd, visible });
+  const skills = useComposerSkills({ skillCatalog, visible, editableRef });
   const { closePlusMenu, closeTransientMenus } = skills;
   const attachments = useComposerAttachments({
     value: draft.shown,
@@ -159,6 +162,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   );
 
   const suggestions = useComposerSuggestions({
+    skillCatalog,
     cwd,
     isStreaming,
     visible,
@@ -273,11 +277,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       model.modelId)
     : null;
 
-  const skillDescriptions = useMemo(
-    () => new Map(skills.skillsState.skills.map((skill) => [skill.name, skill.description ?? ""])),
-    [skills.skillsState.skills],
-  );
-
   const openPicker = useCallback(() => {
     if (!visible) return;
     closePlusMenu();
@@ -335,9 +334,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       insertToken(path: string) {
         attachments.insertAttachmentPath(path);
       },
-      insertSkill(name: string) {
+      insertSkill(raw: string) {
+        const name = toSkillName(raw);
+        if (!name) return;
         if (visible) editableRef.current?.focus();
-        editableRef.current?.insertSkillAtStart(name);
+        editableRef.current?.fillCommandSlot({ kind: "skill", name });
       },
     }),
     [attachments, draft, suggestions, visible],
@@ -368,11 +369,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       missingTokenInspections={attachments.missingTokenInspections}
       onRevealToken={(path) => void window.piBridge?.showItemInFolder?.(path)}
       onSkillReveal={skills.revealSkill}
-      skillDescriptions={skillDescriptions}
+      skillsByName={skillCatalog.byName}
       attachmentTokens={attachments.attachmentTokens}
       onOpenPicker={openPicker}
       plusMenuOpen={skills.plusMenuOpen}
-      onTogglePlusMenu={skills.openPlusMenu}
+      onTogglePlusMenu={() => {
+        suggestions.dismiss();
+        skills.openPlusMenu();
+      }}
       onOpenSkillPicker={skills.openSkillPicker}
       remotePanelOpen={skills.remotePanelOpen}
       onOpenRemotePanel={skills.openRemotePanel}
@@ -380,24 +384,16 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onCloseMenus={skills.closeTransientMenus}
       remote={remote}
       navigation={navigation}
-      skills={skills.skillsState.skills}
-      skillsLoading={skills.skillsState.loading}
-      skillsError={skills.skillsState.error}
+      skills={skillCatalog.skills}
+      skillsLoading={skillCatalog.status === "loading"}
+      skillsError={skillCatalog.status === "error"}
       onPickSkill={skills.pickSkill}
-      onRetrySkills={skills.loadSkills}
+      onRetrySkills={skillCatalog.refresh}
       skillPickerOpen={skills.skillPickerOpen}
       skillRevealName={skills.skillRevealName}
-      skillRecordsRef={skills.skillRecordsRef}
       onCloseSkillPicker={skills.closeTransientMenus}
       onCloseSkillReveal={() => skills.setSkillRevealName(null)}
-      slashMenuOpen={suggestions.slashMenuOpen}
-      slashCommands={suggestions.filteredSlashCommands}
-      slashQuery={suggestions.slashQuery ?? ""}
-      slashLoading={suggestions.slashCommandsLoading}
-      slashActiveIndex={suggestions.slashActiveIndex}
-      slashItemRefs={suggestions.slashItemRefs}
-      onApplySlash={suggestions.applySlashCommand}
-      onHoverSlash={suggestions.setSlashActiveIndex}
+      slashMenu={suggestions.slashMenu}
       atMenuOpen={suggestions.atMenuOpen}
       atQuery={suggestions.atQuery}
       atSuggestionState={suggestions.activeSuggestionState}

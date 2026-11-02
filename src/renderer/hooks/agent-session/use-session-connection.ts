@@ -8,7 +8,8 @@ import {
   AgentEvent,
   EVENT_STREAM_CONNECT_TIMEOUT_MS,
   EventStreamConnectionError,
-  SlashCommandInfo,
+  SessionCommandInfo,
+  isSessionCommand,
   SlashCommandsResponse,
 } from "./shared";
 import type { SessionState } from "./use-session-state";
@@ -111,20 +112,18 @@ export function useSessionConnection(context: Dependencies) {
     const sid = sessionIdRef.current ?? (await ensureNewSession());
     if (!sid) {
       setSlashCommands([]);
-      return [] as SlashCommandInfo[];
+      return [] as SessionCommandInfo[];
     }
     setSlashCommandsLoading(true);
     try {
       const data = await sendAgentCommand<SlashCommandsResponse>(sid, { type: "get_commands" });
-      // Skill commands are invoked through the ＋ menu's skill picker now;
-      // they stay out of the slash palette to keep one path per intent.
-      const commands = (data?.commands ?? []).filter((command) => command.source !== "skill");
+      const commands = (data?.commands ?? []).filter(isSessionCommand);
       setSlashCommands(commands);
       return commands;
     } catch (e) {
       console.error("Failed to load slash commands:", e);
       setSlashCommands([]);
-      return [] as SlashCommandInfo[];
+      return [] as SessionCommandInfo[];
     } finally {
       setSlashCommandsLoading(false);
     }

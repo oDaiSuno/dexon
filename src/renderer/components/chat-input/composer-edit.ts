@@ -2,6 +2,7 @@ import { buildAtInsertText, extractAtQuery, type AtQueryMatch } from "@/lib/file
 import { looksLikePath } from "@shared/attachment-tokens";
 import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
 import { SKILL_ATTR, segmentComposerText, type ComposerSegment } from "./composer-dom";
+import { completionSegments, leadingSlashTokenEnd, type SlashCompletion } from "./command-slot";
 import { readComposerText, selectOffsets, type ComposerSelection, type ComposerTextMap } from "./composer-text-map";
 
 export interface ChipFactory {
@@ -125,20 +126,21 @@ export function planReplaceAll(map: ComposerTextMap, text: string): ComposerEdit
   return { start: 0, end: map.text.length, content: segmentsForValue(text), caretFromEnd: 0 };
 }
 
-export function planSkillAtStart(map: ComposerTextMap, name: string): ComposerEdit {
+export function planFillCommandSlot(map: ComposerTextMap, completion: SlashCompletion): ComposerEdit {
   const first = map.runs[0];
-  const leadingSkill =
-    first?.kind === "atom" && first.node instanceof HTMLElement && first.node.hasAttribute(SKILL_ATTR);
-  let end = leadingSkill ? first.value.length : 0;
-  if (leadingSkill && map.text[end] === " ") end += 1;
-  return {
-    start: 0,
-    end,
-    content: [
-      { type: "skill", name },
-      { type: "text", text: " " },
-    ],
-  };
+  const chipEnd =
+    first?.kind === "atom" && first.node instanceof HTMLElement && first.node.hasAttribute(SKILL_ATTR)
+      ? first.value.length
+      : null;
+  const end = chipEnd ?? leadingSlashTokenEnd(map.masked) ?? 0;
+  const separator = map.text.charAt(end);
+  return /\s/.test(separator)
+    ? {
+        start: 0,
+        end: end + 1,
+        content: [...completionSegments(completion, false), { type: "text", text: separator }],
+      }
+    : { start: 0, end, content: completionSegments(completion) };
 }
 
 function queryEnd(map: ComposerTextMap, caret: number, quoted: boolean): number {

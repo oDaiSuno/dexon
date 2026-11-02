@@ -1,0 +1,9 @@
+[
+  "slashGroupSkills",
+  "slashKeyUseSkill",
+  "slashFromSkillsBareMatch",
+  "slashKeyEditQuery",
+  "slashKeyDismissToSend",
+  "slashEnterBlockedHint",
+  "slashReplaceLeadingHint"
+]

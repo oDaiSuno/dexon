@@ -2,7 +2,7 @@ import type { MutableRefObject, RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession";
 import type { ModelCatalogStatus } from "@contract/types";
-import type { SkillRecord } from "@/lib/api-types";
+import type { CatalogSkill } from "./use-skill-catalog";
 import { ComposerEditable } from "./ComposerEditable";
 import type {
   CaretPlacement,
@@ -24,7 +24,7 @@ import type { ThinkingLevel } from "./thinking-art";
 import { SlashMenu } from "./SlashMenu";
 import { ComposerBanner, CompactResultBanner, QueuedMessagesPanel } from "./StatusBanners";
 import type { SubmissionNotice } from "./use-composer-draft";
-import type { SlashCommandPaletteItem } from "./slash-commands";
+import type { SlashPaletteView } from "./use-slash-palette";
 import { PlusIcon } from "./icons";
 import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
@@ -53,7 +53,7 @@ export interface ComposerViewProps {
   missingTokenInspections: ReadonlyMap<string, boolean>;
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
-  skillDescriptions: ReadonlyMap<string, string>;
+  skillsByName: ReadonlyMap<string, CatalogSkill>;
   attachmentTokens: { path: string }[];
   onOpenPicker: () => void;
   plusMenuOpen: boolean;
@@ -65,24 +65,16 @@ export interface ComposerViewProps {
   onCloseMenus: () => void;
   remote?: ComposerRemote | null;
   navigation?: ComposerNavigation;
-  skills: SkillRecord[];
+  skills: readonly CatalogSkill[];
   skillsLoading: boolean;
   skillsError: boolean;
-  onPickSkill: (skill: SkillRecord) => void;
+  onPickSkill: (skill: CatalogSkill) => void;
   onRetrySkills: () => void;
   skillPickerOpen: boolean;
   skillRevealName: string | null;
-  skillRecordsRef: MutableRefObject<Map<string, SkillRecord>>;
   onCloseSkillPicker: () => void;
   onCloseSkillReveal: () => void;
-  slashMenuOpen: boolean;
-  slashCommands: SlashCommandPaletteItem[];
-  slashQuery: string;
-  slashLoading?: boolean;
-  slashActiveIndex: number;
-  slashItemRefs: MutableRefObject<(HTMLButtonElement | null)[]>;
-  onApplySlash: (command: SlashCommandPaletteItem) => void;
-  onHoverSlash: (index: number) => void;
+  slashMenu: SlashPaletteView | null;
   atMenuOpen: boolean;
   atQuery: { start: number; query: string; quoted: boolean } | null;
   atSuggestionState: AtSuggestionState | null;
@@ -161,7 +153,7 @@ export function ComposerView(props: ComposerViewProps) {
     missingTokenInspections,
     onRevealToken,
     onSkillReveal,
-    skillDescriptions,
+    skillsByName,
     attachmentTokens,
     onOpenPicker,
     plusMenuOpen,
@@ -180,17 +172,9 @@ export function ComposerView(props: ComposerViewProps) {
     onRetrySkills,
     skillPickerOpen,
     skillRevealName,
-    skillRecordsRef,
     onCloseSkillPicker,
     onCloseSkillReveal,
-    slashMenuOpen,
-    slashCommands,
-    slashQuery,
-    slashLoading,
-    slashActiveIndex,
-    slashItemRefs,
-    onApplySlash,
-    onHoverSlash,
+    slashMenu,
     atMenuOpen,
     atQuery,
     atSuggestionState,
@@ -322,22 +306,12 @@ export function ComposerView(props: ComposerViewProps) {
           {skillRevealName && (
             <SkillRevealCard
               name={skillRevealName}
-              description={skillRecordsRef.current.get(skillRevealName)?.description ?? null}
-              filePath={skillRecordsRef.current.get(skillRevealName)?.filePath ?? null}
+              description={skillsByName.get(skillRevealName)?.description ?? null}
+              filePath={skillsByName.get(skillRevealName)?.filePath ?? null}
               onClose={onCloseSkillReveal}
             />
           )}
-          {slashMenuOpen && (
-            <SlashMenu
-              commands={slashCommands}
-              query={slashQuery}
-              loading={slashLoading}
-              activeIndex={slashActiveIndex}
-              itemRefs={slashItemRefs}
-              onApply={onApplySlash}
-              onHover={onHoverSlash}
-            />
-          )}
+          {slashMenu && <SlashMenu view={slashMenu} />}
           {atMenuOpen && atQuery && (
             <AtMenu
               suggestionState={atSuggestionState}
@@ -412,7 +386,7 @@ export function ComposerView(props: ComposerViewProps) {
                   onRevealToken={onRevealToken}
                   onSkillReveal={onSkillReveal}
                   removeLabel={t("remove", "Remove")}
-                  skillDescriptions={skillDescriptions}
+                  skillsByName={skillsByName}
                   skillRemoveLabel={t("removeSkill", "Remove skill")}
                 />
               </div>

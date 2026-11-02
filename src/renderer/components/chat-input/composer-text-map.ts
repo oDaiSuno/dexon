@@ -18,7 +18,7 @@ export interface ComposerTextMap {
 }
 
 const BLOCK_TAGS = new Set(["DIV", "P", "LI", "UL", "OL", "BLOCKQUOTE", "PRE", "H1", "H2", "H3", "H4", "H5", "H6"]);
-const MASK = "\uFFFC";
+export const COMPOSER_MASK = "\uFFFC";
 
 function pointBefore(node: Node): ComposerPoint {
   const parent = node.parentNode!;
@@ -141,7 +141,7 @@ export function readComposerText(root: HTMLElement): ComposerTextMap {
         const value = run.node.data.slice(run.from, run.to).replace(/\u00a0/g, " ");
         append(run, value, value);
       } else {
-        append(run, run.value, run.kind === "atom" && run.chip ? MASK.repeat(run.value.length) : run.value);
+        append(run, run.value, run.kind === "atom" && run.chip ? COMPOSER_MASK.repeat(run.value.length) : run.value);
       }
     }
     previousEnd = line.runs.length ? line.end : lineStart;

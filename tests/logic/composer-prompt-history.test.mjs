@@ -350,3 +350,185 @@ test("restoring a slash or at prompt suppresses its menu through caret movement 
     assert.equal(trigger.openTrigger(edited, true)?.kind, text.startsWith("/") ? "slash" : "at");
   }
 });
+
+test("file queries stay open across caret movement and reopen when the caret returns from trailing text", () => {
+  let gate = trigger.initialTriggerGate;
+  for (const [text, offset, cause, query] of [
+    ["look @src", 9, "edit", "src"],
+    ["look @src", 8, "caret", "sr"],
+    ["look @src", 9, "caret", "src"],
+    ["look @src x", 11, "edit", null],
+    ["look @src x", 9, "caret", "src"],
+  ]) {
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: { cause, snapshot: { text, masked: text, caret: { kind: "caret", offset } } },
+      },
+      true,
+    );
+    const open = trigger.openTrigger(gate, true);
+    if (query === null) {
+      assert.equal(open, null);
+    } else {
+      assert.equal(open?.kind, "at", `file suggestions must stay available at offset ${offset}`);
+      assert.equal(open.match.query, query);
+    }
+  }
+});
+
+test("a standalone slash query reopens on caret return unless the user dismissed it", () => {
+  const text = "/poteto-mdoe";
+  const snapshot = { text, masked: text, caret: { kind: "caret", offset: 12 } };
+  let gate = trigger.nextTriggerGate(
+    trigger.initialTriggerGate,
+    { type: "changed", change: { cause: "edit", snapshot } },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true)?.kind, "slash");
+  for (const [offset, kind] of [
+    [4, null],
+    [12, "slash"],
+  ]) {
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true)?.kind ?? null, kind);
+  }
+  gate = trigger.nextTriggerGate(gate, { type: "dismissed" }, true);
+  assert.equal(trigger.openTrigger(gate, true), null);
+  for (const offset of [4, 12]) {
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true), null, "caret return must not reopen a dismissed slash query");
+  }
+});
+
+test("arrow keys crossing a leading command keep suggestions closed when editing finishes in trailing text", () => {
+  const text = "/compact keep tests";
+  const snapshot = { text, masked: text, caret: { kind: "caret", offset: 19 } };
+  let gate = trigger.nextTriggerGate(
+    trigger.initialTriggerGate,
+    { type: "changed", change: { cause: "edit", snapshot } },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true), null);
+  for (const offset of [8, 7, 8, 9, 8]) {
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true), null, "arrow keys must not open a leading command menu");
+  }
+});
+
+test("a dismissed leading command stays closed across caret movement until the command is edited", () => {
+  const text = "/compact keep tests";
+  const snapshot = { text, masked: text, caret: { kind: "caret", offset: 8 } };
+  let gate = trigger.nextTriggerGate(
+    trigger.initialTriggerGate,
+    { type: "changed", change: { cause: "edit", snapshot } },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true)?.kind, "slash");
+  gate = trigger.nextTriggerGate(gate, { type: "dismissed" }, true);
+  assert.equal(trigger.openTrigger(gate, true), null);
+  for (const offset of [3, 8]) {
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true), null, "arrow keys must not reopen a dismissed command menu");
+  }
+  const changed = "/compac keep tests";
+  gate = trigger.nextTriggerGate(
+    gate,
+    {
+      type: "changed",
+      change: {
+        cause: "edit",
+        snapshot: { text: changed, masked: changed, caret: { kind: "caret", offset: 7 } },
+      },
+    },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true)?.kind, "slash");
+});
+
+test("undoing a completion keeps suggestions available when a range notification precedes End", () => {
+  const text = "/potet";
+  const snapshot = { text, masked: text, caret: { kind: "range", start: 0, end: 6 } };
+  let gate = trigger.nextTriggerGate(
+    trigger.initialTriggerGate,
+    { type: "changed", change: { cause: "edit", snapshot } },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true), null);
+  gate = trigger.nextTriggerGate(gate, { type: "changed", change: { cause: "caret", snapshot } }, true);
+  assert.equal(trigger.openTrigger(gate, true), null);
+  gate = trigger.nextTriggerGate(
+    gate,
+    {
+      type: "changed",
+      change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset: 6 } } },
+    },
+    true,
+  );
+  assert.equal(trigger.openTrigger(gate, true)?.kind, "slash", "End must reopen the undone completion query");
+});
+
+test("restored queries stay closed when the caret moves from the start to a slash or file query", () => {
+  for (const text of ["/potet", "look @src/"]) {
+    const snapshot = { text, masked: text, caret: { kind: "caret", offset: 0 } };
+    let gate = trigger.nextTriggerGate(
+      trigger.initialTriggerGate,
+      { type: "changed", change: { cause: "restore", snapshot } },
+      true,
+    );
+    gate = trigger.nextTriggerGate(gate, { type: "dismissed" }, true);
+    for (const offset of [text.length, 0, text.length]) {
+      gate = trigger.nextTriggerGate(
+        gate,
+        {
+          type: "changed",
+          change: { cause: "caret", snapshot: { ...snapshot, caret: { kind: "caret", offset } } },
+        },
+        true,
+      );
+      assert.equal(trigger.openTrigger(gate, true), null, "caret movement must not open a restored query");
+    }
+    const changed = `${text}m`;
+    gate = trigger.nextTriggerGate(
+      gate,
+      {
+        type: "changed",
+        change: {
+          cause: "edit",
+          snapshot: { text: changed, masked: changed, caret: { kind: "caret", offset: changed.length } },
+        },
+      },
+      true,
+    );
+    assert.equal(trigger.openTrigger(gate, true)?.kind, text.startsWith("/") ? "slash" : "at");
+  }
+});

@@ -1,37 +1,21 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
+import { useCallback, useEffect, useState, type MutableRefObject } from "react";
 import { useI18n } from "@/i18n";
-import type { SkillRecord } from "@/lib/api-types";
 import type { ComposerEditableHandle } from "./types";
+import type { CatalogSkill, SkillCatalog } from "./use-skill-catalog";
 
 interface Options {
-  cwd?: string | null;
+  skillCatalog: SkillCatalog;
   visible: boolean;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
 }
 
-export function useComposerSkills({ cwd, visible, editableRef }: Options) {
+export function useComposerSkills({ skillCatalog, visible, editableRef }: Options) {
   const { t } = useI18n();
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [remotePanelOpen, setRemotePanelOpen] = useState(false);
-  const [skillsState, setSkillsState] = useState<{ skills: SkillRecord[]; loading: boolean; error: boolean }>({
-    skills: [],
-    loading: false,
-    error: false,
-  });
   const [skillRevealName, setSkillRevealName] = useState<string | null>(null);
-  const skillRecordsRef = useRef<Map<string, SkillRecord>>(new Map());
-
-  const loadSkills = useCallback(() => {
-    setSkillsState((previous) => ({ ...previous, loading: true, error: false }));
-    void import("@/lib/api-client")
-      .then(({ call }) => call("skills.list", { cwd: cwd ?? undefined }))
-      .then(({ skills }) => {
-        skillRecordsRef.current = new Map(skills.map((skill) => [skill.name, skill]));
-        setSkillsState({ skills, loading: false, error: false });
-      })
-      .catch(() => setSkillsState({ skills: [], loading: false, error: true }));
-  }, [cwd]);
+  const { refresh } = skillCatalog;
 
   const openSkillPicker = useCallback(() => {
     if (!visible) return;
@@ -41,10 +25,10 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
   }, [visible]);
 
   const pickSkill = useCallback(
-    (skill: SkillRecord) => {
+    (skill: CatalogSkill) => {
       setSkillPickerOpen(false);
       if (visible) editableRef.current?.focus();
-      editableRef.current?.insertSkillAtStart(skill.name);
+      editableRef.current?.fillCommandSlot({ kind: "skill", name: skill.name });
     },
     [editableRef, visible],
   );
@@ -105,22 +89,19 @@ export function useComposerSkills({ cwd, visible, editableRef }: Options) {
 
   const openPlusMenu = useCallback(() => {
     if (!visible) return;
-    if (!plusMenuOpen) loadSkills();
+    if (!plusMenuOpen) refresh();
     setPlusMenuOpen(!plusMenuOpen);
     setSkillPickerOpen(false);
     setRemotePanelOpen(false);
     setSkillRevealName(null);
-  }, [loadSkills, plusMenuOpen, visible]);
+  }, [refresh, plusMenuOpen, visible]);
   const closePlusMenu = useCallback(() => setPlusMenuOpen(false), []);
 
   return {
     plusMenuOpen: visible && plusMenuOpen,
     skillPickerOpen: visible && skillPickerOpen,
     remotePanelOpen: visible && remotePanelOpen,
-    skillsState,
-    skillRecordsRef,
     skillRevealName: visible ? skillRevealName : null,
-    loadSkills,
     openPlusMenu,
     closePlusMenu,
     openSkillPicker,

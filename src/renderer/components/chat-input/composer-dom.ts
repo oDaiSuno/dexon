@@ -5,7 +5,7 @@ import {
   segmentByAttachmentTokens,
 } from "@shared/attachment-tokens";
 import { attachmentGlyphSvg, SKILL_CHIP_SVG } from "./chip-glyphs";
-import { findLeadingSkillCommand, skillCommandText, splitLeadingSkillCommand } from "@shared/skill-commands";
+import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
 
 /**
  * Pure DOM helpers for the composer editable surface: chip construction. No
@@ -31,11 +31,6 @@ export function insertSerializedAttachment(value: string, path: string): string 
   return insertAttachmentToken(value, null, path).value;
 }
 
-export function insertSerializedSkill(value: string, name: string): string {
-  const rest = splitLeadingSkillCommand(value)?.rest ?? value;
-  return `${skillCommandText(name)}${rest ? (/^\s/.test(rest) ? rest : ` ${rest}`) : " "}`;
-}
-
 const CHIP_REMOVE_SVG = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg>`;
 
 export function chipText(el: HTMLElement): string {
@@ -54,23 +49,20 @@ export function syncEditorHeight(el: HTMLElement): void {
   el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
 }
 
-/** Refresh attachment chip visuals after async previews/missing state change. */
-export function syncChipVisuals(
-  el: HTMLElement,
-  visualFor: (path: string) => PillVisual,
-  previewsByPath: ReadonlyMap<string, string | null>,
-  missingByPath: ReadonlyMap<string, boolean>,
-): void {
-  for (const chip of Array.from(el.querySelectorAll<HTMLElement>(`[${TOKEN_ATTR}]`))) {
+export interface ChipVisuals {
+  attachment(path: string): PillVisual;
+  skill(name: string): SkillChipVisual;
+}
+
+export function syncChipVisuals(el: HTMLElement, visuals: ChipVisuals): void {
+  for (const chip of el.querySelectorAll<HTMLElement>(`[${TOKEN_ATTR}]`)) {
     const path = chip.dataset.path ?? "";
-    const preview = previewsByPath.get(path) ?? null;
-    const missing = missingByPath.get(path) ?? false;
-    if ((chip.dataset.previewKey ?? "") === (preview ?? "") && chip.dataset.missingKey === (missing ? "1" : "0")) {
-      continue;
-    }
-    chip.dataset.previewKey = preview ?? "";
-    chip.dataset.missingKey = missing ? "1" : "0";
-    fillChipContent(chip, path, visualFor(path));
+    const visual = visuals.attachment(path);
+    if (chip.dataset.visualKey !== JSON.stringify(visual)) fillChipContent(chip, path, visual);
+  }
+  for (const chip of el.querySelectorAll<HTMLElement>(`[${SKILL_ATTR}]`)) {
+    const name = chip.dataset.skillName ?? "";
+    syncSkillChipVisual(chip, name, visuals.skill(name));
   }
 }
 
@@ -94,6 +86,7 @@ export function createTokenChip(path: string, visual: PillVisual): HTMLElement {
 }
 
 export function fillChipContent(chip: HTMLElement, path: string, visual: PillVisual): void {
+  chip.dataset.visualKey = JSON.stringify(visual);
   chip.className = "token-chip type-mono-label" + (visual.missing ? " token-chip-missing" : "");
   chip.title = visual.title;
   chip.innerHTML = "";
@@ -132,7 +125,6 @@ export function createSkillChip(name: string, visual: SkillChipVisual): HTMLElem
   chip.contentEditable = "false";
   chip.setAttribute("role", "button");
   chip.className = "skill-chip type-label-medium";
-  chip.title = visual.description ?? skillCommandText(name);
   const icon = document.createElement("span");
   icon.className = "skill-chip-glyph";
   icon.innerHTML = SKILL_CHIP_SVG;
@@ -147,7 +139,17 @@ export function createSkillChip(name: string, visual: SkillChipVisual): HTMLElem
   remove.setAttribute("aria-label", visual.removeLabel);
   remove.innerHTML = CHIP_REMOVE_SVG;
   chip.append(icon, nameSpan, remove);
+  syncSkillChipVisual(chip, name, visual);
   return chip;
+}
+
+function syncSkillChipVisual(chip: HTMLElement, name: string, visual: SkillChipVisual): void {
+  chip.title = visual.description ?? skillCommandText(name);
+  const remove = chip.querySelector<HTMLElement>("[data-chip-remove]");
+  if (remove) {
+    remove.title = visual.removeLabel;
+    remove.setAttribute("aria-label", visual.removeLabel);
+  }
 }
 
 export type ComposerSegment =

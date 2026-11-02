@@ -1,13 +1,13 @@
 import { Fragment, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
-import type { SkillRecord } from "@/lib/api-types";
+import type { CatalogSkill } from "./use-skill-catalog";
 import { Button } from "../form-controls";
 import { GlideHighlight } from "./GlideHighlight";
 import { CircleAlertIcon, PackageIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon, SearchIcon } from "./icons";
 import { MenuBackButton, MenuDivider, MenuFooter, MenuLinkButton, MenuState, SearchXIcon } from "./menu-chrome";
 import { KeyHint } from "./SendControls";
 
-function skillScope(skill: SkillRecord): "global" | "project" | "path" {
+function skillScope(skill: CatalogSkill): "global" | "project" | "path" {
   const source = skill.sourceInfo?.source;
   const scope = skill.sourceInfo?.scope;
   if (scope === "user" || source === "user") return "global";
@@ -25,10 +25,10 @@ export function SkillPickerPanel({
   onRetry,
   onManage,
 }: {
-  skills: SkillRecord[];
+  skills: readonly CatalogSkill[];
   loading: boolean;
   error: string | null;
-  onPick: (skill: SkillRecord) => void;
+  onPick: (skill: CatalogSkill) => void;
   onClose: () => void;
   onBack: () => void;
   onRetry: () => void;
@@ -47,7 +47,7 @@ export function SkillPickerPanel({
     );
   }, [query, skills]);
 
-  const scopeLabel = (skill: SkillRecord) => {
+  const scopeLabel = (skill: CatalogSkill) => {
     const scope = skillScope(skill);
     if (scope === "global") return t("skillScopeGlobal", "global");
     if (scope === "project") return t("skillScopeProject", "project");
