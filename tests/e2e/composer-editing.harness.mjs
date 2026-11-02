@@ -281,6 +281,15 @@ async function run() {
     await key("Home");
     await type("/potet");
     await waitFor("window.composerEditing.hasSuggestion('/skill:poteto-help')", "bare skill names are suggested");
+    assert.equal(
+      await js(`(() => {
+        const card = document.querySelector('[role="group"][aria-label^="Slash commands"] button:has(kbd)');
+        const label = card.querySelector('.type-mono-label');
+        return label.scrollWidth <= label.clientWidth;
+      })()`),
+      true,
+      "the active skill card shows its full name",
+    );
     const screenshot = await capture("13-slash-skill-recommendations");
     await key("Enter");
     assert.deepEqual((await view()).text, "[poteto-help] explain [a.ts] tail");
@@ -324,6 +333,11 @@ async function run() {
     await waitFor("window.composerEditing.hasSuggestion('/reload')", "the command card is visible");
     await key("Tab");
     assert.deepEqual((await view()).text, "/reload keep [b.md] ");
+    await key("Home");
+    await press("Right", 8);
+    assert.equal(await page("openSuggestionCount()"), 0);
+    await key("Left");
+    assert.equal(await page("openSuggestionCount()"), 0);
     await key("Enter");
     assert.deepEqual(await sent(), ["/skill:poteto-mode keep @/tmp/b.md", "/reload keep @/tmp/b.md"]);
   });
