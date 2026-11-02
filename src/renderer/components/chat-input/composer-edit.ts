@@ -36,19 +36,33 @@ function runNativeCommand(root: HTMLElement, command: () => boolean): boolean {
   }
 }
 
+function holderFor(doc: Document, nodes: readonly Node[]): HTMLElement {
+  const holder = doc.createElement("div");
+  holder.append(...nodes);
+  return holder;
+}
+
 export function applyComposerEdit(root: HTMLElement, edit: ComposerEdit, chips: ChipFactory): boolean {
   const doc = root.ownerDocument;
   const before = readComposerText(root);
-  const holder = doc.createElement("div");
-  holder.append(...buildNodes(doc, edit.content, chips));
+  const holder = holderFor(doc, buildNodes(doc, edit.content, chips));
   const markup = holder.innerHTML;
   if (!markup && edit.start === edit.end) return true;
+  const expected = readComposerText(holder).text;
   selectOffsets(root, before, edit.start, edit.end);
   const applied = runNativeCommand(root, () =>
     markup ? doc.execCommand("insertHTML", false, markup) : doc.execCommand("delete"),
   );
   if (!applied) return false;
-  if (edit.caretFromEnd) {
+  const replacingAll = edit.start === 0 && edit.end === before.text.length;
+  if (replacingAll && readComposerText(root).text !== expected) {
+    resetComposerContent(root, expected, chips);
+    const reset = readComposerText(root);
+    const caret = Math.max(0, reset.text.length - (edit.caretFromEnd ?? 0));
+    selectOffsets(root, reset, caret, caret);
+    return true;
+  }
+  if (edit.caretFromEnd !== undefined) {
     const after = readComposerText(root);
     const caret = after.text.length - (before.text.length - edit.end) - edit.caretFromEnd;
     selectOffsets(root, after, caret, caret);
@@ -68,7 +82,7 @@ export function resetComposerContent(root: HTMLElement, text: string, chips: Chi
   parent?.insertBefore(root, next);
 }
 
-function segmentsForValue(text: string): ComposerSegment[] {
+export function segmentsForValue(text: string): ComposerSegment[] {
   const segments = segmentComposerText(text);
   return text.endsWith("\n") ? [...segments, { type: "text", text: "\n" }] : segments;
 }
@@ -108,7 +122,7 @@ export function planInsertAttachment(map: ComposerTextMap, selection: ComposerSe
 }
 
 export function planReplaceAll(map: ComposerTextMap, text: string): ComposerEdit {
-  return { start: 0, end: map.text.length, content: segmentsForInsert(text, true) };
+  return { start: 0, end: map.text.length, content: segmentsForValue(text), caretFromEnd: 0 };
 }
 
 export function planSkillAtStart(map: ComposerTextMap, name: string): ComposerEdit {

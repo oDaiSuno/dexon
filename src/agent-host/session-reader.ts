@@ -394,6 +394,7 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
       return {
         role: "user",
         content: `*The conversation briefly explored another branch and returned with this summary:*\n\n${entry.summary}`,
+        syntheticSource: "branch_summary",
         timestamp: parseEntryTimestamp(entry.timestamp),
       };
     case "custom_message":

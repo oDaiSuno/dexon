@@ -1,4 +1,5 @@
 import { chipText, isChipEl } from "./composer-dom";
+import type { CaretEdge, CaretPlacement, ComposerCaret, ComposerSnapshot, LogicalCaretEdge } from "./types";
 
 export interface ComposerPoint {
   node: Node;
@@ -211,4 +212,66 @@ export function selectOffsets(root: HTMLElement, map: ComposerTextMap, start: nu
   if (!selection) return;
   selection.removeAllRanges();
   selection.addRange(rangeAtOffsets(map, root, start, end));
+}
+
+export function readCaret(root: HTMLElement, map: ComposerTextMap): ComposerCaret {
+  const selection = selectionInComposer(root, map);
+  if (!selection) return { kind: "outside" };
+  if (selection.start === selection.end) return { kind: "caret", offset: selection.start };
+  return { kind: "range", start: selection.start, end: selection.end };
+}
+
+export function readSnapshot(root: HTMLElement): ComposerSnapshot {
+  const map = readComposerText(root);
+  return { text: map.text, masked: map.masked, caret: readCaret(root, map) };
+}
+
+export function inspectLogicalCaretEdge(text: string, offset: number): LogicalCaretEdge {
+  return {
+    atStart: offset === 0,
+    atEnd: offset === text.length,
+    onFirstLogicalLine: !text.slice(0, offset).includes("\n"),
+    onLastLogicalLine: !text.slice(offset).includes("\n"),
+  };
+}
+
+function caretRowTop(root: HTMLElement, map: ComposerTextMap, offset: number): number | undefined {
+  const top = rangeAtOffsets(map, root, offset, offset).getClientRects?.()[0]?.top;
+  if (top !== undefined) return top;
+  for (const run of map.runs) {
+    if (run.kind !== "atom" || !(run.node instanceof HTMLElement)) continue;
+    if (offset === run.start || offset === run.start + run.value.length) return run.node.getClientRects()[0]?.top;
+  }
+  return undefined;
+}
+
+function onSameVisualRow(root: HTMLElement, map: ComposerTextMap, from: number, to: number): boolean {
+  if (from === to) return true;
+  const fromTop = caretRowTop(root, map, from);
+  const toTop = caretRowTop(root, map, to);
+  if (fromTop === undefined || toTop === undefined) return true;
+  const style = root.ownerDocument.defaultView?.getComputedStyle(root);
+  const lineHeight = Number.parseFloat(style?.lineHeight ?? "") || Number.parseFloat(style?.fontSize ?? "") || 16;
+  return Math.abs(fromTop - toTop) < lineHeight / 2;
+}
+
+export function caretEdge(root: HTMLElement): CaretEdge | null {
+  const map = readComposerText(root);
+  const caret = readCaret(root, map);
+  if (caret.kind === "outside") return null;
+  if (caret.kind === "range") return { kind: "range" };
+  const logical = inspectLogicalCaretEdge(map.text, caret.offset);
+  return {
+    kind: "caret",
+    atStart: logical.atStart,
+    atEnd: logical.atEnd,
+    onFirstRow: logical.onFirstLogicalLine && onSameVisualRow(root, map, 0, caret.offset),
+    onLastRow: logical.onLastLogicalLine && onSameVisualRow(root, map, caret.offset, map.text.length),
+  };
+}
+
+export function placeCaret(root: HTMLElement, placement: CaretPlacement): void {
+  const map = readComposerText(root);
+  const offset = placement === "start" ? 0 : map.text.length;
+  selectOffsets(root, map, offset, offset);
 }

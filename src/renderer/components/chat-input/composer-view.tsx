@@ -4,7 +4,14 @@ import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession"
 import type { ModelCatalogStatus } from "@contract/types";
 import type { SkillRecord } from "@/lib/api-types";
 import { ComposerEditable } from "./ComposerEditable";
-import type { ComposerEditableHandle, ComposerNavigation, ComposerRemote, ComposerWorkspace } from "./types";
+import type {
+  CaretPlacement,
+  ComposerChange,
+  ComposerEditableHandle,
+  ComposerNavigation,
+  ComposerRemote,
+  ComposerWorkspace,
+} from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
 import { ModelPicker } from "./ModelPicker";
 import type { ModelGroup } from "./model-catalog";
@@ -30,14 +37,14 @@ export interface ComposerViewProps {
   hasSteering: boolean;
   onFollowUp?: (message: string) => Promise<void> | void;
   value: string;
+  restoreCaret?: CaretPlacement;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
   fileInputRef: RefObject<HTMLInputElement | null>;
   processFiles: (files: File[]) => Promise<void>;
   onSend: () => void;
   onAbort: () => void;
   onQueue: () => void;
-  onValueChange: (value: string) => void;
-  onSelectionChange: (textBeforeCaret: string) => void;
+  onChange: (change: ComposerChange) => void;
   onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => void;
   onPaste: (event: React.ClipboardEvent<HTMLDivElement>) => void;
   onCompositionStart: () => void;
@@ -138,14 +145,14 @@ export function ComposerView(props: ComposerViewProps) {
     isStreaming,
     onFollowUp,
     value,
+    restoreCaret,
     editableRef,
     fileInputRef,
     processFiles,
     onSend,
     onAbort,
     onQueue,
-    onValueChange,
-    onSelectionChange,
+    onChange,
     onKeyDown,
     onPaste,
     onCompositionStart,
@@ -388,14 +395,14 @@ export function ComposerView(props: ComposerViewProps) {
                 <ComposerEditable
                   visible={visible}
                   value={value}
+                  restoreCaret={restoreCaret}
                   handleRef={editableRef}
                   placeholder={
                     isStreaming
                       ? t("queuePlaceholder", "Agent is running… sending queues a follow-up")
                       : t("messagePlaceholder", "Message… Type / for commands, @ for files")
                   }
-                  onValueChange={onValueChange}
-                  onSelectionChange={onSelectionChange}
+                  onChange={onChange}
                   onKeyDown={onKeyDown}
                   onPaste={onPaste}
                   onCompositionStart={onCompositionStart}

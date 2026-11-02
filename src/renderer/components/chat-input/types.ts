@@ -9,6 +9,9 @@ import type { ModelCatalogStatus } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 import type { ThinkingLevel } from "./thinking-art";
+import type { RecallablePrompt } from "./prompt-history";
+
+export type { RecallablePrompt } from "./prompt-history";
 
 export interface ChatInputProps {
   onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
@@ -47,6 +50,7 @@ export interface ChatInputProps {
   onSoundToggle?: () => void;
   onAudioUnlock?: () => void;
   draftKey?: string;
+  promptHistory?: readonly RecallablePrompt[];
   /** Session working directory — enables the @ file autocomplete menu. */
   cwd?: string | null;
   /** Whether this input is currently user-visible and interactive. */
@@ -184,6 +188,43 @@ export interface ComposerNavigation {
   openModelSettings: () => void;
 }
 
+export type ComposerCaret =
+  | { readonly kind: "caret"; readonly offset: number }
+  | { readonly kind: "range"; readonly start: number; readonly end: number }
+  | { readonly kind: "outside" };
+
+export interface ComposerSnapshot {
+  readonly text: string;
+  readonly masked: string;
+  readonly caret: ComposerCaret;
+}
+
+export type ComposerChangeCause = "edit" | "caret" | "restore";
+
+export interface ComposerChange {
+  readonly cause: ComposerChangeCause;
+  readonly snapshot: ComposerSnapshot;
+}
+
+export type CaretPlacement = "start" | "end";
+
+export interface LogicalCaretEdge {
+  readonly atStart: boolean;
+  readonly atEnd: boolean;
+  readonly onFirstLogicalLine: boolean;
+  readonly onLastLogicalLine: boolean;
+}
+
+export type CaretEdge =
+  | { readonly kind: "range" }
+  | {
+      readonly kind: "caret";
+      readonly atStart: boolean;
+      readonly atEnd: boolean;
+      readonly onFirstRow: boolean;
+      readonly onLastRow: boolean;
+    };
+
 export interface ComposerEditableHandle {
   getValue(): string;
   replaceAll(text: string): void;
@@ -193,6 +234,8 @@ export interface ComposerEditableHandle {
   insertSkillAtStart(name: string): void;
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
   focus(): void;
+  caretEdge(): CaretEdge | null;
+  placeCaret(placement: CaretPlacement): void;
 }
 
 export interface ChatInputHandle {

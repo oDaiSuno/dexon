@@ -10,16 +10,17 @@ import {
 } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
-import { captureComposerSubmission, type ComposerSubmissionSnapshot } from "@/lib/composer-submission";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
+import { buildPromptHistory, localCommandsFor, recordLocalCommand } from "./chat-input/prompt-history";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
 import { useComposerControls } from "./chat-input/use-composer-controls";
 import { useComposerDraft } from "./chat-input/use-composer-draft";
+import { useComposerKeys } from "./chat-input/use-composer-keys";
 import { useComposerSkills } from "./chat-input/use-composer-skills";
 import { useComposerSuggestions } from "./chat-input/use-composer-suggestions";
-import type { ChatInputHandle, ChatInputProps, ComposerEditableHandle } from "./chat-input/types";
+import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableHandle } from "./chat-input/types";
 
 export type { ChatInputHandle } from "./chat-input/types";
 export type { ChatInputProps as Props } from "./chat-input/types";
@@ -65,6 +66,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onSoundToggle,
     onAudioUnlock,
     onPromptWithStreamingBehavior,
+    promptHistory,
     draftKey,
     cwd,
     visible = true,
@@ -79,7 +81,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRootRef = useRef<HTMLDivElement>(null);
-  const clearAtQueryRef = useRef<() => void>(() => {});
   const [imageAttachNotice, setImageAttachNotice] = useState<string | null>(null);
 
   const draft = useComposerDraft({
@@ -87,21 +88,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     t,
     onImageNotice: setImageAttachNotice,
   });
-  const {
-    value: draftValue,
-    valueRef: draftValueRef,
-    inputRevisionRef,
-    setValue,
-    clearInput,
-    restoreFailedSubmission: restoreDraft,
-    commitCurrentDraft,
-    submissionNotice,
-    setSubmissionNotice,
-  } = draft;
+  const { commit, returnToDraft } = draft;
   const skills = useComposerSkills({ cwd, visible, editableRef });
   const { closePlusMenu, closeTransientMenus } = skills;
   const attachments = useComposerAttachments({
-    value: draftValue,
+    value: draft.shown,
     visible,
     cwd,
     model,
@@ -111,10 +102,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onImageNotice: setImageAttachNotice,
   });
 
-  const clearCurrentInput = useCallback(() => {
-    clearInput();
-    clearAtQueryRef.current();
-  }, [clearInput]);
   const handleAbort = useCallback(() => {
     if (visible) onAbort();
   }, [onAbort, visible]);
@@ -122,67 +109,37 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     if (visible) onRecallQueue?.();
   }, [onRecallQueue, visible]);
 
-  const restoreFailedSubmission = useCallback(
-    (snapshot: ComposerSubmissionSnapshot, clearedAtRevision: number, kind: "send" | "queue", error: unknown) => {
-      const reason = typeof error === "string" ? error : sessionClientErrorMessage(error, t, "");
-      restoreDraft(snapshot, clearedAtRevision, kind, reason);
-    },
-    [restoreDraft, t],
-  );
-
   const handleSend = useCallback(async () => {
-    if (!visible) return;
-    const message = draftValue.trim();
-    if (!message || isStreaming) return;
+    if (!visible || isStreaming) return;
+    const ticket = draft.submit();
+    if (!ticket) return;
     onAudioUnlock?.();
-    const snapshot = captureComposerSubmission(draftValue);
-    setSubmissionNotice(null);
-    commitCurrentDraft();
-    clearCurrentInput();
-    const clearedAtRevision = inputRevisionRef.current;
     try {
-      if (!attachments.attachmentTokens.length && message.startsWith("/") && onBuiltinCommand) {
-        const result = await onBuiltinCommand(message);
+      if (!attachments.attachmentTokens.length && ticket.message.startsWith("/") && onBuiltinCommand) {
+        const result = await onBuiltinCommand(ticket.message);
         if (result.handled) {
-          if (result.error) restoreFailedSubmission(snapshot, clearedAtRevision, "send", result.error);
+          if (ticket.scopeKey) recordLocalCommand(ticket.scopeKey, ticket.message, Date.now());
+          if (result.error) draft.restoreFailed(ticket, "send", result.error);
           return;
         }
       }
-      const result = onSend(message) as void | Promise<unknown> | { ok?: boolean };
-      const settled = await Promise.resolve(result);
+      const settled = await Promise.resolve(onSend(ticket.message));
       if (settled && typeof settled === "object" && "ok" in settled && settled.ok === false) {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "send", null);
+        draft.restoreFailed(ticket, "send", null);
       }
     } catch (error) {
-      restoreFailedSubmission(snapshot, clearedAtRevision, "send", error);
+      draft.restoreFailed(ticket, "send", typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""));
     }
-  }, [
-    attachments.attachmentTokens.length,
-    visible,
-    clearCurrentInput,
-    commitCurrentDraft,
-    draftValue,
-    inputRevisionRef,
-    isStreaming,
-    onAudioUnlock,
-    onBuiltinCommand,
-    onSend,
-    restoreFailedSubmission,
-    setSubmissionNotice,
-  ]);
+  }, [attachments.attachmentTokens.length, draft, isStreaming, onAudioUnlock, onBuiltinCommand, onSend, t, visible]);
 
   const sendQueued = useCallback(
     async (mode: "steer" | "followup") => {
       if (!visible) return;
-      const message = draftValue.trim();
-      if (!message) return;
+      const ticket = draft.submit();
+      if (!ticket) return;
+      const message = ticket.message;
       onAudioUnlock?.();
-      const snapshot = captureComposerSubmission(draftValue);
       const behavior = mode === "steer" ? "steer" : "followUp";
-      setSubmissionNotice(null);
-      commitCurrentDraft();
-      clearCurrentInput();
-      const clearedAtRevision = inputRevisionRef.current;
       try {
         if (message.startsWith("/") && onPromptWithStreamingBehavior) {
           await Promise.resolve(onPromptWithStreamingBehavior(message, behavior));
@@ -191,46 +148,75 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         if (mode === "steer" && onSteer) await Promise.resolve(onSteer(message));
         else if (mode === "followup" && onFollowUp) await Promise.resolve(onFollowUp(message));
       } catch (error) {
-        restoreFailedSubmission(snapshot, clearedAtRevision, "queue", error);
+        draft.restoreFailed(
+          ticket,
+          "queue",
+          typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""),
+        );
       }
     },
-    [
-      clearCurrentInput,
-      commitCurrentDraft,
-      visible,
-      draftValue,
-      inputRevisionRef,
-      onAudioUnlock,
-      onFollowUp,
-      onPromptWithStreamingBehavior,
-      onSteer,
-      restoreFailedSubmission,
-      setSubmissionNotice,
-    ],
+    [draft, visible, onAudioUnlock, onFollowUp, onPromptWithStreamingBehavior, onSteer, t],
   );
 
   const suggestions = useComposerSuggestions({
-    value: draftValue,
     cwd,
     isStreaming,
     visible,
     slashCommands,
     slashCommandsLoading,
     onLoadSlashCommands,
-    onFollowUp,
-    handleSend,
-    sendQueued,
     editableRef,
     onAtEscape: closeTransientMenus,
   });
-  clearAtQueryRef.current = suggestions.clearAtQuery;
-  const clearAtQueryOnKeyChange = suggestions.clearAtQuery;
-  const closeMenusOnKeyChange = suggestions.closeMenus;
+  const { dismiss: dismissSuggestions, observe: observeComposerChange } = suggestions;
 
   useEffect(() => {
-    clearAtQueryOnKeyChange();
-    closeMenusOnKeyChange();
-  }, [clearAtQueryOnKeyChange, closeMenusOnKeyChange, draftKey]);
+    dismissSuggestions();
+  }, [dismissSuggestions, draftKey]);
+
+  const historySource = useCallback(
+    () => buildPromptHistory(promptHistory ?? [], draftKey ? localCommandsFor(draftKey) : []),
+    [draftKey, promptHistory],
+  );
+  const keys = useComposerKeys({
+    menus: {
+      handleMenuKey(event) {
+        if (
+          event.key === "Escape" &&
+          (skills.plusMenuOpen || skills.skillPickerOpen || skills.remotePanelOpen || skills.skillRevealName)
+        ) {
+          event.preventDefault();
+          closeTransientMenus();
+          return true;
+        }
+        return suggestions.handleMenuKey(event);
+      },
+    },
+    recall: {
+      recalling: draft.recalling,
+      browse: (direction) => draft.browse(direction, historySource),
+      returnToDraft,
+    },
+    editableRef,
+    onEnter: () => {
+      if (isStreaming) {
+        if (onFollowUp) void sendQueued("followup");
+      } else {
+        void handleSend();
+      }
+    },
+  });
+
+  const handleComposerChange = useCallback(
+    (change: ComposerChange) => {
+      if (change.cause === "edit") {
+        draft.edit(change.snapshot.text);
+        closePlusMenu();
+      }
+      observeComposerChange(change);
+    },
+    [closePlusMenu, draft, observeComposerChange],
+  );
 
   const controls = useComposerControls({
     visible,
@@ -256,10 +242,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   useLayoutEffect(() => {
     if (visible) return;
-    commitCurrentDraft();
+    returnToDraft();
+    commit();
     const active = document.activeElement;
     if (active instanceof HTMLElement && inputRootRef.current?.contains(active)) active.blur();
-  }, [commitCurrentDraft, visible]);
+  }, [commit, returnToDraft, visible]);
   const modelOptions = useMemo<ModelOption[]>(() => {
     if (modelList && modelList.length > 0) {
       return modelList.map((entry) => ({
@@ -289,14 +276,6 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const skillDescriptions = useMemo(
     () => new Map(skills.skillsState.skills.map((skill) => [skill.name, skill.description ?? ""])),
     [skills.skillsState.skills],
-  );
-
-  const handleValueChange = useCallback(
-    (nextValue: string) => {
-      setValue(nextValue);
-      closePlusMenu();
-    },
-    [closePlusMenu, setValue],
   );
 
   const openPicker = useCallback(() => {
@@ -335,20 +314,20 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     () => ({
       prependText(text: string) {
         if (!text.trim()) return;
-        const combined = [text, draftValueRef.current].filter((item) => item.trim()).join("\n\n");
+        const current = editableRef.current?.getValue() ?? draft.shown;
+        const combined = [text, current].filter((item) => item.trim()).join("\n\n");
         if (visible) editableRef.current?.focus();
         editableRef.current?.replaceAll(combined);
-        suggestions.clearAtQuery();
+        suggestions.dismiss();
       },
       takeDraft() {
-        const text = draftValueRef.current;
-        clearInput();
-        suggestions.clearAtQuery();
+        const text = draft.takeDraft();
+        suggestions.dismiss();
         return text;
       },
       insertText(text: string) {
         editableRef.current?.insertTextAtCaret(text);
-        suggestions.clearAtQuery();
+        suggestions.dismiss();
       },
       addFiles(files: File[]) {
         void attachments.processFiles(files);
@@ -361,7 +340,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         editableRef.current?.insertSkillAtStart(name);
       },
     }),
-    [attachments, clearInput, draftValueRef, suggestions, visible],
+    [attachments, draft, suggestions, visible],
   );
 
   return (
@@ -372,19 +351,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       isStreaming={isStreaming}
       hasSteering={Boolean(onSteer)}
       onFollowUp={onFollowUp}
-      value={draftValue}
+      value={draft.shown}
+      restoreCaret={draft.restoreCaret}
       editableRef={editableRef}
       fileInputRef={fileInputRef}
       processFiles={attachments.processFiles}
       onSend={() => void handleSend()}
       onAbort={handleAbort}
       onQueue={() => void sendQueued("followup")}
-      onValueChange={handleValueChange}
-      onSelectionChange={suggestions.updateAtQuery}
-      onKeyDown={suggestions.handleKeyDown}
+      onChange={handleComposerChange}
+      onKeyDown={keys.onKeyDown}
       onPaste={attachments.handlePaste}
-      onCompositionStart={suggestions.onCompositionStart}
-      onCompositionEnd={suggestions.onCompositionEnd}
+      onCompositionStart={keys.onCompositionStart}
+      onCompositionEnd={keys.onCompositionEnd}
       tokenPreviewsByPath={attachments.tokenPreviewsByPath}
       missingTokenInspections={attachments.missingTokenInspections}
       onRevealToken={(path) => void window.piBridge?.showItemInFolder?.(path)}
@@ -429,8 +408,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onHoverAt={suggestions.setAtActiveIndex}
       imageAttachNotice={imageAttachNotice}
       onDismissImageNotice={() => setImageAttachNotice(null)}
-      submissionNotice={submissionNotice}
-      onDismissSubmissionNotice={() => setSubmissionNotice(null)}
+      submissionNotice={draft.submissionNotice}
+      onDismissSubmissionNotice={draft.dismissSubmissionNotice}
       onResendSubmission={() => void handleSend()}
       queuedMessages={queuedMessages}
       onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}

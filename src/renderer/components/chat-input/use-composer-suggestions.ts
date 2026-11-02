@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { useI18n } from "@/i18n";
-import { extractAtQuery, type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
+import { type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
 import {
   FileSuggestionLruCache,
   fileSuggestionCacheKey,
@@ -9,44 +9,34 @@ import {
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
 import type { SlashCommandInfo } from "@/hooks/useAgentSession";
 import { builtinSlashCommands, compareSlashCommands, type SlashCommandPaletteItem } from "./slash-commands";
-import type { ComposerEditableHandle } from "./types";
-import { compositionEnterAction } from "./composition-guard";
+import type { ComposerChange, ComposerEditableHandle } from "./types";
+import { initialTriggerGate, nextTriggerGate, openTrigger, triggerKey, type ComposerTrigger } from "./composer-trigger";
 import type { AtSuggestionState } from "./AtMenu";
 
 interface Options {
-  value: string;
   cwd?: string | null;
   isStreaming: boolean;
   visible: boolean;
   slashCommands?: SlashCommandInfo[];
   slashCommandsLoading?: boolean;
   onLoadSlashCommands?: () => Promise<SlashCommandInfo[]> | SlashCommandInfo[];
-  onFollowUp?: (message: string) => Promise<void> | void;
-  handleSend: () => Promise<void>;
-  sendQueued: (mode: "steer" | "followup") => Promise<void>;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
   onAtEscape?: () => void;
 }
 
 export function useComposerSuggestions({
-  value,
   cwd,
   isStreaming,
   visible,
   slashCommands,
   slashCommandsLoading,
   onLoadSlashCommands,
-  onFollowUp,
-  handleSend,
-  sendQueued,
   editableRef,
   onAtEscape,
 }: Options) {
   const { t } = useI18n();
-  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [gate, setGate] = useState(initialTriggerGate);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
-  const [atQuery, setAtQuery] = useState<AtQueryMatch | null>(null);
-  const [atMenuOpen, setAtMenuOpen] = useState(false);
   const [atActiveIndex, setAtActiveIndex] = useState(0);
   const [atSuggestionState, setAtSuggestionState] = useState<AtSuggestionState | null>(null);
   const slashCommandsRequestedRef = useRef(false);
@@ -54,11 +44,26 @@ export function useComposerSuggestions({
   const atItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const fileSuggestionCacheRef = useRef(new FileSuggestionLruCache());
   const fileSuggestionRequestRef = useRef(new LatestAbortableRequest());
-  const isComposingRef = useRef(false);
-  const lastCompositionEndAtRef = useRef(0);
 
-  const slashQueryText = value.startsWith("/") && !/\s/.test(value.slice(1)) ? value.slice(1) : null;
+  const atEnabled = Boolean(cwd);
+  const observe = useCallback(
+    (change: ComposerChange) => setGate((current) => nextTriggerGate(current, { type: "changed", change }, atEnabled)),
+    [atEnabled],
+  );
+  const dismiss = useCallback(
+    () => setGate((current) => nextTriggerGate(current, { type: "dismissed" }, atEnabled)),
+    [atEnabled],
+  );
+
+  const open: ComposerTrigger | null = openTrigger(gate, visible);
+  const slashTrigger = open?.kind === "slash" ? open : null;
+  const atTrigger = open?.kind === "at" ? open : null;
+  const slashQueryText = slashTrigger?.query ?? null;
   const slashQuery = slashQueryText?.toLowerCase() ?? null;
+  const atQuery: AtQueryMatch | null = atTrigger?.match ?? null;
+  const slashMenuOpen = slashTrigger !== null;
+  const atMenuOpen = atTrigger !== null;
+
   const builtinCommands = useMemo(() => builtinSlashCommands(t), [t]);
   const filteredSlashCommands = useMemo(() => {
     if (slashQuery === null) return [];
@@ -71,43 +76,30 @@ export function useComposerSuggestions({
       })
       .sort((a, b) => compareSlashCommands(a, b, slashQuery));
   }, [builtinCommands, isStreaming, slashCommands, slashQuery]);
-  const updateAtQuery = useCallback(
-    (text: string) => {
-      setAtQuery(cwd ? extractAtQuery(text) : null);
-    },
-    [cwd],
-  );
 
   const atQueryText = atQuery?.query ?? null;
-  const atTokenKey = atQuery === null ? null : `${atQuery.start}:${atQuery.quoted ? 1 : 0}:${atQuery.query}`;
+  const atTokenKey = triggerKey(atTrigger);
 
   useEffect(() => {
-    if (!visible || slashQuery === null) {
-      setSlashMenuOpen(false);
-      setSlashActiveIndex(0);
-      if (slashQuery === null) slashCommandsRequestedRef.current = false;
-      return;
-    }
-    setSlashMenuOpen(true);
     setSlashActiveIndex(0);
-    if (!slashCommandsRequestedRef.current && onLoadSlashCommands) {
-      slashCommandsRequestedRef.current = true;
-      Promise.resolve(onLoadSlashCommands()).catch(() => {
-        slashCommandsRequestedRef.current = false;
-      });
-    }
-  }, [onLoadSlashCommands, slashQuery, visible]);
+  }, [slashQueryText]);
 
   useEffect(() => {
-    if (!visible || atTokenKey === null) {
-      setAtMenuOpen(false);
-      setAtActiveIndex(0);
-      if (!visible) setAtSuggestionState(null);
+    if (!slashMenuOpen) {
+      slashCommandsRequestedRef.current = false;
       return;
     }
-    setAtMenuOpen(true);
+    if (slashCommandsRequestedRef.current || !onLoadSlashCommands) return;
+    slashCommandsRequestedRef.current = true;
+    Promise.resolve(onLoadSlashCommands()).catch(() => {
+      slashCommandsRequestedRef.current = false;
+    });
+  }, [onLoadSlashCommands, slashMenuOpen]);
+
+  useEffect(() => {
     setAtActiveIndex(0);
-  }, [atTokenKey, visible]);
+    if (atTokenKey === null) setAtSuggestionState(null);
+  }, [atTokenKey]);
 
   useEffect(() => {
     if (!visible || atTokenKey === null || atQueryText === null || !cwd) {
@@ -186,7 +178,6 @@ export function useComposerSuggestions({
   const applySlashCommand = useCallback(
     (command: SlashCommandPaletteItem) => {
       editableRef.current?.replaceAll(`/${command.name} `);
-      setSlashMenuOpen(false);
       setSlashActiveIndex(0);
     },
     [editableRef],
@@ -229,47 +220,37 @@ export function useComposerSuggestions({
     [filteredSlashCommands.length, slashActiveIndex],
   );
 
-  const handleKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLDivElement>) => {
-      const nativeEvent = event.nativeEvent;
-      const enterAction = compositionEnterAction(
-        nativeEvent,
-        { composing: isComposingRef.current, endedAt: lastCompositionEndAtRef.current },
-        Date.now(),
-      );
-      if (event.key === "Enter" && !event.shiftKey && enterAction !== "send") {
-        if (enterAction === "prevent") event.preventDefault();
-        return;
-      }
+  const handleMenuKey = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>): boolean => {
       if (slashMenuOpen && slashQuery !== null) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setSlashActiveIndex(getNextSlashIndex("down"));
-          return;
+          return true;
         }
         if (event.key === "ArrowUp") {
           event.preventDefault();
           setSlashActiveIndex(getNextSlashIndex("up"));
-          return;
+          return true;
         }
         if (event.key === "ArrowRight") {
           event.preventDefault();
           setSlashActiveIndex(getNextSlashIndex("right"));
-          return;
+          return true;
         }
         if (event.key === "ArrowLeft") {
           event.preventDefault();
           setSlashActiveIndex(getNextSlashIndex("left"));
-          return;
+          return true;
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          setSlashMenuOpen(false);
-          return;
+          dismiss();
+          return true;
         }
         if (event.key === "Tab" && slashCommandsLoading === true) {
           event.preventDefault();
-          return;
+          return true;
         }
         if (
           (event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) &&
@@ -278,41 +259,33 @@ export function useComposerSuggestions({
         ) {
           event.preventDefault();
           applySlashCommand(filteredSlashCommands[slashActiveIndex]);
-          return;
+          return true;
         }
       }
-      const composing = isComposingRef.current || nativeEvent.isComposing === true || nativeEvent.keyCode === 229;
-      if (atMenuOpen && atQuery !== null && !composing) {
+      if (atMenuOpen && atQuery !== null) {
         if (event.key === "ArrowDown") {
           event.preventDefault();
           setAtActiveIndex((index) => Math.min(Math.max(0, atMatches.length - 1), index + 1));
-          return;
+          return true;
         }
         if (event.key === "ArrowUp") {
           event.preventDefault();
           setAtActiveIndex((index) => Math.max(0, index - 1));
-          return;
+          return true;
         }
         if (event.key === "Escape") {
           event.preventDefault();
-          setAtMenuOpen(false);
+          dismiss();
           onAtEscape?.();
-          return;
+          return true;
         }
         if ((event.key === "Tab" || (event.key === "Enter" && !event.shiftKey)) && atMatches[atActiveIndex]) {
           event.preventDefault();
           applyAtCompletion(atMatches[atActiveIndex]);
-          return;
+          return true;
         }
       }
-      if (event.key === "Enter" && !event.shiftKey) {
-        event.preventDefault();
-        if (isStreaming) {
-          if (onFollowUp) void sendQueued("followup");
-        } else {
-          void handleSend();
-        }
-      }
+      return false;
     },
     [
       applyAtCompletion,
@@ -323,10 +296,7 @@ export function useComposerSuggestions({
       atQuery,
       filteredSlashCommands,
       getNextSlashIndex,
-      handleSend,
-      isStreaming,
-      onFollowUp,
-      sendQueued,
+      dismiss,
       slashActiveIndex,
       slashCommandsLoading,
       slashMenuOpen,
@@ -358,22 +328,10 @@ export function useComposerSuggestions({
       atItemRefs.current[atActiveIndex]?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [atActiveIndex, atMenuOpen, visible]);
 
-  const onCompositionStart = useCallback(() => {
-    isComposingRef.current = true;
-  }, []);
-  const onCompositionEnd = useCallback(() => {
-    isComposingRef.current = false;
-    lastCompositionEndAtRef.current = Date.now();
-  }, []);
-  const clearAtQuery = useCallback(() => setAtQuery(null), []);
-  const closeMenus = useCallback(() => {
-    setSlashMenuOpen(false);
-    setAtMenuOpen(false);
-    setAtActiveIndex(0);
-  }, []);
-
   return {
-    slashMenuOpen: visible && slashMenuOpen && slashQuery !== null,
+    observe,
+    dismiss,
+    slashMenuOpen,
     slashActiveIndex,
     setSlashActiveIndex,
     slashItemRefs,
@@ -382,18 +340,13 @@ export function useComposerSuggestions({
     slashCommandsLoading,
     applySlashCommand,
     atQuery,
-    atMenuOpen: visible && atMenuOpen,
+    atMenuOpen,
     atActiveIndex,
     setAtActiveIndex,
     atItemRefs,
     activeSuggestionState,
     atMatches,
-    updateAtQuery,
     applyAtCompletion,
-    handleKeyDown,
-    onCompositionStart,
-    onCompositionEnd,
-    clearAtQuery,
-    closeMenus,
+    handleMenuKey,
   };
 }

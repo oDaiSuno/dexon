@@ -42,7 +42,6 @@ export function flatImageOf(block: ImageContent): OutgoingImage | null {
 const NO_PREVIEWS = new Map<string, string | null>();
 const NO_MISSING = new Map<string, boolean>();
 const NO_SKILL_DESCRIPTIONS = new Map<string, string>();
-const ignoreSelection = () => undefined;
 
 const ignoreReveal = () => undefined;
 
@@ -141,8 +140,9 @@ export function UserMessageEditor({
           handleRef={handleRef}
           ariaLabel={t("editMessageField", "Edit message")}
           placeholder=""
-          onValueChange={onChange}
-          onSelectionChange={ignoreSelection}
+          onChange={(change) => {
+            if (change.cause === "edit") onChange(change.snapshot.text);
+          }}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
               const action = compositionEnterAction(event.nativeEvent, compositionRef.current, Date.now());
