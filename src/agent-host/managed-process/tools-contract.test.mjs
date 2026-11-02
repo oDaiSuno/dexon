@@ -19,6 +19,31 @@ const { createManagedProcessToolDefinitions, ManagedProcessService, setBrowserSe
   },
 );
 
+test("all managed process tools declare coding ownership and a concise prompt snippet", () => {
+  const service = new ManagedProcessService({ emit() {} });
+  const tools = createManagedProcessToolDefinitions("/tmp", true, service);
+  assert.deepEqual(
+    tools.map((tool) => tool.name),
+    [
+      "process_start",
+      "process_list",
+      "process_read",
+      "process_wait",
+      "process_write",
+      "process_stop",
+      "process_restart",
+    ],
+  );
+  for (const tool of tools) {
+    assert.equal(tool.dexonOwner, "coding", tool.name);
+    assert.equal(tool.exposure, "direct", tool.name);
+    assert.equal(tool.defaultActive, true, tool.name);
+    assert.equal(typeof tool.promptSnippet, "string", tool.name);
+    assert.ok(tool.promptSnippet.trim().length > 0 && tool.promptSnippet.length <= 120, tool.name);
+    assert.doesNotMatch(tool.promptSnippet, /[\r\n]/u, tool.name);
+  }
+});
+
 test("managed process tools activate only with a non-empty local tool selection", async () => {
   const { withExtensionTools } = await importTestBundle("src/agent-host/rpc-manager", {
     packages: "external",

@@ -3,7 +3,6 @@ import { createQuestionnaireOverride } from "./agent-session/questionnaire-adapt
 import {
   createAgentSessionFromServices,
   createAgentSessionServices,
-  createBashToolDefinition,
   getAgentDir,
   SessionManager,
   type CreateAgentSessionFromServicesOptions,
@@ -19,7 +18,7 @@ import { cacheSessionPath } from "./session-reader";
 import { configuredSessionDir } from "./session-dir";
 import { applyStoredLeafChoice, rememberLeafChoice } from "./session-leaf-store";
 import { getDesktopSessionToolNames, setDesktopSessionToolNames } from "./session-tool-store";
-import { createToolchainBashOptions } from "./toolchain-bash";
+import { createDesktopBashToolDefinition, createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
 import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 
@@ -206,7 +205,7 @@ export async function startRpcSession(
       (command) => browserAgentRuntime.guardBash(sessionManager.getSessionId(), command),
     );
     const customTools = [
-      createBashToolDefinition(cwd, bashOptions),
+      createDesktopBashToolDefinition(cwd, bashOptions),
       ...createDesktopSearchToolDefinitions(cwd, executionContext, toolchainRuntime),
       ...createBrowserToolDefinitions(),
       ...(peekManagedProcessService()
