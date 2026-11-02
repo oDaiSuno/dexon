@@ -466,3 +466,45 @@ test("collapsing and expanding navigation through its buttons resets the session
   assert.match(view.container.textContent, /alpha render bug/);
   assert.match(view.container.textContent, /beta unrelated/);
 });
+
+test("the four-button 52px rail announces true active session counts with the most urgent corner dot", async (t) => {
+  const { props, calls } = baseProps({
+    expanded: false,
+    liveStatuses: {
+      [navigationSessions[0].id]: "running",
+      [navigationSessions[1].id]: "awaiting_input",
+      [navigationSessions[2].id]: "error",
+    },
+  });
+  const view = await mount(t, NavSidebar, props);
+  const rail = byRole(view.container, "navigation", "Main navigation");
+  assert.equal(rail.style.width, "52px");
+  assert.equal(allByRole(rail, "button").length, 4);
+  const toggle = button(rail, "Show sidebar");
+  assert.equal(toggle.getAttribute("aria-description"), "1 waiting for your answer · 1 failed · 1 running");
+  const dot = toggle.querySelector('[aria-hidden="true"][data-activity]');
+  assert.ok(dot, "the sidebar toggle has a decorative live-status dot");
+  assert.equal(dot.style.background, "var(--fx-status-warning)");
+  assert.equal(dot.style.width, "9px");
+  assert.equal(dot.style.height, "9px");
+  assert.equal(dot.style.top, "3px");
+  assert.equal(dot.style.right, "3px");
+  await click(toggle);
+  assert.equal(calls.toggle, 1);
+});
+
+test("the explicit activity facade overrides legacy signals when projecting rail urgency", async (t) => {
+  const { props } = baseProps({
+    expanded: false,
+    activity: {
+      of: (id) => (id === navigationSessions[0].id ? "error" : "idle"),
+      runAge: () => ({ kind: "not-running" }),
+    },
+    liveStatuses: { [navigationSessions[1].id]: "awaiting_input" },
+    runningSessionIds: new Set([navigationSessions[2].id]),
+  });
+  const view = await mount(t, NavSidebar, props);
+  const toggle = button(view.container, "Show sidebar");
+  assert.equal(toggle.getAttribute("aria-description"), "1 failed");
+  assert.equal(toggle.querySelector("[data-activity]").style.background, "var(--fx-status-danger)");
+});

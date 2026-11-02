@@ -2,7 +2,11 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
-import { sessionProjectKey } from "@/lib/session-list";
+import { projectSessionGroups, sessionProjectKey } from "@/lib/session-list";
+import type { SessionActivity } from "@/lib/session-tree-status";
+import { sessionActivityFromLegacySignals } from "@/lib/session-activity-state";
+import { buildSidebarActivity } from "@/lib/sidebar-activity";
+import { activityCountsPhrase } from "../session-sidebar/session-status-indicators";
 import { PanelLeftIcon } from "./nav-space-menu";
 import { NavHistory, type ListedProject } from "./nav-history";
 import { ProjectRowActions } from "./project-row-actions";
@@ -41,6 +45,7 @@ export function NavSidebar({
   loading,
   error,
   selectedSessionId,
+  activity,
   liveStatuses,
   runningSessionIds,
   unreadSessionIds,
@@ -82,6 +87,7 @@ export function NavSidebar({
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
+  activity?: SessionActivity;
   liveStatuses?: Record<string, SessionLiveStatus>;
   runningSessionIds: Set<string>;
   unreadSessionIds: Set<string>;
@@ -120,19 +126,27 @@ export function NavSidebar({
   const [query, setQuery] = useState("");
   if (!expanded && query) setQuery("");
   const projectRoot = currentProject ?? spacePath;
-  const nameOfProject =
-    projectName ?? ((root: string) => (worktreePathsEqual(root, projectRoot) ? spaceName : spaceFolderName(root)));
+  const nameOfProject = useMemo(
+    () =>
+      projectName ?? ((root: string) => (worktreePathsEqual(root, projectRoot) ? spaceName : spaceFolderName(root))),
+    [projectName, projectRoot, spaceName],
+  );
   const currentPage = settingsOpen ? null : page;
   const onNewSessionPage = currentPage === "chat" && selectedSessionId === null;
-  const runningProjectKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const session of sessions) {
-      if (!runningSessionIds.has(session.id)) continue;
-      const root = session.projectRoot ?? session.cwd;
-      if (root) keys.add(sessionProjectKey(root));
-    }
-    return keys;
-  }, [sessions, runningSessionIds]);
+  const resolvedActivity = useMemo(
+    () =>
+      activity ??
+      sessionActivityFromLegacySignals({ liveStatuses: liveStatuses ?? {}, runningSessionIds, unreadSessionIds }),
+    [activity, liveStatuses, runningSessionIds, unreadSessionIds],
+  );
+  const projects = useMemo(
+    () => projectSessionGroups(sessions, { listedProjects, currentProject: projectRoot, isPinnedProject }),
+    [sessions, listedProjects, projectRoot, isPinnedProject],
+  );
+  const sidebar = useMemo(
+    () => buildSidebarActivity(projects, resolvedActivity, nameOfProject),
+    [projects, resolvedActivity, nameOfProject],
+  );
 
   if (!expanded) {
     return (
@@ -153,7 +167,15 @@ export function NavSidebar({
           gap: 6,
         }}
       >
-        <RailButton label={t("showSidebar", "Show sidebar")} onClick={onToggleExpanded}>
+        <RailButton
+          label={t("showSidebar", "Show sidebar")}
+          onClick={onToggleExpanded}
+          status={
+            sidebar.urgency
+              ? { activity: sidebar.urgency, label: activityCountsPhrase(sidebar.pulse.sessionCounts, t) }
+              : null
+          }
+        >
           <PanelLeftIcon size={NAV_ICON_SIZE} />
         </RailButton>
         <img
@@ -332,7 +354,7 @@ export function NavSidebar({
                 name={name}
                 revealed={revealed}
                 project={project}
-                runningProjectKeys={runningProjectKeys}
+                workInFlight={sidebar.project(sessionProjectKey(project.root)).workInFlight}
                 isDefaultProject={isDefaultProject}
                 canMoveProject={canMoveProject}
                 onMoveProject={onMoveProject}

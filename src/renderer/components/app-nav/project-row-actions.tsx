@@ -1,4 +1,3 @@
-import { sessionProjectKey } from "@/lib/session-list";
 import type { ListedProject } from "./nav-history";
 import { NavSpaceMenu } from "./nav-space-menu";
 
@@ -6,7 +5,7 @@ export function ProjectRowActions({
   name,
   revealed,
   project,
-  runningProjectKeys,
+  workInFlight,
   isDefaultProject,
   canMoveProject,
   onMoveProject,
@@ -15,7 +14,7 @@ export function ProjectRowActions({
   name: string;
   revealed: boolean;
   project: ListedProject;
-  runningProjectKeys: ReadonlySet<string>;
+  workInFlight: boolean;
   isDefaultProject?: (root: string) => boolean;
   canMoveProject?: (root: string, offset: -1 | 1) => boolean;
   onMoveProject?: (root: string, offset: -1 | 1) => void;
@@ -30,7 +29,7 @@ export function ProjectRowActions({
       missing={project.missing}
       canMoveUp={canMoveProject?.(project.root, -1) ?? false}
       canMoveDown={canMoveProject?.(project.root, 1) ?? false}
-      canClose={!runningProjectKeys.has(sessionProjectKey(project.root))}
+      canClose={!workInFlight}
       onMoveUp={() => onMoveProject?.(project.root, -1)}
       onMoveDown={() => onMoveProject?.(project.root, 1)}
       onClose={() => onCloseProject?.(project.root)}

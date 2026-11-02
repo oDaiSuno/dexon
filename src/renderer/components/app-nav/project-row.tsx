@@ -1,4 +1,5 @@
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
+import { faceEmphasized, ProjectRowTrail, type ProjectRowFace } from "./project-row-status";
 
 const DUOTONE_FOLDER_OPEN = {
   tone: "M208,88v24H69.77a8,8,0,0,0-7.59,5.47L32,208V64a8,8,0,0,1,8-8H93.33a8,8,0,0,1,4.8,1.6L128,80h72A8,8,0,0,1,208,88Z",
@@ -70,6 +71,7 @@ export function ProjectRow({
   path,
   count,
   countLabel,
+  face,
   open,
   current,
   missing = false,
@@ -85,6 +87,7 @@ export function ProjectRow({
   path: string;
   count: number;
   countLabel: string;
+  face?: ProjectRowFace;
   open: boolean;
   current: boolean;
   missing?: boolean;
@@ -99,6 +102,12 @@ export function ProjectRow({
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const countId = useId();
+  const statusId = useId();
+  const resolvedFace: ProjectRowFace = missing
+    ? { kind: "missing" }
+    : (face ?? { kind: open ? "open" : "closed-quiet", totalSessions: count });
+  const isMissing = resolvedFace.kind === "missing";
+  const emphasized = faceEmphasized(resolvedFace);
   const active = hovered || focused;
   const action = actions?.(active);
   const revealed = active && action != null;
@@ -132,7 +141,7 @@ export function ProjectRow({
           type="button"
           data-project-row
           aria-label={name}
-          aria-describedby={missing ? undefined : countId}
+          aria-describedby={isMissing ? undefined : emphasized ? `${countId} ${statusId}` : countId}
           aria-expanded={open}
           aria-current={current ? "location" : undefined}
           onMouseDown={onDragStart}
@@ -157,42 +166,39 @@ export function ProjectRow({
           }}
         >
           <ChevronGlyph open={open} />
-          {missing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
+          {isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
           <span
-            className="type-body-large"
+            className={emphasized ? "type-body-large-medium" : "type-body-large"}
             style={{
               flex: 1,
               minWidth: 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              color: missing ? "var(--fx-text-tertiary)" : "var(--fx-text-body)",
+              color: isMissing
+                ? "var(--fx-text-tertiary)"
+                : emphasized
+                  ? "var(--fx-text-primary)"
+                  : "var(--fx-text-body)",
             }}
           >
             {name}
           </span>
-          {missing ? (
-            <span className="type-label-default" style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}>
+          {isMissing ? (
+            <span
+              className="type-label-default"
+              style={{ flexShrink: 0, color: "var(--fx-text-tertiary)", paddingRight: revealed ? 28 : 0 }}
+            >
               {missingLabel}
             </span>
           ) : (
-            <>
-              <span
-                className="type-label-default"
-                aria-hidden="true"
-                style={{
-                  flexShrink: 0,
-                  color: "var(--fx-text-tertiary)",
-                  opacity: revealed ? 0 : 1,
-                  transition: "opacity var(--duration-quick) var(--ease-smooth-out)",
-                }}
-              >
-                {count}
-              </span>
-              <span id={countId} className="sr-only">
-                {` ${countLabel}`}
-              </span>
-            </>
+            <ProjectRowTrail
+              face={resolvedFace}
+              countLabel={countLabel}
+              countId={countId}
+              statusId={statusId}
+              revealed={revealed}
+            />
           )}
         </button>
         {action && (
