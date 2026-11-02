@@ -1,3 +1,4 @@
+import type { SessionManager, SessionProjection } from "@earendil-works/pi-coding-agent";
 import { isManagedProcessToolName } from "./tool-names.ts";
 import { PROCESS_ERROR_CODES, type ManagedProcessErrorCode } from "../../contract/processes.ts";
 
@@ -11,7 +12,7 @@ type PersistedMessage = {
   [key: string]: unknown;
 };
 
-type SessionManagerLike = {
+type SessionManagerLike = Partial<Pick<SessionManager, "buildSessionProjection" | "buildSessionContext">> & {
   appendMessage: (message: unknown) => string;
 };
 
@@ -93,7 +94,40 @@ export function redactManagedProcessPersistedMessage(value: unknown): unknown {
 export function installManagedProcessSessionRedaction(sessionManager: object): void {
   if (installed.has(sessionManager)) return;
   const manager = sessionManager as SessionManagerLike;
+  const liveMessages = new Map<string, unknown>();
   const appendMessage = manager.appendMessage.bind(sessionManager);
-  manager.appendMessage = (message: unknown) => appendMessage(redactManagedProcessPersistedMessage(message));
+  manager.appendMessage = (message: unknown) => {
+    const redacted = redactManagedProcessPersistedMessage(message);
+    const entryId = appendMessage(redacted);
+    if (redacted !== message) liveMessages.set(entryId, message);
+    return entryId;
+  };
+  if (typeof manager.buildSessionProjection === "function") {
+    const buildSessionProjection = manager.buildSessionProjection.bind(sessionManager);
+    manager.buildSessionProjection = (...args) => {
+      const projection = buildSessionProjection(...args);
+      const editedIds = new Set(
+        projection.entries.flatMap(({ sourceEntry }) =>
+          sourceEntry.type === "context_edit" ? [sourceEntry.targetId] : [],
+        ),
+      );
+      const entries = projection.entries.map((entry) => {
+        if (editedIds.has(entry.sourceEntry.id) || !liveMessages.has(entry.sourceEntry.id)) return entry;
+        return {
+          ...entry,
+          messages: [liveMessages.get(entry.sourceEntry.id) as SessionProjection["messages"][number]],
+        };
+      });
+      return { ...projection, entries, messages: entries.flatMap((entry) => entry.messages) };
+    };
+  }
+  if (typeof manager.buildSessionContext === "function") {
+    const buildSessionContext = manager.buildSessionContext.bind(sessionManager);
+    manager.buildSessionContext = (...args) => {
+      if (typeof manager.buildSessionProjection !== "function") return buildSessionContext(...args);
+      const { messages, thinkingLevel, model } = manager.buildSessionProjection(...args);
+      return { messages, thinkingLevel, model };
+    };
+  }
   installed.add(sessionManager);
 }

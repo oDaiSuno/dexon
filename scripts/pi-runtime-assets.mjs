@@ -33,7 +33,7 @@ export function verifyPiRuntimeAssets(resources, platform, arch, expectedPiVersi
   const missing = required.filter((entry) => !entries.has(entry));
   if (missing.length > 0) throw new Error(`Packaged Pi runtime/authoring assets are missing: ${missing.join(", ")}`);
   const missingUnpacked = required.filter((entry) => {
-    const metadata = statFile(asarPath, entry);
+    const metadata = statFile(asarPath, path.normalize(entry));
     if (!metadata.unpacked) return false;
     try {
       const file = statSync(path.join(`${asarPath}.unpacked`, entry));

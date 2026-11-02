@@ -6,7 +6,7 @@ import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-o
 import type { AgentMessage, ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { setBrowserSessionSource } from "../browser-tools";
-import { isDisplayEvent } from "../display-message";
+import { toDisplayEvent } from "../display-message";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
 import { desktopToolIntents } from "../session-tool-store";
 import type { ChosenSessionModel } from "../session-model";
@@ -123,9 +123,10 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   start(): void {
-    this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
+    this.unsubscribe = this.inner.subscribe((sourceEvent: AgentEvent) => {
       this.resetIdleTimer();
-      if (!isDisplayEvent(event)) return;
+      const event = toDisplayEvent(sourceEvent);
+      if (!event) return;
       this.turnStatus.observe(event);
       this.retryOutcome.observe(event, this.inner.sessionManager);
       const displayEvent = this.withMessageSources(this.blockTiming.observe(event));
