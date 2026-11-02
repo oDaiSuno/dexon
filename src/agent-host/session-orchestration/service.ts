@@ -114,7 +114,7 @@ export class SessionOrchestrationService {
 
     const launched = await this.launchDelegate(callerId, {
       cwd,
-      toolNames: caller.inner.getActiveToolNames(),
+      tools: caller.runPolicy.intent(),
       ...(model ? { provider: model.provider, modelId: model.modelId } : {}),
       ...(thinkingLevel ? { thinkingLevel } : {}),
       ...(name ? { name } : {}),

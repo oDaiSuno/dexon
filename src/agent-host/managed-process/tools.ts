@@ -1,4 +1,3 @@
-import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type {
   ManagedProcessLogWindow,
@@ -8,6 +7,7 @@ import type {
 } from "../../contract/processes.ts";
 import { MANAGED_PROCESS_LIMITS } from "../../shared/managed-process-policy.ts";
 import { getBrowserSessionSource } from "../browser-tools.ts";
+import { defineDexonTool, type DexonToolDefinition } from "../agent-session/tool-definition.ts";
 import { ManagedProcessError, type ManagedProcessService } from "./service.ts";
 export { isManagedProcessToolName, MANAGED_PROCESS_TOOL_NAMES } from "./tool-names.ts";
 
@@ -101,9 +101,10 @@ export function createManagedProcessToolDefinitions(
   ownerCwd: string,
   trusted: boolean,
   service: ManagedProcessService,
-): ToolDefinition[] {
+): DexonToolDefinition[] {
   return [
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_start",
       label: "start managed process",
       description:
@@ -127,10 +128,12 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_list",
       label: "list managed processes",
       description: "List managed processes owned by this Agent session. Other sessions are intentionally invisible.",
+      promptSnippet: "List this session's managed processes and their current state.",
       parameters: Type.Object({ includeExited: Type.Optional(Type.Boolean()) }),
       executionMode: "sequential",
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
@@ -142,11 +145,13 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_read",
       label: "read managed process output",
       description:
         "Immediately read a bounded output window. Reuse nextCursor. A gap record means older output was evicted; do not assume the log is complete.",
+      promptSnippet: "Read a bounded output window; continue with the returned nextCursor.",
       parameters: Type.Object({
         processId,
         runId: Type.Optional(runId),
@@ -164,11 +169,13 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_wait",
       label: "wait for managed process output",
       description:
         "Long-poll for output or a state change without busy polling. A timeout is not an error. For cold starts longer than 30 seconds, call again with the same runId and returned nextCursor until ready, exited, or the task deadline is reached.",
+      promptSnippet: "Wait for process output or state changes; reuse runId and nextCursor.",
       parameters: Type.Object({
         processId,
         runId: Type.Optional(runId),
@@ -188,11 +195,13 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_write",
       label: "write managed process stdin",
       description:
         "Write bounded UTF-8 text to an owned process pipe. This is not a PTY: raw-mode shortcuts and full-screen terminal interaction are unsupported. stdin is never persisted.",
+      promptSnippet: "Write bounded text to an owned process pipe without persisting stdin.",
       parameters: Type.Object({
         processId,
         runId,
@@ -210,11 +219,13 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_stop",
       label: "stop managed process",
       description:
         "Stop the current run and its complete process group. Keep the current runId; stale generations are rejected. Never fall back to shell kill commands.",
+      promptSnippet: "Stop an owned process group using its current runId.",
       parameters: Type.Object({
         processId,
         runId,
@@ -230,11 +241,13 @@ export function createManagedProcessToolDefinitions(
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "coding",
       name: "process_restart",
       label: "restart managed process",
       description:
         "Fully stop the current process group, then start a new generation. A user stop barrier cannot be overridden by the Agent.",
+      promptSnippet: "Restart an owned process group with a new runId; honor user stop barriers.",
       parameters: Type.Object({ processId, runId, waitFor: Type.Optional(waitFor) }),
       executionMode: "sequential",
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {

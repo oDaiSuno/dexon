@@ -148,6 +148,48 @@ test("sessions.get reports usage and message counts for the whole session file r
   assert.equal(whole.context.messages.length, 3);
 });
 
+test("session display excludes private system text while raw export preserves the transcript", async () => {
+  const sessionId = "system-preview-session";
+  const privatePrompt = "private system prompt must stay out of display responses";
+  const entries = chain([
+    { type: "message", message: { role: "system", content: privatePrompt, timestamp: 1 } },
+    { type: "message", message: { role: "user", content: "public question", timestamp: 2 } },
+    {
+      type: "message",
+      message: {
+        role: "assistant",
+        content: [{ type: "text", text: "public answer" }],
+        provider: "provider",
+        model: "model",
+        timestamp: 3,
+      },
+    },
+  ]);
+  const filePath = writeSessionFile(sessionId, entries);
+  const raw = readFileSync(filePath, "utf8");
+  await handlers["sessions.list"]();
+
+  const detail = await handlers["sessions.get"]({ id: sessionId });
+  assert.deepEqual(detail.tree[0].entry, { id: "0-message", type: "message" });
+  assert.deepEqual(detail.tree[0].children[0].entry, {
+    id: "2-message",
+    type: "message",
+    role: "assistant",
+    preview: "public answer",
+  });
+  assert.deepEqual(detail.tree[0].children[0].compressedEntryIds, ["1-message"]);
+  assert.deepEqual(detail.context.entryIds, ["1-message", "2-message"]);
+  assert.equal(JSON.stringify(detail).includes(privatePrompt), false);
+
+  const markdown = await handlers["sessions.export"]({ id: sessionId, format: "md" });
+  assert.equal(markdown.content.includes(privatePrompt), false);
+  assert.equal(markdown.content.includes("public question"), true);
+  assert.equal(markdown.content.includes("public answer"), true);
+
+  const exported = await handlers["sessions.export"]({ id: sessionId, format: "json" });
+  assert.equal(exported.content, raw);
+});
+
 function longSessionDefinitions() {
   const definitions = [{ type: "message", message: { role: "user", content: "analyze the repository", timestamp: 1 } }];
   for (let index = 0; index < 80; index += 1) {

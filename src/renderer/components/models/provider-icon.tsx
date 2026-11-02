@@ -74,7 +74,7 @@ const PROVIDER_ICONS: Record<string, IconComponent> = {
   "vercel-ai-gateway": VercelIcon,
   "github-copilot": GithubCopilotIcon,
   "amazon-bedrock": AwsIcon,
-  "azure-openai-responses": AzureIcon,
+  azure: AzureIcon,
   "kimi-coding": KimiIcon,
   nvidia: NvidiaIcon,
   opencode: OpenCodeIcon,

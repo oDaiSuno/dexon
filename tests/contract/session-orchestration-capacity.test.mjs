@@ -133,9 +133,15 @@ test(
     const forkedLines = readFileSync(forkedDetail.info.path, "utf8").trimEnd().split("\n");
     const forkedEntries = forkedLines.map((line) => JSON.parse(line));
     assert.deepEqual(
-      forkedEntries.filter((entry) => entry.type === "message").map((entry) => entry.message.role),
+      forkedEntries
+        .filter((entry) => entry.type === "message" && entry.message.role !== "system")
+        .map((entry) => entry.message.role),
       ["user", "assistant"],
-      "the forked file holds the copied messages up to the fork point",
+      "the forked file holds the copied conversation up to the fork point",
+    );
+    assert.ok(
+      forkedEntries.some((entry) => entry.type === "message" && entry.message.role === "system"),
+      "the fork retains the recorded prompt and tools without displaying them as a conversation message",
     );
     assert.deepEqual(
       forkedEntries.filter((entry) => entry.type === "custom" || entry.type === "custom_message"),

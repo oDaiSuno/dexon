@@ -1,23 +1,15 @@
-/**
- * Reconstruct context-window usage from a persisted session file.
- *
- * Live agent sessions report authoritative usage through get_state (pi's
- * AgentSession.getContextUsage()). Sessions without a live runtime — evicted
- * after the idle timeout, or after an app restart — previously had no way to
- * answer "how full is the context window?" without sending a new message.
- * This module mirrors pi's own computation over the session file so reopening
- * a session restores the statistic, without starting an agent or performing
- * any network request.
- */
 import {
+  buildSessionProjection,
   calculateContextTokens,
   estimateTokens,
-  formatSkillsForPrompt,
   getLatestCompactionEntry,
 } from "@earendil-works/pi-coding-agent";
+import { getCurrentSystemMessage, getCurrentSystemPrompt, getCurrentTools } from "@earendil-works/pi-ai";
+import type { AgentMessage, PersistedMessage } from "../shared/types";
+import { toDisplayMessage } from "./display-message";
 import type { ContextUsageBreakdown, ContextUsageInfo } from "../contract/types";
 import type { SessionModelRef } from "../shared/session-orchestration";
-import { buildBranchLlmMessages, type SessionBranch } from "./session-branch";
+import type { SessionBranch } from "./session-branch";
 
 export interface ContextUsageSnapshot {
   percent: number | null;
@@ -50,7 +42,6 @@ export interface SessionContextUsageSource {
   contextWindow: number | null | undefined;
 }
 
-/** Identical arithmetic to pi's calculateContextTokens, tolerant of partial usage. */
 function usageTokenCount(usage: UsageLike | undefined): number {
   if (!usage) return 0;
   const normalized = {
@@ -73,11 +64,6 @@ function estimateMessageTokens(message: unknown): number {
   return estimateTokens(message as Parameters<typeof estimateTokens>[0]);
 }
 
-/**
- * Mirrors pi's private estimateContextTokens(): trust the last valid assistant
- * usage as the context size at that point, then estimate tokens for messages
- * appended after it. Without any usage, fall back to estimating every message.
- */
 function estimateContextTokensFromMessages(messages: unknown[]): number {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index] as AssistantLike | undefined;
@@ -86,8 +72,11 @@ function estimateContextTokensFromMessages(messages: unknown[]): number {
     for (let tail = index + 1; tail < messages.length; tail += 1) trailing += estimateMessageTokens(messages[tail]);
     return usageTokenCount(message.usage) + trailing;
   }
-  let estimated = 0;
-  for (const message of messages) estimated += estimateMessageTokens(message);
+  const currentSystem = getCurrentSystemMessage(messages as PersistedMessage[]);
+  let estimated = currentSystem ? estimateMessageTokens(currentSystem) : 0;
+  for (const message of messages) {
+    if ((message as { role: string }).role !== "system") estimated += estimateMessageTokens(message);
+  }
   return estimated;
 }
 
@@ -95,9 +84,6 @@ export function computeSessionContextUsage(source: SessionContextUsageSource): C
   const contextWindow = source.contextWindow ?? 0;
   if (!(contextWindow > 0)) return null;
 
-  // Mirrors pi's AgentSession.getContextUsage(): after a compaction, the last
-  // assistant usage reflects the pre-compaction context size, so the token
-  // count stays unknown until an assistant responds after the boundary.
   const branchEntries = source.branchEntries as readonly BranchEntryLike[];
   const latestCompaction = getLatestCompactionEntry(
     source.branchEntries as Parameters<typeof getLatestCompactionEntry>[0],
@@ -118,8 +104,9 @@ export function computeSessionContextUsage(source: SessionContextUsageSource): C
   return { tokens, contextWindow, percent: (tokens / contextWindow) * 100 };
 }
 
-export async function reconstructSessionContextUsage(options: {
+export async function describeStoredContextUsage(options: {
   branch: SessionBranch;
+  profile?: ContextProfile;
   resolveContextWindow: (model: SessionModelRef | null) => Promise<number | null | undefined>;
 }): Promise<ContextUsageSnapshot | null> {
   let contextWindow: number | null = null;
@@ -131,21 +118,56 @@ export async function reconstructSessionContextUsage(options: {
     }
   }
   if (contextWindow === null) return null;
-  const messages = buildBranchLlmMessages(options.branch);
-  return computeSessionContextUsage({ messages, branchEntries: options.branch.path, contextWindow });
+  const projection = buildSessionProjection(
+    options.branch.path as Parameters<typeof buildSessionProjection>[0],
+    options.branch.leafId,
+  );
+  const latestEditIndex = options.branch.path.findLastIndex((entry) => entry.type === "context_edit");
+  const invalidatedIds = new Set(options.branch.path.slice(0, latestEditIndex + 1).map((entry) => entry.id));
+  const messages = projection.entries.flatMap(({ sourceEntry, messages }) =>
+    messages
+      .filter((message) => options.profile !== "bare" || message.role !== "system")
+      .map((message) =>
+        message.role === "assistant" && invalidatedIds.has(sourceEntry.id) ? { ...message, usage: undefined } : message,
+      ),
+  );
+  const messagesById = new Map(projection.entries.map((entry) => [entry.sourceEntry.id, entry.messages]));
+  return computeSessionContextUsage({
+    messages,
+    branchEntries: options.branch.path.map((entry) =>
+      entry.type === "message" ? { ...entry, message: messagesById.get(entry.id)?.[0] } : entry,
+    ),
+    contextWindow,
+  });
 }
 
-interface LiveContextSource {
-  autoCompactionEnabled: boolean;
-  settingsManager: { getCompactionReserveTokens(): number };
-  getContextUsage(): ContextUsageSnapshot | undefined;
-  agent: { state?: { systemPrompt?: string; messages?: unknown[] } };
-  resourceLoader: {
-    getAgentsFiles(): { agentsFiles: Array<{ path: string; content: string }> };
-    getSkills(): { skills: unknown[] };
+export type ContextProfile = "bare" | "agent";
+
+export interface ContextPartition {
+  readonly systemPrompt: string;
+  readonly tools: readonly { name: string; description?: string; parameters?: unknown }[];
+  readonly sections: Readonly<Record<string, string | null>>;
+  readonly conversation: readonly AgentMessage[];
+  readonly toolResults: readonly AgentMessage[];
+}
+
+export function partitionContext(messages: readonly PersistedMessage[], profile: ContextProfile): ContextPartition {
+  const records = messages.filter((message) => message.role === "system");
+  const display = messages.flatMap((message) => toDisplayMessage(message) ?? []);
+  return {
+    systemPrompt: profile === "bare" ? "" : getCurrentSystemPrompt(records),
+    tools: profile === "bare" ? [] : getCurrentTools(records),
+    sections: profile === "bare" ? {} : (getCurrentSystemMessage(records)?.sections ?? {}),
+    conversation: display.filter((message) => message.role !== "toolResult"),
+    toolResults: display.filter((message) => message.role === "toolResult"),
   };
-  getAllTools(): Array<{ name: string; description: string; parameters?: unknown }>;
-  getActiveToolNames(): string[];
+}
+
+export interface LiveContextUsageSource {
+  readonly messages: readonly PersistedMessage[];
+  readonly profile: ContextProfile;
+  readonly usage: ContextUsageSnapshot | undefined;
+  readonly reserveTokens?: number;
 }
 
 function scaleFixedParts(fixed: ContextUsageBreakdown, tokens: number): ContextUsageBreakdown {
@@ -161,44 +183,22 @@ function scaleFixedParts(fixed: ContextUsageBreakdown, tokens: number): ContextU
   };
 }
 
-export function describeLiveContextUsage(source: LiveContextSource): ContextUsageInfo | null {
-  const usage = source.getContextUsage();
+export function describeLiveContextUsage(source: LiveContextUsageSource): ContextUsageInfo | null {
+  const usage = source.usage;
   if (!usage) return null;
-  const reserveTokens = source.autoCompactionEnabled ? source.settingsManager.getCompactionReserveTokens() : undefined;
   const head: ContextUsageInfo = {
-    percent: usage.percent,
-    contextWindow: usage.contextWindow,
-    tokens: usage.tokens,
-    ...(reserveTokens === undefined ? {} : { reserveTokens }),
+    ...usage,
+    ...(source.reserveTokens === undefined ? {} : { reserveTokens: source.reserveTokens }),
   };
   if (usage.tokens === null) return head;
 
-  const agentsFileChars = source.resourceLoader
-    .getAgentsFiles()
-    .agentsFiles.reduce((sum, file) => sum + file.content.length, 0);
-  const skills = source.resourceLoader.getSkills().skills as Parameters<typeof formatSkillsForPrompt>[0];
-  const skillsChars = formatSkillsForPrompt(skills).length;
-  const agentsAndSkills = Math.ceil((agentsFileChars + skillsChars) / 4);
-  const systemPrompt = Math.max(0, Math.ceil((source.agent.state?.systemPrompt?.length ?? 0) / 4) - agentsAndSkills);
-
-  const activeToolNames = new Set(source.getActiveToolNames());
-  const toolsChars = source
-    .getAllTools()
-    .filter((tool) => activeToolNames.has(tool.name))
-    .reduce(
-      (sum, tool) =>
-        sum + JSON.stringify({ name: tool.name, description: tool.description, parameters: tool.parameters }).length,
-      0,
-    );
-  const tools = Math.ceil(toolsChars / 4);
-
-  let conversationEstimate = 0;
-  let toolResultsEstimate = 0;
-  for (const message of source.agent.state?.messages ?? []) {
-    if ((message as { role?: unknown } | null)?.role === "toolResult")
-      toolResultsEstimate += estimateMessageTokens(message);
-    else conversationEstimate += estimateMessageTokens(message);
-  }
+  const partition = partitionContext(source.messages, source.profile);
+  const resourceChars = (partition.sections.project_context?.length ?? 0) + (partition.sections.skills?.length ?? 0);
+  const agentsAndSkills = Math.ceil(resourceChars / 4);
+  const systemPrompt = Math.max(0, Math.ceil(partition.systemPrompt.length / 4) - agentsAndSkills);
+  const tools = Math.ceil(partition.tools.reduce((sum, tool) => sum + JSON.stringify(tool).length, 0) / 4);
+  const conversationEstimate = partition.conversation.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
+  const toolResultsEstimate = partition.toolResults.reduce((sum, message) => sum + estimateMessageTokens(message), 0);
 
   const fixed: ContextUsageBreakdown = { systemPrompt, tools, agentsAndSkills, conversation: 0, toolResults: 0 };
   const fixedTokens = systemPrompt + tools + agentsAndSkills;

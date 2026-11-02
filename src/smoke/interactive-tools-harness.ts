@@ -1,3 +1,4 @@
+import type { AgentSessionLike, ToolLoadoutReader } from "../shared/pi-types";
 import { configureSmokeEnvironment } from "./environment";
 import { writeNativeCompletion } from "./native-completion";
 import assert from "node:assert/strict";
@@ -91,7 +92,9 @@ async function run(): Promise<void> {
     excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
   });
   disposeSdk = () => session.dispose();
-  wrapper = new AgentSessionWrapper(session, undefined, () => {});
+  wrapper = new AgentSessionWrapper(session as unknown as AgentSessionLike & ToolLoadoutReader, {
+    intents: { get: () => undefined, set: () => undefined },
+  });
   wrapper.start();
   wrapper.onEvent((event) => {
     if (event.type === "extension_ui_snapshot") {

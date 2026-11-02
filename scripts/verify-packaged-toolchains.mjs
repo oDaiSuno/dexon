@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { darwinCodeDigest } from "../src/main/toolchains/darwin-binary-integrity.ts";
-import { extractFile, listPackage } from "@electron/asar";
+import { verifyPiRuntimeAssets } from "./pi-runtime-assets.mjs";
 import {
   describeManagedProcessHelperIntegrationFailure,
   describePackagedStartupFailure,
@@ -45,7 +45,7 @@ const layout = findPackagedLayout(dist, target);
 
 verifyPackagedResources(layout.resources, target);
 verifyWindowsManagedProcessHelper(layout.resources, target, !staticOnly, requireReleaseHelper);
-verifyPiRuntimeAssets(layout.resources, expectedPlatform, expectedArch);
+verifyPiRuntimeAssets(layout.resources, expectedPlatform, expectedArch, expectedPiVersion, lockfile);
 verifyBundledTools(layout.resources, expectedPlatform, expectedArch, !staticOnly);
 verifyLinuxSandbox(layout.executable, expectedPlatform);
 if (!staticOnly) {
@@ -244,89 +244,8 @@ function verifyWindowsManagedProcessHelper(resources, toolTarget, executeHelper,
   }
 }
 
-function verifyPiRuntimeAssets(resources, platform, arch) {
-  const asarPath = path.join(resources, "app.asar");
-  const entries = new Set(listPackage(asarPath).map((entry) => entry.replace(/^[/\\]+/u, "").replaceAll("\\", "/")));
-  const codingAgentRoot = "node_modules/@earendil-works/pi-coding-agent";
-  const nested = `${codingAgentRoot}/node_modules`;
-  const required = [
-    `${codingAgentRoot}/package.json`,
-    `${codingAgentRoot}/dist/index.js`,
-    `${codingAgentRoot}/dist/index.d.ts`,
-    "node_modules/@earendil-works/pi-ai/package.json",
-    "node_modules/@earendil-works/pi-ai/dist/index.js",
-    "node_modules/@earendil-works/pi-ai/dist/index.d.ts",
-    "node_modules/@earendil-works/pi-telemetry/package.json",
-    "node_modules/@earendil-works/pi-telemetry/dist/index.js",
-    "node_modules/@earendil-works/pi-telemetry/dist/index.d.ts",
-    "node_modules/@earendil-works/pi-agent-core/package.json",
-    "node_modules/@earendil-works/pi-agent-core/dist/index.js",
-    `${nested}/@earendil-works/pi-ai/package.json`,
-    `${nested}/@earendil-works/pi-ai/dist/index.js`,
-    `${nested}/@earendil-works/pi-ai/dist/index.d.ts`,
-    `${nested}/@earendil-works/pi-ai/dist/providers/data/amazon-bedrock.json`,
-    `${nested}/@earendil-works/pi-client/package.json`,
-    `${nested}/@earendil-works/pi-client/dist/index.js`,
-    `${nested}/@earendil-works/pi-client/dist/index.d.ts`,
-    `${nested}/@earendil-works/pi-protocol/package.json`,
-    `${nested}/@earendil-works/pi-protocol/dist/index.js`,
-    `${nested}/@earendil-works/pi-protocol/dist/index.d.ts`,
-    `${nested}/@earendil-works/pi-telemetry/package.json`,
-    `${nested}/@earendil-works/pi-telemetry/dist/index.js`,
-    `${nested}/@earendil-works/pi-telemetry/dist/index.d.ts`,
-    `${nested}/@earendil-works/pi-tui/package.json`,
-    `${nested}/@earendil-works/pi-tui/dist/index.js`,
-    `${nested}/@earendil-works/pi-tui/dist/index.d.ts`,
-    "node_modules/grok-mermaid/package.json",
-    "node_modules/grok-mermaid/dist/index.js",
-  ];
-  if (platform === "darwin") {
-    required.push(`${nested}/@earendil-works/pi-tui/native/darwin/prebuilds/darwin-${arch}/darwin-modifiers.node`);
-  } else if (platform === "win32") {
-    required.push(`${nested}/@earendil-works/pi-tui/native/win32/prebuilds/win32-${arch}/win32-console-mode.node`);
-    required.push(
-      "node_modules/@mariozechner/clipboard-win32-x64-msvc/package.json",
-      "node_modules/@mariozechner/clipboard-win32-x64-msvc/clipboard.win32-x64-msvc.node",
-    );
-  }
-  const missing = required.filter((entry) => !entries.has(entry));
-  if (missing.length > 0) throw new Error(`Packaged Pi runtime/authoring assets are missing: ${missing.join(", ")}`);
-
-  const codingAgentPackage = JSON.parse(extractAsarFile(asarPath, `${codingAgentRoot}/package.json`).toString("utf8"));
-  if (codingAgentPackage.version !== expectedPiVersion) {
-    throw new Error(
-      `Packaged Pi version ${codingAgentPackage.version ?? "unknown"} does not match ${expectedPiVersion}`,
-    );
-  }
-
-  for (const [packageRoot, lockRoot = packageRoot] of [
-    [codingAgentRoot],
-    ["node_modules/@earendil-works/pi-ai"],
-    ["node_modules/@earendil-works/pi-telemetry"],
-    ["node_modules/@earendil-works/pi-agent-core", `${nested}/@earendil-works/pi-agent-core`],
-    [`${nested}/@earendil-works/pi-ai`],
-    [`${nested}/@earendil-works/pi-client`],
-    [`${nested}/@earendil-works/pi-protocol`],
-    [`${nested}/@earendil-works/pi-telemetry`],
-    [`${nested}/@earendil-works/pi-tui`],
-    ["node_modules/grok-mermaid", `${nested}/grok-mermaid`],
-  ]) {
-    const packaged = JSON.parse(extractAsarFile(asarPath, `${packageRoot}/package.json`).toString("utf8"));
-    const locked = lockfile.packages?.[lockRoot]?.version;
-    if (!locked || packaged.version !== locked) {
-      throw new Error(
-        `Packaged ${packaged.name ?? packageRoot} version ${packaged.version ?? "unknown"} does not match lockfile ${locked ?? "missing"}`,
-      );
-    }
-  }
-}
-
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function extractAsarFile(archive, entry) {
-  return extractFile(archive, path.join(...entry.split("/")));
 }
 
 function verifyBundledTools(resources, platform, arch, executeTools) {

@@ -23,7 +23,7 @@ export function registerAgentHandlers(server: RpcServer): void {
       const { cwd, provider, modelId, toolNames, thinkingLevel, ...rest } = body;
       const launched = await launchDesktopSession({
         cwd,
-        ...(toolNames ? { toolNames } : {}),
+        ...(toolNames ? { tools: toolNames } : {}),
         ...(provider && modelId ? { provider, modelId } : {}),
         ...(thinkingLevel ? { thinkingLevel } : {}),
         ...(rest.type === "ensure_session"

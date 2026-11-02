@@ -1,21 +1,19 @@
 import { type AgentSessionRuntimeDiagnostic } from "@earendil-works/pi-coding-agent";
 import { randomUUID } from "crypto";
 import type { ChannelId } from "../../shared/channel-types";
-import type { AgentSessionLike, ExtensionUiContextLike } from "../../shared/pi-types";
+import type { AgentSessionLike, ExtensionUiContextLike, ToolLoadoutReader } from "../../shared/pi-types";
 import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-orchestration";
 import type { AgentMessage, ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { setBrowserSessionSource } from "../browser-tools";
+import { toDisplayEvent } from "../display-message";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
-import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
-import { stripToolchainMarkers } from "../session-entry-compat";
-import { setDesktopSessionToolNames } from "../session-tool-store";
+import { desktopToolIntents } from "../session-tool-store";
 import type { ChosenSessionModel } from "../session-model";
 
 import { notifyRunningChange } from "../rpc-manager";
 import { BlockTimingRecorder } from "./block-timing";
 import { sendSessionCommand } from "./commands";
-import { stripLegacyChannelPrompts, withExtensionTools } from "./compat";
 import { disposeSession } from "./dispose";
 import { SessionExtensionUi } from "./extension-ui";
 import { type ExternalTurnParams, runExternalTurn as runExternalTurnOn } from "./external-turn";
@@ -24,13 +22,13 @@ import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
 import { QueuedTurns } from "./queued-turns";
 import { RetryOutcomeRecorder } from "./retry-outcome";
+import { readToolGlobals, RunPolicy, type ToolchainSection } from "./run-policy";
 import { SessionModelState } from "./session-model-state";
-import { activateBrowserTools, activateSessionTools } from "./tool-activation";
+import type { ToolIntentStore } from "./tool-intent";
 import { SessionTurnStatus } from "./turn-status";
 import type {
   AgentEvent,
   EventListener,
-  ExtensionBindingOptions,
   ExtensionCommandContextActionsLike,
   ExternalSessionCommand,
   OrchestratedTurnOutcome,
@@ -60,30 +58,29 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private extensionBindingPromise: Promise<void> | null = null;
   private extensionBindingError: unknown = null;
   private extensionBindingAttempt = 0;
-  private forceEmptySystemPrompt = false;
-  private toolchainPrompt = "";
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyCallbacks = new Set<() => void>();
   private disposePromise: Promise<void> | null = null;
   private _alive = true;
-  private requestedToolNames: string[] | undefined;
-  private readonly persistToolNames: (sessionId: string, toolNames: string[]) => void;
   public readonly sessionModel = new SessionModelState();
+  public readonly runPolicy: RunPolicy;
 
   constructor(
-    inner: AgentSessionLike,
-    requestedToolNames?: string[],
-    persistToolNames: (sessionId: string, toolNames: string[]) => void = setDesktopSessionToolNames,
+    inner: AgentSessionLike & ToolLoadoutReader,
+    options: {
+      intents?: ToolIntentStore;
+      toolchain?: ToolchainSection | null;
+    } = {},
   ) {
     super();
     this.inner = inner;
-    this.persistToolNames = persistToolNames;
-    this.requestedToolNames = requestedToolNames ? [...requestedToolNames] : requestedToolNames;
-    this.forceEmptySystemPrompt = requestedToolNames?.length === 0;
-    const messages = this.inner.agent.state?.messages;
-    if (Array.isArray(messages)) this.inner.agent.state!.messages = stripLegacyChannelPrompts(messages);
-    this.applyForcedEmptySystemPrompt();
+    this.runPolicy = new RunPolicy({
+      session: inner,
+      toolchain: options.toolchain ?? null,
+      intents: options.intents ?? desktopToolIntents,
+      globals: readToolGlobals,
+    });
   }
 
   get sessionId(): string {
@@ -126,8 +123,10 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   start(): void {
-    this.unsubscribe = this.inner.subscribe((event: AgentEvent) => {
+    this.unsubscribe = this.inner.subscribe((sourceEvent: AgentEvent) => {
       this.resetIdleTimer();
+      const event = toDisplayEvent(sourceEvent);
+      if (!event) return;
       this.turnStatus.observe(event);
       this.retryOutcome.observe(event, this.inner.sessionManager);
       const displayEvent = this.withMessageSources(this.blockTiming.observe(event));
@@ -150,22 +149,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     notifyRunningChange();
   }
 
-  syncBrowserToolActivation(): void {
-    if (this.forceEmptySystemPrompt) {
-      this.inner.setActiveToolsByName([]);
-      return;
-    }
-    activateBrowserTools(this.inner);
-  }
-
-  syncSessionToolActivation(): void {
-    if (this.forceEmptySystemPrompt) {
-      this.inner.setActiveToolsByName([]);
-      return;
-    }
-    activateSessionTools(this.inner, sessionOrchestrationEnabled());
-  }
-
   liveStatus(): SessionLiveStatus | "idle" {
     return this.turnStatus.status({
       alive: this._alive,
@@ -186,19 +169,14 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     });
   }
 
-  setToolchainSummary(revision: number, summary: readonly string[]): void {
-    this.toolchainPrompt = [`<dexon-toolchain revision="${revision}">`, ...summary, "</dexon-toolchain>"].join("\n");
-    this.applyToolchainSummary();
-  }
-
   setRuntimeDiagnostics(diagnostics: readonly AgentSessionRuntimeDiagnostic[]): void {
     this.runtimeDiagnosticStatuses = new Map(
       projectExtensionDiagnostics(diagnostics).map(({ key, text }) => [key, text]),
     );
   }
 
-  beginExtensionBinding(options: ExtensionBindingOptions = {}): void {
-    void this.ensureExtensionsBound(options).catch((err) => {
+  beginExtensionBinding(): void {
+    void this.ensureExtensionsBound().catch((err) => {
       console.error(
         "[dexon] failed to dispatch session_start to extensions:",
         err instanceof Error ? err.message : err,
@@ -206,12 +184,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     });
   }
 
-  private ensureExtensionsBound(options: ExtensionBindingOptions = {}): Promise<void> {
-    if (options.forceEmptySystemPrompt) this.forceEmptySystemPrompt = true;
-    if (this.extensionsBound) {
-      this.applyForcedEmptySystemPrompt();
-      return Promise.resolve();
-    }
+  private ensureExtensionsBound(): Promise<void> {
+    if (this.extensionsBound) return Promise.resolve();
     if (this.extensionBindingPromise) return this.extensionBindingPromise;
 
     this.extensionBindingError = null;
@@ -252,7 +226,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
         this.inner.extensionRunner.setUIContext?.(uiContext, "rpc");
       }
       this.extensionsBound = true;
-      this.applyForcedEmptySystemPrompt();
       console.log(`[dexon] session_start dispatched to extensions for session ${this.inner.sessionId}`);
     })()
       .catch((err) => {
@@ -299,27 +272,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     } finally {
       notifyRunningChange();
     }
-  }
-
-  protected applyForcedEmptySystemPrompt(): void {
-    if (this.forceEmptySystemPrompt && this.inner.agent.state) {
-      this.inner.agent.state.systemPrompt = "";
-    }
-  }
-
-  private applyRequestedTools(toolNames: string[]): void {
-    this.requestedToolNames = [...toolNames];
-    this.forceEmptySystemPrompt = toolNames.length === 0;
-    this.inner.setActiveToolsByName(withExtensionTools(this.inner, toolNames));
-    this.syncBrowserToolActivation();
-    this.syncSessionToolActivation();
-    this.applyForcedEmptySystemPrompt();
-  }
-
-  private applyToolchainSummary(): void {
-    if (this.forceEmptySystemPrompt || !this.toolchainPrompt || !this.inner.agent.state) return;
-    const base = stripToolchainMarkers(String(this.inner.agent.state.systemPrompt ?? ""));
-    this.inner.agent.state.systemPrompt = `${base}\n\n${this.toolchainPrompt}`.trim();
   }
 
   protected emit(event: AgentEvent): void {
@@ -425,9 +377,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     this.extensionWidgets.clear();
     await this.inner.reload();
     await this.ensureExtensionsBound();
-    if (this.requestedToolNames !== undefined) this.applyRequestedTools(this.requestedToolNames);
-    this.applyForcedEmptySystemPrompt();
-    this.applyToolchainSummary();
   }
 
   async runExternalCommand(params: { command: ExternalSessionCommand; customInstructions?: string }): Promise<void> {
@@ -492,11 +441,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       getExtensionStatuses: this.getExtensionStatuses.bind(this),
       getExtensionWidgets: this.getExtensionWidgets.bind(this),
       dispose: this.dispose.bind(this),
-      applyRequestedTools: this.applyRequestedTools.bind(this),
-      persistToolNames: this.persistToolNames,
+      runPolicy: this.runPolicy,
       reloadSessionResources: this.reloadSessionResources.bind(this),
-      syncBrowserToolActivation: this.syncBrowserToolActivation.bind(this),
-      syncSessionToolActivation: this.syncSessionToolActivation.bind(this),
       resolveExtensionUiResponse: this.resolveExtensionUiResponse.bind(this),
       handleExtensionUiInput: this.handleExtensionUiInput.bind(this),
     });

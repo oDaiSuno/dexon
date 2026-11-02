@@ -14,7 +14,6 @@ import type { AgentEvent, ExtensionCommandContextActionsLike } from "./types";
 
 export abstract class SessionExtensionUi {
   public abstract readonly inner: AgentSessionLike;
-  protected abstract applyForcedEmptySystemPrompt(): void;
   protected abstract emit(event: AgentEvent): void;
   protected abstract externalTurnActive: boolean;
 
@@ -321,7 +320,6 @@ export abstract class SessionExtensionUi {
             this.inner.extensionRunner.setUIContext?.(this.createExtensionUiContext(), "rpc");
           },
         });
-        this.applyForcedEmptySystemPrompt();
       },
     };
   }

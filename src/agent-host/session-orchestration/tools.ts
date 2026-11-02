@@ -1,4 +1,3 @@
-import { defineTool, type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import {
   SESSION_ORCHESTRATION_LIMITS,
@@ -6,6 +5,7 @@ import {
   type SessionToolTargetDetails,
 } from "../../shared/session-orchestration";
 import { getBrowserSessionSource } from "../browser-tools";
+import { defineDexonTool, type DexonToolDefinition } from "../agent-session/tool-definition";
 import { CHANNEL_REFUSAL, DISABLED_REFUSAL } from "./errors";
 import { getSessionOrchestrationService, SessionOrchestrationError, type SessionWaitResult } from "./service";
 import { getSessionOrchestrationSettings } from "./settings";
@@ -125,9 +125,10 @@ function waitResultPayload(wait: SessionWaitResult): Record<string, unknown> {
   };
 }
 
-export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
+export function createSessionOrchestrationToolDefinitions(): DexonToolDefinition[] {
   return [
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_new",
       label: "start a collaborating session",
       description:
@@ -147,8 +148,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       }),
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const created = await service.create(enter(ctx), input as never, signal);
+          const created = await service.create(callerId, input as never, signal);
           return text(
             {
               sessionId: created.sessionId,
@@ -168,7 +170,8 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_prompt",
       label: "send a task to another session",
       description:
@@ -184,8 +187,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       }),
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const result = await service.prompt(enter(ctx), input as never, signal);
+          const result = await service.prompt(callerId, input as never, signal);
           return text(
             {
               sessionId: result.sessionId,
@@ -202,7 +206,8 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_wait",
       label: "wait for another session",
       description:
@@ -212,8 +217,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       parameters: Type.Object({ sessionId, timeoutSeconds }),
       async execute(_toolCallId, input, signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const result = await service.wait(enter(ctx), input.sessionId, input.timeoutSeconds, signal);
+          const result = await service.wait(callerId, input.sessionId, input.timeoutSeconds, signal);
           return text(
             { sessionId: input.sessionId, ...waitResultPayload(result) },
             { targetSessionId: input.sessionId },
@@ -223,7 +229,8 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_list",
       label: "list sessions",
       description: "List the sessions of this project with their live status and the session that created each one.",
@@ -239,14 +246,16 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          return text(await service.list(enter(ctx), input as never));
+          return text(await service.list(callerId, input as never));
         } catch (error) {
           return toolError(error);
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_read",
       label: "read another session",
       description:
@@ -255,15 +264,17 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       parameters: Type.Object({ sessionId }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const view = await service.read(enter(ctx), input.sessionId);
+          const view = await service.read(callerId, input.sessionId);
           return text(view, { targetSessionId: input.sessionId, ...(view.title ? { targetTitle: view.title } : {}) });
         } catch (error) {
           return toolError(error);
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_stop",
       label: "stop another session's turn",
       description:
@@ -272,15 +283,17 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       parameters: Type.Object({ sessionId }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const result = await service.stop(enter(ctx), input.sessionId);
+          const result = await service.stop(callerId, input.sessionId);
           return text(result, { targetSessionId: input.sessionId });
         } catch (error) {
           return toolError(error);
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_models",
       label: "list the models I may hand out",
       description:
@@ -297,14 +310,16 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          return text(await service.models(enter(ctx), input as never));
+          return text(await service.models(callerId, input as never));
         } catch (error) {
           return toolError(error);
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_set_model",
       label: "switch a session's model",
       description:
@@ -317,8 +332,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const result = await service.setModel(enter(ctx), input as never);
+          const result = await service.setModel(callerId, input as never);
           const modelSwitch =
             result.previous.model && result.current.model
               ? {
@@ -336,7 +352,8 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
         }
       },
     }),
-    defineTool({
+    defineDexonTool({
+      dexonOwner: "orchestration",
       name: "session_close",
       label: "close another session",
       description:
@@ -345,8 +362,9 @@ export function createSessionOrchestrationToolDefinitions(): ToolDefinition[] {
       parameters: Type.Object({ sessionId }),
       async execute(_toolCallId, input, _signal, _onUpdate, ctx) {
         try {
+          const callerId = enter(ctx);
           const service = getSessionOrchestrationService();
-          const result = await service.close(enter(ctx), input.sessionId);
+          const result = await service.close(callerId, input.sessionId);
           return text(result, { targetSessionId: input.sessionId });
         } catch (error) {
           return toolError(error);

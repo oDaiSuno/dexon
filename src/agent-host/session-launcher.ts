@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import type { ToolIntent } from "./agent-session/tool-intent";
 import type { RpcServer } from "../contract/rpc";
 import { RpcError } from "../contract/types";
 import type { SessionSourceRef } from "../shared/session-orchestration";
@@ -10,7 +11,7 @@ import { announceSessionOnFirstMessage } from "./session-source";
 
 export interface DesktopSessionLaunch {
   cwd: string;
-  toolNames?: string[];
+  tools?: ToolIntent | readonly string[];
   provider?: string;
   modelId?: string;
   thinkingLevel?: string;
@@ -50,7 +51,7 @@ export async function launchDesktopSession(launch: DesktopSessionLaunch): Promis
     createAgentNewLockKey(),
     "",
     cwd,
-    launch.toolNames,
+    launch.tools,
     initialModel,
   );
   allowFileRoot(cwd);

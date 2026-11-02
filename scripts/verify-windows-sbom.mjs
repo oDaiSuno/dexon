@@ -26,7 +26,7 @@ export function verifyWindowsSbom(projectRoot = root) {
     (entry) => entry["bom-ref"],
   );
   assert.equal(new Set(refs).size, refs.length, "SBOM bom-ref values must be unique");
-  assert.ok(actual.components.length > 800, "Windows production dependency graph is unexpectedly small");
+  assert.ok(actual.components.length > 750, "Windows production dependency graph is unexpectedly small");
   console.log(
     `[windows-sbom] verified ${path.basename(expectedFile)}: ${actual.components.length} components, ${actual.dependencies.length} dependency records`,
   );

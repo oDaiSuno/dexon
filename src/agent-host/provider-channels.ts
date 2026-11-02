@@ -8,6 +8,8 @@ type ProviderChannelsFile = {
   channels: Record<string, ProviderChannelState>;
 };
 
+const LEGACY_PROVIDER_IDS: ReadonlyMap<string, string> = new Map([["azure-openai-responses", "azure"]]);
+
 function channelsFilePath(): string {
   return path.join(desktopUserDataPath(), "provider-channels.json");
 }
@@ -40,15 +42,18 @@ function normalizeState(value: unknown): Record<string, ProviderChannelState> {
   if (!value || typeof value !== "object") return {};
   const candidate = value as Partial<ProviderChannelsFile>;
   if (candidate.version !== 1 || !candidate.channels || typeof candidate.channels !== "object") return {};
-  const channels: Record<string, ProviderChannelState> = {};
+  const current: Record<string, ProviderChannelState> = {};
+  const migrated: Record<string, ProviderChannelState> = {};
   for (const [rawProvider, rawEntry] of Object.entries(candidate.channels)) {
     const provider = rawProvider.trim();
     if (!provider || !rawEntry || typeof rawEntry !== "object" || Array.isArray(rawEntry)) continue;
     const entry = rawEntry as Partial<ProviderChannelState>;
     if (typeof entry.enabled !== "boolean") continue;
-    channels[provider] = { enabled: entry.enabled, lastTest: normalizeTest(entry.lastTest) };
+    const canonical = LEGACY_PROVIDER_IDS.get(provider) ?? provider;
+    const target = canonical === provider ? current : migrated;
+    target[canonical] = { enabled: entry.enabled, lastTest: normalizeTest(entry.lastTest) };
   }
-  return channels;
+  return { ...migrated, ...current };
 }
 
 export function readProviderChannels(): Record<string, ProviderChannelState> {

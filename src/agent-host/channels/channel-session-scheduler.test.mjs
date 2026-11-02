@@ -82,7 +82,10 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
   };
   const wrapper = new AgentSessionWrapper(inner);
   assert.equal(wrapper.cwd, workspaceCwd);
-  assert.equal(inner.agent.state.messages[0].content[0].text, "legacy text");
+  assert.equal(
+    inner.agent.state.messages[0].content[0].text,
+    "[外部消息来源：微信]\n发送者标识：123\n---\nlegacy text",
+  );
   wrapper.extensionsBound = true;
   wrapper.start();
   t.after(() => wrapper.destroy());
@@ -139,9 +142,10 @@ test("UI prompts and messaging-channel turns share one serial session scheduler"
   );
 });
 
-test("session tool changes use Desktop persistence and can enable tools after an empty initialization", async (t) => {
-  const persistedStates = [];
+test("session tool changes persist the user intent without writing the live prompt or tool loadout", async (t) => {
+  const persisted = new Map();
   let activeToolNames = [];
+  let enforcedLoadouts = 0;
   const inner = {
     sessionId: "session-tools",
     sessionFile: "/tmp/session-tools.jsonl",
@@ -150,30 +154,33 @@ test("session tool changes use Desktop persistence and can enable tools after an
     },
     agent: { state: { messages: [], systemPrompt: "initial" } },
     getAllTools: () => [
-      { name: "read", description: "Read" },
-      { name: "bash", description: "Bash" },
+      { name: "read", description: "Read", exposure: "direct", sourceInfo: { source: "builtin" } },
+      { name: "bash", description: "Bash", exposure: "direct", sourceInfo: { source: "builtin" } },
     ],
+    getToolDefinition: () => undefined,
     getActiveToolNames: () => [...activeToolNames],
     setActiveToolsByName(toolNames) {
+      enforcedLoadouts += 1;
       activeToolNames = [...toolNames];
-      this.agent.state.systemPrompt = toolNames.length > 0 ? "tools enabled" : "no tools";
     },
   };
-  const wrapper = new AgentSessionWrapper(inner, [], (sessionId, toolNames) => {
-    persistedStates.push({ sessionId, toolNames: [...toolNames] });
+  const wrapper = new AgentSessionWrapper(inner, {
+    intents: {
+      get: (sessionId) => persisted.get(sessionId),
+      set: (sessionId, intent) => persisted.set(sessionId, intent),
+    },
   });
   t.after(() => wrapper.destroy());
 
-  assert.equal(inner.agent.state.systemPrompt, "");
   await wrapper.send({ type: "set_tools", toolNames: ["read", "bash"] });
-  assert.deepEqual(activeToolNames, ["read", "bash"]);
-  assert.equal(inner.agent.state.systemPrompt, "tools enabled");
-  assert.deepEqual(persistedStates.at(-1), { sessionId: "session-tools", toolNames: ["read", "bash"] });
+  assert.deepEqual(persisted.get("session-tools"), { kind: "agent", coding: ["read", "bash"] });
+  assert.equal(inner.agent.state.systemPrompt, "initial");
+  assert.equal(enforcedLoadouts, 0);
 
   await wrapper.send({ type: "set_tools", toolNames: [] });
-  assert.deepEqual(activeToolNames, []);
-  assert.equal(inner.agent.state.systemPrompt, "");
-  assert.deepEqual(persistedStates.at(-1), { sessionId: "session-tools", toolNames: [] });
+  assert.deepEqual(persisted.get("session-tools"), { kind: "bare" });
+  assert.equal(inner.agent.state.systemPrompt, "initial");
+  assert.equal(enforcedLoadouts, 0);
 });
 
 test("legacy JSONL session tools use the latest valid state for sidecar migration", () => {
