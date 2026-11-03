@@ -2,6 +2,7 @@
 
 /* react-markdown output styles */
 .markdown-body {
+  --markdown-list-indent: 2em;
   font-size: calc(14px * var(--type-scale, 1));
   line-height: 1.7;
   color: var(--fx-text-primary);
@@ -37,7 +38,7 @@
 }
 .markdown-body ul,
 .markdown-body ol {
-  padding-left: 22px;
+  padding-left: var(--markdown-list-indent);
   margin: 5px 0 8px;
   list-style-position: outside;
 }
@@ -48,7 +49,12 @@
 .markdown-body ul > li {
   list-style-type: disc;
 }
+.markdown-body ol {
+  --markdown-ol-start: attr(start type(<integer>), 1);
+}
 .markdown-body ol > li {
+  --markdown-ol-digits: calc(round(down, log(max(var(--markdown-ol-start) + sibling-count() - 1, 1), 10)) + 1);
+  margin-inline-start: calc(max(0, var(--markdown-ol-digits) - 2) * 0.647em);
   list-style-type: decimal;
 }
 .markdown-body li > p {
@@ -108,26 +114,26 @@
   font-family: var(--font-mono);
   font-size: 0.92em;
 }
-.markdown-body .contains-task-list {
+.markdown-body ul.contains-task-list {
   padding-left: 0;
   list-style: none;
 }
-.markdown-body .contains-task-list > li:not(.task-list-item) {
-  margin-inline-start: 22px;
+.markdown-body ul.contains-task-list > li:not(.task-list-item) {
+  margin-inline-start: var(--markdown-list-indent);
 }
 .markdown-body .task-list-item {
   --markdown-task-marker-size: 14px;
   --markdown-task-content-inset: 25px;
-  display: flow-root;
+  display: flow-root list-item;
   position: relative;
   min-inline-size: 0;
   min-block-size: max(1lh, var(--markdown-task-marker-size));
   padding-left: 0;
   padding-inline-start: var(--markdown-task-content-inset);
-  list-style: none;
 }
-.markdown-body .task-list-item::marker {
-  content: "";
+.markdown-body ul > .task-list-item {
+  --markdown-task-content-inset: calc(var(--markdown-list-indent) + 2px);
+  list-style: none;
 }
 .markdown-body .task-list-item input[type="checkbox"] {
   appearance: none;
