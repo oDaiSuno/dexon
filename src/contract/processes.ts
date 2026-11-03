@@ -33,6 +33,18 @@ export interface ManagedLoopbackEndpoint {
   runId: string;
 }
 
+export interface ManagedEndpointView {
+  id: string;
+  state: "mapping" | "available" | "unavailable";
+  sourceUrl: string;
+  remoteHostLabel?: string;
+  remotePort: number;
+  openUrl?: string;
+  localPort?: number;
+  portShifted?: boolean;
+  reason?: string;
+}
+
 export interface ManagedProcessOutputSummary {
   earliestCursor: string;
   latestCursor: string;
@@ -58,6 +70,10 @@ export interface ManagedProcessPublicInfo {
   stoppedAt?: number;
   stdinOpen: boolean;
   endpoints: ManagedLoopbackEndpoint[];
+  endpointViews?: ManagedEndpointView[];
+  workspaceKey?: string;
+  remotePid?: number;
+  watchdogLeaseMs?: number;
   networkWarnings: string[];
   restartCount: number;
   lastOutput?: { stream: ManagedProcessLogStream; text: string; timestamp: number };
@@ -92,6 +108,10 @@ export interface ManagedProcessLogWindow {
   state: ManagedProcessState;
   readiness: ManagedProcessReadiness;
   endpoints: ManagedLoopbackEndpoint[];
+  endpointViews?: ManagedEndpointView[];
+  workspaceKey?: string;
+  remotePid?: number;
+  watchdogLeaseMs?: number;
   exit?: ManagedProcessExit;
 }
 
@@ -119,6 +139,10 @@ export interface ManagedProcessStartResult {
     matched?: string;
   };
   endpoints: ManagedLoopbackEndpoint[];
+  endpointViews?: ManagedEndpointView[];
+  workspaceKey?: string;
+  remotePid?: number;
+  watchdogLeaseMs?: number;
 }
 
 export interface ManagedProcessReadParams {

@@ -1,6 +1,7 @@
 // Pure path-comparison helpers shared by the Agent Host and the renderer.
 // Keep this module free of Node.js dependencies — the renderer bundles it.
 import { normalizeSlashes } from "./allowed-roots.ts";
+import { keyOf, parseWorkspaceInput } from "./workspace-ref.ts";
 
 // The sandboxed renderer main world has no `process` global (accessing it
 // throws), so the platform must come from piBridge, which the preload
@@ -16,6 +17,8 @@ export function normalizeWorktreePathForComparison(
   filePath: string,
   platform: NodeJS.Platform | "" = detectComparisonPlatform(),
 ): string {
+  const workspace = parseWorkspaceInput(filePath);
+  if (workspace.ok && workspace.value.kind === "ssh") return keyOf(workspace.value);
   let normalized = normalizeSlashes(filePath.trim());
   if (normalized.length > 1 && !/^[A-Za-z]:\/$/.test(normalized)) normalized = normalized.replace(/\/+$/, "");
   return platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized;

@@ -18,6 +18,11 @@ const requests = {
   "files.read": ["readFile", (p) => [p.path, p.sourceSessionId]],
 };
 
+const quietRemoteReplies = {
+  "remote.hosts": { hosts: [] },
+  "remote.workspacesSnapshot": { states: {} },
+};
+
 export function installApiHostBridge(target, getHost, resetRpc) {
   resetRpc?.();
   const bridge = installHostBridge(target, {
@@ -29,6 +34,7 @@ export function installApiHostBridge(target, getHost, resetRpc) {
       }
       const mapping = requests[method];
       if (mapping && typeof host[mapping[0]] === "function") return host[mapping[0]](...mapping[1](params));
+      if (Object.hasOwn(quietRemoteReplies, method)) return structuredClone(quietRemoteReplies[method]);
       if (host.call) return host.call(method, params);
       throw new Error(`Host fixture has no reply for ${method}`);
     },

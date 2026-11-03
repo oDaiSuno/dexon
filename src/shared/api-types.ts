@@ -18,6 +18,10 @@ export interface SkillRecord {
   baseDir: string;
   disableModelInvocation: boolean;
   plugin?: SkillPluginOrigin;
+  origin?: "local-global" | "remote-project" | "local-project";
+  lockedByReadOnly?: boolean;
+  hasLocalScripts?: boolean;
+  remoteHostLabel?: string;
   sourceInfo: {
     source?: string;
     scope?: string;
