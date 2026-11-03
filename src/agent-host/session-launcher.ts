@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { parseWorkspaceInput } from "../shared/workspace-ref.ts";
 import type { ToolIntent } from "./agent-session/tool-intent";
 import type { RpcServer } from "../contract/rpc";
 import { RpcError } from "../contract/types";
@@ -42,7 +43,10 @@ export function sessionLauncherServer(): RpcServer {
 export async function launchDesktopSession(launch: DesktopSessionLaunch): Promise<LaunchedDesktopSession> {
   const { cwd } = launch;
   if (!cwd || typeof cwd !== "string") throw new RpcError({ code: "BAD_REQUEST", message: "cwd is required" });
-  if (!existsSync(cwd)) throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
+  const workspaceRef = parseWorkspaceInput(cwd);
+  const isRemote = workspaceRef.ok && workspaceRef.value.kind === "ssh";
+  if (!isRemote && !existsSync(cwd))
+    throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
 
   const server = sessionLauncherServer();
   const initialModel =
