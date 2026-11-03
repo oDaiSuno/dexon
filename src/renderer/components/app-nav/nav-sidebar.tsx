@@ -22,6 +22,7 @@ import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
 import type { WorkspaceFacts } from "@/lib/remote-workspace";
 import type { RemoteProjectMenuProps } from "./remote-project-menu";
+import type { SshConnectServices } from "./ssh-connect-state";
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
@@ -67,6 +68,7 @@ export function NavSidebar({
   onChooseFolder,
   onOpenFolder,
   inspectFolder,
+  remoteConnect,
   onBackToPersonalSpace,
   spacePanel,
   foldedSessionIds,
@@ -114,6 +116,7 @@ export function NavSidebar({
   onChooseFolder: () => void;
   onOpenFolder?: (folder: string) => void;
   inspectFolder?: (typed: string) => Promise<string | null>;
+  remoteConnect?: SshConnectServices;
   onBackToPersonalSpace: () => void;
   spacePanel?: ReactNode;
   foldedSessionIds?: ReadonlySet<string>;
@@ -368,6 +371,7 @@ export function NavSidebar({
                 homeDir={homeDir}
                 projects={switchTargets}
                 inspectFolder={inspectFolder}
+                remoteConnect={remoteConnect}
                 onOpenFolder={onOpenFolder}
                 onChooseFolder={onChooseFolder}
                 onBackToPersonalSpace={onBackToPersonalSpace}

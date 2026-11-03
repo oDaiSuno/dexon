@@ -5,11 +5,13 @@ export function spaceActions({
   labels,
   mac,
   onChooseFolder,
+  onConnect,
   onBackToPersonalSpace,
 }: {
-  labels: { add: string; back: string };
+  labels: { add: string; back: string; connect?: string };
   mac: boolean;
   onChooseFolder: () => void;
+  onConnect?: () => void;
   onBackToPersonalSpace: () => void;
 }): SwitcherRow[] {
   return [
@@ -26,6 +28,21 @@ export function spaceActions({
       shortcut: mac ? { label: "⌘O", aria: "Meta+O" } : { label: "Ctrl O", aria: "Control+O" },
       run: onChooseFolder,
     },
+    ...(onConnect && labels.connect
+      ? [
+          {
+            key: "connect-ssh",
+            label: labels.connect,
+            icon: (
+              <MenuIcon>
+                <path d="m5 7 5 5-5 5M13 17h6" />
+              </MenuIcon>
+            ),
+            keepOpen: true,
+            run: onConnect,
+          },
+        ]
+      : []),
     {
       key: "default-space",
       label: labels.back,

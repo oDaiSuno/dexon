@@ -175,14 +175,18 @@ test("the card closes again from the +, from Escape and from a press outside it"
   await waitFor(() => assert.equal(cards().length, 0));
 });
 
-test("the card holds the search box, the current project and the two space actions in that order, without Close project", async (t) => {
+test("the card holds the search box, the current project and the three space actions in that order, without Close project", async (t) => {
   const scene = await ready(t);
   const card = await openCard(scene);
   const search = control(card, "searchbox", SEARCH_CARD);
   const group = visibleText(card, "Current project");
   const name = visibleText(card, PROJECT);
   const folder = visibleText(card, "/work");
-  assert.deepEqual(cardActions(card), [ADD_FROM_FOLDER, BACK_TO_DEFAULT], "the two space actions, in order");
+  assert.deepEqual(
+    cardActions(card),
+    [ADD_FROM_FOLDER, "Connect remote server (SSH)…", BACK_TO_DEFAULT],
+    "the local folder action, the remote server action and the way back, in order",
+  );
   assert.ok(precedes(search, group), "the search box comes first");
   assert.ok(precedes(group, name), "the current project is named under its own heading");
   assert.ok(precedes(name, folder), "the folder the project lives in follows its name");
@@ -391,7 +395,7 @@ test("in Chinese the header reads 切换或新增项目, then 收起全部项目
     return open[0];
   });
   const card = cards()[0];
-  assert.deepEqual(cardActions(card), ["从文件夹新增项目空间…", "返回默认空间"]);
+  assert.deepEqual(cardActions(card), ["从文件夹新增项目空间…", "连接远程服务器 (SSH)…", "返回默认空间"]);
   await keyDown(card, "Escape");
   await waitFor(() => assert.equal(cards().length, 0));
   await click(control(scene.history(), "button", "收起全部项目"));

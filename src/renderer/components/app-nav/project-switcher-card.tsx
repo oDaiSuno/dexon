@@ -17,6 +17,7 @@ import {
   iconBox,
 } from "./project-switcher-parts";
 import { spaceActions } from "./project-switcher-actions";
+import { parseSshConnectInput, formatSshAuthority, keyOf } from "@shared/workspace-ref";
 
 export interface SwitcherProject {
   root: string;
@@ -39,6 +40,7 @@ export function ProjectSwitcherCard({
   inspectFolder,
   onOpenFolder,
   onChooseFolder,
+  onConnect,
   onBackToPersonalSpace,
   onChoose,
 }: {
@@ -49,6 +51,7 @@ export function ProjectSwitcherCard({
   inspectFolder?: (typed: string) => Promise<string | null>;
   onOpenFolder?: (folder: string) => void;
   onChooseFolder: () => void;
+  onConnect?: () => void;
   onBackToPersonalSpace: () => void;
   onChoose: (run: () => void) => void;
 }) {
@@ -63,7 +66,9 @@ export function ProjectSwitcherCard({
 
   const typed = query.trim();
   const needle = typed.toLocaleLowerCase();
-  const folder = useFolderSuggestion(query, inspectFolder);
+  const remote = parseSshConnectInput(typed);
+  const sshLike = remote.ok || /^ssh(?:\s|:\/\/)/.test(typed) || /^[^/\s]+@/.test(typed);
+  const folder = useFolderSuggestion(sshLike ? "" : query, inspectFolder);
   const matches = typed
     ? projects.filter((project) =>
         [project.name, project.root, abbreviateHomePath(project.root, homeDir)].some((value) =>
@@ -73,6 +78,22 @@ export function ProjectSwitcherCard({
     : [];
 
   const lead: SwitcherRow[] = [];
+  if (remote.ok && remote.value.kind === "workspace" && onOpenFolder) {
+    const ref = remote.value.ref;
+    lead.push({
+      key: "open-remote-folder",
+      label: t("sshConnectOpenRemote", "Open remote folder {authority}:{path}")
+        .replace("{authority}", formatSshAuthority(ref.target))
+        .replace("{path}", ref.root),
+      icon: (
+        <MenuIcon>
+          <path d="m5 7 5 5-5 5M13 17h6" />
+        </MenuIcon>
+      ),
+      shortcut: { label: "↵", aria: "Enter" },
+      run: () => onOpenFolder(keyOf(ref)),
+    });
+  }
   if (folder && onOpenFolder) {
     lead.push({
       key: "open-folder",
@@ -97,10 +118,12 @@ export function ProjectSwitcherCard({
   const actions = spaceActions({
     labels: {
       add: t("addProjectSpace", "Add project space from folder…"),
+      connect: t("sshConnectEntry", "Connect remote server (SSH)…"),
       back: t("backToPersonalSpace", "Back to default space"),
     },
     mac,
     onChooseFolder,
+    onConnect,
     onBackToPersonalSpace,
   });
 
@@ -120,7 +143,8 @@ export function ProjectSwitcherCard({
       if (rows[active].disabled) {
         return true;
       }
-      onChoose(rows[active].run);
+      if (rows[active].keepOpen) rows[active].run();
+      else onChoose(rows[active].run);
       return true;
     }
     return false;
@@ -150,7 +174,8 @@ export function ProjectSwitcherCard({
       onMouseEnter={() => setCursor(index)}
       onClick={() => {
         if (entry.disabled) return;
-        onChoose(entry.run);
+        if (entry.keepOpen) entry.run();
+        else onChoose(entry.run);
       }}
       style={{
         ...ROW_STYLE,
@@ -197,6 +222,7 @@ export function ProjectSwitcherCard({
         inputRef={inputRef}
         value={query}
         label={t("projectSwitcherSearch", "Search or open a project…")}
+        placeholder={onConnect ? t("sshConnectSearch", "Search projects, or paste an SSH address…") : undefined}
         shortcut={mac ? "⌘P" : "Ctrl P"}
         activeId={active >= 0 ? `${baseId}-${active}` : undefined}
         onChange={(value) => {

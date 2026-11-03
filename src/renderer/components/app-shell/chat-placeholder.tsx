@@ -1,9 +1,17 @@
 import { useI18n } from "@/i18n";
+import { requestProjectSwitcher } from "@/lib/project-switcher-request";
+import type { ProjectFolderActions } from "./use-project-folder-actions";
 
 // Split from AppShell.tsx in Phase 2: the chat area placeholder states shown
 // when no session is open. Pure presentation.
 
-export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
+export function ChatPlaceholder({
+  activeCwd,
+  folderActions,
+}: {
+  activeCwd: string | null;
+  folderActions: Pick<ProjectFolderActions, "chooseFolder" | "error">;
+}) {
   const { t } = useI18n();
 
   if (activeCwd) {
@@ -68,6 +76,46 @@ export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
           <span style={{ color: "var(--fx-text-tertiary)", marginRight: 8 }}>2.</span>
           {t("addModelsFromSettings", "Open Settings at the bottom, then add models")}
         </div>
+        <p className="type-body-relaxed" style={{ maxWidth: 420, marginTop: 12, color: "var(--fx-text-secondary)" }}>
+          {t(
+            "sshConnectWelcome",
+            "You can open a folder on this computer, or connect straight to a project folder on a remote Linux server (model keys and chat history always stay on this computer).",
+          )}
+        </p>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 12, pointerEvents: "auto" }}>
+          <button
+            type="button"
+            className="type-body-medium"
+            onClick={folderActions.chooseFolder}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-control)",
+              background: "var(--fx-surface-card)",
+              color: "var(--fx-text-primary)",
+              border: "1px solid var(--fx-line-default)",
+            }}
+          >
+            {t("sshConnectLocalFolder", "Choose a local folder…")}
+          </button>
+          <button
+            type="button"
+            className="type-body-medium"
+            onClick={() => requestProjectSwitcher({ mode: "ssh" })}
+            style={{
+              padding: "8px 12px",
+              borderRadius: "var(--radius-control)",
+              background: "var(--fx-accent-blue)",
+              color: "var(--fx-text-on-accent)",
+            }}
+          >
+            {t("sshConnectEntry", "Connect remote server (SSH)…")}
+          </button>
+        </div>
+        {folderActions.error && (
+          <p role="alert" className="type-meta-default" style={{ marginTop: 8, color: "var(--fx-status-danger-text)" }}>
+            {folderActions.error}
+          </p>
+        )}
       </div>
     </div>
   );

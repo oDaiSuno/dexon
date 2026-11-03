@@ -4,13 +4,13 @@ import { useI18n } from "@/i18n";
 import { call } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
-import { requestProjectSwitcher } from "@/lib/project-switcher-request";
+import { requestProjectSwitcher, subscribeProjectSwitcherReveal } from "@/lib/project-switcher-request";
 import { sessionAncestorIds } from "@/lib/session-tree";
 import type { RevealRequest } from "../app-nav/nav-history";
 import { sessionProjectKey, sessionProjectKeyOf } from "@/lib/session-list";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
-import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-sidebar/project-workspace";
+import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
 import { useSessionDirectory } from "../session-sidebar/session-directory";
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
@@ -21,6 +21,7 @@ import { describeWorkspaceKey } from "@shared/workspace-ref";
 import { workspaceFacts } from "@/lib/remote-workspace";
 import type { RemoteWorkspaces } from "@/hooks/use-remote-workspaces";
 import type { RemoteProjectMenuProps } from "../app-nav/remote-project-menu";
+import type { ProjectFolderActions } from "./use-project-folder-actions";
 
 export function NavigationSidebar({
   isMobile,
@@ -37,6 +38,7 @@ export function NavigationSidebar({
   workspace,
   onReturnToPersonalSpace,
   openProjects,
+  folderActions,
   remoteWorkspaces,
   shownSessionId,
   onSelectSession,
@@ -59,6 +61,7 @@ export function NavigationSidebar({
   workspace: ProjectWorkspaceState;
   onReturnToPersonalSpace: () => void;
   openProjects: OpenProjects;
+  folderActions: ProjectFolderActions;
   remoteWorkspaces: RemoteWorkspaces;
   shownSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean, keepSpace?: boolean) => void;
@@ -73,7 +76,6 @@ export function NavigationSidebar({
   const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
-  const [spaceError, setSpaceError] = useState<string | null>(null);
   const [enteredProject, setEnteredProject] = useState("");
   const closeProjectRef = useRef(openProjects.close);
 
@@ -87,14 +89,7 @@ export function NavigationSidebar({
 
   const directory = useSessionDirectory({ selectedSessionId: shownSessionId, refreshKey, onSessionDeleted });
   const { sessions, refreshSessions } = directory;
-  const {
-    selectedCwd,
-    setSelectedCwd,
-    selectedProject,
-    resetWorktreeDropdownForOutsideClick,
-    selectDirectoryFromPicker,
-    openDirectory,
-  } = workspace;
+  const { selectedCwd, setSelectedCwd, selectedProject, resetWorktreeDropdownForOutsideClick } = workspace;
 
   useInitialSessionRestore({
     sessions,
@@ -162,33 +157,24 @@ export function NavigationSidebar({
     onNewSession(createTemporarySessionId(), selectedCwd);
   }, [selectedCwd, onNewSession]);
 
-  const reportSpaceResult = useCallback((result: WorkspaceSelectResult) => {
-    if (result.status === "invalid") setSpaceError(result.error);
-    if (result.status === "selected") setSpaceError(null);
-  }, []);
-
-  const chooseFolder = useCallback(() => {
-    void selectDirectoryFromPicker((folder) => openProjects.add(folder)).then(reportSpaceResult);
-  }, [selectDirectoryFromPicker, openProjects, reportSpaceResult]);
-
-  const openFolder = useCallback(
-    (folder: string) =>
-      void openDirectory(folder).then((result) => {
-        if (result.status === "selected") openProjects.add(folder);
-        reportSpaceResult(result);
-      }),
-    [openDirectory, openProjects, reportSpaceResult],
-  );
+  const { chooseFolder, openFolder, error: spaceError, clearError } = folderActions;
 
   const inspectFolder = useCallback(async (typed: string) => {
     const result = await call("projects.inspectFolder", { path: typed });
     return result.ok && result.path ? result.path : null;
   }, []);
 
+  useEffect(
+    () =>
+      subscribeProjectSwitcherReveal(() => {
+        if (!open) onToggle();
+      }),
+    [open, onToggle],
+  );
+
   useEffect(() => {
     const offToggle = window.piBridge?.onMenu?.("toggle-sidebar", handleToggle);
     const offSwitcher = window.piBridge?.onMenu?.("open-project-switcher", () => {
-      if (!open) onToggle();
       requestProjectSwitcher();
     });
     const offAdd = window.piBridge?.onMenu?.("add-project", chooseFolder);
@@ -200,9 +186,9 @@ export function NavigationSidebar({
   }, [handleToggle, open, onToggle, chooseFolder]);
 
   const backToPersonalSpace = useCallback(() => {
-    setSpaceError(null);
+    clearError();
     onReturnToPersonalSpace();
-  }, [onReturnToPersonalSpace]);
+  }, [clearError, onReturnToPersonalSpace]);
 
   const spacePath = selectedCwd ?? coordination.attemptedCwd ?? "";
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
@@ -320,6 +306,7 @@ export function NavigationSidebar({
           onChooseFolder={chooseFolder}
           onOpenFolder={openFolder}
           inspectFolder={inspectFolder}
+          remoteConnect={remoteWorkspaces}
           onBackToPersonalSpace={backToPersonalSpace}
           foldedSessionIds={foldedSessionIds}
           onToggleFold={toggleFold}

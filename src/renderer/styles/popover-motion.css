@@ -14,7 +14,21 @@
   animation: composer-pop-in var(--duration-pop, 180ms) var(--ease-smooth-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
 }
 
+.project-switcher-morph {
+  transition:
+    width var(--duration-glide) var(--ease-smooth-out),
+    left var(--duration-glide) var(--ease-smooth-out);
+}
+
+.project-switcher-step {
+  animation-duration: var(--duration-glide);
+  animation-timing-function: var(--ease-smooth-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .project-switcher-morph {
+    transition: none;
+  }
   .composer-pop-in {
     animation: none;
   }

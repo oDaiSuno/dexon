@@ -77,6 +77,7 @@ export function remoteHostBoundary(base, script) {
   const listeners = new Map();
   const calls = [];
   const activity = { started: 0, pending: 0 };
+  const positions = new Map();
   const scriptedCall = async (method, params) => {
     calls.push({ method, params: structuredClone(params ?? null) });
     activity.started++;
@@ -86,7 +87,11 @@ export function remoteHostBoundary(base, script) {
         base.unexpected.push(method);
         throw new Error(`Unexpected remote boundary request: ${method}`);
       }
-      const reply = script[method];
+      const supplied = script[method];
+      const index = positions.get(method) ?? 0;
+      positions.set(method, index + 1);
+      const reply = Array.isArray(supplied) ? supplied[Math.min(index, supplied.length - 1)] : supplied;
+      if (reply instanceof Error) throw reply;
       return structuredClone(await (typeof reply === "function" ? reply(params) : reply));
     } finally {
       activity.pending--;

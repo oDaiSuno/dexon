@@ -11,6 +11,7 @@ export interface SwitcherRow {
   title?: string;
   shortcut?: { label: string; aria: string };
   disabled?: boolean;
+  keepOpen?: boolean;
   run: () => void;
 }
 
@@ -90,6 +91,7 @@ export function SwitcherSearchRow({
   inputRef,
   value,
   label,
+  placeholder = label,
   shortcut,
   activeId,
   onChange,
@@ -98,6 +100,7 @@ export function SwitcherSearchRow({
   inputRef: RefObject<HTMLInputElement | null>;
   value: string;
   label: string;
+  placeholder?: string;
   shortcut: string;
   activeId?: string;
   onChange: (value: string) => void;
@@ -125,7 +128,8 @@ export function SwitcherSearchRow({
         spellCheck={false}
         autoComplete="off"
         aria-label={label}
-        placeholder={label}
+        aria-description={placeholder !== label ? placeholder : undefined}
+        placeholder={placeholder}
         aria-activedescendant={activeId}
         value={value}
         onChange={(event) => onChange(event.target.value)}

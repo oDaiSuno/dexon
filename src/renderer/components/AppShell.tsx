@@ -29,6 +29,7 @@ import { RemotePage } from "./app-nav/remote-page";
 import { useShellSpace } from "./app-shell/use-shell-space";
 import { useRemoteWorkspaces } from "@/hooks/use-remote-workspaces";
 import { NoticeShelf } from "./chat-window/status";
+import { useProjectFolderActions } from "./app-shell/use-project-folder-actions";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -204,6 +205,8 @@ export function AppShell({
     onBranchSwitched: handleExplorerRefresh,
   });
 
+  const folderActions = useProjectFolderActions(space.workspace, openProjects);
+
   const dock = useRightPanelDock({
     isMobile,
     sidebarOpen,
@@ -291,6 +294,7 @@ export function AppShell({
           workspace={space.workspace}
           onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
           openProjects={openProjects}
+          folderActions={folderActions}
           remoteWorkspaces={remoteWorkspaces}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
@@ -420,7 +424,7 @@ export function AppShell({
                   />
                 </SessionProfiler>
               ) : showPlaceholder && !onResources ? (
-                <ChatPlaceholder activeCwd={activeCwd} />
+                <ChatPlaceholder activeCwd={activeCwd} folderActions={folderActions} />
               ) : null}
             </div>
           </div>

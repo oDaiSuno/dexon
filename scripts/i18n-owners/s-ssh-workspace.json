@@ -1,5 +1,12 @@
 [
   "src/renderer/components/app-nav/remote-project-menu.tsx",
   "src/renderer/components/app-nav/remote-project-status.tsx",
-  "src/renderer/hooks/use-remote-workspaces.ts"
+  "src/renderer/hooks/use-remote-workspaces.ts",
+  "src/renderer/components/app-nav/ssh-connect-directory.tsx",
+  "src/renderer/components/app-nav/ssh-connect-help.tsx",
+  "src/renderer/components/app-nav/ssh-connect-parts.tsx",
+  "src/renderer/components/app-nav/ssh-connect-step-folders.tsx",
+  "src/renderer/components/app-nav/ssh-connect-step-servers.tsx",
+  "src/renderer/components/app-nav/project-switcher-popover.tsx",
+  "src/renderer/components/app-shell/chat-placeholder.tsx"
 ]

@@ -1,23 +1,34 @@
-type RequestListener = () => void;
+export type ProjectSwitcherRequest = { mode?: "list" | "ssh" };
+type RequestListener = (request: ProjectSwitcherRequest) => void;
 
 const listeners = new Set<RequestListener>();
-let pending = false;
+const revealListeners = new Set<() => void>();
+let pending: ProjectSwitcherRequest | null = null;
 
-export function requestProjectSwitcher(): void {
+export function requestProjectSwitcher(request: ProjectSwitcherRequest = {}): void {
+  for (const reveal of [...revealListeners]) reveal();
   if (listeners.size === 0) {
-    pending = true;
+    pending = request;
     return;
   }
-  for (const listener of [...listeners]) listener();
+  for (const listener of [...listeners]) listener(request);
 }
 
 export function subscribeProjectSwitcherRequest(listener: RequestListener): () => void {
   listeners.add(listener);
   if (pending) {
-    pending = false;
-    listener();
+    const request = pending;
+    pending = null;
+    listener(request);
   }
   return () => {
     listeners.delete(listener);
+  };
+}
+
+export function subscribeProjectSwitcherReveal(listener: () => void): () => void {
+  revealListeners.add(listener);
+  return () => {
+    revealListeners.delete(listener);
   };
 }

@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 
 const MARGIN = 8;
 const GAP = 4;
@@ -12,15 +20,26 @@ export function useAnchoredPopover(width: number) {
   const open = position !== null;
   const dismiss = useCallback(() => setPosition(null), []);
 
-  const show = () => {
+  const anchorPosition = useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect();
-    if (!rect) return;
+    return rect
+      ? {
+          top: rect.bottom + GAP,
+          left: Math.max(MARGIN, Math.min(rect.right - width, window.innerWidth - width - MARGIN)),
+        }
+      : null;
+  }, [width]);
+
+  const show = () => {
+    const position = anchorPosition();
+    if (!position) return;
     for (const dismissOther of [...openPopovers]) if (dismissOther !== dismiss) dismissOther();
-    setPosition({
-      top: rect.bottom + GAP,
-      left: Math.max(MARGIN, Math.min(rect.right - width, window.innerWidth - width - MARGIN)),
-    });
+    setPosition(position);
   };
+
+  useLayoutEffect(() => {
+    if (open) setPosition(anchorPosition());
+  }, [anchorPosition, open]);
 
   const close = () => {
     setPosition(null);
