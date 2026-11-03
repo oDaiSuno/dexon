@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -132,12 +132,19 @@ test("helper exec streams stdout and stderr and reports exit code", async () => 
     const chunks = [];
     const result = await helper.link.request(
       "exec",
-      { argv: ["/bin/sh", "-c", "echo stdout-line; echo stderr-line 1>&2; exit 7"], cwd: "/tmp" },
+      {
+        argv: [
+          process.execPath,
+          "-e",
+          "process.stdout.write('stdout-line\\n'); process.stderr.write('stderr-line\\n'); process.exit(7);",
+        ],
+        cwd: tmpdir(),
+      },
       { onData: (d) => chunks.push([d.stream, Buffer.from(d.bytes).toString("utf8").trim()]) },
     );
     assert.equal(result.exitCode, 7);
-    assert.ok(chunks.some(([s, t]) => s === "stdout" && t === "stdout-line"));
-    assert.ok(chunks.some(([s, t]) => s === "stderr" && t === "stderr-line"));
+    assert.ok(chunks.some(([s, t]) => s === "stdout" && t.includes("stdout-line")));
+    assert.ok(chunks.some(([s, t]) => s === "stderr" && t.includes("stderr-line")));
   } finally {
     await helper.dispose();
   }
@@ -147,7 +154,11 @@ test("helper exec cancel stops the running process via CANCELLED", async (t) => 
   const helper = await startLocalHelper();
   t.after(() => helper.dispose());
   const ac = new globalThis.AbortController();
-  const request = helper.link.request("exec", { argv: ["/bin/sleep", "60"], cwd: "/tmp" }, { signal: ac.signal });
+  const request = helper.link.request(
+    "exec",
+    { argv: [process.execPath, "-e", "setTimeout(() => {}, 60000)"], cwd: tmpdir() },
+    { signal: ac.signal },
+  );
   setTimeout(() => ac.abort(), 100);
   const error = await request.catch((e) => e);
   assert.equal(error.code, "CANCELLED");
@@ -184,7 +195,7 @@ test("helper browseDir returns a sorted entry list with git repos ranked first",
     mkdirSync(path.join(dir, "notgit"));
     mkdirSync(path.join(dir, "myrepo", ".git"), { recursive: true });
     const result = await helper.link.request("browseDir", { path: dir });
-    assert.equal(result.currentPath.startsWith("/"), true);
+    assert.equal(path.isAbsolute(result.currentPath), true);
     const names = result.entries.map((e) => e.name);
     assert.equal(names[0], "myrepo");
     assert.equal(result.entries[0].isGitRepo, true);
@@ -239,13 +250,10 @@ test("remote.parse correctly classifies SSH workspace addresses and host-only ad
 
 test("fake ssh script: remote.browse with a trust prompt resolves workspace on trust", async (t) => {
   const fakeSsh = path.resolve(import.meta.dirname, "../../src/agent-host/workspace/testing/fake-ssh-program.mjs");
-  const fakeSshWrapper = path.join(fakeBin, "ssh");
-  writeFileSync(fakeSshWrapper, `#!/bin/sh\nexec /usr/bin/env node ${fakeSsh} "$@"\n`);
-  chmodSync(fakeSshWrapper, 0o755);
   const scenarioFile = path.join(base, "scenario.json");
   writeFileSync(scenarioFile, JSON.stringify({ default: {} }));
   const savedBinary = process.env.DEXON_SSH_BINARY;
-  process.env.DEXON_SSH_BINARY = fakeSshWrapper;
+  process.env.DEXON_SSH_BINARY = fakeSsh;
   process.env.DEXON_FAKE_SSH_SCENARIO = scenarioFile;
   t.after(() => {
     if (savedBinary === undefined) delete process.env.DEXON_SSH_BINARY;

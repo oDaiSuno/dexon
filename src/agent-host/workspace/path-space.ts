@@ -119,9 +119,10 @@ export class PathSpace {
     }
 
     const expandedLocal = expandTilde(cleaned, this.localHome);
-    const resolvedLocal = path.resolve(expandedLocal);
+    const isLocalCandidate = cleaned.startsWith("~") || path.isAbsolute(expandedLocal);
+    const resolvedLocal = isLocalCandidate ? path.resolve(expandedLocal) : "";
 
-    if (this.isUnderAgentDir(resolvedLocal)) {
+    if (isLocalCandidate && this.isUnderAgentDir(resolvedLocal)) {
       const fileName = path.basename(resolvedLocal);
       if (isCredentialFile(fileName)) {
         return { space: "denied", message: DENIED_CREDENTIAL };
@@ -137,14 +138,17 @@ export class PathSpace {
     }
 
     const userAgentsSkills = path.resolve(this.localUserAgentsSkillsDir);
-    if (resolvedLocal === userAgentsSkills || resolvedLocal.startsWith(userAgentsSkills + path.sep)) {
+    if (
+      isLocalCandidate &&
+      (resolvedLocal === userAgentsSkills || resolvedLocal.startsWith(userAgentsSkills + path.sep))
+    ) {
       if (intent !== "read" && intent !== "ls") {
         return { space: "denied", message: DENIED_READ_ONLY };
       }
       return { space: "local-overlay", localPath: resolvedLocal, kind: "directory" };
     }
 
-    if (this.localPiPackageRoot) {
+    if (isLocalCandidate && this.localPiPackageRoot) {
       const piRoot = path.resolve(this.localPiPackageRoot);
       if (resolvedLocal === piRoot || resolvedLocal.startsWith(piRoot + path.sep)) {
         const readmePath = path.join(piRoot, "README.md");
@@ -169,7 +173,7 @@ export class PathSpace {
       }
     }
 
-    if (this.isBashOutputFile(resolvedLocal)) {
+    if (isLocalCandidate && this.isBashOutputFile(resolvedLocal)) {
       if (intent !== "read" && intent !== "ls") {
         return { space: "denied", message: DENIED_READ_ONLY };
       }

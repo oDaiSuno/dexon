@@ -116,13 +116,16 @@ def _add_scrubbed_settings(tar, settings_file):
 def _build_resource_tar(agents_files, skill_roots, settings_file):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        for path in agents_files:
+        for index, path in enumerate(agents_files):
             if os.path.isfile(path):
-                tar.add(path, arcname="agents/" + hashlib.sha256(path.encode("utf-8")).hexdigest()[:12] + "/" + os.path.basename(path))
+                if index == 0:
+                    tar.add(path, arcname=os.path.basename(path))
+                tar.add(path, arcname="agents/" + str(index) + "-" + os.path.basename(path))
         for root in skill_roots:
             if os.path.isdir(root):
-                tag = hashlib.sha256(root.encode("utf-8")).hexdigest()[:12]
-                tar.add(root, arcname="skills/" + tag)
+                for entry in os.listdir(root):
+                    full_entry = os.path.join(root, entry)
+                    tar.add(full_entry, arcname=".pi/skills/" + entry)
         if settings_file and os.path.isfile(settings_file):
             _add_scrubbed_settings(tar, settings_file)
     return buf.getvalue()

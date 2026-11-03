@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -23,6 +23,11 @@ interface AgentsFileEntry {
 export interface MirrorSnapshot {
   readonly localAgentsFiles: readonly AgentsFileEntry[];
   readonly remoteAgentsFiles: readonly AgentsFileEntry[];
+  readonly remoteAgentsMdPaths: readonly string[];
+  readonly remoteSkillCount: number;
+  readonly localSkillCount: number;
+  readonly ancestorBoundary: "git-root" | "remote-home";
+  readonly boundaryPath: string;
   readonly mirrorRoot: string;
   readonly syncedAt: number;
 }
@@ -46,9 +51,22 @@ function readLocalAgentsFiles(): AgentsFileEntry[] {
   return results;
 }
 
-async function extractRemoteResources(tarBytes: Buffer, mirrorRoot: string): Promise<AgentsFileEntry[]> {
-  if (!tarBytes.length) return [];
+function countSkillDirs(skillsRoot: string): number {
+  if (!existsSync(skillsRoot)) return 0;
+  try {
+    return readdirSync(skillsRoot).filter((entry) => existsSync(path.join(skillsRoot, entry, "SKILL.md"))).length;
+  } catch {
+    return 0;
+  }
+}
+
+async function extractRemoteResources(
+  tarBytes: Buffer,
+  mirrorRoot: string,
+  remotePaths: readonly string[],
+): Promise<AgentsFileEntry[]> {
   mkdirSync(mirrorRoot, { recursive: true, mode: 0o700 });
+  if (!tarBytes.length) return [];
   await new Promise<void>((resolve, reject) => {
     const extraction = tar.x({ C: mirrorRoot, strip: 0 }) as unknown as NodeJS.WritableStream;
     extraction.on("finish", () => resolve());
@@ -56,10 +74,23 @@ async function extractRemoteResources(tarBytes: Buffer, mirrorRoot: string): Pro
     Readable.from(tarBytes).pipe(extraction);
   }).catch(() => undefined);
   const entries: AgentsFileEntry[] = [];
-  for (const name of ["AGENTS.md", "CLAUDE.md"]) {
-    const filePath = path.join(mirrorRoot, name);
-    const content = readTextIfPresent(filePath);
-    if (content !== null) entries.push({ path: filePath, content });
+  const agentsDir = path.join(mirrorRoot, "agents");
+  if (existsSync(agentsDir)) {
+    const files = readdirSync(agentsDir).sort();
+    for (let index = 0; index < files.length; index += 1) {
+      const filePath = path.join(agentsDir, files[index]);
+      const content = readTextIfPresent(filePath);
+      if (content !== null) {
+        entries.push({ path: remotePaths[index] ?? filePath, content });
+      }
+    }
+  }
+  if (!entries.length) {
+    for (const name of ["AGENTS.md", "CLAUDE.md"]) {
+      const filePath = path.join(mirrorRoot, name);
+      const content = readTextIfPresent(filePath);
+      if (content !== null) entries.push({ path: filePath, content });
+    }
   }
   return entries;
 }
@@ -81,13 +112,26 @@ export async function fetchAndMirrorRemoteResources(
   host: ExecutionHost,
 ): Promise<MirrorSnapshot> {
   const localAgentsFiles = readLocalAgentsFiles();
+  const localSkillCount = countSkillDirs(path.join(getAgentDir(), "skills"));
   const mirrorRoot = mirrorDirectoryFor(workspace);
   const probeResult = await host.request("probeAndMirror", { root, createIfMissing: false }).catch(() => null);
+  const remoteAgentsMdPaths = probeResult?.agentsMdPaths ?? [];
   const remoteAgentsFiles =
     probeResult?.exists && probeResult.isDirectory
-      ? await extractRemoteResources(Buffer.from(probeResult.resourceTarGz), mirrorRoot)
+      ? await extractRemoteResources(Buffer.from(probeResult.resourceTarGz), mirrorRoot, remoteAgentsMdPaths)
       : [];
-  return { localAgentsFiles, remoteAgentsFiles, mirrorRoot, syncedAt: Date.now() };
+  const remoteSkillCount = countSkillDirs(path.join(mirrorRoot, ".pi", "skills"));
+  return {
+    localAgentsFiles,
+    remoteAgentsFiles,
+    remoteAgentsMdPaths,
+    remoteSkillCount,
+    localSkillCount,
+    ancestorBoundary: probeResult?.ancestorBoundary ?? "remote-home",
+    boundaryPath: probeResult?.boundaryPath ?? "~",
+    mirrorRoot,
+    syncedAt: Date.now(),
+  };
 }
 
 export function makeAgentsFilesOverride(snapshot: MirrorSnapshot) {
@@ -98,15 +142,15 @@ export function makeAgentsFilesOverride(snapshot: MirrorSnapshot) {
 }
 
 export function makeSkillsOverride(snapshot: MirrorSnapshot, trusted: boolean) {
-  return (base: { skills: unknown[]; diagnostics: unknown[] }) => {
+  return <S extends { baseDir?: string; filePath?: string }, D>(base: {
+    skills: S[];
+    diagnostics: D[];
+  }): { skills: S[]; diagnostics: D[] } => {
     if (!trusted) {
       return {
         skills: base.skills.filter(
-          (skill: unknown) =>
-            !(
-              (skill as { baseDir?: string }).baseDir?.startsWith(snapshot.mirrorRoot) ||
-              (skill as { filePath?: string }).filePath?.startsWith(snapshot.mirrorRoot)
-            ),
+          (skill) =>
+            !(skill.baseDir?.startsWith(snapshot.mirrorRoot) || skill.filePath?.startsWith(snapshot.mirrorRoot)),
         ),
         diagnostics: base.diagnostics,
       };

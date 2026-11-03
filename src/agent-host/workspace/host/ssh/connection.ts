@@ -95,7 +95,10 @@ interface ConnectionListeners {
 }
 
 function spawnSsh(binary: string, argv: string[], env: NodeJS.ProcessEnv): ChildProcess {
-  return spawn(binary, argv, {
+  const isNodeScript = /\.(mjs|cjs|js)$/i.test(binary);
+  const cmd = isNodeScript ? process.execPath : binary;
+  const cmdArgs = isNodeScript ? [binary, ...argv] : argv;
+  return spawn(cmd, cmdArgs, {
     stdio: ["pipe", "pipe", "pipe"],
     env: sanitizeToolEnvironment(env),
     detached: false,
@@ -130,6 +133,10 @@ export class SshConnection implements ExecutionHost {
       ...contextOverrides,
     };
     this.connectionEvent = { state: "connecting", epoch: 0 };
+  }
+
+  isDisposed(): boolean {
+    return this.disposed;
   }
 
   facts(): ProbeFacts | null {

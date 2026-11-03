@@ -6,7 +6,7 @@ import { RpcError } from "../../contract/types";
 import { ToolchainError } from "../../shared/toolchains/errors";
 import { formatSshHostLabel, parseWorkspaceInput, keyOf } from "../../shared/workspace-ref";
 import { mirrorDirectoryFor } from "../workspace/resources/merged-loader";
-import { isRemoteWorkspaceTrusted } from "./remote";
+import { isRemoteWorkspaceTrusted } from "../workspace/trust-store";
 import { updateSkillModelInvocation } from "../skill-frontmatter";
 import { installSkill, searchSkills } from "../skills-service";
 import { applyPluginAction, attachSkillPlugins, markPluginsReloaded, readPlugins } from "../plugins-service";

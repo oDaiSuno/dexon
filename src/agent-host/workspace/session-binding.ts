@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import path from "node:path";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { getAgentDir, SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   formatSshAuthority,
   keyOf,
@@ -15,6 +16,15 @@ const BINDING_TYPE = "dexon.workspace.v1";
 
 function toLocalRoot(rawPath: string): LocalAbsPath {
   return rawPath as LocalAbsPath;
+}
+
+export function sessionManagerCwdFor(ref: WorkspaceRef, platform: NodeJS.Platform = process.platform): string {
+  if (ref.kind !== "ssh") return ref.root;
+  if (platform === "win32") {
+    const hash = createHash("sha1").update(keyOf(ref)).digest("hex").slice(0, 12);
+    return path.join(tmpdir(), "dx-vfs", hash);
+  }
+  return ref.root;
 }
 
 interface WorkspaceBinding {
@@ -62,8 +72,19 @@ function describeRef(ref: WorkspaceRef): WorkspaceBinding {
 export function writeWorkspaceBinding(manager: SessionManager, ref: WorkspaceRef): void {
   const binding = describeRef(ref);
   const existing = readWorkspaceBinding(manager);
-  if (existing && existing.workspace === binding.workspace) return;
-  manager.appendCustomEntry(BINDING_TYPE, { workspace: binding.workspace });
+  if (!existing || existing.workspace !== binding.workspace) {
+    manager.appendCustomEntry(BINDING_TYPE, { workspace: binding.workspace });
+  }
+  const sessionFile = manager.getSessionFile();
+  if (sessionFile && !existsSync(sessionFile)) {
+    const header = manager.getHeader();
+    const entries = manager.getEntries();
+    if (header) {
+      mkdirSync(path.dirname(sessionFile), { recursive: true });
+      const lines = [JSON.stringify(header), ...entries.map((entry) => JSON.stringify(entry))].join("\n") + "\n";
+      writeFileSync(sessionFile, lines, "utf8");
+    }
+  }
 }
 
 export function readWorkspaceBinding(manager: SessionManager): WorkspaceBinding | null {
@@ -97,7 +118,7 @@ export function isRemoteWorkspace(binding: WorkspaceBinding): boolean {
 
 export function sessionDirFor(ref: WorkspaceRef, configuredDir: string | undefined): string | undefined {
   if (ref.kind !== "ssh") return configuredDir;
-  if (!configuredDir) return configuredDir;
+  const baseDir = configuredDir ?? path.join(getAgentDir(), "sessions");
   const authority = formatSshAuthority(ref.target)
     .replace(/[^A-Za-z0-9._-]/g, "-")
     .slice(0, 40);
@@ -107,7 +128,7 @@ export function sessionDirFor(ref: WorkspaceRef, configuredDir: string | undefin
     .slice(0, 40);
   const hash = createHash("sha1").update(keyOf(ref)).digest("hex").slice(0, 8);
   const dirName = `--ssh-${authority}-${rootSlug}-${hash}--`;
-  return path.join(configuredDir, dirName);
+  return path.join(baseDir, dirName);
 }
 
 export { describeRef, type WorkspaceBinding };

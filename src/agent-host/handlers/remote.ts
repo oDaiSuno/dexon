@@ -25,7 +25,9 @@ import {
   type WorkspaceRef,
 } from "../../shared/workspace-ref";
 import { desktopUserDataPath } from "../desktop-state-file";
-import { getOrCreateHost, getHost } from "../workspace/registry";
+import { getOrCreateHost, getHost, releaseWorkspaceHost } from "../workspace/registry";
+import { fetchAndMirrorRemoteResources } from "../workspace/resources/merged-loader";
+import { getRemoteWorkspaceTrust, isRemoteWorkspaceTrusted, setRemoteWorkspaceTrust } from "../workspace/trust-store";
 import { RemoteConnectError } from "../workspace/host/errors";
 import { buildSshArgv } from "../workspace/host/ssh/argv";
 import { acceptHostKey, KnownHostsError } from "../workspace/host/ssh/known-hosts";
@@ -46,11 +48,8 @@ interface PendingTrustPrompt {
 }
 
 const TRUST_MODES: readonly WorkspaceTrustMode[] = ["read-only", "trusted"];
-const globalTrustStore = new Map<WorkspaceKey, WorkspaceTrustMode>();
 
-export function isRemoteWorkspaceTrusted(workspace: WorkspaceKey): boolean {
-  return globalTrustStore.get(workspace) === "trusted";
-}
+export { isRemoteWorkspaceTrusted };
 
 function badRequest(message: string): RpcError {
   return new RpcError({ code: "BAD_REQUEST", message });
@@ -110,7 +109,7 @@ function initialState(ref: RemoteWorkspaceRef): RemoteWorkspaceStateSnapshot {
     authorityLabel: formatSshAuthority(ref.target),
     remotePath: ref.root,
     connection: "offline",
-    workspaceTrust: "read-only",
+    workspaceTrust: getRemoteWorkspaceTrust(keyOf(ref)),
     trustRevision: 0,
     remoteSkillCount: 0,
     localSkillCount: 0,
@@ -226,7 +225,7 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       workspaceTrust: trust,
       trustRevision: current.trustRevision + 1,
     };
-    globalTrustStore.set(key, trust);
+    setRemoteWorkspaceTrust(key, trust);
     states.set(key, next);
     server.emit("workspace.state", key, {
       workspace: key,
@@ -385,8 +384,11 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
             "sudo -n apt-get update && sudo -n apt-get install -y python3 || sudo -n dnf install -y python3 || sudo -n yum install -y python3 || sudo -n apk add --no-cache python3 || brew install python3",
         },
       );
+      const isNodeScript = /\.(mjs|cjs|js)$/i.test(sshBinary);
+      const spawnCmd = isNodeScript ? process.execPath : sshBinary;
+      const spawnArgs = isNodeScript ? [sshBinary, ...argv] : argv;
       await new Promise<void>((resolve, reject) => {
-        const child = spawn(sshBinary, argv, { stdio: ["ignore", "ignore", "pipe"] });
+        const child = spawn(spawnCmd, spawnArgs, { stdio: ["ignore", "ignore", "pipe"] });
         let stderr = "";
         child.stderr?.on("data", (chunk: Buffer) => {
           stderr = (stderr + chunk.toString("utf8")).slice(-2048);
@@ -431,14 +433,32 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "No connection for this workspace" });
       try {
         await host.connect();
-        await host.request("probeAndMirror", { root: ref.root, createIfMissing: false });
+        const mirror = await fetchAndMirrorRemoteResources(key, ref.root, host);
         let current = states.get(key);
         if (!current) {
           current = initialState(ref);
           states.set(key, current);
         }
         syncState(ref);
-        return { state: states.get(key)! };
+        const stateAfterSync = states.get(key)!;
+        const enriched: RemoteWorkspaceStateSnapshot = {
+          ...stateAfterSync,
+          remoteSkillCount: mirror.remoteSkillCount,
+          localSkillCount: mirror.localSkillCount,
+          ruleLens: {
+            localAgentsMd: mirror.localAgentsFiles.length > 0,
+            localSkillCount: mirror.localSkillCount,
+            credentialsBlocked: true,
+            remoteAgentsMdPaths: [...mirror.remoteAgentsMdPaths],
+            remoteSkillCount: mirror.remoteSkillCount,
+            ancestorBoundary: mirror.ancestorBoundary,
+            boundaryPath: mirror.boundaryPath,
+            syncedAt: mirror.syncedAt,
+          },
+        };
+        states.set(key, enriched);
+        server.emit("workspace.state", key, { workspace: key, state: enriched });
+        return { state: enriched };
       } catch (error) {
         throw new RpcError({ code: "UNAVAILABLE", message: error instanceof Error ? error.message : "Sync failed" });
       }
@@ -486,10 +506,7 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
     "remote.disconnect": async (params) => {
       const ref = parseRemoteWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
       const key = keyOf(ref);
-      const host = getHost(key);
-      if (host) {
-        await host.dispose().catch(() => undefined);
-      }
+      await releaseWorkspaceHost(key);
       let current = states.get(key);
       if (!current) {
         current = initialState(ref);

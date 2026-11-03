@@ -26,7 +26,13 @@ import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 import { parseWorkspaceInput, keyOf, type PosixAbsPath } from "../shared/workspace-ref.ts";
 import { getOrCreateHost } from "./workspace/registry.ts";
 import { createAllRemoteCodingTools } from "./workspace/coding-tools-remote.ts";
-import { sessionDirFor, writeWorkspaceBinding } from "./workspace/session-binding.ts";
+import { isRemoteWorkspaceTrusted } from "./workspace/trust-store.ts";
+import {
+  fetchAndMirrorRemoteResources,
+  makeAgentsFilesOverride,
+  makeSkillsOverride,
+} from "./workspace/resources/merged-loader.ts";
+import { sessionDirFor, sessionManagerCwdFor, writeWorkspaceBinding } from "./workspace/session-binding.ts";
 
 import { getLegacySessionToolNames } from "./agent-session/compat";
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
@@ -159,8 +165,9 @@ export async function startRpcSession(
     const workspaceRef = parseWorkspaceInput(cwd);
     const isRemote = workspaceRef.ok && workspaceRef.value.kind === "ssh";
     const remoteRef = isRemote ? (workspaceRef.value as Extract<typeof workspaceRef.value, { kind: "ssh" }>) : null;
+    const remoteWorkspaceKey = remoteRef ? keyOf(remoteRef) : undefined;
 
-    const smCwd = remoteRef ? (remoteRef.root as string) : cwd;
+    const smCwd = remoteRef ? sessionManagerCwdFor(remoteRef) : cwd;
     const smSessionDir = remoteRef ? sessionDirFor(remoteRef, configuredSessionDir()) : configuredSessionDir();
 
     const sessionManager = sessionFile
@@ -175,13 +182,30 @@ export async function startRpcSession(
     const managerSessionId = sessionManager.getSessionId();
     applyStoredLeafChoice(managerSessionId, sessionManager);
 
+    const remoteHost = remoteRef && remoteWorkspaceKey ? getOrCreateHost(remoteWorkspaceKey) : null;
+    if (remoteRef && remoteHost) {
+      await remoteHost.connect();
+    }
+    const remoteRoot = remoteRef ? (remoteRef.root as PosixAbsPath) : null;
+    const trusted = remoteWorkspaceKey ? isRemoteWorkspaceTrusted(remoteWorkspaceKey) : false;
+    const mirrorSnapshot =
+      remoteRef && remoteHost && remoteWorkspaceKey && remoteRoot
+        ? await fetchAndMirrorRemoteResources(remoteWorkspaceKey, remoteRoot, remoteHost)
+        : null;
+
     const bridge: { wrapper?: AgentSessionWrapper } = {};
     const events = createEventBus();
     const services = await createAgentSessionServices({
-      cwd: smCwd,
+      cwd: mirrorSnapshot ? mirrorSnapshot.mirrorRoot : smCwd,
       agentDir,
       resourceLoaderOptions: {
         eventBus: events,
+        ...(mirrorSnapshot
+          ? {
+              agentsFilesOverride: makeAgentsFilesOverride(mirrorSnapshot),
+              skillsOverride: makeSkillsOverride(mirrorSnapshot, trusted),
+            }
+          : {}),
         extensionsOverride: createQuestionnaireOverride({
           events,
           request: (questions, signal) => {
@@ -192,12 +216,7 @@ export async function startRpcSession(
         extensionFactories: [RunPolicy.extension(() => bridge.wrapper?.runPolicy)],
       },
     });
-    const remoteHost = remoteRef ? getOrCreateHost(keyOf(remoteRef)) : null;
-    if (remoteRef && remoteHost) {
-      await remoteHost.connect();
-    }
-    const remoteRoot = remoteRef ? (remoteRef.root as PosixAbsPath) : null;
-    const trusted = remoteRef ? false : services.settingsManager.isProjectTrusted();
+    const effectiveTrusted = remoteRef ? trusted : services.settingsManager.isProjectTrusted();
     const executionContext = isRemote
       ? null
       : await toolchainRuntime.createExecutionContext({
@@ -207,7 +226,7 @@ export async function startRpcSession(
         });
     const customTools = [
       ...(isRemote && remoteHost
-        ? createAllRemoteCodingTools(remoteRoot ?? "/", remoteHost)
+        ? createAllRemoteCodingTools(remoteRoot ?? "/", remoteHost, { workspaceKey: remoteWorkspaceKey })
         : [
             createDesktopBashToolDefinition(
               cwd,
@@ -222,7 +241,7 @@ export async function startRpcSession(
           ]),
       ...createBrowserToolDefinitions(),
       ...(peekManagedProcessService()
-        ? createManagedProcessToolDefinitions(cwd, trusted, peekManagedProcessService()!)
+        ? createManagedProcessToolDefinitions(cwd, effectiveTrusted, peekManagedProcessService()!)
         : []),
       ...createSessionOrchestrationToolDefinitions(),
     ] as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>;

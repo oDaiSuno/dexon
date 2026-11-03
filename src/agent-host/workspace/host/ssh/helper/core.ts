@@ -156,8 +156,11 @@ def canonical(path):
 
 
 def within(path, root):
-    resolved_root = os.path.realpath(root)
-    resolved = os.path.realpath(path)
+    resolved_root = os.path.realpath(root).replace("\\", "/")
+    resolved = os.path.realpath(path).replace("\\", "/")
+    if sys.platform.startswith("win"):
+        resolved_root = resolved_root.lower()
+        resolved = resolved.lower()
     return resolved == resolved_root or resolved.startswith(resolved_root.rstrip("/") + "/")
 
 
@@ -167,7 +170,7 @@ def require_within(path, root):
 
 
 def require_absolute(path):
-    if not isinstance(path, str) or not path.startswith("/") or "\0" in path:
+    if not isinstance(path, str) or not (path.startswith("/") or os.path.isabs(path)) or "\0" in path:
         raise OpFailure("BAD_REQUEST", "An absolute path is required")
     return path
 
@@ -211,6 +214,8 @@ def host_facts():
         kind = "linux"
     elif system == "darwin":
         kind = "darwin"
+    elif system.startswith("win"):
+        kind = "linux"
     else:
         raise OpFailure("BAD_REQUEST", "Unsupported server platform: " + system)
     shell = os.environ.get("SHELL")

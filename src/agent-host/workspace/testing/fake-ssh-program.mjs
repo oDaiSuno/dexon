@@ -1,6 +1,26 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
+
+function resolvePythonBinary() {
+  for (const candidate of ["/usr/bin/python3", "python3", "python"]) {
+    const check = spawnSync(candidate, ["-c", "import sys; assert sys.version_info >= (3, 8)"], {
+      stdio: "ignore",
+    });
+    if (check.status === 0) return candidate;
+  }
+  return "python3";
+}
+
+function endpointForSocket(socketPath) {
+  if (!socketPath) return socketPath;
+  if (process.platform === "win32") {
+    const hash = createHash("sha1").update(socketPath).digest("hex").slice(0, 16);
+    return `\\\\.\\pipe\\dx-fssh-${hash}`;
+  }
+  return socketPath;
+}
 
 const FALLBACK_KEY = {
   type: "ssh-ed25519",
@@ -105,8 +125,9 @@ function verifyAuth(parsed) {
 }
 
 function socketIsLive(path) {
+  const endpoint = endpointForSocket(path);
   return new Promise((resolve) => {
-    const client = net.connect(path);
+    const client = net.connect(endpoint);
     client.once("connect", () => {
       client.destroy();
       resolve(true);
@@ -116,8 +137,9 @@ function socketIsLive(path) {
 }
 
 function sendControl(path, message) {
+  const endpoint = endpointForSocket(path);
   return new Promise((resolve) => {
-    const client = net.connect(path);
+    const client = net.connect(endpoint);
     let buffer = "";
     client.once("error", (error) => resolve({ ok: false, error: error.message, missing: true }));
     client.on("connect", () => client.write(`${JSON.stringify(message)}\n`));
@@ -193,10 +215,20 @@ function startMaster(parsed, host) {
       reply(client, { ok: true });
     });
   };
+  const endpoint = endpointForSocket(socket);
   return new Promise((resolve) => {
-    fs.rmSync(socket, { force: true });
+    if (process.platform !== "win32") fs.rmSync(socket, { force: true });
     server.once("error", () => resolve(null));
-    server.listen(socket, () => resolve(server));
+    server.listen(endpoint, () => {
+      if (process.platform === "win32" && socket) {
+        try {
+          fs.writeFileSync(socket, "pipe");
+        } catch {
+          void 0;
+        }
+      }
+      resolve(server);
+    });
   });
 }
 
@@ -233,8 +265,15 @@ async function main() {
 
   const environment = { ...process.env };
   if (entry.home) environment.HOME = entry.home;
-  if (entry.python === "missing") environment.PATH = "/nonexistent";
-  const child = spawn("/bin/sh", ["-c", parsed.remoteCommand ?? "true"], { stdio: "inherit", env: environment });
+  if (entry.python === "missing") {
+    process.stderr.write("sh: 1: python3: not found\n");
+    cleanup();
+    process.exit(127);
+  }
+  const pyMatch = /^exec python3 -u -c "([^"]+)"$/.exec(parsed.remoteCommand ?? "");
+  const child = pyMatch
+    ? spawn(resolvePythonBinary(), ["-u", "-c", pyMatch[1]], { stdio: "inherit", env: environment })
+    : spawn("/bin/sh", ["-c", parsed.remoteCommand ?? "true"], { stdio: "inherit", env: environment });
   let dropped = false;
   if (entry.dropAfterMs) {
     setTimeout(() => {

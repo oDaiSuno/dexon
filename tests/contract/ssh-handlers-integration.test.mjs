@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync, chmodSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -57,14 +57,11 @@ after(() => {
 
 function setupFakeSsh(t) {
   const fakeSsh = path.resolve(import.meta.dirname, "../../src/agent-host/workspace/testing/fake-ssh-program.mjs");
-  const fakeSshWrapper = path.join(fakeBin, `ssh-${Math.random().toString(36).slice(2)}`);
   const scenarioFile = path.join(base, `scenario-${Math.random().toString(36).slice(2)}.json`);
-  writeFileSync(fakeSshWrapper, `#!/bin/sh\nexec /usr/bin/env node ${fakeSsh} "$@"\n`);
-  chmodSync(fakeSshWrapper, 0o755);
   writeFileSync(scenarioFile, JSON.stringify({ default: {} }));
   const savedBinary = process.env.DEXON_SSH_BINARY;
   const savedScenario = process.env.DEXON_FAKE_SSH_SCENARIO;
-  process.env.DEXON_SSH_BINARY = fakeSshWrapper;
+  process.env.DEXON_SSH_BINARY = fakeSsh;
   process.env.DEXON_FAKE_SSH_SCENARIO = scenarioFile;
   t.after(() => {
     if (savedBinary === undefined) delete process.env.DEXON_SSH_BINARY;
@@ -72,7 +69,7 @@ function setupFakeSsh(t) {
     if (savedScenario === undefined) delete process.env.DEXON_FAKE_SSH_SCENARIO;
     else process.env.DEXON_FAKE_SSH_SCENARIO = savedScenario;
   });
-  return { scenarioFile, fakeSshWrapper };
+  return { scenarioFile, fakeSshWrapper: fakeSsh };
 }
 
 function connect(t) {
@@ -345,25 +342,43 @@ test("resolveSessionWorkspace: SSH session file reads back workspace key", async
 
 test("SessionManager cwd not corrupted: ssh:// root path is plain POSIX not a local resolve", async () => {
   const { SessionManager } = await import("@earendil-works/pi-coding-agent");
+  const {
+    sessionDirFor,
+    sessionManagerCwdFor,
+    writeWorkspaceBinding,
+    resolveSessionWorkspace,
+    resolveSessionWorkspaceByFile,
+  } = await import("../../src/agent-host/workspace/session-binding.ts");
+  const { existsSync } = await import("node:fs");
 
   const ref = {
     kind: "ssh",
     target: { user: "ubuntu", host: "prod-vps" },
     root: "/home/ubuntu/app",
   };
+  assert.equal(sessionManagerCwdFor(ref, "darwin"), "/home/ubuntu/app");
+  assert.equal(sessionManagerCwdFor(ref, "linux"), "/home/ubuntu/app");
+  assert.ok(sessionManagerCwdFor(ref, "win32").includes("dx-vfs"));
+
+  const defaultSessionDir = sessionDirFor(ref, undefined);
+  assert.ok(typeof defaultSessionDir === "string" && defaultSessionDir.includes("--ssh-ubuntu-prod-vps"));
+
   const sessionDir = path.join(sessions, `test-no-corrupt-${Date.now()}`);
   mkdirSync(sessionDir, { recursive: true });
 
-  const sm = SessionManager.create(ref.root, sessionDir);
+  const sm = SessionManager.create(sessionManagerCwdFor(ref), sessionDir);
+  writeWorkspaceBinding(sm, ref);
   const header = sm.getHeader();
   assert.ok(header !== null, "Header should be set");
-  assert.equal(header.cwd, "/home/ubuntu/app");
   assert.ok(!header.cwd.includes("ssh:"), `cwd must not contain 'ssh:' — got: ${header.cwd}`);
   assert.ok(!header.cwd.includes(process.cwd()), `cwd must not be under process.cwd() — got: ${header.cwd}`);
+  assert.equal(existsSync(sm.getSessionFile()), true);
+  assert.equal(resolveSessionWorkspace(sm).remotePath, "/home/ubuntu/app");
+  assert.equal(resolveSessionWorkspaceByFile(sm.getSessionFile()).workspace, "ssh://ubuntu@prod-vps/home/ubuntu/app");
 });
 
 test("workspace registry reuses the same ExecutionHost across subdirectories of the same SSH host", async () => {
-  const { getOrCreateHost, getHost } = await import("../../src/agent-host/workspace/registry.ts");
+  const { getOrCreateHost, getHost, releaseWorkspaceHost } = await import("../../src/agent-host/workspace/registry.ts");
   const rootHost = getOrCreateHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app");
   const subFileHost = getOrCreateHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/src/index.ts");
   const lookedUp = getHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/docs/readme.md");
@@ -373,6 +388,15 @@ test("workspace registry reuses the same ExecutionHost across subdirectories of 
   assert.equal(rootHost, subFileHost);
   assert.equal(rootHost, lookedUp);
   assert.notEqual(rootHost, otherHost);
+
+  await releaseWorkspaceHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app");
+  assert.equal(getHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/src/index.ts"), rootHost);
+
+  await releaseWorkspaceHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/src/index.ts");
+  assert.equal(getHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app"), null);
+  const recreated = getOrCreateHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app");
+  assert.ok(recreated !== null);
+  assert.notEqual(recreated, rootHost);
 });
 
 test("skills.list distinguishes mirrored remote project skills from local global skills and reflects workspace trust", async (t) => {
@@ -400,4 +424,56 @@ test("skills.list distinguishes mirrored remote project skills from local global
   assert.ok(remoteSkillTrusted);
   assert.equal(remoteSkillTrusted.origin, "remote-project");
   assert.equal(remoteSkillTrusted.lockedByReadOnly, false);
+});
+
+test("remote coding tools allow reading local overlay skills, block local auth.json, and enforce read-only mode on writes", async (t) => {
+  const client = connect(t);
+  const { createRemoteReadToolDefinition, createRemoteWriteToolDefinition } =
+    await import("../../src/agent-host/workspace/coding-tools-remote.ts");
+  const remoteWorkspace = "ssh://ubuntu@tools-guard-vps/home/ubuntu/app";
+  const mockHost = {
+    id: "ssh://ubuntu@tools-guard-vps:22",
+    kind: "ssh",
+    facts: () => ({ remoteHome: "/home/ubuntu" }),
+    request: async (op) => {
+      if (op === "makeDir") return { canonicalPath: "/home/ubuntu/app" };
+      if (op === "writeAtomic") return { canonicalPath: "/home/ubuntu/app/out.txt", size: 2, mtimeMs: Date.now() };
+      throw new Error(`Unexpected remote op: ${op}`);
+    },
+  };
+
+  const readTool = createRemoteReadToolDefinition("/home/ubuntu/app", mockHost);
+  const skillResult = await readTool.execute(
+    "call-1",
+    { path: path.join(agentSkillsDir, "my-skill", "SKILL.md") },
+    undefined,
+    undefined,
+    { cwd: "/home/ubuntu/app" },
+  );
+  assert.ok(JSON.stringify(skillResult).includes("My Skill"));
+
+  await assert.rejects(
+    readTool.execute("call-2", { path: agentAuthFile }, undefined, undefined, { cwd: "/home/ubuntu/app" }),
+    /credential files are protected/,
+  );
+
+  const writeTool = createRemoteWriteToolDefinition("/home/ubuntu/app", mockHost, {
+    workspaceKey: remoteWorkspace,
+  });
+  await assert.rejects(
+    writeTool.execute("call-3", { path: "/home/ubuntu/app/out.txt", content: "hi" }, undefined, undefined, {
+      cwd: "/home/ubuntu/app",
+    }),
+    /safe read-only mode/,
+  );
+
+  await client.call("remote.trustSet", { workspace: remoteWorkspace, trust: "trusted" });
+  const writeResult = await writeTool.execute(
+    "call-4",
+    { path: "/home/ubuntu/app/out.txt", content: "hi" },
+    undefined,
+    undefined,
+    { cwd: "/home/ubuntu/app" },
+  );
+  assert.ok(writeResult);
 });

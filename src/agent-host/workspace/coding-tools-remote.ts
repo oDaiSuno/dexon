@@ -1,3 +1,4 @@
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import {
   createBashToolDefinition,
   createEditToolDefinition,
@@ -11,12 +12,16 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import { RemoteOperationError } from "./host/errors.ts";
 import type { ExecutionHost } from "./host/execution-host.ts";
-import type { PosixAbsPath } from "../../shared/workspace-ref.ts";
+import type { PosixAbsPath, WorkspaceKey } from "../../shared/workspace-ref.ts";
 import { defineDexonTool, type DexonToolMetadata } from "../agent-session/tool-definition.ts";
+import { isRemoteWorkspaceTrusted } from "./trust-store.ts";
+import { createPathSpace, type PathSpace } from "./path-space.ts";
 import { remoteCommandEnvironment } from "./remote-environment.ts";
 
 const DEFAULT_READ_MAX_BYTES = 10 * 1024 * 1024;
 const SEARCH_OUTPUT_LIMIT = 2 * 1024 * 1024;
+const READ_ONLY_ERROR_MESSAGE =
+  "Remote workspace is in safe read-only mode. Trust this repository to modify files or run commands.";
 
 function toAbsPath(input: string): PosixAbsPath {
   if (typeof input !== "string" || !input.startsWith("/")) {
@@ -31,22 +36,52 @@ function toBuffer(value: unknown): Buffer {
   return Buffer.from(value as ArrayBuffer);
 }
 
+function defaultPathSpace(cwd: string, host: ExecutionHost): PathSpace {
+  const remoteRoot = toAbsPath(cwd);
+  const remoteHome = host.facts()?.remoteHome ?? ("/root" as PosixAbsPath);
+  return createPathSpace(remoteRoot, remoteHome);
+}
+
+function assertWorkspaceTrusted(workspaceKey?: WorkspaceKey): void {
+  if (workspaceKey && !isRemoteWorkspaceTrusted(workspaceKey)) {
+    throw new RemoteOperationError("EACCES", READ_ONLY_ERROR_MESSAGE);
+  }
+}
+
 export function createRemoteReadToolDefinition(
   cwd: string,
   host: ExecutionHost,
+  pathSpace = defaultPathSpace(cwd, host),
 ): ReturnType<typeof createReadToolDefinition> & DexonToolMetadata {
   return defineDexonTool({
     ...createReadToolDefinition(cwd, {
       operations: {
         async readFile(absolutePath: string) {
+          const routed = pathSpace.route(absolutePath, cwd, "read");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space === "local-overlay") {
+            return readFileSync(routed.localPath);
+          }
           const result = await host.request("read", {
-            candidates: [toAbsPath(absolutePath)],
+            candidates: [routed.remotePath],
             maxBytes: DEFAULT_READ_MAX_BYTES,
           });
           return toBuffer(result.bytes);
         },
         async access(absolutePath: string) {
-          await host.request("fileMeta", { path: toAbsPath(absolutePath), withinRoot: null });
+          const routed = pathSpace.route(absolutePath, cwd, "read");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space === "local-overlay") {
+            if (!existsSync(routed.localPath)) {
+              throw new RemoteOperationError("ENOENT", `File not found: ${absolutePath}`);
+            }
+            return;
+          }
+          await host.request("fileMeta", { path: routed.remotePath, withinRoot: null });
         },
       },
     }),
@@ -58,21 +93,39 @@ export function createRemoteReadToolDefinition(
 export function createRemoteWriteToolDefinition(
   cwd: string,
   host: ExecutionHost,
+  options: { pathSpace?: PathSpace; workspaceKey?: WorkspaceKey } = {},
 ): ReturnType<typeof createWriteToolDefinition> & DexonToolMetadata {
   const root = cwd as PosixAbsPath;
+  const pathSpace = options.pathSpace ?? defaultPathSpace(cwd, host);
   return defineDexonTool({
     ...createWriteToolDefinition(cwd, {
       operations: {
         async writeFile(absolutePath: string, content: string) {
+          assertWorkspaceTrusted(options.workspaceKey);
+          const routed = pathSpace.route(absolutePath, cwd, "write");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space !== "remote") {
+            throw new RemoteOperationError("EACCES", "Local overlay is read-only");
+          }
           await host.request("writeAtomic", {
-            path: toAbsPath(absolutePath),
+            path: routed.remotePath,
             withinRoot: root,
             bytes: Buffer.from(content, "utf8"),
             mkdirp: true,
           });
         },
         async mkdir(dir: string) {
-          await host.request("makeDir", { path: toAbsPath(dir), withinRoot: root });
+          assertWorkspaceTrusted(options.workspaceKey);
+          const routed = pathSpace.route(dir, cwd, "write");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space !== "remote") {
+            throw new RemoteOperationError("EACCES", "Local overlay is read-only");
+          }
+          await host.request("makeDir", { path: routed.remotePath, withinRoot: root });
         },
       },
     }),
@@ -84,28 +137,54 @@ export function createRemoteWriteToolDefinition(
 export function createRemoteEditToolDefinition(
   cwd: string,
   host: ExecutionHost,
+  options: { pathSpace?: PathSpace; workspaceKey?: WorkspaceKey } = {},
 ): ReturnType<typeof createEditToolDefinition> & DexonToolMetadata {
   const root = cwd as PosixAbsPath;
+  const pathSpace = options.pathSpace ?? defaultPathSpace(cwd, host);
   return defineDexonTool({
     ...createEditToolDefinition(cwd, {
       operations: {
         async readFile(absolutePath: string) {
+          assertWorkspaceTrusted(options.workspaceKey);
+          const routed = pathSpace.route(absolutePath, cwd, "edit");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space !== "remote") {
+            throw new RemoteOperationError("EACCES", "Local overlay is read-only");
+          }
           const result = await host.request("read", {
-            candidates: [toAbsPath(absolutePath)],
+            candidates: [routed.remotePath],
             maxBytes: DEFAULT_READ_MAX_BYTES,
           });
           return toBuffer(result.bytes);
         },
         async writeFile(absolutePath: string, content: string) {
+          assertWorkspaceTrusted(options.workspaceKey);
+          const routed = pathSpace.route(absolutePath, cwd, "edit");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space !== "remote") {
+            throw new RemoteOperationError("EACCES", "Local overlay is read-only");
+          }
           await host.request("writeAtomic", {
-            path: toAbsPath(absolutePath),
+            path: routed.remotePath,
             withinRoot: root,
             bytes: Buffer.from(content, "utf8"),
             mkdirp: true,
           });
         },
         async access(absolutePath: string) {
-          await host.request("fileMeta", { path: toAbsPath(absolutePath), withinRoot: null });
+          assertWorkspaceTrusted(options.workspaceKey);
+          const routed = pathSpace.route(absolutePath, cwd, "edit");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space !== "remote") {
+            throw new RemoteOperationError("EACCES", "Local overlay is read-only");
+          }
+          await host.request("fileMeta", { path: routed.remotePath, withinRoot: null });
         },
       },
     }),
@@ -117,23 +196,42 @@ export function createRemoteEditToolDefinition(
 export function createRemoteLsToolDefinition(
   cwd: string,
   host: ExecutionHost,
+  pathSpace = defaultPathSpace(cwd, host),
 ): ReturnType<typeof createLsToolDefinition> & DexonToolMetadata {
   return defineDexonTool({
     ...createLsToolDefinition(cwd, {
       operations: {
         exists(absolutePath: string) {
+          const routed = pathSpace.route(absolutePath, cwd, "ls");
+          if (routed.space === "denied") return false;
+          if (routed.space === "local-overlay") return existsSync(routed.localPath);
           return host
-            .request("fileMeta", { path: toAbsPath(absolutePath), withinRoot: null })
+            .request("fileMeta", { path: routed.remotePath, withinRoot: null })
             .then(() => true)
             .catch(() => false);
         },
         async stat(absolutePath: string) {
-          const result = await host.request("fileMeta", { path: toAbsPath(absolutePath), withinRoot: null });
+          const routed = pathSpace.route(absolutePath, cwd, "ls");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space === "local-overlay") {
+            const st = statSync(routed.localPath);
+            return { isDirectory: () => st.isDirectory() };
+          }
+          const result = await host.request("fileMeta", { path: routed.remotePath, withinRoot: null });
           return { isDirectory: () => result.isDirectory };
         },
         async readdir(absolutePath: string) {
+          const routed = pathSpace.route(absolutePath, cwd, "ls");
+          if (routed.space === "denied") {
+            throw new RemoteOperationError("EACCES", routed.message);
+          }
+          if (routed.space === "local-overlay") {
+            return readdirSync(routed.localPath);
+          }
           const result = await host.request("listDir", {
-            path: toAbsPath(absolutePath),
+            path: routed.remotePath,
             withinRoot: null,
             ignore: ["node_modules", ".git"],
           });
@@ -149,15 +247,17 @@ export function createRemoteLsToolDefinition(
 export function createRemoteBashToolDefinition(
   cwd: string,
   host: ExecutionHost,
+  options: { workspaceKey?: WorkspaceKey } = {},
 ): ReturnType<typeof createBashToolDefinition> & DexonToolMetadata {
   const operations: BashToolOptions["operations"] = {
-    async exec(command: string, execCwd: string, options) {
+    async exec(command: string, execCwd: string, execOptions) {
+      assertWorkspaceTrusted(options.workspaceKey);
       const result = await host.streamExec({
         argv: ["/bin/sh", "-c", command],
         cwd: (execCwd || cwd) as PosixAbsPath,
-        env: remoteCommandEnvironment(options.env),
-        ...(options.timeout ? { timeoutMs: options.timeout } : {}),
-        onData: (stream, chunk) => options.onData?.(chunk),
+        env: remoteCommandEnvironment(execOptions.env),
+        ...(execOptions.timeout ? { timeoutMs: execOptions.timeout } : {}),
+        onData: (_stream, chunk) => execOptions.onData?.(chunk),
       });
       return { exitCode: result.exitCode ?? null };
     },
@@ -233,14 +333,19 @@ export function createRemoteSearchToolDefinitions(
   ];
 }
 
-export function createAllRemoteCodingTools(cwd: string, host: ExecutionHost) {
+export function createAllRemoteCodingTools(
+  cwd: string,
+  host: ExecutionHost,
+  options: { workspaceKey?: WorkspaceKey } = {},
+) {
+  const pathSpace = defaultPathSpace(cwd, host);
   const [grep, find] = createRemoteSearchToolDefinitions(cwd, host);
   return [
-    createRemoteReadToolDefinition(cwd, host),
-    createRemoteWriteToolDefinition(cwd, host),
-    createRemoteEditToolDefinition(cwd, host),
-    createRemoteLsToolDefinition(cwd, host),
-    createRemoteBashToolDefinition(cwd, host),
+    createRemoteReadToolDefinition(cwd, host, pathSpace),
+    createRemoteWriteToolDefinition(cwd, host, { pathSpace, workspaceKey: options.workspaceKey }),
+    createRemoteEditToolDefinition(cwd, host, { pathSpace, workspaceKey: options.workspaceKey }),
+    createRemoteLsToolDefinition(cwd, host, pathSpace),
+    createRemoteBashToolDefinition(cwd, host, { workspaceKey: options.workspaceKey }),
     grep,
     find,
   ] as const;

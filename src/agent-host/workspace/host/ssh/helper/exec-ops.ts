@@ -4,7 +4,10 @@ EXEC_KILL_GRACE_SECONDS = 2.0
 
 def exec_signal_group(process, signum):
     try:
-        os.killpg(process.pid, signum)
+        if hasattr(os, "killpg"):
+            os.killpg(process.pid, signum)
+        else:
+            process.kill()
     except (ProcessLookupError, PermissionError, OSError):
         pass
 
@@ -85,7 +88,7 @@ def op_exec(request):
         raise OpFailure("CANCELLED", "Operation was cancelled")
     return {
         "exitCode": code if code is not None and code >= 0 else None,
-        "signal": signal.Signals(-code).name if code is not None and code < 0 else None,
+        "signal": signal.Signals(-code).name if code is not None and code < 0 and hasattr(signal, "Signals") else None,
         "timedOut": timed_out,
     }
 `;

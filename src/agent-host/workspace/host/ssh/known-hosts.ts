@@ -56,10 +56,13 @@ function runKeyscan(binary: string, target: SshTarget): Promise<string> {
   const args = ["-T", String(SCAN_TIMEOUT_SECONDS)];
   if (target.port !== undefined && target.port !== 22) args.push("-p", String(target.port));
   args.push("--", target.host);
+  const isNodeScript = /\.(mjs|cjs|js)$/i.test(binary);
+  const cmd = isNodeScript ? process.execPath : binary;
+  const cmdArgs = isNodeScript ? [binary, ...args] : args;
   return new Promise((resolve, reject) => {
     execFile(
-      binary,
-      args,
+      cmd,
+      cmdArgs,
       { env: sanitizeToolEnvironment(process.env), timeout: (SCAN_TIMEOUT_SECONDS + 4) * 1000, maxBuffer: 256 * 1024 },
       (error, stdout) => {
         if (error && !stdout)

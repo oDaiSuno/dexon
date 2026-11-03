@@ -13,9 +13,6 @@ const fakeKeyscan = path.resolve(
 function sandbox(t, scenario = {}) {
   const root = mkdtempSync(path.join(tmpdir(), "dx-kh-"));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const bin = path.join(root, "ssh-keyscan");
-  writeFileSync(bin, `#!/bin/sh\nexec "${process.execPath}" "${fakeKeyscan}" "$@"\n`);
-  chmodSync(bin, 0o755);
   const scenarioFile = path.join(root, "scenario.json");
   writeFileSync(scenarioFile, JSON.stringify(scenario));
   const previous = process.env.DEXON_FAKE_SSH_SCENARIO;
@@ -24,7 +21,7 @@ function sandbox(t, scenario = {}) {
     if (previous === undefined) delete process.env.DEXON_FAKE_SSH_SCENARIO;
     else process.env.DEXON_FAKE_SSH_SCENARIO = previous;
   });
-  return { root, keyscan: bin, knownHosts: path.join(root, "ssh", "known_hosts") };
+  return { root, keyscan: fakeKeyscan, knownHosts: path.join(root, "ssh", "known_hosts") };
 }
 
 const ED25519_BLOB = "AAAAC3NzaC1lZDI1NTE5AAAAILTeFB4/nzVyeC8AD1sIm+msF3j0rgd+XKKJAaq8vRox";
