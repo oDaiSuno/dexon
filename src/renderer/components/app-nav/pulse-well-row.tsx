@@ -1,7 +1,7 @@
 import { useI18n } from "@/i18n";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import type { PulseRow } from "@/lib/sidebar-activity";
-import type { CountedActivity } from "@/lib/session-tree-status";
+import type { PulseActivity } from "@/lib/session-tree-status";
 import type { SessionInfo } from "@/lib/types";
 import {
   ACTIVITY_TONE,
@@ -12,19 +12,32 @@ import {
 } from "../session-sidebar/session-status-indicators";
 import { BranchCountGlyph } from "../session-sidebar/session-relation-glyphs";
 
-export function ActivityGlyph({ status, size }: { status: CountedActivity; size: number }) {
+export function ActivityGlyph({ status, size }: { status: PulseActivity; size: number }) {
   return (
     <span
       aria-hidden="true"
       className={
         status === "running" ? "session-status-spin" : status === "awaiting_input" ? "session-status-pulse" : undefined
       }
-      style={{ display: "inline-flex", flexShrink: 0, color: ACTIVITY_TONE[status].icon }}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        width: size,
+        height: size,
+        flexShrink: 0,
+        color: ACTIVITY_TONE[status].icon,
+      }}
     >
       {status === "running" ? (
         <LoaderGlyph size={size} />
       ) : status === "awaiting_input" ? (
         <QuestionGlyph size={size} />
+      ) : status === "unread" ? (
+        <span
+          data-activity="unread"
+          style={{ width: 6, height: 6, borderRadius: "var(--radius-pill)", background: ACTIVITY_TONE.unread.dot }}
+        />
       ) : (
         <AlertGlyph size={size} />
       )}
@@ -45,7 +58,7 @@ export function PulseWellRow({
 }) {
   const { t, language } = useI18n();
   const title = getSessionDisplayTitle(row.root);
-  const status = activityCountsPhrase({ awaiting_input: 0, error: 0, running: 0, [row.status]: 1 }, t);
+  const status = activityCountsPhrase({ awaiting_input: 0, error: 0, running: 0, unread: 0, [row.status]: 1 }, t);
   const since =
     row.runAge.kind === "observed"
       ? row.runAge.since
@@ -159,7 +172,9 @@ export function PulseWellRow({
           ? t("pulseWaiting", "Waiting")
           : row.status === "error"
             ? t("sessionStatusError", "Failed")
-            : ageLabel}
+            : row.status === "unread"
+              ? t("newSessionActivity", "New activity")
+              : ageLabel}
       </span>
     </button>
   );

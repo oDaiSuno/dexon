@@ -33,6 +33,10 @@ export type CountedActivity = SessionLiveStatus;
 
 export type SessionActivityCounts = Record<CountedActivity, number>;
 
+export type PulseActivity = CountedActivity | "unread";
+
+export type PulseActivityCounts = Record<PulseActivity, number>;
+
 export interface SubtreeActivity {
   status: SessionActivityStatus | null;
   counts: SessionActivityCounts;
@@ -45,6 +49,12 @@ export function isCountedActivity(status: SessionActivityStatus): status is Coun
 }
 
 export const COUNTED_ACTIVITIES: readonly CountedActivity[] = SESSION_ACTIVITY_URGENCY.filter(isCountedActivity);
+
+export function isPulseActivity(status: SessionActivityStatus): status is PulseActivity {
+  return isCountedActivity(status) || status === "unread";
+}
+
+export const PULSE_ACTIVITIES: readonly PulseActivity[] = SESSION_ACTIVITY_URGENCY.filter(isPulseActivity);
 
 export function isWorkInFlight(status: SessionActivityStatus): status is "running" | "awaiting_input" {
   return status === "running" || status === "awaiting_input";
@@ -60,6 +70,27 @@ export function indicatedActivity(
 ): SessionActivityStatus {
   const bubbled = descendants?.status;
   return bubbled && isCountedActivity(bubbled) ? moreUrgent(own, bubbled) : own;
+}
+
+export function indicatedPulseActivity(
+  own: SessionActivityStatus,
+  descendants: SubtreeActivity | null,
+): SessionActivityStatus {
+  const bubbled = descendants?.status;
+  return bubbled && isPulseActivity(bubbled) ? moreUrgent(own, bubbled) : own;
+}
+
+export function firstUnreadDescendant(
+  node: SessionTreeNode,
+  signals: SessionActivitySignals | SessionActivity,
+): SessionInfo | null {
+  const activity = "of" in signals ? signals : sessionActivityFromLegacySignals(signals);
+  for (const child of node.children) {
+    if (activity.of(child.session.id) === "unread") return child.session;
+    const nested = firstUnreadDescendant(child, activity);
+    if (nested) return nested;
+  }
+  return null;
 }
 
 export function ownActivity(

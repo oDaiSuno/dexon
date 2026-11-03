@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { COUNTED_ACTIVITIES, type SessionActivityCounts } from "@/lib/session-tree-status";
+import { PULSE_ACTIVITIES, type PulseActivity, type SessionActivityCounts } from "@/lib/session-tree-status";
 import { useI18n } from "@/i18n";
 import { RowIcon } from "./session-relation-glyphs";
 
@@ -42,7 +42,16 @@ export function AlertGlyph({ size }: { size: number }) {
   );
 }
 
-export const ACTIVITY_TONE = {
+export const ACTIVITY_TONE: Record<
+  PulseActivity,
+  {
+    readonly border: string;
+    readonly fill: string;
+    readonly icon: string;
+    readonly text: string;
+    readonly dot: string;
+  }
+> = {
   awaiting_input: {
     border: "var(--fx-status-warning-border)",
     fill: "var(--fx-status-warning-soft)",
@@ -65,21 +74,26 @@ export const ACTIVITY_TONE = {
     dot: "var(--fx-accent-blue)",
   },
   unread: {
+    border: "var(--fx-line-subtle)",
+    fill: "var(--fx-surface-inset)",
+    icon: "var(--fx-accent-blue)",
+    text: "var(--fx-accent-blue-text)",
     dot: "var(--fx-accent-blue)",
   },
 };
 
 export function activityCountsPhrase(
-  counts: Readonly<SessionActivityCounts>,
+  counts: Readonly<SessionActivityCounts & { unread?: number }>,
   t: (key: string, fallback: string) => string,
 ): string {
-  const phrases = {
+  const phrases: Record<PulseActivity, string> = {
     awaiting_input: t("sessionCountAwaitingInput", "{count} waiting for your answer"),
     error: t("sessionCountError", "{count} failed"),
     running: t("sessionCountRunning", "{count} running"),
+    unread: t("sessionCountUnread", "{count} unread"),
   };
-  return COUNTED_ACTIVITIES.filter((status) => counts[status] > 0)
-    .map((status) => phrases[status].replace("{count}", String(counts[status])))
+  return PULSE_ACTIVITIES.filter((status) => (counts[status] ?? 0) > 0)
+    .map((status) => phrases[status].replace("{count}", String(counts[status] ?? 0)))
     .join(" · ");
 }
 

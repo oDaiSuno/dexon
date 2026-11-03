@@ -1,7 +1,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { PulseModel, PulseRow } from "@/lib/sidebar-activity";
-import { COUNTED_ACTIVITIES, type SessionActivityCounts, type CountedActivity } from "@/lib/session-tree-status";
+import {
+  PULSE_ACTIVITIES,
+  type SessionActivityCounts,
+  type PulseActivity,
+  type PulseActivityCounts,
+} from "@/lib/session-tree-status";
 import type { SessionInfo } from "@/lib/types";
 import { ACTIVITY_TONE, activityCountsPhrase } from "../session-sidebar/session-status-indicators";
 import { ExpandChevronGlyph } from "../session-sidebar/session-relation-glyphs";
@@ -16,36 +21,46 @@ export type PulseWellFace =
   | { readonly kind: "hidden" }
   | {
       readonly kind: "summary";
-      readonly status: CountedActivity;
-      readonly counts: Readonly<SessionActivityCounts>;
+      readonly status: PulseActivity;
+      readonly counts: Readonly<PulseActivityCounts>;
       readonly projectNames: readonly string[];
       readonly yieldedForSearch: boolean;
     }
   | {
       readonly kind: "expanded";
+      readonly counts: Readonly<PulseActivityCounts>;
       readonly totalActiveSessions: number;
       readonly visibleRows: readonly PulseRow[];
       readonly overflowCount: number;
       readonly showAll: boolean;
     };
 
+function toPulseCounts(model: PulseModel): PulseActivityCounts {
+  return {
+    ...model.sessionCounts,
+    unread: model.rows.reduce((total, row) => total + Number(row.status === "unread"), 0),
+  };
+}
+
 export function pulseWellFace(
   model: PulseModel,
   view: { preference: PulseWellPreference; showAll: boolean; searching: boolean },
 ): PulseWellFace {
-  const status = COUNTED_ACTIVITIES.find((candidate) => model.sessionCounts[candidate] > 0);
+  const counts = toPulseCounts(model);
+  const status = PULSE_ACTIVITIES.find((candidate) => counts[candidate] > 0);
   if (!status) return { kind: "hidden" };
   if (view.searching || view.preference === "collapsed")
     return {
       kind: "summary",
       status,
-      counts: model.sessionCounts,
+      counts,
       projectNames: [...new Set(model.projectNames)],
       yieldedForSearch: view.searching,
     };
   return {
     kind: "expanded",
-    totalActiveSessions: COUNTED_ACTIVITIES.reduce((total, candidate) => total + model.sessionCounts[candidate], 0),
+    counts,
+    totalActiveSessions: PULSE_ACTIVITIES.reduce((total, candidate) => total + counts[candidate], 0),
     visibleRows: view.showAll ? model.rows : model.rows.slice(0, PULSE_WELL_MAX_VISIBLE_ROWS),
     overflowCount: Math.max(0, model.rows.length - PULSE_WELL_MAX_VISIBLE_ROWS),
     showAll: view.showAll,
@@ -53,16 +68,17 @@ export function pulseWellFace(
 }
 
 export function pulseSummaryPhrase(
-  counts: Readonly<SessionActivityCounts>,
+  counts: Readonly<SessionActivityCounts & { unread?: number }>,
   t: (key: string, fallback: string) => string,
 ): string {
-  const phrases = {
+  const phrases: Record<PulseActivity, string> = {
     awaiting_input: t("pulseCountWaiting", "{count} wait"),
     error: t("pulseCountError", "{count} error"),
     running: t("pulseCountRunning", "{count} run"),
+    unread: t("pulseCountUnread", "{count} unread"),
   };
-  return COUNTED_ACTIVITIES.filter((status) => counts[status] > 0)
-    .map((status) => phrases[status].replace("{count}", String(counts[status])))
+  return PULSE_ACTIVITIES.filter((status) => (counts[status] ?? 0) > 0)
+    .map((status) => phrases[status].replace("{count}", String(counts[status] ?? 0)))
     .join(" · ");
 }
 
@@ -193,7 +209,7 @@ export function RecessedPulseWell({
       <button
         type="button"
         aria-label={t("pulseCollapse", "Collapse active sessions")}
-        aria-description={activityCountsPhrase(model.sessionCounts, t)}
+        aria-description={activityCountsPhrase(face.counts, t)}
         aria-expanded={true}
         onClick={() => setPreference("collapsed")}
         style={{

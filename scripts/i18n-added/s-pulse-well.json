@@ -16,5 +16,6 @@
   "pulseLess",
   "pulseAll",
   "pulseCountError",
-  "pulseCountRunning"
+  "pulseCountRunning",
+  "pulseCountUnread"
 ]

@@ -81,9 +81,27 @@ test("a root task aggregates active descendants into one urgent row without losi
   assert.deepEqual(sidebar.pulse.projectNames, ["alpha"]);
 });
 
-test("idle and unread projects produce no pulse rows and unknown keys have an idle summary", () => {
-  const sidebar = project([session("read"), session("unread")], {}, ["unread"]);
+test("unread sessions stay in pulse rows while idle projects and unknown keys keep an idle summary", () => {
+  const unread = session("unread");
+  const sidebar = project([session("read"), unread], {}, ["unread"]);
   assert.deepEqual(sidebar.pulse, {
+    rows: [
+      {
+        key: "unread",
+        status: "unread",
+        projectKey: api.sessionProjectKey("/work/alpha"),
+        projectName: "alpha",
+        root: unread,
+        target: unread,
+        subagents: 0,
+        runAge: { kind: "not-running" },
+        sortTimestampMs: Date.parse(unread.modified),
+      },
+    ],
+    sessionCounts: { awaiting_input: 0, error: 0, running: 0 },
+    projectNames: ["alpha"],
+  });
+  assert.deepEqual(project([session("read")]).pulse, {
     rows: [],
     sessionCounts: { awaiting_input: 0, error: 0, running: 0 },
     projectNames: [],
@@ -129,22 +147,70 @@ test("the urgent root wins ties and the first urgent descendant follows creation
   assert.equal(project(sessions, { ...statuses, root: "running" }).pulse.rows[0].target.id, "nested");
 });
 
+test("an unread root wins ties and idle roots locate unread descendants one selection at a time", () => {
+  const root = session("root");
+  const earlyBranch = session("early", {
+    parentSessionId: "root",
+    relation: "delegate",
+    created: "2026-07-15T12:01:00.000Z",
+  });
+  const nested = session("nested", { parentSessionId: "early", relation: "fork", created: "2026-07-15T12:04:00.000Z" });
+  const later = session("later", {
+    parentSessionId: "root",
+    relation: "delegate",
+    created: "2026-07-15T12:02:00.000Z",
+  });
+  const sessions = [later, nested, root, earlyBranch];
+  const groups = api.projectSessionGroups(sessions, { currentProject: "/work/alpha" });
+  let ledger = api.initialActivityState(new Set(["root", "nested", "later"]));
+  const build = () => api.buildSidebarActivity(groups, api.sessionActivityOf(ledger), () => "alpha");
+  let sidebar = build();
+  assert.equal(sidebar.pulse.rows[0].target, root);
+  for (const [selectedId, target] of [
+    ["root", nested],
+    ["nested", later],
+  ]) {
+    ledger = api.activityReducer(ledger, { type: "selected", sessionId: selectedId });
+    sidebar = build();
+    assert.equal(sidebar.pulse.rows.length, 1);
+    assert.equal(sidebar.pulse.rows[0].key, "root");
+    assert.equal(sidebar.pulse.rows[0].status, "unread");
+    assert.equal(sidebar.pulse.rows[0].target, target);
+    assert.equal(sidebar.pulse.rows[0].subagents, 0);
+    assert.deepEqual(sidebar.pulse.rows[0].runAge, { kind: "not-running" });
+    assert.equal(sidebar.urgency, null);
+    assert.deepEqual(sidebar.project(api.sessionProjectKey("/work/alpha")).taskCounts, {
+      awaiting_input: 0,
+      error: 0,
+      running: 0,
+    });
+  }
+  ledger = api.activityReducer(ledger, { type: "selected", sessionId: "later" });
+  assert.deepEqual(build().pulse.rows, []);
+});
+
 test("mixed roots sort by urgency then newest target timestamp and project names follow row order once", () => {
   const sessions = [
     session("run", { cwd: "/work/beta", modified: "2026-07-15T13:00:00.000Z" }),
     session("error", { cwd: "/work/alpha", modified: "2026-07-15T12:04:00.000Z" }),
     session("wait-old", { cwd: "/work/beta", modified: "2026-07-15T12:01:00.000Z" }),
     session("wait-new", { cwd: "/work/alpha", modified: "2026-07-15T12:02:00.000Z" }),
+    session("unread-old", { cwd: "/work/beta", modified: "2026-07-15T14:00:00.000Z" }),
+    session("unread-new", { cwd: "/work/alpha", modified: "2026-07-15T15:00:00.000Z" }),
   ];
-  const sidebar = project(sessions, {
-    run: "running",
-    error: "error",
-    "wait-old": "awaiting_input",
-    "wait-new": "awaiting_input",
-  });
+  const sidebar = project(
+    sessions,
+    {
+      run: "running",
+      error: "error",
+      "wait-old": "awaiting_input",
+      "wait-new": "awaiting_input",
+    },
+    ["unread-old", "unread-new"],
+  );
   assert.deepEqual(
     sidebar.pulse.rows.map((row) => row.key),
-    ["wait-new", "wait-old", "error", "run"],
+    ["wait-new", "wait-old", "error", "run", "unread-new", "unread-old"],
   );
   assert.deepEqual(sidebar.pulse.projectNames, ["alpha", "beta"]);
   assert.deepEqual(sidebar.project(api.sessionProjectKey("/work/alpha")).taskCounts, {

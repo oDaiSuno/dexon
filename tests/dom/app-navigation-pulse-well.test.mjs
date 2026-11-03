@@ -38,8 +38,17 @@ test("collapsed projects inherit waiting and completion unread while search pres
   await act(async () => scene.external.running([]));
   project = projectItem(scene, "navigation-project");
   assert.match(project.textContent, /1 unread/);
-  assert.equal(roles(scene.navigation(), "region", "Active sessions").length, 0);
-  await click(control(project, "button", "navigation-project"));
+  const well = control(scene.navigation(), "region", "Active sessions");
+  const completed = control(well, "button", /Project release notes · 1 unread/);
+  assert.match(completed.textContent, /New activity/);
+  await click(completed);
+  await waitFor(() => {
+    const revealed = projectItem(scene, "navigation-project");
+    assert.equal(control(revealed, "button", "navigation-project").getAttribute("aria-expanded"), "true");
+    assert.doesNotMatch(revealed.textContent, /1 unread/);
+    assert.equal(roles(scene.navigation(), "region", "Active sessions").length, 0);
+    assert.equal(control(scene.history(), "button", "Project release notes").getAttribute("aria-current"), "page");
+  });
   const search = control(scene.navigation(), "searchbox", "Search sessions");
   await input(search, "release");
   await click(control(projectItem(scene, "navigation-project"), "button", "navigation-project"));
@@ -48,6 +57,36 @@ test("collapsed projects inherit waiting and completion unread while search pres
     control(projectItem(scene, "navigation-project"), "button", "navigation-project").getAttribute("aria-expanded"),
     "true",
   );
+});
+
+test("a completed background delegate stays in the Well until its unread session is selected", async (t) => {
+  const { navigationBoundary } = await import("../fixtures/app-navigation-host.mjs");
+  const { startedConversation } = await import("../fixtures/app-navigation-data.mjs");
+  const options = { openProjects: [P.personal, P.project] };
+  const external = navigationBoundary(options);
+  const detail = startedConversation("done-child", P.project, "Completed delegate");
+  Object.assign(detail.info, { name: "Completed delegate", parentSessionId: "project-history", relation: "delegate" });
+  external.addConversation(detail);
+  const scene = await startNavigation(t, options, external);
+  await waitFor(() => assert.ok(external.runningSubscribers() > 0));
+  await act(async () => external.running(["done-child"]));
+  await act(async () => external.running([]));
+  const well = control(scene.navigation(), "region", "Active sessions");
+  const completed = control(well, "button", /Project release notes · 1 unread/);
+  assert.match(completed.textContent, /New activity/);
+  assert.equal(
+    control(projectItem(scene, "navigation-project"), "button", "navigation-project").getAttribute("aria-expanded"),
+    "false",
+  );
+  await click(completed);
+  await waitFor(() => {
+    assert.equal(
+      control(scene.history(), "button", /^Completed delegate(?: ·|$)/).getAttribute("aria-current"),
+      "page",
+    );
+    assert.equal(roles(scene.navigation(), "region", "Active sessions").length, 0);
+    assert.doesNotMatch(projectItem(scene, "navigation-project").textContent, /1 unread/);
+  });
 });
 
 test("live search yields a 28px Well summary and Escape restores the expanded Well and stored collapsed project", async (t) => {
