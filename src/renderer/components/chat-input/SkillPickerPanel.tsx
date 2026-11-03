@@ -1,22 +1,17 @@
-import { Fragment, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { CatalogSkill } from "./use-skill-catalog";
 import { Button } from "../form-controls";
 import { GlideHighlight } from "./GlideHighlight";
-import { CircleAlertIcon, PackageIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon, SearchIcon } from "./icons";
+import { CircleAlertIcon, PackageOpenIcon, PuzzleIcon, RefreshCwIcon, SearchIcon } from "./icons";
 import { MenuBackButton, MenuDivider, MenuFooter, MenuLinkButton, MenuState, SearchXIcon } from "./menu-chrome";
-import { KeyHint } from "./SendControls";
-
-function skillScope(skill: CatalogSkill): "global" | "project" | "path" {
-  const source = skill.sourceInfo?.source;
-  const scope = skill.sourceInfo?.scope;
-  if (scope === "user" || source === "user") return "global";
-  if (scope === "project" || source === "project") return "project";
-  return "path";
-}
+import { SkillPickerRows } from "./skill-picker-rows";
+import { skillScope } from "./skill-picker-group";
+import { useWorkspaceFacts } from "../app-shell/remote-workspaces-context";
 
 export function SkillPickerPanel({
   skills,
+  cwd,
   loading,
   error,
   onPick,
@@ -26,6 +21,7 @@ export function SkillPickerPanel({
   onManage,
 }: {
   skills: readonly CatalogSkill[];
+  cwd?: string;
   loading: boolean;
   error: string | null;
   onPick: (skill: CatalogSkill) => void;
@@ -35,37 +31,27 @@ export function SkillPickerPanel({
   onManage?: () => void;
 }) {
   const { t } = useI18n();
+  const facts = useWorkspaceFacts(cwd);
+  const remote = facts.kind === "ssh";
   const [query, setQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return skills;
-    return skills.filter(
+    const ordered = remote
+      ? [...skills].sort((left, right) => {
+          const rank = { global: 0, remote: 1, project: 2, path: 3 };
+          return rank[skillScope(left, true)] - rank[skillScope(right, true)];
+        })
+      : skills;
+    if (!q) return ordered;
+    return ordered.filter(
       (skill) => skill.name.toLowerCase().includes(q) || (skill.description ?? "").toLowerCase().includes(q),
     );
-  }, [query, skills]);
-
-  const scopeLabel = (skill: CatalogSkill) => {
-    const scope = skillScope(skill);
-    if (scope === "global") return t("skillScopeGlobal", "global");
-    if (scope === "project") return t("skillScopeProject", "project");
-    return t("skillScopePath", "path");
-  };
+  }, [query, remote, skills]);
 
   const needle = query.trim().toLowerCase();
-  const highlight = (name: string, active: boolean) => {
-    const at = needle ? name.toLowerCase().indexOf(needle) : -1;
-    if (at < 0) return name;
-    return (
-      <>
-        <span style={{ color: active ? undefined : "var(--fx-text-secondary)" }}>{name.slice(0, at)}</span>
-        <span className="type-mono-label-strong">{name.slice(at, at + needle.length)}</span>
-        <span style={{ color: active ? undefined : "var(--fx-text-secondary)" }}>{name.slice(at + needle.length)}</span>
-      </>
-    );
-  };
 
   const status = error
     ? "error"
@@ -103,9 +89,11 @@ export function SkillPickerPanel({
   ) : undefined;
 
   const groupSizes = filtered.map((skill, index) => {
-    if (needle || (index > 0 && skillScope(filtered[index - 1]) === skillScope(skill))) return 0;
+    if ((!remote && needle) || (index > 0 && skillScope(filtered[index - 1], remote) === skillScope(skill, remote)))
+      return 0;
     let size = 1;
-    while (filtered[index + size] && skillScope(filtered[index + size]) === skillScope(skill)) size += 1;
+    while (filtered[index + size] && skillScope(filtered[index + size], remote) === skillScope(skill, remote))
+      size += 1;
     return size;
   });
 
@@ -176,7 +164,7 @@ export function SkillPickerPanel({
             if (e.key === "Enter" && !e.nativeEvent.isComposing) {
               e.preventDefault();
               const target = filtered[activeIndex] ?? filtered[0];
-              if (target) onPick(target);
+              if (target && !target.lockedByReadOnly) onPick(target);
             }
           }}
           className="type-body-default placeholder:text-[var(--fx-text-tertiary)]"
@@ -290,95 +278,16 @@ export function SkillPickerPanel({
             layoutKey={filtered}
             insetX={6}
           />
-          {filtered.map((skill, index) => {
-            const active = index === activeIndex;
-            return (
-              <Fragment key={skill.filePath}>
-                {groupSizes[index] > 0 && (
-                  <div
-                    aria-hidden
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "var(--space-2) 10px var(--space-1)",
-                      color: "var(--fx-text-tertiary)",
-                    }}
-                  >
-                    <span className="type-meta-caps">{scopeLabel(skill)}</span>
-                    <span className="type-mono-meta">{groupSizes[index]}</span>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    onPick(skill);
-                  }}
-                  onMouseEnter={() => {
-                    setActiveIndex(index);
-                  }}
-                  style={{
-                    position: "relative",
-                    zIndex: 1,
-                    width: "100%",
-                    height: 36,
-                    flexShrink: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    padding: "0 10px",
-                    border: "none",
-                    borderRadius: "var(--radius-control)",
-                    background: "none",
-                    cursor: "pointer",
-                    textAlign: "left",
-                    color: "inherit",
-                  }}
-                >
-                  <span
-                    style={{
-                      flexShrink: 0,
-                      display: "flex",
-                      color: active ? "var(--fx-accent-blue-text)" : "var(--fx-text-tertiary)",
-                    }}
-                  >
-                    <PackageIcon size={15} />
-                  </span>
-                  <span
-                    className="type-mono-label"
-                    style={{
-                      flexShrink: 0,
-                      color: active ? "var(--fx-accent-blue-text)" : "var(--fx-text-primary)",
-                    }}
-                  >
-                    {highlight(skill.name, active)}
-                  </span>
-                  <span
-                    className="type-label-default"
-                    style={{
-                      minWidth: 0,
-                      flex: 1,
-                      color: "var(--fx-text-tertiary)",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {skill.description}
-                  </span>
-                  <span
-                    className={needle ? "type-meta-default" : "sr-only"}
-                    style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
-                  >
-                    {scopeLabel(skill)}
-                  </span>
-                  {active && <KeyHint keyLabel="↵" label={t("skillPickerInsert", "Insert")} />}
-                </button>
-              </Fragment>
-            );
-          })}
+          <SkillPickerRows
+            skills={filtered}
+            cwd={cwd}
+            onRefresh={onRetry}
+            groupSizes={groupSizes}
+            needle={needle}
+            activeIndex={activeIndex}
+            onPick={onPick}
+            setActiveIndex={setActiveIndex}
+          />
         </div>
       )}
       <MenuFooter

@@ -6,6 +6,10 @@ import { CARD_ABOVE_TRIGGER, FOOTER_BUTTON, READ_ONLY_WIDTH } from "./workspace-
 import { SURFACE_RAISED } from "./workspace-chrome";
 import { CopyGlyph, ExternalLinkGlyph, FolderGitGlyph, LockKeyholeGlyph } from "./workspace-glyphs";
 
+import { useWorkspaceFacts } from "../app-shell/remote-workspaces-context";
+import { WorkspacePermissionStrip } from "../app-shell/workspace-trust-controls";
+import { RemoteBoundWorkspaceStatus } from "./remote-bound-workspace-status";
+
 const ICON_BUTTON = {
   ...FOOTER_BUTTON,
   width: 28,
@@ -28,6 +32,11 @@ export function WorkspaceReadOnlyCard({
   onFocusTrigger: () => void;
 }) {
   const { t } = useI18n();
+  const facts = useWorkspaceFacts(workspace.path);
+  const branch =
+    facts.kind === "ssh" && facts.connection !== "connected"
+      ? (facts.state?.cachedBranch ?? workspace.branch)
+      : workspace.branch;
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -105,13 +114,13 @@ export function WorkspaceReadOnlyCard({
             <span className="type-body-medium" style={{ color: "var(--fx-text-primary)" }}>
               {workspace.project.name}
             </span>
-            {workspace.branch && (
+            {branch && (
               <>
                 <span className="type-body-default" style={{ color: "var(--fx-text-tertiary)" }}>
                   /
                 </span>
                 <span className="type-mono-label-strong" style={{ color: "var(--fx-text-primary)" }}>
-                  {workspace.branch}
+                  {branch}
                 </span>
               </>
             )}
@@ -138,7 +147,7 @@ export function WorkspaceReadOnlyCard({
               color: "var(--fx-text-tertiary)",
             }}
           >
-            {workspace.path}
+            {facts.kind === "ssh" ? facts.key : workspace.path}
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
@@ -168,6 +177,7 @@ export function WorkspaceReadOnlyCard({
           </button>
         </span>
       </div>
+      <RemoteBoundWorkspaceStatus folder={workspace.path} />
       {actionError && (
         <div
           role="alert"
@@ -185,6 +195,7 @@ export function WorkspaceReadOnlyCard({
           {t("readOnlyNote", "This session was created here. To work elsewhere, start a new session.")}
         </span>
       </div>
+      <WorkspacePermissionStrip folder={workspace.path} />
     </div>
   );
 }

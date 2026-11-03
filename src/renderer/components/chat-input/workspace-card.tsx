@@ -9,6 +9,8 @@ import { cardHeight, CARD_ABOVE_TRIGGER, FOOTER_BUTTON } from "./workspace-card-
 import { WorkspaceProjectList } from "./workspace-project-list";
 import { ActivityGlyph, CopyGlyph, ExternalLinkGlyph, FolderGitGlyph } from "./workspace-glyphs";
 
+import { WorkspacePermissionStrip } from "../app-shell/workspace-trust-controls";
+
 type Pane = "projects" | "branches";
 
 function selectable(rows: ComposerCardBranch[]): string[] {
@@ -252,6 +254,7 @@ export function WorkspaceCard({
         </div>
       </div>
 
+      <WorkspacePermissionStrip folder={card.folder} />
       {card.blocked ? (
         <div
           style={{

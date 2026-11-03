@@ -1,11 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { ChatWindow } from "./ChatWindow";
 import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
-import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { getFileName } from "@/lib/file-paths";
-import { getSessionDisplayTitle } from "@/lib/session-list";
-import { buildAtMentionText } from "@/lib/file-fuzzy";
 import { ReadingPositionRegistry } from "@/lib/reading-position-store";
 import { ThinkingExpansionRegistry } from "@/lib/thinking-expansion-store";
 import { SessionProfiler } from "./SessionProfiler";
@@ -28,8 +24,13 @@ import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/res
 import { RemotePage } from "./app-nav/remote-page";
 import { useShellSpace } from "./app-shell/use-shell-space";
 import { useRemoteWorkspaces } from "@/hooks/use-remote-workspaces";
-import { NoticeShelf } from "./chat-window/status";
 import { useProjectFolderActions } from "./app-shell/use-project-folder-actions";
+import { useShellFileActions } from "./app-shell/use-shell-file-actions";
+import { RemoteWorkspacesProvider } from "./app-shell/remote-workspaces-context";
+import { ShellOverlays } from "./app-shell/shell-overlays";
+import { ShellTopBarActions } from "./app-shell/shell-top-bar-actions";
+import { WorkspaceTrustBanner } from "./app-shell/workspace-trust-banner";
+import { useWorkspaceBannerDismissal } from "./app-shell/use-workspace-banner-dismissal";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -226,34 +227,19 @@ export function AppShell({
 
   const handleAgentEnd = handleExplorerRefresh;
 
-  // Same @mention format as the chat input's @ autocomplete, so the agent's
-  // read tool resolves it the same way (it strips the @ prefix).
-  const handleAtMention = useCallback((relativePath: string, isDir: boolean) => {
-    chatInputRef.current?.insertText(buildAtMentionText(relativePath, isDir));
-  }, []);
-
-  const { dispatchFileTab, openRightPanel } = dock;
-  const handleOpenFile = useCallback(
-    (filePath: string, fileName: string, sourceSessionId?: string | null) => {
-      dispatchFileTab({
-        type: "open",
-        tab: { id: `file:${filePath}`, label: fileName, filePath, sourceSessionId },
-      });
-      openRightPanel();
-    },
-    [dispatchFileTab, openRightPanel],
-  );
-
-  const handleOpenLinkedFile = useCallback(
-    (filePath: string) => {
-      handleOpenFile(filePath, getFileName(filePath), selectedSession?.id ?? null);
-    },
-    [handleOpenFile, selectedSession?.id],
-  );
+  const { handleAtMention, handleOpenFile, handleOpenLinkedFile } = useShellFileActions({
+    chatInputRef,
+    sessionId: selectedSession?.id ?? null,
+    dispatchFileTab: dock.dispatchFileTab,
+    openRightPanel: dock.openRightPanel,
+  });
+  const { dispatchFileTab } = dock;
 
   // Show chat area if a session is selected, or if we have a cwd to start a new session in
   const effectiveNewSessionCwd = newSessionCwd ?? (selectedSession === null && activeCwd ? activeCwd : null);
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
+  const chatWorkspace = selectedSession?.cwd ?? effectiveNewSessionCwd;
+  const banner = useWorkspaceBannerDismissal(chatWorkspace);
   // While restoring initial session from URL, don't show the placeholder
   const showPlaceholder = initialSessionRestored && !showChat;
 
@@ -265,7 +251,7 @@ export function AppShell({
   }, [activeCwd, isMobile, dispatchFileTab]);
 
   return (
-    <>
+    <RemoteWorkspacesProvider value={remoteWorkspaces}>
       <style>{`
       @media (max-width: 640px) {
         .sidebar-overlay-backdrop.sidebar-mobile-pending {
@@ -366,17 +352,27 @@ export function AppShell({
               copyFeedback={info.sessionCopyFeedback}
               onCopyField={info.handleCopySessionField}
               trailing={
-                !mainSuspended && !dock.rightPanelOpen ? (
-                  <RightPanelToggle
-                    placement="top-bar"
-                    onToggle={() => panelToggle.toggleFrom("top-bar")}
-                    focusRequested={panelToggle.focusTarget === "top-bar"}
-                    onFocusHandled={panelToggle.clearFocusTarget}
+                !mainSuspended ? (
+                  <ShellTopBarActions
+                    workspace={chatWorkspace}
+                    dismissed={banner.dismissed}
+                    rightPanelOpen={dock.rightPanelOpen}
+                    panelToggle={panelToggle}
                   />
                 ) : null
               }
+
               showChat={showChat && !onResources}
             />
+
+            {!mainSuspended && (
+              <WorkspaceTrustBanner
+                workspace={chatWorkspace}
+                sessionId={selectedSession?.id ?? null}
+                dismissed={banner.dismissed}
+                onDismiss={banner.dismiss}
+              />
+            )}
 
             {/* Chat content */}
             <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
@@ -467,33 +463,17 @@ export function AppShell({
           suspended={mainSuspended}
         />
       </div>
-      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 1100 }}>
-        <NoticeShelf
-          notices={remoteWorkspaces.notices}
-          onDismiss={remoteWorkspaces.dismissNotice}
-          floating
-          align="right"
-        />
-      </div>
-      {(() => {
-        const authorizationRequest = authorization.browserAuthorization;
-        if (!authorizationRequest || settingsOpen) return null;
-        return (
-          <BrowserAuthorizationDialog
-            request={authorizationRequest}
-            sessionTitle={
-              selectedSession?.id === authorizationRequest.sessionId
-                ? getSessionDisplayTitle(selectedSession, 240)
-                : authorizationRequest.sessionId
-            }
-            onRespond={authorization.respondToBrowserAuthorization}
-            onManage={() => {
-              setAuthorizationSettingsSessionId(authorizationRequest.sessionId);
-              openSettings("browser");
-            }}
-          />
-        );
-      })()}
-    </>
+      <ShellOverlays
+        notices={remoteWorkspaces.notices}
+        onDismissNotice={remoteWorkspaces.dismissNotice}
+        authorization={authorization}
+        selectedSession={selectedSession}
+        hidden={settingsOpen}
+        onManage={(sessionId) => {
+          setAuthorizationSettingsSessionId(sessionId);
+          openSettings("browser");
+        }}
+      />
+    </RemoteWorkspacesProvider>
   );
 }

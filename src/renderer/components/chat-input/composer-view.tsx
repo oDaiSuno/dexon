@@ -293,6 +293,7 @@ export function ComposerView(props: ComposerViewProps) {
           />
           {skillPickerOpen && (
             <SkillPickerPanel
+              cwd={workspace?.path}
               skills={skills}
               loading={skillsLoading}
               error={skillsError ? "load-failed" : null}

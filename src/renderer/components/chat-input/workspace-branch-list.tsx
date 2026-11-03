@@ -1,3 +1,4 @@
+import { describeWorkspaceKey } from "@shared/workspace-ref";
 import { useI18n } from "@/i18n";
 import { ArrowRightIcon, PlusIcon, SearchIcon } from "./icons";
 import { CLEAR, QUICK, paint } from "./menu-chrome";
@@ -46,6 +47,7 @@ export function WorkspaceBranchList({
 }) {
   const { t } = useI18n();
   const pane = card.pane;
+  const description = describeWorkspaceKey(card.folder);
   const sections =
     pane.state === "ready"
       ? [
@@ -75,6 +77,14 @@ export function WorkspaceBranchList({
         padding: 6,
       }}
     >
+      {description.isSsh && (
+        <div
+          className="type-mono-meta"
+          style={{ padding: "4px 8px", color: "var(--fx-text-secondary)", overflowWrap: "anywhere" }}
+        >
+          {description.hostLabel}:{description.displayPath}
+        </div>
+      )}
       <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 8px", height: 32, flexShrink: 0 }}>
         <span className="type-body-medium" style={{ ...ELLIPSIS, color: "var(--fx-text-primary)" }}>
           {card.browsedName}

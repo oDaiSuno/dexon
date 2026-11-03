@@ -6,11 +6,22 @@ import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import type { ComposerWorkspace } from "./types";
 import { ELLIPSIS, GLYPH, GitBranchGlyph } from "./workspace-chrome";
 import { FolderGitGlyph, LockKeyholeGlyph } from "./workspace-glyphs";
+import { useWorkspaceFacts } from "../app-shell/remote-workspaces-context";
 import { WorkspaceMenu } from "./workspace-menu";
 
 export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerWorkspace; isMobile: boolean }) {
   const { t } = useI18n();
-  const { project, branch, menuOpen, closeMenu } = workspace;
+  const { project, menuOpen, closeMenu } = workspace;
+  const facts = useWorkspaceFacts(workspace.path);
+  const branch =
+    facts.kind === "ssh" && facts.connection !== "connected"
+      ? (facts.state?.cachedBranch ?? workspace.branch)
+      : workspace.branch;
+  const readOnly = facts.kind === "ssh" && facts.trust === "read-only";
+  const projectName =
+    facts.kind === "ssh"
+      ? t("sshWorkspaceName", "{folder} @{host}").replace("{folder}", project.name).replace("{host}", facts.hostLabel)
+      : project.name;
   const rootRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuId = useId();
@@ -46,11 +57,15 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
       ? t("switchWorktreePath", "Switch worktree: {path}").replace("{path}", currentPath)
       : t("switchWorktree", "Switch worktree")
     : t("workspaceSettings", "Workspace settings");
-  const label = branch
+  const locationLabel = branch
     ? t("workspaceTriggerBranchLabel", "Workspace: {project}, branch {branch}")
-        .replace("{project}", project.name)
+        .replace("{project}", projectName)
         .replace("{branch}", branch)
-    : t("workspaceTriggerLabel", "Workspace: {project}").replace("{project}", project.name);
+    : t("workspaceTriggerLabel", "Workspace: {project}").replace("{project}", projectName);
+
+  const label = readOnly
+    ? t("sshTriggerReadOnlyLabel", "{label}, read-only").replace("{label}", locationLabel)
+    : locationLabel;
 
   return (
     <div ref={rootRef} style={{ position: "relative", display: "flex", minWidth: 0, maxWidth: "100%" }}>
@@ -87,6 +102,11 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
           <FolderIcon size={14} color="currentColor" />
         </span>
         <span style={{ ...ELLIPSIS, flexShrink: 1 }}>{project.name}</span>
+        {facts.kind === "ssh" && (
+          <span className="type-mono-meta" style={{ color: "var(--fx-text-tertiary)", flexShrink: 0 }}>
+            @{facts.hostLabel}
+          </span>
+        )}
         {branch && !isMobile && (
           <>
             <span
@@ -100,6 +120,15 @@ export function WorkspaceTrigger({ workspace, isMobile }: { workspace: ComposerW
               {branch}
             </span>
           </>
+        )}
+        {readOnly && (
+          <span
+            className="type-meta-micro"
+            style={{ display: "flex", alignItems: "center", gap: 3, color: "var(--fx-text-tertiary)", flexShrink: 0 }}
+          >
+            <LockKeyholeGlyph size={10} />
+            {t("sshTriggerReadOnly", "Read-only")}
+          </span>
         )}
         <span style={{ ...GLYPH, color: "var(--fx-text-tertiary)" }}>
           {switchable ? <ChevronDownIcon size={12} /> : <LockKeyholeGlyph size={11} />}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SkillRecord } from "@/lib/api-types";
+import { useWorkspaceFacts } from "../app-shell/remote-workspaces-context";
 import { toSkillName, type SkillName } from "./command-slot";
 
 export type CatalogSkill = Omit<SkillRecord, "name"> & { readonly name: SkillName };
@@ -18,19 +19,22 @@ export interface SkillCatalog extends CatalogSnapshot {
 const EMPTY: CatalogSnapshot = { status: "idle", skills: [], byName: new Map() };
 
 export function useSkillCatalog({ cwd, visible }: { cwd?: string | null; visible: boolean }): SkillCatalog {
+  const facts = useWorkspaceFacts(cwd);
+  const trustScope = facts.kind === "ssh" ? `${facts.trust}:${facts.state?.trustRevision ?? 0}` : "local";
   const [entries, setEntries] = useState<ReadonlyMap<string, CatalogSnapshot>>(() => new Map());
-  const inFlightRef = useRef(new Map<string, Promise<void>>());
+  const inFlightRef = useRef(new Map<string, { scope: string; request: Promise<void> }>());
   const refresh = useCallback(() => {
     if (!visible || !cwd) return;
     const requests = inFlightRef.current;
-    if (requests.has(cwd)) return;
+    if (requests.get(cwd)?.scope === trustScope) return;
     setEntries((previous) => {
       const snapshot = previous.get(cwd) ?? EMPTY;
       return snapshot.status === "ready" ? previous : new Map(previous).set(cwd, { ...snapshot, status: "loading" });
     });
-    const request = import("@/lib/api-client")
+    const request: Promise<void> = import("@/lib/api-client")
       .then(({ call }) => call("skills.list", { cwd }))
       .then(({ skills }) => {
+        if (requests.get(cwd)?.request !== request) return;
         const valid = skills.flatMap((record): CatalogSkill[] => {
           const name = toSkillName(record.name);
           return name ? [{ ...record, name }] : [];
@@ -44,14 +48,17 @@ export function useSkillCatalog({ cwd, visible }: { cwd?: string | null; visible
         );
       })
       .catch(() => {
+        if (requests.get(cwd)?.request !== request) return;
         setEntries((previous) => {
           const snapshot = previous.get(cwd) ?? EMPTY;
           return snapshot.status === "ready" ? previous : new Map(previous).set(cwd, { ...snapshot, status: "error" });
         });
       })
-      .finally(() => requests.delete(cwd));
-    requests.set(cwd, request);
-  }, [cwd, visible]);
+      .finally(() => {
+        if (requests.get(cwd)?.request === request) requests.delete(cwd);
+      });
+    requests.set(cwd, { scope: trustScope, request });
+  }, [cwd, trustScope, visible]);
 
   useEffect(() => {
     refresh();

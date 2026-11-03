@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import { call } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName } from "@/lib/space-identity";
+import { describeWorkspaceKey } from "@shared/workspace-ref";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { WorktreeBranchesResult, WorktreeSwitchBranchResult } from "@shared/api-types";
 import type {
@@ -111,7 +112,7 @@ export function useWorkspaceCard({
     if (!open || !projects) return;
     let cancelled = false;
     for (const folder of projects) {
-      if (isMissing(folder)) continue;
+      if (describeWorkspaceKey(folder).isSsh || isMissing(folder)) continue;
       void call("git.branch", { path: folder }).then(
         (result) => {
           if (cancelled) return;
@@ -165,7 +166,8 @@ export function useWorkspaceCard({
     return folders.map((folder) => {
       const name =
         currentProject && worktreePathsEqual(currentProject.path, folder) ? currentProject.name : displayName(folder);
-      const missing = isMissing(folder);
+      const remote = describeWorkspaceKey(folder).isSsh;
+      const missing = !remote && isMissing(folder);
       const personal = isPersonalSpace(folder, personalCwd, homeDir);
       const fact = facts[folder];
       const isGit = Boolean(fact?.isGit);
@@ -178,7 +180,7 @@ export function useWorkspaceCard({
           ? t("missingFolder", "Folder not found")
           : personal
             ? t("defaultSpaceNote", "Not in any repository")
-            : !fact
+            : remote || !fact
               ? ""
               : isGit
                 ? (fact.branch ?? "")

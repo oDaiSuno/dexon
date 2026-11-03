@@ -1,3 +1,5 @@
+import { enUS as enUSSshSkills, zhCN as zhCNSshSkills } from "./i18n/ssh-workspace-skills.ts";
+import { enUS as enUSSshTrust, zhCN as zhCNSshTrust } from "./i18n/ssh-workspace-trust.ts";
 import { enUS as enUSInteractiveTools, zhCN as zhCNInteractiveTools } from "./i18n/interactive-tools.ts";
 import { enUS as enUSApp, zhCN as zhCNApp } from "./i18n/app.ts";
 import { enUS as enUSBrowser, zhCN as zhCNBrowser } from "./i18n/browser.ts";
@@ -32,6 +34,8 @@ export const enUS: Record<string, string> = {
   ...enUSSettings,
   ...enUSToolchains,
   ...enUSSshWorkspace,
+  ...enUSSshSkills,
+  ...enUSSshTrust,
 };
 
 export const zhCN: Record<string, string> = {
@@ -51,6 +55,8 @@ export const zhCN: Record<string, string> = {
   ...zhCNSettings,
   ...zhCNToolchains,
   ...zhCNSshWorkspace,
+  ...zhCNSshSkills,
+  ...zhCNSshTrust,
 };
 
 export const dictionaries = {

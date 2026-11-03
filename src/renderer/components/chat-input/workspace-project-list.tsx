@@ -1,3 +1,4 @@
+import { describeWorkspaceKey } from "@shared/workspace-ref";
 import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { CheckmarkIcon } from "./icons";
@@ -64,6 +65,12 @@ export function WorkspaceProjectList({
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto", minHeight: 0 }}>
         {projects.map((project) => {
+          const description = describeWorkspaceKey(project.path);
+          const projectName = description.isSsh
+            ? t("sshWorkspaceName", "{folder} @{host}")
+                .replace("{folder}", project.name)
+                .replace("{host}", description.hostLabel ?? "")
+            : project.name;
           const revealed = hovered === project.path || focused === project.path;
           const iconColor = project.missing
             ? "var(--fx-text-faint)"
@@ -87,7 +94,7 @@ export function WorkspaceProjectList({
             >
               <button
                 type="button"
-                aria-label={project.name}
+                aria-label={projectName}
                 aria-current={project.current ? "true" : undefined}
                 aria-disabled={project.missing ? "true" : undefined}
                 disabled={project.missing}
@@ -123,6 +130,11 @@ export function WorkspaceProjectList({
                     }}
                   >
                     {project.name}
+                    {description.isSsh && (
+                      <span className="type-mono-meta" style={{ marginLeft: 6, color: "var(--fx-text-tertiary)" }}>
+                        @{description.hostLabel}
+                      </span>
+                    )}
                   </span>
                   <span
                     className={project.sublineKind === "branch" ? "type-mono-meta" : "type-meta-default"}
@@ -150,7 +162,7 @@ export function WorkspaceProjectList({
               )}
               <button
                 type="button"
-                aria-label={t("showBranches", "Show branches of {project}").replace("{project}", project.name)}
+                aria-label={t("showBranches", "Show branches of {project}").replace("{project}", projectName)}
                 tabIndex={-1}
                 data-workspace-browse={project.path}
                 onClick={() => onBrowse(project.path)}

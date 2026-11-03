@@ -26,6 +26,7 @@ export function useComposerSkills({ skillCatalog, visible, editableRef }: Option
 
   const pickSkill = useCallback(
     (skill: CatalogSkill) => {
+      if (skill.lockedByReadOnly) return;
       setSkillPickerOpen(false);
       if (visible) editableRef.current?.focus();
       editableRef.current?.fillCommandSlot({ kind: "skill", name: skill.name });
