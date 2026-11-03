@@ -55,7 +55,7 @@ async function waitFor(predicate, timeoutMs, stepMs = 50) {
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
   // Keep in sync with src/contract/api.ts: one handler per contract method.
-  assert.equal(Object.keys(handlers).length, 94);
+  assert.equal(Object.keys(handlers).length, 107);
   for (const method of [
     "host.ping",
     "host.toolchain",
@@ -90,6 +90,19 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "processes.export",
     "processes.clearFinished",
     "system.allowRoot",
+    "remote.hosts",
+    "remote.parse",
+    "remote.browse",
+    "remote.acceptHostKey",
+    "remote.installPython",
+    "remote.workspaceState",
+    "remote.workspacesSnapshot",
+    "remote.trustSet",
+    "remote.syncRules",
+    "remote.reconnect",
+    "remote.disconnect",
+    "remote.cleanupRetry",
+    "remote.trustPromptResolve",
   ]) {
     assert.equal(typeof handlers[method], "function", `${method} must be registered`);
   }

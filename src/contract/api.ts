@@ -51,6 +51,7 @@ import type {
   ChannelTestSendResult,
 } from "../shared/channel-types";
 import type { ToolCapabilityId, ToolProvider } from "../shared/toolchains/types";
+import type { ParseResult, SshConnectParsed, SshTarget } from "../shared/workspace-ref";
 import type {
   ManagedProcessChangedEvent,
   ManagedProcessLogStream,
@@ -61,6 +62,14 @@ import type {
   ManagedProcessWaitParams,
   ManagedProcessWriteParams,
 } from "./processes";
+import type {
+  RemoteBrowseResult,
+  RemoteHostCandidate,
+  RemoteTrustPromptEvent,
+  RemoteWorkspaceStateEvent,
+  RemoteWorkspaceStateSnapshot,
+  WorkspaceTrustMode,
+} from "./workspace";
 
 export type GenerateTitleParams =
   | { sessionId: string; trigger: "first-prompt"; prompt: string; namingModel?: SessionModelRef }
@@ -442,6 +451,32 @@ export interface Api {
   "system.defaultCwd": { params: void; result: { cwd: string } };
   "system.allowRoot": { params: { path: string }; result: { ok: true } };
   "system.runningCount": { params: void; result: { count: number; sessionIds: string[] } };
+
+  "remote.hosts": { params: void; result: { hosts: RemoteHostCandidate[] } };
+  "remote.parse": { params: { input: string }; result: ParseResult<SshConnectParsed> };
+  "remote.browse": { params: { target: SshTarget; path?: string }; result: RemoteBrowseResult };
+  "remote.acceptHostKey": { params: { target: SshTarget; fingerprint: string }; result: { ok: true } };
+  "remote.installPython": { params: { target: SshTarget }; result: { ok: true } };
+  "remote.workspaceState": {
+    params: { workspace: string };
+    result: { state: RemoteWorkspaceStateSnapshot | null };
+  };
+  "remote.workspacesSnapshot": {
+    params: void;
+    result: { states: Record<string, RemoteWorkspaceStateSnapshot> };
+  };
+  "remote.trustSet": {
+    params: { workspace: string; trust: WorkspaceTrustMode };
+    result: { state: RemoteWorkspaceStateSnapshot };
+  };
+  "remote.syncRules": { params: { workspace: string }; result: { state: RemoteWorkspaceStateSnapshot } };
+  "remote.reconnect": { params: { workspace: string }; result: { state: RemoteWorkspaceStateSnapshot } };
+  "remote.disconnect": { params: { workspace: string }; result: { state: RemoteWorkspaceStateSnapshot } };
+  "remote.cleanupRetry": { params: { workspace: string }; result: { state: RemoteWorkspaceStateSnapshot } };
+  "remote.trustPromptResolve": {
+    params: { promptId: string; decision: "trust" | "keep-read-only" };
+    result: { state: RemoteWorkspaceStateSnapshot };
+  };
 }
 
 /** Server-push streams delivered over MessagePort RPC. */
@@ -470,6 +505,8 @@ export interface Streams {
   "channels.activity": ChannelActivity;
   "processes.changed": ManagedProcessChangedEvent;
   "processes.output": ManagedProcessOutputEvent;
+  "workspace.state": RemoteWorkspaceStateEvent;
+  "workspace.trustPrompt": RemoteTrustPromptEvent;
 }
 
 export type ApiMethod = keyof Api;

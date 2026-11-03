@@ -17,6 +17,7 @@ import { registerModelHandlers } from "./handlers/models";
 import { registerModelsConfigHandlers } from "./handlers/models-config";
 import { registerProcessHandlers } from "./handlers/processes";
 import { registerProjectHandlers } from "./handlers/project";
+import { registerRemoteHandlers } from "./handlers/remote";
 import { registerResourceHandlers } from "./handlers/resources";
 import { registerSessionHandlers } from "./handlers/sessions";
 import { initializeManagedProcessService } from "./managed-process/runtime";
@@ -70,6 +71,7 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
   });
   registerResourceHandlers(server);
   registerHostHandlers(server);
+  registerRemoteHandlers(server);
 
   // Preserve the original cleanup sequence of the pre-split implementation:
   // model catalog refreshes, managed processes, channels, file watches, then

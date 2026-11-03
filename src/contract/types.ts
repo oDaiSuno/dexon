@@ -28,6 +28,8 @@ export interface SessionInfo {
   createdBySessionId?: string;
   projectRoot?: string;
   worktreeBranch?: string;
+  remoteHostLabel?: string;
+  remotePath?: string;
 }
 
 export interface ContextUsageBreakdown {
@@ -158,6 +160,8 @@ export interface FileContent {
   size?: number;
   truncated?: boolean;
   encoding?: string;
+  space?: "local" | "remote" | "local-overlay";
+  remoteHostLabel?: string;
   [key: string]: unknown;
 }
 
