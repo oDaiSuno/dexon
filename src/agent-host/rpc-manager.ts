@@ -23,6 +23,10 @@ import { desktopToolIntents } from "./session-tool-store";
 import { createDesktopBashToolDefinition, createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
 import { createDesktopSearchToolDefinitions } from "./toolchain-search";
+import { parseWorkspaceInput, keyOf, type PosixAbsPath } from "../shared/workspace-ref.ts";
+import { getOrCreateHost } from "./workspace/registry.ts";
+import { createAllRemoteCodingTools } from "./workspace/coding-tools-remote.ts";
+import { writeWorkspaceBinding } from "./workspace/session-binding.ts";
 
 import { getLegacySessionToolNames } from "./agent-session/compat";
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
@@ -179,27 +183,48 @@ export async function startRpcSession(
         extensionFactories: [RunPolicy.extension(() => bridge.wrapper?.runPolicy)],
       },
     });
-    const executionContext = await toolchainRuntime.createExecutionContext({
-      cwd,
-      intent: "agent-shell",
-      trusted: services.settingsManager.isProjectTrusted(),
-    });
-    const bashOptions = createToolchainBashOptions(
-      executionContext,
-      toolchainRuntime,
-      services.settingsManager.getShellCommandPrefix(),
-      (command) => browserAgentRuntime.guardBash(sessionManager.getSessionId(), command),
-    );
+    const workspaceRef = parseWorkspaceInput(cwd);
+    const isRemote = workspaceRef.ok && workspaceRef.value.kind === "ssh";
+    const remoteRef = isRemote ? workspaceRef.value : null;
+    const remoteHost = remoteRef ? getOrCreateHost(keyOf(remoteRef)) : null;
+    if (remoteRef && remoteHost) {
+      await remoteHost.connect();
+      writeWorkspaceBinding(sessionManager, remoteRef);
+    }
+    const remoteRoot = remoteRef ? (remoteRef.root as PosixAbsPath) : null;
+    const trusted = remoteRef ? false : services.settingsManager.isProjectTrusted();
+    const executionContext = isRemote
+      ? {
+          inventoryRevision: 0,
+          resolutionId: "remote",
+          nativeEnv: process.env,
+          shellEnv: {},
+          commands: {},
+          summary: [],
+        }
+      : await toolchainRuntime.createExecutionContext({
+          cwd,
+          intent: "agent-shell",
+          trusted: services.settingsManager.isProjectTrusted(),
+        });
+    const bashOptions = isRemote
+      ? undefined
+      : createToolchainBashOptions(
+          executionContext as never,
+          toolchainRuntime,
+          services.settingsManager.getShellCommandPrefix(),
+          (command) => browserAgentRuntime.guardBash(sessionManager.getSessionId(), command),
+        );
     const customTools = [
-      createDesktopBashToolDefinition(cwd, bashOptions),
-      ...createDesktopSearchToolDefinitions(cwd, executionContext, toolchainRuntime),
+      ...(isRemote && remoteHost
+        ? createAllRemoteCodingTools(remoteRoot ?? "/", remoteHost)
+        : [
+            createDesktopBashToolDefinition(cwd, bashOptions!),
+            ...createDesktopSearchToolDefinitions(cwd, executionContext as never, toolchainRuntime),
+          ]),
       ...createBrowserToolDefinitions(),
       ...(peekManagedProcessService()
-        ? createManagedProcessToolDefinitions(
-            cwd,
-            services.settingsManager.isProjectTrusted(),
-            peekManagedProcessService()!,
-          )
+        ? createManagedProcessToolDefinitions(cwd, trusted, peekManagedProcessService()!)
         : []),
       ...createSessionOrchestrationToolDefinitions(),
     ] as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>;
@@ -233,7 +258,12 @@ export async function startRpcSession(
 
     const wrapper = new AgentSessionWrapper(inner as unknown as AgentSessionLike & ToolLoadoutReader, {
       intents: desktopToolIntents,
-      toolchain: renderToolchainSection(executionContext.inventoryRevision, executionContext.summary),
+      toolchain: isRemote
+        ? null
+        : renderToolchainSection(
+            (executionContext as never as { inventoryRevision: number }).inventoryRevision ?? 0,
+            (executionContext as never as { summary: string[] }).summary ?? [],
+          ),
     });
     if (chosen.model && !chosenModel) wrapper.sessionModel.adopt(chosen.model);
     bridge.wrapper = wrapper;
