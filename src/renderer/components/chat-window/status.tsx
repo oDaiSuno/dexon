@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { type NoticeItem } from "@/hooks/useAgentSession";
+import type { NoticeItem } from "@/lib/notice-queue";
 import { useI18n } from "@/i18n";
 import { CircleCheckIcon, CircleXIcon, CloseIcon, InfoIcon, TriangleAlertIcon } from "../chat-input/icons";
 export function ExtensionStatusBar({ statuses }: { statuses: Array<{ key: string; text: string }> }) {
@@ -115,6 +115,11 @@ export function NoticeShelf({
           <span className="notice-toast-message type-body-default" title={notice.message}>
             {notice.message}
           </span>
+          {notice.action && (
+            <button type="button" className="feedback-action type-label-medium" onClick={notice.action.onClick}>
+              {notice.action.label}
+            </button>
+          )}
           <span className="notice-toast-divider" aria-hidden="true" />
           <button
             type="button"

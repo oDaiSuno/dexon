@@ -27,6 +27,8 @@ import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-pa
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useShellSpace } from "./app-shell/use-shell-space";
+import { useRemoteWorkspaces } from "@/hooks/use-remote-workspaces";
+import { NoticeShelf } from "./chat-window/status";
 
 // Phase 2 composition root: assembles the app shell from the navigation,
 // right-panel, browser-authorization, channel and session-info owners. The
@@ -43,6 +45,7 @@ export function AppShell({
   onChatAppearanceChange: (preferences: ChatAppearancePreferences) => Promise<void>;
 }) {
   const isMobile = useIsMobile();
+  const remoteWorkspaces = useRemoteWorkspaces();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [page, setPage] = useState<NavPage>("chat");
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
@@ -288,6 +291,7 @@ export function AppShell({
           workspace={space.workspace}
           onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
           openProjects={openProjects}
+          remoteWorkspaces={remoteWorkspaces}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
           onSelectSession={handleSelectSession}
           onNewSession={handleNewSession}
@@ -457,6 +461,14 @@ export function AppShell({
             />
           }
           suspended={mainSuspended}
+        />
+      </div>
+      <div style={{ position: "fixed", top: 16, right: 16, zIndex: 1100 }}>
+        <NoticeShelf
+          notices={remoteWorkspaces.notices}
+          onDismiss={remoteWorkspaces.dismissNotice}
+          floating
+          align="right"
         />
       </div>
       {(() => {

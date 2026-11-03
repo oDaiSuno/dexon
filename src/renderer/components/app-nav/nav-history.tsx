@@ -9,6 +9,7 @@ import { ProjectRow } from "./project-row";
 import { useProjectDrag } from "./use-project-drag";
 import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
 import type { SwitcherProject } from "./project-switcher-card";
+import type { WorkspaceFacts } from "@/lib/remote-workspace";
 
 export interface RevealRequest {
   readonly seq: number;
@@ -24,6 +25,7 @@ export interface ProjectTreeOptions {
   currentProject: string;
   projectActivity?: (key: ProjectKey) => ProjectActivity;
   projectName: (root: string) => string;
+  workspaceFacts?: (root: string) => WorkspaceFacts;
   isPinnedProject?: (root: string) => boolean;
   listedProjects?: readonly ListedProject[];
   expandedProjects?: ReadonlyMap<string, boolean>;
@@ -159,20 +161,30 @@ export function NavHistory({
           const current = project.key === currentKey;
           const open = searching || isOpen(project.key);
           const name = tree.projectName(project.root);
+          const workspace = tree.workspaceFacts?.(project.root);
+          const accessibleName =
+            workspace?.kind === "ssh"
+              ? t("sshWorkspaceName", "{folder} @{host}")
+                  .replace("{folder}", workspace.folderName)
+                  .replace("{host}", workspace.hostLabel)
+              : name;
+          const missing = workspace?.kind !== "ssh" && project.missing;
           const count = project.visible.length;
           const row = (
             <ProjectRow
               name={name}
+              accessibleName={accessibleName}
+              workspace={workspace}
               path={project.root}
               count={count}
               countLabel={t("sessionCount", "{count} sessions").replace("{count}", String(count))}
               open={open}
               current={current}
-              missing={project.missing}
+              missing={missing}
               missingLabel={missingLabel}
               face={projectRowFace({
                 open,
-                missing: project.missing,
+                missing,
                 totalSessions: count,
                 activity: tree.projectActivity?.(project.key) ?? IDLE_PROJECT_ACTIVITY,
               })}
@@ -186,7 +198,7 @@ export function NavHistory({
               }}
               actions={
                 tree.renderProjectActions
-                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project)
+                  ? (revealed) => tree.renderProjectActions?.(accessibleName, revealed, project)
                   : undefined
               }
             >

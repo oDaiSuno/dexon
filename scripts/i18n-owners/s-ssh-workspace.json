@@ -1,0 +1,5 @@
+[
+  "src/renderer/components/app-nav/remote-project-menu.tsx",
+  "src/renderer/components/app-nav/remote-project-status.tsx",
+  "src/renderer/hooks/use-remote-workspaces.ts"
+]

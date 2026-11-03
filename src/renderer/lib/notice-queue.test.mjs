@@ -39,6 +39,22 @@ test("a pending notice receives its full lifetime when it becomes visible", () =
   assert.equal(state.visible[4].expiresAt, 10_000 + NOTICE_VISIBLE_MS);
 });
 
+test("when a queued notice requests four seconds it receives four full seconds on becoming visible", () => {
+  let state = { visible: [], pending: [] };
+  for (let i = 0; i < 5; i += 1) {
+    state = noticeReducer(state, { type: "add", notice: notice(String(i), 5_000) });
+  }
+  state = noticeReducer(state, {
+    type: "add",
+    notice: { ...notice("remote", 4_000), durationMs: 4_000 },
+  });
+
+  state = noticeReducer(state, { type: "remove", id: "0", now: 10_000 });
+
+  assert.equal(state.visible[4].expiresAt, 14_000);
+  assert.equal(noticeExpiryDelay(state.visible[4], 12_000), 2_000);
+});
+
 test("marking a notice as exiting preserves its absolute expiry", () => {
   const state = noticeReducer(
     { visible: [notice("first", 4_321), notice("second", 9_876)], pending: [] },

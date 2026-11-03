@@ -1,0 +1,17 @@
+[
+  "sshNoticeOperationFailed",
+  "sshNoticeReconnectedClean",
+  "sshNoticeTrusted",
+  "sshNoticeUndo",
+  "sshSidebarCopyAddress",
+  "sshSidebarDisconnect",
+  "sshSidebarHostConnected",
+  "sshSidebarHostOffline",
+  "sshSidebarHostReconnecting",
+  "sshSidebarNewSession",
+  "sshSidebarReadOnly",
+  "sshSidebarServerIcon",
+  "sshSidebarSyncRules",
+  "sshSidebarTrust",
+  "sshWorkspaceName"
+]

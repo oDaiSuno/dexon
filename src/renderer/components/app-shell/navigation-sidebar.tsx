@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { call } from "@/lib/api-client";
@@ -17,6 +17,10 @@ import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { OpenProjects } from "./use-open-projects";
 import type { SettingsTab } from "../SettingsConfig";
+import { describeWorkspaceKey } from "@shared/workspace-ref";
+import { workspaceFacts } from "@/lib/remote-workspace";
+import type { RemoteWorkspaces } from "@/hooks/use-remote-workspaces";
+import type { RemoteProjectMenuProps } from "../app-nav/remote-project-menu";
 
 export function NavigationSidebar({
   isMobile,
@@ -33,6 +37,7 @@ export function NavigationSidebar({
   workspace,
   onReturnToPersonalSpace,
   openProjects,
+  remoteWorkspaces,
   shownSessionId,
   onSelectSession,
   onNewSession,
@@ -54,6 +59,7 @@ export function NavigationSidebar({
   workspace: ProjectWorkspaceState;
   onReturnToPersonalSpace: () => void;
   openProjects: OpenProjects;
+  remoteWorkspaces: RemoteWorkspaces;
   shownSessionId: string | null;
   onSelectSession: (session: SessionInfo, isRestore?: boolean, keepSpace?: boolean) => void;
   onNewSession: (sessionId: string, cwd: string) => void;
@@ -69,6 +75,11 @@ export function NavigationSidebar({
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [spaceError, setSpaceError] = useState<string | null>(null);
   const [enteredProject, setEnteredProject] = useState("");
+  const closeProjectRef = useRef(openProjects.close);
+
+  useLayoutEffect(() => {
+    closeProjectRef.current = openProjects.close;
+  }, [openProjects.close]);
 
   useEffect(() => {
     setMobileReady(true);
@@ -197,8 +208,31 @@ export function NavigationSidebar({
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
   const spaceName = spacePath && !personal(spacePath) ? spaceFolderName(spacePath) : undefined;
 
-  const projectName = (path: string) =>
-    spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Default space"));
+  const factsFor = (folder: string) => workspaceFacts(folder, remoteWorkspaces.statesByWorkspace);
+  const projectName = (path: string) => {
+    const facts = factsFor(path);
+    return facts.kind === "ssh"
+      ? facts.folderName
+      : spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Default space"));
+  };
+  const pulseProjectName = (folder: string) => {
+    const description = describeWorkspaceKey(folder);
+    return description.isSsh ? description.pulsePrefix : projectName(folder);
+  };
+  const remoteProjectMenu = (folder: string): RemoteProjectMenuProps | undefined => {
+    const facts = factsFor(folder);
+    if (facts.kind !== "ssh") return undefined;
+    const run = (operation: Promise<unknown>) => void operation.catch(remoteWorkspaces.reportError);
+    return {
+      trust: facts.trust,
+      onNewSession: () => onNewSession(createTemporarySessionId(), facts.key),
+      onCopyAddress: () => run(navigator.clipboard.writeText(facts.key)),
+      onSyncRules: () => run(remoteWorkspaces.syncRules(facts.key)),
+      onToggleTrust: () =>
+        run(remoteWorkspaces.setTrust(facts.key, facts.trust === "trusted" ? "read-only" : "trusted")),
+      onDisconnect: () => run(remoteWorkspaces.disconnect(facts.key).then(() => closeProjectRef.current(folder))),
+    };
+  };
 
   const listedProjects = openProjects.projects.map((root) => ({ root, missing: openProjects.isMissing(root) }));
 
@@ -250,6 +284,9 @@ export function NavigationSidebar({
           sessions={sessions}
           currentProject={selectedProject ?? spacePath}
           projectName={projectName}
+          pulseProjectName={pulseProjectName}
+          workspaceFacts={factsFor}
+          remoteProjectMenu={remoteProjectMenu}
           isPinnedProject={personal}
           listedProjects={listedProjects}
           expandedProjects={expandedProjects}

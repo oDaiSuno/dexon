@@ -13,6 +13,7 @@ import { enUS as enUSModels, zhCN as zhCNModels } from "./i18n/models.ts";
 import { enUS as enUSResources, zhCN as zhCNResources } from "./i18n/resources.ts";
 import { enUS as enUSSettings, zhCN as zhCNSettings } from "./i18n/settings.ts";
 import { enUS as enUSToolchains, zhCN as zhCNToolchains } from "./i18n/toolchains.ts";
+import { enUS as enUSSshWorkspace, zhCN as zhCNSshWorkspace } from "./i18n/ssh-workspace.ts";
 
 export const enUS: Record<string, string> = {
   ...enUSApp,
@@ -30,6 +31,7 @@ export const enUS: Record<string, string> = {
   ...enUSResources,
   ...enUSSettings,
   ...enUSToolchains,
+  ...enUSSshWorkspace,
 };
 
 export const zhCN: Record<string, string> = {
@@ -48,6 +50,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNResources,
   ...zhCNSettings,
   ...zhCNToolchains,
+  ...zhCNSshWorkspace,
 };
 
 export const dictionaries = {

@@ -1,6 +1,5 @@
-import { noticeExpiryDelay } from "@/lib/notice-queue";
 import { useEffect } from "react";
-import { NOTICE_EXIT_ANIMATION_MS } from "./shared";
+import { useNoticeExpiry } from "../use-notice-expiry";
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionModels } from "./use-session-models";
 import type { SessionState } from "./use-session-state";
@@ -82,25 +81,7 @@ export function useSessionEffects(context: Dependencies) {
     return () => clearTimeout(t);
   }, [compactResult, setCompactResult]);
 
-  useEffect(() => {
-    if (noticeState.visible.length === 0) return;
-    const exiting = noticeState.visible.find((notice) => notice.exiting);
-    if (exiting) {
-      const t = setTimeout(() => {
-        dispatchNotice({ type: "remove", id: exiting.id, now: Date.now() });
-      }, NOTICE_EXIT_ANIMATION_MS);
-      return () => clearTimeout(t);
-    }
-    const oldest = noticeState.visible[0];
-    if (!oldest) return;
-    const t = setTimeout(
-      () => {
-        dispatchNotice({ type: "mark_oldest_exiting" });
-      },
-      noticeExpiryDelay(oldest, Date.now()),
-    );
-    return () => clearTimeout(t);
-  }, [dispatchNotice, noticeState.visible]);
+  useNoticeExpiry(noticeState.visible, dispatchNotice);
 
   useEffect(() => {
     setSessionStatsOverride(null);

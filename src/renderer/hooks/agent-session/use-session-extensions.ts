@@ -1,6 +1,6 @@
 import type { SessionRuntimeState } from "@contract/types";
 import { agentState } from "@/lib/api-client";
-import { NOTICE_VISIBLE_MS, type NoticeType } from "@/lib/notice-queue";
+import { NOTICE_VISIBLE_MS, type NoticeItem } from "@/lib/notice-queue";
 import type { ExtensionUiRequest } from "@/lib/types";
 import { useCallback, useEffect } from "react";
 import { UseAgentSessionOptions, createNoticeId } from "./shared";
@@ -41,7 +41,7 @@ export function useSessionExtensions(context: Dependencies, opts: UseAgentSessio
   }, [interactiveTools, sessionIdRef]);
 
   const addNotice = useCallback(
-    (notice: { id?: string; message: string; type?: NoticeType }) => {
+    (notice: Pick<NoticeItem, "message"> & Partial<Pick<NoticeItem, "id" | "type" | "durationMs" | "action">>) => {
       const message = notice.message.trim();
       if (!message) return;
       dispatchNotice({
@@ -50,7 +50,9 @@ export function useSessionExtensions(context: Dependencies, opts: UseAgentSessio
           id: notice.id ?? createNoticeId(),
           message,
           type: notice.type ?? "info",
-          expiresAt: Date.now() + NOTICE_VISIBLE_MS,
+          expiresAt: Date.now() + (notice.durationMs ?? NOTICE_VISIBLE_MS),
+          durationMs: notice.durationMs,
+          action: notice.action,
         },
       });
     },

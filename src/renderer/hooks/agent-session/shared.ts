@@ -142,7 +142,6 @@ export const EVENT_STREAM_CONNECT_TIMEOUT_MS = 5_000;
 export const INITIAL_HISTORY_TURNS = 20;
 export const HISTORY_PAGE_MAX_BYTES = 1024 * 1024;
 export const DEFERRED_CONTENT_CACHE_SIZE = 12;
-export const NOTICE_EXIT_ANIMATION_MS = 180;
 export const SCROLL_KEYS = new Set([
   "ArrowUp",
   "ArrowDown",

@@ -84,16 +84,18 @@ function WarningGlyph() {
   );
 }
 
-function MenuItem({
+export function ProjectMenuItem({
   label,
   icon,
   disabled,
   onChoose,
+  wrapLabel = false,
 }: {
   label: string;
   icon: ReactNode;
   disabled: boolean;
   onChoose: () => void;
+  wrapLabel?: boolean;
 }) {
   return (
     <button
@@ -115,8 +117,9 @@ function MenuItem({
         alignItems: "center",
         gap: 10,
         width: "100%",
-        height: ITEM_HEIGHT,
-        padding: "0 10px",
+        height: wrapLabel ? "auto" : ITEM_HEIGHT,
+        minHeight: wrapLabel ? ITEM_HEIGHT : undefined,
+        padding: wrapLabel ? "8px 10px" : "0 10px",
         border: "none",
         borderRadius: "var(--radius-control)",
         background: "transparent",
@@ -126,7 +129,15 @@ function MenuItem({
       }}
     >
       {icon}
-      <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: wrapLabel ? "normal" : "nowrap",
+        }}
+      >
         {label}
       </span>
     </button>
@@ -168,7 +179,7 @@ export function ProjectMenuContent({
           <span>{t("missingFolderNote", "This folder was moved or deleted. Its sessions are kept.")}</span>
         </div>
       )}
-      <MenuItem
+      <ProjectMenuItem
         label={t("moveProjectUp", "Move up")}
         icon={<ArrowUpGlyph />}
         disabled={!canMoveUp}
@@ -176,7 +187,7 @@ export function ProjectMenuContent({
           if (canMoveUp) onMoveUp();
         }}
       />
-      <MenuItem
+      <ProjectMenuItem
         label={t("moveProjectDown", "Move down")}
         icon={<ArrowDownGlyph />}
         disabled={!canMoveDown}
@@ -187,7 +198,7 @@ export function ProjectMenuContent({
       <div aria-hidden="true" style={{ padding: "4px 6px" }}>
         <div style={{ height: 1, background: "var(--fx-surface-selected)" }} />
       </div>
-      <MenuItem
+      <ProjectMenuItem
         label={t("closeProject", "Close project")}
         icon={<CloseGlyph />}
         disabled={!canClose}

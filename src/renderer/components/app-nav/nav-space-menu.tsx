@@ -2,6 +2,7 @@ import { useEffect, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
 import { ProjectMenuContent } from "./project-menu";
+import { RemoteProjectMenuContent, type RemoteProjectMenuProps } from "./remote-project-menu";
 import { useAnchoredPopover } from "./use-anchored-popover";
 
 const MENU_WIDTH = 216;
@@ -31,6 +32,7 @@ export interface NavProjectMenuProps {
   onMoveUp?: () => void;
   onMoveDown?: () => void;
   onClose?: () => void;
+  remote?: RemoteProjectMenuProps;
 }
 
 export function NavSpaceMenu({
@@ -44,9 +46,11 @@ export function NavSpaceMenu({
   onMoveUp,
   onMoveDown,
   onClose,
+  remote,
 }: NavProjectMenuProps) {
   const { t } = useI18n();
-  const popover = useAnchoredPopover(MENU_WIDTH);
+  const menuWidth = remote ? 420 : MENU_WIDTH;
+  const popover = useAnchoredPopover(menuWidth);
   const { open, popoverRef: menuRef } = popover;
 
   useEffect(() => {
@@ -120,7 +124,8 @@ export function NavSpaceMenu({
               position: "fixed",
               display: "flex",
               flexDirection: "column",
-              width: MENU_WIDTH,
+              width: menuWidth,
+              maxWidth: remote ? "calc(100vw - 16px)" : undefined,
               padding: 4,
               zIndex: 1000,
               background: "var(--fx-surface-raised)",
@@ -130,15 +135,19 @@ export function NavSpaceMenu({
               ...popover.position,
             }}
           >
-            <ProjectMenuContent
-              missing={missing}
-              canMoveUp={canMoveUp}
-              canMoveDown={canMoveDown}
-              canClose={canClose}
-              onMoveUp={() => popover.choose(() => onMoveUp?.())}
-              onMoveDown={() => popover.choose(() => onMoveDown?.())}
-              onClose={() => popover.choose(() => onClose?.())}
-            />
+            {remote ? (
+              <RemoteProjectMenuContent remote={remote} onChoose={popover.choose} />
+            ) : (
+              <ProjectMenuContent
+                missing={missing}
+                canMoveUp={canMoveUp}
+                canMoveDown={canMoveDown}
+                canClose={canClose}
+                onMoveUp={() => popover.choose(() => onMoveUp?.())}
+                onMoveDown={() => popover.choose(() => onMoveDown?.())}
+                onClose={() => popover.choose(() => onClose?.())}
+              />
+            )}
           </div>,
           document.body,
         )}

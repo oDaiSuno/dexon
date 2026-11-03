@@ -1,5 +1,6 @@
 export const MAX_VISIBLE_NOTICES = 5;
 export const NOTICE_VISIBLE_MS = 5_000;
+export const NOTICE_EXIT_ANIMATION_MS = 180;
 
 export type NoticeType = "info" | "success" | "warning" | "error";
 
@@ -8,6 +9,8 @@ export type NoticeItem = {
   message: string;
   type: NoticeType;
   expiresAt: number;
+  durationMs?: number;
+  action?: { label: string; onClick: () => void };
   exiting?: boolean;
 };
 
@@ -33,7 +36,7 @@ function fillPendingNotices(visible: NoticeItem[], pending: NoticeItem[], now: n
   let nextPending = pending;
   while (nextPending.length > 0 && nextVisible.length < MAX_VISIBLE_NOTICES) {
     const [next, ...rest] = nextPending;
-    nextVisible = [...nextVisible, { ...next, expiresAt: now + NOTICE_VISIBLE_MS }];
+    nextVisible = [...nextVisible, { ...next, expiresAt: now + (next.durationMs ?? NOTICE_VISIBLE_MS) }];
     nextPending = rest;
   }
   if (nextPending.length > 0 && !nextVisible.some((notice) => notice.exiting)) {

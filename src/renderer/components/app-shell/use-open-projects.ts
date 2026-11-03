@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { validateCwd } from "@/lib/api-client";
 import { sessionProjectKey } from "@/lib/session-list";
+import { describeWorkspaceKey } from "@shared/workspace-ref";
 import {
   addOpenProject,
   canMoveOpenProject,
@@ -110,7 +111,9 @@ export function useOpenProjects({
   useEffect(() => {
     const generation = ++generationRef.current;
     const defaultKey = defaultSpace ? sessionProjectKey(defaultSpace) : null;
-    const folders = projects.filter((folder) => sessionProjectKey(folder) !== defaultKey);
+    const folders = projects.filter(
+      (folder) => sessionProjectKey(folder) !== defaultKey && !describeWorkspaceKey(folder).isSsh,
+    );
     void Promise.all(
       folders.map(async (folder) => {
         try {

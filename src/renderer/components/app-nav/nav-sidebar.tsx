@@ -20,6 +20,8 @@ import { RailButton, SettingsButton, UpdateButton } from "./nav-sidebar-buttons"
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
+import type { WorkspaceFacts } from "@/lib/remote-workspace";
+import type { RemoteProjectMenuProps } from "./remote-project-menu";
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
@@ -71,6 +73,9 @@ export function NavSidebar({
   onToggleFold,
   currentProject,
   projectName,
+  pulseProjectName,
+  workspaceFacts,
+  remoteProjectMenu,
   isPinnedProject,
   listedProjects,
   expandedProjects,
@@ -115,6 +120,9 @@ export function NavSidebar({
   onToggleFold?: (sessionId: string) => void;
   currentProject?: string;
   projectName?: (root: string) => string;
+  pulseProjectName?: (root: string) => string;
+  workspaceFacts?: (root: string) => WorkspaceFacts;
+  remoteProjectMenu?: (root: string) => RemoteProjectMenuProps | undefined;
   isPinnedProject?: (root: string) => boolean;
   listedProjects?: readonly ListedProject[];
   expandedProjects?: ReadonlyMap<string, boolean>;
@@ -149,8 +157,8 @@ export function NavSidebar({
     [sessions, listedProjects, projectRoot, isPinnedProject],
   );
   const sidebar = useMemo(
-    () => buildSidebarActivity(projects, resolvedActivity, nameOfProject),
-    [projects, resolvedActivity, nameOfProject],
+    () => buildSidebarActivity(projects, resolvedActivity, pulseProjectName ?? nameOfProject),
+    [projects, resolvedActivity, pulseProjectName, nameOfProject],
   );
 
   if (!expanded) {
@@ -347,6 +355,7 @@ export function NavSidebar({
             currentProject: projectRoot,
             projectActivity: sidebar.project,
             projectName: nameOfProject,
+            workspaceFacts,
             isPinnedProject,
             listedProjects,
             expandedProjects,
@@ -369,6 +378,7 @@ export function NavSidebar({
                 name={name}
                 revealed={revealed}
                 project={project}
+                remote={remoteProjectMenu?.(project.root)}
                 workInFlight={sidebar.project(sessionProjectKey(project.root)).workInFlight}
                 isDefaultProject={isDefaultProject}
                 canMoveProject={canMoveProject}

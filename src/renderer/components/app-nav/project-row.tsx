@@ -1,5 +1,7 @@
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
 import { faceEmphasized, ProjectRowTrail, type ProjectRowFace } from "./project-row-status";
+import type { WorkspaceFacts } from "@/lib/remote-workspace";
+import { RemoteHostCapsule, RemoteServerIcon } from "./remote-project-status";
 
 const DUOTONE_FOLDER_OPEN = {
   tone: "M208,88v24H69.77a8,8,0,0,0-7.59,5.47L32,208V64a8,8,0,0,1,8-8H93.33a8,8,0,0,1,4.8,1.6L128,80h72A8,8,0,0,1,208,88Z",
@@ -68,6 +70,8 @@ function ChevronGlyph({ open }: { open: boolean }) {
 
 export function ProjectRow({
   name,
+  accessibleName = name,
+  workspace,
   path,
   count,
   countLabel,
@@ -84,6 +88,8 @@ export function ProjectRow({
   children,
 }: {
   name: string;
+  accessibleName?: string;
+  workspace?: WorkspaceFacts;
   path: string;
   count: number;
   countLabel: string;
@@ -103,6 +109,7 @@ export function ProjectRow({
   const [focused, setFocused] = useState(false);
   const countId = useId();
   const statusId = useId();
+  const remote = workspace?.kind === "ssh" ? workspace : null;
   const resolvedFace: ProjectRowFace = missing
     ? { kind: "missing" }
     : (face ?? { kind: open ? "open" : "closed-quiet", totalSessions: count });
@@ -140,7 +147,7 @@ export function ProjectRow({
         <button
           type="button"
           data-project-row
-          aria-label={name}
+          aria-label={accessibleName}
           aria-describedby={isMissing ? undefined : emphasized ? `${countId} ${statusId}` : countId}
           aria-expanded={open}
           aria-current={current ? "location" : undefined}
@@ -166,12 +173,12 @@ export function ProjectRow({
           }}
         >
           <ChevronGlyph open={open} />
-          {isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
+          {remote ? <RemoteServerIcon /> : isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
           <span
             className={emphasized ? "type-body-large-medium" : "type-body-large"}
             style={{
               flex: 1,
-              minWidth: 0,
+              minWidth: remote ? 32 : 0,
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -184,6 +191,7 @@ export function ProjectRow({
           >
             {name}
           </span>
+          {remote && <RemoteHostCapsule workspace={remote} />}
           {isMissing ? (
             <span
               className="type-label-default"
