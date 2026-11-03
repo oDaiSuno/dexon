@@ -6,7 +6,7 @@ GIT_MAX_BUFFER = 20 * 1024 * 1024
 def _git_run(argv, cwd, timeout=GIT_TIMEOUT_SECONDS):
     full = ["git", "-C", cwd] + argv
     try:
-        process = subprocess.run(full, capture_output=True, timeout=timeout)
+        process = subprocess.run(full, stdin=subprocess.DEVNULL, capture_output=True, timeout=timeout)
     except subprocess.TimeoutExpired:
         raise OpFailure("TIMEOUT", "git timed out")
     return process

@@ -187,7 +187,7 @@ def read_boot_id():
     except (IOError, OSError):
         pass
     try:
-        output = subprocess.check_output(["sysctl", "-n", "kern.boottime"], stderr=subprocess.DEVNULL)
+        output = subprocess.check_output(["sysctl", "-n", "kern.boottime"], stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return hashlib.sha256(output).hexdigest()[:32]
     except (OSError, subprocess.CalledProcessError):
         return "unknown"
@@ -201,7 +201,7 @@ def process_fingerprint(pid):
     except (IOError, OSError, ValueError, IndexError):
         pass
     try:
-        output = subprocess.check_output(["ps", "-o", "lstart=", "-p", str(pid)], stderr=subprocess.DEVNULL)
+        output = subprocess.check_output(["ps", "-o", "lstart=", "-p", str(pid)], stdin=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         text = output.decode("utf-8", "replace").strip()
         return "ps:" + text if text else None
     except (OSError, subprocess.CalledProcessError):

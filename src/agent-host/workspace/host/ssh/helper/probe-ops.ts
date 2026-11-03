@@ -147,7 +147,7 @@ def op_probe_and_mirror(request):
         return {"exists": True, "isDirectory": False, "canonicalRoot": canonical, "gitRoot": None, "boundaryPath": canonical, "ancestorBoundary": "remote-home", "facts": host_facts(), "agentsMdPaths": [], "skillRoots": [], "resourceTarGz": b""}
     git_root = None
     try:
-        result = subprocess.run(["git", "-C", canonical, "rev-parse", "--show-toplevel"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(["git", "-C", canonical, "rev-parse", "--show-toplevel"], stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=5)
         if result.returncode == 0:
             git_root = result.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):

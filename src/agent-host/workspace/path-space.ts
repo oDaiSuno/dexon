@@ -180,6 +180,19 @@ export class PathSpace {
       return { space: "local-overlay", localPath: resolvedLocal, kind: "file" };
     }
 
+    if (process.platform === "win32" && /^[A-Za-z]:[\\/]/.test(cleaned)) {
+      const currentDrive = path.parse(path.resolve("/")).root.toLowerCase();
+      const cleanedDrive = cleaned.slice(0, 3).replace(/\//g, "\\").toLowerCase();
+      const homeResolved = path.resolve(this.localHome).toLowerCase();
+      const tmpResolved = path.resolve(tmpdir()).toLowerCase();
+      const targetLower = resolvedLocal.toLowerCase();
+      const isRealLocalTree =
+        targetLower.startsWith(homeResolved + path.sep) || targetLower.startsWith(tmpResolved + path.sep);
+      if (cleanedDrive === currentDrive && !isRealLocalTree) {
+        cleaned = "/" + cleaned.slice(3).replace(/\\/g, "/");
+      }
+    }
+
     if (path.isAbsolute(cleaned) && !cleaned.startsWith("/")) {
       return { space: "denied", message: DENIED_OUTSIDE };
     }

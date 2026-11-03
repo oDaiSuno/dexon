@@ -1,5 +1,6 @@
 export const EXEC_OPS_SOURCE = String.raw`
 EXEC_KILL_GRACE_SECONDS = 2.0
+KILL_SIGNAL = getattr(signal, "SIGKILL", signal.SIGTERM)
 
 
 def exec_signal_group(process, signum):
@@ -47,7 +48,7 @@ def op_exec(request):
         raise OpFailure("ENOENT", "Executable not found: " + argv[0])
     except PermissionError:
         raise OpFailure("EACCES", "Executable is not permitted: " + argv[0])
-    handle = lambda: exec_signal_group(process, signal.SIGKILL)
+    handle = lambda: exec_signal_group(process, KILL_SIGNAL)
     ON_EXIT.append(handle)
     pumps = [
         threading.Thread(target=exec_pump, args=(request, "stdout", process.stdout), daemon=True),
@@ -76,11 +77,11 @@ def op_exec(request):
             terminated_at = now
             exec_signal_group(process, signal.SIGTERM)
         if terminated_at is not None and now - terminated_at >= EXEC_KILL_GRACE_SECONDS:
-            exec_signal_group(process, signal.SIGKILL)
+            exec_signal_group(process, KILL_SIGNAL)
         time.sleep(0.02)
     for pump in pumps:
         pump.join(2.0)
-    exec_signal_group(process, signal.SIGKILL)
+    exec_signal_group(process, KILL_SIGNAL)
     if handle in ON_EXIT:
         ON_EXIT.remove(handle)
     code = process.returncode

@@ -19,7 +19,7 @@ def op_search(request):
             raise OpFailure("SEARCH_UNAVAILABLE", "ripgrep is not installed")
         full = [rg] + [str(arg) for arg in argv]
         try:
-            process = subprocess.run(full, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS, cwd=cwd)
+            process = subprocess.run(full, stdin=subprocess.DEVNULL, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS, cwd=cwd)
         except subprocess.TimeoutExpired:
             raise OpFailure("TIMEOUT", "ripgrep timed out")
         stdout = process.stdout[:max_bytes]
@@ -35,7 +35,7 @@ def op_search(request):
         if fd is not None:
             full = [fd, "--absolute-path", "--print0", "--exclude", ".git", "--exclude", "node_modules", "--max-results", str(limit), "--", pattern, search_path]
             try:
-                process = subprocess.run(full, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS)
+                process = subprocess.run(full, stdin=subprocess.DEVNULL, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS)
             except subprocess.TimeoutExpired:
                 raise OpFailure("TIMEOUT", "fd timed out")
             return {"stdout": process.stdout, "truncated": False, "exitCode": process.returncode}
@@ -69,7 +69,7 @@ def op_file_index(request):
         if query:
             argv.insert(-2, "--full-path")
         try:
-            process = subprocess.run(argv, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS)
+            process = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, timeout=SEARCH_TIMEOUT_SECONDS)
         except subprocess.TimeoutExpired:
             raise OpFailure("TIMEOUT", "fd timed out")
         paths = []
