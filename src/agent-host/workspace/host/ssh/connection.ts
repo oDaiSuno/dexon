@@ -152,11 +152,7 @@ export class SshConnection implements ExecutionHost {
   private setState(event: HostConnectionEvent): void {
     this.connectionEvent = event;
     for (const listener of this.listeners.onConnection) {
-      try {
-        listener(event);
-      } catch {
-        /* ignore */
-      }
+      queueMicrotask(() => listener(event));
     }
   }
 
@@ -357,11 +353,7 @@ export class SshConnection implements ExecutionHost {
     });
     return async () => {
       unsubscribe();
-      try {
-        await this.request("watchStop", { watchId });
-      } catch {
-        /* best effort */
-      }
+      await this.request("watchStop", { watchId }).catch(() => undefined);
     };
   }
 

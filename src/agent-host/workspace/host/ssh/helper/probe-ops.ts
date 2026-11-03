@@ -92,37 +92,40 @@ def _find_skill_roots(start, boundary):
     return list(dict.fromkeys(roots))
 
 
+SETTINGS_BLOCKED_KEYS = ("shellPath", "commandPrefix", "packages", "extensions")
+
+
+def _add_scrubbed_settings(tar, settings_file):
+    try:
+        with open(settings_file) as handle:
+            data = json.load(handle)
+    except (OSError, ValueError):
+        return
+    if not isinstance(data, dict):
+        return
+    for key in SETTINGS_BLOCKED_KEYS:
+        data.pop(key, None)
+    raw = json.dumps(data, separators=(",", ":")).encode("utf-8")
+    info = tarfile.TarInfo("project-settings.json")
+    info.size = len(raw)
+    info.mtime = int(time.time())
+    info.mode = 0o600
+    tar.addfile(info, io.BytesIO(raw))
+
+
 def _build_resource_tar(agents_files, skill_roots, settings_file):
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         for path in agents_files:
             if os.path.isfile(path):
-                tar.add(path, arcname=os.path.basename(path))
+                tar.add(path, arcname="agents/" + hashlib.sha256(path.encode("utf-8")).hexdigest()[:12] + "/" + os.path.basename(path))
         for root in skill_roots:
             if os.path.isdir(root):
-                tar.add(root, arcname=root.lstrip("/"))
+                tag = hashlib.sha256(root.encode("utf-8")).hexdigest()[:12]
+                tar.add(root, arcname="skills/" + tag)
         if settings_file and os.path.isfile(settings_file):
-            tar.add(settings_file, arcname="project-settings.json")
+            _add_scrubbed_settings(tar, settings_file)
     return buf.getvalue()
-
-
-def _scrub_settings(path):
-    BLOCKED = ("shellPath", "commandPrefix", "packages", "extensions")
-    try:
-        import json as _json
-        with open(path) as handle:
-            data = _json.load(handle)
-        if not isinstance(data, dict):
-            return None
-        for key in BLOCKED:
-            data.pop(key, None)
-        temp = path + ".dxtmp." + str(os.getpid())
-        with open(temp, "w") as handle:
-            _json.dump(data, handle, separators=(",", ":"))
-        os.replace(temp, path)
-        return path
-    except (OSError, ValueError):
-        return None
 
 
 @op("probeAndMirror")
@@ -155,12 +158,7 @@ def op_probe_and_mirror(request):
         ancestor_boundary = "remote-home"
     agents_files = _walk_agents_files(canonical, boundary)
     skill_roots = _find_skill_roots(canonical, boundary)
-    settings_file = None
-    for sub in (".pi/settings.json",):
-        candidate = os.path.join(canonical, sub)
-        if os.path.isfile(candidate):
-            settings_file = _scrub_settings(candidate)
-            break
+    settings_file = os.path.join(canonical, ".pi", "settings.json")
     tar_bytes = _build_resource_tar(agents_files, skill_roots, settings_file)
     if len(tar_bytes) > MIRROR_MAX_RESOURCE_BYTES:
         tar_bytes = b""
