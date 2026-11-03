@@ -51,6 +51,7 @@ run("Composer editing Electron integration", "npm", ["run", "test:composer-editi
 run("User bubble chips Electron integration", "npm", ["run", "test:user-bubble-electron"]);
 run("Navigation layout and keyboard Electron integration", "npm", ["run", "test:nav-layout-electron"]);
 run("Sidebar background activity Electron integration", "npm", ["run", "test:sidebar-pulse-well-electron"]);
+run("SSH remote workspace Electron integration", "npm", ["run", "test:ssh-workspace-electron"]);
 run("Browser Electron integration", "npm", ["run", "test:browser-electron"]);
 run("Browser real Agent E2E", "npm", ["run", "test:browser-agent-e2e"]);
 

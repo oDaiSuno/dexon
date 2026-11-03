@@ -59,6 +59,7 @@
     "test:composer-editing-electron": "node scripts/test-composer-editing-electron.mjs",
     "test:nav-layout-electron": "node scripts/test-nav-layout-electron.mjs",
     "test:sidebar-pulse-well-electron": "node scripts/test-sidebar-pulse-well-electron.mjs",
+    "test:ssh-workspace-electron": "node scripts/test-ssh-workspace-electron.mjs",
     "test:app-navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/dom/app-navigation-*.test.mjs",
     "test:app-navigation-electron": "node scripts/test-app-navigation-electron.mjs",
     "test:project-list-electron": "node scripts/test-project-list-electron.mjs",
