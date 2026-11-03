@@ -20,7 +20,7 @@ import {
   shouldCollapseSidebarForRightPanel,
   type RightPanelResizeKey,
 } from "@/lib/layout-preferences";
-import { isManagedProcessActiveState } from "@contract/processes";
+import { isManagedProcessActiveState, type ManagedProcessPublicInfo } from "@contract/processes";
 
 // Split from AppShell.tsx in Phase 2: the right panel's state owner. Owns the
 // file tabs, panel geometry and resize interaction, the browser tab surface
@@ -88,6 +88,7 @@ export function useRightPanelDock({
   });
   const [rightPanelResizing, setRightPanelResizing] = useState(false);
   const rightPanelResizeCleanupRef = useRef<(() => void) | null>(null);
+  const [managedProcesses, setManagedProcesses] = useState<ManagedProcessPublicInfo[]>([]);
   const [managedProcessCount, setManagedProcessCount] = useState(0);
   const [managedProcessAttention, setManagedProcessAttention] = useState(false);
 
@@ -98,6 +99,7 @@ export function useRightPanelDock({
       void call("processes.list", { includeExited: true })
         .then((snapshot) => {
           if (!disposed) {
+            setManagedProcesses(snapshot.processes);
             setManagedProcessCount(
               snapshot.processes.filter((process) => isManagedProcessActiveState(process.state)).length,
             );
@@ -298,6 +300,7 @@ export function useRightPanelDock({
     handleRightPanelToggle,
     handleRightPanelResizeStart,
     handleRightPanelResizeKeyDown,
+    managedProcesses,
     managedProcessCount,
     setManagedProcessCount,
     managedProcessAttention,

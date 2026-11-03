@@ -27,9 +27,11 @@ import type { SubmissionNotice } from "./use-composer-draft";
 import type { SlashPaletteView } from "./use-slash-palette";
 import { PlusIcon } from "./icons";
 import { WorkspaceTrigger } from "./workspace-trigger";
+import { WorkspaceDisconnectBanner } from "./workspace-disconnect-banner";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps {
+  cwd?: string;
   rootRef: RefObject<HTMLDivElement | null>;
   visible: boolean;
   isMobile: boolean;
@@ -252,6 +254,7 @@ export function ComposerView(props: ComposerViewProps) {
         }}
       />
       <div className="chat-content-column">
+        <WorkspaceDisconnectBanner cwd={props.cwd} />
         {imageAttachNotice && (
           <ComposerBanner
             tone="error"

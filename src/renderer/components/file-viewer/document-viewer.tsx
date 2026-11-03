@@ -11,7 +11,12 @@ export function DocumentViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
   const { language, t } = useI18n();
   const ext = getFileExt(filePath);
   const isPdf = ext === "pdf";
-  const { size, error, previewUrl, watching } = useDocumentPreview(filePath, sourceSessionId, isPdf);
+  const { size, error, previewUrl, watching, space, remoteHostLabel } = useDocumentPreview(
+    filePath,
+    sourceSessionId,
+    isPdf,
+    cwd,
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -40,7 +45,7 @@ export function DocumentViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
         <span style={{ marginLeft: "auto" }}>{ext === "docx" ? t("docxPreview", "DOCX preview") : "PDF"}</span>
         {size != null && <span>{formatFileSize(size, language)}</span>}
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
-        <WatchIndicator watching={watching} noShrink />
+        <WatchIndicator watching={watching} noShrink filePath={filePath} cwd={cwd} file={{ space, remoteHostLabel }} />
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--fx-surface-raised)" }}>
         {error ? (
@@ -73,6 +78,7 @@ export function DocumentViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
           </div>
         ) : (
           <iframe
+            data-testid="file-document-preview"
             key={previewUrl}
             src={previewUrl}
             sandbox={isPdf ? undefined : ""}

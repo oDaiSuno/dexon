@@ -20,7 +20,12 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
   const { language, t } = useI18n();
   const [bust, setBust] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
-  const { src, size, error, setError, setSize } = useBlobSrc(filePath, sourceSessionId, bust);
+  const { src, size, error, setError, setSize, space, remoteHostLabel } = useBlobSrc(
+    filePath,
+    sourceSessionId,
+    bust,
+    cwd,
+  );
   const onChange = useCallback(
     (s?: number) => {
       if (typeof s === "number") setSize(s);
@@ -30,7 +35,7 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
     },
     [setSize, setError],
   );
-  const watching = useFileWatch(filePath, sourceSessionId, onChange);
+  const watching = useFileWatch(filePath, sourceSessionId, onChange, cwd);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
 
@@ -58,7 +63,7 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
         <span style={{ marginLeft: "auto" }}>{ext || "audio"}</span>
         {duration != null && <span>{formatDuration(duration)}</span>}
         {size != null && <span>{formatFileSize(size, language)}</span>}
-        <WatchIndicator watching={watching} />
+        <WatchIndicator watching={watching} filePath={filePath} cwd={cwd} file={{ space, remoteHostLabel }} />
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
@@ -86,6 +91,7 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
           )}
           {src && (
             <audio
+              data-testid="file-audio-preview"
               key={src}
               controls
               preload="metadata"

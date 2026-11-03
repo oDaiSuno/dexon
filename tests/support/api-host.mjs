@@ -1,4 +1,5 @@
 import { installHostBridge } from "./host-bridge.mjs";
+import { browserTab } from "./browser-state.mjs";
 
 // Compatibility for existing test data at the external Host boundary. These
 // are host replies to declared requests; the renderer's helpers stay real.
@@ -97,8 +98,10 @@ export function remoteHostBoundary(base, script) {
       activity.pending--;
     }
   };
-  const emit = (topic, event) => {
-    for (const listener of listeners.get(topic) ?? []) listener(structuredClone(event));
+  const emit = (topic, event, key = "*") => {
+    for (const subscription of listeners.get(topic) ?? []) {
+      if (subscription.key === "*" || subscription.key === key) subscription.listener(structuredClone(event));
+    }
   };
   return {
     ...base,
@@ -108,15 +111,26 @@ export function remoteHostBoundary(base, script) {
       call: (method, params) =>
         Object.hasOwn(script, method) ? scriptedCall(method, params) : base.host.call(method, params),
       subscribe(topic, key, listener) {
-        if (topic !== "workspace.state" && topic !== "workspace.trustPrompt")
+        if (!["workspace.state", "workspace.trustPrompt", "files.changed", "processes.changed"].includes(topic))
           return base.host.subscribe?.(topic, key, listener);
-        if (key !== "*") {
-          base.unexpected.push(`${topic}:${key}`);
-          throw new Error(`Unexpected remote subscription key: ${key}`);
-        }
+        const subscription = { key, listener };
         if (!listeners.has(topic)) listeners.set(topic, new Set());
-        listeners.get(topic).add(listener);
-        return () => listeners.get(topic)?.delete(listener);
+        listeners.get(topic).add(subscription);
+        const off = base.host.subscribe?.(topic, key, listener);
+        return () => {
+          listeners.get(topic)?.delete(subscription);
+          off?.();
+        };
+      },
+    },
+    bridge: {
+      ...base.bridge,
+      async browserCreateUserTab(request) {
+        calls.push({ method: "desktop.browserCreateUserTab", params: structuredClone(request) });
+        const tab = { ...browserTab(`ssh-preview-${calls.length}`, request.ownerSessionId), url: request.url };
+        base.browserTabCreated(tab);
+        if (request.activate) await base.bridge.browserActivateTab(tab.id);
+        return tab;
       },
     },
     activity() {
@@ -124,11 +138,13 @@ export function remoteHostBoundary(base, script) {
       return { started: current.started + activity.started, pending: current.pending + activity.pending };
     },
     requests(method) {
-      return method.startsWith("remote.") || Object.hasOwn(script, method)
+      return method.startsWith("remote.") || method === "desktop.browserCreateUserTab" || Object.hasOwn(script, method)
         ? calls.filter((entry) => entry.method === method).map((entry) => entry.params)
         : base.requests(method);
     },
     emitWorkspaceState: (event) => emit("workspace.state", event),
     emitTrustPrompt: (event) => emit("workspace.trustPrompt", event),
+    emitFileEvent: (event) => emit("files.changed", event, event.path),
+    emitProcessesChanged: (event) => emit("processes.changed", event, event.processId),
   };
 }

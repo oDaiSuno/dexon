@@ -1,11 +1,15 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
+import type { browserTunnelForUrl } from "@/lib/process-endpoints";
+
+type BrowserTunnel = ReturnType<typeof browserTunnelForUrl>;
 import { BrowserIcon } from "./browser-icons";
 import { iconButtonStyle } from "./browser-tab-strip";
 import type { BrowserProfileInfo, BrowserTabInfo } from "../../../contract/browser";
 
 export function BrowserToolbar({
   activeTab,
+  tunnel,
   address,
   profiles,
   newTabProfileId,
@@ -17,6 +21,7 @@ export function BrowserToolbar({
   onError,
 }: {
   activeTab: BrowserTabInfo | null;
+  tunnel?: BrowserTunnel;
   address: string;
   profiles: BrowserProfileInfo[];
   newTabProfileId: string;
@@ -84,6 +89,7 @@ export function BrowserToolbar({
       </button>
       <AddressBar
         url={activeTab?.url ?? ""}
+        tunnel={tunnel}
         address={address}
         profileName={shownProfile?.name ?? shownProfileId}
         onAddressChange={onAddressChange}
@@ -104,12 +110,14 @@ export function BrowserToolbar({
 
 function AddressBar({
   url,
+  tunnel,
   address,
   profileName,
   onAddressChange,
   onNavigate,
 }: {
   url: string;
+  tunnel?: BrowserTunnel;
   address: string;
   profileName: string;
   onAddressChange: (address: string) => void;
@@ -119,6 +127,11 @@ function AddressBar({
   const secure = url.startsWith("https:");
   const insecure = url.startsWith("http:");
   const display = address === url ? displayUrl(url) : null;
+  const tunnelLabel = tunnel
+    ? t("sshBrowserTunnel", "SSH tunnel · {host}:{remotePort}")
+        .replace("{host}", tunnel.hostLabel)
+        .replace("{remotePort}", String(tunnel.remotePort))
+    : null;
   return (
     <form
       className="browser-address"
@@ -139,6 +152,25 @@ function AddressBar({
         background: "var(--fx-surface-raised)",
       }}
     >
+      {tunnel && (
+        <span
+          className="type-meta-medium"
+          title={tunnelLabel ?? undefined}
+          style={{
+            flexShrink: 0,
+            maxWidth: "60%",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            padding: "var(--space-1) var(--space-2)",
+            borderRadius: "var(--radius-chip)",
+            background: "var(--fx-accent-blue-soft)",
+            color: "var(--fx-accent-blue-text)",
+          }}
+        >
+          {tunnelLabel}
+        </span>
+      )}
       {secure && (
         <span style={{ color: "var(--fx-text-tertiary)" }}>
           <BrowserIcon name="lock" size={12} strokeWidth={2} />

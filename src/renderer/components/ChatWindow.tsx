@@ -11,7 +11,8 @@ import { Welcome } from "./chat-window/welcome";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { RetryCountdownLine } from "./messages/FailureLine";
 import { SessionProfiler } from "./SessionProfiler";
-import { useLayoutEffect } from "react";
+import { useLayoutEffect, useMemo } from "react";
+import { ToolFileProvider } from "./messages/tool-file-context";
 
 const detachedSentinel = () => {};
 
@@ -91,6 +92,10 @@ export function ChatWindow(props: Props) {
     chatInputElement,
   } = useChatWindow(props);
   const jumpPending = turnJump.jumpTarget !== null;
+  const toolFiles = useMemo(
+    () => ({ cwd: messageCwd, homeDir: props.homeDir, onOpenFile }),
+    [messageCwd, props.homeDir, onOpenFile],
+  );
 
   if (loading) {
     return (
@@ -188,31 +193,33 @@ export function ChatWindow(props: Props) {
                   <ExtensionWidgets widgets={aboveEditorWidgets} />
 
                   <ReaderActionProvider onReaderAction={disengageAutoFollow}>
-                    <ChatMessages
-                      messages={messages}
-                      messageRefs={messageRefs}
-                      lastUserMsgRef={lastUserMsgRef}
-                      entryIds={entryIds}
-                      messageRenderKeys={messageRenderKeys}
-                      toolMessageIndex={toolMessageIndex}
-                      agentRunning={agentRunning}
-                      streamState={streamState}
-                      session={session}
-                      modelNames={modelNames}
-                      messageCwd={messageCwd}
-                      onOpenFile={onOpenFile}
-                      isNew={isNew}
-                      handleFork={handleFork}
-                      forkingEntryId={forkingEntryId}
-                      editDraft={editDraft}
-                      editHandlers={editHandlers}
-                      handleSwitchVersion={handleSwitchVersion}
-                      loadDeferredContent={loadDeferredContent}
-                      thinkingExpansionStore={thinkingExpansionStore}
-                      assistantBlockCache={assistantBlockCache}
-                      processDetailsExpansionStore={processDetailsExpansionStore}
-                      disengageAutoFollow={disengageAutoFollow}
-                    />
+                    <ToolFileProvider value={toolFiles}>
+                      <ChatMessages
+                        messages={messages}
+                        messageRefs={messageRefs}
+                        lastUserMsgRef={lastUserMsgRef}
+                        entryIds={entryIds}
+                        messageRenderKeys={messageRenderKeys}
+                        toolMessageIndex={toolMessageIndex}
+                        agentRunning={agentRunning}
+                        streamState={streamState}
+                        session={session}
+                        modelNames={modelNames}
+                        messageCwd={messageCwd}
+                        onOpenFile={onOpenFile}
+                        isNew={isNew}
+                        handleFork={handleFork}
+                        forkingEntryId={forkingEntryId}
+                        editDraft={editDraft}
+                        editHandlers={editHandlers}
+                        handleSwitchVersion={handleSwitchVersion}
+                        loadDeferredContent={loadDeferredContent}
+                        thinkingExpansionStore={thinkingExpansionStore}
+                        assistantBlockCache={assistantBlockCache}
+                        processDetailsExpansionStore={processDetailsExpansionStore}
+                        disengageAutoFollow={disengageAutoFollow}
+                      />
+                    </ToolFileProvider>
                   </ReaderActionProvider>
 
                   {agentRunning && retryInfo?.waiting && (

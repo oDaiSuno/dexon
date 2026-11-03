@@ -12,7 +12,12 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
   const { language, t } = useI18n();
   const [bust, setBust] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
-  const { src, size, error, setError, setSize } = useBlobSrc(filePath, sourceSessionId, bust);
+  const { src, size, error, setError, setSize, space, remoteHostLabel } = useBlobSrc(
+    filePath,
+    sourceSessionId,
+    bust,
+    cwd,
+  );
   const onChange = useCallback(
     (s?: number) => {
       if (typeof s === "number") setSize(s);
@@ -21,7 +26,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
     },
     [setSize],
   );
-  const watching = useFileWatch(filePath, sourceSessionId, onChange);
+  const watching = useFileWatch(filePath, sourceSessionId, onChange, cwd);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
 
@@ -55,7 +60,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
           </span>
         )}
         {formatSizeStr && <span>{formatSizeStr}</span>}
-        <WatchIndicator watching={watching} />
+        <WatchIndicator watching={watching} filePath={filePath} cwd={cwd} file={{ space, remoteHostLabel }} />
         <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
@@ -81,6 +86,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
           </div>
         ) : (
           <img
+            data-testid="file-image-preview"
             src={src}
             alt={filePath}
             onLoad={(e) => {

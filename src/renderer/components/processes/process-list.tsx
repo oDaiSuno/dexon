@@ -1,4 +1,5 @@
-import { type MouseEvent } from "react";
+import { type MouseEvent, type ReactNode } from "react";
+import { EndpointCapsules } from "./endpoint-capsules";
 import { isManagedProcessActiveState, type ManagedProcessPublicInfo } from "@contract/processes";
 import { useI18n } from "@/i18n";
 import { ActionMenu } from "../action-menu";
@@ -29,6 +30,7 @@ const STATE_DOT = {
   success: "var(--fx-status-success)",
   running: "var(--fx-accent-blue)",
   idle: "var(--fx-text-faint)",
+  warning: "var(--fx-status-warning)",
 } as const;
 
 function SummaryItem({ tone, label }: { tone: "running" | "exited" | "failed"; label: string }) {
@@ -150,7 +152,13 @@ export function ProcessSummary({
 }
 
 function ProcessState({ process }: { process: ManagedProcessPublicInfo }) {
-  const tone = processTone(process);
+  const endpointTone = process.endpointViews?.some((view) => view.state === "mapping")
+    ? "running"
+    : process.endpointViews?.length &&
+        process.endpointViews.every((view) => view.state === "unavailable" || !view.openUrl)
+      ? "warning"
+      : null;
+  const tone = isFailedProcess(process) ? processTone(process) : (endpointTone ?? processTone(process));
   return (
     <span
       className="flex size-[14px] shrink-0 items-center justify-center"
@@ -183,7 +191,8 @@ function ProcessCard({
 }) {
   const { t } = useI18n();
   const failed = isFailedProcess(process);
-  const endpoint = process.endpoints[0];
+  const remoteEndpoints = Boolean(process.endpointViews?.length);
+  const endpoint = remoteEndpoints ? undefined : process.endpoints[0];
   const port = endpoint ? endpointPort(endpoint.url) : null;
   const openPort = (event: MouseEvent) => {
     event.stopPropagation();
@@ -191,11 +200,11 @@ function ProcessCard({
   };
 
   return (
-    <button
-      type="button"
-      className="process-card flex w-full flex-col gap-[4px] rounded-[var(--radius-control)] p-[10px] text-left"
-      aria-pressed={selected}
-      onClick={onSelect}
+    <ProcessCardFrame
+      remoteEndpoints={remoteEndpoints}
+      selected={selected}
+      onSelect={onSelect}
+      capsules={remoteEndpoints ? <EndpointCapsules process={process} onOpen={onOpenPort} /> : null}
     >
       <span className="flex w-full min-w-0 items-center gap-[8px]">
         <ProcessState process={process} />
@@ -239,7 +248,62 @@ function ProcessCard({
           {process.lastOutput.text}
         </span>
       )}
-    </button>
+    </ProcessCardFrame>
+  );
+}
+
+function ProcessCardFrame({
+  remoteEndpoints,
+  selected,
+  onSelect,
+  capsules,
+  children,
+}: {
+  remoteEndpoints: boolean;
+  selected: boolean;
+  onSelect: () => void;
+  capsules: ReactNode;
+  children: ReactNode;
+}) {
+  const className = "process-card flex w-full flex-col gap-[4px] rounded-[var(--radius-control)] p-[10px] text-left";
+  if (!remoteEndpoints)
+    return (
+      <button type="button" className={className} aria-pressed={selected} onClick={onSelect}>
+        {children}
+      </button>
+    );
+  return (
+    <div
+      className={className}
+      style={
+        selected
+          ? {
+              background: "var(--fx-surface-raised)",
+              boxShadow: "var(--shadow-control), 0 0 0 1px var(--fx-line-translucent)",
+            }
+          : undefined
+      }
+    >
+      <button
+        type="button"
+        aria-pressed={selected}
+        onClick={onSelect}
+        style={{
+          display: "flex",
+          width: "100%",
+          flexDirection: "column",
+          gap: "var(--space-1)",
+          padding: 0,
+          border: "none",
+          background: "var(--fx-surface-hover-clear)",
+          textAlign: "left",
+          cursor: "pointer",
+        }}
+      >
+        {children}
+      </button>
+      {capsules}
+    </div>
   );
 }
 

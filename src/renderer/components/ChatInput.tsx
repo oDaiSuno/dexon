@@ -346,6 +346,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   return (
     <ComposerView
+      cwd={cwd ?? undefined}
       rootRef={inputRootRef}
       visible={visible}
       isMobile={isMobile}

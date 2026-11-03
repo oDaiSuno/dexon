@@ -4,7 +4,8 @@ import { createBoundedTextDiff } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
 import { call } from "@/lib/api-client";
 import { collapseDiff } from "./diff-segments";
-import { getFileApiUrl } from "./file-api-url";
+import { useFileWatch } from "./use-file-watch";
+import { useFileWorkspaceFacts } from "../app-shell/remote-workspaces-context";
 
 export type TextViewMode = "source" | "diff";
 
@@ -24,15 +25,17 @@ function summarizeDiff(oldContent: string, newContent: string): DiffSummary | nu
   };
 }
 
-export function useTextFile(filePath: string, sourceSessionId?: string | null) {
+export function useTextFile(filePath: string, sourceSessionId?: string | null, cwd?: string) {
   const { t } = useI18n();
   const [loadState, dispatchLoad] = useReducer(textFileLoadReducer, INITIAL_TEXT_FILE_LOAD_STATE);
   const [head, setHead] = useState<{ filePath: string; content: string } | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [viewMode, setViewMode] = useState<TextViewMode>("source");
   const [wrapLines, setWrapLines] = useState(false);
-  const [watching, setWatching] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
+  const facts = useFileWorkspaceFacts(filePath, cwd);
+  const remoteFile = facts.kind === "ssh";
+  const connected = !remoteFile || facts.connection === "connected";
+  const previousConnection = useRef(connected);
 
   const loadGen = useRef(0);
 
@@ -44,17 +47,22 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
         .then((d) => {
           if (gen !== loadGen.current) return null;
           if (d.error) {
-            dispatchLoad({ type: "failed", error: d.error });
+            dispatchLoad({ type: "failed", error: d.error, retainSnapshot: remoteFile });
             return null;
           }
           if (d.encoding === "too_large") {
-            dispatchLoad({ type: "failed", error: t("fileTooLargeForPreview", "File is too large for preview") });
+            dispatchLoad({
+              type: "failed",
+              error: t("fileTooLargeForPreview", "File is too large for preview"),
+              retainSnapshot: remoteFile,
+            });
             return null;
           }
           if (d.encoding === "base64") {
             dispatchLoad({
               type: "failed",
               error: t("binaryFileCannotShowText", "Binary file cannot be shown as text"),
+              retainSnapshot: remoteFile,
             });
             return null;
           }
@@ -62,17 +70,19 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
             content: d.content,
             language: d.language ?? "text",
             size: d.size ?? d.content.length,
+            space: d.space,
+            remoteHostLabel: d.remoteHostLabel,
           };
           dispatchLoad({ type: "succeeded", data: payload });
           return payload;
         })
         .catch((e) => {
           if (gen !== loadGen.current) return null;
-          dispatchLoad({ type: "failed", error: String(e) });
+          dispatchLoad({ type: "failed", error: String(e), retainSnapshot: remoteFile });
           return null;
         });
     },
-    [sourceSessionId, t],
+    [sourceSessionId, t, remoteFile],
   );
 
   const fetchHead = useCallback(() => {
@@ -92,44 +102,26 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     setPreviewMode(false);
     setViewMode("source");
     setWrapLines(false);
-    setWatching(false);
-
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
-    }
-
     void fetchContent(filePath).then((data) => {
       if (data?.language === "markdown") setPreviewMode(true);
     });
     void fetchHead();
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
-    esRef.current = es;
-
-    es.addEventListener("connected", () => {
-      setWatching(true);
-    });
-
-    es.addEventListener("change", () => {
-      void fetchContent(filePath);
-      void fetchHead();
-    });
-
-    es.addEventListener("error", () => {
-      setWatching(false);
-    });
-
-    es.onerror = () => {
-      setWatching(false);
-    };
-
     return () => {
       loadGen.current += 1;
-      es.close();
-      esRef.current = null;
     };
   }, [filePath, fetchContent, fetchHead, sourceSessionId]);
+
+  const reload = useCallback(() => {
+    void fetchContent(filePath);
+    void fetchHead();
+  }, [fetchContent, fetchHead, filePath]);
+  const watching = useFileWatch(filePath, sourceSessionId, reload, cwd);
+
+  useEffect(() => {
+    if (connected && !previousConnection.current) reload();
+    previousConnection.current = connected;
+  }, [connected, reload]);
 
   const content = loadState.status === "ready" ? loadState.data.content : null;
   const headContent = head && head.filePath === filePath ? head.content : null;

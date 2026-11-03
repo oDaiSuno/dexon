@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
+import type { ManagedProcessPublicInfo } from "@contract/processes";
+import { browserTunnelForUrl } from "@/lib/process-endpoints";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
 import { BrowserCrashedState, BrowserEmptyState, BrowserNoTabState } from "./browser-empty-state";
@@ -10,7 +12,15 @@ import { BrowserTabStrip } from "./browser-tab-strip";
 import { BrowserToolbar } from "./browser-toolbar";
 import type { BrowserEvent, BrowserRendererState } from "../../../contract/browser";
 
-export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; ownerSessionId: string | null }) {
+export function BrowserDock({
+  visible,
+  ownerSessionId,
+  processes = [],
+}: {
+  visible: boolean;
+  ownerSessionId: string | null;
+  processes?: ManagedProcessPublicInfo[];
+}) {
   const { t } = useI18n();
   const sessionCatalog = useSessionCatalog();
   const [state, setState] = useState<BrowserRendererState | null>(null);
@@ -192,6 +202,7 @@ export function BrowserDock({ visible, ownerSessionId }: { visible: boolean; own
       />
       <BrowserToolbar
         activeTab={activeTab}
+        tunnel={browserTunnelForUrl(processes, activeTab?.url ?? "")}
         address={address}
         profiles={state.profiles}
         newTabProfileId={profileId}

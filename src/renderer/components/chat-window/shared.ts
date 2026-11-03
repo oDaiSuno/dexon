@@ -30,6 +30,7 @@ export interface Props {
   onCompactionChange?: (compaction: UsageCompaction | null) => void;
   onModelIdChange?: (modelId: string | null) => void;
   onOpenFile?: (filePath: string) => void;
+  homeDir?: string;
   /** True while this chat surface is the page currently shown to the user. */
   visible?: boolean;
   readingPositions?: ReadingPositionRegistry;

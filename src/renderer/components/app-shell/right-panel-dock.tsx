@@ -1,4 +1,5 @@
 import { useI18n } from "@/i18n";
+import type { ManagedProcessPublicInfo } from "@contract/processes";
 import { formatNumber } from "@/lib/locale-format";
 import {
   RIGHT_PANEL_MAX_VIEWPORT_RATIO,
@@ -41,6 +42,7 @@ export function RightPanelDock({
   onResizeStart,
   onResizeKeyDown,
   managedProcessCount,
+  managedProcesses,
   onManagedProcessCountChange,
   managedProcessAttention,
   selectedSessionId,
@@ -70,6 +72,7 @@ export function RightPanelDock({
   onResizeStart: (event: ReactPointerEvent<HTMLDivElement>) => void;
   onResizeKeyDown: (event: ReactKeyboardEvent<HTMLDivElement>) => void;
   managedProcessCount: number;
+  managedProcesses?: ManagedProcessPublicInfo[];
   onManagedProcessCountChange: (count: number) => void;
   managedProcessAttention: boolean;
   selectedSessionId: string | null;
@@ -186,6 +189,7 @@ export function RightPanelDock({
           <BrowserDock
             visible={rightPanelOpen && !suspended && !settingsOpen && !browserAuthorizationOpen}
             ownerSessionId={selectedSessionId}
+            processes={managedProcesses}
           />
         ) : activeFileTabId === PROCESSES_TAB_ID ? (
           <ProcessPanel

@@ -31,7 +31,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
     wrapLines,
     setWrapLines,
     watching,
-  } = useTextFile(filePath, sourceSessionId);
+  } = useTextFile(filePath, sourceSessionId, cwd);
 
   if (loadState.status === "loading") {
     return (
@@ -110,7 +110,7 @@ export function TextFileReady({
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
       <div className="file-viewer-meta" onContextMenu={openFileMenu}>
         <PathCrumbs filePath={filePath} cwd={cwd} />
-        <WatchIndicator watching={watching} showLabel={mode !== "diff"} />
+        <WatchIndicator watching={watching} showLabel={mode !== "diff"} filePath={filePath} cwd={cwd} file={data} />
         <TextModeToggles
           data={data}
           hasDiff={hasDiff}

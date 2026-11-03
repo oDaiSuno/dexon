@@ -407,6 +407,7 @@ export function AppShell({
                     onCompactionChange={info.setCompaction}
                     onModelIdChange={info.setModelId}
                     onOpenFile={handleOpenLinkedFile}
+                    homeDir={space.homeDir}
                     channelSnapshot={channels.channelSnapshot}
                     onChannelSnapshotChange={channels.setChannelSnapshot}
                     navigation={composerNavigation}
@@ -438,6 +439,7 @@ export function AppShell({
           onResizeStart={dock.handleRightPanelResizeStart}
           onResizeKeyDown={dock.handleRightPanelResizeKeyDown}
           managedProcessCount={dock.managedProcessCount}
+          managedProcesses={dock.managedProcesses}
           onManagedProcessCountChange={dock.setManagedProcessCount}
           managedProcessAttention={dock.managedProcessAttention}
           selectedSessionId={selectedSession?.id ?? null}

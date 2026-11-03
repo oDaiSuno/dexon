@@ -12,6 +12,8 @@ export type FileReadResult = {
   size?: number;
   truncated?: boolean;
   error?: string;
+  space?: "local" | "remote" | "local-overlay";
+  remoteHostLabel?: string;
 };
 
 export async function readFilePayload(filePath: string, sourceSessionId?: string | null): Promise<FileReadResult> {
@@ -29,10 +31,16 @@ export function base64ToBlob(base64: string, mime: string): Blob {
   return new Blob([bytes], { type: mime || "application/octet-stream" });
 }
 
+export type FilePreviewResource = Pick<FileReadResult, "space" | "remoteHostLabel"> & {
+  url: string;
+  size?: number;
+  revoke: () => void;
+};
+
 export async function fileToObjectUrl(
   filePath: string,
   sourceSessionId?: string | null,
-): Promise<{ url: string; mime: string; size: number; revoke: () => void }> {
+): Promise<FilePreviewResource & { mime: string; size: number }> {
   const data = await readFilePayload(filePath, sourceSessionId);
   if (data.encoding === "too_large") {
     throw new Error("File too large for preview");
@@ -43,6 +51,8 @@ export async function fileToObjectUrl(
     const url = URL.createObjectURL(blob);
     return {
       url,
+      space: data.space,
+      remoteHostLabel: data.remoteHostLabel,
       mime,
       size: data.size ?? blob.size,
       revoke: () => URL.revokeObjectURL(url),
@@ -55,6 +65,8 @@ export async function fileToObjectUrl(
   const url = URL.createObjectURL(blob);
   return {
     url,
+    space: data.space,
+    remoteHostLabel: data.remoteHostLabel,
     mime: data.mime || "text/plain",
     size: data.size ?? blob.size,
     revoke: () => URL.revokeObjectURL(url),

@@ -1,3 +1,4 @@
+import { enUS as enUSSshPanels, zhCN as zhCNSshPanels } from "./i18n/ssh-workspace-panels.ts";
 import { enUS as enUSSshSkills, zhCN as zhCNSshSkills } from "./i18n/ssh-workspace-skills.ts";
 import { enUS as enUSSshTrust, zhCN as zhCNSshTrust } from "./i18n/ssh-workspace-trust.ts";
 import { enUS as enUSInteractiveTools, zhCN as zhCNInteractiveTools } from "./i18n/interactive-tools.ts";
@@ -36,6 +37,7 @@ export const enUS: Record<string, string> = {
   ...enUSSshWorkspace,
   ...enUSSshSkills,
   ...enUSSshTrust,
+  ...enUSSshPanels,
 };
 
 export const zhCN: Record<string, string> = {
@@ -57,6 +59,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNSshWorkspace,
   ...zhCNSshSkills,
   ...zhCNSshTrust,
+  ...zhCNSshPanels,
 };
 
 export const dictionaries = {

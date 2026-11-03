@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ManagedProcessLogRecord, ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
 import { call, subscribe } from "@/lib/api-client";
+import { processPreviewEndpoints } from "@/lib/process-endpoints";
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -149,6 +150,7 @@ export function useProcessPanelState({
   };
 
   const openEndpoint = async (process: ManagedProcessPublicInfo, url: string) => {
+    if (!processPreviewEndpoints(process).some((endpoint) => endpoint.url === url)) return;
     setBusy(true);
     try {
       const tab = await window.piBridge.browserCreateUserTab({

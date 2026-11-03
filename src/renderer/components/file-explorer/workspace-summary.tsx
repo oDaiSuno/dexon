@@ -1,5 +1,6 @@
 import type { GitStatusResult } from "@shared/api-types";
 import { getParentFilePath } from "@shared/file-paths";
+import { describeWorkspaceKey } from "@shared/workspace-ref";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { formatNumber } from "@/lib/locale-format";
 import { isPersonalSpace, spaceDisplayName } from "@/lib/space-identity";
@@ -64,7 +65,10 @@ function WorkspaceTitle({
   const { t } = useI18n();
   const personal = isPersonalSpace(cwd, personalCwd, homeDir);
   const name = spaceDisplayName(cwd, personalCwd, homeDir, t("personalSpace", "Default space"));
-  const location = abbreviateHomePath(personal ? cwd : getParentFilePath(cwd), homeDir);
+  const description = describeWorkspaceKey(cwd);
+  const location = description.isSsh
+    ? `${description.hostLabel}:${description.displayPath}`
+    : abbreviateHomePath(personal ? cwd : getParentFilePath(cwd), homeDir);
   return (
     <div className="flex h-[24px] items-center gap-[8px] pr-[4px] pl-[8px]">
       {isGit === false ? (

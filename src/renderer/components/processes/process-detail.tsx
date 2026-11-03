@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
 import { useI18n } from "@/i18n";
+import { processPreviewEndpoints } from "@/lib/process-endpoints";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { Badge, Button, type BadgeTone } from "../form-controls";
 import { formatDuration, processExitLabel, processStateLabel } from "./process-format";
@@ -76,7 +77,7 @@ function DetailActions({
   if (isManagedProcessActiveState(process.state)) {
     return (
       <div className="flex w-full flex-wrap items-center gap-[6px] pt-[2px]">
-        {process.endpoints.map((endpoint) => (
+        {processPreviewEndpoints(process).map((endpoint) => (
           <ActionButton
             key={endpoint.id}
             variant="secondary"

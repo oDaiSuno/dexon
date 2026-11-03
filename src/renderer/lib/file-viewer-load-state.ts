@@ -2,6 +2,8 @@ export interface TextFileData {
   content: string;
   language: string;
   size: number;
+  space?: "local" | "remote" | "local-overlay";
+  remoteHostLabel?: string;
 }
 
 export type TextFileLoadState =
@@ -10,7 +12,9 @@ export type TextFileLoadState =
   | { status: "ready"; data: TextFileData; error: null };
 
 export type TextFileLoadAction =
-  { type: "reset" } | { type: "failed"; error: string } | { type: "succeeded"; data: TextFileData };
+  | { type: "reset" }
+  | { type: "failed"; error: string; retainSnapshot?: boolean }
+  | { type: "succeeded"; data: TextFileData };
 
 export const INITIAL_TEXT_FILE_LOAD_STATE: TextFileLoadState = {
   status: "loading",
@@ -23,7 +27,9 @@ export function textFileLoadReducer(state: TextFileLoadState, action: TextFileLo
     case "reset":
       return INITIAL_TEXT_FILE_LOAD_STATE;
     case "failed":
-      return { status: "error", data: null, error: action.error };
+      return action.retainSnapshot && state.status === "ready"
+        ? state
+        : { status: "error", data: null, error: action.error };
     case "succeeded":
       return { status: "ready", data: action.data, error: null };
     default:

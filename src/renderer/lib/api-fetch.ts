@@ -7,17 +7,13 @@ import {
   call,
   deleteSession,
   exportSession,
-  fileIndex,
-  fileMeta,
   getHome,
   getSession,
   getSessionContext,
-  listFiles,
   listModels,
   listSessions,
   listWorktrees,
   newAgent,
-  readFile,
   renameSession,
   subscribe,
   subscribeAgentEvents,
@@ -27,9 +23,9 @@ import {
   defaultCwd,
 } from "./api-client";
 import { isApiShimRequest } from "./api-fetch-policy";
+import { apiFileRequest, decodeApiFilePath } from "./api-file-requests";
 
 type Json = unknown;
-
 function jsonResponse(data: Json, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -240,42 +236,8 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
       );
     }
 
-    if (segs[0] === "files") {
-      const rawPath = "/" + segs.slice(1).map(decodeURIComponent).join("/");
-      const filePath = rawPath.match(/^\/[A-Za-z]:\//) ? rawPath.slice(1) : rawPath;
-      const type = u.searchParams.get("type") ?? "list";
-      const sourceSessionId = u.searchParams.get("sessionId") ?? undefined;
-      if (type === "list") return jsonResponse(await listFiles(filePath));
-      if (type === "read") {
-        const content = await readFile(filePath, sourceSessionId);
-        // Image/binary may return base64 — FileViewer text path expects JSON
-        return jsonResponse(content);
-      }
-      if (type === "meta") return jsonResponse(await fileMeta(filePath, sourceSessionId));
-      if (type === "preview") {
-        return jsonResponse(await call("files.preview", { path: filePath, sourceSessionId }));
-      }
-      if (type === "download") {
-        const content = await call("files.download", { path: filePath, sourceSessionId });
-        const binary = atob(content.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-        return new Response(bytes, {
-          status: 200,
-          headers: { "Content-Type": content.mime },
-        });
-      }
-    }
-
-    if (segs[0] === "file-index" && method === "GET") {
-      // Pass through the compatible Host candidate envelope. `matches` is
-      // authoritative; `files` remains a legacy projection and
-      // `degradedReason` is an optional additive field.
-      const root = u.searchParams.get("cwd") ?? u.searchParams.get("root") ?? "";
-      const query = u.searchParams.get("q") ?? undefined;
-      const result = await fileIndex(root, query);
-      return jsonResponse(result);
-    }
+    const fileResponse = await apiFileRequest(segs, u, method);
+    if (fileResponse) return fileResponse;
 
     if (segs[0] === "worktrees" && method === "GET") {
       const cwd = u.searchParams.get("cwd") ?? "";
@@ -454,11 +416,9 @@ export class ApiEventSource {
       }
 
       if (segs[0] === "files") {
-        const rawPath = "/" + segs.slice(1).map(decodeURIComponent).join("/");
-        const filePath = rawPath.match(/^\/[A-Za-z]:\//) ? rawPath.slice(1) : rawPath;
+        const filePath = decodeApiFilePath(segs.slice(1));
         const sourceSessionId = u.searchParams.get("sessionId") ?? undefined;
         this.filePath = filePath;
-
         this.unsub = await subscribe("files.changed", filePath, (ev) => {
           if (this.closed || gen !== this.generation) return;
           this.readyState = ApiEventSource.OPEN;
