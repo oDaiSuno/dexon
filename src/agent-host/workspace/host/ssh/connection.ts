@@ -104,6 +104,8 @@ function spawnSsh(binary: string, argv: string[], env: NodeJS.ProcessEnv): Child
 
 export class SshConnection implements ExecutionHost {
   readonly kind = "ssh" as const;
+  readonly id: HostId;
+  readonly target: SshTarget;
   private link: HelperLink | null = null;
   private masterChild: ChildProcess | null = null;
   private helperChild: ChildProcess | null = null;
@@ -116,11 +118,9 @@ export class SshConnection implements ExecutionHost {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   readonly context: SshContext;
 
-  constructor(
-    readonly id: HostId,
-    readonly target: SshTarget,
-    contextOverrides: Partial<SshContext> = {},
-  ) {
+  constructor(id: HostId, target: SshTarget, contextOverrides: Partial<SshContext> = {}) {
+    this.id = id;
+    this.target = target;
     this.context = {
       target,
       controlPath: controlSocketPathFor(target),
