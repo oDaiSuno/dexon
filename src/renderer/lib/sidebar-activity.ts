@@ -3,10 +3,14 @@ import type { ProjectKey, ProjectSessions } from "./session-list";
 import { buildSessionTree } from "./session-tree";
 import {
   isCountedActivity,
+  isPulseActivity,
   descendantActivity,
-  indicatedActivity,
+  indicatedPulseActivity,
+  firstUnreadDescendant,
   COUNTED_ACTIVITIES,
+  PULSE_ACTIVITIES,
   type CountedActivity,
+  type PulseActivity,
   type RunAge,
   type SessionActivity,
   type SessionActivityCounts,
@@ -28,7 +32,7 @@ export const IDLE_PROJECT_ACTIVITY: ProjectActivity = {
 
 export interface PulseRow {
   readonly key: string;
-  readonly status: CountedActivity;
+  readonly status: PulseActivity;
   readonly projectKey: ProjectKey;
   readonly projectName: string;
   readonly root: SessionInfo;
@@ -71,10 +75,15 @@ export function buildSidebarActivity(
         counts[status] += count;
         sessionCounts[status] += count;
       }
-      const status = indicatedActivity(own, descendants);
-      if (!isCountedActivity(status)) continue;
-      taskCounts[status] += 1;
-      const target = own === status ? node.session : descendants.focus!.session;
+      const status = indicatedPulseActivity(own, descendants);
+      if (!isPulseActivity(status)) continue;
+      if (isCountedActivity(status)) taskCounts[status] += 1;
+      const target =
+        own === status
+          ? node.session
+          : isCountedActivity(status)
+            ? descendants.focus!.session
+            : firstUnreadDescendant(node, activity)!;
       const runAge = activity.runAge(target.id, target.modified);
       rows.push({
         key: node.session.id,
@@ -97,7 +106,7 @@ export function buildSidebarActivity(
   }
   rows.sort(
     (left, right) =>
-      COUNTED_ACTIVITIES.indexOf(left.status) - COUNTED_ACTIVITIES.indexOf(right.status) ||
+      PULSE_ACTIVITIES.indexOf(left.status) - PULSE_ACTIVITIES.indexOf(right.status) ||
       right.sortTimestampMs - left.sortTimestampMs,
   );
   return {

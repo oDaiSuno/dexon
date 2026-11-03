@@ -106,6 +106,45 @@ test("counted activity and urgency preserve the waiting, error, running ordering
   }
 });
 
+test("Pulse activity includes unread after live activity without changing counted activity", () => {
+  assert.deepEqual(statusApi.PULSE_ACTIVITIES, ["awaiting_input", "error", "running", "unread"]);
+  for (const status of ["awaiting_input", "error", "running", "unread"]) {
+    assert.equal(statusApi.isPulseActivity(status), true);
+  }
+  assert.equal(statusApi.isPulseActivity("idle"), false);
+});
+
+test("Pulse roots surface unread descendants while session-tree rows keep unread on its own session", () => {
+  const [tree] = buildSessionTree([session("root"), session("child", { parentSessionId: "root" })]);
+  const signals = { liveStatuses: {}, runningSessionIds: new Set(), unreadSessionIds: new Set(["child"]) };
+  const descendants = descendantActivity(tree, signals);
+  assert.equal(statusApi.indicatedPulseActivity("idle", descendants), "unread");
+  assert.equal(statusApi.indicatedActivity("idle", descendants), "idle");
+  for (const own of ["awaiting_input", "error", "running", "unread"]) {
+    assert.equal(statusApi.indicatedPulseActivity(own, descendants), own);
+  }
+  assert.equal(statusApi.indicatedPulseActivity("unread", null), "unread");
+});
+
+test("the first unread descendant follows creation-tree order with live status ahead of unread", () => {
+  const root = session("root");
+  const earlyBranch = session("early", { parentSessionId: "root", created: "2026-07-15T12:01:00.000Z" });
+  const nested = session("nested", { parentSessionId: "early", created: "2026-07-15T12:04:00.000Z" });
+  const later = session("later", { parentSessionId: "root", created: "2026-07-15T12:02:00.000Z" });
+  const [tree] = buildSessionTree([later, nested, root, earlyBranch]);
+  const signals = {
+    liveStatuses: { early: "running" },
+    runningSessionIds: new Set(),
+    unreadSessionIds: new Set(["root", "early", "nested", "later"]),
+  };
+  for (const activity of [signals, statusApi.sessionActivityFromLegacySignals(signals)]) {
+    assert.equal(statusApi.firstUnreadDescendant(tree, activity), nested);
+    assert.equal(statusApi.firstUnreadDescendant(tree.children[0], activity), nested);
+    assert.equal(statusApi.firstUnreadDescendant(tree.children[1], activity), null);
+  }
+  assert.equal(statusApi.firstUnreadDescendant(tree, statusApi.NO_SESSION_ACTIVITY), null);
+});
+
 for (const [own, childStatus, expected] of [
   ["unread", "awaiting_input", "awaiting_input"],
   ["unread", "error", "error"],

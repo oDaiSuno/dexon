@@ -124,5 +124,23 @@ export async function verifyManyRoots({ js, click, waitFor, capture, wheel, resi
     assert.equal(state.settings.reachable, true);
     normal.push(state);
   }
-  await capture("normal-row-geometry", { cases: normal });
+  await js("window.pulseProof.manyRoots(1); window.pulseProof.finishRunning()");
+  await waitFor('window.pulseProof.overflowState().rootNames[0]?.includes("1 unread")');
+  const unread = await js("window.pulseProof.overflowState()");
+  assert.equal(unread.activeCount, 1);
+  assert.equal(unread.well.height, 63);
+  assert.deepEqual(unread.rowHeights, [28]);
+  assert.equal(unread.rootNames.length, 1);
+  assert.match(
+    await js("document.querySelector('section[aria-label=\"Active sessions\"]').textContent"),
+    /New activity/,
+  );
+  assertWellRows(await js("window.pulseProof.measurements()"));
+  await capture("unread-completion", unread);
+  await click("well", "button", unread.rootNames[0]);
+  await waitFor("!document.querySelector('section[aria-label=\"Active sessions\"]')");
+  await waitFor(
+    'document.querySelector(\'[data-session-id="filler-0"] button\')?.getAttribute("aria-current") === "page"',
+  );
+  await capture("normal-row-geometry", { cases: normal, unread });
 }

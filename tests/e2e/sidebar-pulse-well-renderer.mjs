@@ -77,10 +77,19 @@ window.pulseProof = {
     external.running(["review-history", "pulse-short"], { "pulse-urgent": "awaiting_input", "pulse-error": "error" });
   },
   manyRoots(count = 30) {
+    const reset = {
+      "review-history": "awaiting_input",
+      "pulse-short": "awaiting_input",
+      ...Object.fromEntries(Array.from({ length: 36 }, (_, index) => [`filler-${index}`, "awaiting_input"])),
+    };
+    external.running([], reset);
     external.running(
       Array.from({ length: count }, (_, index) => `filler-${index}`),
       {},
     );
+  },
+  finishRunning() {
+    external.running([], {});
   },
   overflowState() {
     const nav = navigation();

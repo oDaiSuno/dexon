@@ -127,6 +127,107 @@ test("the pure face keeps session totals distinct from root rows and returns no 
   assert.equal(summary.yieldedForSearch, true);
 });
 
+test("unread rows remain visible without a clock and translate their row and summary in both languages", async (t) => {
+  const done = row("done", "unread", { target: session("done-child") });
+  const unread = {
+    rows: [done],
+    sessionCounts: { awaiting_input: 0, error: 0, running: 0 },
+    projectNames: ["alpha"],
+  };
+  const counts = { awaiting_input: 0, error: 0, running: 0, unread: 1 };
+  const expanded = api.pulseWellFace(unread, { preference: "expanded", searching: false, showAll: false });
+  assert.equal(expanded.kind, "expanded");
+  assert.equal(expanded.totalActiveSessions, 1);
+  assert.deepEqual(expanded.counts, counts);
+  assert.deepEqual(expanded.visibleRows, [done]);
+  for (const view of [
+    { preference: "collapsed", searching: false, showAll: false },
+    { preference: "expanded", searching: true, showAll: false },
+  ]) {
+    const summary = api.pulseWellFace(unread, view);
+    assert.equal(summary.kind, "summary");
+    assert.equal(summary.status, "unread");
+    assert.deepEqual(summary.counts, counts);
+    assert.equal(summary.yieldedForSearch, view.searching);
+  }
+  const clock = t.mock.method(globalThis, "setInterval");
+  const { act } = await import("../support/renderer.mjs");
+  api.setAppLanguage("en-US");
+  t.after(async () => act(async () => api.setAppLanguage("en-US")));
+  let opened = null;
+  const view = await mount(
+    t,
+    api.RecessedPulseWell,
+    props({
+      model: unread,
+      onOpenSession: (target) => {
+        opened = target.id;
+      },
+    }),
+  );
+  const header = required(view.container, "button", "Collapse active sessions");
+  assert.equal(header.querySelector(".type-mono-meta").textContent, "1");
+  assert.equal(header.getAttribute("aria-description"), "1 unread");
+  const task = required(view.container, "button", "alpha / Task done · 1 unread");
+  assert.equal(task.style.height, "28px");
+  assert.equal(task.lastElementChild.textContent, "New activity");
+  assert.equal(task.lastElementChild.style.color, "var(--fx-accent-blue-text)");
+  assert.equal(task.getAttribute("aria-description"), null);
+  const dot = task.querySelector('[data-activity="unread"]');
+  assert.ok(dot);
+  assert.equal(dot.style.width, "6px");
+  assert.equal(dot.style.height, "6px");
+  assert.equal(dot.style.background, "var(--fx-accent-blue)");
+  assert.equal(dot.parentElement.style.width, "13px");
+  assert.equal(dot.parentElement.style.height, "13px");
+  assert.equal(task.querySelectorAll("svg, .session-status-spin, .session-status-pulse").length, 0);
+  assert.equal(clock.mock.callCount(), 0);
+  await click(task);
+  assert.equal(opened, "done-child");
+  await click(header);
+  let summary = required(view.container, "button", "Expand active sessions · 1 unread");
+  assert.match(summary.textContent, /1 unread/);
+  assert.equal(summary.style.height, "28px");
+  assert.equal(summary.style.border, "1px solid var(--fx-line-subtle)");
+  await act(async () => api.setAppLanguage("zh-CN"));
+  summary = required(view.container, "button", "展开活跃会话 · 1 个未读");
+  assert.match(summary.textContent, /1 未读/);
+  await click(summary);
+  assert.equal(
+    required(view.container, "button", "alpha / Task done · 1 个未读").lastElementChild.textContent,
+    "有新活动",
+  );
+  await view.update(props({ model: unread, searching: true }));
+  summary = required(view.container, "button", "展开活跃会话 · 1 个未读");
+  assert.equal(summary.getAttribute("aria-disabled"), "true");
+  assert.equal(clock.mock.callCount(), 0);
+});
+
+test("mixed Pulse counts keep unread below live work and count each unread task once", async (t) => {
+  api.setAppLanguage("en-US");
+  const mixed = {
+    rows: [row("wait", "awaiting_input"), row("run"), row("done", "unread")],
+    sessionCounts: { awaiting_input: 2, error: 1, running: 3 },
+    projectNames: ["alpha"],
+  };
+  const face = api.pulseWellFace(mixed, { preference: "expanded", searching: false, showAll: false });
+  assert.equal(face.totalActiveSessions, 7);
+  assert.deepEqual(face.counts, { awaiting_input: 2, error: 1, running: 3, unread: 1 });
+  assert.equal(
+    api.pulseSummaryPhrase(face.counts, (key, fallback) => fallback),
+    "2 wait · 1 error · 3 run · 1 unread",
+  );
+  const view = await mount(t, api.RecessedPulseWell, props({ model: mixed }));
+  assert.equal(
+    required(view.container, "button", "Collapse active sessions").getAttribute("aria-description"),
+    "2 waiting for your answer · 1 failed · 3 running · 1 unread",
+  );
+  await click(required(view.container, "button", "Collapse active sessions"));
+  const summary = required(view.container, "button", /Expand active sessions/);
+  assert.match(summary.textContent, /2 wait · 1 error · 3 run · 1 unread/);
+  assert.equal(summary.style.border, "1px solid var(--fx-status-warning-border)");
+});
+
 test("running age distinguishes observed starts from approximate last activity and refreshes every fifteen seconds", async (t) => {
   t.mock.timers.enable({ apis: ["Date", "setInterval"], now: 120_000 });
   const ages = {
