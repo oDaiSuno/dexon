@@ -11,13 +11,16 @@ import { installMainProcessPort } from "../fixtures/main-process-port.mjs";
 
 const base = realpathSync(mkdtempSync(path.join(tmpdir(), "dexon-remote-contract-")));
 const agent = path.join(base, "agent");
+const fakeHome = path.join(base, "home");
 mkdirSync(agent);
-const variables = ["PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "PI_DESKTOP_USER_DATA", "PI_OFFLINE"];
+mkdirSync(fakeHome, { recursive: true });
+const variables = ["PI_CODING_AGENT_DIR", "PI_CODING_AGENT_SESSION_DIR", "PI_DESKTOP_USER_DATA", "PI_OFFLINE", "HOME"];
 const previous = new Map(variables.map((name) => [name, process.env[name]]));
 process.env.PI_CODING_AGENT_DIR = agent;
 process.env.PI_CODING_AGENT_SESSION_DIR = path.join(base, "sessions");
 process.env.PI_DESKTOP_USER_DATA = path.join(base, "desktop");
 process.env.PI_OFFLINE = "1";
+process.env.HOME = fakeHome;
 const restoreMainProcess = installMainProcessPort();
 
 const { registerHandlers } = await importTestBundle("remote-contract", {

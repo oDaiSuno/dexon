@@ -1,20 +1,34 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import type {
+  RemoteBrowseResult,
   RemoteTrustPromptEvent,
   RemoteWorkspaceStateSnapshot,
+  WorkspaceConnectionStatus,
   WorkspaceTrustMode,
+  WorkspaceContainmentState,
 } from "../../contract/workspace";
 import {
   formatSshAuthority,
   formatSshHostLabel,
+  hostIdOf,
   keyOf,
+  normalizePosixPath,
   parseSshConnectInput,
   parseWorkspaceInput,
+  type PosixAbsPath,
   type WorkspaceKey,
   type WorkspaceRef,
 } from "../../shared/workspace-ref";
+import { desktopUserDataPath } from "../desktop-state-file";
+import { getOrCreateHost, getHost } from "../workspace/registry";
+import { RemoteConnectError } from "../workspace/host/errors";
+import type { ExecutionHost } from "../workspace/host/execution-host";
+import { SshConnection } from "../workspace/host/ssh/connection";
+import { containmentLedger } from "../managed-process/containment-ledger";
 
 type RemoteWorkspaceRef = Extract<WorkspaceRef, { kind: "ssh" }>;
 
@@ -35,8 +49,8 @@ function badRequest(message: string): RpcError {
   return new RpcError({ code: "BAD_REQUEST", message });
 }
 
-function unavailable(): never {
-  throw new RpcError({ code: "UNAVAILABLE", message: "Remote servers cannot be connected yet" });
+function notFound(message: string): RpcError {
+  return new RpcError({ code: "NOT_FOUND", message });
 }
 
 function parseWorkspace(input: unknown): WorkspaceRef {
@@ -56,7 +70,22 @@ function isTrustMode(value: unknown): value is WorkspaceTrustMode {
   return TRUST_MODES.includes(value as WorkspaceTrustMode);
 }
 
+function dexonKnownHostsPath(): string {
+  const dir = path.join(desktopUserDataPath(), "ssh");
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  return path.join(dir, "known_hosts");
+}
+
+function connectionStatus(host: ExecutionHost | null): WorkspaceConnectionStatus {
+  if (!host) return "offline";
+  const event = host.connectionState();
+  if (event.state === "connected") return "connected";
+  if (event.state === "reconnecting" || event.state === "connecting") return "reconnecting";
+  return "offline";
+}
+
 function initialState(ref: RemoteWorkspaceRef): RemoteWorkspaceStateSnapshot {
+  const containmentEntry = containmentLedger.get(keyOf(ref));
   return {
     workspace: keyOf(ref),
     hostLabel: formatSshHostLabel(ref.target),
@@ -77,22 +106,108 @@ function initialState(ref: RemoteWorkspaceRef): RemoteWorkspaceStateSnapshot {
       boundaryPath: "~",
       syncedAt: null,
     },
-    containment: { state: "verified-clean", activeRemoteProcessCount: 0 },
+    containment: {
+      state: (containmentEntry.state === "clear"
+        ? "verified-clean"
+        : containmentEntry.state) as WorkspaceContainmentState,
+      activeRemoteProcessCount: 0,
+      ...(containmentEntry.state === "verified-leak" && "leakedPgid" in containmentEntry
+        ? { leakedPgid: containmentEntry.leakedPgid }
+        : {}),
+    },
   };
+}
+
+function remoteConnectFailureToResult(error: unknown, target: RemoteWorkspaceRef["target"]): RemoteBrowseResult {
+  if (error instanceof RemoteConnectError) {
+    const failure = error.failure;
+    if (failure.code === "host-key-unverified") {
+      return {
+        status: "host-key-unverified",
+        target,
+        host: failure.host,
+        keyType: failure.keyType,
+        fingerprint: failure.fingerprint,
+        ...(failure.remoteIp ? { remoteIp: failure.remoteIp } : {}),
+        ...(failure.rawHostKeyLine ? { rawHostKeyLine: failure.rawHostKeyLine } : {}),
+      };
+    }
+    if (failure.code === "auth-required") {
+      return { status: "auth-required", target, copyIdCommand: failure.copyIdCommand };
+    }
+    if (failure.code === "python-missing" || failure.code === "python-too-old") {
+      const installCommand = failure.code === "python-missing" ? failure.installCommand : "python3 --version";
+      return {
+        status: "python-missing",
+        target,
+        installCommand,
+        canAutoInstall: failure.code === "python-missing" && failure.canAutoInstall,
+      };
+    }
+  }
+  return { status: "error", target, message: error instanceof Error ? error.message : String(error) };
 }
 
 export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
   const states = new Map<WorkspaceKey, RemoteWorkspaceStateSnapshot>();
   const pendingPrompts = new Map<string, PendingTrustPrompt>();
 
+  const getOrInitState = (ref: RemoteWorkspaceRef): RemoteWorkspaceStateSnapshot => {
+    const key = keyOf(ref);
+    const existing = states.get(key);
+    if (existing) return existing;
+    const initial = initialState(ref);
+    states.set(key, initial);
+    return initial;
+  };
+
+  const syncState = (ref: RemoteWorkspaceRef): void => {
+    const key = keyOf(ref);
+    const current = states.get(key);
+    if (!current) return;
+    const host = getHost(key);
+    const connectionEvent = host?.connectionState();
+    const connection = connectionStatus(host);
+    const facts = host?.facts();
+    const containmentEntry = containmentLedger.get(key);
+    const containmentState: WorkspaceContainmentState =
+      containmentEntry.state === "clear" ? "verified-clean" : containmentEntry.state;
+    const leakedPgid =
+      containmentEntry.state === "verified-leak" && "leakedPgid" in containmentEntry
+        ? containmentEntry.leakedPgid
+        : undefined;
+    const updated: RemoteWorkspaceStateSnapshot = {
+      ...current,
+      connection,
+      ...(connectionEvent?.rttMs !== undefined ? { rttMs: connectionEvent.rttMs } : {}),
+      ...(connectionEvent?.attempt !== undefined ? { reconnectAttempt: connectionEvent.attempt } : {}),
+      ...(connectionEvent?.maxAttempts !== undefined ? { maxReconnectAttempts: connectionEvent.maxAttempts } : {}),
+      ...(connectionEvent?.error !== undefined ? { lastError: connectionEvent.error } : {}),
+      ...(facts ? { cachedBranch: current.cachedBranch } : {}),
+      containment: {
+        state: containmentState,
+        activeRemoteProcessCount: 0,
+        ...(leakedPgid !== undefined ? { leakedPgid } : {}),
+      },
+    };
+    states.set(key, updated);
+  };
+
   const setTrust = (ref: RemoteWorkspaceRef, trust: WorkspaceTrustMode): RemoteWorkspaceStateSnapshot => {
     const key = keyOf(ref);
-    const current = states.get(key) ?? initialState(ref);
-    if (current.workspaceTrust === trust) {
+    let current = states.get(key);
+    if (!current) {
+      current = initialState(ref);
       states.set(key, current);
+    }
+    if (current.workspaceTrust === trust) {
       return current;
     }
-    const next = { ...current, workspaceTrust: trust, trustRevision: current.trustRevision + 1 };
+    const next: RemoteWorkspaceStateSnapshot = {
+      ...current,
+      workspaceTrust: trust,
+      trustRevision: current.trustRevision + 1,
+    };
     states.set(key, next);
     server.emit("workspace.state", key, {
       workspace: key,
@@ -102,8 +217,83 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
     return next;
   };
 
+  const attachConnectionListener = (ref: RemoteWorkspaceRef, host: ExecutionHost): (() => void) => {
+    return host.onConnection((event) => {
+      syncState(ref);
+      const key = keyOf(ref);
+      const state = states.get(key)!;
+      const transition =
+        event.state === "connected"
+          ? ("connected" as const)
+          : event.state === "offline"
+            ? ("disconnected" as const)
+            : undefined;
+      server.emit("workspace.state", key, {
+        workspace: key,
+        state,
+        ...(transition ? { transition } : {}),
+      });
+    });
+  };
+
   server.handle({
-    "remote.hosts": () => ({ hosts: [] }),
+    "remote.hosts": () => {
+      const sshConfigPath = path.join(process.env.HOME ?? "~", ".ssh", "config");
+      const candidates: Array<{
+        alias: string;
+        host: string;
+        user?: string;
+        port?: number;
+        identityReady: boolean;
+        source: "ssh-config";
+      }> = [];
+      try {
+        const config = readFileSync(sshConfigPath, "utf8");
+        let alias = "";
+        let hostname = "";
+        let user: string | undefined;
+        let port: number | undefined;
+        for (const line of config.split("\n")) {
+          const trimmed = line.trim();
+          const lower = trimmed.toLowerCase();
+          if (lower.startsWith("host ") && !lower.startsWith("hostname")) {
+            if (alias && hostname && !alias.includes("*")) {
+              candidates.push({
+                alias,
+                host: hostname,
+                ...(user ? { user } : {}),
+                ...(port ? { port } : {}),
+                identityReady: true,
+                source: "ssh-config",
+              });
+            }
+            alias = trimmed.slice(5).trim();
+            hostname = "";
+            user = undefined;
+            port = undefined;
+          } else if (lower.startsWith("hostname ")) {
+            hostname = trimmed.slice(9).trim();
+          } else if (lower.startsWith("user ")) {
+            user = trimmed.slice(5).trim();
+          } else if (lower.startsWith("port ")) {
+            port = Number(trimmed.slice(5).trim());
+          }
+        }
+        if (alias && hostname && !alias.includes("*")) {
+          candidates.push({
+            alias,
+            host: hostname,
+            ...(user ? { user } : {}),
+            ...(port ? { port } : {}),
+            identityReady: true,
+            source: "ssh-config",
+          });
+        }
+      } catch {
+        /* config missing or unreadable */
+      }
+      return { hosts: candidates };
+    },
 
     "remote.parse": (params) => {
       const { input } = (params ?? {}) as { input?: unknown };
@@ -111,16 +301,105 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       return parseSshConnectInput(input);
     },
 
-    "remote.browse": unavailable,
-    "remote.acceptHostKey": unavailable,
-    "remote.installPython": unavailable,
+    "remote.browse": async (params) => {
+      const { target, path: browsePath } = (params ?? {}) as { target?: unknown; path?: unknown };
+      if (!target || typeof target !== "object") throw badRequest("A target is required");
+      const tgt = target as { host?: unknown; user?: unknown; port?: unknown };
+      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
+      const sshTarget = {
+        host: tgt.host,
+        ...(typeof tgt.user === "string" ? { user: tgt.user } : {}),
+        ...(typeof tgt.port === "number" ? { port: tgt.port } : {}),
+      };
+      const dummyRef: RemoteWorkspaceRef = {
+        kind: "ssh",
+        target: sshTarget,
+        root: normalizePosixPath(typeof browsePath === "string" && browsePath.startsWith("/") ? browsePath : "/"),
+      };
+      const workspaceKey = keyOf(dummyRef);
+      const host = getOrCreateHost(workspaceKey);
+      if (!host) {
+        return remoteConnectFailureToResult(new Error("Cannot create connection"), sshTarget);
+      }
+      try {
+        await host.connect();
+        const result = await host.request("browseDir", {
+          path:
+            typeof browsePath === "string" && browsePath.startsWith("/")
+              ? normalizePosixPath(browsePath as PosixAbsPath)
+              : null,
+        });
+        return {
+          status: "ready",
+          target: sshTarget,
+          currentPath: result.currentPath,
+          remoteHome: result.remoteHome,
+          rttMs: host.connectionState().rttMs ?? 0,
+          entries: [...result.entries],
+        } satisfies RemoteBrowseResult;
+      } catch (error) {
+        return remoteConnectFailureToResult(error, sshTarget);
+      }
+    },
+
+    "remote.acceptHostKey": async (params) => {
+      const { target, fingerprint } = (params ?? {}) as { target?: unknown; fingerprint?: unknown };
+      if (typeof fingerprint !== "string") throw badRequest("fingerprint is required");
+      if (!target || typeof target !== "object") throw badRequest("target is required");
+      const tgt = target as { host?: unknown };
+      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
+      const knownHostsPath = dexonKnownHostsPath();
+      let existing = "";
+      try {
+        existing = readFileSync(knownHostsPath, "utf8");
+      } catch {
+        /* file may not exist yet */
+      }
+      if (!existing.includes(fingerprint)) {
+        writeFileSync(knownHostsPath, `${existing}\n${fingerprint}\n`, "utf8");
+      }
+      return { ok: true as const };
+    },
+
+    "remote.installPython": async (params) => {
+      const { target } = (params ?? {}) as { target?: unknown };
+      if (!target || typeof target !== "object") throw badRequest("target is required");
+      const tgt = target as { host?: unknown; user?: unknown; port?: unknown };
+      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
+      const sshTarget = {
+        host: tgt.host,
+        ...(typeof tgt.user === "string" ? { user: tgt.user } : {}),
+        ...(typeof tgt.port === "number" ? { port: tgt.port } : {}),
+      };
+      const dummyRef: RemoteWorkspaceRef = { kind: "ssh", target: sshTarget, root: normalizePosixPath("/") };
+      const host = getOrCreateHost(keyOf(dummyRef)) as SshConnection | null;
+      if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "Cannot connect to target" });
+      await host.streamExec({
+        argv: ["/bin/sh", "-c", "sudo apt-get install -y python3 || brew install python3 || echo noop"],
+        cwd: normalizePosixPath("/") as PosixAbsPath,
+        onData: () => undefined,
+        timeoutMs: 60_000,
+      });
+      return { ok: true as const };
+    },
 
     "remote.workspaceState": (params) => {
       const ref = parseWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
-      return { state: ref.kind === "ssh" ? (states.get(keyOf(ref)) ?? null) : null };
+      if (ref.kind !== "ssh") return { state: null };
+      const key = keyOf(ref);
+      const existing = states.get(key);
+      if (existing) syncState(ref);
+      return { state: states.get(key) ?? null };
     },
 
-    "remote.workspacesSnapshot": () => ({ states: Object.fromEntries(states) }),
+    "remote.workspacesSnapshot": () => {
+      for (const [key, state] of states) {
+        const parsed = parseWorkspaceInput(key);
+        if (parsed.ok && parsed.value.kind === "ssh") syncState(parsed.value);
+        void state;
+      }
+      return { states: Object.fromEntries(states) };
+    },
 
     "remote.trustSet": (params) => {
       const { workspace, trust } = (params ?? {}) as { workspace?: unknown; trust?: unknown };
@@ -129,17 +408,114 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       return { state: setTrust(ref, trust) };
     },
 
-    "remote.syncRules": unavailable,
-    "remote.reconnect": unavailable,
-    "remote.disconnect": unavailable,
-    "remote.cleanupRetry": unavailable,
+    "remote.syncRules": async (params) => {
+      const ref = parseRemoteWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
+      const key = keyOf(ref);
+      const host = getOrCreateHost(key);
+      if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "No connection for this workspace" });
+      try {
+        await host.connect();
+        await host.request("probeAndMirror", { root: ref.root, createIfMissing: false });
+        let current = states.get(key);
+        if (!current) {
+          current = initialState(ref);
+          states.set(key, current);
+        }
+        syncState(ref);
+        return { state: states.get(key)! };
+      } catch (error) {
+        throw new RpcError({ code: "UNAVAILABLE", message: error instanceof Error ? error.message : "Sync failed" });
+      }
+    },
+
+    "remote.reconnect": async (params) => {
+      const ref = parseRemoteWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
+      const key = keyOf(ref);
+      const host = getOrCreateHost(key);
+      if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "No connection for this workspace" });
+      let current = states.get(key);
+      if (!current) {
+        current = initialState(ref);
+        states.set(key, current);
+      }
+      const detach = attachConnectionListener(ref, host);
+      try {
+        await host.reconnect();
+        syncState(ref);
+        const reconciledCleanPgid = undefined;
+        void reconciledCleanPgid;
+        return { state: states.get(key)! };
+      } catch (error) {
+        throw new RpcError({
+          code: "UNAVAILABLE",
+          message: error instanceof Error ? error.message : "Reconnect failed",
+        });
+      } finally {
+        detach();
+      }
+    },
+
+    "remote.disconnect": async (params) => {
+      const ref = parseRemoteWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
+      const key = keyOf(ref);
+      const host = getHost(key);
+      if (host) {
+        await host.dispose().catch(() => undefined);
+      }
+      let current = states.get(key);
+      if (!current) {
+        current = initialState(ref);
+        states.set(key, current);
+      }
+      const updated = { ...current, connection: "offline" as const };
+      states.set(key, updated);
+      server.emit("workspace.state", key, { workspace: key, state: updated, transition: "disconnected" });
+      return { state: updated };
+    },
+
+    "remote.cleanupRetry": async (params) => {
+      const ref = parseRemoteWorkspace((params as { workspace?: unknown } | undefined)?.workspace);
+      const key = keyOf(ref);
+      const host = getOrCreateHost(key);
+      if (host && host.connectionState().state === "connected") {
+        const ledgerEntries = containmentLedger.all().filter((entry) => entry.workspace === key);
+        if (ledgerEntries.length > 0) {
+          const tickets = ledgerEntries
+            .filter((entry) => entry.entry.state === "pending" || entry.entry.state === "verified-leak")
+            .map((entry) => ({
+              version: 2 as const,
+              platform: "ssh" as const,
+              workspace: entry.workspace,
+              hostId: hostIdOf(ref),
+              processId: "runId" in entry.entry ? String(entry.entry.runId) : "",
+              runId: "runId" in entry.entry ? entry.entry.runId : "",
+              hostInstanceId: "",
+              bootId: "",
+              pid: 0,
+              pgid: "leakedPgid" in entry.entry ? (entry.entry.leakedPgid ?? 0) : 0,
+              startFingerprint: "",
+              nonce: randomUUID(),
+              createdAt: Date.now(),
+            }));
+          try {
+            const result = await host.request("reconcileRuns", { tickets });
+            containmentLedger.applyEvidence(result.evidence);
+          } catch {
+            /* best effort */
+          }
+        }
+      }
+      syncState(ref);
+      return { state: getOrInitState(ref) };
+    },
 
     "remote.trustPromptResolve": (params) => {
       const { promptId, decision } = (params ?? {}) as { promptId?: unknown; decision?: unknown };
-      if (typeof promptId !== "string" || (decision !== "trust" && decision !== "keep-read-only"))
+      if (typeof promptId !== "string" || (decision !== "trust" && decision !== "keep-read-only")) {
         throw badRequest("A prompt id and a decision are required");
+      }
       const prompt = pendingPrompts.get(promptId);
-      if (!prompt) throw new RpcError({ code: "NOT_FOUND", message: "Trust prompt not found" });
+      if (!prompt) throw notFound("Trust prompt not found");
       pendingPrompts.delete(promptId);
       const trust: WorkspaceTrustMode = decision === "trust" ? "trusted" : "read-only";
       const state = setTrust(parseRemoteWorkspace(prompt.event.workspace), trust);
