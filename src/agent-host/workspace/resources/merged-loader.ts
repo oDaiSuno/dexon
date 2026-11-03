@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
@@ -27,18 +27,21 @@ export interface MirrorSnapshot {
   readonly syncedAt: number;
 }
 
+function readTextIfPresent(filePath: string): string | null {
+  try {
+    return readFileSync(filePath, "utf8");
+  } catch {
+    return null;
+  }
+}
+
 function readLocalAgentsFiles(): AgentsFileEntry[] {
   const agentDir = getAgentDir();
   const results: AgentsFileEntry[] = [];
   for (const name of ["AGENTS.md", "CLAUDE.md"]) {
     const filePath = path.join(agentDir, name);
-    if (existsSync(filePath)) {
-      try {
-        results.push({ path: filePath, content: readFileSync(filePath, "utf8") });
-      } catch {
-        /* skip unreadable */
-      }
-    }
+    const content = readTextIfPresent(filePath);
+    if (content !== null) results.push({ path: filePath, content });
   }
   return results;
 }
@@ -46,27 +49,17 @@ function readLocalAgentsFiles(): AgentsFileEntry[] {
 async function extractRemoteResources(tarBytes: Buffer, mirrorRoot: string): Promise<AgentsFileEntry[]> {
   if (!tarBytes.length) return [];
   mkdirSync(mirrorRoot, { recursive: true, mode: 0o700 });
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const readable = Readable.from(tarBytes);
-      const proc = tar.x({ C: mirrorRoot, strip: 0 });
-      readable.pipe(proc as unknown as NodeJS.WritableStream);
-      (proc as unknown as NodeJS.EventEmitter).on("finish", () => resolve());
-      (proc as unknown as NodeJS.EventEmitter).on("error", reject);
-    });
-  } catch {
-    /* best effort extraction */
-  }
+  await new Promise<void>((resolve, reject) => {
+    const extraction = tar.x({ C: mirrorRoot, strip: 0 }) as unknown as NodeJS.WritableStream;
+    extraction.on("finish", () => resolve());
+    extraction.on("error", reject);
+    Readable.from(tarBytes).pipe(extraction);
+  }).catch(() => undefined);
   const entries: AgentsFileEntry[] = [];
   for (const name of ["AGENTS.md", "CLAUDE.md"]) {
     const filePath = path.join(mirrorRoot, name);
-    if (existsSync(filePath)) {
-      try {
-        entries.push({ path: filePath, content: readFileSync(filePath, "utf8") });
-      } catch {
-        /* skip */
-      }
-    }
+    const content = readTextIfPresent(filePath);
+    if (content !== null) entries.push({ path: filePath, content });
   }
   return entries;
 }
@@ -87,18 +80,11 @@ export async function fetchAndMirrorRemoteResources(
 ): Promise<MirrorSnapshot> {
   const localAgentsFiles = readLocalAgentsFiles();
   const mirrorRoot = mirrorDirectoryFor(workspace);
-  let remoteAgentsFiles: AgentsFileEntry[] = [];
-  try {
-    const probeResult = await host.request("probeAndMirror", { root, createIfMissing: false });
-    if (probeResult.exists && probeResult.isDirectory) {
-      const tarBytes = Buffer.isBuffer(probeResult.resourceTarGz)
-        ? probeResult.resourceTarGz
-        : Buffer.from(probeResult.resourceTarGz as unknown as ArrayBuffer);
-      remoteAgentsFiles = await extractRemoteResources(tarBytes, mirrorRoot);
-    }
-  } catch {
-    /* remote unavailable — local overlay only */
-  }
+  const probeResult = await host.request("probeAndMirror", { root, createIfMissing: false }).catch(() => null);
+  const remoteAgentsFiles =
+    probeResult?.exists && probeResult.isDirectory
+      ? await extractRemoteResources(Buffer.from(probeResult.resourceTarGz), mirrorRoot)
+      : [];
   return { localAgentsFiles, remoteAgentsFiles, mirrorRoot, syncedAt: Date.now() };
 }
 
@@ -128,11 +114,7 @@ export function makeSkillsOverride(snapshot: MirrorSnapshot, trusted: boolean) {
 }
 
 export function cleanMirror(mirrorRoot: string): void {
-  try {
-    rmSync(mirrorRoot, { recursive: true, force: true });
-  } catch {
-    /* best effort */
-  }
+  rmSync(mirrorRoot, { recursive: true, force: true });
 }
 
-export { mkdtempSync, BLOCKED_LOCAL_FILES };
+export { BLOCKED_LOCAL_FILES };

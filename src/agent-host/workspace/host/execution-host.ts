@@ -83,6 +83,10 @@ export interface RemoteOperationMap {
       readonly truncated: boolean;
     };
   };
+  makeDir: {
+    input: { readonly path: PosixAbsPath; readonly withinRoot: PosixAbsPath };
+    output: { readonly canonicalPath: PosixAbsPath };
+  };
   writeAtomic: {
     input: {
       readonly path: PosixAbsPath;

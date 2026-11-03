@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RpcServer } from "../../contract/rpc";
@@ -26,6 +26,7 @@ import {
 import { desktopUserDataPath } from "../desktop-state-file";
 import { getOrCreateHost, getHost } from "../workspace/registry";
 import { RemoteConnectError } from "../workspace/host/errors";
+import { acceptHostKey, KnownHostsError } from "../workspace/host/ssh/known-hosts";
 import type { ExecutionHost } from "../workspace/host/execution-host";
 import { SshConnection } from "../workspace/host/ssh/connection";
 import { containmentLedger } from "../managed-process/containment-ledger";
@@ -74,6 +75,17 @@ function dexonKnownHostsPath(): string {
   const dir = path.join(desktopUserDataPath(), "ssh");
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   return path.join(dir, "known_hosts");
+}
+
+function parseSshTarget(target: unknown): RemoteWorkspaceRef["target"] {
+  if (!target || typeof target !== "object") throw badRequest("A target is required");
+  const { host, user, port } = target as { host?: unknown; user?: unknown; port?: unknown };
+  if (typeof host !== "string") throw badRequest("target.host is required");
+  const parsed = parseWorkspaceInput(
+    `ssh://${typeof user === "string" ? `${user}@` : ""}${host.includes(":") ? `[${host}]` : host}${typeof port === "number" ? `:${port}` : ""}/`,
+  );
+  if (!parsed.ok || parsed.value.kind !== "ssh") throw badRequest("Invalid server target");
+  return parsed.value.target;
 }
 
 function connectionStatus(host: ExecutionHost | null): WorkspaceConnectionStatus {
@@ -289,8 +301,8 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
             source: "ssh-config",
           });
         }
-      } catch {
-        /* config missing or unreadable */
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
       }
       return { hosts: candidates };
     },
@@ -303,14 +315,7 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
 
     "remote.browse": async (params) => {
       const { target, path: browsePath } = (params ?? {}) as { target?: unknown; path?: unknown };
-      if (!target || typeof target !== "object") throw badRequest("A target is required");
-      const tgt = target as { host?: unknown; user?: unknown; port?: unknown };
-      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
-      const sshTarget = {
-        host: tgt.host,
-        ...(typeof tgt.user === "string" ? { user: tgt.user } : {}),
-        ...(typeof tgt.port === "number" ? { port: tgt.port } : {}),
-      };
+      const sshTarget = parseSshTarget(target);
       const dummyRef: RemoteWorkspaceRef = {
         kind: "ssh",
         target: sshTarget,
@@ -345,32 +350,19 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
     "remote.acceptHostKey": async (params) => {
       const { target, fingerprint } = (params ?? {}) as { target?: unknown; fingerprint?: unknown };
       if (typeof fingerprint !== "string") throw badRequest("fingerprint is required");
-      if (!target || typeof target !== "object") throw badRequest("target is required");
-      const tgt = target as { host?: unknown };
-      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
-      const knownHostsPath = dexonKnownHostsPath();
-      let existing = "";
+      const sshTarget = parseSshTarget(target);
       try {
-        existing = readFileSync(knownHostsPath, "utf8");
-      } catch {
-        /* file may not exist yet */
-      }
-      if (!existing.includes(fingerprint)) {
-        writeFileSync(knownHostsPath, `${existing}\n${fingerprint}\n`, "utf8");
+        await acceptHostKey(sshTarget, fingerprint, { knownHostsPath: dexonKnownHostsPath() });
+      } catch (error) {
+        if (error instanceof KnownHostsError) throw new RpcError({ code: error.code, message: error.message });
+        throw error;
       }
       return { ok: true as const };
     },
 
     "remote.installPython": async (params) => {
       const { target } = (params ?? {}) as { target?: unknown };
-      if (!target || typeof target !== "object") throw badRequest("target is required");
-      const tgt = target as { host?: unknown; user?: unknown; port?: unknown };
-      if (typeof tgt.host !== "string") throw badRequest("target.host is required");
-      const sshTarget = {
-        host: tgt.host,
-        ...(typeof tgt.user === "string" ? { user: tgt.user } : {}),
-        ...(typeof tgt.port === "number" ? { port: tgt.port } : {}),
-      };
+      const sshTarget = parseSshTarget(target);
       const dummyRef: RemoteWorkspaceRef = { kind: "ssh", target: sshTarget, root: normalizePosixPath("/") };
       const host = getOrCreateHost(keyOf(dummyRef)) as SshConnection | null;
       if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "Cannot connect to target" });
@@ -497,12 +489,8 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
               nonce: randomUUID(),
               createdAt: Date.now(),
             }));
-          try {
-            const result = await host.request("reconcileRuns", { tickets });
-            containmentLedger.applyEvidence(result.evidence);
-          } catch {
-            /* best effort */
-          }
+          const result = await host.request("reconcileRuns", { tickets }).catch(() => null);
+          if (result) containmentLedger.applyEvidence(result.evidence);
         }
       }
       syncState(ref);

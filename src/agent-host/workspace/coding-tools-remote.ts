@@ -13,6 +13,7 @@ import { RemoteOperationError } from "./host/errors.ts";
 import type { ExecutionHost } from "./host/execution-host.ts";
 import type { PosixAbsPath } from "../../shared/workspace-ref.ts";
 import { defineDexonTool, type DexonToolMetadata } from "../agent-session/tool-definition.ts";
+import { remoteCommandEnvironment } from "./remote-environment.ts";
 
 const DEFAULT_READ_MAX_BYTES = 10 * 1024 * 1024;
 const SEARCH_OUTPUT_LIMIT = 2 * 1024 * 1024;
@@ -71,12 +72,7 @@ export function createRemoteWriteToolDefinition(
           });
         },
         async mkdir(dir: string) {
-          await host.request("writeAtomic", {
-            path: `${toAbsPath(dir)}/.keep` as PosixAbsPath,
-            withinRoot: root,
-            bytes: Buffer.alloc(0),
-            mkdirp: true,
-          });
+          await host.request("makeDir", { path: toAbsPath(dir), withinRoot: root });
         },
       },
     }),
@@ -159,7 +155,7 @@ export function createRemoteBashToolDefinition(
       const result = await host.streamExec({
         argv: ["/bin/sh", "-c", command],
         cwd: (execCwd || cwd) as PosixAbsPath,
-        ...(options.env ? { env: options.env as Record<string, string> } : {}),
+        env: remoteCommandEnvironment(options.env),
         ...(options.timeout ? { timeoutMs: options.timeout } : {}),
         onData: (stream, chunk) => options.onData?.(chunk),
       });

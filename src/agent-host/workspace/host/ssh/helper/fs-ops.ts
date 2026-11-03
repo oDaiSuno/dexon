@@ -58,6 +58,16 @@ def op_read(request):
     }
 
 
+@op("makeDir")
+def op_make_dir(request):
+    path = require_absolute(str(request.input.get("path") or ""))
+    within_root = request.input.get("withinRoot") or None
+    if within_root is not None:
+        require_within(path, within_root)
+    os.makedirs(path, mode=0o755, exist_ok=True)
+    return {"canonicalPath": os.path.realpath(path)}
+
+
 @op("writeAtomic")
 def op_write_atomic(request):
     path = require_absolute(str(request.input.get("path") or ""))
