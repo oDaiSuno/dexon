@@ -73,6 +73,8 @@ function mirrorDirectoryFor(workspace: string): string {
   return path.join(tmpdir(), `dx-mirror-${hash}`);
 }
 
+export { mirrorDirectoryFor };
+
 export async function fetchAndMirrorRemoteResources(
   workspace: string,
   root: PosixAbsPath,

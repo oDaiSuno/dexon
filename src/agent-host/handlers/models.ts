@@ -17,6 +17,7 @@ import {
   type ModelPreferencesResult,
   type ModelsListResult,
 } from "../../contract/types";
+import { parseWorkspaceInput } from "../../shared/workspace-ref";
 import { modelCatalogRefreshCoordinator } from "../model-runtime";
 import { disabledProviderIds } from "../provider-channels";
 import { filterByExactEnabledModels, stripThinkingSuffix } from "../session-model";
@@ -72,6 +73,10 @@ function hasMatchingEnabledModel<T extends { id: string; provider: string }>(
 
 function resolveModelsCwd(params: { cwd?: string } | void): string {
   const cwd = params?.cwd || process.cwd();
+  const parsed = parseWorkspaceInput(cwd);
+  if (parsed.ok && parsed.value.kind === "ssh") {
+    return process.cwd();
+  }
   try {
     const st = statSync(cwd);
     if (!st.isDirectory()) throw new Error("not-directory");

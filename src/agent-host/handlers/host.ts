@@ -2,6 +2,7 @@ import { homedir } from "os";
 import path from "path";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
+import { parseWorkspaceInput } from "../../shared/workspace-ref";
 import { allowFileRoot } from "../file-access";
 import { validateExistingDirectory } from "../file-access-core";
 import { preparePersonalDirectory } from "../personal-directory";
@@ -24,7 +25,16 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
 
     "host.toolchain": async (params) => {
       const { cwd } = params as { cwd: string };
-      if (!cwd || !path.isAbsolute(cwd)) throw new RpcError({ code: "BAD_REQUEST", message: "absolute cwd required" });
+      if (!cwd) throw new RpcError({ code: "BAD_REQUEST", message: "cwd required" });
+      const parsed = parseWorkspaceInput(cwd);
+      if (parsed.ok && parsed.value.kind === "ssh") {
+        return {
+          inventoryRevision: 0,
+          resolutionId: "remote",
+          capabilities: {},
+        };
+      }
+      if (!path.isAbsolute(cwd)) throw new RpcError({ code: "BAD_REQUEST", message: "absolute cwd required" });
       const context = await toolchainRuntime.createExecutionContext({ cwd, intent: "project-command" });
       return {
         inventoryRevision: context.inventoryRevision,

@@ -12,7 +12,9 @@ import {
   getDocumentMime,
   getImageMime,
 } from "../../shared/file-types";
+import { parseWorkspaceInput, keyOf, joinWorkspaceKeyPath } from "../../shared/workspace-ref";
 import { assertPathAllowed } from "../file-access";
+import { getOrCreateHost } from "../workspace/registry";
 import { createFileWatchService, stopAllFileWatches } from "../file-watch";
 import { FileSuggestionRequestError, fileSuggestionService } from "../file-suggestions";
 
@@ -88,6 +90,30 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
   server.handle({
     "files.list": async (params) => {
       const { path: dirPath } = params as { path: string };
+      const sshParsed = parseWorkspaceInput(dirPath);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const result = await host.request("listDir", {
+          path: ref.root,
+          withinRoot: null,
+          ignore: [...IGNORED_NAMES],
+        });
+        const entries = result.entries.map((entry) => ({
+          name: entry.name,
+          path: joinWorkspaceKeyPath(keyOf(ref), entry.name),
+          isDir: entry.type === "directory",
+          type: entry.type,
+          size: entry.size,
+          mtime: entry.mtimeMs,
+        }));
+        entries.sort((a, b) => {
+          if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+          return a.name.localeCompare(b.name);
+        });
+        return { entries: entries as never };
+      }
       await assertPathAllowed(dirPath);
       if (!existsSync(dirPath) || !statSync(dirPath).isDirectory()) {
         throw new RpcError({ code: "NOT_FOUND", message: "Directory not found" });
@@ -131,6 +157,35 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         path: string;
         sourceSessionId?: string;
       };
+      const sshParsed = parseWorkspaceInput(filePath);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const result = await host.request("read", {
+          candidates: [ref.root],
+          maxBytes: TEXT_PREVIEW_MAX_BYTES,
+        });
+        const bytes = Buffer.from(result.bytes);
+        const mime = getImageMime(ref.root) || getAudioMime(ref.root) || getDocumentMime(ref.root);
+        if (mime) {
+          return {
+            content: bytes.toString("base64"),
+            encoding: "base64" as const,
+            mime,
+            language: getLanguage(ref.root),
+            size: bytes.length,
+            truncated: false,
+          };
+        }
+        return {
+          content: bytes.toString("utf8"),
+          encoding: "utf8" as const,
+          language: getLanguage(ref.root),
+          size: bytes.length,
+          truncated: result.truncated ?? false,
+        };
+      }
       await assertPathAllowed(filePath, sourceSessionId);
       const st = statSync(filePath);
       if (!st.isFile()) {
@@ -142,7 +197,6 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
       const documentMime = getDocumentMime(filePath);
       const binaryMime = imageMime || audioMime || documentMime;
 
-      // ISSUE-004: binary as base64+mime; never UTF-8 corrupt
       if (binaryMime) {
         const limit = imageMime ? IMAGE_PREVIEW_MAX_BYTES : documentMime ? DOCX_PREVIEW_MAX_BYTES : 50 * 1024 * 1024;
         if (st.size > limit) {
@@ -165,7 +219,6 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         };
       }
 
-      // Text: only read up to limit
       const fd = await import("fs").then((fs) => fs.openSync(filePath, "r"));
       try {
         const max = Math.min(st.size, TEXT_PREVIEW_MAX_BYTES);
@@ -188,6 +241,30 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         path: string;
         sourceSessionId?: string;
       };
+      const sshParsed = parseWorkspaceInput(filePath);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const result = await host.request("read", {
+          candidates: [ref.root],
+          maxBytes: FILE_DOWNLOAD_MAX_BYTES,
+        });
+        const bytes = Buffer.from(result.bytes);
+        if (bytes.length > FILE_DOWNLOAD_MAX_BYTES) {
+          throw new RpcError({
+            code: "RESULT_TOO_LARGE",
+            message: `File exceeds the ${FILE_DOWNLOAD_MAX_BYTES / 1024 / 1024} MiB download limit`,
+            detail: { size: bytes.length, maxBytes: FILE_DOWNLOAD_MAX_BYTES },
+          });
+        }
+        return {
+          base64: bytes.toString("base64"),
+          size: bytes.length,
+          mime:
+            getImageMime(ref.root) || getAudioMime(ref.root) || getDocumentMime(ref.root) || "application/octet-stream",
+        };
+      }
       await assertPathAllowed(filePath, sourceSessionId);
       const st = statSync(filePath);
       if (!st.isFile()) {
@@ -213,6 +290,23 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         path: string;
         sourceSessionId?: string;
       };
+      const sshParsed = parseWorkspaceInput(filePath);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const meta = await host.request("fileMeta", { path: ref.root, withinRoot: null });
+        const imageMime = getImageMime(ref.root);
+        const audioMime = getAudioMime(ref.root);
+        const documentMime = getDocumentMime(ref.root);
+        return {
+          size: meta.size,
+          mtime: meta.mtimeMs as number,
+          language: getLanguage(ref.root),
+          kind: documentPreviewKind(ref.root) ?? (imageMime ? "image" : "file"),
+          mime: imageMime ?? audioMime ?? documentMime ?? "text/plain",
+        };
+      }
       await assertPathAllowed(filePath, sourceSessionId);
       const st = statSync(filePath);
       const imageMime = getImageMime(filePath);
@@ -273,6 +367,22 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
 
     "files.index": async (params) => {
       const { root, query } = params as { root: string; query?: string };
+      const sshParsed = parseWorkspaceInput(root);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const result = await host.request("fileIndex", {
+          root: ref.root,
+          query: query ?? "",
+          limit: 20,
+        });
+        return {
+          files: result.paths.map((p) => p.path),
+          truncated: false,
+          matches: result.paths.map((p) => ({ path: p.path, isDir: false, score: 0 })),
+        };
+      }
       await assertPathAllowed(root);
       try {
         return await fileSuggestionService.suggest(root, query);

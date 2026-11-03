@@ -1,6 +1,14 @@
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
+import path from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
-import { keyOf, parseWorkspaceInput, type WorkspaceKey, type WorkspaceRef } from "../../shared/workspace-ref.ts";
+import {
+  formatSshAuthority,
+  keyOf,
+  parseWorkspaceInput,
+  type WorkspaceKey,
+  type WorkspaceRef,
+} from "../../shared/workspace-ref.ts";
 
 const BINDING_TYPE = "dexon.workspace.v1";
 
@@ -80,6 +88,21 @@ export function resolveSessionWorkspaceByFile(filePath: string): WorkspaceBindin
 
 export function isRemoteWorkspace(binding: WorkspaceBinding): boolean {
   return binding.kind === "ssh";
+}
+
+export function sessionDirFor(ref: WorkspaceRef, configuredDir: string | undefined): string | undefined {
+  if (ref.kind !== "ssh") return configuredDir;
+  if (!configuredDir) return configuredDir;
+  const authority = formatSshAuthority(ref.target)
+    .replace(/[^A-Za-z0-9._-]/g, "-")
+    .slice(0, 40);
+  const rootSlug = ref.root
+    .replace(/^\//g, "")
+    .replace(/[^A-Za-z0-9._-]/g, "-")
+    .slice(0, 40);
+  const hash = createHash("sha1").update(keyOf(ref)).digest("hex").slice(0, 8);
+  const dirName = `--ssh-${authority}-${rootSlug}-${hash}--`;
+  return path.join(configuredDir, dirName);
 }
 
 export { describeRef, type WorkspaceBinding };

@@ -49,6 +49,8 @@ import { folderContains } from "../../shared/worktree-list.ts";
 import { callMain } from "../parent-rpc.ts";
 import { getProcessStartFingerprint, terminatePosixProcessGroup } from "../process-tree.ts";
 import { toolchainRuntime, type ToolchainRuntime } from "../toolchain-runtime.ts";
+import { containmentLedger } from "./containment-ledger.ts";
+import { parseWorkspaceInput, keyOf, type WorkspaceKey } from "../../shared/workspace-ref.ts";
 import { ManagedProcessOutputBuffer, ManagedProcessOutputDecoder, parseManagedProcessCursor } from "./output-buffer.ts";
 import type { ManagedProcessBackend, ManagedProcessBackendEvent } from "./backend.ts";
 import { PosixManagedProcessBackend } from "./posix-backend.ts";
@@ -269,7 +271,7 @@ export class ManagedProcessService {
     this.assertStartNotCancelled(signal);
     if (this.shuttingDown)
       throw new ManagedProcessError("PROCESS_FEATURE_DISABLED", "Managed processes are shutting down");
-    await this.assertStartEnabled();
+    await this.assertStartEnabled(ownerCwd);
     if (!trusted)
       throw new ManagedProcessError(
         "PROCESS_PROJECT_UNTRUSTED",
@@ -498,7 +500,12 @@ export class ManagedProcessService {
     } catch (error) {
       await record.backend.dispose();
       if (!terminalState(record.state)) {
-        this.containmentFailed = true;
+        const wsKey = this.workspaceKeyOf(record.ownerCwd);
+        if (wsKey) {
+          containmentLedger.setPending(wsKey, record.runId, "stop-timeout");
+        } else {
+          this.containmentFailed = true;
+        }
         record.state = "lost";
         record.stoppedAt = this.now();
         record.stdinOpen = false;
@@ -720,12 +727,41 @@ export class ManagedProcessService {
     );
   }
 
-  private async assertStartEnabled(): Promise<void> {
+  private workspaceKeyOf(cwd: string): WorkspaceKey | null {
+    const parsed = parseWorkspaceInput(cwd);
+    if (parsed.ok && parsed.value.kind === "ssh") return keyOf(parsed.value);
+    return null;
+  }
+
+  private recordContainmentFailure(
+    record: ManagedRecord,
+    reason: "transport-dropped" | "stop-timeout",
+    detail: string,
+  ): void {
+    const wsKey = this.workspaceKeyOf(record.ownerCwd);
+    if (wsKey) {
+      containmentLedger.setPending(wsKey, record.runId, reason);
+    } else {
+      this.containmentFailed = true;
+    }
+    this.append(record, "system", detail);
+  }
+
+  private async assertStartEnabled(ownerCwd?: string): Promise<void> {
     if (this.containmentFailed) {
       throw new ManagedProcessError(
         "PROCESS_TREE_REAP_FAILED",
         "Managed process containment failed; restart the app after reviewing the Processes panel",
       );
+    }
+    if (ownerCwd) {
+      const wsKey = this.workspaceKeyOf(ownerCwd);
+      if (wsKey && containmentLedger.isBlocked(wsKey)) {
+        throw new ManagedProcessError(
+          "PROCESS_TREE_REAP_FAILED",
+          "Managed process containment failed for this remote workspace; reconnect or review the Processes panel",
+        );
+      }
     }
     if (this.platform === "win32" && this.arch !== "x64") {
       throw new ManagedProcessError("PROCESS_PLATFORM_UNSUPPORTED", "Managed processes require Windows x64");
@@ -988,7 +1024,12 @@ export class ManagedProcessService {
       try {
         await record.backend.dispose();
       } catch {
-        this.containmentFailed = true;
+        const wsKey = this.workspaceKeyOf(record.ownerCwd);
+        if (wsKey) {
+          containmentLedger.setPending(wsKey, record.runId, "stop-timeout");
+        } else {
+          this.containmentFailed = true;
+        }
       }
       if (!record.backend.child) {
         record.finish?.resolve();
@@ -997,7 +1038,12 @@ export class ManagedProcessService {
       try {
         await timeout(record.finish?.promise ?? Promise.resolve(), 2_500, "Managed process cleanup did not finish");
       } catch {
-        this.containmentFailed = true;
+        const wsKey = this.workspaceKeyOf(record.ownerCwd);
+        if (wsKey) {
+          containmentLedger.setPending(wsKey, record.runId, "stop-timeout");
+        } else {
+          this.containmentFailed = true;
+        }
       }
       return;
     }
@@ -1020,7 +1066,12 @@ export class ManagedProcessService {
       );
       if (record.reaper === reaper) record.reaperRegistered = false;
     } catch {
-      this.containmentFailed = true;
+      const wsKey = this.workspaceKeyOf(record.ownerCwd);
+      if (wsKey) {
+        containmentLedger.setPending(wsKey, record.runId, "stop-timeout");
+      } else {
+        this.containmentFailed = true;
+      }
       this.append(record, "system", "Crash-recovery cleanup could not be acknowledged; new starts are disabled");
       this.emitChanged(record, "state");
     }
@@ -1080,7 +1131,12 @@ export class ManagedProcessService {
     this.emitChanged(record, "exit");
     this.resolveWaiters(record);
     if (exit.reason === "host-failure") {
-      this.containmentFailed = true;
+      const wsKey = this.workspaceKeyOf(record.ownerCwd);
+      if (wsKey) {
+        containmentLedger.setPending(wsKey, record.runId, "transport-dropped");
+      } else {
+        this.containmentFailed = true;
+      }
       this.append(record, "system", "Managed process ownership was lost; new starts are disabled");
     } else {
       await this.unregisterReaper(record);

@@ -11,6 +11,7 @@ import { reachableModels, type AvailableModel } from "./session-model";
 import { chosenModelView } from "./session-orchestration/model-view";
 import { emitIndexedSessionChange, firstPromptRaw, resolveSessionPath } from "./session-reader";
 import { openSessionSource } from "./session-source";
+import { resolveSessionWorkspace } from "./workspace/session-binding.ts";
 import {
   AUTO_TITLE_ATTEMPT_TIMEOUT_MS,
   AUTO_TITLE_MAX_LENGTH,
@@ -162,6 +163,17 @@ export async function applySessionNameIfEmpty(sessionId: string, name: string): 
 async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessionTarget | null> {
   const existing = getRpcSession(sessionId);
   if (existing?.isAlive()) {
+    const sm = existing.inner.sessionManager as unknown as Parameters<typeof resolveSessionWorkspace>[0];
+    const binding = resolveSessionWorkspace(sm as never);
+    if (binding.kind === "ssh") {
+      return {
+        cwd: binding.workspace,
+        services: {
+          modelRuntime: existing.inner.modelRuntime as unknown as TitleSessionServices["modelRuntime"],
+          settingsManager: existing.inner.settingsManager,
+        },
+      };
+    }
     const dir = validateExistingDirectory(existing.cwd);
     if (!dir.ok) return null;
     return {
@@ -174,7 +186,10 @@ async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessio
   }
   const filePath = await resolveSessionPath(sessionId);
   if (!filePath) return null;
-  const cwd = SessionManager.open(filePath, undefined).getHeader()?.cwd;
+  const manager = SessionManager.open(filePath, undefined);
+  const binding = resolveSessionWorkspace(manager);
+  if (binding.kind === "ssh") return { cwd: binding.workspace };
+  const cwd = manager.getHeader()?.cwd;
   const dir = validateExistingDirectory(cwd);
   return dir.ok ? { cwd: dir.path } : null;
 }

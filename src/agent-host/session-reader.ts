@@ -1,5 +1,6 @@
 import { SessionManager, getAgentDir, parseSessionEntries } from "@earendil-works/pi-coding-agent";
 import { existsSync, readFileSync } from "node:fs";
+import { resolveSessionWorkspace } from "./workspace/session-binding.ts";
 import type { RpcServer } from "../contract/rpc";
 import {
   isChannelAttachmentContextType,
@@ -178,7 +179,10 @@ export async function buildSessionInfoFromManager(
   const created = Number.isNaN(headerTime) ? header.timestamp : new Date(headerTime).toISOString();
   const modified = lastActivityTime === undefined ? created : new Date(lastActivityTime).toISOString();
   let located: LocatedProject | null = null;
-  if (header.cwd && options.resolveProjectInfo !== false) {
+  const binding = resolveSessionWorkspace(manager);
+  const isRemoteSession = binding.kind === "ssh";
+  const effectiveCwd = isRemoteSession ? binding.workspace : header.cwd;
+  if (header.cwd && options.resolveProjectInfo !== false && !isRemoteSession) {
     located = await locateSessionProject({ id: header.id, cwd: header.cwd });
     flushSessionProjects();
   }
@@ -187,15 +191,17 @@ export async function buildSessionInfoFromManager(
   return withSessionOrigin({
     path: filePath,
     id: header.id,
-    cwd: header.cwd,
+    cwd: effectiveCwd,
     name: manager.getSessionName(),
     created,
     modified,
     messageCount,
     firstMessage: toFirstMessage(firstPromptRaw(entries)),
     ...(parentSessionId ? { parentSessionId } : {}),
-    projectRoot: located?.projectRoot ?? header.cwd,
+    projectRoot: isRemoteSession ? effectiveCwd : (located?.projectRoot ?? header.cwd),
     ...(located?.worktreeBranch ? { worktreeBranch: located.worktreeBranch } : {}),
+    ...(isRemoteSession && binding.hostLabel ? { remoteHostLabel: binding.hostLabel } : {}),
+    ...(isRemoteSession && binding.remotePath ? { remotePath: binding.remotePath } : {}),
   });
 }
 

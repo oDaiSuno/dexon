@@ -3,6 +3,8 @@ import { DefaultResourceLoader, getAgentDir } from "@earendil-works/pi-coding-ag
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import { ToolchainError } from "../../shared/toolchains/errors";
+import { parseWorkspaceInput, keyOf } from "../../shared/workspace-ref";
+import { mirrorDirectoryFor } from "../workspace/resources/merged-loader";
 import { updateSkillModelInvocation } from "../skill-frontmatter";
 import { installSkill, searchSkills } from "../skills-service";
 import { applyPluginAction, attachSkillPlugins, markPluginsReloaded, readPlugins } from "../plugins-service";
@@ -47,6 +49,19 @@ export function registerResourceHandlers(server: RpcServer): void {
     "skills.list": async (params) => {
       const cwd = (params as { cwd?: string } | void)?.cwd;
       if (!cwd) throw new RpcError({ code: "BAD_REQUEST", message: "cwd required" });
+      const sshParsed = parseWorkspaceInput(cwd);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const mirrorRoot = mirrorDirectoryFor(keyOf(ref));
+        const localLoader = new DefaultResourceLoader({ cwd: mirrorRoot, agentDir: getAgentDir() });
+        await localLoader.reload().catch(() => undefined);
+        const { skills: globalSkills, diagnostics } = localLoader.getSkills();
+        const globalWithOrigin = globalSkills.map((skill) => ({
+          ...skill,
+          origin: "local-global" as const,
+        }));
+        return { skills: await attachSkillPlugins(globalWithOrigin as never, cwd), diagnostics };
+      }
       const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
       await loader.reload();
       const { skills, diagnostics } = loader.getSkills();

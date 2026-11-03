@@ -18,6 +18,8 @@ import {
   removeWorktree,
   resolveProject,
 } from "../../shared/worktree";
+import { parseWorkspaceInput, keyOf, describeWorkspaceKey } from "../../shared/workspace-ref";
+import { getOrCreateHost } from "../workspace/registry";
 export interface ProjectHandlerDeps {
   managedProcesses: ManagedProcessService;
   runningSessionCwds: () => readonly string[];
@@ -94,6 +96,29 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
 
     "worktrees.branches": async (params) => {
       const { cwd } = params as { cwd: string };
+      const sshParsed = parseWorkspaceInput(cwd);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const snapshot = await host.request("gitSnapshot", { cwd: ref.root });
+        return {
+          projectRoot: snapshot.projectRoot || ref.root,
+          isGit: snapshot.isGitRepo,
+          isTopLevel: true,
+          current: snapshot.currentBranch ?? null,
+          mainFolder: ref.root,
+          branches: snapshot.branches.map((b) => ({
+            name: b.name,
+            isCurrent: b.current,
+            committedAt: b.committedAt,
+            worktreePath: null,
+            isMainFolder: b.current,
+            stalePath: null,
+          })),
+          detached: [],
+        };
+      }
       return listBranches(cwd);
     },
 
@@ -125,12 +150,53 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
 
     "git.status": async (params) => {
       const { path: cwd } = params as { path: string };
+      const sshParsed = parseWorkspaceInput(cwd);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const snapshot = await host.request("gitSnapshot", { cwd: ref.root });
+        if (!snapshot.isGitRepo) {
+          return {
+            isGit: false,
+            branch: null,
+            clean: true,
+            staged: 0,
+            modified: 0,
+            untracked: 0,
+            conflicted: 0,
+            entries: [],
+            upstream: null,
+          };
+        }
+        return {
+          isGit: true,
+          branch: snapshot.currentBranch,
+          clean: true,
+          staged: 0,
+          modified: 0,
+          untracked: 0,
+          conflicted: 0,
+          entries: [],
+          upstream: snapshot.aheadBehind
+            ? { ahead: snapshot.aheadBehind.ahead, behind: snapshot.aheadBehind.behind }
+            : null,
+        };
+      }
       await assertPathAllowed(cwd);
       return getGitStatus(cwd);
     },
 
     "git.branch": async (params) => {
       const { path: cwd } = params as { path: string };
+      const sshParsed = parseWorkspaceInput(cwd);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const snapshot = await host.request("gitSnapshot", { cwd: ref.root });
+        return { isGit: snapshot.isGitRepo, branch: snapshot.currentBranch ?? null };
+      }
       await assertPathAllowed(cwd);
       return getGitBranch(cwd);
     },
@@ -143,6 +209,22 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
 
     "projects.inspectFolder": async (params) => {
       const { path: typed } = params as { path: string };
+      const sshParsed = parseWorkspaceInput(typed);
+      if (sshParsed.ok && sshParsed.value.kind === "ssh") {
+        const ref = sshParsed.value;
+        const host = getOrCreateHost(keyOf(ref));
+        if (!host) throw new RpcError({ code: "BAD_REQUEST", message: "SSH host not available" });
+        const meta = await host.request("fileMeta", { path: ref.root, withinRoot: null }).catch(() => null);
+        if (!meta || !meta.isDirectory) return { ok: false as const, error: "Directory not found on remote server" };
+        const gitInfo = await host.request("gitSnapshot", { cwd: ref.root }).catch(() => null);
+        const described = describeWorkspaceKey(keyOf(ref));
+        return {
+          ok: true as const,
+          path: keyOf(ref),
+          name: described.folderName,
+          isGitRepo: gitInfo?.isGitRepo ?? false,
+        };
+      }
       const expanded =
         typed === "~"
           ? homedir()

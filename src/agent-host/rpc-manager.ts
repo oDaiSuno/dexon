@@ -26,7 +26,7 @@ import { createDesktopSearchToolDefinitions } from "./toolchain-search";
 import { parseWorkspaceInput, keyOf, type PosixAbsPath } from "../shared/workspace-ref.ts";
 import { getOrCreateHost } from "./workspace/registry.ts";
 import { createAllRemoteCodingTools } from "./workspace/coding-tools-remote.ts";
-import { writeWorkspaceBinding } from "./workspace/session-binding.ts";
+import { sessionDirFor, writeWorkspaceBinding } from "./workspace/session-binding.ts";
 
 import { getLegacySessionToolNames } from "./agent-session/compat";
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
@@ -156,20 +156,29 @@ export async function startRpcSession(
   const starting = (async () => {
     const agentDir = getAgentDir();
 
+    const workspaceRef = parseWorkspaceInput(cwd);
+    const isRemote = workspaceRef.ok && workspaceRef.value.kind === "ssh";
+    const remoteRef = isRemote ? (workspaceRef.value as Extract<typeof workspaceRef.value, { kind: "ssh" }>) : null;
+
+    const smCwd = remoteRef ? (remoteRef.root as string) : cwd;
+    const smSessionDir = remoteRef ? sessionDirFor(remoteRef, configuredSessionDir()) : configuredSessionDir();
+
     const sessionManager = sessionFile
       ? SessionManager.open(sessionFile, undefined)
-      : SessionManager.create(cwd, configuredSessionDir());
+      : SessionManager.create(smCwd, smSessionDir);
     installManagedProcessSessionRedaction(sessionManager);
 
-    // Desktop-owned session choices live outside Pi's shared JSONL so the CLI
-    // remains unaffected. Read the old custom entry only for one-way migration.
+    if (remoteRef) {
+      writeWorkspaceBinding(sessionManager, remoteRef);
+    }
+
     const managerSessionId = sessionManager.getSessionId();
     applyStoredLeafChoice(managerSessionId, sessionManager);
 
     const bridge: { wrapper?: AgentSessionWrapper } = {};
     const events = createEventBus();
     const services = await createAgentSessionServices({
-      cwd,
+      cwd: smCwd,
       agentDir,
       resourceLoaderOptions: {
         eventBus: events,
@@ -183,13 +192,9 @@ export async function startRpcSession(
         extensionFactories: [RunPolicy.extension(() => bridge.wrapper?.runPolicy)],
       },
     });
-    const workspaceRef = parseWorkspaceInput(cwd);
-    const isRemote = workspaceRef.ok && workspaceRef.value.kind === "ssh";
-    const remoteRef = isRemote ? workspaceRef.value : null;
     const remoteHost = remoteRef ? getOrCreateHost(keyOf(remoteRef)) : null;
     if (remoteRef && remoteHost) {
       await remoteHost.connect();
-      writeWorkspaceBinding(sessionManager, remoteRef);
     }
     const remoteRoot = remoteRef ? (remoteRef.root as PosixAbsPath) : null;
     const trusted = remoteRef ? false : services.settingsManager.isProjectTrusted();
