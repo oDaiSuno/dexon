@@ -6,11 +6,16 @@ import {
   formatSshAuthority,
   keyOf,
   parseWorkspaceInput,
+  type LocalAbsPath,
   type WorkspaceKey,
   type WorkspaceRef,
 } from "../../shared/workspace-ref.ts";
 
 const BINDING_TYPE = "dexon.workspace.v1";
+
+function toLocalRoot(rawPath: string): LocalAbsPath {
+  return rawPath as LocalAbsPath;
+}
 
 interface WorkspaceBinding {
   readonly workspace: WorkspaceKey;
@@ -62,7 +67,7 @@ export function writeWorkspaceBinding(manager: SessionManager, ref: WorkspaceRef
 }
 
 export function readWorkspaceBinding(manager: SessionManager): WorkspaceBinding | null {
-  const entries = (manager as unknown as { fileEntries?: unknown[] }).fileEntries ?? [];
+  const entries = manager.getEntries();
   for (const entry of entries) {
     const binding = extractBinding(entry);
     if (binding) return binding;
@@ -71,18 +76,18 @@ export function readWorkspaceBinding(manager: SessionManager): WorkspaceBinding 
 }
 
 export function resolveSessionWorkspace(manager: SessionManager): WorkspaceBinding {
-  return readWorkspaceBinding(manager) ?? describeRef({ kind: "local", root: manager.getCwd() as never });
+  return readWorkspaceBinding(manager) ?? describeRef({ kind: "local", root: toLocalRoot(manager.getCwd()) });
 }
 
 export function resolveSessionWorkspaceByFile(filePath: string): WorkspaceBinding {
   if (!existsSync(filePath)) {
-    return describeRef({ kind: "local", root: process.cwd() as never });
+    return describeRef({ kind: "local", root: toLocalRoot(process.cwd()) });
   }
   try {
     const manager = SessionManager.open(filePath);
     return resolveSessionWorkspace(manager);
   } catch {
-    return describeRef({ kind: "local", root: process.cwd() as never });
+    return describeRef({ kind: "local", root: toLocalRoot(process.cwd()) });
   }
 }
 

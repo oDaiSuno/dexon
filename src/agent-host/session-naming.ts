@@ -163,8 +163,7 @@ export async function applySessionNameIfEmpty(sessionId: string, name: string): 
 async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessionTarget | null> {
   const existing = getRpcSession(sessionId);
   if (existing?.isAlive()) {
-    const sm = existing.inner.sessionManager as unknown as Parameters<typeof resolveSessionWorkspace>[0];
-    const binding = resolveSessionWorkspace(sm as never);
+    const binding = resolveSessionWorkspace(existing.inner.sessionManager);
     if (binding.kind === "ssh") {
       return {
         cwd: binding.workspace,

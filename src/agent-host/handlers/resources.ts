@@ -1,13 +1,25 @@
-import { readFileSync, realpathSync, writeFileSync, renameSync, unlinkSync } from "fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, writeFileSync, renameSync, unlinkSync } from "fs";
+import path from "path";
 import { DefaultResourceLoader, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import { ToolchainError } from "../../shared/toolchains/errors";
-import { parseWorkspaceInput, keyOf } from "../../shared/workspace-ref";
+import { formatSshHostLabel, parseWorkspaceInput, keyOf } from "../../shared/workspace-ref";
 import { mirrorDirectoryFor } from "../workspace/resources/merged-loader";
+import { isRemoteWorkspaceTrusted } from "./remote";
 import { updateSkillModelInvocation } from "../skill-frontmatter";
 import { installSkill, searchSkills } from "../skills-service";
 import { applyPluginAction, attachSkillPlugins, markPluginsReloaded, readPlugins } from "../plugins-service";
+
+function hasSkillScripts(baseDir: string | undefined): boolean {
+  if (!baseDir || !existsSync(baseDir)) return false;
+  if (existsSync(path.join(baseDir, "scripts"))) return true;
+  try {
+    return readdirSync(baseDir).some((entry) => /\.(sh|py|mjs|js)$/i.test(entry));
+  } catch {
+    return false;
+  }
+}
 
 async function resolveLoadedSkill(cwd: string, filePath: string) {
   if (!cwd || !filePath) {
@@ -52,15 +64,36 @@ export function registerResourceHandlers(server: RpcServer): void {
       const sshParsed = parseWorkspaceInput(cwd);
       if (sshParsed.ok && sshParsed.value.kind === "ssh") {
         const ref = sshParsed.value;
-        const mirrorRoot = mirrorDirectoryFor(keyOf(ref));
+        const wsKey = keyOf(ref);
+        const mirrorRoot = mirrorDirectoryFor(wsKey);
+        const hostLabel = formatSshHostLabel(ref.target);
+        const trusted = isRemoteWorkspaceTrusted(wsKey);
         const localLoader = new DefaultResourceLoader({ cwd: mirrorRoot, agentDir: getAgentDir() });
         await localLoader.reload().catch(() => undefined);
-        const { skills: globalSkills, diagnostics } = localLoader.getSkills();
-        const globalWithOrigin = globalSkills.map((skill) => ({
-          ...skill,
-          origin: "local-global" as const,
-        }));
-        return { skills: await attachSkillPlugins(globalWithOrigin as never, cwd), diagnostics };
+        const { skills: rawSkills, diagnostics } = localLoader.getSkills();
+        const attached = await attachSkillPlugins(rawSkills, cwd);
+        const normalizedMirror = existsSync(mirrorRoot) ? realpathSync(mirrorRoot) : mirrorRoot;
+        const skills = attached.map((skill) => {
+          const resolvedFile = existsSync(skill.filePath) ? realpathSync(skill.filePath) : skill.filePath;
+          const isMirroredRemote =
+            skill.filePath.startsWith(mirrorRoot) ||
+            resolvedFile.startsWith(normalizedMirror) ||
+            skill.baseDir.startsWith(mirrorRoot);
+          if (isMirroredRemote) {
+            return {
+              ...skill,
+              origin: "remote-project" as const,
+              remoteHostLabel: hostLabel,
+              lockedByReadOnly: !trusted,
+            };
+          }
+          return {
+            ...skill,
+            origin: "local-global" as const,
+            hasLocalScripts: hasSkillScripts(skill.baseDir),
+          };
+        });
+        return { skills, diagnostics };
       }
       const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
       await loader.reload();

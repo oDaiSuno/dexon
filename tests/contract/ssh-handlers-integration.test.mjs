@@ -361,3 +361,43 @@ test("SessionManager cwd not corrupted: ssh:// root path is plain POSIX not a lo
   assert.ok(!header.cwd.includes("ssh:"), `cwd must not contain 'ssh:' — got: ${header.cwd}`);
   assert.ok(!header.cwd.includes(process.cwd()), `cwd must not be under process.cwd() — got: ${header.cwd}`);
 });
+
+test("workspace registry reuses the same ExecutionHost across subdirectories of the same SSH host", async () => {
+  const { getOrCreateHost, getHost } = await import("../../src/agent-host/workspace/registry.ts");
+  const rootHost = getOrCreateHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app");
+  const subFileHost = getOrCreateHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/src/index.ts");
+  const lookedUp = getHost("ssh://ubuntu@pool-test-vps/home/ubuntu/app/docs/readme.md");
+  const otherHost = getOrCreateHost("ssh://ubuntu@other-test-vps/home/ubuntu/app");
+
+  assert.ok(rootHost !== null);
+  assert.equal(rootHost, subFileHost);
+  assert.equal(rootHost, lookedUp);
+  assert.notEqual(rootHost, otherHost);
+});
+
+test("skills.list distinguishes mirrored remote project skills from local global skills and reflects workspace trust", async (t) => {
+  const client = connect(t);
+  const { mirrorDirectoryFor } = await import("../../src/agent-host/workspace/resources/merged-loader.ts");
+  const remoteWorkspace = "ssh://ubuntu@skill-test-vps/home/ubuntu/app";
+  const mirrorRoot = mirrorDirectoryFor(remoteWorkspace);
+  const remoteSkillDir = path.join(mirrorRoot, ".pi", "skills", "deploy-canary");
+  mkdirSync(remoteSkillDir, { recursive: true });
+  writeFileSync(
+    path.join(remoteSkillDir, "SKILL.md"),
+    "---\nname: deploy-canary\ndescription: Deploy canary build to remote cluster\n---\nDeploy body\n",
+  );
+
+  const untrustedList = await client.call("skills.list", { cwd: remoteWorkspace });
+  const remoteSkillUntrusted = untrustedList.skills.find((s) => s.name === "deploy-canary");
+  assert.ok(remoteSkillUntrusted, "Expected mirrored remote project skill in skills.list");
+  assert.equal(remoteSkillUntrusted.origin, "remote-project");
+  assert.equal(remoteSkillUntrusted.remoteHostLabel, "skill-test-vps");
+  assert.equal(remoteSkillUntrusted.lockedByReadOnly, true);
+
+  await client.call("remote.trustSet", { workspace: remoteWorkspace, trust: "trusted" });
+  const trustedList = await client.call("skills.list", { cwd: remoteWorkspace });
+  const remoteSkillTrusted = trustedList.skills.find((s) => s.name === "deploy-canary");
+  assert.ok(remoteSkillTrusted);
+  assert.equal(remoteSkillTrusted.origin, "remote-project");
+  assert.equal(remoteSkillTrusted.lockedByReadOnly, false);
+});

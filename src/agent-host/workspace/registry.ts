@@ -1,6 +1,6 @@
 import path from "node:path";
 import { desktopUserDataPath } from "../desktop-state-file.ts";
-import { keyOf, parseWorkspaceInput, type HostId, type WorkspaceKey } from "../../shared/workspace-ref.ts";
+import { hostIdOf, parseWorkspaceInput, type HostId, type WorkspaceKey } from "../../shared/workspace-ref.ts";
 import { SshConnection } from "./host/ssh/connection.ts";
 import type { ExecutionHost } from "./host/execution-host.ts";
 
@@ -14,7 +14,7 @@ export function getOrCreateHost(workspace: WorkspaceKey): ExecutionHost | null {
   const parsed = parseWorkspaceInput(workspace);
   if (!parsed.ok || parsed.value.kind !== "ssh") return null;
   const ref = parsed.value;
-  const id = keyOf(ref) as string as HostId;
+  const id = hostIdOf(ref);
   const existing = hosts.get(id);
   if (existing) return existing;
   const conn = new SshConnection(id, ref.target, {
@@ -27,7 +27,7 @@ export function getOrCreateHost(workspace: WorkspaceKey): ExecutionHost | null {
 export function getHost(workspace: WorkspaceKey): ExecutionHost | null {
   const parsed = parseWorkspaceInput(workspace);
   if (!parsed.ok || parsed.value.kind !== "ssh") return null;
-  const id = keyOf(parsed.value) as string as HostId;
+  const id = hostIdOf(parsed.value);
   return hosts.get(id) ?? null;
 }
 

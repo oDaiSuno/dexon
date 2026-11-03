@@ -48,6 +48,7 @@ export interface HelperLink {
   readonly epoch: number;
   request(op: string, input: object, options?: HelperRequestOptions): Promise<Record<string, unknown>>;
   dropData(requestId: number): void;
+  onWatchData(listener: (data: HelperData) => void): () => void;
   readonly closed: Promise<HelperClose>;
   close(): void;
 }
@@ -89,6 +90,7 @@ export function attachHelperLink(child: ChildProcess, script: string, options: A
   const decoder = new FrameDecoder();
   const pending = new Map<number, Pending>();
   const dataSubscribers = new Map<number, (data: HelperData) => void>();
+  const watchSubscribers = new Set<(data: HelperData) => void>();
   let stderrTail = "";
   let nextId = 1;
   let closedInfo: HelperClose | null = null;
@@ -117,6 +119,7 @@ export function attachHelperLink(child: ChildProcess, script: string, options: A
     for (const entry of [...pending.values()]) entry.reject(failure);
     pending.clear();
     dataSubscribers.clear();
+    watchSubscribers.clear();
     if (!hello) rejectHello(new HelperStartError("Helper exited before it was ready", stderrTail, exitCode));
     resolveClosed(closedInfo);
   };
@@ -129,6 +132,12 @@ export function attachHelperLink(child: ChildProcess, script: string, options: A
     }
     if (message.kind === "heartbeat") return;
     if (message.kind === "data") {
+      if (message.stream === "watch") {
+        for (const listener of watchSubscribers) {
+          listener({ stream: message.stream, meta: message.meta, bytes: message.bytes });
+        }
+        return;
+      }
       const subscriber = dataSubscribers.get(message.id);
       subscriber?.({ stream: message.stream, meta: message.meta, bytes: message.bytes });
       return;
@@ -195,6 +204,12 @@ export function attachHelperLink(child: ChildProcess, script: string, options: A
     },
     dropData(requestId) {
       dataSubscribers.delete(requestId);
+    },
+    onWatchData(listener) {
+      watchSubscribers.add(listener);
+      return () => {
+        watchSubscribers.delete(listener);
+      };
     },
     closed,
     close() {

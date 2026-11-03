@@ -100,11 +100,18 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
           withinRoot: null,
           ignore: [...IGNORED_NAMES],
         });
-        const entries = result.entries.map((entry) => ({
+        const entries: Array<{
+          name: string;
+          path: string;
+          isDir: boolean;
+          type: "file" | "directory";
+          size?: number;
+          mtime?: number;
+        }> = result.entries.map((entry) => ({
           name: entry.name,
           path: joinWorkspaceKeyPath(keyOf(ref), entry.name),
           isDir: entry.type === "directory",
-          type: entry.type,
+          type: entry.type === "directory" ? "directory" : "file",
           size: entry.size,
           mtime: entry.mtimeMs,
         }));
@@ -112,7 +119,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
           if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
           return a.name.localeCompare(b.name);
         });
-        return { entries: entries as never };
+        return { entries };
       }
       await assertPathAllowed(dirPath);
       if (!existsSync(dirPath) || !statSync(dirPath).isDirectory()) {

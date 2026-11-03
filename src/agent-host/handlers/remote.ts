@@ -1,4 +1,5 @@
 import { mkdirSync, readFileSync } from "node:fs";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { RpcServer } from "../../contract/rpc";
@@ -26,9 +27,9 @@ import {
 import { desktopUserDataPath } from "../desktop-state-file";
 import { getOrCreateHost, getHost } from "../workspace/registry";
 import { RemoteConnectError } from "../workspace/host/errors";
+import { buildSshArgv } from "../workspace/host/ssh/argv";
 import { acceptHostKey, KnownHostsError } from "../workspace/host/ssh/known-hosts";
 import type { ExecutionHost } from "../workspace/host/execution-host";
-import { SshConnection } from "../workspace/host/ssh/connection";
 import { containmentLedger } from "../managed-process/containment-ledger";
 
 type RemoteWorkspaceRef = Extract<WorkspaceRef, { kind: "ssh" }>;
@@ -45,6 +46,11 @@ interface PendingTrustPrompt {
 }
 
 const TRUST_MODES: readonly WorkspaceTrustMode[] = ["read-only", "trusted"];
+const globalTrustStore = new Map<WorkspaceKey, WorkspaceTrustMode>();
+
+export function isRemoteWorkspaceTrusted(workspace: WorkspaceKey): boolean {
+  return globalTrustStore.get(workspace) === "trusted";
+}
 
 function badRequest(message: string): RpcError {
   return new RpcError({ code: "BAD_REQUEST", message });
@@ -220,6 +226,7 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       workspaceTrust: trust,
       trustRevision: current.trustRevision + 1,
     };
+    globalTrustStore.set(key, trust);
     states.set(key, next);
     server.emit("workspace.state", key, {
       workspace: key,
@@ -363,14 +370,32 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
     "remote.installPython": async (params) => {
       const { target } = (params ?? {}) as { target?: unknown };
       const sshTarget = parseSshTarget(target);
-      const dummyRef: RemoteWorkspaceRef = { kind: "ssh", target: sshTarget, root: normalizePosixPath("/") };
-      const host = getOrCreateHost(keyOf(dummyRef)) as SshConnection | null;
-      if (!host) throw new RpcError({ code: "UNAVAILABLE", message: "Cannot connect to target" });
-      await host.streamExec({
-        argv: ["/bin/sh", "-c", "sudo apt-get install -y python3 || brew install python3 || echo noop"],
-        cwd: normalizePosixPath("/") as PosixAbsPath,
-        onData: () => undefined,
-        timeoutMs: 60_000,
+      const sshBinary = process.env.DEXON_SSH_BINARY ?? "ssh";
+      const argv = buildSshArgv(
+        {
+          target: sshTarget,
+          controlPath: null,
+          dexonKnownHostsPath: dexonKnownHostsPath(),
+          userKnownHostsPath: path.join(process.env.HOME ?? "~", ".ssh", "known_hosts"),
+          connectTimeoutSeconds: 20,
+        },
+        {
+          kind: "exec",
+          remoteCommand:
+            "sudo -n apt-get update && sudo -n apt-get install -y python3 || sudo -n dnf install -y python3 || sudo -n yum install -y python3 || sudo -n apk add --no-cache python3 || brew install python3",
+        },
+      );
+      await new Promise<void>((resolve, reject) => {
+        const child = spawn(sshBinary, argv, { stdio: ["ignore", "ignore", "pipe"] });
+        let stderr = "";
+        child.stderr?.on("data", (chunk: Buffer) => {
+          stderr = (stderr + chunk.toString("utf8")).slice(-2048);
+        });
+        child.on("error", reject);
+        child.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new RpcError({ code: "UNAVAILABLE", message: stderr.trim() || "Failed to install python3" }));
+        });
       });
       return { ok: true as const };
     },
@@ -385,10 +410,9 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
     },
 
     "remote.workspacesSnapshot": () => {
-      for (const [key, state] of states) {
+      for (const key of states.keys()) {
         const parsed = parseWorkspaceInput(key);
         if (parsed.ok && parsed.value.kind === "ssh") syncState(parsed.value);
-        void state;
       }
       return { states: Object.fromEntries(states) };
     },
@@ -432,11 +456,23 @@ export function registerRemoteHandlers(server: RpcServer): RemoteTrustGate {
       }
       const detach = attachConnectionListener(ref, host);
       try {
+        const priorContainment = containmentLedger.get(key);
         await host.reconnect();
+        if (priorContainment.state !== "clear") {
+          containmentLedger.setClean(key);
+        }
         syncState(ref);
-        const reconciledCleanPgid = undefined;
-        void reconciledCleanPgid;
-        return { state: states.get(key)! };
+        const state = states.get(key)!;
+        if (priorContainment.state !== "clear") {
+          const cleanPgid = "leakedPgid" in priorContainment ? priorContainment.leakedPgid : undefined;
+          server.emit("workspace.state", key, {
+            workspace: key,
+            state,
+            transition: "reconnected-clean",
+            ...(cleanPgid !== undefined ? { reconciledCleanPgid: cleanPgid } : {}),
+          });
+        }
+        return { state };
       } catch (error) {
         throw new RpcError({
           code: "UNAVAILABLE",

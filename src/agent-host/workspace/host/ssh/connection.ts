@@ -338,20 +338,22 @@ export class SshConnection implements ExecutionHost {
   ): Promise<() => Promise<void>> {
     const result = await this.request("watchStart", input);
     const { watchId } = result;
-    const off = this.link?.request
-      ? (() => {
-          const originalOnData = (this.link as unknown as { dropData?: (id: number) => void }).dropData;
-          void originalOnData;
-          return () => undefined;
-        })()
+    const stopWatchData = this.link
+      ? this.link.onWatchData((data) => {
+          if (data.meta.watchId === watchId) {
+            const eventKind = data.meta.event === "removed" ? "removed" : "change";
+            const eventPath = typeof data.meta.path === "string" ? (data.meta.path as PosixAbsPath) : input.path;
+            listener({ watchId, path: eventPath, event: eventKind });
+          }
+        })
       : () => undefined;
-    void off;
     const unsubscribe = this.onConnection((event) => {
       if (event.state === "reconnecting" || event.state === "offline") {
         listener({ watchId, path: input.path as PosixAbsPath, event: "removed" });
       }
     });
     return async () => {
+      stopWatchData();
       unsubscribe();
       await this.request("watchStop", { watchId }).catch(() => undefined);
     };
