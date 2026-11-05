@@ -9,6 +9,8 @@ import type {
 import type { ManagedProcessCapability } from "../contract/processes";
 import { exportDiagnostics } from "./diagnostics";
 import type { HostManager } from "./host-manager";
+import type { EnvironmentManager } from "./environments/environment-manager";
+import type { AddEnvironmentInput, EnvironmentId } from "../contract/environment";
 import { appendMainLog, getMainLogPath } from "./logger";
 import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
@@ -28,6 +30,7 @@ import { ToolchainError } from "../shared/toolchains/errors";
 import type { BrowserService } from "./browser/browser-service";
 import { BrowserError } from "./browser/browser-error";
 import { isTrustedDesktopIpcSender } from "./ipc-trust";
+import { toolchainActionConfirmation, validateOptionalToolchainCwd } from "./ipc-toolchain-helpers";
 import { validateDesktopUiStatePatch } from "./ui-state-patch";
 import type {
   BrowserConfirmationKind,
@@ -45,6 +48,7 @@ import type {
 } from "../contract/browser";
 
 export type DesktopIpcOptions = {
+  environmentManager?: EnvironmentManager;
   getHostManager: () => HostManager | null;
   getMainWindow: () => BrowserWindow | null;
   getUnreadBadge: () => number;
@@ -84,6 +88,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     getBrowserService,
     getManagedProcessCapability,
     updateManager,
+    environmentManager,
   } = options;
   const assertTrustedSender = (event: IpcMainInvokeEvent): void => {
     const win = getMainWindow();
@@ -137,6 +142,30 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     if (typeof enabled !== "boolean") throw new Error("Automatic update checks must be a boolean");
     saveUiState({ automaticUpdateChecks: enabled });
     return updateManager.setAutomaticChecksEnabled(enabled);
+  });
+  const requireEnvironmentManager = (): EnvironmentManager => {
+    if (!environmentManager) throw new Error("Environment manager is unavailable");
+    return environmentManager;
+  };
+  trustedHandle("desktop:environments:list", () => environmentManager?.listEnvironments() ?? []);
+  trustedHandle("desktop:environments:add", (_event, input: AddEnvironmentInput) =>
+    requireEnvironmentManager().addEnvironment(input),
+  );
+  trustedHandle("desktop:environments:remove", (_event, environmentId: EnvironmentId) =>
+    requireEnvironmentManager().removeEnvironment(environmentId),
+  );
+  trustedHandle("desktop:environments:connect", (_event, environmentId: EnvironmentId) =>
+    requireEnvironmentManager().connectEnvironment(environmentId),
+  );
+  trustedHandle("desktop:environments:disconnect", (_event, environmentId: EnvironmentId) =>
+    requireEnvironmentManager().disconnectEnvironment(environmentId),
+  );
+  trustedOn("desktop:connect-environment-port", (event, environmentId: EnvironmentId) => {
+    try {
+      requireEnvironmentManager().attachRendererEnvironmentPort(environmentId, event.sender);
+    } catch (error) {
+      appendMainLog(`environment port attachment failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   });
   trustedHandle("desktop:get-host-status", () => getHostManager()?.getStatus() ?? "stopped");
   trustedHandle("desktop:restart-host", () => getHostManager()?.restartAfterCrash());
@@ -204,13 +233,9 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     if (typeof fsPath !== "string" || !path.isAbsolute(fsPath) || fsPath.includes("\0")) return;
     try {
       shell.showItemInFolder(await realpath(fsPath));
-    } catch {
-      // Missing paths are not revealed.
-    }
+    } catch {}
   });
 
-  // "Open current folder" truly opens the directory (HC-18), unlike the
-  // reveal-only channel above. Same trust wrapper and path validation style.
   trustedHandle("desktop:open-directory", async (_event, fsPath: string) => {
     await openValidatedDirectory(fsPath, { openPath: (target) => shell.openPath(target) });
   });
@@ -219,9 +244,6 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     await openValidatedMarkdownFile(fsPath, { openPath: (target) => shell.openPath(target) });
   });
 
-  // Rich file context menu, built in main from a real path (Chromium does not
-  // reliably fill params.linkURL for file: links in Electron 43, so the renderer
-  // resolves the path itself and hands it over here).
   trustedHandle("desktop:file-context-menu", async (event, request: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return { shown: false, code: "UNAVAILABLE" };
@@ -432,60 +454,4 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   );
   browserHandler("desktop:browser:choose-upload-files", (browser, tabId: string) => browser.chooseUploadFiles(tabId));
   browserHandler("desktop:browser:reset", (browser) => browser.reset());
-}
-
-function toolchainActionConfirmation(request: ToolchainActionRequest): Electron.MessageBoxOptions | undefined {
-  const chinese = app.getLocale().toLowerCase().startsWith("zh");
-  if (
-    request.action === "install-profile" ||
-    request.action === "install-component" ||
-    request.action === "repair-component"
-  ) {
-    return {
-      type: "warning",
-      title: chinese ? "安装开发工具" : "Install developer tools",
-      message: chinese
-        ? "Pi Desktop 将从界面所示的官方来源下载固定版本。来源会收到你的 IP 地址、平台和架构；文件仅保存在应用私有数据中，也不会修改系统 PATH。是否继续？"
-        : "Pi Desktop will download fixed releases from the official sources shown in Developer Tools. The sources receive your IP address, platform, and architecture. Files stay in private app data and system PATH is not changed.",
-      buttons: chinese ? ["取消", "继续"] : ["Cancel", "Continue"],
-      defaultId: 1,
-      cancelId: 0,
-      noLink: true,
-    };
-  }
-  if (request.action === "remove-component") {
-    return {
-      type: "warning",
-      title: chinese ? "移除托管工具" : "Remove managed tool",
-      message: chinese
-        ? "移除此 Pi Desktop 托管运行时？系统工具和自定义工具不会受影响。"
-        : "Remove this Pi Desktop-managed runtime? System and custom tools are not affected.",
-      buttons: chinese ? ["取消", "移除"] : ["Cancel", "Remove"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-    };
-  }
-  if (request.action === "clear-cache") {
-    return {
-      type: "question",
-      title: chinese ? "清理工具缓存" : "Clear tool cache",
-      message: chinese
-        ? "清除此应用私有缓存？已安装的运行时不会被移除。"
-        : "Clear this private app cache? Installed runtimes are not removed.",
-      buttons: chinese ? ["取消", "清理"] : ["Cancel", "Clear"],
-      defaultId: 0,
-      cancelId: 0,
-      noLink: true,
-    };
-  }
-  return undefined;
-}
-
-function validateOptionalToolchainCwd(value: unknown): string | undefined {
-  if (value === undefined || value === null || value === "") return undefined;
-  if (typeof value !== "string" || value.length > 4_096 || /[\0\r\n]/.test(value) || !path.isAbsolute(value)) {
-    throw new Error("Invalid toolchain workspace path");
-  }
-  return path.normalize(value);
 }

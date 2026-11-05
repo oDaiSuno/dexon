@@ -19,14 +19,28 @@ if (
   isTrustedPreloadLocation(preloadLocation, readDevRendererPortArgument(process.argv))
 ) {
   // Deliver MessagePort to the page via window.postMessage (transferable).
-  ipcRenderer.on("desktop:host-port", (event) => {
+  ipcRenderer.on("desktop:host-port", (event, payload: unknown) => {
     const port = selectTransferredHostPort(event.ports);
     if (!port) return;
     // preload: MessagePort transfer to the page
     const g = globalThis as unknown as {
       postMessage: (message: unknown, targetOrigin: string, transfer?: unknown[]) => void;
     };
-    g.postMessage({ channel: "dexon-host-port" }, "*", [port]);
+    const metadata =
+      payload && typeof payload === "object" ? (payload as { environmentId?: unknown; generation?: unknown }) : {};
+    g.postMessage(
+      {
+        channel: "dexon-host-port",
+        ...(typeof metadata.environmentId === "string" ? { environmentId: metadata.environmentId } : {}),
+        ...(typeof metadata.generation === "number" &&
+        Number.isSafeInteger(metadata.generation) &&
+        metadata.generation >= 0
+          ? { generation: metadata.generation }
+          : {}),
+      },
+      "*",
+      [port],
+    );
   });
 
   // Buffer one bounded generation per fixed event until Renderer listeners subscribe.
@@ -69,6 +83,17 @@ if (
     downloadUpdate: () => ipcRenderer.invoke("desktop:update:download"),
     installUpdate: () => ipcRenderer.invoke("desktop:update:install"),
     setAutomaticUpdateChecks: (enabled) => ipcRenderer.invoke("desktop:update:set-automatic-checks", enabled),
+    listEnvironments: () => ipcRenderer.invoke("desktop:environments:list"),
+    addEnvironment: (input) => ipcRenderer.invoke("desktop:environments:add", input),
+    removeEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:remove", environmentId),
+    connectEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:connect", environmentId),
+    disconnectEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:disconnect", environmentId),
+    requestEnvironmentPort: (environmentId) => ipcRenderer.send("desktop:connect-environment-port", environmentId),
+    onEnvironmentsChanged: (cb) => {
+      const handler = (_: Electron.IpcRendererEvent, environments: Parameters<typeof cb>[0]) => cb(environments);
+      ipcRenderer.on("environments:changed", handler);
+      return () => ipcRenderer.removeListener("environments:changed", handler);
+    },
     getHostStatus: () => ipcRenderer.invoke("desktop:get-host-status"),
     restartHost: () => ipcRenderer.invoke("desktop:restart-host"),
     getToolchainState: (cwd) => ipcRenderer.invoke("desktop:toolchains:get-state", cwd),
