@@ -6,13 +6,10 @@ import { allowFileRoot } from "../file-access";
 import { validateExistingDirectory } from "../file-access-core";
 import { preparePersonalDirectory } from "../personal-directory";
 import { getRunningRpcSessionIds } from "../rpc-manager";
+import { peekActiveEnvironmentDescriptor } from "../parent-rpc";
 import { toolchainRuntime } from "../toolchain-runtime";
 
 export interface HostHandlerDeps {
-  /**
-   * Injectable home provider; production defaults to os.homedir(). Tests
-   * substitute an isolated temporary directory and never touch the real home.
-   */
   getHome?: () => string;
 }
 
@@ -20,7 +17,10 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
   const getHome = deps.getHome ?? homedir;
 
   server.handle({
-    "host.ping": () => ({ ok: true as const, ts: Date.now() }),
+    "host.ping": () => {
+      const descriptor = peekActiveEnvironmentDescriptor();
+      return descriptor ? { ok: true as const, ts: Date.now(), descriptor } : { ok: true as const, ts: Date.now() };
+    },
 
     "host.toolchain": async (params) => {
       const { cwd } = params as { cwd: string };
@@ -48,8 +48,6 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
       return { ok: true as const, path: validation.path };
     },
 
-    // Fixed personal space: prepare ~/.dexon under the real home, authorize
-    // the canonical path, and report real failures instead of fake readiness.
     "system.defaultCwd": async () => {
       const prepared = preparePersonalDirectory({ home: getHome() });
       if (!prepared.ok) {
