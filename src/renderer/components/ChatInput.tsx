@@ -10,6 +10,7 @@ import {
 } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
@@ -80,6 +81,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 ) {
   const isMobile = useIsMobile(visible);
   const { t } = useI18n();
+  const affordances = useActiveEnvironmentAffordances();
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRootRef = useRef<HTMLDivElement>(null);
@@ -278,13 +280,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     : null;
 
   const openPicker = useCallback(() => {
-    if (!visible) return;
+    if (!visible || !affordances.attachLocalFiles) return;
     closePlusMenu();
     const input = fileInputRef.current;
     if (!input) return;
     input.removeAttribute("accept");
     input.click();
-  }, [closePlusMenu, visible]);
+  }, [closePlusMenu, visible, affordances.attachLocalFiles]);
   const handleModelPick = useCallback(
     (provider: string, modelId: string, isActive: boolean) => {
       if (!visible) return;
@@ -367,7 +369,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onCompositionEnd={keys.onCompositionEnd}
       tokenPreviewsByPath={attachments.tokenPreviewsByPath}
       missingTokenInspections={attachments.missingTokenInspections}
-      onRevealToken={(path) => void window.piBridge?.showItemInFolder?.(path)}
+      onRevealToken={(path) => {
+        if (affordances.revealInFileManager) void window.piBridge?.showItemInFolder?.(path);
+      }}
       onSkillReveal={skills.revealSkill}
       skillsByName={skillCatalog.byName}
       attachmentTokens={attachments.attachmentTokens}

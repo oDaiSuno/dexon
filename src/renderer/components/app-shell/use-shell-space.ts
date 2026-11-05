@@ -1,6 +1,8 @@
-import type { RefObject } from "react";
+import { useCallback, useMemo, type RefObject } from "react";
 import { defaultSpaceFolder } from "@/lib/space-identity";
 import type { SessionInfo } from "@/lib/types";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { useActiveEnvironment } from "@/lib/environment-registry";
 import { useComposerWorkspace } from "./composer-workspace";
 import { useOpenProjects } from "./use-open-projects";
 import type { SpaceCoordination } from "./use-space-coordination";
@@ -26,6 +28,8 @@ export function useShellSpace(props: {
     onBranchSwitched,
   } = props;
 
+  const environment = useActiveEnvironment();
+  const isPrimary = environment.id === PRIMARY_ENVIRONMENT_ID;
   const space = useSpaceOwner({
     refreshKey,
     coordination,
@@ -48,21 +52,34 @@ export function useShellSpace(props: {
       (coordination.spacePhase.phase === "preparing" && coordination.spacePhase.target === "personal")
         ? null
         : defaultSpaceFolder(null, space.homeDir)),
-    currentProject:
-      (selectedSession ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd)) : null) ??
-      space.workspace.selectedProject ??
-      coordination.attemptedCwd,
+    currentProject: isPrimary
+      ? ((selectedSession
+          ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd))
+          : null) ??
+        space.workspace.selectedProject ??
+        coordination.attemptedCwd)
+      : null,
     refreshKey,
     onCloseCurrent: space.handleReturnToPersonalSpace,
   });
 
+  const projectPath = space.project?.path;
+  const { projects: primaryProjects, isMissing: primaryMissing } = openProjects;
+  const cardProjects = useMemo(
+    () => (isPrimary ? primaryProjects : projectPath ? [projectPath] : []),
+    [isPrimary, primaryProjects, projectPath],
+  );
+  const isMissing = useCallback(
+    (folder: string | null | undefined) => isPrimary && primaryMissing(folder),
+    [isPrimary, primaryMissing],
+  );
   const card = useWorkspaceCard({
     workspace: space.workspace,
     open: space.workspace.wtDropdownOpen,
-    projects: openProjects.projects,
+    projects: cardProjects,
     currentFolder: space.workspace.selectedCwd,
     currentProject: space.project ? { name: space.project.name, path: space.project.path } : null,
-    isMissing: openProjects.isMissing,
+    isMissing,
     personalCwd: coordination.personalCwd,
     homeDir: space.homeDir,
     onGoToFolder: space.goToFolder,

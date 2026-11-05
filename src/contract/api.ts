@@ -51,6 +51,7 @@ import type {
   ChannelTestSendResult,
 } from "../shared/channel-types";
 import type { ToolCapabilityId, ToolProvider } from "../shared/toolchains/types";
+import type { EnvironmentDescriptor } from "./environment";
 import type {
   ManagedProcessChangedEvent,
   ManagedProcessLogStream,
@@ -67,7 +68,7 @@ export type GenerateTitleParams =
   | { sessionId: string; trigger: "regenerate"; namingModel?: SessionModelRef };
 
 export interface Api {
-  "host.ping": { params: void; result: { ok: true; ts: number } };
+  "host.ping": { params: void; result: { ok: true; ts: number; descriptor?: EnvironmentDescriptor } };
   "host.toolchain": {
     params: { cwd: string };
     result: {
@@ -77,7 +78,6 @@ export interface Api {
     };
   };
 
-  // Managed background processes (trusted Renderer control surface)
   "processes.list": {
     params: { includeExited?: boolean } | void;
     result: { revision: number; processes: ManagedProcessPublicInfo[] };
@@ -123,7 +123,6 @@ export interface Api {
     result: { ok: true; cleared: number };
   };
 
-  // Sessions & projects
   "sessions.list": {
     params: { cwd?: string } | void;
     result: {
@@ -205,7 +204,6 @@ export interface Api {
     result: { ok: boolean; path?: string; error?: string };
   };
 
-  // Agent lifecycle
   "agent.new": {
     params: {
       cwd: string;
@@ -232,7 +230,6 @@ export interface Api {
     result: { title: string | null };
   };
 
-  // Messaging channels
   "channels.list": { params: void; result: ChannelsSnapshot };
   "channels.accountUpsert": {
     params: { account: ChannelAccountConfig };
@@ -287,7 +284,6 @@ export interface Api {
     result: ChannelTestSendResult;
   };
 
-  // Files
   "files.list": { params: { path: string }; result: { entries: DirEntry[] } };
   "files.read": {
     params: { path: string; sourceSessionId?: string };
@@ -327,7 +323,6 @@ export interface Api {
     result: { ok: true };
   };
 
-  // Config
   "models.list": {
     params: { cwd?: string } | void;
     result: ModelsListResult;
@@ -389,7 +384,6 @@ export interface Api {
     params: { provider: string; token: string; code: string };
     result: { ok: true };
   };
-  /** Kick off OAuth login; progress arrives on Streams["auth.login"]. */
   "auth.loginStart": {
     params: { provider: string };
     result: { ok: true; started: boolean };
@@ -433,7 +427,6 @@ export interface Api {
     result: PluginsResponse;
   };
 
-  // System / desktop helpers exposed via Host (or main-bridged)
   "system.home": { params: void; result: { home: string } };
   "system.validateCwd": {
     params: { path: string };
@@ -444,7 +437,6 @@ export interface Api {
   "system.runningCount": { params: void; result: { count: number; sessionIds: string[] } };
 }
 
-/** Server-push streams delivered over MessagePort RPC. */
 export interface Streams {
   "agent.events": AgentEvent;
   "agent.running": RunningStateEvent;

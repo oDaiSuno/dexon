@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { validateCwd } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { sessionProjectKey } from "@/lib/session-list";
 import {
   addOpenProject,
@@ -114,7 +115,7 @@ export function useOpenProjects({
     void Promise.all(
       folders.map(async (folder) => {
         try {
-          const result = await validateCwd(folder);
+          const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).validateCwd(folder);
           return result.ok ? null : sessionProjectKey(folder);
         } catch {
           return sessionProjectKey(folder);

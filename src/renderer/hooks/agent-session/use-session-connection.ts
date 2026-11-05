@@ -13,6 +13,7 @@ import {
   SlashCommandsResponse,
 } from "./shared";
 import type { SessionState } from "./use-session-state";
+import type { SessionHistory } from "./use-session-history";
 type Dependencies = Pick<
   SessionState,
   | "interactiveTools"
@@ -30,7 +31,8 @@ type Dependencies = Pick<
   | "setSlashCommandsLoading"
   | "eventConnectionManager"
   | "handleAgentEventRef"
->;
+> &
+  Pick<SessionHistory, "loadSession">;
 export function useSessionConnection(context: Dependencies) {
   const {
     interactiveTools,
@@ -48,6 +50,7 @@ export function useSessionConnection(context: Dependencies) {
     setSlashCommandsLoading,
     eventConnectionManager,
     handleAgentEventRef,
+    loadSession,
   } = context;
 
   const promoteNewSession = useCallback(
@@ -133,7 +136,10 @@ export function useSessionConnection(context: Dependencies) {
     async (sid: string): Promise<EventStreamConnectionResult> => {
       return connectTimedEventStream({
         manager: eventConnectionManager,
-        subscribe: (onEvent) => subscribeAgentEvents(sid, onEvent),
+        subscribe: (onEvent) =>
+          subscribeAgentEvents(sid, onEvent, () => {
+            if (sessionIdRef.current === sid) void loadSession(sid, false, true);
+          }),
         onEvent: (event) => {
           interactiveTools.bindSession(sid);
           const message = event as AgentEvent;
@@ -144,7 +150,7 @@ export function useSessionConnection(context: Dependencies) {
         timeoutMs: EVENT_STREAM_CONNECT_TIMEOUT_MS,
       });
     },
-    [eventConnectionManager, handleAgentEventRef, interactiveTools],
+    [eventConnectionManager, handleAgentEventRef, interactiveTools, sessionIdRef, loadSession],
   );
 
   const ensureEventsConnected = useCallback(

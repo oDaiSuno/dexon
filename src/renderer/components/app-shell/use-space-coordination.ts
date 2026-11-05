@@ -1,13 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { defaultCwd, validateCwd } from "@/lib/api-client";
 import { parseStoredSpaceCwd, resolveStartupSpace } from "@/lib/space-startup";
-
-// Phase 6: the single owner of the current space. It executes the approved
-// three-tier startup decision (explicit session → last space → personal
-// space), tracks preparation/validation outcomes honestly, persists the
-// remembered space through the validated desktop preference channel, and
-// aligns the space with user-driven cwd changes. Session/chat identity stays
-// in use-workspace-navigation; this owner only decides "where are we working".
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { getActiveEnvironmentId, environmentRegistry } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
 
 const defaultSpaceIo: SpaceCoordinationIo = createDefaultSpaceIo();
 
@@ -18,15 +14,14 @@ export type SpacePhase =
   | { phase: "unavailable"; attempted: "stored" | "personal"; reason: string };
 
 export interface SpaceCoordinationIo {
-  /** Read the remembered last-space cwd (null = no record). */
   readStoredSpaceCwd(): Promise<string | null>;
-  /** Prepare (and authorize) the fixed personal directory; rejects with a readable reason. */
+
   preparePersonalSpace(): Promise<string>;
-  /** Validate (and authorize) a restored space; resolves with the validated path. */
+
   validateSpace(path: string): Promise<string>;
-  /** Persist the remembered space; rejects when the preference could not be saved. */
+
   persistSpaceCwd(path: string): Promise<void>;
-  /** Ask the desktop to truly open a directory in the system file manager. */
+
   openDirectory(path: string): Promise<void>;
 }
 
@@ -48,10 +43,12 @@ export function createDefaultSpaceIo(): SpaceCoordinationIo {
       return result.path;
     },
     persistSpaceCwd: async (path) => {
+      if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) return;
       if (!window.piBridge) throw new Error("Desktop preferences are unavailable");
       await window.piBridge.setUiState({ lastSpaceCwd: path });
     },
     openDirectory: async (path) => {
+      if (!environmentAffordances(environmentRegistry.getActiveEnvironment()).revealInFileManager) return;
       if (!window.piBridge) throw new Error("Desktop bridge is unavailable");
       await window.piBridge.openDirectory(path);
     },
@@ -81,8 +78,6 @@ export function useSpaceCoordination({
   const attemptedRef = useRef<"stored" | "personal" | null>(null);
   const storedCwdRef = useRef<string | null>(null);
 
-  // Unmounting invalidates every in-flight preparation/validation: a stale
-  // owner must neither commit a space nor write the preference afterwards.
   useEffect(
     () => () => {
       generationRef.current += 1;
@@ -97,8 +92,6 @@ export function useSpaceCoordination({
 
   const persist = useCallback(
     (path: string) => {
-      // Persistence state belongs to the CURRENT space: a new commit starts
-      // unconfirmed, and only the latest write request may set the flags.
       const version = ++persistVersionRef.current;
       setRemembered(false);
       setRememberFailed(false);
@@ -169,9 +162,6 @@ export function useSpaceCoordination({
     [commit, io, setPhase],
   );
 
-  // The stored preference is read once per mount; the decision runs once the
-  // gate is satisfied (no explicit-session branch pending) and no space was
-  // already committed by a user action racing ahead of the preference read.
   const [storedSpaceCwd, setStoredSpaceCwd] = useState<string | null | undefined>(undefined);
   useEffect(() => {
     let mounted = true;
@@ -205,15 +195,6 @@ export function useSpaceCoordination({
     else void preparePersonal();
   }, [sessionIntent, sessionResolved, sessionFound, storedSpaceCwd, preparePersonal, restoreStored]);
 
-  /**
-   * User-driven space changes (project picker, worktree switch, session
-   * alignment echoes). An echo carrying "coordinator" origin is the sidebar's
-   * delayed notification of a value this owner already pushed down — it must
-   * never be treated as a fresh user choice. An echo equal to the already
-   * committed space is likewise ignored; any genuinely new cwd supersedes
-   * in-flight startup operations via the generation guard and becomes the new
-   * remembered space.
-   */
   const noteExternalCwd = useCallback(
     (cwd: string | null, origin: "user" | "coordinator" = "user") => {
       if (!cwd || origin === "coordinator") return;
@@ -225,9 +206,6 @@ export function useSpaceCoordination({
     [commit],
   );
 
-  // Deep links and session creation change the working cwd without passing
-  // through the sidebar's internal selection, so the space must follow the
-  // session-derived cwd whenever it changes. This is a user-driven intent.
   const lastSessionCwdRef = useRef(sessionCwd);
   useEffect(() => {
     if (lastSessionCwdRef.current === sessionCwd) return;

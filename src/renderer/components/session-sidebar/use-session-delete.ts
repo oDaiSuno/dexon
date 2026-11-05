@@ -8,14 +8,16 @@ import {
   type MouseEvent as ReactMouseEvent,
   type RefObject,
 } from "react";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
-import { getSessionDescendants } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 
 export type SessionSubtree =
   { status: "loading" } | { status: "ready"; count: number; running: boolean } | { status: "error"; message: string };
 
 export function useSessionDelete(options: {
   sessionId: string;
+  environmentId?: EnvironmentId;
   isRunning: boolean;
   onDeleted?: (id: string) => void;
   onOpen: () => void;
@@ -29,7 +31,7 @@ export function useSessionDelete(options: {
   confirm: (event: ReactMouseEvent) => Promise<void>;
   cancel: (event: ReactMouseEvent | ReactKeyboardEvent) => void;
 } {
-  const { sessionId, isRunning, onDeleted, onOpen, returnFocusRef } = options;
+  const { sessionId, environmentId = PRIMARY_ENVIRONMENT_ID, isRunning, onDeleted, onOpen, returnFocusRef } = options;
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -53,22 +55,24 @@ export function useSessionDelete(options: {
       setOpen(true);
       requestRef.current += 1;
       const request = requestRef.current;
-      void getSessionDescendants(sessionId).then(
-        (result) => {
-          if (requestRef.current !== request) return;
-          setSubtree({
-            status: "ready",
-            count: result.sessionIds.length,
-            running: result.runningSessionIds.length > 0,
-          });
-        },
-        (err: unknown) => {
-          if (requestRef.current !== request) return;
-          setSubtree({ status: "error", message: err instanceof Error ? err.message : String(err) });
-        },
-      );
+      void getEnvironmentApiClient(environmentId)
+        .getSessionDescendants(sessionId)
+        .then(
+          (result) => {
+            if (requestRef.current !== request) return;
+            setSubtree({
+              status: "ready",
+              count: result.sessionIds.length,
+              running: result.runningSessionIds.length > 0,
+            });
+          },
+          (err: unknown) => {
+            if (requestRef.current !== request) return;
+            setSubtree({ status: "error", message: err instanceof Error ? err.message : String(err) });
+          },
+        );
     },
-    [onOpen, sessionId],
+    [onOpen, sessionId, environmentId],
   );
 
   const confirm = useCallback(
@@ -78,27 +82,22 @@ export function useSessionDelete(options: {
       setError(null);
       setBusy(true);
       try {
-        const res = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, {
-          method: "DELETE",
-        });
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as { error?: string };
-          setError(
-            body.error ??
-              t("deleteSessionFailedStatus", "Delete failed ({status})").replace("{status}", String(res.status)),
-          );
-          setBusy(false);
-          return;
-        }
+        await getEnvironmentApiClient(environmentId).deleteSession(sessionId);
         setOpen(false);
         setBusy(false);
         onDeleted?.(sessionId);
       } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
+        setError(
+          err instanceof Error
+            ? err.message
+            : err
+              ? String(err)
+              : t("deleteSessionFailedStatus", "Delete failed ({status})").replace("{status}", t("unknown", "unknown")),
+        );
         setBusy(false);
       }
     },
-    [sessionId, onDeleted, isRunning, busy, subtree, t],
+    [sessionId, environmentId, onDeleted, isRunning, busy, subtree, t],
   );
 
   const cancel = useCallback(

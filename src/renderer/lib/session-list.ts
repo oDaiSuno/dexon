@@ -1,7 +1,13 @@
+import {
+  PRIMARY_ENVIRONMENT_ID,
+  qualifyProjectKey,
+  type EnvironmentId,
+  type ScopedProjectKey,
+} from "../../contract/environment.ts";
 import { normalizeWorktreePathForComparison } from "../../shared/worktree-path.ts";
 import type { SessionInfo } from "./types";
 
-export type ProjectKey = string & { readonly __brand?: "ProjectKey" };
+export type ProjectKey = (string & { readonly __brand?: "ProjectKey" }) | ScopedProjectKey;
 
 export interface SessionProject {
   root: string;
@@ -22,6 +28,7 @@ export interface ProjectSessions {
 
 export interface ProjectListing {
   readonly currentProject: string;
+  readonly environmentId?: EnvironmentId;
   readonly listedProjects?: readonly ListedProject[];
   readonly isPinnedProject?: (root: string) => boolean;
 }
@@ -78,20 +85,21 @@ export function getRecentProjects(sessions: SessionInfo[]): string[] {
   return [...latestByRoot.entries()].sort((a, b) => b[1].localeCompare(a[1])).map(([root]) => root);
 }
 
-export function sessionProjectKey(root: string): ProjectKey {
-  return normalizeWorktreePathForComparison(root);
+export function sessionProjectKey(root: string, environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID): ProjectKey {
+  const path = normalizeWorktreePathForComparison(root);
+  return environmentId === PRIMARY_ENVIRONMENT_ID ? path : qualifyProjectKey(environmentId, path);
 }
 
 export function sessionProjectKeyOf(session: SessionInfo): ProjectKey | null {
   const root = session.projectRoot ?? session.cwd;
-  return root ? sessionProjectKey(root) : null;
+  return root ? sessionProjectKey(root, session.environmentId) : null;
 }
 
 export function projectSessionGroups(sessions: readonly SessionInfo[], listing: ProjectListing): ProjectSessions[] {
   if (!listing.listedProjects) {
     return groupSessionsByProject(sessions, listing.currentProject, listing.isPinnedProject).map((project) => ({
       ...project,
-      key: sessionProjectKey(project.root),
+      key: sessionProjectKey(project.root, listing.environmentId),
       missing: false,
     }));
   }
@@ -104,7 +112,7 @@ export function projectSessionGroups(sessions: readonly SessionInfo[], listing: 
     else byProject.set(key, [session]);
   }
   return listing.listedProjects.map((project) => {
-    const key = sessionProjectKey(project.root);
+    const key = sessionProjectKey(project.root, listing.environmentId);
     return { ...project, key, sessions: byProject.get(key) ?? [] };
   });
 }
@@ -118,7 +126,7 @@ export function groupSessionsByProject(
   for (const session of sessions) {
     const root = session.projectRoot ?? session.cwd;
     if (!root) continue;
-    const key = sessionProjectKey(root);
+    const key = sessionProjectKey(root, session.environmentId);
     const group = groups.get(key);
     if (!group) groups.set(key, { root, sessions: [session], latest: session.modified });
     else {

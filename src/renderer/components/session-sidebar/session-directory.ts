@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
-import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
+import type { SessionLiveStatus } from "@shared/session-orchestration";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { registerEnvironmentSessions } from "@/lib/environment-registry";
 import {
   loadUnreadSessionIds as loadStoredUnreadSessionIds,
   saveUnreadSessionIds as saveStoredUnreadSessionIds,
@@ -73,23 +76,7 @@ export function useSessionDirectory({
     async (showLoading = false) => {
       try {
         if (showLoading) setLoading(true);
-        const res = await fetch("/api/sessions");
-        if (!res.ok) {
-          const errBody = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(
-            res.status === 401
-              ? t(
-                  "sessionLoadUnauthorized",
-                  "Unauthorized (401). Restart Pi Desktop so the renderer can reconnect to the Agent Host.",
-                )
-              : errBody.error ||
-                  t("sessionLoadFailedStatus", "Failed to load sessions ({status})").replace(
-                    "{status}",
-                    String(res.status),
-                  ),
-          );
-        }
-        const data = (await res.json()) as { sessions?: SessionInfo[] };
+        const data = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).listSessions();
         const sessions = Array.isArray(data.sessions) ? data.sessions : [];
         setAllSessions(sessions);
         dispatch({ type: "frame", source: "snapshot", live: parseLiveFrame(data), at: Date.now() });
@@ -105,7 +92,20 @@ export function useSessionDirectory({
           }, 2000);
         }
       } catch (e) {
-        setError(String(e));
+        const code = (e as { code?: string } | null)?.code;
+        setError(
+          code === "UNAUTHORIZED"
+            ? t(
+                "sessionLoadUnauthorized",
+                "Unauthorized (401). Restart Pi Desktop so the renderer can reconnect to the Agent Host.",
+              )
+            : e
+              ? String(e)
+              : t("sessionLoadFailedStatus", "Failed to load sessions ({status})").replace(
+                  "{status}",
+                  t("unknown", "unknown"),
+                ),
+        );
       } finally {
         if (showLoading) setLoading(false);
       }
@@ -122,6 +122,7 @@ export function useSessionDirectory({
 
   useEffect(() => {
     publishSessionCatalog(allSessions);
+    registerEnvironmentSessions(PRIMARY_ENVIRONMENT_ID, allSessions);
   }, [allSessions]);
 
   useEffect(() => clearSessionCatalog, []);
@@ -137,39 +138,42 @@ export function useSessionDirectory({
   }, [unreadSessionIds]);
 
   useEffect(() => {
-    let source: EventSource | null = null;
+    let unsubscribe: (() => void) | undefined;
+    let version = 0;
     const connectRunningStream = () => {
-      source = new EventSource("/api/agent/running/events");
-      source.onmessage = (e) => {
-        try {
-          const data = JSON.parse(e.data) as { type?: string } | null;
-          if (data?.type === "running") {
+      const current = ++version;
+      unsubscribe?.();
+      void getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID)
+        .subscribeRunning((data) => {
+          if (version === current) {
             dispatch({ type: "frame", source: "stream", live: parseLiveFrame(data), at: Date.now() });
           }
-        } catch {}
-      };
+        })
+        .then((off) => {
+          if (version !== current) off();
+          else unsubscribe = off;
+        })
+        .catch(() => {});
     };
     connectRunningStream();
-
     const offRestart = window.piBridge?.onHostRestarted?.(() => {
       dispatch({ type: "host_restarted" });
-      source?.close();
       connectRunningStream();
       void loadSessions(false);
     });
-
     return () => {
+      version += 1;
       offRestart?.();
-      source?.close();
+      unsubscribe?.();
     };
   }, [loadSessions]);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
     let cancelled = false;
-    void import("@/lib/api-client").then(({ subscribeSessionsChanged }) => {
-      if (cancelled) return;
-      return subscribeSessionsChanged((event) => {
+    void getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID)
+      .subscribeSessionsChanged((event) => {
+        if (cancelled) return;
         if (event.fullRefresh || (!event.session && !(event.deleted && event.sessionId))) {
           void loadSessions(false);
         } else {
@@ -179,11 +183,12 @@ export function useSessionDirectory({
           dispatch({ type: "deleted", sessionId: event.sessionId });
           onSessionDeleted?.(event.sessionId);
         }
-      }).then((u) => {
-        if (cancelled) u();
-        else unsub = u;
-      });
-    });
+      })
+      .then((off) => {
+        if (cancelled) off();
+        else unsub = off;
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
       unsub?.();

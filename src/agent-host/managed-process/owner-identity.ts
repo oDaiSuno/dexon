@@ -1,5 +1,6 @@
 import type { ManagedProcessOwnerIdentityV1 } from "../../contract/processes.ts";
 import fs from "node:fs";
+import { readProcessCreationTimestampMs } from "../../shared/process-creation-time.ts";
 
 export interface ManagedProcessOwnerRuntimeIdentity extends ManagedProcessOwnerIdentityV1 {
   hostPid: number;
@@ -10,10 +11,7 @@ export interface ManagedProcessOwnerRuntimeIdentity extends ManagedProcessOwnerI
 let identity: ManagedProcessOwnerRuntimeIdentity | null = null;
 
 function electronCreationTime(): number | null {
-  const getCreationTime = (process as NodeJS.Process & { getCreationTime?: () => number | null }).getCreationTime;
-  if (typeof getCreationTime !== "function") return null;
-  const value = getCreationTime.call(process);
-  return typeof value === "number" && Number.isSafeInteger(Math.trunc(value)) && value > 0 ? Math.trunc(value) : null;
+  return readProcessCreationTimestampMs(process.pid);
 }
 
 export function applyManagedProcessOwnerIdentity(value: unknown): ManagedProcessOwnerRuntimeIdentity {

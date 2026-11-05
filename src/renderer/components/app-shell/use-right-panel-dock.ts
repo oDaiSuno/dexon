@@ -1,4 +1,5 @@
-import { call, subscribe } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import {
   useReducer,
   useCallback,
@@ -22,10 +23,6 @@ import {
 } from "@/lib/layout-preferences";
 import { isManagedProcessActiveState } from "@contract/processes";
 
-// Split from AppShell.tsx in Phase 2: the right panel's state owner. Owns the
-// file tabs, panel geometry and resize interaction, the browser tab surface
-// requests, and the managed-process badge with its auto-activation.
-
 export const EXPLORER_TAB_ID = "explorer";
 export const BROWSER_TAB_ID = "browser";
 export const PROCESSES_TAB_ID = "processes";
@@ -43,9 +40,7 @@ function persistRightPanelPreferredWidth(width: number, browser = false): void {
   try {
     if (browser) window.localStorage.setItem(BROWSER_PANEL_WIDTH_KEY, String(Math.round(width)));
     else saveRightPanelPreferredWidth(window.localStorage, width);
-  } catch {
-    // Storage can become unavailable after startup; keep the in-memory preference.
-  }
+  } catch {}
 }
 
 function loadBrowserPanelPreferredWidth(): number {
@@ -68,13 +63,15 @@ export function useRightPanelDock({
   onCollapseSidebar: () => void;
   suspended?: boolean;
 }) {
+  const environmentId = useActiveEnvironment().id;
+  const { embeddedBrowser } = useActiveEnvironmentAffordances();
   const suspendedRef = useRef(suspended);
   suspendedRef.current = suspended;
-  // Right panel — file tabs only
-  const [{ tabs: fileTabs, activeTabId: activeFileTabId }, dispatchFileTab] = useReducer(reduceFileTabState, {
+  const [{ tabs: fileTabs, activeTabId: requestedTabId }, dispatchFileTab] = useReducer(reduceFileTabState, {
     tabs: [],
     activeTabId: EXPLORER_TAB_ID,
   });
+  const activeFileTabId = !embeddedBrowser && requestedTabId === BROWSER_TAB_ID ? EXPLORER_TAB_ID : requestedTabId;
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelBounds, setRightPanelBounds] = useState(() =>
     getRightPanelWidthBounds(window.innerWidth, sidebarOpen),
@@ -92,10 +89,14 @@ export function useRightPanelDock({
   const [managedProcessAttention, setManagedProcessAttention] = useState(false);
 
   useEffect(() => {
+    const api = getEnvironmentApiClient(environmentId);
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
+    setManagedProcessCount(0);
+    setManagedProcessAttention(false);
     const refreshCount = () => {
-      void call("processes.list", { includeExited: true })
+      void api
+        .call("processes.list", { includeExited: true })
         .then((snapshot) => {
           if (!disposed) {
             setManagedProcessCount(
@@ -111,22 +112,31 @@ export function useRightPanelDock({
         .catch(() => undefined);
     };
     refreshCount();
-    void subscribe("processes.changed", "*", (event) => {
-      refreshCount();
-      if (event.reason === "created" && event.activateUi && !suspendedRef.current) {
-        if (isMobile) onCollapseSidebar();
-        dispatchFileTab({ type: "select", tabId: PROCESSES_TAB_ID });
-        setRightPanelOpen(true);
-      }
-    }).then((value) => {
-      if (disposed) value();
-      else unsubscribe = value;
-    });
+    void api
+      .subscribe(
+        "processes.changed",
+        "*",
+        (event) => {
+          if (disposed) return;
+          refreshCount();
+          if (event.reason === "created" && event.activateUi && !suspendedRef.current) {
+            if (isMobile) onCollapseSidebar();
+            dispatchFileTab({ type: "select", tabId: PROCESSES_TAB_ID });
+            setRightPanelOpen(true);
+          }
+        },
+        refreshCount,
+      )
+      .then((value) => {
+        if (disposed) value();
+        else unsubscribe = value;
+      })
+      .catch(() => undefined);
     return () => {
       disposed = true;
       unsubscribe?.();
     };
-  }, [isMobile, onCollapseSidebar]);
+  }, [environmentId, isMobile, onCollapseSidebar]);
 
   const handleRightPanelResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -214,6 +224,7 @@ export function useRightPanelDock({
   }, [openRightPanel, rightPanelOpen]);
 
   useEffect(() => {
+    if (!embeddedBrowser) return;
     const openBrowserTab = (event: Event) => {
       if (suspendedRef.current) return;
       const tabId = (event as CustomEvent<{ tabId?: string }>).detail?.tabId;
@@ -223,7 +234,7 @@ export function useRightPanelDock({
     };
     window.addEventListener("dexon:open-browser-tab", openBrowserTab);
     return () => window.removeEventListener("dexon:open-browser-tab", openBrowserTab);
-  }, [openRightPanel]);
+  }, [embeddedBrowser, openRightPanel]);
 
   useEffect(
     () =>
@@ -234,18 +245,22 @@ export function useRightPanelDock({
     [openRightPanel],
   );
 
-  useEffect(
-    () =>
-      window.piBridge.onBrowserEvent((event) => {
-        if (event.type !== "tab-created" || !event.tab.ownerSessionId) return;
-        void window.piBridge.browserGetSettings().then((settings) => {
-          if (!settings.settings.panel.openOnAgentUse || suspendedRef.current) return;
-          dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
-          openRightPanel();
-        });
-      }),
-    [openRightPanel],
-  );
+  useEffect(() => {
+    if (!embeddedBrowser) return;
+    let disposed = false;
+    const off = window.piBridge.onBrowserEvent((event) => {
+      if (event.type !== "tab-created" || !event.tab.ownerSessionId) return;
+      void window.piBridge.browserGetSettings().then((settings) => {
+        if (disposed || !settings.settings.panel.openOnAgentUse || suspendedRef.current) return;
+        dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
+        openRightPanel();
+      });
+    });
+    return () => {
+      disposed = true;
+      off();
+    };
+  }, [embeddedBrowser, openRightPanel]);
 
   const handleRightPanelResizeKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {

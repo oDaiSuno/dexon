@@ -1,5 +1,6 @@
 import type { ChannelId } from "../shared/channel-types";
 import type { ManagedProcessCapability } from "./processes";
+import type { AddEnvironmentInput, EnvironmentId, EnvironmentView } from "./environment";
 import type { ChatAppearancePreferences } from "../shared/chat-appearance";
 import type { SessionOrchestrationSettings } from "../shared/session-orchestration";
 import type { PublicToolchainState, ToolchainActionRequest } from "../shared/toolchains/types";
@@ -173,6 +174,13 @@ export interface PiBridge {
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
   openManagedToolsFolder: () => Promise<void>;
   requestHostPort: () => void;
+  listEnvironments: () => Promise<EnvironmentView[]>;
+  addEnvironment: (input: AddEnvironmentInput) => Promise<EnvironmentView>;
+  removeEnvironment: (environmentId: EnvironmentId) => Promise<{ ok: boolean }>;
+  connectEnvironment: (environmentId: EnvironmentId) => Promise<EnvironmentView>;
+  disconnectEnvironment: (environmentId: EnvironmentId) => Promise<EnvironmentView>;
+  requestEnvironmentPort: (environmentId: EnvironmentId) => void;
+  onEnvironmentsChanged: (callback: (environments: EnvironmentView[]) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;
   /** Show the app's rich file context menu after main-process path validation. */

@@ -3,11 +3,22 @@
  * Responsibilities: window lifecycle, menus, tray/badge, deep link,
  * Host supervision, system IPC. No business logic.
  */
-import { app, BrowserWindow, crashReporter, dialog, nativeTheme, nativeImage, net, Notification } from "electron";
+import {
+  app,
+  BrowserWindow,
+  crashReporter,
+  dialog,
+  nativeTheme,
+  nativeImage,
+  net,
+  Notification,
+  powerMonitor,
+} from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "path";
 import { HostManager, getUserDataPath, resolveHostEntry } from "./host-manager";
+import { EnvironmentManager } from "./environments/environment-manager";
 import { appendMainLog } from "./logger";
 import { installAppMenu } from "./menu";
 import { handleAppProtocol, registerAppProtocol, rendererRootPath } from "./protocol";
@@ -58,6 +69,7 @@ const MANAGED_PROCESS_SHUTDOWN_DEADLINE_MS = 15_000;
 
 let mainWindow: BrowserWindow | null = null;
 let hostManager: HostManager | null = null;
+let environmentManager: EnvironmentManager | null = null;
 let updateManager: UpdateManager | null = null;
 let toolchainManager: ToolchainManager | null = null;
 let browserService: BrowserService | null = null;
@@ -551,7 +563,19 @@ function startMainProcess(): void {
     // (npm start after build, or dev fallback when VITE_DEV_SERVER_URL is unset).
     handleAppProtocol(rendererRootPath());
 
+    hostManager = new HostManager(resolveHostEntry());
+    environmentManager = new EnvironmentManager({
+      hostManager,
+      userDataDir: app.getPath("userData"),
+      onChanged: (environments) => {
+        for (const win of BrowserWindow.getAllWindows())
+          if (!win.isDestroyed()) win.webContents.send("environments:changed", environments);
+      },
+    });
+    powerMonitor.on("resume", () => environmentManager?.notifyWakeup("resume"));
+    app.on("browser-window-focus", () => environmentManager?.notifyWakeup("application-active"));
     installDesktopIpc({
+      environmentManager,
       getHostManager: () => hostManager,
       getMainWindow,
       getUnreadBadge: () => unreadBadge,
@@ -580,7 +604,6 @@ function startMainProcess(): void {
       nativeTheme.themeSource = ui.theme;
     }
 
-    hostManager = new HostManager(resolveHostEntry());
     hostManager.setBeforeRestartHandler(async () => {
       const status = await managedProcessReaper!.reapAll();
       appendMainLog(
@@ -693,6 +716,7 @@ function startMainProcess(): void {
       throw new Error(`Unsupported Host request: ${method}`);
     });
     hostManager.setStatusListener((status, detail) => {
+      environmentManager?.notifyPrimaryStatus(status);
       appendMainLog(`host status=${status} ${detail ?? ""}`);
       if (packagedStartupValidation) {
         startupHostReady = status === "ready";
@@ -803,6 +827,14 @@ function startMainProcess(): void {
       destroyTray();
       const deadline = Date.now() + MANAGED_PROCESS_SHUTDOWN_DEADLINE_MS;
       try {
+        try {
+          const environmentCleanup = await beforeDeadline(environmentManager?.dispose() ?? Promise.resolve(), deadline);
+          if (!environmentCleanup.completed) appendMainLog("environment cleanup reached the shutdown deadline");
+        } catch (disposeError) {
+          appendMainLog(
+            `environment cleanup failed: ${disposeError instanceof Error ? disposeError.message : String(disposeError)}`,
+          );
+        }
         await cleanupManagedProcesses(deadline, false);
         const browserCleanup = await beforeDeadline(browserService?.dispose() ?? Promise.resolve(), deadline);
         if (!browserCleanup.completed) appendMainLog("browser cleanup reached the shutdown deadline");

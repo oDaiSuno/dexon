@@ -1,16 +1,15 @@
-/**
- * Lightweight MessagePort RPC (no external framework).
- * Five message kinds: request / response / subscribe / unsubscribe / event.
- * Protocol spec: docs/rpc-protocol.md
- */
-
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "./api";
 import { isRpcError, RpcError, type RpcErrorShape } from "./types.ts";
 import { ToolchainError } from "../shared/toolchains/errors.ts";
+import { listenPort, type AnyMessagePort } from "./rpc-channel.ts";
 
-// ---------------------------------------------------------------------------
-// Wire protocol
-// ---------------------------------------------------------------------------
+export type { AnyMessagePort, RpcChannel, WebSocketLike } from "./rpc-channel.ts";
+export {
+  channelFromMessagePort,
+  channelFromWebSocket,
+  createWebSocketClientPort,
+  createWebSocketServerPort,
+} from "./rpc-channel.ts";
 
 export type WireRequest = {
   kind: "request";
@@ -50,10 +49,6 @@ export type WireUnsubscribe = {
 
 export type WireMessage = WireRequest | WireResponse | WireEvent | WireSubscribe | WireUnsubscribe;
 
-// ---------------------------------------------------------------------------
-// Client (renderer / any consumer)
-// ---------------------------------------------------------------------------
-
 export interface PiRpc {
   call<M extends ApiMethod>(
     method: M,
@@ -87,13 +82,13 @@ export type RpcClientOptions = {
 
 const DEFAULT_CALL_TIMEOUT_MS = 120_000;
 
-type RpcClientPort = {
+export type RpcClientPort = {
   addEventListener(type: "message", listener: (event: MessageEvent) => void): void;
   addEventListener(type: "close", listener: () => void): void;
   removeEventListener(type: "message", listener: (event: MessageEvent) => void): void;
   removeEventListener(type: "close", listener: () => void): void;
   postMessage(message: unknown): void;
-  start(): void;
+  start?: () => void;
   close(): void;
 };
 
@@ -136,7 +131,7 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
           try {
             sub.handler(msg.data);
           } catch {
-            /* ignore subscriber errors */
+            continue;
           }
         }
       }
@@ -150,7 +145,7 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
 
   port.addEventListener("message", onMessage);
   port.addEventListener("close", onClose);
-  port.start();
+  port.start?.();
 
   return {
     call(method, ...args) {
@@ -207,7 +202,7 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
         try {
           port.postMessage(unsub);
         } catch {
-          /* ignore */
+          return;
         }
       };
     },
@@ -220,15 +215,11 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
       try {
         port.close();
       } catch {
-        /* ignore */
+        return;
       }
     },
   };
 }
-
-// ---------------------------------------------------------------------------
-// Server (agent-host)
-// ---------------------------------------------------------------------------
 
 export type RpcRequestContext = {
   setLease(key: string, release: () => void): void;
@@ -245,23 +236,6 @@ export type StreamSink = {
   emit: (data: unknown) => void;
 };
 
-/**
- * Port shape that works in both:
- * - Renderer DOM MessagePort (addEventListener + MessageEvent.data)
- * - utilityProcess / Node worker_threads MessagePort (EventEmitter .on('message'))
- * - Electron MessagePortMain (.on('message', (e) => e.data))
- */
-export type AnyMessagePort = {
-  postMessage: (message: unknown, transfer?: unknown[]) => void;
-  start?: () => void;
-  close?: () => void;
-  addEventListener?: (type: string, listener: (ev: { data: unknown }) => void) => void;
-  removeEventListener?: (type: string, listener: (ev: { data: unknown }) => void) => void;
-  on?: (event: string, listener: (...args: unknown[]) => void) => void;
-  off?: (event: string, listener: (...args: unknown[]) => void) => void;
-  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
-};
-
 export interface RpcServer {
   handle(handlers: ApiHandler): void;
   emit<T extends StreamTopic>(topic: T, key: string, data: Streams[T]): void;
@@ -269,42 +243,9 @@ export interface RpcServer {
   detachPort(port: AnyMessagePort): void;
 }
 
-function extractMessageData(arg: unknown): unknown {
-  // DOM MessageEvent / Electron MessagePortMain event: { data }
-  if (arg && typeof arg === "object" && "data" in arg && !("kind" in arg)) {
-    return (arg as { data: unknown }).data;
-  }
-  // Node worker_threads MessagePort: payload is the value itself
-  return arg;
-}
-
-function listenPort(port: AnyMessagePort, onData: (data: unknown) => void): () => void {
-  if (typeof port.addEventListener === "function") {
-    const listener = (ev: { data: unknown }) => onData(ev.data);
-    port.addEventListener("message", listener);
-    port.start?.();
-    return () => port.removeEventListener?.("message", listener);
-  }
-
-  if (typeof port.on === "function") {
-    const listener = (...args: unknown[]) => {
-      onData(extractMessageData(args[0]));
-    };
-    port.on("message", listener);
-    port.start?.();
-    return () => {
-      port.off?.("message", listener);
-      port.removeListener?.("message", listener);
-    };
-  }
-
-  throw new Error("MessagePort has neither addEventListener nor on()");
-}
-
 export function createRpcServer(): RpcServer {
   const handlers = new Map<string, (params: unknown, context: RpcRequestContext) => Promise<unknown> | unknown>();
   const ports = new Set<AnyMessagePort>();
-  /** port → subscription id → { topic, key } */
   const portSubs = new Map<AnyMessagePort, Map<string, { topic: string; key: string }>>();
   const portUnlisten = new Map<AnyMessagePort, () => void>();
   const portCloseUnlisten = new Map<AnyMessagePort, () => void>();
@@ -319,7 +260,7 @@ export function createRpcServer(): RpcServer {
       try {
         release();
       } catch {
-        /* isolate resource finalizers */
+        continue;
       }
     }
     portUnlisten.get(port)?.();
@@ -349,7 +290,7 @@ export function createRpcServer(): RpcServer {
         try {
           release();
         } catch {
-          /* isolate explicit resource release */
+          return true;
         }
         return true;
       },
@@ -422,7 +363,7 @@ export function createRpcServer(): RpcServer {
         try {
           port.close?.();
         } catch {
-          /* ignore a transport that is already closed */
+          return;
         }
       }
     }
@@ -461,7 +402,7 @@ export function createRpcServer(): RpcServer {
           try {
             port.close?.();
           } catch {
-            /* ignore a transport that is already closed */
+            continue;
           }
         }
       }
@@ -476,7 +417,6 @@ export function createRpcServer(): RpcServer {
         void onPortMessage(port, data);
       });
       portUnlisten.set(port, unlisten);
-      // ISSUE-013: drop port when remote closes
       const onClose = () => {
         forgetPort(port);
       };
@@ -500,7 +440,7 @@ export function createRpcServer(): RpcServer {
       try {
         port.close?.();
       } catch {
-        /* ignore */
+        return;
       }
     },
   };

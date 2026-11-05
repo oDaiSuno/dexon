@@ -1,9 +1,12 @@
 import { useCallback, useSyncExternalStore } from "react";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { useActiveEnvironment } from "./environment-registry";
 import type { SessionActivityStatus } from "@shared/session-orchestration";
 import type { SessionInfo } from "./types";
 import { getSessionDisplayTitle } from "./session-list";
 import { ownActivity, type SessionActivitySignals } from "./session-tree-status";
 
+const catalogs = new Map<EnvironmentId, SessionInfo[]>();
 let snapshot: SessionInfo[] = [];
 const listeners = new Set<() => void>();
 
@@ -11,19 +14,25 @@ function notify(): void {
   for (const listener of listeners) listener();
 }
 
-export function publishSessionCatalog(sessions: SessionInfo[]): void {
-  snapshot = sessions;
+export function publishSessionCatalog(
+  sessions: SessionInfo[],
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): void {
+  catalogs.set(environmentId, sessions);
+  snapshot = [...catalogs.values()].flat();
   notify();
 }
 
-export function clearSessionCatalog(): void {
-  if (snapshot.length === 0) return;
-  snapshot = [];
+export function clearSessionCatalog(environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID): void {
+  if (!catalogs.delete(environmentId)) return;
+  snapshot = [...catalogs.values()].flat();
   notify();
 }
 
-export function getSessionCatalog(): SessionInfo[] {
-  return snapshot;
+const emptyCatalog: SessionInfo[] = [];
+
+export function getSessionCatalog(environmentId?: EnvironmentId): SessionInfo[] {
+  return environmentId === undefined ? snapshot : (catalogs.get(environmentId) ?? emptyCatalog);
 }
 
 export function subscribeSessionCatalog(listener: () => void): () => void {
@@ -34,7 +43,9 @@ export function subscribeSessionCatalog(listener: () => void): () => void {
 }
 
 export function useSessionCatalog(): SessionInfo[] {
-  return useSyncExternalStore(subscribeSessionCatalog, getSessionCatalog, getSessionCatalog);
+  const environment = useActiveEnvironment();
+  const read = useCallback(() => getSessionCatalog(environment.id), [environment.id]);
+  return useSyncExternalStore(subscribeSessionCatalog, read, read);
 }
 
 export type SessionProjectRoot = Pick<SessionInfo, "cwd" | "projectRoot">;
@@ -42,11 +53,13 @@ export type SessionProjectRoot = Pick<SessionInfo, "cwd" | "projectRoot">;
 let roots: SessionProjectRoot[] = [];
 let rootsSource: SessionInfo[] = snapshot;
 let rootsKey = "[]";
+let rootsEnvironmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID;
 
-function getSessionProjectRoots(): SessionProjectRoot[] {
-  if (rootsSource === snapshot) return roots;
+function getSessionProjectRoots(environmentId: EnvironmentId): SessionProjectRoot[] {
+  if (rootsSource === snapshot && rootsEnvironmentId === environmentId) return roots;
+  rootsEnvironmentId = environmentId;
   rootsSource = snapshot;
-  const next = snapshot.map(({ cwd, projectRoot }) => ({ cwd, projectRoot }));
+  const next = (catalogs.get(environmentId) ?? []).map(({ cwd, projectRoot }) => ({ cwd, projectRoot }));
   const key = JSON.stringify(next);
   if (key !== rootsKey) {
     rootsKey = key;
@@ -56,7 +69,9 @@ function getSessionProjectRoots(): SessionProjectRoot[] {
 }
 
 export function useSessionProjectRoots(): SessionProjectRoot[] {
-  return useSyncExternalStore(subscribeSessionCatalog, getSessionProjectRoots, getSessionProjectRoots);
+  const environment = useActiveEnvironment();
+  const read = useCallback(() => getSessionProjectRoots(environment.id), [environment.id]);
+  return useSyncExternalStore(subscribeSessionCatalog, read, read);
 }
 
 export function resolveSessionTitle(
@@ -69,21 +84,23 @@ export function resolveSessionTitle(
   return session ? getSessionDisplayTitle(session) : sessionId;
 }
 
-let activity: SessionActivitySignals | null = null;
+const activities = new Map<EnvironmentId, SessionActivitySignals>();
 const activityListeners = new Set<() => void>();
 
 function notifyActivity(): void {
   for (const listener of activityListeners) listener();
 }
 
-export function publishSessionActivity(signals: SessionActivitySignals): void {
-  activity = signals;
+export function publishSessionActivity(
+  signals: SessionActivitySignals,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): void {
+  activities.set(environmentId, signals);
   notifyActivity();
 }
 
-export function clearSessionActivity(): void {
-  if (!activity) return;
-  activity = null;
+export function clearSessionActivity(environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID): void {
+  if (!activities.delete(environmentId)) return;
   notifyActivity();
 }
 
@@ -95,6 +112,10 @@ function subscribeSessionActivity(listener: () => void): () => void {
 }
 
 export function useSessionActivity(sessionId: string | null): SessionActivityStatus | null {
-  const read = useCallback(() => (activity && sessionId ? ownActivity(sessionId, activity) : null), [sessionId]);
+  const environment = useActiveEnvironment();
+  const read = useCallback(() => {
+    const activity = activities.get(environment.id);
+    return activity && sessionId ? ownActivity(sessionId, activity) : null;
+  }, [environment.id, sessionId]);
   return useSyncExternalStore(subscribeSessionActivity, read, read);
 }

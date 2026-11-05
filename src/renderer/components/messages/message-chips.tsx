@@ -1,8 +1,10 @@
 import { attachmentTokenName, resolveAttachmentRevealPath } from "@shared/attachment-tokens";
 import { attachmentGlyphSvg, SKILL_CHIP_SVG } from "../chat-input/chip-glyphs";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 
 export function AttachmentChip({ path, cwd, previewUrl }: { path: string; cwd?: string; previewUrl: string | null }) {
-  const target = resolveAttachmentRevealPath(path, cwd);
+  const affordances = useActiveEnvironmentAffordances();
+  const target = affordances.revealInFileManager ? resolveAttachmentRevealPath(path, cwd) : null;
   const content = (
     <>
       {previewUrl ? (

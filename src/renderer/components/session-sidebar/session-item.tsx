@@ -21,6 +21,8 @@ import {
 import { ExpandChevronGlyph } from "./session-relation-glyphs";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
 import { useSessionDelete } from "./use-session-delete";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 
 export function SessionItem({
   session,
@@ -83,6 +85,7 @@ export function SessionItem({
 
   const deletion = useSessionDelete({
     sessionId: session.id,
+    environmentId: session.environmentId,
     isRunning: Boolean(isRunning),
     onDeleted,
     onOpen: closeActionsMenu,
@@ -137,21 +140,12 @@ export function SessionItem({
     setRenaming(false);
     if (name === (session.name ?? "")) return;
     try {
-      const res = await fetch(`/api/sessions/${encodeURIComponent(session.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
-        console.error("rename failed", body.error ?? res.status);
-        return;
-      }
+      await getEnvironmentApiClient(session.environmentId ?? PRIMARY_ENVIRONMENT_ID).renameSession(session.id, name);
       onRenamed?.();
     } catch (e) {
       console.error("rename failed", e);
     }
-  }, [renameValue, session.id, session.name, onRenamed]);
+  }, [renameValue, session.id, session.name, session.environmentId, onRenamed]);
 
   const regenerateName = useCallback(
     (event: React.MouseEvent) => {

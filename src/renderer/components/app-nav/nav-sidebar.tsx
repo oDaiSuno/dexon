@@ -20,6 +20,7 @@ import { RailButton, SettingsButton, UpdateButton } from "./nav-sidebar-buttons"
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
+import type { RemoteEnvironmentGroup } from "./environment-section-list";
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
@@ -80,6 +81,7 @@ export function NavSidebar({
   onMoveProject,
   onCloseProject,
   onReorderProjects,
+  remoteGroups,
 }: {
   expanded: boolean;
   visible?: boolean;
@@ -88,6 +90,7 @@ export function NavSidebar({
   spaceName?: string;
   spacePath: string;
   sessions: SessionInfo[];
+  remoteGroups?: readonly RemoteEnvironmentGroup[];
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
@@ -339,6 +342,7 @@ export function NavSidebar({
       >
         <NavHistory
           sessions={sessions}
+          remoteGroups={remoteGroups}
           revealRequest={revealRequest}
           query={query}
           loading={loading}

@@ -1,7 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import {
+  activateEnvironmentSession,
+  connectRemoteEnvironment,
+  disconnectRemoteEnvironment,
+  getActiveEnvironmentId,
+  removeRemoteEnvironment,
+  setActiveEnvironmentId,
+  useActiveEnvironment,
+} from "@/lib/environment-registry";
+import { useRemoteEnvironmentDirectories } from "../session-sidebar/use-remote-environment-directories";
+import type { RemoteEnvironmentGroup } from "../app-nav/environment-section-list";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
@@ -74,7 +86,10 @@ export function NavigationSidebar({
     setMobileReady(true);
   }, []);
 
-  const directory = useSessionDirectory({ selectedSessionId: shownSessionId, refreshKey, onSessionDeleted });
+  const activeEnvironment = useActiveEnvironment();
+  const primarySelectedSessionId = activeEnvironment.id === PRIMARY_ENVIRONMENT_ID ? shownSessionId : null;
+  const remoteDirectories = useRemoteEnvironmentDirectories(shownSessionId);
+  const directory = useSessionDirectory({ selectedSessionId: primarySelectedSessionId, refreshKey, onSessionDeleted });
   const { sessions, refreshSessions } = directory;
   const {
     selectedCwd,
@@ -127,10 +142,16 @@ export function NavigationSidebar({
 
   const selectSession = useCallback(
     (session: SessionInfo) => {
+      const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+      activateEnvironmentSession(session.id, environmentId);
       const key = sessionProjectKeyOf(session);
       if (key)
         setExpandedProjects((current) => (current.get(key) === true ? current : new Map(current).set(key, true)));
-      const ancestors = sessionAncestorIds(sessions, session.id);
+      const members =
+        environmentId === PRIMARY_ENVIRONMENT_ID
+          ? sessions
+          : (remoteDirectories.find((directory) => directory.environment.id === environmentId)?.sessions ?? []);
+      const ancestors = sessionAncestorIds(members, session.id);
       setFoldedSessionIds((current) => {
         if (!ancestors.some((id) => current.has(id))) return current;
         const next = new Set(current);
@@ -139,11 +160,11 @@ export function NavigationSidebar({
       });
       setRevealRequest((previous) => ({ seq: (previous?.seq ?? 0) + 1, sessionId: session.id }));
       const projectRoot = session.projectRoot ?? session.cwd;
-      const readableOnly = openProjects.isMissing(projectRoot);
+      const readableOnly = environmentId === PRIMARY_ENVIRONMENT_ID && openProjects.isMissing(projectRoot);
       if (session.cwd && !readableOnly) setSelectedCwd(session.cwd);
       onSelectSession(session, false, readableOnly);
     },
-    [sessions, openProjects, setSelectedCwd, onSelectSession],
+    [sessions, remoteDirectories, openProjects, setSelectedCwd, onSelectSession],
   );
 
   const createSession = useCallback(() => {
@@ -157,20 +178,31 @@ export function NavigationSidebar({
   }, []);
 
   const chooseFolder = useCallback(() => {
-    void selectDirectoryFromPicker((folder) => openProjects.add(folder)).then(reportSpaceResult);
+    const previous = getActiveEnvironmentId();
+    setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
+    void selectDirectoryFromPicker((folder) => openProjects.add(folder)).then((result) => {
+      if (result.status !== "selected") setActiveEnvironmentId(previous);
+      reportSpaceResult(result);
+    });
   }, [selectDirectoryFromPicker, openProjects, reportSpaceResult]);
 
   const openFolder = useCallback(
-    (folder: string) =>
+    (folder: string) => {
+      const previous = getActiveEnvironmentId();
+      setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
       void openDirectory(folder).then((result) => {
         if (result.status === "selected") openProjects.add(folder);
+        else setActiveEnvironmentId(previous);
         reportSpaceResult(result);
-      }),
+      });
+    },
     [openDirectory, openProjects, reportSpaceResult],
   );
 
   const inspectFolder = useCallback(async (typed: string) => {
-    const result = await call("projects.inspectFolder", { path: typed });
+    const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("projects.inspectFolder", {
+      path: typed,
+    });
     return result.ok && result.path ? result.path : null;
   }, []);
 
@@ -189,6 +221,7 @@ export function NavigationSidebar({
   }, [handleToggle, open, onToggle, chooseFolder]);
 
   const backToPersonalSpace = useCallback(() => {
+    setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
     setSpaceError(null);
     onReturnToPersonalSpace();
   }, [onReturnToPersonalSpace]);
@@ -217,6 +250,20 @@ export function NavigationSidebar({
         ? { message: spaceError }
         : null;
 
+  const remoteGroups: RemoteEnvironmentGroup[] = remoteDirectories.map((directory) => ({
+    ...directory,
+    selectedSessionId: activeEnvironment.id === directory.environment.id ? shownSessionId : null,
+    homeDir: directory.environment.descriptor?.platform.home ?? "",
+    onSelectSession: selectSession,
+    onRenamed: () => void directory.refreshSessions(),
+    onSessionDeleted: (id) => {
+      if (getActiveEnvironmentId() === directory.environment.id) onSessionDeleted(id);
+      void directory.refreshSessions();
+    },
+    onConnect: () => connectRemoteEnvironment(directory.environment.id),
+    onDisconnect: () => disconnectRemoteEnvironment(directory.environment.id),
+    onRemove: () => removeRemoteEnvironment(directory.environment.id),
+  }));
   const pendingClass = mobileReady ? "" : " sidebar-mobile-pending";
 
   return (
@@ -248,7 +295,8 @@ export function NavigationSidebar({
           spaceName={spaceName}
           spacePath={spacePath}
           sessions={sessions}
-          currentProject={selectedProject ?? spacePath}
+          remoteGroups={remoteGroups}
+          currentProject={activeEnvironment.id === PRIMARY_ENVIRONMENT_ID ? (selectedProject ?? spacePath) : ""}
           projectName={projectName}
           isPinnedProject={personal}
           listedProjects={listedProjects}
@@ -261,7 +309,7 @@ export function NavigationSidebar({
           onReorderProjects={openProjects.reorder}
           loading={directory.loading}
           error={directory.error}
-          selectedSessionId={shownSessionId}
+          selectedSessionId={primarySelectedSessionId}
           revealRequest={revealRequest}
           activity={directory.activity}
           liveStatuses={directory.liveStatuses}
