@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import type { ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
 import { useI18n } from "@/i18n";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { Badge, Button, type BadgeTone } from "../form-controls";
 import { formatDuration, processExitLabel, processStateLabel } from "./process-format";
@@ -72,6 +73,7 @@ function DetailActions({
   actions: ProcessDetailActions;
 }) {
   const { t } = useI18n();
+  const { embeddedBrowser } = useActiveEnvironmentAffordances();
   if (process.state === "lost") return null;
   if (isManagedProcessActiveState(process.state)) {
     return (
@@ -83,7 +85,7 @@ function DetailActions({
             icon={<GlobeGlyph />}
             label={t("managedProcessOpenInBrowser", "Open in browser")}
             title={endpoint.url}
-            busy={busy}
+            busy={busy || !embeddedBrowser}
             onClick={() => actions.openEndpoint(endpoint.url)}
           />
         ))}

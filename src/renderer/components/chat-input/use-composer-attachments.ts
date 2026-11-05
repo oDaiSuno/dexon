@@ -5,6 +5,7 @@ import { modelSupportsImages } from "@/lib/model-selection";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview, registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 import type { ComposerEditableHandle } from "./types";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 
 interface FileInspection {
   exists: boolean;
@@ -50,6 +51,7 @@ export function useComposerAttachments({
   t,
   onImageNotice,
 }: Options) {
+  const affordances = useActiveEnvironmentAffordances();
   const [fileInspectionByPath, setFileInspectionByPath] = useState<Map<string, FileInspection>>(new Map());
   const [tokenPreviewsByPath, setTokenPreviewsByPath] = useState<Map<string, string | null>>(new Map());
   const attachmentTokens = useMemo(() => findAttachmentTokens(value), [value]);
@@ -100,7 +102,7 @@ export function useComposerAttachments({
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      if (!visible) return;
+      if (!visible || !affordances.attachLocalFiles) return;
       const notices: string[] = [];
       let staged = 0;
       let failed = 0;
@@ -161,7 +163,15 @@ export function useComposerAttachments({
       }
       onImageNotice(notices.length > 0 ? notices.join(". ") : null);
     },
-    [insertAttachmentPath, onImageNotice, selectedModelSupportsImages, stageClipboardImageFile, t, visible],
+    [
+      insertAttachmentPath,
+      onImageNotice,
+      selectedModelSupportsImages,
+      stageClipboardImageFile,
+      t,
+      visible,
+      affordances.attachLocalFiles,
+    ],
   );
 
   const handlePaste = useCallback(
@@ -185,7 +195,7 @@ export function useComposerAttachments({
       return () => {
         cancelled = true;
       };
-    if (attachmentTokens.length === 0 || !window.piBridge?.inspectLocalFiles) {
+    if (!affordances.attachLocalFiles || attachmentTokens.length === 0 || !window.piBridge?.inspectLocalFiles) {
       setFileInspectionByPath(new Map());
       return () => {
         cancelled = true;
@@ -208,7 +218,7 @@ export function useComposerAttachments({
     return () => {
       cancelled = true;
     };
-  }, [attachmentTokens.length, cwd, tokenPaths, visible]);
+  }, [attachmentTokens.length, cwd, tokenPaths, visible, affordances.attachLocalFiles]);
 
   useEffect(() => {
     let cancelled = false;

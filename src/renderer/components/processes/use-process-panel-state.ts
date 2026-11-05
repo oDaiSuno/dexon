@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ManagedProcessLogRecord, ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
 import { call, subscribe } from "@/lib/api-client";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -14,6 +15,7 @@ export function useProcessPanelState({
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 }) {
+  const { embeddedBrowser } = useActiveEnvironmentAffordances();
   const [processes, setProcesses] = useState<ManagedProcessPublicInfo[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [records, setRecords] = useState<ManagedProcessLogRecord[]>([]);
@@ -149,6 +151,7 @@ export function useProcessPanelState({
   };
 
   const openEndpoint = async (process: ManagedProcessPublicInfo, url: string) => {
+    if (!embeddedBrowser) return;
     setBusy(true);
     try {
       const tab = await window.piBridge.browserCreateUserTab({

@@ -1,3 +1,5 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "../../contract/environment.ts";
+
 export const UNREAD_SESSIONS_STORAGE_KEY = "dexon:unread-session-ids";
 export const LEGACY_UNREAD_SESSIONS_STORAGE_KEY = "pi-web:unread-session-ids";
 
@@ -14,7 +16,13 @@ function parseSessionIds(raw: string | null): Set<string> | null {
   }
 }
 
-export function loadUnreadSessionIds(storage: SessionStorage): Set<string> {
+export function loadUnreadSessionIds(
+  storage: SessionStorage,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): Set<string> {
+  if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
+    return parseSessionIds(storage.getItem(`${UNREAD_SESSIONS_STORAGE_KEY}:${environmentId}`)) ?? new Set();
+  }
   const current = parseSessionIds(storage.getItem(UNREAD_SESSIONS_STORAGE_KEY));
   if (current !== null) {
     storage.removeItem(LEGACY_UNREAD_SESSIONS_STORAGE_KEY);
@@ -29,7 +37,17 @@ export function loadUnreadSessionIds(storage: SessionStorage): Set<string> {
   return legacy;
 }
 
-export function saveUnreadSessionIds(storage: SessionStorage, ids: ReadonlySet<string>): void {
+export function saveUnreadSessionIds(
+  storage: SessionStorage,
+  ids: ReadonlySet<string>,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): void {
+  if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
+    const key = `${UNREAD_SESSIONS_STORAGE_KEY}:${environmentId}`;
+    if (ids.size === 0) storage.removeItem(key);
+    else storage.setItem(key, JSON.stringify([...ids]));
+    return;
+  }
   if (ids.size === 0) storage.removeItem(UNREAD_SESSIONS_STORAGE_KEY);
   else storage.setItem(UNREAD_SESSIONS_STORAGE_KEY, JSON.stringify([...ids]));
   storage.removeItem(LEGACY_UNREAD_SESSIONS_STORAGE_KEY);

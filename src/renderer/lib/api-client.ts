@@ -1,27 +1,30 @@
-/**
- * Transport facade — all renderer → Host communication goes through here.
- * Components call these helpers; they never touch MessagePort directly.
- */
 import { createRpcClient, type PiRpc } from "@contract/rpc";
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "@contract/api";
 import type { DefaultThinkingLevel } from "@contract/types";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { createEnvironmentApiClient } from "./environment-connection";
+import { requestEnvironmentPort } from "./environment-port";
+import {
+  getActiveEnvironmentConnection,
+  getActiveEnvironmentId,
+  getEnvironmentConnection,
+  getSessionEnvironmentId,
+  registerEnvironmentSessions,
+  registerEnvironmentSession,
+} from "./environment-registry";
 
 let rpc: PiRpc | null = null;
 let connectPromise: Promise<PiRpc> | null = null;
 
-/** Drop RPC client so the next ensureRpc() re-connects (Host crash recovery). */
 export function resetRpc(): void {
   try {
     rpc?.close();
-  } catch {
-    /* ignore */
-  }
+  } catch {}
   rpc = null;
   connectPromise = null;
 }
 
 const HOST_READY_TIMEOUT_MS = 30_000;
-const PORT_TIMEOUT_MS = 15_000;
 const PING_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -40,35 +43,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-/** Receive Host MessagePort transferred from preload via window.postMessage. */
-function requestHostPort(): Promise<MessagePort> {
-  return new Promise((resolve, reject) => {
-    if (!window.piBridge) {
-      reject(new Error("piBridge not available — not running inside Electron?"));
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      window.removeEventListener("message", onMessage);
-      reject(new Error("Timed out waiting for host MessagePort"));
-    }, PORT_TIMEOUT_MS);
-
-    const onMessage = (event: MessageEvent) => {
-      // Only accept messages from our own window (preload → page)
-      if (event.source !== window) return;
-      const data = event.data as { channel?: string } | string | null;
-      const isPortMsg = data === "dexon-host-port" || (typeof data === "object" && data?.channel === "dexon-host-port");
-      if (!isPortMsg) return;
-      const port = event.ports[0];
-      if (!port) return;
-      clearTimeout(timer);
-      window.removeEventListener("message", onMessage);
-      resolve(port);
-    };
-
-    window.addEventListener("message", onMessage);
-    window.piBridge.requestHostPort();
-  });
+async function requestHostPort(): Promise<MessagePort> {
+  return (await requestEnvironmentPort(PRIMARY_ENVIRONMENT_ID)).port;
 }
 
 async function waitForHostReady(): Promise<void> {
@@ -100,7 +76,6 @@ async function waitForHostReady(): Promise<void> {
       }
     });
 
-    // Race: status may flip ready between getHostStatus and subscribe
     void window.piBridge!.getHostStatus().then((s) => {
       if (s === "ready") {
         clearTimeout(timer);
@@ -148,22 +123,56 @@ export async function call<M extends ApiMethod>(
   method: M,
   ...args: ApiParams<M> extends void ? [] | [void] : [ApiParams<M>]
 ): Promise<ApiResult<M>> {
-  const client = await ensureRpc();
-  return client.call(method, ...(args as never));
+  if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) {
+    return getActiveEnvironmentConnection().call(method, ...(args as never));
+  }
+  return callPrimary(method, ...(args as never));
 }
 
 export async function subscribe<T extends StreamTopic>(
   topic: T,
   key: string,
   on: (ev: Streams[T]) => void,
+  onGap?: () => void,
 ): Promise<() => void> {
-  const client = await ensureRpc();
-  return client.subscribe(topic, key, on);
+  if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) {
+    return getActiveEnvironmentConnection().subscribe(topic, key, on, onGap);
+  }
+  return subscribePrimary(topic, key, on);
 }
 
-// ---------------------------------------------------------------------------
-// Convenience wrappers matching old HTTP routes
-// ---------------------------------------------------------------------------
+async function callPrimary<M extends ApiMethod>(
+  method: M,
+  ...args: ApiParams<M> extends void ? [] | [void] : [ApiParams<M>]
+): Promise<ApiResult<M>> {
+  const client = await ensureRpc();
+  const result = await client.call(method, ...(args as never));
+  if (method === "sessions.list" && Array.isArray((result as ApiResult<"sessions.list">)?.sessions))
+    registerEnvironmentSessions(PRIMARY_ENVIRONMENT_ID, (result as ApiResult<"sessions.list">).sessions);
+  if (method === "agent.new" && typeof (result as ApiResult<"agent.new">)?.sessionId === "string")
+    registerEnvironmentSession(PRIMARY_ENVIRONMENT_ID, (result as ApiResult<"agent.new">).sessionId);
+  return result;
+}
+
+async function subscribePrimary<T extends StreamTopic>(
+  topic: T,
+  key: string,
+  on: (event: Streams[T]) => void,
+): Promise<() => void> {
+  return (await ensureRpc()).subscribe(topic, key, on);
+}
+
+const primaryApiClient = createEnvironmentApiClient({ call: callPrimary, subscribe: subscribePrimary });
+
+export function getEnvironmentApiClient(environmentId: EnvironmentId) {
+  return environmentId === PRIMARY_ENVIRONMENT_ID
+    ? primaryApiClient
+    : createEnvironmentApiClient(getEnvironmentConnection(environmentId));
+}
+
+export function getSessionApiClient(sessionId: string) {
+  return getEnvironmentApiClient(getSessionEnvironmentId(sessionId));
+}
 
 export async function listSessions() {
   return call("sessions.list");
@@ -175,7 +184,7 @@ export async function getSession(
   traceId?: string,
   historyWindow?: ApiParams<"sessions.get">["historyWindow"],
 ) {
-  return call("sessions.get", { id, includeState, traceId, historyWindow });
+  return getSessionApiClient(id).getSession(id, includeState, traceId, historyWindow);
 }
 
 export async function getSessionContext(
@@ -183,31 +192,31 @@ export async function getSessionContext(
   leafId?: string,
   historyWindow?: ApiParams<"sessions.context">["historyWindow"],
 ) {
-  return call("sessions.context", { id, leafId, historyWindow });
+  return getSessionApiClient(id).getSessionContext(id, leafId, historyWindow);
 }
 
 export async function getSessionContextPage(id: string, cursor: string, maxTurns?: number, maxBytes?: number) {
-  return call("sessions.contextPage", { id, cursor, maxTurns, maxBytes });
+  return getSessionApiClient(id).getSessionContextPage(id, cursor, maxTurns, maxBytes);
 }
 
 export async function getSessionEntryContent(id: string, entryId: string, blockIndex?: number) {
-  return call("sessions.entryContent", { id, entryId, blockIndex });
+  return getSessionApiClient(id).getSessionEntryContent(id, entryId, blockIndex);
 }
 
 export async function exportSession(id: string, format: "md" | "json" = "md") {
-  return call("sessions.export", { id, format });
+  return getSessionApiClient(id).exportSession(id, format);
 }
 
 export async function deleteSession(id: string) {
-  return call("sessions.delete", { id });
+  return getSessionApiClient(id).deleteSession(id);
 }
 
 export async function getSessionDescendants(id: string) {
-  return call("sessions.descendants", { id });
+  return getSessionApiClient(id).getSessionDescendants(id);
 }
 
 export async function renameSession(id: string, name: string) {
-  return call("sessions.rename", { id, name });
+  return getSessionApiClient(id).renameSession(id, name);
 }
 
 export async function newAgent(params: ApiParams<"agent.new">) {
@@ -215,11 +224,11 @@ export async function newAgent(params: ApiParams<"agent.new">) {
 }
 
 export async function agentCommand(sessionId: string, command: Record<string, unknown>) {
-  return call("agent.command", { sessionId, command: command as never });
+  return getSessionApiClient(sessionId).agentCommand(sessionId, command);
 }
 
 export async function agentState(sessionId: string) {
-  return call("agent.state", { sessionId });
+  return getSessionApiClient(sessionId).agentState(sessionId);
 }
 
 export async function listModels(cwd?: string) {
@@ -297,8 +306,12 @@ export async function fileIndex(root: string, query?: string) {
   return call("files.index", { root, query });
 }
 
-export async function subscribeAgentEvents(sessionId: string, on: (ev: Streams["agent.events"]) => void) {
-  return subscribe("agent.events", sessionId, on);
+export async function subscribeAgentEvents(
+  sessionId: string,
+  on: (ev: Streams["agent.events"]) => void,
+  onGap?: () => void,
+) {
+  return getSessionApiClient(sessionId).subscribeAgentEvents(sessionId, on, onGap);
 }
 
 export async function subscribeRunning(on: (ev: Streams["agent.running"]) => void) {

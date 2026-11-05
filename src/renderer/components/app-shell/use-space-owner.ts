@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { spaceDisplayName } from "@/lib/space-identity";
 import { useSessionProjectRoots } from "@/lib/session-catalog";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
@@ -21,15 +23,22 @@ export function useSpaceOwner(props: {
   const { refreshKey, coordination, onCwdCommitted, onCoordinatorCwd } = props;
   const { sessionLocation, draftCarrier } = props;
   const { t } = useI18n();
+  const environment = useActiveEnvironment();
+  const affordances = useActiveEnvironmentAffordances();
   const [homeDir, setHomeDir] = useState("");
   useEffect(() => {
-    fetch("/api/home")
-      .then((r) => r.json())
+    let disposed = false;
+    setHomeDir(environment.descriptor?.platform.home ?? "");
+    void getEnvironmentApiClient(environment.id)
+      .getHome()
       .then((d: { home?: string }) => {
-        if (d.home) setHomeDir(d.home);
+        if (!disposed && d.home) setHomeDir(d.home);
       })
       .catch(() => {});
-  }, []);
+    return () => {
+      disposed = true;
+    };
+  }, [environment.id, environment.descriptor?.platform.home]);
 
   const draftCarry = useDraftCarry({
     enabled: draftCarrier.enabled,
@@ -105,8 +114,13 @@ export function useSpaceOwner(props: {
   );
 
   const openInFinder = useCallback(
-    () => (readOnly ? coordination.openFolder(readOnly.path) : coordination.openCurrentFolder()),
-    [coordination, readOnly],
+    () =>
+      affordances.revealInFileManager
+        ? readOnly
+          ? coordination.openFolder(readOnly.path)
+          : coordination.openCurrentFolder()
+        : Promise.resolve(),
+    [coordination, readOnly, affordances.revealInFileManager],
   );
   const copyPath = useCallback(() => {
     const folder = readOnly ? readOnly.path : (workspace.selectedCwd ?? spacePath);

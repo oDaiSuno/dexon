@@ -2,13 +2,9 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { worktreePathsEqual } from "@shared/worktree-path";
-
-// Split from SessionSidebar.tsx in Phase 2: the workspace/worktree state owner.
-// Owns the effective cwd, worktree data for it, project-root resolution, the
-// directory-selection operations, and the worktree operations INCLUDING their
-// switcher UI state (dropdown, new-entry draft, busy/error, remove confirm) —
-// the persistent owner keeps in-flight operations and their feedback alive
-// across project switches, exactly as the original always-mounted sidebar did.
+import { validateCwd } from "@/lib/api-client";
+import { useActiveEnvironment, environmentRegistry } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
 
 export interface WorktreeEntry {
   path: string;
@@ -17,12 +13,10 @@ export interface WorktreeEntry {
 }
 
 export interface WorktreeState {
-  /** The cwd this data was fetched for — guards against stale responses */
   forCwd: string;
   projectRoot: string;
   isGit: boolean;
-  /** False when forCwd is a repo subdirectory — the switcher is hidden there
-   *  because subdir sessions keep their own project identity */
+
   isTopLevel: boolean;
   worktrees: WorktreeEntry[];
 }
@@ -42,6 +36,7 @@ export function useProjectWorkspace({
   refreshKey?: number;
 }) {
   const { t } = useI18n();
+  const environment = useActiveEnvironment();
   const [selectedCwd, setSelectedCwd] = useState<string | null>(null);
   const [worktreeState, setWorktreeState] = useState<WorktreeState | null>(null);
   const [wtRefreshKey, setWtRefreshKey] = useState(0);
@@ -52,13 +47,11 @@ export function useProjectWorkspace({
   const [wtError, setWtError] = useState<string | null>(null);
   const [wtConfirmRemove, setWtConfirmRemove] = useState<string | null>(null);
 
-  /** Resolve the project root for a cwd from the freshest data available */
   const projectRootFor = useCallback(
     (cwd: string | null): string | null => {
       if (!cwd) return null;
       if (worktreeState && worktreeState.forCwd === cwd) return worktreeState.projectRoot;
-      // Any path in the loaded worktree list belongs to that project — covers
-      // worktrees without sessions, so switching to them keeps the row mounted.
+
       if (worktreeState?.worktrees.some((w) => w.path === cwd)) return worktreeState.projectRoot;
       const match = sessions.find((s) => s.cwd === cwd);
       return match?.projectRoot ?? cwd;
@@ -66,11 +59,6 @@ export function useProjectWorkspace({
     [worktreeState, sessions],
   );
 
-  // Notify parent only when the effective cwd actually changes (not when
-  // projectRootFor identity changes due to session/worktree refreshes). The
-  // origin tells the shell whether this value was set by the coordinator's
-  // own push (prop sync) or by a genuine user action in the sidebar — late
-  // echoes of pushed values must never be mistaken for new user choices.
   const lastNotifiedCwdRef = useRef<string | null>(null);
   const pendingSyncEchoRef = useRef<string | null>(null);
   useEffect(() => {
@@ -81,10 +69,6 @@ export function useProjectWorkspace({
     onCwdChange?.(selectedCwd, projectRootFor(selectedCwd), fromCoordinator ? "coordinator" : "user");
   }, [selectedCwd, onCwdChange, projectRootFor]);
 
-  // Sync the worktree switcher to the selected session's cwd. Sessions of all
-  // worktrees in a project share one list, so clicking a session from another
-  // worktree should move the effective cwd there. Only fires when the prop
-  // value changes, so a manual switcher change is not snapped back.
   const lastSyncedCwdPropRef = useRef<string | null>(null);
   useEffect(() => {
     if (selectedCwdProp && selectedCwdProp !== lastSyncedCwdPropRef.current) {
@@ -94,7 +78,6 @@ export function useProjectWorkspace({
     }
   }, [selectedCwdProp]);
 
-  // Load worktrees for the current effective cwd
   useLayoutEffect(() => {
     if (!selectedCwd) {
       setWorktreeState(null);
@@ -123,21 +106,16 @@ export function useProjectWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [selectedCwd, wtRefreshKey, refreshKey]);
+  }, [selectedCwd, wtRefreshKey, refreshKey, environment.id]);
 
   const openDirectory = useCallback(
     async (dir: string): Promise<WorkspaceSelectResult> => {
       try {
-        const res = await fetch("/api/cwd/validate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ cwd: dir }),
-        });
-        const data = (await res.json().catch(() => ({}))) as { cwd?: string; error?: string };
-        if (!res.ok || data.error) {
+        const data = await validateCwd(dir);
+        if (!data.ok || data.error) {
           return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
         }
-        setSelectedCwd(data.cwd ?? dir);
+        setSelectedCwd(data.path ?? dir);
         return { status: "selected" };
       } catch (e) {
         return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
@@ -146,9 +124,10 @@ export function useProjectWorkspace({
     [t],
   );
 
-  /** Desktop-native directory picker (design §6.1). Falls back to path input. */
   const selectDirectoryFromPicker = useCallback(
     async (onSelected?: (folder: string) => void): Promise<WorkspaceSelectResult> => {
+      if (environmentAffordances(environmentRegistry.getActiveEnvironment()).pickDirectory !== "native")
+        return { status: "cancelled" };
       let dir: string | null | undefined;
       try {
         dir = await window.piBridge?.selectDirectory?.();
@@ -237,16 +216,12 @@ export function useProjectWorkspace({
     [worktreeState, wtBusy, selectedCwd],
   );
 
-  // Clicking a worktree row moves the effective cwd and closes the dropdown —
-  // verbatim from the original monolith.
   const handleSelectWorktree = useCallback((path: string) => {
     setWtDropdownOpen(false);
     setWtError(null);
     setSelectedCwd(path);
   }, []);
 
-  // Outside click closes the dropdown and resets its entry/confirm/error state —
-  // verbatim from the original monolith's shared document listener.
   const resetWorktreeDropdownForOutsideClick = useCallback(() => {
     setWtDropdownOpen(false);
     setWtNewOpen(false);
@@ -281,9 +256,6 @@ export function useProjectWorkspace({
 
   const selectedProject = projectRootFor(selectedCwd);
 
-  // Sessions of every worktree in the selected project are shown together.
-  // Paths come from mixed sources (session files, git output) and may differ
-  // in separators/casing on Windows, so compare with worktreePathsEqual.
   const showWorktreeSwitcher = Boolean(
     worktreeState?.isGit &&
     worktreeState.isTopLevel &&

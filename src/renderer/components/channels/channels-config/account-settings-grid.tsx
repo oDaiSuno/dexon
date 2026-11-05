@@ -1,6 +1,7 @@
 import { useId, useMemo } from "react";
 import type { ChannelAccountConfig } from "@shared/channel-types";
 import { useI18n } from "@/i18n";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { Button, NativeSelect, Toggle } from "../../form-controls";
 import { SettingRow, SettingValue, toggleHitAreaStyle } from "../../settings/setting-row";
 import { TOOL_PRESETS } from "./constants";
@@ -44,6 +45,7 @@ export function AccountSettingsGrid({
   setDraft: (draft: ChannelAccountConfig) => void;
 }) {
   const { language, t } = useI18n();
+  const affordances = useActiveEnvironmentAffordances();
   const ids = { name: useId(), dm: useId(), group: useId(), mention: useId(), tools: useId(), commands: useId() };
   const cwdId = useId();
   const preset = useMemo(() => {
@@ -170,17 +172,30 @@ export function AccountSettingsGrid({
         </label>
       </SettingRow>
       <SettingRow label={t("defaultProjectDirectory", "Default project directory")} controlId={cwdId}>
-        <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
-          <SettingValue>{draft.defaultCwd ?? t("isolatedChannelWorkspace", "Isolated channel workspace")}</SettingValue>
-          <Button
+        {affordances.pickDirectory === "native" ? (
+          <span style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 12 }}>
+            <SettingValue>
+              {draft.defaultCwd ?? t("isolatedChannelWorkspace", "Isolated channel workspace")}
+            </SettingValue>
+            <Button
+              id={cwdId}
+              onClick={() =>
+                void window.piBridge.selectDirectory().then((cwd) => cwd && setDraft({ ...draft, defaultCwd: cwd }))
+              }
+            >
+              {t("browse", "Browse")}
+            </Button>
+          </span>
+        ) : (
+          <input
             id={cwdId}
-            onClick={() =>
-              void window.piBridge.selectDirectory().then((cwd) => cwd && setDraft({ ...draft, defaultCwd: cwd }))
-            }
-          >
-            {t("browse", "Browse")}
-          </Button>
-        </span>
+            className="ui-input type-mono-label"
+            value={draft.defaultCwd ?? ""}
+            placeholder={t("isolatedChannelWorkspace", "Isolated channel workspace")}
+            onChange={(event) => setDraft({ ...draft, defaultCwd: event.target.value || undefined })}
+            style={{ width: 200 }}
+          />
+        )}
       </SettingRow>
     </SectionCard>
   );

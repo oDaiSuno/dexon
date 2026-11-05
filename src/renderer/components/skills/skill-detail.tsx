@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
+import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { Button } from "../form-controls";
 import { skillOriginText } from "../resources/overview-model";
 import { requestErrorMessage, shortenPath, sourceLabel, type Skill } from "./skill-shared";
@@ -21,6 +22,8 @@ export function SkillDetail({
   showName?: boolean;
 }) {
   const { t } = useI18n();
+  const environmentId = useActiveEnvironment().id;
+  const affordances = useActiveEnvironmentAffordances();
   const label = sourceLabel(skill);
   const enabled = !skill.disableModelInvocation;
   const [content, setContent] = useState("");
@@ -33,7 +36,9 @@ export function SkillDetail({
     setContentLoading(true);
     setContentError(null);
     void import("@/lib/api-client")
-      .then(({ call }) => call("skills.getContent", { cwd, filePath: skill.filePath }))
+      .then(({ getEnvironmentApiClient }) =>
+        getEnvironmentApiClient(environmentId).call("skills.getContent", { cwd, filePath: skill.filePath }),
+      )
       .then((result) => {
         if (cancelled) return;
         setContent(result.content);
@@ -48,7 +53,7 @@ export function SkillDetail({
     return () => {
       cancelled = true;
     };
-  }, [cwd, skill.filePath, t]);
+  }, [cwd, environmentId, skill.filePath, t]);
 
   function displayPath(p: string): string {
     if (label === "project" && p.startsWith(cwd)) {
@@ -59,6 +64,7 @@ export function SkillDetail({
   }
 
   async function openInEditor(): Promise<void> {
+    if (!affordances.openLocalFile) return;
     setOpenError(null);
     try {
       if (!window.piBridge?.openFile) throw new Error(t("skillOpenInEditorFailed", "Couldn't open the editor."));
@@ -94,7 +100,9 @@ export function SkillDetail({
       <section aria-label={t("skillMarkdownContent", "Skill markdown content")} className="flex flex-col gap-[8px]">
         <div className="flex items-center justify-between gap-[8px]">
           <span className="type-label-medium text-[var(--fx-text-secondary)]">{t("skillFileName", "SKILL.md")}</span>
-          <Button onClick={() => void openInEditor()}>{t("skillOpenInEditor", "Open in editor")}</Button>
+          <Button disabled={!affordances.openLocalFile} onClick={() => void openInEditor()}>
+            {t("skillOpenInEditor", "Open in editor")}
+          </Button>
         </div>
         {contentLoading ? (
           <div className="type-label-default p-[12px] text-[var(--fx-text-tertiary)]">

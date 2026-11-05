@@ -1,4 +1,5 @@
 import { useI18n } from "@/i18n";
+import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
 import { formatNumber } from "@/lib/locale-format";
 import {
   RIGHT_PANEL_MAX_VIEWPORT_RATIO,
@@ -26,12 +27,8 @@ import { ProcessPanel } from "../ProcessPanel";
 import { TabBar } from "../TabBar";
 import { BROWSER_TAB_ID, EXPLORER_TAB_ID, PROCESSES_TAB_ID } from "./use-right-panel-dock";
 
-// Split from AppShell.tsx in Phase 2: the right panel's presentation. Geometry,
-// tabs and open state arrive from the right-panel dock hook; visibility inputs
-// (settings open, browser authorization) arrive from the composition root.
-
 export function RightPanelDock({
-  activeFileTabId,
+  activeFileTabId: requestedTabId,
   fileTabs,
   dispatchFileTab,
   rightPanelOpen,
@@ -88,6 +85,9 @@ export function RightPanelDock({
   suspended?: boolean;
 }) {
   const { language, t } = useI18n();
+  const environmentId = useActiveEnvironment().id;
+  const { embeddedBrowser } = useActiveEnvironmentAffordances();
+  const activeFileTabId = !embeddedBrowser && requestedTabId === BROWSER_TAB_ID ? EXPLORER_TAB_ID : requestedTabId;
   const activeFileTab = fileTabs.find((tab) => tab.id === activeFileTabId) ?? null;
   const [lastFileTabId, setLastFileTabId] = useState<string | null>(null);
   if (activeFileTab && activeFileTab.id !== lastFileTabId) setLastFileTabId(activeFileTab.id);
@@ -154,6 +154,7 @@ export function RightPanelDock({
           }}
           count={managedProcessCount > 0 || managedProcessAttention ? managedProcessCount : null}
           attention={managedProcessAttention}
+          browserEnabled={embeddedBrowser}
         />
         <div className="right-panel-header-spacer" />
         {activeFileTabId === EXPLORER_TAB_ID && explorerCwd && (
@@ -189,8 +190,11 @@ export function RightPanelDock({
           />
         ) : activeFileTabId === PROCESSES_TAB_ID ? (
           <ProcessPanel
+            key={environmentId}
             onActiveCountChange={onManagedProcessCountChange}
-            onOpenBrowser={() => dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID })}
+            onOpenBrowser={
+              embeddedBrowser ? () => dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID }) : undefined
+            }
           />
         ) : activeFileTabId === EXPLORER_TAB_ID ? (
           explorerCwd ? (
@@ -203,6 +207,7 @@ export function RightPanelDock({
               }}
             >
               <FileExplorer
+                key={environmentId}
                 cwd={explorerCwd}
                 personalCwd={personalCwd}
                 homeDir={homeDir}
@@ -219,7 +224,7 @@ export function RightPanelDock({
           )
         ) : activeFileTab?.filePath ? (
           <FileViewer
-            key={activeFileTab.id ?? activeFileTab.filePath}
+            key={`${environmentId}:${activeFileTab.id ?? activeFileTab.filePath}`}
             filePath={activeFileTab.filePath}
             cwd={activeCwd ?? undefined}
             sourceSessionId={activeFileTab.sourceSessionId}
@@ -293,18 +298,21 @@ function DockSwitcher({
   labels,
   count,
   attention,
+  browserEnabled,
 }: {
   activeFileTabId: string;
   onSelect: (tabId: DockTabId) => void;
   labels: Record<DockTabId, string>;
   count: number | null;
   attention: boolean;
+  browserEnabled: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
   const [gliding, setGliding] = useState(false);
-  const activeIndex = DOCK_TABS.findIndex((tab) => tab.id === activeFileTabId);
-  const layoutKey = `${DOCK_TABS.map((tab) => labels[tab.id]).join("|")}|${count ?? ""}`;
+  const tabs = DOCK_TABS.filter((tab) => browserEnabled || tab.id !== BROWSER_TAB_ID);
+  const activeIndex = tabs.findIndex((tab) => tab.id === activeFileTabId);
+  const layoutKey = `${tabs.map((tab) => labels[tab.id]).join("|")}|${count ?? ""}`;
 
   useLayoutEffect(() => {
     const root = rootRef.current;
@@ -337,7 +345,7 @@ function DockSwitcher({
           aria-hidden="true"
         />
       )}
-      {DOCK_TABS.map((tab) => {
+      {tabs.map((tab) => {
         const active = tab.id === activeFileTabId;
         return (
           <button

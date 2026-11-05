@@ -9,6 +9,7 @@ import { ProjectRow } from "./project-row";
 import { useProjectDrag } from "./use-project-drag";
 import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
 import type { SwitcherProject } from "./project-switcher-card";
+import { EnvironmentSectionList, type RemoteEnvironmentGroup } from "./environment-section-list";
 
 export interface RevealRequest {
   readonly seq: number;
@@ -61,6 +62,7 @@ export function NavHistory({
   error,
   tree,
   revealRequest,
+  remoteGroups = [],
   ...handlers
 }: {
   sessions: SessionInfo[];
@@ -69,6 +71,7 @@ export function NavHistory({
   error: string | null;
   tree: ProjectTreeOptions;
   revealRequest?: RevealRequest | null;
+  remoteGroups?: readonly RemoteEnvironmentGroup[];
 } & SessionListHandlers) {
   const { t } = useI18n();
   const [localOpen, setLocalOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
@@ -215,6 +218,7 @@ export function NavHistory({
           );
         })}
       </div>
+      <EnvironmentSectionList remoteGroups={remoteGroups} query={query} />
     </nav>
   );
 }

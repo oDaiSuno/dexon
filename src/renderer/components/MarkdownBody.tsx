@@ -14,9 +14,6 @@ import ReactMarkdown, {
   type Components,
   type Options as ReactMarkdownOptions,
 } from "react-markdown";
-import { SyntaxHighlighter } from "@/lib/syntax-highlight";
-import { useTheme } from "@/hooks/useTheme";
-import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { resolveLocalFileHref } from "@/lib/file-links";
 import {
   chatRemarkPlugins,
@@ -26,11 +23,11 @@ import {
   userMessageRemarkPlugins,
   userMessageRemarkRehypeOptions,
 } from "@/lib/markdown";
-import { shouldHighlightCode } from "@/lib/code-highlight-policy";
-import { mermaidCacheKey, renderMermaidSvg } from "@/lib/mermaid-renderer";
 import { remarkLeadingSkill } from "@shared/markdown-attachment-tokens";
 import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
+import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { CodeBlock, MermaidBlock, type CodeBlockVariant } from "./markdown/code-block";
 
 interface MarkdownBodyProps {
   children: string;
@@ -44,8 +41,6 @@ interface MarkdownBodyProps {
   codeBlockVariant?: CodeBlockVariant;
   mathMode?: MathMode;
 }
-
-type CodeBlockVariant = "card" | "plain";
 
 type MathMode = "chat" | "file";
 
@@ -96,6 +91,7 @@ function MarkdownPre({ children }: MarkdownComponentProps<"pre">) {
 function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownComponentProps<"a">) {
   const { cwd, onOpenFile } = useContext(MarkdownRenderContext);
   const { language, t } = useI18n();
+  const affordances = useActiveEnvironmentAffordances();
   const [menuError, setMenuError] = useState(false);
   const filePath = onOpenFile ? resolveLocalFileHref(href, cwd) : null;
   if (!filePath || !onOpenFile) {
@@ -106,8 +102,6 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
     );
   }
 
-  // Absolute links (attachments, agent-printed paths) reveal in Explorer;
-  // relative repo links still open in the in-app viewer.
   const hrefText = typeof href === "string" ? href : "";
   const revealInFolder = /^file:/i.test(hrefText) || /^[a-zA-Z]:[\\/]/.test(hrefText) || hrefText.startsWith("/");
 
@@ -117,7 +111,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
     const target = event.currentTarget.getAttribute("target");
     if (target && target !== "_self") return;
     event.preventDefault();
-    if (revealInFolder && window.piBridge?.showItemInFolder) {
+    if (revealInFolder && affordances.revealInFileManager && window.piBridge?.showItemInFolder) {
       void window.piBridge.showItemInFolder(filePath);
       return;
     }
@@ -125,9 +119,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
   };
 
   const handleContextMenu = (event: MouseEvent<HTMLAnchorElement>) => {
-    // Chromium (Electron 43) does not reliably report file: links in the
-    // native context-menu event, so we show the rich file menu ourselves.
-    if (event.defaultPrevented) return;
+    if (event.defaultPrevented || !affordances.revealInFileManager || !window.piBridge?.showFileContextMenu) return;
     event.preventDefault();
     const request = window.piBridge.showFileContextMenu({
       href: filePath,
@@ -194,8 +186,6 @@ function InlineChipSpan({ node, children, ...props }: MarkdownComponentProps<"sp
 
 const inlineChipComponents: Components = { ...markdownComponents, span: InlineChipSpan };
 
-// react-markdown 10 strips non-web protocols from href/src via defaultUrlTransform
-// (file: becomes ""). Local file links are this app's core feature, so allow file:.
 type UrlTransform = (url: string, key: string, node: unknown) => string;
 const fileAwareUrlTransform: UrlTransform = (url, key, node) => {
   if (/^file:/i.test(url)) return url;
@@ -344,173 +334,4 @@ function normalizeDisplayMath(markdown: string): string {
       return `${displayMathMatch[1]}$$${lineBreak}${math}${lineBreak}${displayMathMatch[1]}$$`;
     })
     .join(lineBreak);
-}
-
-function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?: boolean }) {
-  const { isDark } = useTheme();
-  const [showPreview, setShowPreview] = useState(false);
-  const [svg, setSvg] = useState<string | null>(null);
-  const [renderedKey, setRenderedKey] = useState("");
-  const [failedKey, setFailedKey] = useState<string | null>(null);
-  const currentKey = mermaidCacheKey(code, isDark);
-
-  useEffect(() => {
-    if (!showPreview || isStreaming) return;
-
-    let cancelled = false;
-    setFailedKey(null);
-
-    const render = async () => {
-      const rendered = await renderMermaidSvg(code, isDark);
-      if (!cancelled) {
-        setSvg(rendered);
-        setRenderedKey(currentKey);
-      }
-    };
-
-    render().catch(() => {
-      if (!cancelled) setFailedKey(currentKey);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [code, currentKey, isDark, isStreaming, showPreview]);
-
-  const previewButton = (
-    <button
-      onClick={() => setShowPreview((v) => !v)}
-      disabled={isStreaming}
-      title={
-        isStreaming
-          ? "Preview available after streaming"
-          : showPreview
-            ? "Show Mermaid source"
-            : "Preview Mermaid diagram"
-      }
-      className={["markdown-code-action", showPreview ? "is-active" : ""].filter(Boolean).join(" ")}
-    >
-      {showPreview ? "Source" : "Preview"}
-    </button>
-  );
-
-  if (!showPreview || isStreaming) {
-    return <CodeBlock code={code} lang="mermaid" headerAction={previewButton} />;
-  }
-
-  const body =
-    failedKey === currentKey ? (
-      <div className="mermaid-block mermaid-block-error">Invalid Mermaid diagram</div>
-    ) : !svg || renderedKey !== currentKey ? (
-      <div className="mermaid-block mermaid-block-loading" aria-label="Rendering Mermaid diagram" />
-    ) : (
-      <div className="mermaid-block" dangerouslySetInnerHTML={{ __html: svg }} />
-    );
-
-  return (
-    <div className="markdown-code-block">
-      <div className="markdown-code-header">
-        <span className="markdown-code-lang">mermaid</span>
-        {previewButton}
-      </div>
-      {body}
-    </div>
-  );
-}
-
-function PlainCodeBlock({ code, lang }: { code: string; lang: string }) {
-  return shouldHighlightCode(code) ? (
-    <SyntaxHighlighter
-      language={lang || "text"}
-      className="markdown-code-plain type-mono-code"
-      codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
-    >
-      {code}
-    </SyntaxHighlighter>
-  ) : (
-    <pre className="markdown-code-plain type-mono-code">
-      <code>{code}</code>
-    </pre>
-  );
-}
-
-function CodeBlock({
-  code,
-  lang,
-  headerAction,
-  variant = "card",
-}: {
-  code: string;
-  lang: string;
-  headerAction?: ReactNode;
-  variant?: CodeBlockVariant;
-}) {
-  if (variant === "plain") return <PlainCodeBlock code={code} lang={lang} />;
-  return <CodeCard code={code} lang={lang} headerAction={headerAction} />;
-}
-
-function CodeCard({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
-  const { copied, copy } = useCopyFeedback();
-
-  return (
-    <div className="markdown-code-block">
-      <div className="markdown-code-header">
-        <span className="markdown-code-lang">{lang || "text"}</span>
-        <div className="markdown-code-actions">
-          {headerAction}
-          <button
-            onClick={() => void copy(code)}
-            className={["markdown-code-copy", copied ? "is-copied" : ""].filter(Boolean).join(" ")}
-            aria-label={copied ? "copied" : "copy"}
-          >
-            {copied ? (
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            ) : (
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="9" y="9" width="12" height="12" rx="2.5" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
-          </button>
-        </div>
-      </div>
-      {shouldHighlightCode(code) ? (
-        <SyntaxHighlighter
-          language={lang || "text"}
-          className="markdown-code-body type-mono-chat-code"
-          showLineNumbers
-          lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
-          codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
-        >
-          {code}
-        </SyntaxHighlighter>
-      ) : (
-        <pre className="markdown-code-body type-mono-chat-code">
-          <code>{code}</code>
-        </pre>
-      )}
-    </div>
-  );
 }
