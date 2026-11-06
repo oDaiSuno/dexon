@@ -36,6 +36,8 @@ export interface SshEnvironmentTarget {
   hostname?: string;
   user?: string;
   port?: number;
+  identityFile?: string;
+  proxyJump?: string;
   remotePort?: number;
   remoteStateDir?: string;
   expectedEnvironmentId?: EnvironmentId;

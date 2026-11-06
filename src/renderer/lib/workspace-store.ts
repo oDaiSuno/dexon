@@ -107,10 +107,10 @@ export class WorkspaceStore {
     const result = await getEnvironmentApiClient(ref.environmentId).validateCwd(ref.path);
     if (!result.ok) return "invalid";
     const canonical = { ...ref, path: result.path ?? ref.path };
-    this.commit({
-      spaces: addProjectSpace(this.snapshot.spaces, canonical),
-      focus: { environmentId: ref.environmentId, spaceKey: projectKeyOf(canonical), sessionId: null },
-    });
+    const spaceKey = projectKeyOf(canonical);
+    const spaces = addProjectSpace(this.snapshot.spaces, canonical);
+    if (!spaces.some((space) => space.key === spaceKey)) return "invalid";
+    this.commit({ spaces, focus: { environmentId: ref.environmentId, spaceKey, sessionId: null } });
     return "opened";
   }
   noteCurrentProject(ref: ProjectSpaceRef, defaultSpace: ProjectSpaceRef | null): void {

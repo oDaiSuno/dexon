@@ -4,6 +4,7 @@ import "./typography.css";
 import "./motion-tokens.css";
 import "./base.css";
 import "./controls.css";
+import "./remote-folder-picker.css";
 import "./session-row.css";
 import "./session-menu.css";
 import "./composer.css";

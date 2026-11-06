@@ -4,7 +4,6 @@ import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@share
 import type { ManagedProcessCapability } from "../../../contract/processes";
 import { SettingGroup, SettingNote, SettingRow, toggleHitAreaStyle } from "./setting-row";
 import { SessionOrchestrationSettings } from "./session-orchestration-settings";
-import { EnvironmentSettingsSection } from "./environment-settings-section";
 import { NativeSelect, Toggle } from "../form-controls";
 
 export function GeneralSettings({
@@ -208,7 +207,6 @@ export function GeneralSettings({
         </SettingGroup>
 
         <SessionOrchestrationSettings />
-        <EnvironmentSettingsSection />
 
         <SettingGroup
           title={t("backgroundMode", "Background mode")}

@@ -30,6 +30,8 @@ export function sshArguments(target: SshEnvironmentTarget): string[] {
     ...(target.port === undefined ? [] : ["-p", String(target.port)]),
     ...(target.user === undefined ? [] : ["-l", target.user]),
     ...(target.hostname === undefined ? [] : ["-o", `HostName=${target.hostname}`]),
+    ...(target.identityFile === undefined ? [] : ["-i", target.identityFile]),
+    ...(target.proxyJump === undefined ? [] : ["-J", target.proxyJump]),
   ];
 }
 export function sshFailure(

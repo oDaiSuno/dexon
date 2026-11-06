@@ -1,0 +1,18 @@
+[
+  "components/remote-folder-picker/folder-columns.tsx",
+  "components/remote-folder-picker/folder-picker-ui.tsx",
+  "components/remote-folder-picker/path-bar.tsx",
+  "components/remote-folder-picker/remote-folder-picker-dialog.tsx",
+  "components/remote-folder-picker/server-column.tsx",
+  "components/settings/servers/add-server-dialog.tsx",
+  "components/settings/servers/edit-server-dialog.tsx",
+  "components/settings/servers/provisioning-steps.tsx",
+  "components/settings/servers/remove-server-dialog.tsx",
+  "components/settings/servers/server-diagnosis-card.tsx",
+  "components/settings/servers/server-form.tsx",
+  "components/settings/servers/server-row.tsx",
+  "components/settings/servers/server-test-report.tsx",
+  "components/settings/servers/server-ui.tsx",
+  "components/settings/servers/servers-settings.tsx",
+  "components/settings/servers/ssh-host-list.tsx"
+]

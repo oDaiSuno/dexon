@@ -1,6 +1,4 @@
 [
-  "environmentSettings",
-  "environmentPrimaryDescription",
   "environmentConnected",
   "environmentConnecting",
   "environmentBackoff",
@@ -9,17 +7,5 @@
   "environmentAvailable",
   "environmentConnect",
   "environmentDisconnect",
-  "environmentRemove",
-  "environmentAdd",
-  "environmentLabel",
-  "environmentConnectionType",
-  "environmentSsh",
-  "environmentSshAlias",
-  "environmentHostname",
-  "environmentUser",
-  "environmentPort",
-  "environmentWebSocket",
-  "environmentWebSocketUrl",
-  "environmentAuthToken",
-  "environmentActionFailed"
+  "environmentRemove"
 ]

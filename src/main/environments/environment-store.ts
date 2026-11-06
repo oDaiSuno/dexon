@@ -58,7 +58,7 @@ export function parseAddEnvironmentInput(input: unknown): AddEnvironmentInput {
   if (target.kind === "ssh") {
     if (
       typeof target.sshAlias !== "string" ||
-      ["hostname", "user", "remoteStateDir"].some(
+      ["hostname", "user", "identityFile", "proxyJump", "remoteStateDir"].some(
         (key) => target[key] !== undefined && typeof target[key] !== "string",
       ) ||
       ["port", "remotePort"].some((key) => target[key] !== undefined && typeof target[key] !== "number")
@@ -70,6 +70,8 @@ export function parseAddEnvironmentInput(input: unknown): AddEnvironmentInput {
       hostname: target.hostname as string | undefined,
       user: target.user as string | undefined,
       port: target.port as number | undefined,
+      identityFile: target.identityFile as string | undefined,
+      proxyJump: target.proxyJump as string | undefined,
       remotePort: target.remotePort as number | undefined,
       remoteStateDir: target.remoteStateDir as string | undefined,
       expectedEnvironmentId,

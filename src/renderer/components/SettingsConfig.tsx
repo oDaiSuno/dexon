@@ -7,10 +7,11 @@ import { ToolchainsConfig } from "./ToolchainsConfig";
 import { BrowserSettings } from "./browser/BrowserSettings";
 import { GeneralSettings } from "./settings/general-settings";
 import { AboutSettings } from "./settings/about-settings";
+import { ServersSettings } from "./settings/servers/servers-settings";
 import { PageTopBar } from "./page-top-bar";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 
-export type SettingsTab = "general" | "browser" | "models" | "tools" | "about";
+export type SettingsTab = "general" | "browser" | "models" | "tools" | "servers" | "about";
 
 interface SettingsConfigProps {
   cwd: string | null;
@@ -91,6 +92,7 @@ export function SettingsConfig({
     { id: "models", label: t("models", "Models") },
     { id: "browser", label: t("browser", "Browser") },
     { id: "tools", label: t("developerTools", "Developer Tools") },
+    { id: "servers", label: t("serversTab", "Servers") },
     { id: "about", label: t("about", "About") },
   ];
 
@@ -227,6 +229,7 @@ export function SettingsConfig({
             <ModelsConfig embedded cwd={cwd} onClose={() => undefined} onChanged={onModelsChanged} />
           )}
           {activeTab === "tools" && <ToolchainsConfig cwd={cwd} />}
+          {activeTab === "servers" && <ServersSettings />}
           {activeTab === "about" && <AboutSettings onClose={close} />}
         </div>
       </div>

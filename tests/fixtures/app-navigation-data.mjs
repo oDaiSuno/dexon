@@ -1,6 +1,5 @@
 import { createSessionDetail } from "../../src/renderer/hooks/agent-session/session-hook-fixtures.mjs";
 
-// Hand-authored examples, not values derived from navigation/resource policies.
 export const navigationPaths = {
   home: "/Users/navigation-fixture",
   personal: "/Users/navigation-fixture/.dexon",
@@ -20,9 +19,6 @@ export const navigationPaths = {
 
 const branch = (name, committedAt, extra = {}) => ({ name, committedAt, ...extra });
 
-// Branch tables the fixture Host answers with. Declaration order, alphabetical
-// order and commit order are deliberately all different, so a test that only
-// passes for one of them cannot pass by accident.
 export const navigationRepositories = [
   {
     root: navigationPaths.project,
@@ -175,8 +171,8 @@ export const navigationLabels = {
   },
 };
 export const reloadedPluginStatus = "Navigation plugin ready after explicit reload";
-export const remainingSettings = ["General", "Browser", "Models", "Developer Tools", "About"];
-export const remainingSettingsZhCN = ["通用", "浏览器", "模型", "开发工具", "关于"];
+export const remainingSettings = ["General", "Models", "Browser", "Developer Tools", "Servers", "About"];
+export const remainingSettingsZhCN = ["通用", "模型", "浏览器", "开发工具", "服务器连接", "关于"];
 export const railEntries = ["Show sidebar", "New session", "Plugins & Skills", "Settings"];
 export const initialSkillContent = "# Personal checklist\n\nKeep the review scoped to the current space.\n";
 export const savedSkillContent = "# Personal checklist\n\nVerify the navigation before shipping.\n";
@@ -249,8 +245,6 @@ export function forkedConversation() {
   );
 }
 
-// One finished turn with a tool call, so the transcript shows a collapsible
-// "Process details" group in front of the final answer.
 export function toolConversation() {
   const detail = conversation(
     "personal-tools",

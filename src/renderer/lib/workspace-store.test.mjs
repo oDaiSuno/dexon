@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { MessageChannel } from "node:worker_threads";
 import { importTestBundle } from "#test-bundle";
-const { WorkspaceStore, projectKeyOf } = await importTestBundle("workspace-store-public", {
-  stdin: {
-    contents:
-      'export { WorkspaceStore } from "./src/renderer/lib/workspace-store.ts"; export { projectKeyOf } from "./src/shared/project-space-state.ts";',
-    resolveDir: process.cwd(),
-    loader: "ts",
+const { WorkspaceStore, projectKeyOf, getEnvironmentConnection, createRpcServer } = await importTestBundle(
+  "workspace-store-public",
+  {
+    stdin: {
+      contents:
+        'export { WorkspaceStore } from "./src/renderer/lib/workspace-store.ts"; export { projectKeyOf } from "./src/shared/project-space-state.ts"; export { getEnvironmentConnection } from "./src/renderer/lib/environment-registry.ts"; export { createRpcServer } from "./src/contract/rpc.ts";',
+      resolveDir: process.cwd(),
+      loader: "ts",
+    },
+    tsconfig: "tsconfig.renderer.json",
+    packages: "external",
   },
-  tsconfig: "tsconfig.renderer.json",
-  packages: "external",
-});
+);
 const bridgeFor = (state, writes = []) => ({
   getUiState: async () => structuredClone(state),
   listEnvironments: async () => ({
@@ -98,4 +102,27 @@ test("equal paths on two servers remain distinct through focus, ordering and env
   store.unmountEnvironment("gpu");
   assert.equal(store.getSnapshot().focus.environmentId, "primary");
   assert.equal(store.getSnapshot().spaces.length, 0);
+});
+
+test("a full sidebar rejects a new mount without changing the current workspace", async (t) => {
+  const spaces = Array.from({ length: 200 }, (_, index) => ({ environmentId: "gpu", path: `/code/${index}` }));
+  const writes = [];
+  const store = new WorkspaceStore();
+  await store.initialize(bridgeFor({ projectSpaces: { version: 2, spaces, seeded: [] } }, writes));
+  store.openSpace(spaces[0]);
+  const before = store.getSnapshot();
+  const server = createRpcServer();
+  server.handle({ "system.validateCwd": ({ path }) => ({ ok: true, path }) });
+  const { port1, port2 } = new MessageChannel();
+  server.attachPort(port1);
+  const connection = getEnvironmentConnection("gpu");
+  connection.replacePort(port2);
+  t.after(() => {
+    connection.close();
+    server.detachPort(port1);
+  });
+  const previousWrites = writes.length;
+  assert.equal(await store.mountAndOpen({ environmentId: "gpu", path: "/code/new" }), "invalid");
+  assert.deepEqual(store.getSnapshot(), before);
+  assert.equal(writes.length, previousWrites);
 });

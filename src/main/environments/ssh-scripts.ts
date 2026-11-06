@@ -23,6 +23,29 @@ export function validateSshTarget(target: SshEnvironmentTarget): void {
     if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535))
       throw new Error("Invalid SSH port");
   }
+  if (
+    target.identityFile !== undefined &&
+    (typeof target.identityFile !== "string" ||
+      !target.identityFile.trim() ||
+      target.identityFile.length > 4096 ||
+      target.identityFile.startsWith("-") ||
+      /\p{Cc}/u.test(target.identityFile))
+  )
+    throw new Error("Invalid SSH identity file");
+  if (
+    target.proxyJump !== undefined &&
+    (typeof target.proxyJump !== "string" ||
+      target.proxyJump.length > 4096 ||
+      /\p{Cc}/u.test(target.proxyJump) ||
+      target.proxyJump.split(",").some((jump) => {
+        const match =
+          /^(?:[a-z_][a-z0-9_.-]{0,63}@)?(?:[a-z0-9][a-z0-9._-]{0,252}|\[[a-f0-9:.]+(?:%[a-z0-9_.-]+)?\])(?::([0-9]{1,5}))?$/iu.exec(
+            jump,
+          );
+        return !match || (match[1] !== undefined && (Number(match[1]) < 1 || Number(match[1]) > 65535));
+      }))
+  )
+    throw new Error("Invalid SSH proxy jump");
   if (target.remoteStateDir !== undefined) validateRemotePath(target.remoteStateDir);
 }
 
@@ -46,6 +69,9 @@ export function targetConnectionKey(target: SshEnvironmentTarget): string {
     target.port ?? 22,
     target.remotePort ?? 3780,
     target.remoteStateDir ?? "~/.dexon",
+    ...(target.identityFile === undefined && target.proxyJump === undefined
+      ? []
+      : [target.identityFile ?? null, target.proxyJump ?? null]),
   ]);
 }
 
