@@ -1,4 +1,4 @@
-import type { TaskSpec, DesktopConsent, RequiredGrant } from "../../shared/automation/spec";
+import type { TaskSpec, DesktopConsent } from "../../shared/automation/spec";
 import type {
   TaskView,
   TaskRevisionView,
@@ -10,8 +10,11 @@ import type {
   ResolveInboxRequest,
   ResolveInboxResult,
   SignalEmit,
+  SaveTaskResult,
+  ListRunsQuery,
+  AutomationChange,
 } from "../../shared/automation/views";
-import type { RunPhase } from "../../shared/automation/phases";
+export type { SaveTaskResult, ListRunsQuery, AutomationChange } from "../../shared/automation/views";
 import type { SecretReader, AutomationChannelPort, AgentSessionPort } from "./exec/types";
 export type { SecretReader, AutomationChannelPort, AgentSessionPort } from "./exec/types";
 export interface RuntimeLimits {
@@ -20,11 +23,6 @@ export interface RuntimeLimits {
   readonly resumeGraceMs: number;
   readonly shutdownGraceMs: number;
   readonly maxOutputBytes: number;
-}
-export interface AutomationChange {
-  readonly taskIds: readonly string[];
-  readonly runIds: readonly string[];
-  readonly inboxChanged: boolean;
 }
 export interface AutomationRuntimeDeps {
   readonly dataDirectory: string;
@@ -38,22 +36,10 @@ export interface AutomationRuntimeDeps {
 }
 export type RuntimeStatus =
   { readonly kind: "starting" | "ready" | "stopped" } | { readonly kind: "unavailable"; readonly reason: string };
-export interface SaveTaskResult {
-  readonly task: TaskView;
-  readonly revision: number;
-  readonly planHash: string;
-  readonly requiredGrant: RequiredGrant;
-}
 export interface EnableTaskRequest extends DesktopConsent {
   readonly taskId: string;
   readonly revision: number;
   readonly planHash: string;
-}
-export interface ListRunsQuery {
-  readonly taskId?: string;
-  readonly phases?: readonly RunPhase[];
-  readonly limit?: number;
-  readonly beforeMs?: number;
 }
 export interface AutomationRuntime {
   status(): RuntimeStatus;

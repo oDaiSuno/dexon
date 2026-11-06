@@ -4,12 +4,24 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { rendererCssImportOrder, stylePartialNames } from "./css-sources.mjs";
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUDGET_LINES = Number(process.env.PI_ARCH_BUDGET_LINES ?? 500);
 const STRICT = process.argv.includes("--strict") || process.env.PI_ARCH_STRICT === "1";
 
 const GROUPS = [
+  {
+    name: "自动化运行时与共享契约",
+    dirs: ["src/agent-host/automation", "src/shared/automation"],
+    files: [],
+    requiredRoots: [
+      "src/agent-host/automation/index.ts",
+      "src/shared/automation/phases.ts",
+      "src/shared/automation/spec.ts",
+      "src/shared/automation/views.ts",
+    ],
+    excludeTests: true,
+    extensionRe: /\.(?:ts|tsx|mjs)$/,
+  },
   {
     name: "shell 组合根与侧栏模块",
     dirs: ["src/renderer/components/app-shell", "src/renderer/components/session-sidebar"],
@@ -107,8 +119,25 @@ GROUPS.push({
   excludeTests: true,
   extensionRe: /\.(?:ts|tsx|mjs|css)$/,
 });
-
+const boundaryFiles = ["src", "scripts", "tests"].flatMap((dir) =>
+  collectCodeFiles(path.join(root, dir), /\.(?:ts|tsx|mjs)$/, false).map((file) =>
+    path.relative(root, file).split(path.sep).join("/"),
+  ),
+);
 const PATTERN_BANS = [
+  {
+    name: "自动化公开入口",
+    files: boundaryFiles.filter((file) => !file.startsWith("src/agent-host/automation/")),
+    forbidden:
+      /(?:from\s*|import\s*(?:\(\s*)?|require\s*\()\s*["'](?:[^"']*\/)?(?<!shared\/)automation\/(?:core|store|spec|exec|scheduler|runtime|driver-pool)(?=[/.'"])/,
+    message: "自动化内部模块只能由运行时内部使用，外部必须导入 automation/index.ts",
+  },
+  {
+    name: "SQLite 唯一属主",
+    files: boundaryFiles.filter((file) => file !== "src/agent-host/automation/store/db.ts"),
+    forbidden: /(?:from\s*|import\s*(?:\(\s*)?|require\s*\()\s*["']node:sqlite["']/,
+    message: "只有自动化存储的 db.ts 可以导入 node:sqlite",
+  },
   {
     name: "导航展示边界",
     files: collectCodeFiles(path.join(root, "src/renderer/components/app-nav"), /\.(?:ts|tsx)$/, true).map((file) =>
@@ -134,22 +163,19 @@ const PATTERN_BANS = [
     message: "焦点请求必须经侧栏属主的 deferFocus，不得自建 setTimeout 焦点",
   },
 ];
-
 function collectCodeFiles(entry, extensionRe, excludeTests, files = []) {
   const stat = statSync(entry);
   if (stat.isDirectory()) {
     for (const name of readdirSync(entry)) collectCodeFiles(path.join(entry, name), extensionRe, excludeTests, files);
     return files;
   }
-  if (extensionRe.test(entry) && !(excludeTests && entry.endsWith(".test.mjs"))) files.push(entry);
+  if (extensionRe.test(entry) && !(excludeTests && /\.test\.(?:ts|tsx|mjs)$/.test(entry))) files.push(entry);
   return files;
 }
-
 function physicalLineCount(content) {
   const lines = content.split("\n");
   return content.endsWith("\n") ? lines.length - 1 : lines.length;
 }
-
 function checkGroup(group) {
   const failures = [];
   for (const required of group.requiredRoots ?? []) {
@@ -208,23 +234,21 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/notice-shelf.css",
   "styles/chat-shared.css",
   "styles/messages-process.css",
+  "styles/messages-spinner.css",
   "styles/messages-failure.css",
   "styles/messages-long-prompt.css",
   "styles/messages-stream.css",
   "styles/tool-cards.css",
 ];
-
 function checkCssWiring() {
   const failures = [];
   const rendererDir = path.join(root, "src/renderer");
-
   const imports = rendererCssImportOrder();
   if (JSON.stringify(imports) !== JSON.stringify(EXPECTED_CSS_IMPORT_ORDER)) {
     failures.push(
       `styles/index.ts 样式导入顺序必须匹配级联契约：\n    期望 ${JSON.stringify(EXPECTED_CSS_IMPORT_ORDER)}\n    实际 ${JSON.stringify(imports)}`,
     );
   }
-
   for (const file of imports) {
     if (!existsSync(path.join(rendererDir, file))) failures.push(`styles/index.ts 引用的样式文件不存在: ${file}`);
   }
@@ -245,7 +269,6 @@ function checkCssWiring() {
   for (const file of onDisk) {
     if (!expected.has(file)) failures.push(`渲染器树内出现未接线的样式文件: ${file}`);
   }
-
   const entryPath = path.join(rendererDir, "globals.css");
   if (existsSync(entryPath)) {
     const entry = readFileSync(entryPath, "utf8");
@@ -260,7 +283,6 @@ function checkCssWiring() {
   }
   return failures;
 }
-
 function main() {
   const failures = [];
   for (const ban of PATTERN_BANS) {
@@ -282,7 +304,6 @@ function main() {
     process.exitCode = 1;
     return;
   }
-
   const warnedGroups = results
     .map((result, index) =>
       result.warnings.length > 0 ? { name: GROUPS[index].name, warnings: result.warnings } : null,
@@ -300,12 +321,10 @@ function main() {
       return;
     }
   }
-
   const totalFiles = results.reduce((sum, result) => sum + result.fileCount, 0);
   const warningNote = warnedGroups.length > 0 ? `，${warnedGroups.length} 组有卫生提示` : "，无警告";
   console.log(
     `Architecture invariants OK: ${GROUPS.length} 组、${totalFiles} 个文件结构契约满足；CSS 接线契约满足${warningNote}`,
   );
 }
-
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();

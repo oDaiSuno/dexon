@@ -398,6 +398,7 @@ function startMainProcess(): void {
       performToolchainAction: (request) => toolchainManager!.performAction(request),
       chooseCustomTool: (capability, executable) => toolchainManager!.registerCustomTool(capability, executable),
       getManagedToolsRoot: () => toolchainManager?.getManagedRoot(),
+      automationSecrets: credentialVault,
       setChannelCredential: (payload) =>
         credentialVault.set(`channel:${payload.channel}:${payload.accountId}`, payload.credential),
       getBrowserService: () => browserService,

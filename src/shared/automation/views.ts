@@ -197,3 +197,40 @@ export interface AutomationEvent {
   readonly attemptNo?: number;
   readonly timestamp: number;
 }
+
+export interface SaveTaskResult {
+  readonly task: TaskView;
+  readonly revision: number;
+  readonly planHash: string;
+  readonly requiredGrant: RequiredGrant;
+}
+export interface TaskEnableRequest {
+  readonly taskId: string;
+  readonly revision: number;
+  readonly planHash: string;
+}
+export interface ListRunsQuery {
+  readonly taskId?: string;
+  readonly phases?: readonly RunPhase[];
+  readonly limit?: number;
+  readonly beforeMs?: number;
+}
+export interface AutomationChange {
+  readonly taskIds: readonly string[];
+  readonly runIds: readonly string[];
+  readonly inboxChanged: boolean;
+}
+export type AutomationConsentRequest = {
+  readonly taskId: string;
+  readonly revision: number;
+  readonly planHash: string;
+  readonly taskName: string;
+  readonly requiredGrant: RequiredGrant;
+} & ({ readonly kind: "enable" } | { readonly kind: "resolve"; readonly request: ResolveInboxRequest });
+export interface AutomationConsentResult {
+  readonly confirmed: boolean;
+  readonly taskId: string;
+  readonly revision: number;
+  readonly planHash: string;
+  readonly requestId: string | null;
+}

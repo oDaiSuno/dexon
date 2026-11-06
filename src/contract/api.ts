@@ -1,4 +1,21 @@
 import type { FolderListing } from "./folder-browse";
+import type { TaskSpec } from "../shared/automation/spec";
+import type {
+  TaskView,
+  TaskRevisionView,
+  SaveTaskResult,
+  TaskEnableRequest,
+  ListRunsQuery,
+  RunSummaryView,
+  RunDetailView,
+  InboxItem,
+  FireRequest,
+  FireResult,
+  ResolveInboxRequest,
+  ResolveInboxResult,
+  SignalEmit,
+  AutomationChange,
+} from "../shared/automation/views";
 import type {
   AgentCommand,
   AgentEvent,
@@ -69,6 +86,19 @@ export type GenerateTitleParams =
   | { sessionId: string; trigger: "regenerate"; namingModel?: SessionModelRef };
 
 export interface Api {
+  "automation.listTasks": { params: { cwd?: string } | void; result: { tasks: readonly TaskView[] } };
+  "automation.getTask": { params: { taskId: string; revision?: number }; result: { task: TaskRevisionView } };
+  "automation.saveTask": { params: { spec: TaskSpec }; result: SaveTaskResult };
+  "automation.enableTask": { params: TaskEnableRequest; result: { task: TaskView } };
+  "automation.disableTask": { params: { taskId: string }; result: { task: TaskView } };
+  "automation.deleteTask": { params: { taskId: string }; result: { ok: true } };
+  "automation.startRun": { params: FireRequest; result: FireResult };
+  "automation.cancelRun": { params: { runId: string }; result: { run: RunSummaryView } };
+  "automation.listRuns": { params: ListRunsQuery | void; result: { runs: readonly RunSummaryView[] } };
+  "automation.getRun": { params: { runId: string }; result: { run: RunDetailView } };
+  "automation.listInbox": { params: void; result: { items: readonly InboxItem[] } };
+  "automation.resolveInbox": { params: ResolveInboxRequest; result: ResolveInboxResult };
+  "automation.emitSignal": { params: SignalEmit & { taskId: string }; result: { woke: number } };
   "host.ping": { params: void; result: { ok: true; ts: number; descriptor?: EnvironmentDescriptor } };
   "host.toolchain": {
     params: { cwd: string };
@@ -78,7 +108,6 @@ export interface Api {
       capabilities: Partial<Record<ToolCapabilityId, { provider: ToolProvider; version: string }>>;
     };
   };
-
   "processes.list": {
     params: { includeExited?: boolean } | void;
     result: { revision: number; processes: ManagedProcessPublicInfo[] };
@@ -123,7 +152,6 @@ export interface Api {
     params: void;
     result: { ok: true; cleared: number };
   };
-
   "sessions.list": {
     params: { cwd?: string } | void;
     result: {
@@ -161,7 +189,6 @@ export interface Api {
     params: { id: string; name: string };
     result: { ok: true };
   };
-
   "worktrees.list": {
     params: { projectRoot: string };
     result: {
@@ -187,7 +214,6 @@ export interface Api {
     params: { cwd: string; branch: string };
     result: WorktreeSwitchBranchResult;
   };
-
   "git.status": {
     params: { path: string };
     result: GitStatusResult;
@@ -204,7 +230,6 @@ export interface Api {
     params: { path: string };
     result: FolderListing;
   };
-
   "agent.new": {
     params: {
       cwd: string;
@@ -230,7 +255,6 @@ export interface Api {
     params: GenerateTitleParams;
     result: { title: string | null };
   };
-
   "channels.list": { params: void; result: ChannelsSnapshot };
   "channels.accountUpsert": {
     params: { account: ChannelAccountConfig };
@@ -284,7 +308,6 @@ export interface Api {
     params: { accountId: string; peerId: string; message: string };
     result: ChannelTestSendResult;
   };
-
   "files.list": { params: { path: string }; result: { entries: DirEntry[] } };
   "files.read": {
     params: { path: string; sourceSessionId?: string };
@@ -323,7 +346,6 @@ export interface Api {
     params: { path: string };
     result: { ok: true };
   };
-
   "models.list": {
     params: { cwd?: string } | void;
     result: ModelsListResult;
@@ -369,7 +391,6 @@ export interface Api {
     result: ProviderChannelsResult;
   };
   "modelsConfig.channels.test": { params: { provider: string }; result: ProviderChannelTestResult };
-
   "auth.providers": { params: void; result: { providers: ProviderStatus[] } };
   "auth.allProviders": { params: void; result: { providers: ProviderStatus[] } };
   "auth.setApiKey": {
@@ -393,7 +414,6 @@ export interface Api {
     params: { provider: string };
     result: { ok: true };
   };
-
   "skills.list": {
     params: { cwd?: string } | void;
     result: { skills: SkillRecord[]; diagnostics?: unknown[] };
@@ -414,7 +434,6 @@ export interface Api {
     params: { cwd: string; filePath: string };
     result: { content: string };
   };
-
   "plugins.list": {
     params: { cwd?: string } | void;
     result: PluginsResponse;
@@ -427,7 +446,6 @@ export interface Api {
     params: { cwd: string };
     result: PluginsResponse;
   };
-
   "system.home": { params: void; result: { home: string } };
   "system.validateCwd": {
     params: { path: string };
@@ -439,6 +457,7 @@ export interface Api {
 }
 
 export interface Streams {
+  "automation.changed": AutomationChange;
   "agent.events": AgentEvent;
   "agent.running": RunningStateEvent;
   "auth.login": LoginProgressEvent;

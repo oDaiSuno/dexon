@@ -1,6 +1,5 @@
 import { defineConfig } from "tsup";
 import { readFileSync } from "node:fs";
-
 const packageJson = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as {
   dependencies?: Record<string, string>;
 };
@@ -11,7 +10,6 @@ if (!expectedPiVersion || !/^\d+\.\d+\.\d+$/.test(expectedPiVersion)) {
 const piVersionDefine = {
   "process.env.PI_DESKTOP_EXPECTED_PI_VERSION": JSON.stringify(expectedPiVersion),
 };
-
 export default defineConfig([
   {
     entry: {
@@ -19,12 +17,11 @@ export default defineConfig([
     },
     format: ["cjs"],
     platform: "node",
+    removeNodeProtocol: false,
     target: "node22",
     outDir: "out/main",
     clean: false,
     sourcemap: true,
-    // electron-updater is a production runtime dependency and resolves its
-    // provider/platform implementation dynamically from the packaged app.
     external: ["electron", "electron-updater"],
     splitting: false,
     treeshake: true,
@@ -34,7 +31,6 @@ export default defineConfig([
     },
   },
   {
-    // ESM — pi-coding-agent only exports "import" condition
     entry: {
       "agent-host": "src/agent-host/index.ts",
       "plugin-worker": "src/agent-host/plugin-worker.ts",
@@ -42,6 +38,7 @@ export default defineConfig([
     },
     format: ["esm"],
     platform: "node",
+    removeNodeProtocol: false,
     target: "node22",
     outDir: "out/main",
     clean: false,
@@ -52,14 +49,12 @@ export default defineConfig([
       "@earendil-works/pi-ai",
       "@earendil-works/pi-agent-core",
       "@earendil-works/pi-tui",
-      // Keep the adjacent silk.wasm asset resolvable from the packaged dependency.
       "silk-wasm",
     ],
     splitting: false,
     treeshake: true,
     define: piVersionDefine,
     banner: {
-      // utilityProcess doesn't set import.meta.url the same way; help CJS interop
       js: "",
     },
     outExtension() {

@@ -2,16 +2,16 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (file) => fs.readFileSync(path.join(root, file), "utf8");
-
+import { automationSecurityChecks } from "./desktop-security/automation.mjs";
 import { managedProcessSecurityChecks } from "./desktop-security/managed-process.mjs";
 import { desktopSecurityChecks } from "./desktop-security/desktop.mjs";
 import { browserSecurityChecks } from "./desktop-security/browser.mjs";
 import { offlineAssetSecurityChecks } from "./desktop-security/offline-assets.mjs";
 import { trustBoundarySecurityChecks } from "./desktop-security/trust-boundaries.mjs";
 const checks = [
+  ...automationSecurityChecks(read),
   ...managedProcessSecurityChecks(read),
   ...desktopSecurityChecks(read),
   ...browserSecurityChecks(read),
@@ -23,5 +23,4 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL: ${failure}`);
   process.exit(1);
 }
-
 console.log(`OK: ${checks.length} desktop security invariants hold`);

@@ -193,6 +193,9 @@ export interface PiBridge {
   openDirectory: (fsPath: string) => Promise<void>;
   openFile: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;
+  setAutomationSecret: (name: string, value: string) => Promise<void>;
+  deleteAutomationSecret: (name: string) => Promise<void>;
+  listAutomationSecretNames: () => Promise<string[]>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;
   saveBinaryFile: (opts: SaveBinaryFileOptions) => Promise<string | null>;
   createHtmlPreview: (content: string, filePath: string, sourceSessionId?: string | null) => Promise<string>;

@@ -47,7 +47,6 @@ import type {
   BrowserProxyCredentialsInput,
   BrowserSettingsPatch,
 } from "../contract/browser";
-
 export type DesktopIpcOptions = {
   environmentManager?: EnvironmentManager;
   getHostManager: () => HostManager | null;
@@ -58,11 +57,21 @@ export type DesktopIpcOptions = {
   rescanToolchains: (cwd?: string) => Promise<PublicToolchainState>;
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
   chooseCustomTool: (
-    capability: Extract<ToolchainActionRequest, { action: "choose-custom-tool" }>["capability"],
+    capability: Extract<
+      ToolchainActionRequest,
+      {
+        action: "choose-custom-tool";
+      }
+    >["capability"],
     executable: string,
   ) => Promise<PublicToolchainState>;
   getManagedToolsRoot: () => string | undefined;
   setChannelCredential: (payload: ChannelCredentialWrite) => void;
+  automationSecrets: {
+    setAutomationSecret(name: unknown, value: unknown): void;
+    deleteAutomationSecret(name: unknown): void;
+    listAutomationSecretNames(): string[];
+  };
   getBrowserService: () => BrowserService | null;
   getManagedProcessCapability: () => ManagedProcessCapability;
   updateManager: {
@@ -73,7 +82,6 @@ export type DesktopIpcOptions = {
     setAutomaticChecksEnabled: (enabled: boolean) => DesktopUpdateState;
   };
 };
-
 export function installDesktopIpc(options: DesktopIpcOptions): void {
   const {
     getHostManager,
@@ -133,7 +141,6 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
       }
     });
   };
-
   trustedHandle("desktop:get-version", () => app.getVersion());
   trustedHandle("desktop:update:get-state", () => updateManager.getState());
   trustedHandle("desktop:update:check", () => updateManager.checkForUpdates());
@@ -200,52 +207,42 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
       throw new Error("TOOLCHAIN_INTERNAL: Developer tool operation failed");
     }
   });
-
   trustedHandle("desktop:toolchains:open-managed-folder", async () => {
     const root = getManagedToolsRoot();
     if (!root) throw new Error("TOOLCHAIN_INTERNAL: Managed tools folder is unavailable");
     await mkdir(root, { recursive: true });
     await openValidatedDirectory(root, { openPath: (target) => shell.openPath(target) });
   });
-
   trustedOn("desktop:connect-host", (event) => {
     const manager = getHostManager();
     if (!manager) return;
     const { port1 } = manager.createRendererChannel();
     event.sender.postMessage("desktop:host-port", null, [port1]);
   });
-
   trustedHandle("desktop:open-external", async (_event, url: string) => {
     if (typeof url !== "string") return;
     if (!/^(https?:|mailto:)/i.test(url)) throw new Error("Blocked non-http(s)/mailto URL");
     await shell.openExternal(url);
   });
-
   trustedHandle("desktop:show-item-in-folder", async (_event, fsPath: string) => {
     if (typeof fsPath !== "string" || !path.isAbsolute(fsPath) || fsPath.includes("\0")) return;
     try {
       shell.showItemInFolder(await realpath(fsPath));
     } catch {}
   });
-
   trustedHandle("desktop:open-directory", async (_event, fsPath: string) => {
     await openValidatedDirectory(fsPath, { openPath: (target) => shell.openPath(target) });
   });
-
   trustedHandle("desktop:open-file", async (_event, fsPath: string) => {
     await openValidatedMarkdownFile(fsPath, { openPath: (target) => shell.openPath(target) });
   });
-
   trustedHandle("desktop:file-context-menu", async (event, request: unknown) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win || win.isDestroyed()) return { shown: false, code: "UNAVAILABLE" };
     return showFileContextMenu(win, request);
   });
-
   trustedHandle("desktop:inspect-local-files", async (_event, request: unknown) => inspectLocalFiles(request));
-
   trustedHandle("desktop:stage-clipboard-image", async (_event, request: unknown) => stageClipboardImage(request));
-
   trustedHandle("desktop:select-directory", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const ui = loadUiState();
@@ -259,7 +256,6 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     saveUiState({ recentCwds: recent });
     return directory;
   });
-
   trustedHandle("desktop:set-channel-credential", (_event, payload: ChannelCredentialWrite) => {
     if (!payload || typeof payload !== "object") throw new Error("Invalid channel credential payload");
     if (!payload.credential?.token?.trim() || !payload.credential.baseUrl?.trim()) {
@@ -267,7 +263,13 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     }
     setChannelCredential(payload);
   });
-
+  trustedHandle("desktop:set-automation-secret", (_event, name: unknown, value: unknown) =>
+    options.automationSecrets.setAutomationSecret(name, value),
+  );
+  trustedHandle("desktop:delete-automation-secret", (_event, name: unknown) =>
+    options.automationSecrets.deleteAutomationSecret(name),
+  );
+  trustedHandle("desktop:list-automation-secret-names", () => options.automationSecrets.listAutomationSecretNames());
   trustedHandle("desktop:save-file", async (event, saveOptions: SaveTextFileOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showSaveDialog(win ?? undefined!, {
@@ -279,7 +281,6 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     fs.writeFileSync(result.filePath, saveOptions.content, "utf8");
     return result.filePath;
   });
-
   trustedHandle("desktop:save-binary-file", async (event, saveOptions: SaveBinaryFileOptions) => {
     if (!saveOptions || typeof saveOptions.base64 !== "string") throw new Error("Invalid binary save payload");
     const win = BrowserWindow.fromWebContents(event.sender);
@@ -289,7 +290,6 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     fs.writeFileSync(result.filePath, Buffer.from(saveOptions.base64, "base64"));
     return result.filePath;
   });
-
   trustedHandle(
     "desktop:create-html-preview",
     (event, content: string, filePath: string, sourceSessionId?: string | null) =>
@@ -299,12 +299,18 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
         async (assetPath) => {
           const manager = getHostManager();
           if (!manager) throw new Error("Agent Host is unavailable");
-          const meta = await manager.call<{ size: number }>("files.meta", {
+          const meta = await manager.call<{
+            size: number;
+          }>("files.meta", {
             path: assetPath,
             sourceSessionId: sourceSessionId ?? undefined,
           });
           if (meta.size > 20 * 1024 * 1024) throw new Error("HTML preview asset is too large");
-          return manager.call<{ base64: string; size: number; mime?: string }>("files.download", {
+          return manager.call<{
+            base64: string;
+            size: number;
+            mime?: string;
+          }>("files.download", {
             path: assetPath,
             sourceSessionId: sourceSessionId ?? undefined,
           });
@@ -315,25 +321,32 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   trustedHandle("desktop:release-html-preview", (_event, previewUrl: string) => {
     releaseHtmlPreviewUrl(previewUrl);
   });
-
-  trustedOn("desktop:notify-agent-end", (_event, payload: { sessionId: string; title?: string }) => {
-    if (!Notification.isSupported()) return;
-    const notification = new Notification({
-      title: payload.title || "Agent finished",
-      body: "Session completed",
-    });
-    notification.on("click", () => {
-      const win = getMainWindow();
-      if (win) {
-        win.show();
-        win.focus();
-        win.webContents.send("deep-link:session", payload.sessionId);
-      }
-    });
-    notification.show();
-    applyBadgeCount(getUnreadBadge() + 1);
-  });
-
+  trustedOn(
+    "desktop:notify-agent-end",
+    (
+      _event,
+      payload: {
+        sessionId: string;
+        title?: string;
+      },
+    ) => {
+      if (!Notification.isSupported()) return;
+      const notification = new Notification({
+        title: payload.title || "Agent finished",
+        body: "Session completed",
+      });
+      notification.on("click", () => {
+        const win = getMainWindow();
+        if (win) {
+          win.show();
+          win.focus();
+          win.webContents.send("deep-link:session", payload.sessionId);
+        }
+      });
+      notification.show();
+      applyBadgeCount(getUnreadBadge() + 1);
+    },
+  );
   trustedOn("desktop:set-badge-count", (_event, count: number) => applyBadgeCount(count));
   trustedHandle("desktop:get-ui-state", () => loadUiState());
   trustedHandle("desktop:managed-process-capability", () => getManagedProcessCapability());
@@ -387,8 +400,15 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   browserHandler("desktop:browser:set-bounds", (browser, input: Parameters<BrowserService["setBounds"]>[0]) =>
     browser.setBounds(input),
   );
-  browserHandler("desktop:browser:set-surface-visible", (browser, input: { tabId?: string; visible: boolean }) =>
-    browser.setSurfaceVisible(input),
+  browserHandler(
+    "desktop:browser:set-surface-visible",
+    (
+      browser,
+      input: {
+        tabId?: string;
+        visible: boolean;
+      },
+    ) => browser.setSurfaceVisible(input),
   );
   browserHandler(
     "desktop:browser:set-persistent-session-permission",
