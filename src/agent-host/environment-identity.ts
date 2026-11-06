@@ -10,6 +10,8 @@ import {
 import { desktopUserDataPath } from "./desktop-state-file.ts";
 import { readOrCreatePrivateFile } from "./private-state-file.ts";
 
+const startedAt = Date.now();
+
 export interface EnvironmentIdentity {
   environmentId: EnvironmentId;
   label: string;
@@ -61,5 +63,10 @@ export function buildEnvironmentDescriptor(options: {
     serverVersion: options.piVersion,
     platform: { os, arch: process.arch, pathStyle: os === "win32" ? "win32" : "posix", home: homedir() },
     capabilities: { ...options.capabilities },
+    runtime: {
+      nodeVersion: process.versions.node,
+      payloadVersion: process.env.DEXON_REMOTE_PAYLOAD_VERSION ?? "development",
+      startedAt,
+    },
   };
 }

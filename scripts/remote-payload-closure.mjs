@@ -51,7 +51,8 @@ export function copyProductionPackages(packages, destination, target) {
             .some((part) => ["node_modules", ".git", ".github", "test", "tests", "coverage"].includes(part))
         )
           return false;
-        if (/\.(?:map|ts|tsx)$/u.test(relative)) return false;
+        if (/\.map$/u.test(relative) || (/\.(?:ts|tsx)$/u.test(relative) && !/\.d\.[cm]?ts$/u.test(relative)))
+          return false;
         const platform = /(?:^|\/)(?:prebuilds|vendor)\/((?:linux|darwin|win32)-(?:x64|arm64))/u.exec(relative)?.[1];
         return !platform || platform === `${target.os}-${target.arch}`;
       },

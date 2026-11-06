@@ -64,6 +64,6 @@ export function reorderProjectSpaces(
   if (spaces[from].key === pinned) return [...spaces];
   const next = [...spaces];
   const [moved] = next.splice(from, 1);
-  next.splice(Math.min(Math.max(to > from ? to - 1 : to, pinned ? 1 : 0), next.length), 0, moved);
+  next.splice(Math.min(Math.max(to > from ? to - 1 : to, spaces[0]?.key === pinned ? 1 : 0), next.length), 0, moved);
   return next;
 }

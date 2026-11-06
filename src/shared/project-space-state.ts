@@ -25,7 +25,7 @@ export function isAbsoluteInAnyStyle(value: string): boolean {
 export function projectKeyOf(ref: ProjectSpaceRef): ProjectKey {
   const windows = /^[A-Za-z]:[\\/]|^\\\\/u.test(ref.path);
   let normalized = (windows ? ref.path.replace(/\\/gu, "/") : ref.path).replace(/\/+$/u, "") || "/";
-  if (/^[A-Za-z]:\//u.test(normalized) || normalized.startsWith("//")) normalized = normalized.toLowerCase();
+  if (windows || normalized.startsWith("//")) normalized = normalized.toLowerCase();
   return qualifyProjectKey(ref.environmentId, normalized);
 }
 function parseRef(value: unknown): ProjectSpaceRef {

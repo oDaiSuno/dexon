@@ -133,9 +133,8 @@ export interface LocalFileInspection {
 }
 
 export interface StageClipboardImageRequest {
-  /** Raw image bytes, base64 encoded without the data-URL prefix. */
   base64: string;
-  /** File extension without the dot, e.g. "png". */
+
   ext: string;
 }
 
@@ -152,7 +151,7 @@ export interface DesktopUiState {
   managedProcessesEnabled?: boolean;
   sessionOrchestration?: SessionOrchestrationSettings;
   chatAppearance?: ChatAppearancePreferences;
-  /** Remembered last workspace directory (space); null clears the record. */
+
   lastSpaceCwd?: string | null;
   openProjects?: string[];
   projectSpaces?: ProjectSpacesState;
@@ -160,7 +159,6 @@ export interface DesktopUiState {
 
 export type DesktopUiStatePatch = Partial<DesktopUiState>;
 
-/** The complete, shared preload surface exposed to the sandboxed renderer. */
 export interface PiBridge {
   platform: NodeJS.Platform;
   isDesktop: true;
@@ -183,15 +181,15 @@ export interface PiBridge {
   onEnvironmentsChanged: (callback: (snapshot: EnvironmentsSnapshot) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;
-  /** Show the app's rich file context menu after main-process path validation. */
+
   showFileContextMenu: (request: ShowFileContextMenuRequest) => Promise<ShowFileContextMenuResult>;
   inspectLocalFiles: (request: InspectLocalFilesRequest) => Promise<LocalFileInspection[]>;
-  /** Write pasted clipboard image bytes to a pi-clipboard temp file and return its absolute path. */
+
   stageClipboardImage: (request: StageClipboardImageRequest) => Promise<StageClipboardImageResult>;
-  /** Resolve the absolute filesystem path for a dropped/injected File object. */
+
   getPathForFile?: (file: File) => string | null;
   selectDirectory: () => Promise<string | null>;
-  /** Truly open a directory in the system file manager (validated in main). */
+
   openDirectory: (fsPath: string) => Promise<void>;
   openFile: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;

@@ -62,9 +62,17 @@ try {
     wsUrl: `ws://127.0.0.1:${launch.port}/rpc`,
     authToken: launch.authToken,
   };
-  const descriptor = await fetchUnauthenticatedDescriptor(endpoint.httpBaseUrl);
+  const descriptor = await fetchUnauthenticatedDescriptor(
+    endpoint.httpBaseUrl,
+    undefined,
+    undefined,
+    undefined,
+    launch.authToken,
+  );
   connection = await openRemoteConnection(endpoint, descriptor);
   assert.equal((await connection.rpc.call("host.ping")).ok, true);
+  assert.equal(descriptor.runtime.payloadVersion, catalog.version);
+  assert.equal(descriptor.runtime.nodeVersion, process.versions.node);
   const listing = await connection.rpc.call("projects.browse", { path: home });
   assert.equal(listing.ok, true);
   const sessions = await connection.rpc.call("sessions.list");

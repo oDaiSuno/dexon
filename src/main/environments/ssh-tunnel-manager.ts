@@ -89,7 +89,11 @@ export class SshEnvironmentManager {
   }
 
   probe(target: SshEnvironmentTarget, signal?: AbortSignal, report?: StageReporter) {
-    return this.getProvisioner().probe(target, signal, report);
+    return this.getProvisioner().probe(
+      target,
+      AbortSignal.any([this.controller.signal, ...(signal ? [signal] : [])]),
+      report,
+    );
   }
 
   async trustHostKey(target: SshEnvironmentTarget, knownHost?: string, knownHostsFile?: string): Promise<void> {
@@ -99,7 +103,11 @@ export class SshEnvironmentManager {
         ? `[${target.hostname ?? target.sshAlias}]:${target.port}`
         : (target.hostname ?? target.sshAlias));
     if (!host || host.startsWith("-") || /[\0\r\n]/u.test(host)) throw new Error("Invalid known host");
-    await runLocalSshTool("ssh-keygen", ["-R", host, ...(knownHostsFile ? ["-f", knownHostsFile] : [])]);
+    await runLocalSshTool(
+      "ssh-keygen",
+      ["-R", host, ...(knownHostsFile ? ["-f", knownHostsFile] : [])],
+      this.controller.signal,
+    );
   }
 
   async stopRemoteDaemon(target: SshEnvironmentTarget): Promise<RemoveOutcome["remoteDaemon"]> {
@@ -114,6 +122,7 @@ export class SshEnvironmentManager {
       const output = await runSsh(
         target,
         buildRemoteStopScript({ stateKey: key, remoteStateDir: target.remoteStateDir, nodePath }),
+        { signal: this.controller.signal, timeoutMs: 10000 },
       );
       return output.trim() === "stopped" ? "stopped" : "not-owned";
     });
@@ -235,6 +244,7 @@ export class SshEnvironmentManager {
               target.expectedEnvironmentId,
               QUICK_PROBE_TIMEOUT_MS,
               cancellation,
+              launch.authToken,
             );
           } catch (error) {
             if (cancellation.aborted || classifyConnectError(error).kind === "blocked" || Date.now() >= deadline)
@@ -254,7 +264,7 @@ export class SshEnvironmentManager {
           descriptor,
           nodePath: runtime.nodePath,
           runtime: {
-            nodeVersion: runtime.probe.node!.version,
+            nodeVersion: descriptor.runtime?.nodeVersion ?? runtime.probe.node!.version,
             payloadVersion:
               descriptor.runtime?.payloadVersion ?? runtime.probe.daemon.payloadVersion ?? runtime.payloadVersion,
             startedAt: descriptor.runtime?.startedAt ?? Date.now(),

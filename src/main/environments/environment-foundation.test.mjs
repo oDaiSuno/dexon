@@ -213,3 +213,21 @@ test("environment files keep version one and retain additive policy across reloa
   assert.deepEqual(reloaded.policy, { detachedDaemon: false, autoReconnect: false });
   assert.equal(JSON.parse(readFileSync(path.join(directory, "environments.json"), "utf8")).version, 1);
 });
+
+test("a newer remote payload is reused instead of being downgraded by an older desktop", () => {
+  const probe = fixtureProbe({
+    daemon: { running: true, ownership: "managed", payloadVersion: "0.4.0-new", activeSessions: 0 },
+  });
+  assert.deepEqual(planRuntimeUpgrade(probe, "0.3.3-old"), {
+    deploy: false,
+    restartDaemon: false,
+    updatePending: false,
+  });
+});
+
+test("missing POSIX runtime tools block with an unsupported diagnosis rather than retrying forever", () => {
+  assert.equal(
+    diagnoseSshFailure("unsupported: tar executable is unavailable", target).diagnosis.reason,
+    "unsupported",
+  );
+});

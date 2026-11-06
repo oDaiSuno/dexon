@@ -1,3 +1,4 @@
+import { compareSemver } from "../../shared/node-version.ts";
 import { createReadStream } from "node:fs";
 import type { SshEnvironmentTarget } from "../../contract/environment.ts";
 import type { ConnectionStage } from "../../contract/environment-status.ts";
@@ -19,6 +20,10 @@ export function planRuntimeUpgrade(
   probe: RemoteProbe,
   version: string,
 ): { deploy: boolean; restartDaemon: boolean; updatePending: boolean } {
+  const remoteVersion = /^(\d+\.\d+\.\d+)/u.exec(probe.daemon.payloadVersion ?? "")?.[1];
+  const desktopVersion = /^(\d+\.\d+\.\d+)/u.exec(version)?.[1];
+  const newer = remoteVersion && desktopVersion && compareSemver(remoteVersion, desktopVersion) > 0;
+  if (probe.daemon.running && newer) return { deploy: false, restartDaemon: false, updatePending: false };
   const skew = probe.daemon.running && probe.daemon.payloadVersion !== version;
   const restartDaemon = skew && probe.daemon.ownership === "managed" && probe.daemon.activeSessions === 0;
   const updatePending = skew && !restartDaemon;
@@ -70,7 +75,15 @@ export class RemoteProvisioner {
       },
     });
     report("checking-runtime");
-    return parseRemoteProbe(output);
+    try {
+      return parseRemoteProbe(output);
+    } catch (error) {
+      throw new EnvironmentConnectionError(
+        "blocked",
+        "configuration",
+        error instanceof Error ? error.message : "Invalid remote probe response",
+      );
+    }
   }
   async prepare(
     target: SshEnvironmentTarget,

@@ -33,7 +33,6 @@ export class WorkspaceStore {
   private readonly listeners = new Set<() => void>();
   private bridge: PiBridge | undefined;
   private loading: Promise<void> | null = null;
-  private touched = false;
   private pending: ProjectSpacesState | null = null;
   private writing: Promise<void> | null = null;
   getSnapshot = (): WorkspaceSnapshot => this.snapshot;
@@ -46,7 +45,7 @@ export class WorkspaceStore {
   initialize(bridge: PiBridge): Promise<void> {
     if (this.bridge === bridge) return this.loading ?? Promise.resolve();
     if (this.bridge) {
-      this.touched = false;
+      this.pending = null;
       this.snapshot = { loaded: false, spaces: [], seeded: [], focus: primaryFocus() };
     }
     this.bridge = bridge;
@@ -54,9 +53,12 @@ export class WorkspaceStore {
     return this.loading;
   }
   private async load(bridge: PiBridge): Promise<void> {
+    const initial = this.snapshot;
+    let changedDuringLoad = false;
     try {
       const [ui, environments] = await Promise.all([bridge.getUiState?.(), bridge.listEnvironments?.()]);
-      if (this.bridge !== bridge || this.touched) return;
+      if (this.bridge !== bridge) return;
+      changedDuringLoad = this.snapshot !== initial;
       const state = ui?.projectSpaces
         ? parseProjectSpacesState(ui.projectSpaces)
         : fromLegacyOpenProjects(ui?.openProjects);
@@ -70,18 +72,22 @@ export class WorkspaceStore {
           : null;
       this.snapshot = {
         loaded: true,
-        spaces: state.spaces.map(mountSpace),
-        seeded: state.seeded,
-        focus: restored
-          ? { environmentId: restored.environmentId, spaceKey: projectKeyOf(restored), sessionId: null }
-          : primaryFocus(),
+        spaces: this.snapshot.spaces === initial.spaces ? state.spaces.map(mountSpace) : this.snapshot.spaces,
+        seeded: this.snapshot.seeded === initial.seeded ? state.seeded : this.snapshot.seeded,
+        focus:
+          this.snapshot.focus !== initial.focus
+            ? this.snapshot.focus
+            : restored
+              ? { environmentId: restored.environmentId, spaceKey: projectKeyOf(restored), sessionId: null }
+              : primaryFocus(),
       };
     } catch {
-      this.snapshot = { ...this.snapshot, loaded: true };
+      if (this.bridge === bridge) this.snapshot = { ...this.snapshot, loaded: true };
     } finally {
       if (this.bridge === bridge) {
         this.snapshot = { ...this.snapshot, loaded: true };
         this.notify();
+        if (changedDuringLoad) this.persistSnapshot();
       }
     }
   }
@@ -96,6 +102,7 @@ export class WorkspaceStore {
     this.commit({ focus: { environmentId: ref.environmentId, spaceKey: projectKeyOf(ref), sessionId: null } });
   }
   async mountAndOpen(ref: ProjectSpaceRef): Promise<"opened" | "invalid"> {
+    await this.loading;
     const { getEnvironmentApiClient } = await import("./api-client");
     const result = await getEnvironmentApiClient(ref.environmentId).validateCwd(ref.path);
     if (!result.ok) return "invalid";
@@ -139,9 +146,11 @@ export class WorkspaceStore {
     this.commit({ spaces: reorderProjectSpaces(this.snapshot.spaces, from, to, defaultSpace) });
   }
   private commit(patch: Partial<WorkspaceSnapshot>): void {
-    this.touched = true;
     this.snapshot = { ...this.snapshot, ...patch };
     this.notify();
+    if (this.snapshot.loaded) this.persistSnapshot();
+  }
+  private persistSnapshot(): void {
     const focused = this.snapshot.spaces.find((space) => space.key === this.snapshot.focus.spaceKey);
     this.pending = {
       version: 2,
@@ -158,6 +167,7 @@ export class WorkspaceStore {
     if (!this.writing)
       this.writing = this.persist().finally(() => {
         this.writing = null;
+        if (this.pending) this.persistSnapshot();
       });
   }
   private async persist(): Promise<void> {

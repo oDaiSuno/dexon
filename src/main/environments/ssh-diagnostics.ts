@@ -50,6 +50,8 @@ export function diagnoseSshFailure(
         suggestedStateDir: `/tmp/dexon-${target.user ?? "remote"}`,
       },
     };
+  if (/unsupported:|(?:sh|uname).*not (?:found|recognized)/iu.test(detail))
+    return { kind: "blocked", diagnosis: { reason: "unsupported", detail } };
   if (/bad configuration|bad owner or permissions|invalid|unknown option/iu.test(detail))
     return { kind: "blocked", diagnosis: { reason: "configuration", detail } };
   return {

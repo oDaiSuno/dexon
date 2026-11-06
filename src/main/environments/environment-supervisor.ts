@@ -176,6 +176,7 @@ export class EnvironmentSupervisor {
         target.expectedEnvironmentId,
         undefined,
         signal,
+        target.kind === "ssh" ? endpoint.authToken : undefined,
       );
       if (!current()) return;
       this.options.onBound(descriptor);

@@ -1,9 +1,3 @@
-/**
- * Preload — expose piBridge only (sandbox + contextIsolation).
- *
- * MessagePort MUST NOT cross contextBridge via Promise resolve — that silently
- * breaks the port. Use window.postMessage transfer instead (Electron docs).
- */
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DesktopMenuEvent, DesktopUpdateState, HostStatus, PiBridge } from "../contract/desktop";
 import type { BrowserEvent } from "../contract/browser";
@@ -18,11 +12,10 @@ if (
   typeof preloadLocation === "string" &&
   isTrustedPreloadLocation(preloadLocation, readDevRendererPortArgument(process.argv))
 ) {
-  // Deliver MessagePort to the page via window.postMessage (transferable).
   ipcRenderer.on("desktop:host-port", (event, payload: unknown) => {
     const port = selectTransferredHostPort(event.ports);
     if (!port) return;
-    // preload: MessagePort transfer to the page
+
     const g = globalThis as unknown as {
       postMessage: (message: unknown, targetOrigin: string, transfer?: unknown[]) => void;
     };
@@ -43,7 +36,6 @@ if (
     );
   });
 
-  // Buffer one bounded generation per fixed event until Renderer listeners subscribe.
   const deepLinkEvents = new EarlyEventReplay<string>();
   const menuEvents = [
     "new-session",
@@ -65,9 +57,6 @@ if (
     deepLinkEvents.emit(sessionId);
   });
 
-  // Main can send a menu command as soon as a newly created page finishes
-  // loading, before React effects subscribe. Buffer one pending command per
-  // fixed event so notification/menu navigation is not lost during startup.
   for (const event of menuEvents) {
     ipcRenderer.on(`menu:${event}`, () => {
       menuEventReplays.get(event)?.emit(undefined);
