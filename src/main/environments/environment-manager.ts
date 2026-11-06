@@ -1,4 +1,14 @@
-import { DEFAULT_LIFECYCLE_POLICY, type EnvironmentsSnapshot } from "../../contract/environment-commands.ts";
+import { planEnvironmentUpdate } from "./environment-editing.ts";
+import { closeModeFor, removeWithChoice, shutdownAll } from "./environment-lifecycle.ts";
+import { testEnvironment } from "./environment-tester.ts";
+import { discoverSshHosts } from "./ssh-config-discovery.ts";
+import {
+  type LifecyclePolicy,
+  type RemoteDaemonChoice,
+  type RemoveOutcome,
+  type EnvironmentDraft,
+  type EnvironmentsSnapshot,
+} from "../../contract/environment-commands.ts";
 import { homedir } from "node:os";
 import { MessageChannelMain, type WebContents } from "electron";
 import {
@@ -40,6 +50,7 @@ export class EnvironmentManager {
     userDataDir: string;
     onChanged?: (snapshot: EnvironmentsSnapshot) => void;
     sshTunnelManager?: SshEnvironmentManager;
+    payloadDirectory?: string;
   };
 
   constructor(options: {
@@ -47,10 +58,12 @@ export class EnvironmentManager {
     userDataDir: string;
     onChanged?: (snapshot: EnvironmentsSnapshot) => void;
     sshTunnelManager?: SshEnvironmentManager;
+    payloadDirectory?: string;
   }) {
     this.options = options;
     this.store = new EnvironmentStore(options.userDataDir);
-    this.sshTunnelManager = options.sshTunnelManager ?? new SshEnvironmentManager();
+    this.sshTunnelManager =
+      options.sshTunnelManager ?? new SshEnvironmentManager({ payloadDirectory: options.payloadDirectory });
     this.primaryStatus = options.hostManager.getStatus();
     this.primaryDescriptor = this.buildPrimaryDescriptor();
     if (options.onChanged) this.listeners.add(options.onChanged);
@@ -82,21 +95,14 @@ export class EnvironmentManager {
   }
 
   snapshot(): EnvironmentsSnapshot {
-    return { revision: this.revision, policy: { ...DEFAULT_LIFECYCLE_POLICY }, environments: this.listEnvironments() };
+    return { revision: this.revision, policy: { ...this.store.policy }, environments: this.listEnvironments() };
   }
 
   async addEnvironment(input: AddEnvironmentInput): Promise<EnvironmentView> {
     this.assertActive();
     if (this.environments.size >= 100) throw new Error("Too many environments");
     const configuration = this.store.create(input);
-    const key =
-      configuration.target.kind === "ssh" ? targetConnectionKey(configuration.target) : configuration.target.url;
-    for (const existing of this.environments.values()) {
-      const target = existing.configuration.target;
-      if (target.kind !== configuration.target.kind) continue;
-      if ((target.kind === "ssh" ? targetConnectionKey(target) : target.url) === key)
-        throw new Error("Environment target already exists");
-    }
+    this.assertUniqueTarget(configuration);
     const entry = this.register(configuration);
     try {
       this.persist();
@@ -109,23 +115,126 @@ export class EnvironmentManager {
     return structuredClone(this.view(entry));
   }
 
-  removeEnvironment(environmentId: EnvironmentId): Promise<{ ok: boolean }> {
+  removeEnvironment(environmentId: EnvironmentId, choice: RemoteDaemonChoice = "keep"): Promise<RemoveOutcome> {
     return this.withEnvironmentLock(environmentId, async () => {
       this.assertActive();
       if (environmentId === PRIMARY_ENVIRONMENT_ID) throw new Error("The Primary environment cannot be removed");
-      const entry = this.environments.get(environmentId);
-      if (!entry) return { ok: false };
-      await entry.supervisor.dispose();
-      this.environments.delete(environmentId);
+      const entry = this.requireEnvironment(environmentId);
+      return removeWithChoice(choice, {
+        stopManaged: () =>
+          entry.configuration.target.kind === "ssh"
+            ? this.sshTunnelManager.stopRemoteDaemon(entry.configuration.target)
+            : Promise.resolve("not-owned"),
+        disconnect: () => entry.supervisor.dispose("disconnect"),
+        remove: () => {
+          this.environments.delete(environmentId);
+          try {
+            this.persist();
+          } catch (error) {
+            const replacement = this.register(entry.configuration);
+            if (entry.configuration.enabled) void replacement.supervisor.connect();
+            throw error;
+          }
+          this.emit();
+        },
+      });
+    });
+  }
+
+  updateEnvironment(environmentId: EnvironmentId, draft: EnvironmentDraft): Promise<EnvironmentView> {
+    return this.withEnvironmentLock(environmentId, async () => {
+      this.assertActive();
+      const entry = this.requireEnvironment(environmentId);
+      const plan = planEnvironmentUpdate(entry.configuration, draft);
+      this.assertUniqueTarget(plan.configuration, environmentId);
+      const previous = entry.configuration;
+      entry.configuration = plan.configuration;
       try {
         this.persist();
       } catch (error) {
-        const replacement = this.register(entry.configuration);
-        if (entry.configuration.enabled) void replacement.supervisor.connect();
+        entry.configuration = previous;
         throw error;
       }
+      if (plan.reconnect) {
+        await entry.supervisor.dispose("disconnect");
+        const next = this.register(plan.configuration);
+        if (plan.configuration.enabled) void next.supervisor.connect();
+      } else {
+        Object.assign(previous, plan.configuration);
+        entry.configuration = previous;
+      }
       this.emit();
-      return { ok: true };
+      return structuredClone(this.view(this.requireEnvironment(environmentId)));
+    });
+  }
+
+  test(subject: { environmentId: EnvironmentId } | { draft: EnvironmentDraft }) {
+    this.assertActive();
+    return testEnvironment(
+      "draft" in subject ? subject.draft : this.requireEnvironment(subject.environmentId).configuration,
+      this.sshTunnelManager,
+    );
+  }
+
+  discoverSshHosts() {
+    this.assertActive();
+    return discoverSshHosts([...this.environments.values()].map((entry) => entry.configuration));
+  }
+
+  async setPolicy(patch: Partial<LifecyclePolicy>): Promise<LifecyclePolicy> {
+    this.assertActive();
+    const policy = { ...this.store.policy, ...patch };
+    this.store.save(
+      [...this.environments.values()].map((entry) => entry.configuration),
+      policy,
+    );
+    for (const entry of this.environments.values()) entry.supervisor.policyChanged();
+    this.emit();
+    return { ...policy };
+  }
+
+  trust(environmentId: EnvironmentId, trust: "host-key" | "environment-identity"): Promise<EnvironmentView> {
+    return this.withEnvironmentLock(environmentId, async () => {
+      this.assertActive();
+      const entry = this.requireEnvironment(environmentId);
+      const status = entry.supervisor.state.status;
+      const diagnosis = status.phase === "blocked" ? status.diagnosis : null;
+      if (trust === "host-key") {
+        if (entry.configuration.target.kind !== "ssh" || diagnosis?.reason !== "host-key-changed")
+          throw new Error("No changed SSH host key to trust");
+        await this.sshTunnelManager.trustHostKey(
+          entry.configuration.target,
+          diagnosis.knownHost,
+          diagnosis.knownHostsFile,
+        );
+      } else {
+        if (diagnosis?.reason !== "identity-mismatch") throw new Error("No changed environment identity to trust");
+        const previous = entry.configuration.target.expectedEnvironmentId;
+        delete entry.configuration.target.expectedEnvironmentId;
+        try {
+          this.persist();
+        } catch (error) {
+          entry.configuration.target.expectedEnvironmentId = previous;
+          throw error;
+        }
+      }
+      this.setEnabled(entry, true);
+      await entry.supervisor.connect();
+      return structuredClone(this.view(entry));
+    });
+  }
+
+  restartDaemon(environmentId: EnvironmentId): Promise<EnvironmentView> {
+    return this.withEnvironmentLock(environmentId, async () => {
+      this.assertActive();
+      const entry = this.requireEnvironment(environmentId);
+      if (entry.configuration.target.kind !== "ssh") throw new Error("Only managed SSH daemons can be restarted");
+      const outcome = await this.sshTunnelManager.stopRemoteDaemon(entry.configuration.target);
+      if (outcome !== "stopped") throw new Error("The remote daemon is not managed by this desktop");
+      await entry.supervisor.disconnect("disconnect");
+      this.setEnabled(entry, true);
+      await entry.supervisor.connect();
+      return structuredClone(this.view(entry));
     });
   }
 
@@ -233,21 +342,30 @@ export class EnvironmentManager {
     };
   }
 
-  async dispose(): Promise<void> {
+  async shutdown(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.listeners.clear();
-    await Promise.all([
-      this.sshTunnelManager.dispose(),
-      ...[...this.environments.values()].map((entry) => entry.supervisor.dispose()),
-    ]);
-    await Promise.all([...this.locks.values()]);
+    await shutdownAll(
+      [...this.environments.values()].map(
+        (entry) => () => entry.supervisor.dispose(closeModeFor("shutdown", this.store.policy)),
+      ),
+    );
+    await shutdownAll(
+      [() => this.sshTunnelManager.dispose(), ...[...this.locks.values()].map((lock) => () => lock)],
+      0,
+    );
+  }
+
+  async dispose(): Promise<void> {
+    await this.shutdown();
   }
 
   private register(configuration: StoredEnvironment): EnvironmentEntry {
     const supervisor = new EnvironmentSupervisor({
       configuration,
       sshTunnelManager: this.sshTunnelManager,
+      policy: () => this.store.policy,
       onBound: (descriptor) => {
         for (const entry of this.environments.values()) {
           if (
@@ -277,6 +395,18 @@ export class EnvironmentManager {
     return entry;
   }
 
+  private assertUniqueTarget(configuration: StoredEnvironment, excludedId?: string): void {
+    const key =
+      configuration.target.kind === "ssh" ? targetConnectionKey(configuration.target) : configuration.target.url;
+    for (const existing of this.environments.values()) {
+      if (existing.configuration.id === excludedId) continue;
+      const target = existing.configuration.target;
+      if (target.kind !== configuration.target.kind) continue;
+      if ((target.kind === "ssh" ? targetConnectionKey(target) : target.url) === key)
+        throw new Error("Environment target already exists");
+    }
+  }
+
   private requireEnvironment(environmentId: EnvironmentId): EnvironmentEntry {
     if (typeof environmentId !== "string") throw new Error("Invalid environment ID");
     const entry = this.environments.get(environmentId);
@@ -292,6 +422,7 @@ export class EnvironmentManager {
       target: configuration.target,
       status: supervisor.state.status,
       descriptor: supervisor.descriptor,
+      runtime: supervisor.runtime,
     };
   }
 

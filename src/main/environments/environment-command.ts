@@ -86,11 +86,26 @@ export async function dispatchEnvironmentCommand<C extends EnvironmentCommand>(
       result = await manager.disconnectEnvironment(command.environmentId);
       break;
     case "remove":
-      await manager.removeEnvironment(command.environmentId);
-      result = { remoteDaemon: "kept" };
+      result = await manager.removeEnvironment(command.environmentId, command.remoteDaemon);
       break;
-    default:
-      throw new Error("This environment command is not available yet");
+    case "update":
+      result = await manager.updateEnvironment(command.environmentId, command.draft);
+      break;
+    case "test":
+      result = await manager.test(command.subject);
+      break;
+    case "trust":
+      result = await manager.trust(command.environmentId, command.trust);
+      break;
+    case "restart-daemon":
+      result = await manager.restartDaemon(command.environmentId);
+      break;
+    case "set-policy":
+      result = await manager.setPolicy(command.policy);
+      break;
+    case "discover-ssh-hosts":
+      result = await manager.discoverSshHosts();
+      break;
   }
   return result as EnvironmentCommandResult<C>;
 }

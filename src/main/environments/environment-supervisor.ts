@@ -1,3 +1,9 @@
+import {
+  DEFAULT_LIFECYCLE_POLICY,
+  type LifecyclePolicy,
+  type RemoteRuntimeMeta,
+} from "../../contract/environment-commands.ts";
+import { closeModeFor, type EnvironmentCloseMode } from "./environment-lifecycle.ts";
 import type {
   EnvironmentDescriptor,
   SshEnvironmentTarget,
@@ -34,6 +40,7 @@ export class EnvironmentSupervisor {
   state = initialSupervisorState();
   connection: RemoteConnection | null = null;
   descriptor: EnvironmentDescriptor | null = null;
+  runtime: RemoteRuntimeMeta | null = null;
   private enabled = false;
   private disposed = false;
   private epoch = 0;
@@ -49,6 +56,7 @@ export class EnvironmentSupervisor {
   private lastTickAt = 0;
 
   private readonly options: {
+    policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
     onBound: (descriptor: EnvironmentDescriptor) => void;
@@ -56,6 +64,7 @@ export class EnvironmentSupervisor {
   };
 
   constructor(options: {
+    policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
     onBound: (descriptor: EnvironmentDescriptor) => void;
@@ -73,23 +82,29 @@ export class EnvironmentSupervisor {
     return this.startAttempt();
   }
 
-  async disconnect(): Promise<void> {
+  async disconnect(mode = closeModeFor("disconnect", this.policy)): Promise<void> {
     this.enabled = false;
     this.epoch += 1;
     this.releaseConnection();
     this.publish({ type: "disconnect" });
     await this.task;
     const { target } = this.options.configuration;
-    if (target.kind === "ssh") await this.options.sshTunnelManager.closeTunnel(target);
+    if (target.kind === "ssh") await this.options.sshTunnelManager.closeTunnel(target, mode);
   }
 
-  async dispose(): Promise<void> {
+  async dispose(mode: EnvironmentCloseMode = "disconnect"): Promise<void> {
     this.disposed = true;
-    await this.disconnect();
+    await this.disconnect(mode);
   }
 
   wakeup(_reason: EnvironmentWakeupReason): void {
-    if (!this.enabled || this.disposed || this.state.status.phase === "blocked") return;
+    if (
+      !this.enabled ||
+      this.disposed ||
+      this.state.status.phase === "blocked" ||
+      (!this.policy.autoReconnect && !this.connection)
+    )
+      return;
     if (this.connection) {
       this.lastTickAt = Date.now();
       this.lastAcknowledgedAt = this.lastTickAt;
@@ -101,8 +116,28 @@ export class EnvironmentSupervisor {
     }
   }
 
+  private get policy(): LifecyclePolicy {
+    return this.options.policy?.() ?? DEFAULT_LIFECYCLE_POLICY;
+  }
+
+  policyChanged(): void {
+    if (!this.policy.autoReconnect && this.retryTimer) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+    this.publish({ type: "policy-changed" });
+    if (
+      this.policy.autoReconnect &&
+      this.enabled &&
+      this.state.status.phase === "offline" &&
+      this.state.status.lastFailure &&
+      !this.task
+    )
+      void this.startAttempt();
+  }
+
   private publish(event: SupervisorEvent): void {
-    const next = reduceSupervisor(this.state, event);
+    const next = reduceSupervisor(this.state, event, this.policy);
     if (next === this.state) return;
     const previousStatus = this.state.status;
     this.state = next;
@@ -130,7 +165,9 @@ export class EnvironmentSupervisor {
       const target = configuration.target;
       const endpoint: RemoteEndpoint =
         target.kind === "ssh"
-          ? await this.options.sshTunnelManager.ensureTunnel(target, signal)
+          ? await this.options.sshTunnelManager.ensureTunnel(target, signal, (stage, progress) => {
+              if (current()) this.publish({ type: "stage", stage, progress });
+            })
           : resolveWebSocketTarget(target, configuration.authToken);
       if (!current()) return;
       this.publish({ type: "stage", stage: "verifying" });
@@ -154,6 +191,12 @@ export class EnvironmentSupervisor {
       this.openingConnection = null;
       this.connection = connection;
       this.descriptor = descriptor;
+      this.runtime =
+        "runtime" in endpoint
+          ? (endpoint.runtime as RemoteRuntimeMeta)
+          : descriptor.runtime
+            ? { ...descriptor.runtime, ownership: "external", updatePending: false }
+            : null;
       this.publish({ type: "connected", now: Date.now() });
       connection.channel.onClose(() => {
         if (this.connection === connection)
@@ -258,8 +301,10 @@ export class EnvironmentSupervisor {
         if (this.connection === connection && this.probePending && connection.wsPort.inboundFrames === framesBefore) {
           this.epoch += 1;
           this.releaseConnection();
-          this.publish({ type: "silent-socket" });
-          void this.startAttempt();
+          if (this.policy.autoReconnect) {
+            this.publish({ type: "silent-socket" });
+            void this.startAttempt();
+          } else this.fail(new EnvironmentConnectionError("transient", "silent-socket", "Remote socket is silent"));
           return;
         }
       }

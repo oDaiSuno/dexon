@@ -1,3 +1,4 @@
+import { DEFAULT_LIFECYCLE_POLICY, type LifecyclePolicy } from "../../contract/environment-commands.ts";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type {
@@ -91,6 +92,7 @@ export function parseAddEnvironmentInput(input: unknown): AddEnvironmentInput {
 
 export class EnvironmentStore {
   private readonly filePath: string;
+  policy: LifecyclePolicy = { ...DEFAULT_LIFECYCLE_POLICY };
 
   constructor(userDataDir: string) {
     this.filePath = path.join(userDataDir, "environments.json");
@@ -102,6 +104,15 @@ export class EnvironmentStore {
     );
     if (stored.version !== 1 || !Array.isArray(stored.environments) || stored.environments.length > 100)
       throw new Error("Invalid persisted environments file");
+    if (stored.policy !== undefined) {
+      const policy = record(stored.policy);
+      if (
+        Object.keys(policy).some((key) => !["detachedDaemon", "autoReconnect"].includes(key)) ||
+        Object.values(policy).some((value) => typeof value !== "boolean")
+      )
+        throw new Error("Invalid persisted environment policy");
+      this.policy = { ...DEFAULT_LIFECYCLE_POLICY, ...policy };
+    }
     const ids = new Set<string>();
     return stored.environments.map((entry: unknown) => {
       const value = record(entry);
@@ -121,7 +132,8 @@ export class EnvironmentStore {
     return { ...parsed, id: randomUUID(), enabled: parsed.enabled !== false };
   }
 
-  save(environments: StoredEnvironment[]): void {
-    writePrivateJson(this.filePath, { version: 1, environments });
+  save(environments: StoredEnvironment[], policy: LifecyclePolicy = this.policy): void {
+    writePrivateJson(this.filePath, { version: 1, environments, policy });
+    this.policy = { ...policy };
   }
 }

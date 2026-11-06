@@ -1,3 +1,4 @@
+import { DEFAULT_LIFECYCLE_POLICY, type LifecyclePolicy } from "../../contract/environment-commands.ts";
 import { REMOTE_NODE_REQUIREMENT, type BlockedDiagnosis } from "../../contract/environment-status.ts";
 import type {
   ConnectionStage,
@@ -48,6 +49,7 @@ export interface SupervisorState {
 }
 
 export type SupervisorEvent =
+  | { type: "policy-changed" }
   | { type: "start" }
   | { type: "stage"; stage: ConnectionStage; progress?: number | null }
   | { type: "connected"; now: number }
@@ -97,13 +99,12 @@ export function classifyConnectError(error: unknown): ConnectError {
     return { kind: "blocked", reason: "missing-node", message };
   if (/permission denied.*(?:publickey|password)|authentication|unauthori[sz]ed|\b401\b/iu.test(message))
     return { kind: "blocked", reason: "authentication", message };
-  if (/permission denied|forbidden|\b403\b/iu.test(message)) return { kind: "blocked", reason: "permission", message };
-  if (
-    /invalid|configuration|host key verification failed|remote host identification has changed|bad owner or permissions|plaintext/iu.test(
-      message,
-    )
-  )
+  if (/EACCES|EROFS|read.only file system|permission denied|forbidden|\b403\b/iu.test(message))
+    return { kind: "blocked", reason: "permission", message };
+  if (/invalid|configuration|bad owner or permissions|plaintext/iu.test(message))
     return { kind: "blocked", reason: "configuration", message };
+  if (/REMOTE HOST IDENTIFICATION HAS CHANGED|host key verification failed/iu.test(message))
+    return { kind: "blocked", reason: "host-key-changed", message };
   if (/unsupported/iu.test(message)) return { kind: "blocked", reason: "unsupported", message };
   if (/timeout|timed out|aborted/iu.test(message)) return { kind: "transient", reason: "timeout", message };
   if (/ECONNREFUSED|endpoint.*unavailable|\b50[234]\b/iu.test(message))
@@ -113,8 +114,19 @@ export function classifyConnectError(error: unknown): ConnectError {
   return { kind: "transient", reason: "transport", message };
 }
 
-export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent): SupervisorState {
+export function reduceSupervisor(
+  state: SupervisorState,
+  event: SupervisorEvent,
+  policy: LifecyclePolicy = DEFAULT_LIFECYCLE_POLICY,
+): SupervisorState {
   switch (event.type) {
+    case "policy-changed":
+      return !policy.autoReconnect && state.status.phase === "backoff"
+        ? {
+            ...state,
+            status: { phase: "offline", lastFailure: { reason: state.status.reason, detail: state.status.detail } },
+          }
+        : state;
     case "start":
       return {
         ...state,
@@ -161,13 +173,15 @@ export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent)
                     ? event.error.diagnosis
                     : diagnosisForReason(error.reason, error.message),
               }
-            : {
-                phase: "backoff",
-                reason: error.reason,
-                detail: error.message,
-                retryAt: event.now + computeRetryDelayMs(previous, event.random),
-                failureCount: previous + 1,
-              },
+            : !policy.autoReconnect
+              ? { phase: "offline", lastFailure: { reason: error.reason, detail: error.message } }
+              : {
+                  phase: "backoff",
+                  reason: error.reason,
+                  detail: error.message,
+                  retryAt: event.now + computeRetryDelayMs(previous, event.random),
+                  failureCount: previous + 1,
+                },
       };
     }
     case "silent-socket":

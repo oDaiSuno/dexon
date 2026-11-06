@@ -1,5 +1,5 @@
 export function managedProcessSecurityChecks(read) {
-  const main = read("src/main/main.ts");
+  const main = ["main", "host-services", "quit-cleanup"].map((name) => read(`src/main/${name}.ts`)).join("\n");
   const updateManager = read("src/main/update-manager.ts");
   const packagedToolchainVerifier = read("scripts/verify-packaged-toolchains.mjs");
   const toolchainBash = read("src/agent-host/toolchain-bash.ts");
@@ -218,7 +218,7 @@ export function managedProcessSecurityChecks(read) {
       main.includes('process.argv.includes("--validate-packaged-cleanup-fault")') &&
         main.includes("runPackagedCleanupFaultValidation") &&
         main.includes("isQuitting = false") &&
-        main.includes("createTray(getMainWindow, () => void stopAllManagedProcessesFromTray())") &&
+        main.includes("createTray(getMainWindow, stopAllFromTray)") &&
         main.includes("restartHostAfterExit(manager, () => !isQuitting)") &&
         packagedCleanupFaultValidation.includes("requireConfirmedEmpty: false") &&
         packagedCleanupFaultValidation.includes("requireConfirmedEmpty: true") &&

@@ -18,6 +18,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
+    "build:remote-payload": "node scripts/build-remote-payload.mjs",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
     "build:windows-helper": "node scripts/build-windows-managed-helper.mjs",

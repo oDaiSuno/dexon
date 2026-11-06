@@ -9,6 +9,7 @@ directories:
 
 files:
   - out/**/*
+  - "!out/remote-payload/**"
   - package.json
   - LICENSE
   - build/icon.png
@@ -77,6 +78,8 @@ asar: true
 # Signed runtime catalogs plus the current target's small core search tools.
 # Managed Node/Python/Git archives remain download-on-consent and are never shipped.
 extraResources:
+  - from: out/remote-payload
+    to: remote-payload
   - from: THIRD_PARTY_NOTICES.md
     to: THIRD_PARTY_NOTICES.md
   - from: build/toolchains/runtime-catalog.json

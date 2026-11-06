@@ -1,5 +1,7 @@
 export function desktopSecurityChecks(read) {
-  const main = read("src/main/main.ts");
+  const main = ["main", "host-services", "host-notifications", "packaged-startup-validation", "desktop-toolchains"]
+    .map((name) => read(`src/main/${name}.ts`))
+    .join("\n");
   const windowFactory = read("src/main/window.ts");
   const protocol = read("src/main/protocol.ts");
   const html = read("src/renderer/index.html");
@@ -288,7 +290,7 @@ export function desktopSecurityChecks(read) {
     [
       main.includes("createProductionUpdateAdapter") &&
         main.includes('win.webContents.send("update:state", state)') &&
-        main.includes("updateManager?.setRunningSessionCount(ids.length)") &&
+        main.includes("options.getUpdateManager()?.setRunningSessionCount(ids.length)") &&
         main.includes("updateManager.startAutomaticChecks()"),
       "main process must own updater initialization, state publication, and session-aware scheduling",
     ],

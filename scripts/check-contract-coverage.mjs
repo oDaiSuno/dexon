@@ -328,6 +328,11 @@ export function loadContractSources(root) {
 function run() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   try {
+    const required = /range:\s*"([^"]+)"/u.exec(
+      fs.readFileSync(path.join(root, "src/contract/environment-status.ts"), "utf8"),
+    )?.[1];
+    const engine = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).engines.node;
+    if (required !== engine) throw new Error("Desktop and remote Node requirements must agree");
     const counts = assertContractCoverage(loadContractSources(root));
     console.log(
       `Contract coverage OK: ${counts.apiMethods} Api handlers, ${counts.streamTopics} Streams topics, ${counts.bridgeMethods} PiBridge methods, ${counts.browserBridgeMethods} Browser bridge methods, and ${counts.browserHostMethods} Browser Host methods`,
