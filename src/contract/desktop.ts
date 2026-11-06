@@ -1,6 +1,8 @@
 import type { ChannelId } from "../shared/channel-types";
 import type { ManagedProcessCapability } from "./processes";
-import type { AddEnvironmentInput, EnvironmentId, EnvironmentView } from "./environment";
+import type { EnvironmentId } from "./environment";
+import type { EnvironmentCommand, EnvironmentCommandResult, EnvironmentsSnapshot } from "./environment-commands";
+import type { ProjectSpacesState } from "../shared/project-space-state";
 import type { ChatAppearancePreferences } from "../shared/chat-appearance";
 import type { SessionOrchestrationSettings } from "../shared/session-orchestration";
 import type { PublicToolchainState, ToolchainActionRequest } from "../shared/toolchains/types";
@@ -153,6 +155,7 @@ export interface DesktopUiState {
   /** Remembered last workspace directory (space); null clears the record. */
   lastSpaceCwd?: string | null;
   openProjects?: string[];
+  projectSpaces?: ProjectSpacesState;
 }
 
 export type DesktopUiStatePatch = Partial<DesktopUiState>;
@@ -174,13 +177,10 @@ export interface PiBridge {
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
   openManagedToolsFolder: () => Promise<void>;
   requestHostPort: () => void;
-  listEnvironments: () => Promise<EnvironmentView[]>;
-  addEnvironment: (input: AddEnvironmentInput) => Promise<EnvironmentView>;
-  removeEnvironment: (environmentId: EnvironmentId) => Promise<{ ok: boolean }>;
-  connectEnvironment: (environmentId: EnvironmentId) => Promise<EnvironmentView>;
-  disconnectEnvironment: (environmentId: EnvironmentId) => Promise<EnvironmentView>;
+  listEnvironments: () => Promise<EnvironmentsSnapshot>;
+  environmentCommand: <C extends EnvironmentCommand>(command: C) => Promise<EnvironmentCommandResult<C>>;
   requestEnvironmentPort: (environmentId: EnvironmentId) => void;
-  onEnvironmentsChanged: (callback: (environments: EnvironmentView[]) => void) => () => void;
+  onEnvironmentsChanged: (callback: (snapshot: EnvironmentsSnapshot) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;
   /** Show the app's rich file context menu after main-process path validation. */

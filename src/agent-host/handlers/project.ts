@@ -1,10 +1,8 @@
 import { existsSync } from "fs";
-import { homedir } from "os";
-import path from "path";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import { allowFileRoot, assertPathAllowed, getAllowedFileRoots, isFilePathAllowed } from "../file-access";
-import { validateExistingDirectory } from "../file-access-core";
+import { browseFolders } from "../folder-browse";
 import type { ManagedProcessService } from "../managed-process/service";
 import { listBranches, switchBranch } from "../../shared/git-branches";
 import {
@@ -141,18 +139,6 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
       return getGitHeadContent(filePath);
     },
 
-    "projects.inspectFolder": async (params) => {
-      const { path: typed } = params as { path: string };
-      const expanded =
-        typed === "~"
-          ? homedir()
-          : typed.startsWith("~/") || typed.startsWith("~\\")
-            ? path.join(homedir(), typed.slice(2))
-            : typed;
-      if (!path.isAbsolute(expanded)) return { ok: false as const, error: "Not an absolute path" };
-      const validation = validateExistingDirectory(expanded);
-      if (!validation.ok) return { ok: false as const, error: validation.error };
-      return { ok: true as const, path: validation.path };
-    },
+    "projects.browse": async (params) => browseFolders((params as { path: string }).path),
   });
 }

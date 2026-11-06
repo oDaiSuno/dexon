@@ -1,10 +1,12 @@
 import { useSyncExternalStore } from "react";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId, type EnvironmentView } from "@contract/environment";
 import {
-  PRIMARY_ENVIRONMENT_ID,
-  type AddEnvironmentInput,
-  type EnvironmentId,
-  type EnvironmentView,
-} from "@contract/environment";
+  DEFAULT_LIFECYCLE_POLICY,
+  type EnvironmentCommand,
+  type EnvironmentCommandResult,
+  type EnvironmentsSnapshot,
+} from "@contract/environment-commands";
+import { workspaceStore } from "./workspace-store";
 import type { PiBridge } from "@contract/desktop";
 import type { SessionInfo } from "./types";
 import { EnvironmentConnection } from "./environment-connection";
@@ -21,7 +23,7 @@ export const defaultPrimaryEnvironmentView: EnvironmentView = {
 
 export class EnvironmentRegistry {
   private views: EnvironmentView[] = [defaultPrimaryEnvironmentView];
-  private activeId: EnvironmentId = PRIMARY_ENVIRONMENT_ID;
+  private snapshot: EnvironmentsSnapshot = { revision: -1, policy: DEFAULT_LIFECYCLE_POLICY, environments: this.views };
   private readonly connections = new Map<EnvironmentId, EnvironmentConnection>();
   private readonly sessionOwners = new Map<string, Set<EnvironmentId>>();
   private readonly environmentSessions = new Map<EnvironmentId, Set<string>>();
@@ -37,43 +39,39 @@ export class EnvironmentRegistry {
     this.offChanges = undefined;
     this.bridge = bridge;
     const revision = ++this.revision;
+    this.snapshot = { revision: -1, policy: DEFAULT_LIFECYCLE_POLICY, environments: [defaultPrimaryEnvironmentView] };
     this.replaceViews([defaultPrimaryEnvironmentView]);
+    if (bridge) void workspaceStore.initialize(bridge);
     if (typeof bridge?.listEnvironments !== "function") return;
     if (typeof bridge.onEnvironmentsChanged === "function") {
       this.offChanges = bridge.onEnvironmentsChanged((views) => {
         if (this.bridge !== bridge) return;
         this.revision += 1;
-        this.replaceViews(views);
+        this.acceptSnapshot(views);
       });
     }
     void bridge
       .listEnvironments()
       .then((views) => {
-        if (this.bridge === bridge && this.revision === revision) this.replaceViews(views);
+        if (this.bridge === bridge && this.revision === revision) this.acceptSnapshot(views);
       })
       .catch(() => {});
   };
 
   getEnvironments = (): EnvironmentView[] => this.views;
-  getActiveEnvironmentId = (): EnvironmentId => this.activeId;
+  getActiveEnvironmentId = (): EnvironmentId => workspaceStore.getSnapshot().focus.environmentId;
   getActiveEnvironment = (): EnvironmentView =>
-    this.views.find((view) => view.id === this.activeId) ?? defaultPrimaryEnvironmentView;
+    this.views.find((view) => view.id === this.getActiveEnvironmentId()) ?? defaultPrimaryEnvironmentView;
 
   subscribe = (listener: () => void): (() => void) => {
     this.initialize();
     this.listeners.add(listener);
+    const offFocus = workspaceStore.subscribe(listener);
     return () => {
+      offFocus();
       this.listeners.delete(listener);
     };
   };
-
-  setActiveEnvironmentId(id: EnvironmentId): void {
-    this.initialize();
-    if (!this.views.some((view) => view.id === id)) throw new Error("Unknown environment ID");
-    if (this.activeId === id) return;
-    this.activeId = id;
-    this.notify();
-  }
 
   getConnection(id: EnvironmentId): EnvironmentConnection {
     this.initialize();
@@ -117,61 +115,26 @@ export class EnvironmentRegistry {
 
   getSessionEnvironmentId(sessionId: string): EnvironmentId {
     const owners = this.sessionOwners.get(sessionId);
-    if (owners?.has(this.activeId)) return this.activeId;
-    return owners?.values().next().value ?? this.activeId;
+    if (owners?.has(this.getActiveEnvironmentId())) return this.getActiveEnvironmentId();
+    return owners?.values().next().value ?? this.getActiveEnvironmentId();
   }
 
-  activateSession(sessionId: string, environmentId?: EnvironmentId): void {
-    this.setActiveEnvironmentId(environmentId ?? this.getSessionEnvironmentId(sessionId));
-  }
-
-  async addRemoteEnvironment(input: AddEnvironmentInput): Promise<EnvironmentView> {
+  async runCommand<C extends EnvironmentCommand>(command: C): Promise<EnvironmentCommandResult<C>> {
     this.initialize();
-    if (typeof this.bridge?.addEnvironment !== "function") throw new Error("Remote environments are unavailable");
-    const revision = this.revision;
-    const view = await this.bridge.addEnvironment(input);
-    if (revision === this.revision) this.mergeView(view);
-    return view;
-  }
-
-  async removeRemoteEnvironment(id: EnvironmentId): Promise<{ ok: boolean }> {
-    this.initialize();
-    if (id === PRIMARY_ENVIRONMENT_ID) throw new Error("The Primary environment cannot be removed");
-    if (typeof this.bridge?.removeEnvironment !== "function") throw new Error("Remote environments are unavailable");
-    const result = await this.bridge.removeEnvironment(id);
-    if (result.ok) {
-      this.revision += 1;
-      this.replaceViews(this.views.filter((view) => view.id !== id));
-    }
+    if (typeof this.bridge?.environmentCommand !== "function") throw new Error("Remote environments are unavailable");
+    const result = await this.bridge.environmentCommand(command);
+    if (command.type === "remove") workspaceStore.unmountEnvironment(command.environmentId);
+    const snapshot = await this.bridge.listEnvironments();
+    this.acceptSnapshot(snapshot);
     return result;
   }
 
-  async connectRemoteEnvironment(id: EnvironmentId): Promise<EnvironmentView> {
-    this.initialize();
-    if (typeof this.bridge?.connectEnvironment !== "function") throw new Error("Remote environments are unavailable");
-    const revision = this.revision;
-    const view = await this.bridge.connectEnvironment(id);
-    if (revision === this.revision) this.mergeView(view);
-    return view;
-  }
+  getSnapshot = (): EnvironmentsSnapshot => this.snapshot;
 
-  async disconnectRemoteEnvironment(id: EnvironmentId): Promise<EnvironmentView> {
-    this.initialize();
-    if (typeof this.bridge?.disconnectEnvironment !== "function")
-      throw new Error("Remote environments are unavailable");
-    const revision = this.revision;
-    const view = await this.bridge.disconnectEnvironment(id);
-    if (revision === this.revision) this.mergeView(view);
-    return view;
-  }
-
-  private mergeView(view: EnvironmentView): void {
-    this.revision += 1;
-    this.replaceViews(
-      this.views.some((item) => item.id === view.id)
-        ? this.views.map((item) => (item.id === view.id ? view : item))
-        : [...this.views, view],
-    );
+  private acceptSnapshot(snapshot: EnvironmentsSnapshot): void {
+    if (snapshot.revision < this.snapshot.revision) return;
+    this.snapshot = snapshot;
+    this.replaceViews(snapshot.environments);
   }
 
   private replaceViews(views: EnvironmentView[]): void {
@@ -188,7 +151,7 @@ export class EnvironmentRegistry {
       }
     }
     for (const view of this.views) this.connections.get(view.id)?.updateStatus(view.status);
-    if (!ids.has(this.activeId)) this.activeId = PRIMARY_ENVIRONMENT_ID;
+
     this.notify();
   }
 
@@ -206,13 +169,15 @@ export const registerEnvironmentSession = (id: EnvironmentId, sessionId: string)
   environmentRegistry.registerSession(id, sessionId);
 export const registerEnvironmentSessions = (id: EnvironmentId, sessions: readonly Pick<SessionInfo, "id">[]) =>
   environmentRegistry.registerSessions(id, sessions);
-export const setActiveEnvironmentId = (id: EnvironmentId) => environmentRegistry.setActiveEnvironmentId(id);
-export const activateEnvironmentSession = (sessionId: string, id?: EnvironmentId) =>
-  environmentRegistry.activateSession(sessionId, id);
-export const addRemoteEnvironment = (input: AddEnvironmentInput) => environmentRegistry.addRemoteEnvironment(input);
-export const removeRemoteEnvironment = (id: EnvironmentId) => environmentRegistry.removeRemoteEnvironment(id);
-export const connectRemoteEnvironment = (id: EnvironmentId) => environmentRegistry.connectRemoteEnvironment(id);
-export const disconnectRemoteEnvironment = (id: EnvironmentId) => environmentRegistry.disconnectRemoteEnvironment(id);
+export const runEnvironmentCommand = <C extends EnvironmentCommand>(command: C) =>
+  environmentRegistry.runCommand(command);
+export function useEnvironmentsSnapshot(): EnvironmentsSnapshot {
+  return useSyncExternalStore(
+    environmentRegistry.subscribe,
+    environmentRegistry.getSnapshot,
+    environmentRegistry.getSnapshot,
+  );
+}
 
 export function useEnvironments(): EnvironmentView[] {
   return useSyncExternalStore(

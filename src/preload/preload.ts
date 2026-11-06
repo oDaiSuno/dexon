@@ -84,10 +84,7 @@ if (
     installUpdate: () => ipcRenderer.invoke("desktop:update:install"),
     setAutomaticUpdateChecks: (enabled) => ipcRenderer.invoke("desktop:update:set-automatic-checks", enabled),
     listEnvironments: () => ipcRenderer.invoke("desktop:environments:list"),
-    addEnvironment: (input) => ipcRenderer.invoke("desktop:environments:add", input),
-    removeEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:remove", environmentId),
-    connectEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:connect", environmentId),
-    disconnectEnvironment: (environmentId) => ipcRenderer.invoke("desktop:environments:disconnect", environmentId),
+    environmentCommand: (command) => ipcRenderer.invoke("desktop:environments:command", command),
     requestEnvironmentPort: (environmentId) => ipcRenderer.send("desktop:connect-environment-port", environmentId),
     onEnvironmentsChanged: (cb) => {
       const handler = (_: Electron.IpcRendererEvent, environments: Parameters<typeof cb>[0]) => cb(environments);

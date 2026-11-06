@@ -1,3 +1,4 @@
+import { dispatchEnvironmentCommand, parseEnvironmentCommand } from "./environments/environment-command";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import type {
@@ -10,7 +11,7 @@ import type { ManagedProcessCapability } from "../contract/processes";
 import { exportDiagnostics } from "./diagnostics";
 import type { HostManager } from "./host-manager";
 import type { EnvironmentManager } from "./environments/environment-manager";
-import type { AddEnvironmentInput, EnvironmentId } from "../contract/environment";
+import type { EnvironmentId } from "../contract/environment";
 import { appendMainLog, getMainLogPath } from "./logger";
 import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
@@ -147,18 +148,9 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     if (!environmentManager) throw new Error("Environment manager is unavailable");
     return environmentManager;
   };
-  trustedHandle("desktop:environments:list", () => environmentManager?.listEnvironments() ?? []);
-  trustedHandle("desktop:environments:add", (_event, input: AddEnvironmentInput) =>
-    requireEnvironmentManager().addEnvironment(input),
-  );
-  trustedHandle("desktop:environments:remove", (_event, environmentId: EnvironmentId) =>
-    requireEnvironmentManager().removeEnvironment(environmentId),
-  );
-  trustedHandle("desktop:environments:connect", (_event, environmentId: EnvironmentId) =>
-    requireEnvironmentManager().connectEnvironment(environmentId),
-  );
-  trustedHandle("desktop:environments:disconnect", (_event, environmentId: EnvironmentId) =>
-    requireEnvironmentManager().disconnectEnvironment(environmentId),
+  trustedHandle("desktop:environments:list", () => requireEnvironmentManager().snapshot());
+  trustedHandle("desktop:environments:command", (_event, command: unknown) =>
+    dispatchEnvironmentCommand(requireEnvironmentManager(), parseEnvironmentCommand(command)),
   );
   trustedOn("desktop:connect-environment-port", (event, environmentId: EnvironmentId) => {
     try {

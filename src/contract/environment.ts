@@ -1,3 +1,5 @@
+import type { EnvironmentStatus } from "./environment-status";
+import type { RemoteRuntimeMeta } from "./environment-commands";
 export const DEXON_ENVIRONMENT_PROTOCOL_VERSION = 1;
 export const PRIMARY_ENVIRONMENT_ID = "primary";
 
@@ -25,6 +27,7 @@ export interface EnvironmentDescriptor {
   serverVersion: string;
   platform: EnvironmentPlatform;
   capabilities: EnvironmentCapabilities;
+  runtime?: { nodeVersion: string; payloadVersion: string; startedAt: number };
 }
 
 export interface SshEnvironmentTarget {
@@ -46,29 +49,13 @@ export interface WebSocketEnvironmentTarget {
 
 export type EnvironmentTarget = { kind: "primary" } | SshEnvironmentTarget | WebSocketEnvironmentTarget;
 
-export type ConnectionTransientReason =
-  "network" | "timeout" | "transport" | "endpoint-unavailable" | "remote-unavailable" | "silent-socket";
-
-export type ConnectionBlockedReason =
-  | "authentication"
-  | "configuration"
-  | "permission"
-  | "unsupported"
-  | "identity-mismatch"
-  | "unsupported-protocol"
-  | "missing-node";
-
-export type ConnectionAttemptStage = "preparing" | "verifying" | "opening" | "synchronizing";
-
-export type EnvironmentStatus =
-  | { phase: "available" }
-  | { phase: "offline" }
-  | { phase: "connecting"; stage: ConnectionAttemptStage; attempt: number }
-  | { phase: "connected"; generation: number; since: number }
-  | { phase: "backoff"; reason: ConnectionTransientReason; retryAt: number; failureCount: number }
-  | { phase: "blocked"; reason: ConnectionBlockedReason; message: string };
-
-export type SupervisorConnectionPhase = EnvironmentStatus["phase"];
+export type {
+  ConnectionStage,
+  ConnectionBlockedReason,
+  ConnectionTransientReason,
+  EnvironmentStatus,
+  SupervisorConnectionPhase,
+} from "./environment-status";
 
 export interface EnvironmentView {
   id: EnvironmentId;
@@ -77,6 +64,7 @@ export interface EnvironmentView {
   target: EnvironmentTarget;
   status: EnvironmentStatus;
   descriptor: EnvironmentDescriptor | null;
+  runtime?: RemoteRuntimeMeta | null;
 }
 
 export interface AddEnvironmentInput {

@@ -1,5 +1,6 @@
+import { REMOTE_NODE_REQUIREMENT, type BlockedDiagnosis } from "../../contract/environment-status.ts";
 import type {
-  ConnectionAttemptStage,
+  ConnectionStage,
   ConnectionBlockedReason,
   ConnectionTransientReason,
   EnvironmentStatus,
@@ -21,16 +22,20 @@ export type ConnectError =
 export class EnvironmentConnectionError extends Error {
   readonly kind: ConnectError["kind"];
   readonly reason: ConnectionTransientReason | ConnectionBlockedReason;
+  readonly diagnosis: BlockedDiagnosis | null;
 
   constructor(
     kind: ConnectError["kind"],
     reason: ConnectionTransientReason | ConnectionBlockedReason,
     message: string,
+    diagnosis?: BlockedDiagnosis,
   ) {
     super(message);
     this.name = "EnvironmentConnectionError";
     this.kind = kind;
     this.reason = reason;
+    this.diagnosis =
+      kind === "blocked" ? (diagnosis ?? diagnosisForReason(reason as ConnectionBlockedReason, message)) : null;
   }
 }
 
@@ -44,7 +49,7 @@ export interface SupervisorState {
 
 export type SupervisorEvent =
   | { type: "start" }
-  | { type: "stage"; stage: ConnectionAttemptStage }
+  | { type: "stage"; stage: ConnectionStage; progress?: number | null }
   | { type: "connected"; now: number }
   | { type: "failure"; error: unknown; now: number; random?: number }
   | { type: "silent-socket" }
@@ -53,7 +58,13 @@ export type SupervisorEvent =
   | { type: "tick"; now: number };
 
 export function initialSupervisorState(): SupervisorState {
-  return { status: { phase: "offline" }, failureCount: 0, generation: 0, connectedSince: null, probeUnanswered: false };
+  return {
+    status: { phase: "offline", lastFailure: null },
+    failureCount: 0,
+    generation: 0,
+    connectedSince: null,
+    probeUnanswered: false,
+  };
 }
 
 export function computeRetryDelayMs(failureCount: number, random = Math.random()): number {
@@ -107,12 +118,20 @@ export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent)
     case "start":
       return {
         ...state,
-        status: { phase: "connecting", stage: "preparing", attempt: state.failureCount + 1 },
+        status: { phase: "connecting", stage: "authenticating", attempt: state.failureCount + 1, progress: null },
         connectedSince: null,
         probeUnanswered: false,
       };
     case "stage":
-      return { ...state, status: { phase: "connecting", stage: event.stage, attempt: state.failureCount + 1 } };
+      return {
+        ...state,
+        status: {
+          phase: "connecting",
+          stage: event.stage,
+          attempt: state.failureCount + 1,
+          progress: event.progress ?? null,
+        },
+      };
     case "connected": {
       const generation = state.generation + 1;
       return {
@@ -135,10 +154,17 @@ export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent)
         failureCount: error.kind === "transient" ? previous + 1 : previous,
         status:
           error.kind === "blocked"
-            ? { phase: "blocked", reason: error.reason, message: error.message }
+            ? {
+                phase: "blocked",
+                diagnosis:
+                  event.error instanceof EnvironmentConnectionError && event.error.diagnosis
+                    ? event.error.diagnosis
+                    : diagnosisForReason(error.reason, error.message),
+              }
             : {
                 phase: "backoff",
                 reason: error.reason,
+                detail: error.message,
                 retryAt: event.now + computeRetryDelayMs(previous, event.random),
                 failureCount: previous + 1,
               },
@@ -150,7 +176,7 @@ export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent)
         failureCount: 0,
         connectedSince: null,
         probeUnanswered: false,
-        status: { phase: "connecting", stage: "preparing", attempt: 1 },
+        status: { phase: "connecting", stage: "authenticating", attempt: 1, progress: null },
       };
     case "disconnect":
       return { ...initialSupervisorState(), generation: state.generation };
@@ -160,5 +186,43 @@ export function reduceSupervisor(state: SupervisorState, event: SupervisorEvent)
       return state.failureCount > 0 && shouldResetFailureLadder(state.connectedSince, event.now, state.probeUnanswered)
         ? { ...state, failureCount: 0 }
         : state;
+  }
+}
+
+export function diagnosisForReason(reason: ConnectionBlockedReason, detail: string): BlockedDiagnosis {
+  switch (reason) {
+    case "authentication":
+      return { reason, detail, copyIdCommand: null };
+    case "missing-node":
+      return {
+        reason,
+        detail,
+        required: REMOTE_NODE_REQUIREMENT,
+        upgradeCommand: "nvm install 22 && nvm alias default 22",
+      };
+    case "unsupported-node-version":
+      return {
+        reason,
+        detail,
+        detectedVersion: "unknown",
+        required: REMOTE_NODE_REQUIREMENT,
+        upgradeCommand: "nvm install 22 && nvm alias default 22",
+      };
+    case "host-key-changed":
+      return { reason, detail, knownHost: "", fingerprint: null, mismatchLayer: "ssh-known-hosts" };
+    case "identity-mismatch":
+      return {
+        reason,
+        detail,
+        expectedEnvironmentId: "",
+        actualEnvironmentId: "",
+        mismatchLayer: "dexon-environment-id",
+      };
+    case "permission":
+      return { reason, detail, path: "~/.dexon", suggestedStateDir: "/tmp/dexon" };
+    case "outdated-daemon":
+      return { reason, detail, remoteProtocolVersion: 0 };
+    default:
+      return { reason, detail };
   }
 }

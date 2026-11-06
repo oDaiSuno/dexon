@@ -1,18 +1,10 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { sessionProjectKey } from "@/lib/session-list";
-import {
-  addOpenProject,
-  canMoveOpenProject,
-  isListedProject,
-  moveOpenProject,
-  readOpenProjects,
-  removeOpenProject,
-  reorderOpenProjects,
-  withDefaultSpace,
-} from "@/lib/open-projects";
-
+import { canMoveProjectSpace, withDefaultSpace } from "@/lib/project-spaces";
+import { projectKeyOf } from "@shared/project-space-state";
+import { workspaceStore } from "@/lib/workspace-store";
 export interface OpenProjects {
   projects: string[];
   missing: ReadonlySet<string>;
@@ -23,7 +15,7 @@ export interface OpenProjects {
   move: (folder: string, offset: -1 | 1) => void;
   reorder: (from: number, to: number) => void;
 }
-
+const refOf = (path: string) => ({ environmentId: PRIMARY_ENVIRONMENT_ID, path });
 export function useOpenProjects({
   defaultSpace,
   currentProject,
@@ -35,133 +27,89 @@ export function useOpenProjects({
   refreshKey: number;
   onCloseCurrent: () => void;
 }): OpenProjects {
-  const [saved, setSaved] = useState<string[]>([]);
-  const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set());
-  const [loaded, setLoaded] = useState(false);
-  const touchedRef = useRef(false);
-  const closingRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    let mounted = true;
-    Promise.resolve(window.piBridge?.getUiState?.()).then(
-      (state) => {
-        if (!mounted) return;
-        if (!touchedRef.current) setSaved(readOpenProjects(state?.openProjects));
-        setLoaded(true);
-      },
-      () => {
-        if (mounted) setLoaded(true);
-      },
-    );
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const projects = useMemo(() => withDefaultSpace(saved, defaultSpace), [saved, defaultSpace]);
-
-  const pendingRef = useRef<string[] | null>(null);
-  const writtenRef = useRef<string | null>(null);
-  const writingRef = useRef(false);
-
-  const persist = useCallback((list: string[]) => {
-    if (pendingRef.current === null && writtenRef.current === JSON.stringify(list)) return;
-    pendingRef.current = list;
-    if (writingRef.current) return;
-    writingRef.current = true;
-    void (async () => {
-      try {
-        while (pendingRef.current !== null) {
-          const next = pendingRef.current;
-          pendingRef.current = null;
-          writtenRef.current = JSON.stringify(next);
-          try {
-            await window.piBridge?.setUiState?.({ openProjects: next });
-          } catch {
-            writtenRef.current = null;
-          }
-        }
-      } finally {
-        writingRef.current = false;
-      }
-    })();
-  }, []);
-
-  const commit = useCallback(
-    (list: string[]) => {
-      touchedRef.current = true;
-      const next = withDefaultSpace(list, defaultSpace);
-      setSaved(next);
-      persist(next);
-    },
-    [defaultSpace, persist],
+  const snapshot = useSyncExternalStore(
+    workspaceStore.subscribe,
+    workspaceStore.getSnapshot,
+    workspaceStore.getSnapshot,
   );
-
-  useLayoutEffect(() => {
-    if (!loaded || !currentProject) return;
-    const key = sessionProjectKey(currentProject);
-    if (closingRef.current !== null && closingRef.current !== key) closingRef.current = null;
-    if (closingRef.current === key) return;
-    if (defaultSpace && key === sessionProjectKey(defaultSpace)) return;
-    if (isListedProject(projects, currentProject)) return;
-    commit(addOpenProject(projects, currentProject, defaultSpace));
-  }, [loaded, currentProject, defaultSpace, projects, commit]);
-
-  const generationRef = useRef(0);
+  const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set());
+  const closingRef = useRef<string | null>(null);
   useEffect(() => {
-    const generation = ++generationRef.current;
-    const defaultKey = defaultSpace ? sessionProjectKey(defaultSpace) : null;
-    const folders = projects.filter((folder) => sessionProjectKey(folder) !== defaultKey);
+    if (window.piBridge) void workspaceStore.initialize(window.piBridge);
+  }, []);
+  const pinned = useMemo(() => (defaultSpace ? refOf(defaultSpace) : null), [defaultSpace]);
+  const spaces = useMemo(
+    () =>
+      withDefaultSpace(
+        snapshot.spaces.filter((space) => space.environmentId === PRIMARY_ENVIRONMENT_ID),
+        pinned,
+      ),
+    [snapshot.spaces, pinned],
+  );
+  const projects = useMemo(() => spaces.map((space) => space.path), [spaces]);
+  useLayoutEffect(() => {
+    if (!snapshot.loaded || !currentProject || snapshot.focus.environmentId !== PRIMARY_ENVIRONMENT_ID) return;
+    const key = sessionProjectKey(currentProject);
+    if (closingRef.current !== key) closingRef.current = null;
+    if (closingRef.current === key) return;
+    workspaceStore.noteCurrentProject(refOf(currentProject), pinned);
+  }, [snapshot.loaded, snapshot.focus.environmentId, currentProject, pinned]);
+  useEffect(() => {
+    let cancelled = false;
     void Promise.all(
-      folders.map(async (folder) => {
-        try {
-          const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).validateCwd(folder);
-          return result.ok ? null : sessionProjectKey(folder);
-        } catch {
-          return sessionProjectKey(folder);
-        }
-      }),
+      projects
+        .filter((folder) => folder !== defaultSpace)
+        .map(async (folder) => {
+          try {
+            return (await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).validateCwd(folder)).ok
+              ? null
+              : sessionProjectKey(folder);
+          } catch {
+            return sessionProjectKey(folder);
+          }
+        }),
     ).then((checked) => {
-      if (generation !== generationRef.current) return;
-      setMissing(new Set(checked.filter((key): key is string => key !== null)));
+      if (!cancelled) setMissing(new Set(checked.filter((key): key is string => key !== null)));
     });
+    return () => {
+      cancelled = true;
+    };
   }, [projects, defaultSpace, refreshKey]);
-
   const isMissing = useCallback(
-    (folder: string | null | undefined) => (folder ? missing.has(sessionProjectKey(folder)) : false),
+    (folder: string | null | undefined) => !!folder && missing.has(sessionProjectKey(folder)),
     [missing],
   );
-
   const canMove = useCallback(
-    (folder: string, offset: -1 | 1) => canMoveOpenProject(projects, folder, offset, defaultSpace),
-    [projects, defaultSpace],
+    (folder: string, offset: -1 | 1) => canMoveProjectSpace(spaces, projectKeyOf(refOf(folder)), offset, pinned),
+    [spaces, pinned],
   );
-
-  const add = useCallback(
-    (folder: string) => commit(addOpenProject(projects, folder, defaultSpace)),
-    [commit, projects, defaultSpace],
-  );
-
+  const add = useCallback((folder: string) => workspaceStore.noteCurrentProject(refOf(folder), pinned), [pinned]);
   const close = useCallback(
     (folder: string) => {
       if (defaultSpace && sessionProjectKey(folder) === sessionProjectKey(defaultSpace)) return;
-      const closingCurrent = currentProject !== null && sessionProjectKey(currentProject) === sessionProjectKey(folder);
-      if (closingCurrent) closingRef.current = sessionProjectKey(folder);
-      commit(removeOpenProject(projects, folder));
-      if (closingCurrent) onCloseCurrent();
+      const current = currentProject !== null && sessionProjectKey(folder) === sessionProjectKey(currentProject);
+      if (current) closingRef.current = sessionProjectKey(folder);
+      workspaceStore.unmount(projectKeyOf(refOf(folder)));
+      if (current) onCloseCurrent();
     },
-    [commit, projects, defaultSpace, currentProject, onCloseCurrent],
+    [defaultSpace, currentProject, onCloseCurrent],
   );
-
   const move = useCallback(
-    (folder: string, offset: -1 | 1) => commit(moveOpenProject(projects, folder, offset, defaultSpace)),
-    [commit, projects, defaultSpace],
+    (folder: string, offset: -1 | 1) => workspaceStore.move(projectKeyOf(refOf(folder)), offset, pinned),
+    [pinned],
   );
-
   const reorder = useCallback(
-    (from: number, to: number) => commit(reorderOpenProjects(projects, from, to, defaultSpace)),
-    [commit, projects, defaultSpace],
+    (from: number, to: number) => {
+      const space = spaces[from];
+      if (!space) return;
+      const actualFrom = snapshot.spaces.findIndex((item) => item.key === space.key);
+      const actualTo =
+        to >= spaces.length
+          ? snapshot.spaces.length
+          : snapshot.spaces.findIndex((item) => item.key === spaces[to]?.key);
+      workspaceStore.reorder(actualFrom, Math.max(0, actualTo), pinned);
+    },
+    [spaces, snapshot.spaces, pinned],
   );
-
   return { projects, missing, isMissing, canMove, add, close, move, reorder };
 }

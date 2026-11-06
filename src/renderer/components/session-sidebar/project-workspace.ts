@@ -2,9 +2,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { worktreePathsEqual } from "@shared/worktree-path";
-import { validateCwd } from "@/lib/api-client";
-import { useActiveEnvironment, environmentRegistry } from "@/lib/environment-registry";
-import { environmentAffordances } from "@/lib/environment-affordances";
+import { getActiveEnvironmentId } from "@/lib/environment-registry";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { workspaceStore } from "@/lib/workspace-store";
+import { useActiveEnvironment } from "@/lib/environment-registry";
 
 export interface WorktreeEntry {
   path: string;
@@ -109,12 +110,13 @@ export function useProjectWorkspace({
   }, [selectedCwd, wtRefreshKey, refreshKey, environment.id]);
 
   const openDirectory = useCallback(
-    async (dir: string): Promise<WorkspaceSelectResult> => {
+    async (dir: string, environmentId = getActiveEnvironmentId()): Promise<WorkspaceSelectResult> => {
       try {
-        const data = await validateCwd(dir);
+        const data = await getEnvironmentApiClient(environmentId).validateCwd(dir);
         if (!data.ok || data.error) {
           return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
         }
+        workspaceStore.openSpace({ environmentId, path: data.path ?? dir });
         setSelectedCwd(data.path ?? dir);
         return { status: "selected" };
       } catch (e) {
@@ -125,9 +127,10 @@ export function useProjectWorkspace({
   );
 
   const selectDirectoryFromPicker = useCallback(
-    async (onSelected?: (folder: string) => void): Promise<WorkspaceSelectResult> => {
-      if (environmentAffordances(environmentRegistry.getActiveEnvironment()).pickDirectory !== "native")
-        return { status: "cancelled" };
+    async (
+      onSelected?: (folder: string) => void,
+      environmentId = getActiveEnvironmentId(),
+    ): Promise<WorkspaceSelectResult> => {
       let dir: string | null | undefined;
       try {
         dir = await window.piBridge?.selectDirectory?.();
@@ -135,7 +138,7 @@ export function useProjectWorkspace({
         return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
       }
       if (!dir) return { status: "cancelled" };
-      const result = await openDirectory(dir);
+      const result = await openDirectory(dir, environmentId);
       if (result.status === "selected") onSelected?.(dir);
       return result;
     },

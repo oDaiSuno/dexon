@@ -1,8 +1,8 @@
+import { workspaceStore } from "@/lib/workspace-store";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import {
-  activateEnvironmentSession,
   getActiveEnvironmentId,
   getSessionEnvironmentId,
   registerEnvironmentSession,
@@ -69,7 +69,7 @@ export function useWorkspaceNavigation({
               (session) => session.id === sessionId,
             );
           if (!found) return;
-          activateEnvironmentSession(sessionId, environmentId);
+          workspaceStore.focusSession({ ...found, environmentId });
           const scoped = environmentId === PRIMARY_ENVIRONMENT_ID ? found : { ...found, environmentId };
           onShowChat?.();
           setNewSessionCwd(null);
@@ -140,7 +140,7 @@ export function useWorkspaceNavigation({
   const handleSelectSession = useCallback(
     (session: SessionInfo, isRestore = false, keepSpace = false) => {
       const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
-      activateEnvironmentSession(session.id, environmentId);
+      workspaceStore.focusSession({ ...session, environmentId });
       setSpaceFrozenSessionId(keepSpace ? session.id : null);
       if (!isRestore) onShowChat?.();
       if (

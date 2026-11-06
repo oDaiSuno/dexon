@@ -98,7 +98,7 @@ function EnvironmentSection({ group, query }: { group: RemoteEnvironmentGroup; q
         error={
           actionError ??
           group.error ??
-          (group.environment.status.phase === "blocked" ? group.environment.status.message : null)
+          (group.environment.status.phase === "blocked" ? group.environment.status.diagnosis.detail : null)
         }
         empty={connected && projects.length === 0}
         hasActiveFilter={searching}

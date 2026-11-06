@@ -1,13 +1,7 @@
 import { useId, useRef, useState, type FormEvent, type InputHTMLAttributes } from "react";
 import { PRIMARY_ENVIRONMENT_ID, type AddEnvironmentInput, type EnvironmentView } from "@contract/environment";
 import { useI18n } from "@/i18n";
-import {
-  addRemoteEnvironment,
-  connectRemoteEnvironment,
-  disconnectRemoteEnvironment,
-  removeRemoteEnvironment,
-  useEnvironments,
-} from "@/lib/environment-registry";
+import { runEnvironmentCommand, useEnvironments } from "@/lib/environment-registry";
 import { Badge, Button, NativeSelect } from "../form-controls";
 import { SettingGroup, SettingNote, SettingRow } from "./setting-row";
 
@@ -22,7 +16,7 @@ export function EnvironmentSettingsSection() {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const busyRef = useRef(false);
-  const canAdd = typeof window.piBridge?.addEnvironment === "function";
+  const canAdd = typeof window.piBridge?.environmentCommand === "function";
   const statuses: Record<EnvironmentView["status"]["phase"], string> = {
     connected: t("environmentConnected", "Connected"),
     connecting: t("environmentConnecting", "Connecting"),
@@ -97,7 +91,7 @@ export function EnvironmentSettingsSection() {
       return;
     }
     void run(async () => {
-      await addRemoteEnvironment(input);
+      await runEnvironmentCommand({ type: "add", draft: input, connect: true });
       setKind(null);
     });
   };
@@ -157,7 +151,9 @@ export function EnvironmentSettingsSection() {
                     disabled={busy}
                     onClick={() =>
                       void run(() =>
-                        active ? disconnectRemoteEnvironment(environment.id) : connectRemoteEnvironment(environment.id),
+                        active
+                          ? runEnvironmentCommand({ type: "disconnect", environmentId: environment.id })
+                          : runEnvironmentCommand({ type: "connect", environmentId: environment.id }),
                       )
                     }
                   >
@@ -168,7 +164,11 @@ export function EnvironmentSettingsSection() {
                     disabled={busy}
                     onClick={() =>
                       void run(async () => {
-                        if (!(await removeRemoteEnvironment(environment.id)).ok) setFailed(true);
+                        await runEnvironmentCommand({
+                          type: "remove",
+                          environmentId: environment.id,
+                          remoteDaemon: "keep",
+                        });
                       })
                     }
                   >

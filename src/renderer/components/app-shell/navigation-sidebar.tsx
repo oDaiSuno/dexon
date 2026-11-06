@@ -1,17 +1,10 @@
+import { workspaceStore } from "@/lib/workspace-store";
 import { useCallback, useEffect, useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
-import {
-  activateEnvironmentSession,
-  connectRemoteEnvironment,
-  disconnectRemoteEnvironment,
-  getActiveEnvironmentId,
-  removeRemoteEnvironment,
-  setActiveEnvironmentId,
-  useActiveEnvironment,
-} from "@/lib/environment-registry";
+import { useActiveEnvironment, runEnvironmentCommand, getActiveEnvironmentId } from "@/lib/environment-registry";
 import { useRemoteEnvironmentDirectories } from "../session-sidebar/use-remote-environment-directories";
 import type { RemoteEnvironmentGroup } from "../app-nav/environment-section-list";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
@@ -143,7 +136,7 @@ export function NavigationSidebar({
   const selectSession = useCallback(
     (session: SessionInfo) => {
       const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
-      activateEnvironmentSession(session.id, environmentId);
+      workspaceStore.focusSession({ ...session, environmentId });
       const key = sessionProjectKeyOf(session);
       if (key)
         setExpandedProjects((current) => (current.get(key) === true ? current : new Map(current).set(key, true)));
@@ -178,21 +171,15 @@ export function NavigationSidebar({
   }, []);
 
   const chooseFolder = useCallback(() => {
-    const previous = getActiveEnvironmentId();
-    setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
-    void selectDirectoryFromPicker((folder) => openProjects.add(folder)).then((result) => {
-      if (result.status !== "selected") setActiveEnvironmentId(previous);
+    void selectDirectoryFromPicker((folder) => openProjects.add(folder), PRIMARY_ENVIRONMENT_ID).then((result) => {
       reportSpaceResult(result);
     });
   }, [selectDirectoryFromPicker, openProjects, reportSpaceResult]);
 
   const openFolder = useCallback(
     (folder: string) => {
-      const previous = getActiveEnvironmentId();
-      setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
-      void openDirectory(folder).then((result) => {
+      void openDirectory(folder, PRIMARY_ENVIRONMENT_ID).then((result) => {
         if (result.status === "selected") openProjects.add(folder);
-        else setActiveEnvironmentId(previous);
         reportSpaceResult(result);
       });
     },
@@ -200,7 +187,7 @@ export function NavigationSidebar({
   );
 
   const inspectFolder = useCallback(async (typed: string) => {
-    const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("projects.inspectFolder", {
+    const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("projects.browse", {
       path: typed,
     });
     return result.ok && result.path ? result.path : null;
@@ -221,10 +208,10 @@ export function NavigationSidebar({
   }, [handleToggle, open, onToggle, chooseFolder]);
 
   const backToPersonalSpace = useCallback(() => {
-    setActiveEnvironmentId(PRIMARY_ENVIRONMENT_ID);
+    workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: coordination.personalCwd ?? "/" });
     setSpaceError(null);
     onReturnToPersonalSpace();
-  }, [onReturnToPersonalSpace]);
+  }, [onReturnToPersonalSpace, coordination.personalCwd]);
 
   const spacePath = selectedCwd ?? coordination.attemptedCwd ?? "";
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
@@ -260,9 +247,10 @@ export function NavigationSidebar({
       if (getActiveEnvironmentId() === directory.environment.id) onSessionDeleted(id);
       void directory.refreshSessions();
     },
-    onConnect: () => connectRemoteEnvironment(directory.environment.id),
-    onDisconnect: () => disconnectRemoteEnvironment(directory.environment.id),
-    onRemove: () => removeRemoteEnvironment(directory.environment.id),
+    onConnect: () => runEnvironmentCommand({ type: "connect", environmentId: directory.environment.id }),
+    onDisconnect: () => runEnvironmentCommand({ type: "disconnect", environmentId: directory.environment.id }),
+    onRemove: () =>
+      runEnvironmentCommand({ type: "remove", environmentId: directory.environment.id, remoteDaemon: "keep" }),
   }));
   const pendingClass = mobileReady ? "" : " sidebar-mobile-pending";
 

@@ -1,3 +1,4 @@
+import { DEFAULT_LIFECYCLE_POLICY, type EnvironmentsSnapshot } from "../../contract/environment-commands.ts";
 import { homedir } from "node:os";
 import { MessageChannelMain, type WebContents } from "electron";
 import {
@@ -26,8 +27,9 @@ export class EnvironmentManager {
   private readonly sshTunnelManager: SshEnvironmentManager;
   private readonly environments = new Map<EnvironmentId, EnvironmentEntry>();
   private readonly locks = new Map<EnvironmentId, Promise<void>>();
-  private readonly listeners = new Set<(environments: EnvironmentView[]) => void>();
+  private readonly listeners = new Set<(snapshot: EnvironmentsSnapshot) => void>();
   private primaryGeneration = 0;
+  private revision = 0;
   private primarySince = Date.now();
   private primaryDescriptor: EnvironmentDescriptor | null = null;
   private primaryStatus: HostStatus;
@@ -36,14 +38,14 @@ export class EnvironmentManager {
   private readonly options: {
     hostManager: HostManager;
     userDataDir: string;
-    onChanged?: (environments: EnvironmentView[]) => void;
+    onChanged?: (snapshot: EnvironmentsSnapshot) => void;
     sshTunnelManager?: SshEnvironmentManager;
   };
 
   constructor(options: {
     hostManager: HostManager;
     userDataDir: string;
-    onChanged?: (environments: EnvironmentView[]) => void;
+    onChanged?: (snapshot: EnvironmentsSnapshot) => void;
     sshTunnelManager?: SshEnvironmentManager;
   }) {
     this.options = options;
@@ -73,10 +75,14 @@ export class EnvironmentManager {
         this.primaryStatus === "ready"
           ? { phase: "connected", generation: this.primaryGeneration, since: this.primarySince }
           : this.primaryStatus === "starting"
-            ? { phase: "connecting", stage: "preparing", attempt: 1 }
-            : { phase: "offline" },
+            ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
+            : { phase: "offline", lastFailure: null },
     };
     return structuredClone([primary, ...[...this.environments.values()].map((entry) => this.view(entry))]);
+  }
+
+  snapshot(): EnvironmentsSnapshot {
+    return { revision: this.revision, policy: { ...DEFAULT_LIFECYCLE_POLICY }, environments: this.listEnvironments() };
   }
 
   async addEnvironment(input: AddEnvironmentInput): Promise<EnvironmentView> {
@@ -220,7 +226,7 @@ export class EnvironmentManager {
     };
   }
 
-  subscribe(listener: (environments: EnvironmentView[]) => void): () => void {
+  subscribe(listener: (snapshot: EnvironmentsSnapshot) => void): () => void {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
@@ -291,7 +297,8 @@ export class EnvironmentManager {
 
   private emit(): void {
     if (this.disposed) return;
-    for (const listener of this.listeners) listener(this.listEnvironments());
+    this.revision += 1;
+    for (const listener of this.listeners) listener(this.snapshot());
   }
 
   private persist(): void {

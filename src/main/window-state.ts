@@ -1,3 +1,8 @@
+import {
+  fromLegacyOpenProjects,
+  parseProjectSpacesState,
+  toLegacyOpenProjects,
+} from "../shared/project-space-state.ts";
 import { app, type BrowserWindow } from "electron";
 import fs from "fs";
 import path from "path";
@@ -32,6 +37,9 @@ export function loadUiState(): UiState {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const state = parsed as UiState;
     if ("chatAppearance" in state) state.chatAppearance = normalizeChatAppearance(state.chatAppearance);
+    state.projectSpaces = state.projectSpaces
+      ? parseProjectSpacesState(state.projectSpaces)
+      : fromLegacyOpenProjects(state.openProjects);
     return state;
   } catch {
     return {};
@@ -41,14 +49,13 @@ export function loadUiState(): UiState {
 export function saveUiState(patch: Partial<UiState>): void {
   try {
     saveUiStateStrict(patch);
-  } catch {
-    /* best-effort lifecycle persistence */
-  }
+  } catch {}
 }
 
 export function saveUiStateStrict(patch: Partial<UiState>): void {
   const current = loadUiState();
   const next = { ...current, ...patch };
+  if (patch.projectSpaces) next.openProjects = toLegacyOpenProjects(patch.projectSpaces);
   fs.mkdirSync(path.dirname(statePath()), { recursive: true });
   fs.writeFileSync(statePath(), JSON.stringify(next, null, 2));
 }
