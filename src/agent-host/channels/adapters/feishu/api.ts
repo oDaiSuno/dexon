@@ -11,24 +11,15 @@ export const FEISHU_BASE_URL = "https://open.feishu.cn";
 export const LARK_BASE_URL = "https://open.larksuite.com";
 export const FEISHU_MEDIA_MAX_BYTES = 20 * 1024 * 1024;
 const FEISHU_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
-
-export interface FeishuCredentials {
-  appId: string;
-  appSecret: string;
-  domain: FeishuDomain;
-}
-
+export type FeishuCredentials = { appId: string; appSecret: string; domain: FeishuDomain };
 export interface FeishuSendRequest {
   peerId: string;
   text: string;
   replyToMessageId?: string;
   replyInThread?: boolean;
+  uuid?: string;
 }
-
-export interface FeishuCardRequest extends Omit<FeishuSendRequest, "text"> {
-  card: FeishuCard;
-}
-
+export type FeishuCardRequest = Omit<FeishuSendRequest, "text"> & { card: FeishuCard };
 export interface FeishuResourceRequest {
   messageId: string;
   fileKey: string;
@@ -37,62 +28,36 @@ export interface FeishuResourceRequest {
   name?: string;
   mime?: string;
 }
-
 export interface FeishuMediaRequest extends Omit<FeishuSendRequest, "text">, OutboundAttachment {}
-
 export interface FeishuRichCardSession {
   readonly cardId: string;
   readonly messageId: string;
   update(content: string): Promise<void>;
   finish(card: FeishuCard): Promise<void>;
 }
-
-export interface FeishuWsHooks {
-  onError(error: Error): void;
-  onReconnecting(): void;
-  onReconnected(): void;
-}
-
-export interface FeishuWsConnection {
-  close(): void;
-}
-
-export interface FeishuWsHandlers {
-  onMessage(event: FeishuMessageEvent): void;
-  onMenu(event: FeishuMenuEvent): void;
-}
-
+export type FeishuWsHooks = { onError(error: Error): void; onReconnecting(): void; onReconnected(): void };
+export type FeishuWsConnection = { close(): void };
+export type FeishuWsHandlers = { onMessage(event: FeishuMessageEvent): void; onMenu(event: FeishuMenuEvent): void };
 export interface FeishuAdapterDependencies {
-  getBotIdentity(credentials: FeishuCredentials): Promise<FeishuBotIdentity>;
-  sendText(credentials: FeishuCredentials, request: FeishuSendRequest): Promise<string>;
-  sendCard(credentials: FeishuCredentials, request: FeishuCardRequest): Promise<string>;
-  downloadResource(
-    credentials: FeishuCredentials,
-    request: FeishuResourceRequest,
-  ): Promise<DownloadedInboundAttachment>;
-  sendMedia(credentials: FeishuCredentials, request: FeishuMediaRequest): Promise<string>;
-  startRichCard(credentials: FeishuCredentials, request: FeishuCardRequest): Promise<FeishuRichCardSession>;
-  addReaction(credentials: FeishuCredentials, messageId: string, emojiType: string): Promise<string>;
-  removeReaction(credentials: FeishuCredentials, messageId: string, reactionId: string): Promise<void>;
-  connect(
-    credentials: FeishuCredentials,
-    handlers: FeishuWsHandlers,
-    hooks: FeishuWsHooks,
-    signal: AbortSignal,
-  ): Promise<FeishuWsConnection>;
+  getBotIdentity: typeof getFeishuBotIdentity;
+  sendText: typeof sendFeishuText;
+  sendCard: typeof sendFeishuCard;
+  downloadResource: typeof downloadFeishuResource;
+  sendMedia: typeof sendFeishuMedia;
+  startRichCard: typeof startFeishuRichCard;
+  addReaction: typeof addFeishuReaction;
+  removeReaction: typeof removeFeishuReaction;
+  connect: typeof connectFeishuWebSocket;
 }
-
 type FeishuApiResponse = {
   code?: number;
   msg?: string;
   bot?: { open_id?: string; app_name?: string };
   data?: { message_id?: string; card_id?: string; reaction_id?: string };
 };
-
 export class FeishuApiError extends Error {
   readonly providerCode: number | undefined;
   readonly deliveryUnknown: boolean;
-
   constructor(message: string, providerCode?: number, deliveryUnknown = false) {
     super(message);
     this.name = "FeishuApiError";
@@ -100,7 +65,6 @@ export class FeishuApiError extends Error {
     this.deliveryUnknown = deliveryUnknown;
   }
 }
-
 const silentLogger: Lark.Logger = {
   error: () => undefined,
   warn: () => undefined,
@@ -108,17 +72,11 @@ const silentLogger: Lark.Logger = {
   debug: () => undefined,
   trace: () => undefined,
 };
-
-function sdkDomain(domain: FeishuDomain): Lark.Domain {
-  return domain === "lark" ? Lark.Domain.Lark : Lark.Domain.Feishu;
-}
-
+const sdkDomain = (domain: FeishuDomain): Lark.Domain => (domain === "lark" ? Lark.Domain.Lark : Lark.Domain.Feishu);
 function assertAppId(appId: string): void {
-  if (!/^cli_[0-9a-f]{16}$/i.test(appId.trim())) {
+  if (!/^cli_[0-9a-f]{16}$/i.test(appId.trim()))
     throw new Error("App ID 格式无效，应为飞书/Lark 自建应用的 cli_ 开头标识");
-  }
 }
-
 function createClient(credentials: FeishuCredentials, httpInstance?: Lark.HttpInstance): Lark.Client {
   assertAppId(credentials.appId);
   return new Lark.Client({
@@ -132,7 +90,6 @@ function createClient(credentials: FeishuCredentials, httpInstance?: Lark.HttpIn
     ...(httpInstance ? { httpInstance } : {}),
   });
 }
-
 function apiFailure(response: FeishuApiResponse, operation: string): FeishuApiError | null {
   const code = response.code ?? 0;
   if (code === 0) return null;
@@ -146,7 +103,6 @@ function apiFailure(response: FeishuApiResponse, operation: string): FeishuApiEr
       : "请检查应用配置、发布状态和机器人权限";
   return new FeishuApiError(`${operation}失败（${code}）：${raw}。${hint}`, code);
 }
-
 function normalizeThrownError(
   error: unknown,
   operation: string,
@@ -154,41 +110,28 @@ function normalizeThrownError(
   deliveryUnknown = false,
 ): FeishuApiError {
   const sanitize = (value: string) => (sensitiveValue ? value.split(sensitiveValue).join("[REDACTED]") : value);
-  if (error instanceof FeishuApiError) {
-    // A structured provider response proves the request was rejected. Only
-    // unstructured transport failures inherit the caller's delivery ambiguity.
+  if (error instanceof FeishuApiError)
     return new FeishuApiError(sanitize(error.message), error.providerCode, error.deliveryUnknown);
-  }
-  if (error instanceof Error) {
-    const candidate = error as Error & { code?: number; response?: { data?: FeishuApiResponse } };
-    const fromResponse = candidate.response?.data ? apiFailure(candidate.response.data, operation) : null;
-    if (fromResponse) return new FeishuApiError(sanitize(fromResponse.message), fromResponse.providerCode);
-    const message = sanitize(candidate.message);
-    if (/timeout|network|socket|ENOTFOUND|ECONN/i.test(message)) {
-      return new FeishuApiError(
-        `${operation}失败：无法连接飞书/Lark 开放平台，请检查网络后重试`,
-        undefined,
-        deliveryUnknown,
-      );
-    }
-    return new FeishuApiError(`${operation}失败：${message}`, undefined, deliveryUnknown);
-  }
-  return new FeishuApiError(`${operation}失败：${sanitize(String(error))}`, undefined, deliveryUnknown);
+  const candidate = error instanceof Error ? (error as Error & { response?: { data?: FeishuApiResponse } }) : undefined;
+  const fromResponse = candidate?.response?.data ? apiFailure(candidate.response.data, operation) : null;
+  if (fromResponse) return new FeishuApiError(sanitize(fromResponse.message), fromResponse.providerCode);
+  const message = sanitize(candidate ? candidate.message : String(error));
+  const detail =
+    candidate && /timeout|network|socket|ENOTFOUND|ECONN/i.test(message)
+      ? "无法连接飞书/Lark 开放平台，请检查网络后重试"
+      : message;
+  return new FeishuApiError(`${operation}失败：${detail}`, undefined, deliveryUnknown);
 }
-
 export function canFallbackFromFeishuCard(error: unknown): boolean {
   return error instanceof FeishuApiError && !error.deliveryUnknown;
 }
-
 export async function getFeishuBotIdentity(
   credentials: FeishuCredentials,
   httpInstance?: Lark.HttpInstance,
 ): Promise<FeishuBotIdentity> {
   try {
-    const response = await createClient(credentials, httpInstance).request<FeishuApiResponse>({
-      url: "/open-apis/bot/v3/info",
-      method: "GET",
-    });
+    const client = createClient(credentials, httpInstance);
+    const response = await client.request<FeishuApiResponse>({ url: "/open-apis/bot/v3/info", method: "GET" });
     const failure = apiFailure(response, "读取机器人身份");
     if (failure) throw failure;
     const openId = response.bot?.open_id?.trim();
@@ -202,38 +145,34 @@ export async function getFeishuBotIdentity(
   }
 }
 
-function receiveIdType(peerId: string): "open_id" | "union_id" | "chat_id" {
-  if (peerId.startsWith("ou_")) return "open_id";
-  if (peerId.startsWith("on_")) return "union_id";
-  return "chat_id";
-}
-
+const receiveIdType = (peerId: string) =>
+  peerId.startsWith("ou_") ? "open_id" : peerId.startsWith("on_") ? "union_id" : "chat_id";
 async function sendFeishuPayload(
   client: Lark.Client,
   request: Omit<FeishuSendRequest, "text">,
   msgType: "text" | "interactive" | "image" | "file" | "audio" | "media",
   content: string,
 ): Promise<string> {
+  const data = { content, msg_type: msgType };
   const response: FeishuApiResponse = request.replyToMessageId
     ? await client.im.v1.message.reply({
         path: { message_id: request.replyToMessageId },
         data: {
-          content,
-          msg_type: msgType,
+          ...data,
           ...(request.replyInThread ? { reply_in_thread: true } : {}),
+          ...(request.uuid !== undefined ? { uuid: request.uuid } : {}),
         },
       })
     : await client.im.v1.message.create({
         params: { receive_id_type: receiveIdType(request.peerId) },
-        data: { receive_id: request.peerId, content, msg_type: msgType },
+        data: { receive_id: request.peerId, ...data, ...(request.uuid !== undefined ? { uuid: request.uuid } : {}) },
       });
   const failure = apiFailure(response, "发送消息");
   if (failure) throw failure;
   const messageId = response.data?.message_id?.trim();
-  if (!messageId) throw new FeishuApiError("发送消息失败：接口未返回 message_id");
+  if (!messageId) throw new FeishuApiError("发送消息失败：接口未返回 message_id", undefined, true);
   return messageId;
 }
-
 export async function sendFeishuText(
   credentials: FeishuCredentials,
   request: FeishuSendRequest,
@@ -247,19 +186,14 @@ export async function sendFeishuText(
     throw normalizeThrownError(error, "发送消息", credentials.appSecret, true);
   }
 }
-
 export async function sendFeishuCard(
   credentials: FeishuCredentials,
   request: FeishuCardRequest,
   httpInstance?: Lark.HttpInstance,
 ): Promise<string> {
   try {
-    return await sendFeishuPayload(
-      createClient(credentials, httpInstance),
-      request,
-      "interactive",
-      JSON.stringify(request.card),
-    );
+    const client = createClient(credentials, httpInstance);
+    return await sendFeishuPayload(client, request, "interactive", JSON.stringify(request.card));
   } catch (error) {
     throw normalizeThrownError(error, "发送飞书/Lark Markdown 卡片", credentials.appSecret, true);
   }
@@ -273,7 +207,6 @@ function responseHeader(headers: unknown, name: string): string | undefined {
   const entry = Object.entries(candidate).find(([key]) => key.toLowerCase() === name.toLowerCase());
   return typeof entry?.[1] === "string" || typeof entry?.[1] === "number" ? String(entry[1]) : undefined;
 }
-
 async function readLimitedStream(stream: NodeJS.ReadableStream, declaredBytes?: number): Promise<Buffer> {
   const destroy = () => (stream as NodeJS.ReadableStream & { destroy?: () => void }).destroy?.();
   if (declaredBytes !== undefined && declaredBytes > FEISHU_MEDIA_MAX_BYTES) {
@@ -294,7 +227,6 @@ async function readLimitedStream(stream: NodeJS.ReadableStream, declaredBytes?: 
   if (total === 0) throw new Error("飞书/Lark 附件内容为空");
   return Buffer.concat(chunks, total);
 }
-
 export async function downloadFeishuResource(
   credentials: FeishuCredentials,
   request: FeishuResourceRequest,
@@ -306,11 +238,10 @@ export async function downloadFeishuResource(
       path: { message_id: request.messageId, file_key: request.fileKey },
       params: { type: request.resourceType },
     });
-    const declaredHeader = responseHeader(response.headers, "content-length");
-    const declaredBytes = declaredHeader === undefined ? undefined : Number(declaredHeader);
+    const declaredBytes = Number(responseHeader(response.headers, "content-length"));
     const data = await readLimitedStream(
       response.getReadableStream(),
-      Number.isFinite(declaredBytes) && declaredBytes! >= 0 ? declaredBytes : undefined,
+      Number.isFinite(declaredBytes) && declaredBytes >= 0 ? declaredBytes : undefined,
     );
     const contentType = responseHeader(response.headers, "content-type")?.split(";", 1)[0]?.trim().toLowerCase();
     return {
@@ -324,26 +255,15 @@ export async function downloadFeishuResource(
   }
 }
 
-function nativeFeishuMedia(
-  request: FeishuMediaRequest,
-  size: number,
-): {
-  fileType: "opus" | "mp4" | "stream";
-  messageType: "file" | "audio" | "media";
-} {
+type FeishuMediaType = { fileType: "opus" | "mp4" | "stream"; messageType: "file" | "audio" | "media" };
+function nativeFeishuMedia(request: FeishuMediaRequest): FeishuMediaType {
   const extension = path.extname(request.name || request.path).toLowerCase();
-  if (request.kind === "voice" && [".opus", ".ogg"].includes(extension)) {
+  if (request.kind === "voice" && [".opus", ".ogg"].includes(extension))
     return { fileType: "opus", messageType: "audio" };
-  }
-  if (request.kind === "video" && (extension === ".mp4" || request.mime === "video/mp4")) {
+  if (request.kind === "video" && (extension === ".mp4" || request.mime === "video/mp4"))
     return { fileType: "mp4", messageType: "media" };
-  }
-  if (request.kind === "image" && size > FEISHU_IMAGE_MAX_BYTES) {
-    return { fileType: "stream", messageType: "file" };
-  }
   return { fileType: "stream", messageType: "file" };
 }
-
 export async function sendFeishuMedia(
   credentials: FeishuCredentials,
   request: FeishuMediaRequest,
@@ -361,8 +281,7 @@ export async function sendFeishuMedia(
       if (!imageKey) throw new FeishuApiError("上传飞书/Lark 图片失败：接口未返回 image_key");
       return await sendFeishuPayload(client, request, "image", JSON.stringify({ image_key: imageKey }));
     }
-
-    const native = nativeFeishuMedia(request, info.size);
+    const native = nativeFeishuMedia(request);
     const fileName = request.name?.trim() || path.basename(request.path);
     const uploaded = await client.im.v1.file.create({
       data: { file_type: native.fileType, file_name: fileName, file: data },
@@ -381,14 +300,12 @@ class SdkFeishuRichCardSession implements FeishuRichCardSession {
   readonly cardId: string;
   readonly messageId: string;
   private readonly appSecret: string;
-
   constructor(client: Lark.Client, cardId: string, messageId: string, appSecret: string) {
     this.client = client;
     this.cardId = cardId;
     this.messageId = messageId;
     this.appSecret = appSecret;
   }
-
   async update(content: string): Promise<void> {
     try {
       const response: FeishuApiResponse = await this.client.cardkit.v1.cardElement.content({
@@ -401,21 +318,15 @@ class SdkFeishuRichCardSession implements FeishuRichCardSession {
       throw normalizeThrownError(error, "更新流式卡片", this.appSecret);
     }
   }
-
   async finish(card: FeishuCard): Promise<void> {
     const content = JSON.stringify(card);
     try {
       const response: FeishuApiResponse = await this.client.cardkit.v1.card.update({
         path: { card_id: this.cardId },
-        data: {
-          card: { type: "card_json", data: content },
-          sequence: ++this.sequence,
-          uuid: randomUUID(),
-        },
+        data: { card: { type: "card_json", data: content }, sequence: ++this.sequence, uuid: randomUUID() },
       });
       const failure = apiFailure(response, "完成流式卡片");
       if (failure) throw failure;
-      return;
     } catch (cardError) {
       try {
         const response: FeishuApiResponse = await this.client.im.v1.message.patch({
@@ -424,7 +335,6 @@ class SdkFeishuRichCardSession implements FeishuRichCardSession {
         });
         const failure = apiFailure(response, "完成流式卡片");
         if (failure) throw failure;
-        return;
       } catch (patchError) {
         const cardMessage = normalizeThrownError(cardError, "完成流式卡片", this.appSecret).message;
         const patchMessage = normalizeThrownError(patchError, "完成流式卡片", this.appSecret).message;
@@ -433,7 +343,6 @@ class SdkFeishuRichCardSession implements FeishuRichCardSession {
     }
   }
 }
-
 export async function startFeishuRichCard(
   credentials: FeishuCredentials,
   request: FeishuCardRequest,
@@ -452,14 +361,9 @@ export async function startFeishuRichCard(
   } catch (error) {
     throw normalizeThrownError(error, "创建流式卡片", credentials.appSecret);
   }
-
   try {
-    const messageId = await sendFeishuPayload(
-      client,
-      request,
-      "interactive",
-      JSON.stringify({ type: "card", data: { card_id: cardId } }),
-    );
+    const content = JSON.stringify({ type: "card", data: { card_id: cardId } });
+    const messageId = await sendFeishuPayload(client, request, "interactive", content);
     return new SdkFeishuRichCardSession(client, cardId, messageId, credentials.appSecret);
   } catch (error) {
     throw normalizeThrownError(error, "发送流式卡片", credentials.appSecret, true);
@@ -486,7 +390,6 @@ export async function addFeishuReaction(
     throw normalizeThrownError(error, "添加消息状态", credentials.appSecret);
   }
 }
-
 export async function removeFeishuReaction(
   credentials: FeishuCredentials,
   messageId: string,
@@ -517,7 +420,6 @@ export function connectFeishuWebSocket(
     let settled = false;
     let closed = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-
     const cleanupTimer = () => {
       if (timer) timers.clearTimeout(timer);
       timer = undefined;
@@ -540,7 +442,11 @@ export function connectFeishuWebSocket(
       if (settled) close();
       else failInitial(new Error("飞书/Lark 长连接已停止"));
     };
-
+    const onError = (error: unknown) => {
+      const normalized = normalizeThrownError(error, "飞书/Lark 长连接", credentials.appSecret);
+      hooks.onError(normalized);
+      failInitial(normalized);
+    };
     const client = new Lark.WSClient({
       appId: credentials.appId,
       appSecret: credentials.appSecret,
@@ -557,44 +463,27 @@ export function connectFeishuWebSocket(
         cleanupTimer();
         resolve({ close });
       },
-      onError: (error) => {
-        const normalized = normalizeThrownError(error, "飞书/Lark 长连接", credentials.appSecret);
-        hooks.onError(normalized);
-        failInitial(normalized);
-      },
+      onError,
       onReconnecting: hooks.onReconnecting,
       onReconnected: hooks.onReconnected,
     });
-
     const dispatcher = new Lark.EventDispatcher({
       loggerLevel: Lark.LoggerLevel.error,
       logger: silentLogger,
     }).register({
-      "im.message.receive_v1": (event) => {
-        handlers.onMessage(event as FeishuMessageEvent);
-      },
-      "application.bot.menu_v6": (event) => {
-        handlers.onMenu(event as FeishuMenuEvent);
-      },
+      "im.message.receive_v1": (event) => void handlers.onMessage(event as FeishuMessageEvent),
+      "application.bot.menu_v6": (event) => void handlers.onMenu(event as FeishuMenuEvent),
     });
-
     signal.addEventListener("abort", onAbort, { once: true });
     if (signal.aborted) {
       onAbort();
       return;
     }
-    // WSClient owns the retry loop. A slow/offline initial connection must stay
-    // alive so it can recover when the network returns; this timer only makes
-    // the pending state visible instead of aborting the SDK after one attempt.
     timer = timers.setTimeout(() => {
       timer = undefined;
       if (!settled && !closed) hooks.onReconnecting();
     }, initialStatusDelayMs);
-    void client.start({ eventDispatcher: dispatcher }).catch((error: unknown) => {
-      const normalized = normalizeThrownError(error, "飞书/Lark 长连接", credentials.appSecret);
-      hooks.onError(normalized);
-      failInitial(normalized);
-    });
+    void client.start({ eventDispatcher: dispatcher }).catch(onError);
   });
 }
 

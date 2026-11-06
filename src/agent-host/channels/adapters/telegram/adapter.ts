@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import type {
   ChannelAccountConfig,
   DeliveryReceipt,
@@ -14,26 +14,18 @@ import type {
   ChannelAdapter,
   ChannelTurnProgressEvent,
 } from "../../types";
+import { ChannelSendFailure, createChannelReceipt, validateChannelSend } from "../../types";
 import { CHANNEL_COMMAND_MENU } from "../../channel-commands";
 import { splitChannelText } from "../../outbound-renderer";
 import { safeChannelError } from "../../redaction";
-import {
-  escapeTelegramHtml,
-  deleteTelegramCommands,
-  downloadTelegramFile,
-  getTelegramBot,
-  getTelegramUpdates,
-  sendTelegramChatAction,
-  sendTelegramMessage,
-  sendTelegramMedia,
-  sendTelegramMessageDraft,
-  sendTelegramRichMessage,
-  sendTelegramRichMessageDraft,
-  setTelegramMessageReaction,
-  setTelegramCommands,
-  TelegramApiError,
-} from "./api";
-import type { TelegramFileAttachment, TelegramMessageEntity, TelegramUpdate, TelegramUser } from "./protocol-types";
+import * as api from "./api";
+import type {
+  TelegramFileAttachment,
+  TelegramMessage,
+  TelegramMessageEntity,
+  TelegramUpdate,
+  TelegramUser,
+} from "./protocol-types";
 import { TELEGRAM_RICH_SAFE_LIMIT, TelegramRichMessageBuilder } from "./rich-renderer";
 
 const POLL_TIMEOUT_SECONDS = 30;
@@ -41,6 +33,15 @@ const MAX_RETRY_DELAY_MS = 30_000;
 const DEFAULT_DRAFT_INTERVAL_MS = 400;
 
 type TurnTimers = Pick<typeof globalThis, "setTimeout" | "clearTimeout">;
+type TelegramAttachment = { metadata: InboundAttachment; file?: TelegramFileAttachment };
+
+function telegramChat({ secret, peerId, threadId }: Pick<AdapterSendContext, "secret" | "peerId" | "threadId">) {
+  return { baseUrl: secret.baseUrl, token: secret.token, chatId: peerId, threadId };
+}
+
+function rateLimitDelay(retryAfter = 1): number {
+  return Math.min(Math.max(retryAfter, 1) * 1_000, MAX_RETRY_DELAY_MS);
+}
 
 function telegramDraftId(value: string): number {
   let hash = 2_166_136_261;
@@ -63,14 +64,7 @@ class TelegramTurnOutput implements AdapterTurnOutput {
   constructor(
     private readonly context: AdapterTurnContext,
     private readonly intervalMs: number,
-    private readonly sendRichDraft: (context: AdapterTurnContext, draftId: number, markdown: string) => Promise<void>,
-    private readonly sendPlainDraft: (context: AdapterTurnContext, draftId: number, text: string) => Promise<void>,
-    private readonly sendFinal: (
-      context: AdapterTurnContext,
-      markdown: string,
-      fallbackText: string,
-    ) => Promise<DeliveryReceipt>,
-    private readonly setReaction: (context: AdapterTurnContext, emoji: string) => Promise<void>,
+    private readonly sendFinal: (markdown: string, fallbackText: string) => Promise<DeliveryReceipt>,
     private readonly timers: TurnTimers,
   ) {
     const chatId = Number(context.peerId);
@@ -80,8 +74,14 @@ class TelegramTurnOutput implements AdapterTurnOutput {
   }
 
   private queueReaction(emoji: string): void {
-    if (!this.context.replyToMessageId) return;
-    this.reactionTail = this.reactionTail.then(() => this.setReaction(this.context, emoji)).catch(() => undefined);
+    const messageId = this.context.replyToMessageId;
+    if (!messageId) return;
+    this.reactionTail = this.reactionTail
+      .then(() => api.setTelegramMessageReaction({ ...telegramChat(this.context), messageId, emoji }))
+      .then(
+        () => undefined,
+        () => undefined,
+      );
   }
 
   update(event: ChannelTurnProgressEvent): void {
@@ -97,8 +97,6 @@ class TelegramTurnOutput implements AdapterTurnOutput {
       try {
         this.flush();
       } catch {
-        // Draft rendering is optional. Malformed or partial Agent events must
-        // never escape a timer callback and terminate the Agent Host.
         this.mode = "disabled";
       }
     }, delayMs);
@@ -115,7 +113,10 @@ class TelegramTurnOutput implements AdapterTurnOutput {
       if (this.finished || this.mode === "disabled") return;
       if (this.mode === "rich") {
         try {
-          await this.sendRichDraft(this.context, draftId, richDraft);
+          if ([...richDraft].length > TELEGRAM_RICH_SAFE_LIMIT) {
+            throw new Error("Telegram Rich Message draft exceeds the safe limit");
+          }
+          await api.sendTelegramRichMessageDraft({ ...telegramChat(this.context), draftId, markdown: richDraft });
           return;
         } catch {
           this.mode = "plain";
@@ -124,7 +125,7 @@ class TelegramTurnOutput implements AdapterTurnOutput {
       }
       if (this.finished) return;
       try {
-        await this.sendPlainDraft(this.context, draftId, plainDraft);
+        await api.sendTelegramMessageDraft({ ...telegramChat(this.context), draftId, text: plainDraft });
       } catch {
         this.mode = "disabled";
       }
@@ -140,10 +141,10 @@ class TelegramTurnOutput implements AdapterTurnOutput {
     try {
       markdown = this.builder.renderFinal(text);
     } catch {
-      // Preserve the final reply through the established plain-text fallback.
+      markdown = "";
     }
     try {
-      const result = await this.sendFinal(this.context, markdown, text);
+      const result = await this.sendFinal(markdown, text);
       this.queueReaction("👍");
       return result;
     } catch (error) {
@@ -162,47 +163,21 @@ class TelegramTurnOutput implements AdapterTurnOutput {
 }
 
 function delay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    const finish = () => {
-      clearTimeout(timer);
-      signal.removeEventListener("abort", finish);
-      resolve();
-    };
-    const timer = setTimeout(finish, ms);
-    signal.addEventListener("abort", finish, { once: true });
-  });
-}
-
-function isFatalTelegramError(error: unknown): boolean {
-  return error instanceof TelegramApiError && [401, 403, 409].includes(error.errorCode);
+  return sleep(ms, undefined, { signal }).catch(() => undefined);
 }
 
 function telegramErrorMessage(error: unknown): string {
-  if (error instanceof TelegramApiError && error.errorCode === 409) {
-    return "Telegram polling 冲突：请关闭其他使用该 Bot Token 的 poller，并确认 Bot 未配置 webhook";
-  }
-  if (error instanceof TelegramApiError && (error.errorCode === 401 || error.errorCode === 403)) {
-    return "Telegram Bot Token 无效或机器人访问已被撤销，请更新 Token";
-  }
-  if (error instanceof TelegramApiError && error.errorCode === 429) {
-    return `Telegram 请求受限，将在 ${error.retryAfter ?? 1} 秒后重试`;
-  }
-  if (error instanceof TelegramApiError && error.errorCode >= 500) {
-    return "Telegram 服务暂时不可用，稍后将自动重试";
+  if (error instanceof api.TelegramApiError) {
+    if (error.errorCode === 409)
+      return "Telegram polling 冲突：请关闭其他使用该 Bot Token 的 poller，并确认 Bot 未配置 webhook";
+    if ([401, 403].includes(error.errorCode)) return "Telegram Bot Token 无效或机器人访问已被撤销，请更新 Token";
+    if (error.errorCode === 429) return `Telegram 请求受限，将在 ${error.retryAfter ?? 1} 秒后重试`;
+    if (error.errorCode >= 500) return "Telegram 服务暂时不可用，稍后将自动重试";
   }
   if (error instanceof TypeError || (error instanceof Error && /fetch failed|network/i.test(error.message))) {
     return "Telegram 网络请求失败，稍后将自动重试";
   }
   return safeChannelError(error);
-}
-
-function canFallbackFromRichMessage(error: unknown): boolean {
-  return error instanceof TelegramApiError && [400, 404].includes(error.errorCode);
-}
-
-function entityText(text: string, entity: TelegramMessageEntity): string {
-  return text.slice(entity.offset, entity.offset + entity.length);
 }
 
 function escapeRegExp(value: string): string {
@@ -216,16 +191,16 @@ function mentionsTelegramBot(
   botUsername?: string,
 ): boolean {
   const username = botUsername?.replace(/^@/, "").toLowerCase();
-  if (
+  return (
     entities.some((entity) => {
       if (entity.type === "text_mention") return String(entity.user?.id ?? "") === botId;
       if (!username || (entity.type !== "mention" && entity.type !== "bot_command")) return false;
-      return entityText(text, entity).toLowerCase().endsWith(`@${username}`);
-    })
-  ) {
-    return true;
-  }
-  return username ? new RegExp(`@${escapeRegExp(username)}(?![a-z0-9_])`, "i").test(text) : false;
+      return text
+        .slice(entity.offset, entity.offset + entity.length)
+        .toLowerCase()
+        .endsWith(`@${username}`);
+    }) || Boolean(username && new RegExp(`@${escapeRegExp(username)}(?![a-z0-9_])`, "i").test(text))
+  );
 }
 
 function removeTelegramBotMention(text: string, botUsername?: string): string {
@@ -234,68 +209,32 @@ function removeTelegramBotMention(text: string, botUsername?: string): string {
   return text.replace(new RegExp(`@${escapeRegExp(username)}(?![a-z0-9_])`, "gi"), "").trim();
 }
 
-function attachmentMetadata(update: TelegramUpdate): InboundAttachment[] {
+function telegramAttachments(update: TelegramUpdate): TelegramAttachment[] {
   const message = update.message;
   if (!message) return [];
-  const attachments: InboundAttachment[] = [];
-  if (message.photo?.length) attachments.push({ kind: "image", mime: "image/jpeg" });
-  if (message.voice)
-    attachments.push({ kind: "voice", ...(message.voice.mime_type ? { mime: message.voice.mime_type } : {}) });
-  if (message.document) {
+  const attachments: TelegramAttachment[] = [];
+  if (message.photo?.length)
     attachments.push({
-      kind: "file",
-      ...(message.document.file_name ? { name: message.document.file_name } : {}),
-      ...(message.document.mime_type ? { mime: message.document.mime_type } : {}),
+      metadata: { kind: "image", mime: "image/jpeg" },
+      file: message.photo.filter((item) => item.file_id).at(-1),
     });
-  }
-  if (message.audio) {
+  for (const [kind, file] of [
+    ["voice", message.voice],
+    ["file", message.document],
+    ["file", message.audio],
+    ["video", message.video ?? message.animation ?? message.video_note],
+  ] as const) {
+    if (!file) continue;
     attachments.push({
-      kind: "file",
-      ...(message.audio.file_name ? { name: message.audio.file_name } : {}),
-      ...(message.audio.mime_type ? { mime: message.audio.mime_type } : {}),
+      metadata: {
+        kind,
+        ...(kind === "file" && file.file_name ? { name: file.file_name } : {}),
+        ...(file.mime_type ? { mime: file.mime_type } : {}),
+      },
+      ...(kind !== "video" ? { file } : {}),
     });
-  }
-  if (message.video || message.animation || message.video_note) {
-    const media = message.video ?? message.animation ?? message.video_note;
-    attachments.push({ kind: "video", ...(media?.mime_type ? { mime: media.mime_type } : {}) });
   }
   return attachments;
-}
-
-function downloadableAttachments(update: TelegramUpdate): Array<{
-  kind: "image" | "voice" | "file";
-  file: TelegramFileAttachment;
-  name?: string;
-  mime?: string;
-}> {
-  const message = update.message;
-  if (!message) return [];
-  const result: Array<{
-    kind: "image" | "voice" | "file";
-    file: TelegramFileAttachment;
-    name?: string;
-    mime?: string;
-  }> = [];
-  const photo = message.photo?.filter((item) => item.file_id).at(-1);
-  if (photo) result.push({ kind: "image", file: photo, mime: "image/jpeg" });
-  if (message.voice?.file_id) {
-    result.push({
-      kind: "voice",
-      file: message.voice,
-      name: "voice.ogg",
-      mime: message.voice.mime_type || "audio/ogg",
-    });
-  }
-  for (const file of [message.document, message.audio]) {
-    if (!file?.file_id) continue;
-    result.push({
-      kind: "file",
-      file,
-      ...(file.file_name ? { name: file.file_name } : {}),
-      ...(file.mime_type ? { mime: file.mime_type } : {}),
-    });
-  }
-  return result;
 }
 
 export function normalizeTelegramUpdate(
@@ -314,6 +253,11 @@ export function normalizeTelegramUpdate(
   const repliedMessage = message.reply_to_message;
   const repliedText = repliedMessage?.text ?? repliedMessage?.caption;
   const repliedSenderId = repliedMessage?.from?.id ?? repliedMessage?.sender_chat?.id;
+  const replyTo = repliedMessage && {
+    messageId: String(repliedMessage.message_id),
+    ...(repliedText ? { text: repliedText } : {}),
+    ...(repliedSenderId !== undefined ? { senderId: String(repliedSenderId) } : {}),
+  };
   return {
     id: String(update.update_id),
     channel: "telegram",
@@ -327,16 +271,8 @@ export function normalizeTelegramUpdate(
     },
     text: peerKind === "group" ? removeTelegramBotMention(originalText, bot.username) : originalText,
     mentionsBot,
-    ...(repliedMessage
-      ? {
-          replyTo: {
-            messageId: String(repliedMessage.message_id),
-            ...(repliedText ? { text: repliedText } : {}),
-            ...(repliedSenderId !== undefined ? { senderId: String(repliedSenderId) } : {}),
-          },
-        }
-      : {}),
-    attachments: attachmentMetadata(update),
+    ...(replyTo ? { replyTo } : {}),
+    attachments: telegramAttachments(update).map(({ metadata }) => metadata),
     timestamp: message.date * 1_000,
     providerContext: { replyToMessageId: String(message.message_id) },
   };
@@ -344,6 +280,7 @@ export function normalizeTelegramUpdate(
 
 export class TelegramAdapter implements ChannelAdapter {
   readonly id = "telegram" as const;
+  readonly proactiveDelivery = { idempotency: { kind: "none" }, needsContextToken: false } as const;
   private readonly pendingMedia = new Map<string, TelegramUpdate>();
 
   constructor(
@@ -357,28 +294,34 @@ export class TelegramAdapter implements ChannelAdapter {
     let offset = Number.parseInt(state.getCursor(account.id), 10);
     if (!Number.isSafeInteger(offset) || offset < 0) offset = 0;
     let failures = 0;
+    const request = { baseUrl: secret.baseUrl, token: secret.token, signal };
+    const reconnect = async (error: unknown): Promise<void> => {
+      if (error instanceof api.TelegramApiError && [401, 403, 409].includes(error.errorCode)) {
+        throw new Error(telegramErrorMessage(error));
+      }
+      failures += 1;
+      const retryAfter = error instanceof api.TelegramApiError ? error.retryAfter : undefined;
+      const backoff = retryAfter
+        ? rateLimitDelay(retryAfter)
+        : Math.min(2_000 * 2 ** Math.min(failures - 1, 4), MAX_RETRY_DELAY_MS);
+      onStatus({
+        state: "reconnecting",
+        connected: false,
+        retryCount: failures,
+        lastError: telegramErrorMessage(error),
+      });
+      await this.sleep(backoff, signal);
+    };
     onStatus({ state: "starting", connected: false, lastStartAt: Date.now(), retryCount: 0 });
 
     try {
       let bot: TelegramUser | undefined;
       while (!signal.aborted && !bot) {
         try {
-          bot = await getTelegramBot({ baseUrl: secret.baseUrl, token: secret.token, signal });
+          bot = await api.getTelegramBot(request);
         } catch (error) {
           if (signal.aborted) break;
-          if (isFatalTelegramError(error)) throw new Error(telegramErrorMessage(error));
-          failures += 1;
-          const retryAfter = error instanceof TelegramApiError ? error.retryAfter : undefined;
-          const backoff = retryAfter
-            ? Math.min(Math.max(retryAfter, 1) * 1_000, MAX_RETRY_DELAY_MS)
-            : Math.min(2_000 * 2 ** Math.min(failures - 1, 4), MAX_RETRY_DELAY_MS);
-          onStatus({
-            state: "reconnecting",
-            connected: false,
-            retryCount: failures,
-            lastError: telegramErrorMessage(error),
-          });
-          await this.sleep(backoff, signal);
+          await reconnect(error);
         }
       }
       if (!bot) return;
@@ -387,14 +330,9 @@ export class TelegramAdapter implements ChannelAdapter {
       }
       try {
         if (account.commandsEnabled === true) {
-          await setTelegramCommands({
-            baseUrl: secret.baseUrl,
-            token: secret.token,
-            commands: CHANNEL_COMMAND_MENU.map((item) => ({ ...item })),
-            signal,
-          });
+          await api.setTelegramCommands({ ...request, commands: CHANNEL_COMMAND_MENU.map((item) => ({ ...item })) });
         } else if (account.commandsEnabled === false) {
-          await deleteTelegramCommands({ baseUrl: secret.baseUrl, token: secret.token, signal });
+          await api.deleteTelegramCommands(request);
         }
       } catch (error) {
         if (!signal.aborted) context.log(`Telegram 命令菜单同步失败：${telegramErrorMessage(error)}`);
@@ -404,12 +342,10 @@ export class TelegramAdapter implements ChannelAdapter {
 
       while (!signal.aborted) {
         try {
-          const updates = await getTelegramUpdates({
-            baseUrl: secret.baseUrl,
-            token: secret.token,
+          const updates = await api.getTelegramUpdates({
+            ...request,
             ...(offset > 0 ? { offset } : {}),
             timeoutSeconds: POLL_TIMEOUT_SECONDS,
-            signal,
           });
           if (signal.aborted) break;
 
@@ -434,30 +370,16 @@ export class TelegramAdapter implements ChannelAdapter {
             }
           }
 
-          if (updates.length > 0) {
-            const nextOffset = Math.max(...updates.map((update) => update.update_id)) + 1;
-            if (nextOffset > offset) {
-              offset = nextOffset;
-              state.setCursor(account.id, String(offset));
-            }
+          const nextOffset = Math.max(offset, ...updates.map((update) => update.update_id + 1));
+          if (nextOffset > offset) {
+            offset = nextOffset;
+            state.setCursor(account.id, String(offset));
           }
           failures = 0;
           onStatus({ state: "running", connected: true, lastEventAt: Date.now(), retryCount: 0, lastError: undefined });
         } catch (error) {
           if (signal.aborted) break;
-          if (isFatalTelegramError(error)) throw new Error(telegramErrorMessage(error));
-          failures += 1;
-          const retryAfter = error instanceof TelegramApiError ? error.retryAfter : undefined;
-          const backoff = retryAfter
-            ? Math.min(Math.max(retryAfter, 1) * 1_000, MAX_RETRY_DELAY_MS)
-            : Math.min(2_000 * 2 ** Math.min(failures - 1, 4), MAX_RETRY_DELAY_MS);
-          onStatus({
-            state: "reconnecting",
-            connected: false,
-            retryCount: failures,
-            lastError: telegramErrorMessage(error),
-          });
-          await this.sleep(backoff, signal);
+          await reconnect(error);
         }
       }
     } finally {
@@ -466,186 +388,96 @@ export class TelegramAdapter implements ChannelAdapter {
   }
 
   private async retryRateLimit<T>(operation: () => Promise<T>): Promise<T> {
-    let attempts = 0;
-    while (true) {
+    for (let attempts = 0; ; attempts += 1) {
       try {
         return await operation();
       } catch (error) {
-        if (!(error instanceof TelegramApiError) || error.errorCode !== 429 || attempts >= 2) throw error;
-        attempts += 1;
-        await this.sleep(
-          Math.min(Math.max(error.retryAfter ?? 1, 1) * 1_000, MAX_RETRY_DELAY_MS),
-          new AbortController().signal,
-        );
+        if (!(error instanceof api.TelegramApiError) || error.errorCode !== 429 || attempts >= 2) throw error;
+        await this.sleep(rateLimitDelay(error.retryAfter), new AbortController().signal);
       }
     }
-  }
-
-  private receipt(context: Pick<AdapterSendContext, "account" | "peerId">, messageId: string): DeliveryReceipt {
-    return {
-      id: randomUUID(),
-      channel: "telegram",
-      accountId: context.account.id,
-      peerId: context.peerId,
-      messageId,
-      deliveredAt: new Date().toISOString(),
-    };
   }
 
   async downloadInbound(context: Parameters<NonNullable<ChannelAdapter["downloadInbound"]>>[0]) {
     const update = this.pendingMedia.get(context.envelope.id);
     if (!update) throw new Error("Telegram 附件上下文已过期，请重新发送");
-    const attachments = downloadableAttachments(update);
     return Promise.all(
-      attachments.map(async (attachment) => ({
-        kind: attachment.kind,
-        data: await downloadTelegramFile({
-          baseUrl: context.secret.baseUrl,
-          token: context.secret.token,
-          fileId: attachment.file.file_id!,
-        }),
-        ...(attachment.name ? { name: attachment.name } : {}),
-        ...(attachment.mime ? { mime: attachment.mime } : {}),
-      })),
+      telegramAttachments(update)
+        .filter(({ file }) => file?.file_id)
+        .map(async ({ metadata, file }) => ({
+          ...metadata,
+          data: await api.downloadTelegramFile({
+            baseUrl: context.secret.baseUrl,
+            token: context.secret.token,
+            fileId: file!.file_id!,
+          }),
+          ...(metadata.kind === "voice" ? { name: "voice.ogg", mime: metadata.mime || "audio/ogg" } : {}),
+        })),
     );
   }
 
-  private async sendPlain(context: AdapterSendContext): Promise<DeliveryReceipt> {
-    const chunks = splitChannelText(context.text, 4_000);
-    if (chunks.length === 0) throw new Error("Cannot send an empty Telegram message");
+  private async sendMessages(context: AdapterSendContext, markdown: string): Promise<DeliveryReceipt> {
     let messageId = "";
-    for (let index = 0; index < chunks.length; index += 1) {
-      const message = await this.retryRateLimit(() =>
-        sendTelegramMessage({
-          baseUrl: context.secret.baseUrl,
-          token: context.secret.token,
-          chatId: context.peerId,
-          html: escapeTelegramHtml(chunks[index]),
-          threadId: context.threadId,
-          ...(index === 0 && context.replyToMessageId ? { replyToMessageId: context.replyToMessageId } : {}),
-        }),
-      );
+    let partsDelivered = 0;
+    const request = () => ({
+      ...telegramChat(context),
+      replyToMessageId: partsDelivered === 0 ? context.replyToMessageId : undefined,
+    });
+    const sendPart = async (operation: () => Promise<TelegramMessage>): Promise<void> => {
+      const message = await this.retryRateLimit(operation);
+      partsDelivered += 1;
       messageId = String(message.message_id);
-    }
-    return this.receipt(context, messageId);
-  }
-
-  private async sendRichOrFallback(
-    context: AdapterSendContext,
-    markdown: string,
-    fallbackText: string,
-  ): Promise<DeliveryReceipt> {
-    if (!markdown.trim() || [...markdown].length > TELEGRAM_RICH_SAFE_LIMIT) {
-      return this.sendPlain({ ...context, text: fallbackText });
-    }
+    };
     try {
-      const message = await this.retryRateLimit(() =>
-        sendTelegramRichMessage({
-          baseUrl: context.secret.baseUrl,
-          token: context.secret.token,
-          chatId: context.peerId,
-          markdown,
-          threadId: context.threadId,
-          replyToMessageId: context.replyToMessageId,
-        }),
-      );
-      return this.receipt(context, String(message.message_id));
+      let chunks = splitChannelText(context.text, 4_000);
+      if (context.format !== "text" && markdown.trim() && [...markdown].length <= TELEGRAM_RICH_SAFE_LIMIT) {
+        try {
+          await sendPart(() => api.sendTelegramRichMessage({ ...request(), markdown }));
+          chunks = [];
+        } catch (error) {
+          if (!(error instanceof api.TelegramApiError) || ![400, 404].includes(error.errorCode)) throw error;
+        }
+      }
+      for (const chunk of chunks) {
+        await sendPart(() => api.sendTelegramMessage({ ...request(), html: api.escapeTelegramHtml(chunk) }));
+      }
+      for (const attachment of context.attachments ?? []) {
+        await sendPart(() => api.sendTelegramMedia({ ...request(), ...attachment }));
+      }
+      if (partsDelivered === 0) throw new Error("Cannot send an empty Telegram message");
+      return createChannelReceipt(context, messageId);
     } catch (error) {
-      if (!canFallbackFromRichMessage(error)) throw error;
-      return this.sendPlain({ ...context, text: fallbackText });
+      if (partsDelivered > 0) throw new ChannelSendFailure("maybe", false, partsDelivered, { cause: error });
+      throw error;
     }
   }
 
   async send(context: AdapterSendContext): Promise<DeliveryReceipt> {
-    if (context.attachments?.length) {
-      let receipt: DeliveryReceipt | undefined;
-      if (context.text.trim())
-        receipt = await this.sendRichOrFallback(
-          context,
-          new TelegramRichMessageBuilder().renderFinal(context.text),
-          context.text,
-        );
-      for (let index = 0; index < context.attachments.length; index += 1) {
-        const attachment = context.attachments[index];
-        const message = await this.retryRateLimit(() =>
-          sendTelegramMedia({
-            baseUrl: context.secret.baseUrl,
-            token: context.secret.token,
-            chatId: context.peerId,
-            kind: attachment.kind,
-            path: attachment.path,
-            name: attachment.name,
-            mime: attachment.mime,
-            threadId: context.threadId,
-            ...(!receipt && index === 0 && context.replyToMessageId
-              ? { replyToMessageId: context.replyToMessageId }
-              : {}),
-          }),
-        );
-        receipt = this.receipt(context, String(message.message_id));
-      }
-      if (receipt) return receipt;
-    }
-    const builder = new TelegramRichMessageBuilder();
-    return this.sendRichOrFallback(context, builder.renderFinal(context.text), context.text);
+    validateChannelSend(context, 4_000);
+    const markdown =
+      context.format === "text" || !context.text.trim()
+        ? ""
+        : new TelegramRichMessageBuilder().renderFinal(context.text);
+    return this.sendMessages(context, markdown);
   }
 
   beginTurn(context: AdapterTurnContext): AdapterTurnOutput {
     return new TelegramTurnOutput(
       context,
       this.draftIntervalMs,
-      async (turn, draftId, markdown) => {
-        if ([...markdown].length > TELEGRAM_RICH_SAFE_LIMIT) {
-          throw new Error("Telegram Rich Message draft exceeds the safe limit");
-        }
-        await sendTelegramRichMessageDraft({
-          baseUrl: turn.secret.baseUrl,
-          token: turn.secret.token,
-          chatId: turn.peerId,
-          draftId,
-          markdown,
-          threadId: turn.threadId,
-        });
-      },
-      async (turn, draftId, text) => {
-        await sendTelegramMessageDraft({
-          baseUrl: turn.secret.baseUrl,
-          token: turn.secret.token,
-          chatId: turn.peerId,
-          draftId,
-          text,
-          threadId: turn.threadId,
-        });
-      },
-      (turn, markdown, fallbackText) =>
-        this.sendRichOrFallback({ ...turn, text: fallbackText }, markdown, fallbackText),
-      async (turn, emoji) => {
-        if (!turn.replyToMessageId) return;
-        await setTelegramMessageReaction({
-          baseUrl: turn.secret.baseUrl,
-          token: turn.secret.token,
-          chatId: turn.peerId,
-          messageId: turn.replyToMessageId,
-          emoji,
-        });
-      },
+      (markdown, text) => this.sendMessages({ ...context, text, attachments: undefined }, markdown),
       this.turnTimers,
     );
   }
 
   async setTyping(context: AdapterTypingContext): Promise<void> {
     if (!context.typing) return;
-    await sendTelegramChatAction({
-      baseUrl: context.secret.baseUrl,
-      token: context.secret.token,
-      chatId: context.peerId,
-      threadId: context.threadId,
-    });
+    await api.sendTelegramChatAction(telegramChat(context));
   }
 
   async probe(account: ChannelAccountConfig, secret: AdapterStartContext["secret"]) {
     try {
-      const bot = await getTelegramBot({ baseUrl: secret.baseUrl, token: secret.token });
+      const bot = await api.getTelegramBot({ baseUrl: secret.baseUrl, token: secret.token });
       const providerUsername = bot.username ? `@${bot.username.replace(/^@/, "")}` : undefined;
       return {
         ok: true,

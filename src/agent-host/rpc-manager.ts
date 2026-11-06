@@ -1,4 +1,14 @@
 import { createEventBus } from "@earendil-works/pi-coding-agent";
+import { createAutomationResultTool } from "./agent-session/automation-result-tool";
+import {
+  customToolsFor,
+  executionProfileExtension,
+  extensionLoadingFor,
+  profileFromOrigin,
+  immutableExecutionProfile,
+  type SessionExecutionProfile,
+} from "./agent-session/execution-profile";
+import { getSessionOrigin, setSessionOrigin, type SetSessionOriginInput } from "./session-origin-store";
 import { createQuestionnaireOverride } from "./agent-session/questionnaire-adapter";
 import {
   createAgentSessionFromServices,
@@ -34,9 +44,6 @@ export { getLegacySessionToolNames } from "./agent-session/compat";
 export type { AgentEvent, ExternalSessionCommand, OrchestratedTurnOutcome } from "./agent-session/types";
 export { renderToolchainSection, RunPolicy } from "./agent-session/run-policy";
 export { AgentSessionWrapper } from "./agent-session/wrapper";
-// ============================================================================
-// Session registry
-// ============================================================================
 
 const sessionRegistry = new Map<string, AgentSessionWrapper>();
 const startLocks = new Map<string, Promise<{ session: AgentSessionWrapper; realSessionId: string }>>();
@@ -87,19 +94,10 @@ export function getRpcSessionStatuses(): Record<string, SessionLiveStatus> {
   return statuses;
 }
 
-// ----------------------------------------------------------------------------
-// Running-status broadcaster
-//
-// Pushes the current set of running session ids to subscribers whenever any
-// session's running state may have changed. This lets the sidebar receive live
-// MessagePort updates instead of polling.
-// ----------------------------------------------------------------------------
-
 function getRunningListeners(): Set<(ids: string[]) => void> {
   return runningListeners;
 }
 
-/** Subscribe to running-session-id changes. Returns an unsubscribe function. */
 export function subscribeRunningSessions(listener: (ids: string[]) => void): () => void {
   const listeners = getRunningListeners();
   listeners.add(listener);
@@ -114,10 +112,6 @@ export function subscribeSessionStatuses(listener: () => void): () => void {
 
 let lastRunningSnapshot = "";
 
-/**
- * Recompute the running-session-id set and, if it changed since the last
- * notification, broadcast it to subscribers. Cheap to call often.
- */
 export function notifyRunningChange(): void {
   const ids = getRunningRpcSessionIds();
   const statuses = getRpcSessionStatuses();
@@ -127,10 +121,13 @@ export function notifyRunningChange(): void {
   for (const listener of getRunningListeners()) {
     try {
       listener(ids);
-    } catch {
-      /* ignore listener errors */
-    }
+    } catch {}
   }
+}
+
+export interface RpcSessionStartOptions {
+  readonly profile?: SessionExecutionProfile;
+  readonly origin?: SetSessionOriginInput;
 }
 
 export async function startRpcSession(
@@ -139,12 +136,16 @@ export async function startRpcSession(
   cwd: string,
   tools?: ToolIntent | readonly string[],
   initialModel?: { provider: string; modelId: string },
+  options: RpcSessionStartOptions = {},
 ): Promise<{ session: AgentSessionWrapper; realSessionId: string }> {
   const registry = getRegistry();
   const locks = getLocks();
 
   const existing = registry.get(sessionId);
-  if (existing?.isAlive()) return { session: existing, realSessionId: sessionId };
+  if (existing?.isAlive()) {
+    if (options.profile?.kind === "automation") throw new Error("Automation sessions cannot reuse a live session");
+    return { session: existing, realSessionId: sessionId };
+  }
 
   const inflight = locks.get(sessionId);
   if (inflight) return inflight;
@@ -155,11 +156,27 @@ export async function startRpcSession(
     const sessionManager = sessionFile
       ? SessionManager.open(sessionFile, undefined)
       : SessionManager.create(cwd, configuredSessionDir());
-    installManagedProcessSessionRedaction(sessionManager);
-
-    // Desktop-owned session choices live outside Pi's shared JSONL so the CLI
-    // remains unaffected. Read the old custom entry only for one-way migration.
     const managerSessionId = sessionManager.getSessionId();
+    const origin =
+      options.profile?.kind === "automation"
+        ? { relation: "automation" as const, sourceType: "automation", automationStep: options.profile.step }
+        : options.origin;
+    const priorOrigin = getSessionOrigin(managerSessionId);
+    if (origin && priorOrigin?.relation !== "automation") setSessionOrigin(managerSessionId, origin);
+    const intent = adoptBirthToolIntent(desktopToolIntents, managerSessionId, {
+      requested: tools ?? (options.profile?.kind === "interactive" ? options.profile.toolNames : undefined),
+      legacy: getLegacySessionToolNames(sessionManager),
+    });
+    const profile = immutableExecutionProfile(
+      options.profile?.kind === "automation"
+        ? options.profile
+        : profileFromOrigin(
+            getSessionOrigin(managerSessionId),
+            intent.kind === "bare" ? [] : intent.coding === "all" ? undefined : intent.coding,
+          ),
+    );
+    const interactive = extensionLoadingFor(profile) === "user_and_project";
+    installManagedProcessSessionRedaction(sessionManager);
     applyStoredLeafChoice(managerSessionId, sessionManager);
 
     const bridge: { wrapper?: AgentSessionWrapper } = {};
@@ -169,14 +186,22 @@ export async function startRpcSession(
       agentDir,
       resourceLoaderOptions: {
         eventBus: events,
-        extensionsOverride: createQuestionnaireOverride({
-          events,
-          request: (questions, signal) => {
-            if (!bridge.wrapper) throw new Error("Session UI is not ready");
-            return bridge.wrapper.requestQuestionnaire(questions, signal);
-          },
-        }),
-        extensionFactories: [RunPolicy.extension(() => bridge.wrapper?.runPolicy)],
+        ...(interactive
+          ? {
+              extensionsOverride: createQuestionnaireOverride({
+                events,
+                request: (questions, signal) => {
+                  if (!bridge.wrapper) throw new Error("Session UI is not ready");
+                  return bridge.wrapper.requestQuestionnaire(questions, signal);
+                },
+              }),
+            }
+          : { noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true }),
+        extensionFactories: [
+          interactive
+            ? RunPolicy.extension(() => bridge.wrapper?.runPolicy)
+            : executionProfileExtension(() => bridge.wrapper),
+        ],
       },
     });
     const executionContext = await toolchainRuntime.createExecutionContext({
@@ -190,19 +215,29 @@ export async function startRpcSession(
       services.settingsManager.getShellCommandPrefix(),
       (command) => browserAgentRuntime.guardBash(sessionManager.getSessionId(), command),
     );
-    const customTools = [
+    const workspaceTools = [
       createDesktopBashToolDefinition(cwd, bashOptions),
       ...createDesktopSearchToolDefinitions(cwd, executionContext, toolchainRuntime),
-      ...createBrowserToolDefinitions(),
-      ...(peekManagedProcessService()
-        ? createManagedProcessToolDefinitions(
-            cwd,
-            services.settingsManager.isProjectTrusted(),
-            peekManagedProcessService()!,
-          )
-        : []),
-      ...createSessionOrchestrationToolDefinitions(),
-    ] as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>;
+    ];
+    const allCustomTools = interactive
+      ? [
+          ...workspaceTools,
+          ...createBrowserToolDefinitions(),
+          ...(peekManagedProcessService()
+            ? createManagedProcessToolDefinitions(
+                cwd,
+                services.settingsManager.isProjectTrusted(),
+                peekManagedProcessService()!,
+              )
+            : []),
+          ...createSessionOrchestrationToolDefinitions(),
+        ]
+      : [];
+    const customTools = customToolsFor(
+      profile,
+      allCustomTools as unknown as NonNullable<CreateAgentSessionFromServicesOptions["customTools"]>,
+      createAutomationResultTool,
+    );
     const chosen = chosenSessionModel(sessionManager.getBranch() as unknown as SessionEntry[]);
     const chosenModel = chosen.model
       ? services.modelRuntime.getModel(chosen.model.provider, chosen.model.modelId)
@@ -224,14 +259,21 @@ export async function startRpcSession(
       ...reopenChoice,
       customTools,
       excludeTools: [...EXCLUDED_SDK_TOOL_NAMES],
+      ...(profile.kind === "automation"
+        ? { tools: [...profile.tools, "automation_result"] }
+        : profile.kind === "sealed"
+          ? { tools: [] }
+          : {}),
     });
+    if (profile.kind === "automation") {
+      for (const replacement of workspaceTools) {
+        const definition = inner.getToolDefinition(replacement.name);
+        if (definition) Object.assign(definition, { execute: replacement.execute });
+      }
+    }
     const realSessionId = inner.sessionId as string;
-    adoptBirthToolIntent(desktopToolIntents, realSessionId, {
-      requested: tools,
-      legacy: getLegacySessionToolNames(sessionManager),
-    });
-
     const wrapper = new AgentSessionWrapper(inner as unknown as AgentSessionLike & ToolLoadoutReader, {
+      profile,
       intents: desktopToolIntents,
       toolchain: renderToolchainSection(executionContext.inventoryRevision, executionContext.summary),
     });

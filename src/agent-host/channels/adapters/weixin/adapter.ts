@@ -7,6 +7,12 @@ import type {
   AdapterTypingContext,
   ChannelAdapter,
 } from "../../types";
+import {
+  ChannelSendFailure,
+  createChannelReceipt,
+  validateChannelSend,
+  waitForChannelDelay as delay,
+} from "../../types";
 import { splitChannelText } from "../../outbound-renderer";
 import { safeChannelError } from "../../redaction";
 import {
@@ -35,22 +41,7 @@ type ActiveLogin = {
 const LOGIN_TTL_MS = 5 * 60_000;
 const STALE_TOKEN_CODE = -14;
 
-export function delay(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  return new Promise((resolve) => {
-    let settled = false;
-    const finish = (): void => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    };
-    const onAbort = (): void => finish();
-    const timer = setTimeout(finish, ms);
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
-}
+export { delay };
 
 function loginEvent(
   sessionKey: string,
@@ -69,6 +60,7 @@ function loginEvent(
 
 export class WeixinAdapter implements ChannelAdapter {
   readonly id = "weixin" as const;
+  readonly proactiveDelivery = { idempotency: { kind: "none" }, needsContextToken: true } as const;
   private readonly logins = new Map<string, ActiveLogin>();
   private readonly typingTickets = new Map<string, string>();
   private readonly pendingMedia = new Map<string, WeixinMessage>();
@@ -167,41 +159,32 @@ export class WeixinAdapter implements ChannelAdapter {
   }
 
   async send(context: AdapterSendContext): Promise<DeliveryReceipt> {
-    const chunks = splitChannelText(context.text);
-    if (chunks.length === 0 && !context.attachments?.length) throw new Error("Cannot send an empty Weixin message");
-    let clientId = "";
-    for (const chunk of chunks) {
-      clientId = randomUUID();
-      await sendText({
-        baseUrl: context.secret.baseUrl,
-        token: context.secret.token,
-        to: context.peerId,
-        text: chunk,
-        contextToken: context.contextToken,
-        runId: context.runId,
-        clientId,
-      });
-    }
-    for (const attachment of context.attachments ?? []) {
-      clientId = randomUUID();
-      await sendWeixinAttachment({
-        baseUrl: context.secret.baseUrl,
-        token: context.secret.token,
-        to: context.peerId,
-        attachment,
-        contextToken: context.contextToken,
-        runId: context.runId,
-        clientId,
-      });
-    }
-    return {
-      id: randomUUID(),
-      channel: "weixin",
-      accountId: context.account.id,
-      peerId: context.peerId,
-      messageId: clientId,
-      deliveredAt: new Date().toISOString(),
+    validateChannelSend(context, 3_500);
+    const request = {
+      baseUrl: context.secret.baseUrl,
+      token: context.secret.token,
+      to: context.peerId,
+      contextToken: context.contextToken,
+      runId: context.runId,
     };
+    let clientId = "";
+    let partsDelivered = 0;
+    try {
+      for (const chunk of splitChannelText(context.text, 3_500)) {
+        clientId = randomUUID();
+        await sendText({ ...request, text: chunk, clientId });
+        partsDelivered += 1;
+      }
+      for (const attachment of context.attachments ?? []) {
+        clientId = randomUUID();
+        await sendWeixinAttachment({ ...request, attachment, clientId });
+        partsDelivered += 1;
+      }
+      return createChannelReceipt(context, clientId);
+    } catch (error) {
+      if (partsDelivered > 0) throw new ChannelSendFailure("maybe", false, partsDelivered, { cause: error });
+      throw error;
+    }
   }
 
   async downloadInbound(context: Parameters<NonNullable<ChannelAdapter["downloadInbound"]>>[0]) {
