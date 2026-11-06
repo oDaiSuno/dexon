@@ -1,3 +1,4 @@
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useCallback, useState } from "react";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -8,11 +9,17 @@ import { useBlobSrc } from "./use-blob-src";
 import { useFileWatch } from "./use-file-watch";
 import { WatchIndicator } from "./watch-indicator";
 
-export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
+export function ImageViewer({
+  filePath,
+  cwd,
+  sourceSessionId,
+  environmentId: requestedEnvironmentId,
+}: FileViewerProps) {
   const { language, t } = useI18n();
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const [bust, setBust] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
-  const { src, size, error, setError, setSize } = useBlobSrc(filePath, sourceSessionId, bust);
+  const { src, size, error, setError, setSize } = useBlobSrc(environmentId, filePath, sourceSessionId, bust);
   const onChange = useCallback(
     (s?: number) => {
       if (typeof s === "number") setSize(s);
@@ -21,7 +28,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
     },
     [setSize],
   );
-  const watching = useFileWatch(filePath, sourceSessionId, onChange);
+  const watching = useFileWatch(environmentId, filePath, sourceSessionId, onChange);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
 
@@ -56,7 +63,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
         )}
         {formatSizeStr && <span>{formatSizeStr}</span>}
         <WatchIndicator watching={watching} />
-        <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
+        <DownloadLink environmentId={environmentId} filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
         style={{
@@ -92,7 +99,7 @@ export function ImageViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
               maxWidth: "100%",
               maxHeight: "100%",
               objectFit: "contain",
-              boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+              boxShadow: "var(--shadow-picker)",
             }}
           />
         )}

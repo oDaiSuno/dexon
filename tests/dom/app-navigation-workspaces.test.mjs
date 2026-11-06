@@ -61,7 +61,7 @@ async function removeControl(scene, folder) {
   return waitFor(() => removeControls(scene, folder)[0] ?? null);
 }
 
-test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the two space actions", async (t) => {
+test("the production sidebar shows a friendly personal-space name without a resident path or worktree hint, and its project card shows the current project, where it lives and the local and remote space sources", async (t) => {
   const scene = await startNavigation(t, { history: false });
   control(scene.workspace(), "button", "Default space");
   const menu = await scene.menu();
@@ -72,7 +72,12 @@ test("the production sidebar shows a friendly personal-space name without a resi
   assert.ok(!menu.textContent.includes(navigationPaths.home), "the card does not spell out the home folder");
   assert.deepEqual(
     roles(menu, "menuitem").map((item) => accessibleName(item)),
-    ["Add project space from folder…", "Back to default space"],
+    [
+      "Add project space from folder…",
+      "Add project space from remote server…",
+      "Connect a remote server…",
+      "Back to default space",
+    ],
   );
   await keyDown(menu, "Escape");
   await waitFor(() => assert.equal(roles(scene.navigation(), "menu").length, 0));

@@ -1,28 +1,38 @@
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
 import { useEffect, useRef, useState } from "react";
 import type { GitStatusResult } from "@shared/api-types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 
-export function useChangedPaths(cwd: string | null, refreshKey: number): ReadonlySet<string> | null {
-  const [paths, setPaths] = useState<ReadonlySet<string> | null>(null);
+export function useChangedPaths(
+  environmentId: EnvironmentId,
+  cwd: string | null,
+  refreshKey: number,
+): ReadonlySet<string> | null {
+  const [result, setResult] = useState<{ key: string; paths: ReadonlySet<string> | null } | null>(null);
+  const key = cwd ? qualifyProjectKey(environmentId, cwd) : null;
   const generation = useRef(0);
 
   useEffect(() => {
     const current = ++generation.current;
-    if (!cwd) {
-      setPaths(null);
+    if (!cwd || !key) {
+      setResult(null);
       return;
     }
-    void call("git.status", { path: cwd })
+    void getEnvironmentApiClient(environmentId)
+      .call("git.status", { path: cwd })
       .then((status: GitStatusResult) => {
         if (current !== generation.current) return;
-        setPaths(status.isGit ? new Set(status.entries.map((entry) => entry.path)) : null);
+        setResult({ key, paths: status.isGit ? new Set(status.entries.map((entry) => entry.path)) : null });
       })
       .catch(() => {
-        if (current === generation.current) setPaths(null);
+        if (current === generation.current) setResult(null);
       });
-  }, [cwd, refreshKey]);
+    return () => {
+      generation.current += 1;
+    };
+  }, [environmentId, cwd, refreshKey, key]);
 
-  return paths;
+  return result?.key === key ? result.paths : null;
 }
 
 export function isPathChanged(changed: ReadonlySet<string> | null, relativePath: string): boolean {

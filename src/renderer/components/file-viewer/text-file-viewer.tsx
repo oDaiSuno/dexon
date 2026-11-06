@@ -1,3 +1,5 @@
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useState, type MouseEvent } from "react";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { useI18n } from "@/i18n";
@@ -17,8 +19,14 @@ const PLACEHOLDER_STYLE = {
   justifyContent: "center",
 } as const;
 
-export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
+export function TextFileViewer({
+  filePath,
+  cwd,
+  sourceSessionId,
+  environmentId: requestedEnvironmentId,
+}: FileViewerProps) {
   const { t } = useI18n();
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const {
     loadState,
     hasDiff,
@@ -31,7 +39,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
     wrapLines,
     setWrapLines,
     watching,
-  } = useTextFile(filePath, sourceSessionId);
+  } = useTextFile(environmentId, filePath, sourceSessionId);
 
   if (loadState.status === "loading") {
     return (
@@ -51,6 +59,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
 
   return (
     <TextFileReady
+      environmentId={environmentId}
       filePath={filePath}
       cwd={cwd}
       sourceSessionId={sourceSessionId}
@@ -76,6 +85,7 @@ export interface TextFileReadyProps extends FileViewerProps, Omit<TextModeToggle
 }
 
 export function TextFileReady({
+  environmentId,
   filePath,
   cwd,
   sourceSessionId,
@@ -99,7 +109,8 @@ export function TextFileReady({
   const visibleCursor = mode === "source" && cursor && cursor.line <= lineCount ? cursor : null;
 
   const openFileMenu = (event: MouseEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || !window.piBridge?.showFileContextMenu) return;
+    if (environmentId !== PRIMARY_ENVIRONMENT_ID || event.defaultPrevented || !window.piBridge?.showFileContextMenu)
+      return;
     event.preventDefault();
     void window.piBridge
       .showFileContextMenu({ href: filePath, cwd, source: "local-file-reference", language })
@@ -124,6 +135,7 @@ export function TextFileReady({
         />
       </div>
       <TextFileContent
+        environmentId={environmentId}
         filePath={filePath}
         cwd={cwd}
         sourceSessionId={sourceSessionId}

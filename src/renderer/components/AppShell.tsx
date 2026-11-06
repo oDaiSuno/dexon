@@ -13,7 +13,7 @@ import type { ChatInputHandle } from "./ChatInput";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 import { useWorkspaceNavigation } from "./app-shell/use-workspace-navigation";
 import { useSpaceCoordination } from "./app-shell/use-space-coordination";
-import { EXPLORER_TAB_ID, useRightPanelDock } from "./app-shell/use-right-panel-dock";
+import { useRightPanelDock } from "./app-shell/use-right-panel-dock";
 import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
 import { useSessionInfo } from "./app-shell/use-session-info";
@@ -27,11 +27,7 @@ import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-pa
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useShellSpace } from "./app-shell/use-shell-space";
-
-// Phase 2 composition root: assembles the app shell from the navigation,
-// right-panel, browser-authorization, channel and session-info owners. The
-// layout, chat area and settings modal remain here; everything stateful lives
-// in the split modules.
+import { useExplorerCwdSelection } from "./app-shell/use-explorer-cwd-selection";
 
 export function AppShell({
   chatAppearance,
@@ -49,8 +45,6 @@ export function AppShell({
   const [resourceView, setResourceView] = useState<ResourceView>("overview");
   const [remoteOpen, setRemoteOpen] = useState(false);
 
-  // On mobile the sidebar is an overlay drawer; hide it by default so the chat
-  // is visible on load. Runs once the breakpoint resolves after hydration.
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
@@ -107,6 +101,7 @@ export function AppShell({
     }, []),
   });
   const {
+    environmentId,
     selectedSession,
     spaceFrozenSessionId,
     newSessionCwd,
@@ -127,13 +122,6 @@ export function AppShell({
     noteCoordinatorCwd,
   } = navigation;
 
-  // Phase 6: the shell's space coordinator owns the current space — the
-  // startup decision (explicit session → last space → personal space),
-  // directory validation/retry, and last-space persistence. The sidebar's
-  // picker and worktree operations flow up through the combined cwd callback;
-  // the coordinator's committed space flows back down as the sidebar's cwd.
-  // Echoes of pushed values are tagged "coordinator" by the sidebar and must
-  // adopt the cwd without user-space or session-close semantics.
   const sessionSpaceCwd =
     selectedSession === null
       ? (newSessionCwd ?? null)
@@ -220,8 +208,6 @@ export function AppShell({
 
   const handleAgentEnd = handleExplorerRefresh;
 
-  // Same @mention format as the chat input's @ autocomplete, so the agent's
-  // read tool resolves it the same way (it strips the @ prefix).
   const handleAtMention = useCallback((relativePath: string, isDir: boolean) => {
     chatInputRef.current?.insertText(buildAtMentionText(relativePath, isDir));
   }, []);
@@ -245,18 +231,13 @@ export function AppShell({
     [handleOpenFile, selectedSession?.id],
   );
 
-  // Show chat area if a session is selected, or if we have a cwd to start a new session in
   const effectiveNewSessionCwd = newSessionCwd ?? (selectedSession === null && activeCwd ? activeCwd : null);
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
-  // While restoring initial session from URL, don't show the placeholder
   const showPlaceholder = initialSessionRestored && !showChat;
 
   const explorerCwd = activeCwd ?? selectedSession?.cwd ?? newSessionCwd;
 
-  useEffect(() => {
-    if (!activeCwd || isMobile) return;
-    dispatchFileTab({ type: "select", tabId: EXPLORER_TAB_ID });
-  }, [activeCwd, isMobile, dispatchFileTab]);
+  useExplorerCwdSelection(activeCwd, isMobile, dispatchFileTab, selectedSession);
 
   return (
     <>
@@ -296,7 +277,6 @@ export function AppShell({
           onSessionDeleted={handleSessionDeleted}
         />
 
-        {/* Center: chat */}
         <div
           style={{
             flex: 1,
@@ -370,7 +350,6 @@ export function AppShell({
               showChat={showChat && !onResources}
             />
 
-            {/* Chat content */}
             <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
               {onResources && (
                 <ResourcePage
@@ -386,7 +365,7 @@ export function AppShell({
                 />
               )}
               {showChat ? (
-                <SessionProfiler key={sessionKey} id="ChatWindow">
+                <SessionProfiler key={`${environmentId}:${sessionKey}`} id="ChatWindow">
                   <ChatWindow
                     visible={!mainSuspended}
                     session={selectedSession}
@@ -422,7 +401,6 @@ export function AppShell({
           </div>
         </div>
 
-        {/* Right panel: Browser, Explorer, managed processes and file previews */}
         <RightPanelDock
           activeFileTabId={dock.activeFileTabId}
           fileTabs={dock.fileTabs}

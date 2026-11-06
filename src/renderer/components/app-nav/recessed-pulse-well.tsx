@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import type { PulseModel, PulseRow } from "@/lib/sidebar-activity";
 import {
@@ -87,12 +88,14 @@ export function RecessedPulseWell({
   searching,
   visible = true,
   selectedSessionId,
+  selectedEnvironmentId = PRIMARY_ENVIRONMENT_ID,
   onOpenSession,
 }: {
   model: PulseModel;
   searching: boolean;
   visible?: boolean;
   selectedSessionId: string | null;
+  selectedEnvironmentId?: string;
   onOpenSession: (session: SessionInfo) => void;
 }): ReactNode {
   const { t } = useI18n();
@@ -249,7 +252,10 @@ export function RecessedPulseWell({
             key={row.key}
             row={row}
             now={now}
-            selected={row.target.id === selectedSessionId}
+            selected={
+              row.target.id === selectedSessionId &&
+              (row.target.environmentId ?? PRIMARY_ENVIRONMENT_ID) === selectedEnvironmentId
+            }
             onOpen={onOpenSession}
           />
         ))}

@@ -187,6 +187,8 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/base.css",
   "styles/controls.css",
   "styles/remote-folder-picker.css",
+  "styles/remote-disabled-reason.css",
+  "styles/remote-space-attribution.css",
   "styles/session-row.css",
   "styles/session-menu.css",
   "styles/composer.css",

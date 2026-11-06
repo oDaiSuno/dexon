@@ -8,10 +8,12 @@ import { ReaderActionProvider } from "./chat-window/reader-action";
 import { TurnNavigator } from "./chat-window/turn-navigator";
 import { useChatWindow } from "./chat-window/use-chat-window";
 import { Welcome } from "./chat-window/welcome";
+import { ReconnectBanner } from "./chat-window/reconnect-banner";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { RetryCountdownLine } from "./messages/FailureLine";
 import { SessionProfiler } from "./SessionProfiler";
 import { useLayoutEffect } from "react";
+import { useSendGate } from "@/lib/space-attribution";
 
 const detachedSentinel = () => {};
 
@@ -27,6 +29,7 @@ const floatingLayerStyle = {
 
 export function ChatWindow(props: Props) {
   const visible = props.visible ?? true;
+  const sendGate = useSendGate();
   useLayoutEffect(() => {
     if (visible) return;
     const active = document.activeElement;
@@ -92,17 +95,17 @@ export function ChatWindow(props: Props) {
   } = useChatWindow(props);
   const jumpPending = turnJump.jumpTarget !== null;
 
-  if (loading) {
+  if (loading && sendGate.allowed) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-text-secondary)" }}>
-          Loading session...
+          {t("remoteAttributionLoadingSession", "Loading session...")}
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && sendGate.allowed) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-status-danger-text)" }}>
@@ -127,6 +130,12 @@ export function ChatWindow(props: Props) {
       onDrop={handleDrop}
     >
       <DragOverlay isDragOver={isDragOver} />
+      <ReconnectBanner />
+      {error && (
+        <div role="alert" className="remote-session-unavailable type-label-default">
+          {t("remoteAttributionHistoryUnavailable", "Session history is unavailable until reconnecting.")} {error}
+        </div>
+      )}
 
       {isEmptyNew ? (
         <Welcome notices={notices} onDismissNotice={dismissNotice} />

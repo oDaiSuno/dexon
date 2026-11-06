@@ -28,17 +28,13 @@ export function projectKeyOf(ref: ProjectSpaceRef): ProjectKey {
   if (windows || normalized.startsWith("//")) normalized = normalized.toLowerCase();
   return qualifyProjectKey(ref.environmentId, normalized);
 }
+function isEnvironmentId(value: unknown): value is EnvironmentId {
+  return typeof value === "string" && value.length > 0 && value.length <= 1024 && !/[\0\r\n]/u.test(value);
+}
 function parseRef(value: unknown): ProjectSpaceRef {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Invalid project space");
   const ref = value as Record<string, unknown>;
-  if (
-    typeof ref.environmentId !== "string" ||
-    !ref.environmentId ||
-    ref.environmentId.length > 1024 ||
-    /[\0\r\n]/u.test(ref.environmentId) ||
-    typeof ref.path !== "string" ||
-    !isAbsoluteInAnyStyle(ref.path)
-  )
+  if (!isEnvironmentId(ref.environmentId) || typeof ref.path !== "string" || !isAbsoluteInAnyStyle(ref.path))
     throw new Error("Invalid project space identity or path");
   if (
     ref.displayPath !== undefined &&
@@ -66,8 +62,7 @@ export function parseProjectSpacesState(value: unknown): ProjectSpacesState {
   if (new Set(spaces.map(projectKeyOf)).size !== spaces.length)
     throw new Error("Project spaces must not repeat a folder");
   const seeded = state.seeded.map((id) => {
-    if (typeof id !== "string" || !id || id.length > 1024 || /[\0\r\n]/u.test(id))
-      throw new Error("Invalid seeded environment");
+    if (!isEnvironmentId(id)) throw new Error("Invalid seeded environment");
     return id;
   });
   return {
@@ -78,6 +73,37 @@ export function parseProjectSpacesState(value: unknown): ProjectSpacesState {
       ? {}
       : { lastFocusedSpace: state.lastFocusedSpace === null ? null : parseRef(state.lastFocusedSpace) }),
   };
+}
+export function recoverProjectSpacesState(value: unknown, legacyOpenProjects?: unknown): ProjectSpacesState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fromLegacyOpenProjects(legacyOpenProjects);
+  const state = value as Record<string, unknown>;
+  if (state.version !== 2) return fromLegacyOpenProjects(legacyOpenProjects);
+  const spaces: ProjectSpaceRef[] = [];
+  const keys = new Set<ProjectKey>();
+  for (const entry of Array.isArray(state.spaces) ? state.spaces : []) {
+    try {
+      const ref = parseRef(entry);
+      const key = projectKeyOf(ref);
+      if (!keys.has(key)) {
+        spaces.push(ref);
+        keys.add(key);
+      }
+    } catch {}
+    if (spaces.length >= MAX_PROJECT_SPACES) break;
+  }
+  const seeded = new Set<EnvironmentId>();
+  for (const id of Array.isArray(state.seeded) ? state.seeded : []) {
+    if (isEnvironmentId(id)) seeded.add(id);
+    if (seeded.size >= 100) break;
+  }
+  const recovered: ProjectSpacesState = { version: 2, spaces, seeded: [...seeded] };
+  if (state.lastFocusedSpace === null) recovered.lastFocusedSpace = null;
+  else if (state.lastFocusedSpace !== undefined) {
+    try {
+      recovered.lastFocusedSpace = parseRef(state.lastFocusedSpace);
+    } catch {}
+  }
+  return recovered;
 }
 export function fromLegacyOpenProjects(value: unknown): ProjectSpacesState {
   const spaces: ProjectSpaceRef[] = [];

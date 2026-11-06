@@ -43,6 +43,32 @@ test("a server-scoped remembered space restores only when that server remains en
   assert.equal(offline.getSnapshot().spaces[0].path, "/code/app");
 });
 
+test("restore recovers valid remote spaces and focus when a saved sibling is malformed", async () => {
+  const remote = { environmentId: "gpu", path: "/code/recoverable" };
+  const store = new WorkspaceStore();
+  await store.initialize(
+    bridgeFor({
+      openProjects: ["/code/legacy"],
+      projectSpaces: {
+        version: 2,
+        spaces: [remote, { environmentId: "", path: "/code/invalid" }],
+        seeded: ["gpu", null],
+        lastFocusedSpace: remote,
+      },
+    }),
+  );
+  assert.deepEqual(
+    store.getSnapshot().spaces.map(({ environmentId, path }) => ({ environmentId, path })),
+    [{ environmentId: "gpu", path: "/code/recoverable" }],
+  );
+  assert.deepEqual(store.getSnapshot().seeded, ["gpu"]);
+  assert.deepEqual(store.getSnapshot().focus, {
+    environmentId: "gpu",
+    spaceKey: '["gpu","/code/recoverable"]',
+    sessionId: null,
+  });
+});
+
 test("choosing a session while restore is pending does not erase mounted spaces or overwrite saved state early", async () => {
   let restore;
   const writes = [];
@@ -66,6 +92,173 @@ test("choosing a session while restore is pending does not erase mounted spaces 
     spaceKey: '["gpu","/code/new"]',
     sessionId: "new-session",
   });
+});
+
+for (const failingMethod of ["getUiState", "listEnvironments"]) {
+  for (const action of ["focusSession", "seedFromSessions"]) {
+    test(`${action} after ${failingMethod} fails preserves saved spaces until the same bridge recovers`, async () => {
+      const remote = { environmentId: "gpu", path: "/code/a", displayPath: "~/a" };
+      const other = { environmentId: "other", path: "/code/b", displayPath: "/code/b" };
+      const seeded = { environmentId: "new", path: "/code/c", displayPath: "/code/c" };
+      const writes = [];
+      const state = {
+        projectSpaces: { version: 2, spaces: [remote, other], seeded: ["gpu"], lastFocusedSpace: remote },
+      };
+      const healthy = bridgeFor(state, writes);
+      let failing = true;
+      const bridge = {
+        ...healthy,
+        [failingMethod]: async () => {
+          if (failing) throw new Error("Temporary bridge read failure");
+          return healthy[failingMethod]();
+        },
+      };
+      const store = new WorkspaceStore();
+      await store.initialize(bridge);
+      if (action === "focusSession") store.focusSession({ id: "chosen-session", environmentId: "gpu", cwd: "/code/a" });
+      else store.seedFromSessions("new", ["/code/c"]);
+      assert.deepEqual(writes, []);
+      assert.equal(store.getSnapshot().loaded, false);
+      failing = false;
+      await store.initialize(bridge);
+      assert.equal(store.getSnapshot().loaded, true);
+      assert.deepEqual(
+        store
+          .getSnapshot()
+          .spaces.map(({ environmentId, path, displayPath }) => ({ environmentId, path, displayPath })),
+        action === "focusSession" ? [remote, other] : [seeded, remote, other],
+      );
+      assert.deepEqual(store.getSnapshot().seeded, action === "focusSession" ? ["gpu"] : ["gpu", "new"]);
+      assert.deepEqual(store.getSnapshot().focus, {
+        environmentId: "gpu",
+        spaceKey: '["gpu","/code/a"]',
+        sessionId: action === "focusSession" ? "chosen-session" : null,
+      });
+      assert.deepEqual(writes.at(-1), {
+        projectSpaces: {
+          version: 2,
+          spaces: action === "focusSession" ? [remote, other] : [seeded, remote, other],
+          seeded: action === "focusSession" ? ["gpu"] : ["gpu", "new"],
+          lastFocusedSpace: remote,
+        },
+      });
+    });
+  }
+}
+
+for (const removal of ["space", "environment"]) {
+  test(`removing ${removal} during restore preserves and persists unrelated saved spaces`, async () => {
+    const remote = { environmentId: "gpu", path: "/code/a" };
+    const other = { environmentId: "other", path: "/code/b" };
+    const pending = Promise.withResolvers();
+    const writes = [];
+    const store = new WorkspaceStore();
+    const loading = store.initialize({ ...bridgeFor({}, writes), getUiState: () => pending.promise });
+    if (removal === "space") store.unmount(projectKeyOf(remote));
+    else store.unmountEnvironment("gpu");
+    assert.deepEqual(writes, []);
+    pending.resolve({
+      theme: "dark",
+      projectSpaces: { version: 2, spaces: [remote, other], seeded: ["gpu", "other"], lastFocusedSpace: remote },
+    });
+    await loading;
+    assert.deepEqual(
+      store.getSnapshot().spaces.map(({ environmentId, path }) => ({ environmentId, path })),
+      [{ environmentId: "other", path: "/code/b" }],
+    );
+    assert.deepEqual(store.getSnapshot().seeded, ["gpu", "other"]);
+    assert.deepEqual(store.getSnapshot().focus, { environmentId: "primary", spaceKey: null, sessionId: null });
+    assert.deepEqual(writes.at(-1), {
+      projectSpaces: {
+        version: 2,
+        spaces: [{ environmentId: "other", path: "/code/b", displayPath: "/code/b" }],
+        seeded: ["gpu", "other"],
+        lastFocusedSpace: null,
+      },
+    });
+  });
+}
+
+test("an unrelated session chosen during restore survives a pending environment removal", async () => {
+  const remote = { environmentId: "gpu", path: "/code/a" };
+  const other = { environmentId: "other", path: "/code/b" };
+  const pending = Promise.withResolvers();
+  const store = new WorkspaceStore();
+  const loading = store.initialize({ ...bridgeFor({}), getUiState: () => pending.promise });
+  store.unmountEnvironment("gpu");
+  store.focusSession({ id: "new-session", environmentId: "other", cwd: "/code/new" });
+  pending.resolve({
+    projectSpaces: { version: 2, spaces: [remote, other], seeded: [], lastFocusedSpace: remote },
+  });
+  await loading;
+  assert.deepEqual(store.getSnapshot().focus, {
+    environmentId: "other",
+    spaceKey: '["other","/code/new"]',
+    sessionId: "new-session",
+  });
+  assert.deepEqual(
+    store.getSnapshot().spaces.map(({ environmentId, path }) => ({ environmentId, path })),
+    [{ environmentId: "other", path: "/code/b" }],
+  );
+});
+
+for (const removed of ["primary", "other"]) {
+  test(`restore does not preserve focus on explicitly removed ${removed}`, async () => {
+    const remote = { environmentId: "gpu", path: "/code/a" };
+    const pending = Promise.withResolvers();
+    const store = new WorkspaceStore();
+    const loading = store.initialize({ ...bridgeFor({}), getUiState: () => pending.promise });
+    store.unmountEnvironment(removed);
+    if (removed === "other") store.focusSession({ id: "removed-session", environmentId: "other", cwd: "/code/b" });
+    pending.resolve({
+      projectSpaces: { version: 2, spaces: [remote], seeded: [], lastFocusedSpace: remote },
+    });
+    await loading;
+    assert.deepEqual(store.getSnapshot().focus, {
+      environmentId: "gpu",
+      spaceKey: '["gpu","/code/a"]',
+      sessionId: null,
+    });
+  });
+}
+
+test("pending space operations replay in order without repeating saved session seeding", async () => {
+  const remote = { environmentId: "gpu", path: "/code/a" };
+  const other = { environmentId: "other", path: "/code/b" };
+  const extra = { environmentId: "new", path: "/code/c" };
+  const pending = Promise.withResolvers();
+  const store = new WorkspaceStore();
+  const loading = store.initialize({ ...bridgeFor({}), getUiState: () => pending.promise });
+  store.unmount(projectKeyOf(remote));
+  store.noteCurrentProject(extra, null);
+  store.seedFromSessions("other", ["/code/removed-before-restart"]);
+  store.move(projectKeyOf(other), -1, null);
+  pending.resolve({ projectSpaces: { version: 2, spaces: [remote, other], seeded: ["other"] } });
+  await loading;
+  assert.deepEqual(
+    store.getSnapshot().spaces.map(({ environmentId, path }) => ({ environmentId, path })),
+    [
+      { environmentId: "other", path: "/code/b" },
+      { environmentId: "new", path: "/code/c" },
+    ],
+  );
+  assert.deepEqual(store.getSnapshot().seeded, ["other"]);
+});
+
+test("a replacement bridge discards pending operations and ignores the retired restore", async () => {
+  const remote = { environmentId: "gpu", path: "/code/a" };
+  const pending = Promise.withResolvers();
+  const store = new WorkspaceStore();
+  const retired = store.initialize({ ...bridgeFor({}), getUiState: () => pending.promise });
+  store.unmountEnvironment("gpu");
+  await store.initialize(bridgeFor({ projectSpaces: { version: 2, spaces: [remote], seeded: ["gpu"] } }));
+  pending.resolve({ projectSpaces: { version: 2, spaces: [], seeded: [] } });
+  await retired;
+  assert.deepEqual(
+    store.getSnapshot().spaces.map(({ environmentId, path }) => ({ environmentId, path })),
+    [{ environmentId: "gpu", path: "/code/a" }],
+  );
+  assert.deepEqual(store.getSnapshot().seeded, ["gpu"]);
 });
 
 test("seeding happens once and never remounts a project the user removed", async () => {

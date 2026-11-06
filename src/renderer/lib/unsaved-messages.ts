@@ -1,3 +1,11 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+
+export function newSessionDraftKey(cwd: string | null, environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID): string {
+  return environmentId === PRIMARY_ENVIRONMENT_ID
+    ? `new:${cwd ?? "untitled"}`
+    : `new:${JSON.stringify([environmentId, cwd ?? "untitled"])}`;
+}
+
 let temporaryIds = 0;
 
 export class UnsavedMessages {
@@ -41,23 +49,41 @@ export class UnsavedMessages {
 }
 
 const conversations = new Map<string, UnsavedMessages>();
+const draftPromotions = new Map<string, string>();
 
-export function unsavedMessagesFor(sessionId: string | null, newSessionCwd: string | null): UnsavedMessages {
-  const key = conversationKey(sessionId, newSessionCwd);
+export function takeDraftPromotion(source: string, target: string): boolean {
+  if (draftPromotions.get(source) !== target) return false;
+  draftPromotions.delete(source);
+  return true;
+}
+
+export function unsavedMessagesFor(
+  sessionId: string | null,
+  newSessionCwd: string | null,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): UnsavedMessages {
+  const key = conversationKey(sessionId, newSessionCwd, environmentId);
   const existing = conversations.get(key);
   if (existing) return existing;
   const created = new UnsavedMessages();
+  draftPromotions.delete(key);
   conversations.set(key, created);
   return created;
 }
 
-export function carryUnsavedMessages(newSessionCwd: string, sessionId: string): void {
-  const pending = conversations.get(conversationKey(null, newSessionCwd));
+export function carryUnsavedMessages(
+  newSessionCwd: string,
+  sessionId: string,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): void {
+  const key = newSessionDraftKey(newSessionCwd, environmentId);
+  const pending = conversations.get(key);
   if (!pending) return;
-  conversations.delete(conversationKey(null, newSessionCwd));
-  conversations.set(conversationKey(sessionId, null), pending);
+  draftPromotions.set(key, sessionId);
+  conversations.delete(key);
+  conversations.set(conversationKey(sessionId, null, environmentId), pending);
 }
 
-function conversationKey(sessionId: string | null, newSessionCwd: string | null): string {
-  return sessionId ?? `new:${newSessionCwd ?? "untitled"}`;
+function conversationKey(sessionId: string | null, newSessionCwd: string | null, environmentId: EnvironmentId): string {
+  return sessionId ?? newSessionDraftKey(newSessionCwd, environmentId);
 }

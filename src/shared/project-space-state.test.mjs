@@ -4,6 +4,8 @@ import {
   fromLegacyOpenProjects,
   toLegacyOpenProjects,
   parseProjectSpacesState,
+  recoverProjectSpacesState,
+  MAX_PROJECT_SPACES,
   projectKeyOf,
   isAbsoluteInAnyStyle,
 } from "./project-space-state.ts";
@@ -53,6 +55,107 @@ test("saved spaces reject invalid versions, duplicate identities and unbounded i
     { ...valid, spaces: Array.from({ length: 201 }, (_, i) => ({ environmentId: "gpu", path: `/code/${i}` })) },
   ])
     assert.throws(() => parseProjectSpacesState(value));
+});
+
+test("saved project recovery skips malformed rows and canonical duplicates before limiting valid spaces", () => {
+  assert.equal(MAX_PROJECT_SPACES, 200);
+  const windows = { environmentId: "gpu", path: "C:\\CODE\\App\\", displayPath: "App" };
+  const unc = { environmentId: "gpu", path: "\\\\SERVER\\Share\\App" };
+  const other = { environmentId: "other", path: "c:/code/app" };
+  const folders = Array.from({ length: 201 }, (_, i) => ({ environmentId: "gpu", path: `/code/${i}` }));
+  const state = recoverProjectSpacesState(
+    {
+      version: 2,
+      spaces: [
+        null,
+        [],
+        { environmentId: "", path: "/code/bad" },
+        { environmentId: "gpu", path: "relative" },
+        { environmentId: "gpu", path: "/code/bad", displayPath: 42 },
+        windows,
+        { environmentId: "gpu", path: "c:/code/app" },
+        unc,
+        { environmentId: "gpu", path: "\\\\server\\share\\app\\" },
+        other,
+        ...folders,
+      ],
+      seeded: ["gpu"],
+    },
+    ["/code/legacy"],
+  );
+  assert.deepEqual(state, {
+    version: 2,
+    spaces: [windows, unc, other, ...folders.slice(0, 197)],
+    seeded: ["gpu"],
+  });
+});
+
+test("saved project recovery retains at most 100 valid unique seeded environment ids", () => {
+  const boundary = "x".repeat(1024);
+  const ids = Array.from({ length: 101 }, (_, i) => `environment-${i}`);
+  assert.deepEqual(
+    recoverProjectSpacesState({
+      version: 2,
+      spaces: [{ environmentId: "gpu", path: "/code/valid" }],
+      seeded: [null, {}, false, "", "bad\u0000id", "bad\rid", "bad\nid", "x".repeat(1025), boundary, boundary, ...ids],
+    }),
+    {
+      version: 2,
+      spaces: [{ environmentId: "gpu", path: "/code/valid" }],
+      seeded: [boundary, ...ids.slice(0, 99)],
+    },
+  );
+});
+
+test("saved project recovery preserves explicit null or valid focus and omits invalid focus", () => {
+  const state = { version: 2, spaces: [{ environmentId: "gpu", path: "/code/valid" }], seeded: ["gpu"] };
+  const focus = { environmentId: "gpu", path: "/code/focus", displayPath: "~/focus" };
+  assert.deepEqual(recoverProjectSpacesState({ ...state, lastFocusedSpace: null }), {
+    ...state,
+    lastFocusedSpace: null,
+  });
+  assert.deepEqual(recoverProjectSpacesState({ ...state, lastFocusedSpace: { ...focus, extra: true } }), {
+    ...state,
+    lastFocusedSpace: focus,
+  });
+  assert.deepEqual(recoverProjectSpacesState(state), state);
+  for (const lastFocusedSpace of [
+    undefined,
+    false,
+    [],
+    "gpu",
+    { environmentId: "", path: "/code/invalid" },
+    { environmentId: "gpu", path: "relative" },
+    { ...focus, displayPath: 42 },
+  ])
+    assert.deepEqual(recoverProjectSpacesState({ ...state, lastFocusedSpace }), state);
+});
+
+test("saved project recovery uses legacy folders only when there is no version 2 object", () => {
+  const legacy = ["/code/legacy", "relative"];
+  for (const value of [undefined, null, false, [], "invalid", {}, { version: 1 }, { version: "2" }])
+    assert.deepEqual(recoverProjectSpacesState(value, legacy), {
+      version: 2,
+      spaces: [{ environmentId: "primary", path: "/code/legacy" }],
+      seeded: [],
+    });
+  const focus = { environmentId: "gpu", path: "/code/focus" };
+  for (const spaces of [undefined, null, {}, "invalid", [null, { environmentId: "", path: "/code/bad" }]])
+    assert.deepEqual(
+      recoverProjectSpacesState({ version: 2, spaces, seeded: ["gpu"], lastFocusedSpace: focus }, legacy),
+      {
+        version: 2,
+        spaces: [],
+        seeded: ["gpu"],
+        lastFocusedSpace: focus,
+      },
+    );
+  for (const seeded of [undefined, null, {}, "gpu"])
+    assert.deepEqual(recoverProjectSpacesState({ version: 2, spaces: [focus], seeded }, legacy), {
+      version: 2,
+      spaces: [focus],
+      seeded: [],
+    });
 });
 
 test("remote Node accepts stable 22.19 and newer 22 releases but excludes other majors and prereleases", () => {

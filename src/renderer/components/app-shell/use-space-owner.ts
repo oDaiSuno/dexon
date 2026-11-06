@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
+import { workspaceStore } from "@/lib/workspace-store";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
@@ -25,6 +27,16 @@ export function useSpaceOwner(props: {
   const { t } = useI18n();
   const environment = useActiveEnvironment();
   const affordances = useActiveEnvironmentAffordances();
+  const { focus } = useSyncExternalStore(
+    workspaceStore.subscribe,
+    workspaceStore.getSnapshot,
+    workspaceStore.getSnapshot,
+  );
+  const focusedSpace = focus.spaceKey ? parseQualifiedProjectKey(focus.spaceKey) : null;
+  const activeSpaceCwd =
+    environment.id === PRIMARY_ENVIRONMENT_ID
+      ? coordination.spaceCwd
+      : (sessionLocation?.cwd ?? focusedSpace?.path ?? null);
   const [homeDir, setHomeDir] = useState("");
   useEffect(() => {
     let disposed = false;
@@ -42,7 +54,7 @@ export function useSpaceOwner(props: {
 
   const draftCarry = useDraftCarry({
     enabled: draftCarrier.enabled,
-    currentFolder: coordination.spaceCwd,
+    currentFolder: activeSpaceCwd,
     take: draftCarrier.take,
     restore: draftCarrier.restore,
   });
@@ -68,7 +80,7 @@ export function useSpaceOwner(props: {
   const sessionRoots = useSessionProjectRoots();
   const workspace = useProjectWorkspace({
     sessions: sessionRoots,
-    selectedCwdProp: coordination.spaceCwd,
+    selectedCwdProp: activeSpaceCwd,
     onCwdChange: commitFolder,
     refreshKey,
   });

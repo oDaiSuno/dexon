@@ -1,11 +1,14 @@
-import { cancelModelsRefresh, listModels, refreshModels as requestModelsRefresh } from "@/lib/api-client";
-import type { ModelsListResult } from "@contract/types";
-import { useCallback } from "react";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { environmentRegistry } from "@/lib/environment-registry";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { isRpcError, type ModelsListResult } from "@contract/types";
+import { useCallback, useSyncExternalStore } from "react";
 import { ModelEntry } from "./shared";
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
   | "setModelNames"
   | "setModelThinkingLevels"
   | "setModelThinkingLevelMaps"
@@ -25,6 +28,7 @@ type Dependencies = Pick<
   Pick<SessionExtensions, "addNotice">;
 export function useSessionModels(context: Dependencies) {
   const {
+    environmentId,
     setModelNames,
     setModelThinkingLevels,
     setModelThinkingLevelMaps,
@@ -42,6 +46,21 @@ export function useSessionModels(context: Dependencies) {
     addNotice,
     t,
   } = context;
+
+  const getConnectionGeneration = useCallback(() => {
+    if (environmentId === PRIMARY_ENVIRONMENT_ID) return 0;
+    const view = environmentRegistry.getEnvironments().find((environment) => environment.id === environmentId);
+    return view?.enabled && view.status.phase === "connected" ? view.status.generation : null;
+  }, [environmentId]);
+  const connectionGeneration = useSyncExternalStore(
+    environmentRegistry.subscribe,
+    getConnectionGeneration,
+    getConnectionGeneration,
+  );
+  const isCurrentConnection = useCallback(
+    () => connectionGeneration !== null && connectionGeneration === getConnectionGeneration(),
+    [connectionGeneration, getConnectionGeneration],
+  );
 
   const applyModelsResult = useCallback(
     (d: ModelsListResult) => {
@@ -86,16 +105,32 @@ export function useSessionModels(context: Dependencies) {
       if (activeRefreshRequestId) {
         modelRefreshRequestRef.current = null;
         setModelRefreshing(false);
-        void cancelModelsRefresh(activeRefreshRequestId).catch(() => {});
+        if (isCurrentConnection())
+          void getEnvironmentApiClient(environmentId)
+            .cancelModelsRefresh(activeRefreshRequestId)
+            .catch(() => {});
       }
       const modelCwd = newSessionCwd ?? session?.cwd ?? "";
-      if (signal?.aborted) return;
-      const d = await listModels(modelCwd || undefined);
-      if (signal?.aborted || !modelListRequestGateRef.current.isCurrent(generation)) return;
-      applyModelsResult(d);
+      if (signal?.aborted || !isCurrentConnection()) return;
+      try {
+        const d = await getEnvironmentApiClient(environmentId).listModels(modelCwd || undefined);
+        if (signal?.aborted || !isCurrentConnection() || !modelListRequestGateRef.current.isCurrent(generation)) return;
+        applyModelsResult(d);
+      } catch (error) {
+        if (
+          signal?.aborted ||
+          !isCurrentConnection() ||
+          !modelListRequestGateRef.current.isCurrent(generation) ||
+          (isRpcError(error) && error.code === "CLOSED")
+        )
+          return;
+        throw error;
+      }
     },
     [
       applyModelsResult,
+      environmentId,
+      isCurrentConnection,
       modelListRequestGateRef,
       modelRefreshRequestRef,
       newSessionCwd,
@@ -110,24 +145,40 @@ export function useSessionModels(context: Dependencies) {
     modelRefreshRequestRef.current = null;
     modelListRequestGateRef.current.invalidate();
     setModelRefreshing(false);
-    void cancelModelsRefresh(requestId).catch(() => {});
-  }, [modelListRequestGateRef, modelRefreshRequestRef, setModelRefreshing]);
+    if (isCurrentConnection())
+      void getEnvironmentApiClient(environmentId)
+        .cancelModelsRefresh(requestId)
+        .catch(() => {});
+  }, [environmentId, isCurrentConnection, modelListRequestGateRef, modelRefreshRequestRef, setModelRefreshing]);
 
   const refreshModels = useCallback(async () => {
+    if (!isCurrentConnection()) return;
     const previousRequestId = modelRefreshRequestRef.current;
-    if (previousRequestId) void cancelModelsRefresh(previousRequestId).catch(() => {});
+    if (previousRequestId)
+      void getEnvironmentApiClient(environmentId)
+        .cancelModelsRefresh(previousRequestId)
+        .catch(() => {});
     const requestId = `models_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
     const generation = modelListRequestGateRef.current.begin();
     modelRefreshRequestRef.current = requestId;
     setModelRefreshing(true);
     const modelCwd = newSessionCwd ?? session?.cwd ?? "";
     try {
-      const result = await requestModelsRefresh(modelCwd || undefined, requestId);
-      if (modelRefreshRequestRef.current !== requestId || !modelListRequestGateRef.current.isCurrent(generation))
+      const result = await getEnvironmentApiClient(environmentId).refreshModels(modelCwd || undefined, requestId);
+      if (
+        !isCurrentConnection() ||
+        modelRefreshRequestRef.current !== requestId ||
+        !modelListRequestGateRef.current.isCurrent(generation)
+      )
         return;
       applyModelsResult(result);
-    } catch {
-      if (modelRefreshRequestRef.current !== requestId || !modelListRequestGateRef.current.isCurrent(generation))
+    } catch (error) {
+      if (
+        (isRpcError(error) && error.code === "CLOSED") ||
+        !isCurrentConnection() ||
+        modelRefreshRequestRef.current !== requestId ||
+        !modelListRequestGateRef.current.isCurrent(generation)
+      )
         return;
       addNotice({
         type: "error",
@@ -145,6 +196,8 @@ export function useSessionModels(context: Dependencies) {
   }, [
     addNotice,
     applyModelsResult,
+    environmentId,
+    isCurrentConnection,
     modelListRequestGateRef,
     modelRefreshRequestRef,
     newSessionCwd,

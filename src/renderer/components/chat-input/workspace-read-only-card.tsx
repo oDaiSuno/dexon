@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useI18n } from "@/i18n";
+import { useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import { DisabledReason, useRevealInFileManagerLabel } from "../disabled-reason";
 import { CLEAR, HOVER, paint } from "./menu-chrome";
 import type { ComposerWorkspaceReadOnly } from "./types";
 import { CARD_ABOVE_TRIGGER, FOOTER_BUTTON, READ_ONLY_WIDTH } from "./workspace-card-position";
@@ -28,19 +32,18 @@ export function WorkspaceReadOnlyCard({
   onFocusTrigger: () => void;
 }) {
   const { t } = useI18n();
+  const environmentId = useFileEnvironment();
+  const { isPrimary, unavailable } = environmentAffordances(
+    useEnvironments().find((view) => view.id === environmentId),
+  );
+  const copyLabel = isPrimary ? t("copyPath", "Copy path") : t("remoteCopyPath", "Copy remote path");
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     rootRef.current?.focus();
   }, []);
-  const platform = window.piBridge?.platform;
-  const revealLabel =
-    platform === "win32"
-      ? t("openInExplorer", "Open in File Explorer")
-      : platform === "linux"
-        ? t("openInFileManager", "Open in File Manager")
-        : t("openInFinder", "Open in Finder");
+  const revealLabel = useRevealInFileManagerLabel(!isPrimary);
 
   const runAction = (action: () => Promise<void>, failure: (error: unknown) => string) => {
     setActionError(null);
@@ -142,23 +145,25 @@ export function WorkspaceReadOnlyCard({
           </span>
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+          <DisabledReason reason={unavailable.revealInFileManager}>
+            <button
+              type="button"
+              aria-label={revealLabel}
+              title={revealLabel}
+              onClick={() =>
+                runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
+              }
+              style={ICON_BUTTON}
+              onMouseEnter={(event) => paint(event, HOVER)}
+              onMouseLeave={(event) => paint(event, CLEAR)}
+            >
+              <ExternalLinkGlyph size={14} />
+            </button>
+          </DisabledReason>
           <button
             type="button"
-            aria-label={revealLabel}
-            title={revealLabel}
-            onClick={() =>
-              runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
-            }
-            style={ICON_BUTTON}
-            onMouseEnter={(event) => paint(event, HOVER)}
-            onMouseLeave={(event) => paint(event, CLEAR)}
-          >
-            <ExternalLinkGlyph size={14} />
-          </button>
-          <button
-            type="button"
-            aria-label={t("copyPath", "Copy path")}
-            title={t("copyPath", "Copy path")}
+            aria-label={copyLabel}
+            title={copyLabel}
             onClick={() => runAction(workspace.copyPath, () => t("copyFailed", "Copy failed"))}
             style={ICON_BUTTON}
             onMouseEnter={(event) => paint(event, HOVER)}

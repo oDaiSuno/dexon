@@ -1,6 +1,7 @@
-/**
- * Compatibility fetch + EventSource for migrated components that still call `/api/...`.
- */
+import { ApiEventSource } from "./api-event-source";
+import { fetchFileRoute } from "./api-file-route";
+export { ApiEventSource } from "./api-event-source";
+
 import {
   agentCommand,
   agentState,
@@ -8,21 +9,14 @@ import {
   deleteSession,
   exportSession,
   fileIndex,
-  fileMeta,
   getHome,
   getSession,
   getSessionContext,
-  listFiles,
   listModels,
   listSessions,
   listWorktrees,
   newAgent,
-  readFile,
   renameSession,
-  subscribe,
-  subscribeAgentEvents,
-  subscribeAuthLogin,
-  subscribeRunning,
   validateCwd,
   defaultCwd,
 } from "./api-client";
@@ -240,37 +234,9 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
       );
     }
 
-    if (segs[0] === "files") {
-      const rawPath = "/" + segs.slice(1).map(decodeURIComponent).join("/");
-      const filePath = rawPath.match(/^\/[A-Za-z]:\//) ? rawPath.slice(1) : rawPath;
-      const type = u.searchParams.get("type") ?? "list";
-      const sourceSessionId = u.searchParams.get("sessionId") ?? undefined;
-      if (type === "list") return jsonResponse(await listFiles(filePath));
-      if (type === "read") {
-        const content = await readFile(filePath, sourceSessionId);
-        // Image/binary may return base64 — FileViewer text path expects JSON
-        return jsonResponse(content);
-      }
-      if (type === "meta") return jsonResponse(await fileMeta(filePath, sourceSessionId));
-      if (type === "preview") {
-        return jsonResponse(await call("files.preview", { path: filePath, sourceSessionId }));
-      }
-      if (type === "download") {
-        const content = await call("files.download", { path: filePath, sourceSessionId });
-        const binary = atob(content.base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-        return new Response(bytes, {
-          status: 200,
-          headers: { "Content-Type": content.mime },
-        });
-      }
-    }
+    if (segs[0] === "files") return await fetchFileRoute(u);
 
     if (segs[0] === "file-index" && method === "GET") {
-      // Pass through the compatible Host candidate envelope. `matches` is
-      // authoritative; `files` remains a legacy projection and
-      // `degradedReason` is an optional additive field.
       const root = u.searchParams.get("cwd") ?? u.searchParams.get("root") ?? "";
       const query = u.searchParams.get("q") ?? undefined;
       const result = await fileIndex(root, query);
@@ -288,7 +254,7 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
         branch: String(body.branch ?? ""),
         cwd: body.cwd as string | undefined,
       });
-      // Preserve the legacy route shape consumed by SessionSidebar.
+
       return jsonResponse(result.worktree);
     }
     if (segs[0] === "worktrees" && method === "DELETE") {
@@ -342,190 +308,6 @@ export async function apiFetch(input: string | URL | Request, init?: RequestInit
   }
 }
 
-/**
- * EventSource polyfill with named events (connected / change / …).
- */
-export class ApiEventSource {
-  static CONNECTING = 0;
-  static OPEN = 1;
-  static CLOSED = 2;
-
-  readyState = ApiEventSource.CONNECTING;
-  onmessage: ((ev: MessageEvent) => void) | null = null;
-  onerror: ((ev: Event) => void) | null = null;
-  onopen: ((ev: Event) => void) | null = null;
-
-  private unsub: (() => void) | null = null;
-  private named = new Map<string, Set<(ev: Event) => void>>();
-  private filePath: string | null = null;
-  private closed = false;
-
-  constructor(url: string) {
-    void this.connect(url);
-  }
-
-  private generation = 0;
-
-  /** ISSUE-008: named listeners only; do NOT also fire onmessage (avoids double open). */
-  private dispatchNamed(type: string, data: unknown, alsoOnMessage = false) {
-    const me = { data: typeof data === "string" ? data : JSON.stringify(data) } as MessageEvent;
-    this.named.get(type)?.forEach((cb) => {
-      try {
-        cb(me);
-      } catch {
-        /* ignore */
-      }
-    });
-    if (alsoOnMessage) this.onmessage?.(me);
-  }
-
-  private async connect(url: string) {
-    const gen = ++this.generation;
-    try {
-      const u = new URL(url, "http://local");
-      const segs = u.pathname
-        .replace(/^\/api\//, "")
-        .split("/")
-        .filter(Boolean);
-
-      // NOTE: specific routes must precede the generic /agent/{id}/events
-      // match, otherwise /api/agent/running/events is captured by it (with
-      // "running" mistaken for a session id) and the sidebar never receives
-      // any running-status frames.
-      if (segs[0] === "agent" && segs[1] === "running" && segs[2] === "events") {
-        this.unsub = await subscribeRunning((event) => {
-          if (this.closed || gen !== this.generation) return;
-          this.readyState = ApiEventSource.OPEN;
-          this.onmessage?.({ data: JSON.stringify(event) } as MessageEvent);
-        });
-        if (this.closed || gen !== this.generation) {
-          this.unsub?.();
-          return;
-        }
-        this.readyState = ApiEventSource.OPEN;
-        this.onopen?.(new Event("open"));
-        return;
-      }
-
-      if (segs[0] === "agent" && segs[2] === "events") {
-        const sessionId = decodeURIComponent(segs[1]);
-        this.unsub = await subscribeAgentEvents(sessionId, (event) => {
-          if (this.closed || gen !== this.generation) return;
-          this.readyState = ApiEventSource.OPEN;
-          // Agent events use onmessage only (useAgentSession)
-          this.onmessage?.({ data: JSON.stringify(event) } as MessageEvent);
-        });
-        if (this.closed || gen !== this.generation) {
-          this.unsub?.();
-          return;
-        }
-        this.readyState = ApiEventSource.OPEN;
-        this.onopen?.(new Event("open"));
-        this.onmessage?.({ data: JSON.stringify({ type: "connected" }) } as MessageEvent);
-        return;
-      }
-
-      if (segs[0] === "auth" && segs[1] === "login") {
-        const provider = decodeURIComponent(segs[2] ?? "");
-        this.unsub = await subscribeAuthLogin(provider, (event) => {
-          if (this.closed || gen !== this.generation) return;
-          this.readyState = ApiEventSource.OPEN;
-          const type = String((event as { type?: string }).type ?? "message");
-          // Single path: onmessage only — ModelsConfig handles openExternal
-          this.onmessage?.({ data: JSON.stringify(event) } as MessageEvent);
-          void type;
-        });
-        if (this.closed || gen !== this.generation) {
-          this.unsub?.();
-          void call("auth.loginCancel", { provider }).catch(() => {});
-          return;
-        }
-        const result = await call("auth.loginStart", { provider });
-        if (!result.started) {
-          throw new Error("An OAuth login is already active. Cancel it and try again.");
-        }
-        if (this.closed || gen !== this.generation) {
-          void call("auth.loginCancel", { provider }).catch(() => {});
-          return;
-        }
-        this.readyState = ApiEventSource.OPEN;
-        this.onopen?.(new Event("open"));
-        return;
-      }
-
-      if (segs[0] === "files") {
-        const rawPath = "/" + segs.slice(1).map(decodeURIComponent).join("/");
-        const filePath = rawPath.match(/^\/[A-Za-z]:\//) ? rawPath.slice(1) : rawPath;
-        const sourceSessionId = u.searchParams.get("sessionId") ?? undefined;
-        this.filePath = filePath;
-
-        this.unsub = await subscribe("files.changed", filePath, (ev) => {
-          if (this.closed || gen !== this.generation) return;
-          this.readyState = ApiEventSource.OPEN;
-          const eventName = ev.event ?? "change";
-          this.dispatchNamed(eventName, {
-            mtime: ev.mtime,
-            size: ev.size,
-            message: ev.message,
-            filePath: ev.path,
-          });
-        });
-        if (this.closed || gen !== this.generation) {
-          this.unsub?.();
-          return;
-        }
-        await call("files.watchStart", { path: filePath, sourceSessionId });
-        if (this.closed || gen !== this.generation) {
-          void call("files.watchStop", { path: filePath }).catch(() => {});
-          return;
-        }
-        this.readyState = ApiEventSource.OPEN;
-        this.onopen?.(new Event("open"));
-        return;
-      }
-
-      this.readyState = ApiEventSource.CLOSED;
-      this.onerror?.(new Event("error"));
-    } catch (error) {
-      if (!this.closed) {
-        this.readyState = ApiEventSource.CLOSED;
-        const message = error instanceof Error ? error.message : String(error);
-        this.onerror?.(new ErrorEvent("error", { message }));
-      }
-    }
-  }
-
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    this.generation += 1;
-    this.readyState = ApiEventSource.CLOSED;
-    this.unsub?.();
-    this.unsub = null;
-    // ISSUE-008: cancel OAuth if this was a login stream — best-effort via URL parse is hard;
-    // ModelsConfig must call auth.loginCancel. Still stop file watches.
-    if (this.filePath) {
-      void call("files.watchStop", { path: this.filePath }).catch(() => {});
-      this.filePath = null;
-    }
-  }
-
-  addEventListener(type: string, cb: EventListenerOrEventListenerObject) {
-    const fn = typeof cb === "function" ? cb : (cb as EventListenerObject).handleEvent.bind(cb);
-    let set = this.named.get(type);
-    if (!set) {
-      set = new Set();
-      this.named.set(type, set);
-    }
-    set.add(fn as (ev: Event) => void);
-  }
-
-  removeEventListener(type: string, cb: EventListenerOrEventListenerObject) {
-    const fn = typeof cb === "function" ? cb : (cb as EventListenerObject).handleEvent.bind(cb);
-    this.named.get(type)?.delete(fn as (ev: Event) => void);
-  }
-}
-
 export function installApiShims(): void {
   const originalFetch = window.fetch.bind(window);
   window.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
@@ -535,6 +317,5 @@ export function installApiShims(): void {
     return originalFetch(input as RequestInfo, init);
   }) as typeof fetch;
 
-  // @ts-expect-error override for migrated UI
-  window.EventSource = ApiEventSource;
+  Object.defineProperty(window, "EventSource", { configurable: true, writable: true, value: ApiEventSource });
 }

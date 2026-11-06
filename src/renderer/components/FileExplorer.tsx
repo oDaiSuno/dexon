@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
-import { encodeFilePathForApi } from "@/lib/file-paths";
-import { call } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { useEnvironments } from "@/lib/environment-registry";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import { getFileApiUrl } from "./file-viewer/file-api-url";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import type { GitStatusResult } from "@shared/api-types";
 import { useI18n } from "@/i18n";
 import { FileTreeSkeleton, FilesSectionHeader } from "./file-explorer/files-section";
@@ -10,6 +13,7 @@ import { ChangesList, useChangesOnlyPreference } from "./file-explorer/changes-l
 import { fetchEntries, TreeNode, type FileNode, type TreeShared } from "./file-explorer/tree-node";
 
 interface Props {
+  environmentId?: EnvironmentId;
   cwd: string;
   personalCwd: string | null;
   homeDir: string;
@@ -19,7 +23,19 @@ interface Props {
   onAtMention?: (relativePath: string, isDir: boolean) => void;
 }
 
-export function FileExplorer({
+export function FileExplorer(props: Props) {
+  const environmentId = useFileEnvironment(props.environmentId);
+  return (
+    <EnvironmentFileExplorer
+      key={JSON.stringify([environmentId, props.cwd])}
+      {...props}
+      environmentId={environmentId}
+    />
+  );
+}
+
+function EnvironmentFileExplorer({
+  environmentId,
   cwd,
   personalCwd,
   homeDir,
@@ -27,8 +43,11 @@ export function FileExplorer({
   onOpenFile,
   refreshKey,
   onAtMention,
-}: Props) {
+}: Props & { environmentId: EnvironmentId }) {
   const { t } = useI18n();
+  const serverLabel = useEnvironments().find(
+    (view) => view.id === environmentId && view.id !== PRIMARY_ENVIRONMENT_ID,
+  )?.label;
   const [roots, setRoots] = useState<FileNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -62,7 +81,8 @@ export function FileExplorer({
       const generation = ++loadGenerationRef.current;
       if (showLoading) {
         setLoading(true);
-        void call("git.branch", { path: cwd })
+        void getEnvironmentApiClient(environmentId)
+          .call("git.branch", { path: cwd })
           .then((result) => {
             if (generation === loadGenerationRef.current && result.isGit) {
               setQuickBranch({ cwd, branch: result.branch ?? "detached" });
@@ -72,11 +92,12 @@ export function FileExplorer({
       }
       setError(null);
       try {
-        const [entries, statusResponse] = await Promise.all([
-          fetchEntries(cwd, t),
-          fetch(`/api/git-status?cwd=${encodeURIComponent(cwd)}`),
+        const [entries, status] = await Promise.all([
+          fetchEntries(environmentId, cwd, t),
+          getEnvironmentApiClient(environmentId)
+            .call("git.status", { path: cwd })
+            .catch(() => null),
         ]);
-        const status = statusResponse.ok ? ((await statusResponse.json()) as GitStatusResult) : null;
         if (generation !== loadGenerationRef.current) return;
         setRoots(entries);
         setGitStatus(status);
@@ -88,23 +109,24 @@ export function FileExplorer({
         if (generation === loadGenerationRef.current) setLoading(false);
       }
     },
-    [cwd, t],
+    [environmentId, cwd, t],
   );
 
   useEffect(() => {
     const cwdChanged = prevCwdRef.current !== cwd;
     prevCwdRef.current = cwd;
 
-    // Reset expanded state only when cwd changes, not on refreshKey bumps
     if (cwdChanged) setExpandedPaths(new Set());
 
     void loadProject(cwdChanged);
+    return () => {
+      loadGenerationRef.current += 1;
+    };
   }, [cwd, refreshKey, loadProject]);
 
   useEffect(() => {
     setWatch("connecting");
-    const encoded = encodeFilePathForApi(cwd);
-    const events = new EventSource(`/api/files/${encoded}?type=watch`);
+    const events = new EventSource(getFileApiUrl(environmentId, cwd, "watch"));
     let timer: ReturnType<typeof setTimeout> | null = null;
     events.addEventListener("connected", () => setWatch("live"));
     events.addEventListener("change", () => {
@@ -120,10 +142,11 @@ export function FileExplorer({
       if (timer) clearTimeout(timer);
       events.close();
     };
-  }, [cwd, loadProject]);
+  }, [environmentId, cwd, loadProject]);
 
   const tree = useMemo<TreeShared>(
     () => ({
+      environmentId,
       cwd,
       activeFilePath,
       onOpenFile,
@@ -134,6 +157,7 @@ export function FileExplorer({
       marks,
     }),
     [
+      environmentId,
       cwd,
       activeFilePath,
       onOpenFile,
@@ -149,6 +173,7 @@ export function FileExplorer({
   return (
     <div className="flex flex-col gap-[16px] px-[8px] pt-[12px] pb-[16px]">
       <WorkspaceSummary
+        serverLabel={serverLabel}
         cwd={cwd}
         personalCwd={personalCwd}
         homeDir={homeDir}
@@ -159,6 +184,7 @@ export function FileExplorer({
       />
       <div className="flex flex-col gap-[4px]">
         <FilesSectionHeader
+          remote={environmentId !== PRIMARY_ENVIRONMENT_ID}
           onCollapseAll={handleCollapseAll}
           filterable={isGit}
           showingChanges={showingChanges}

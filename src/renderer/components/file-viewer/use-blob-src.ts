@@ -1,6 +1,9 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useRef, useState } from "react";
 
-export function useBlobSrc(filePath: string, sourceSessionId?: string | null, bust = 0) {
+export function useBlobSrc(environmentId: EnvironmentId, filePath: string, sourceSessionId?: string | null, bust = 0) {
+  const identity = JSON.stringify([environmentId, filePath, sourceSessionId, bust]);
+  const [loadedIdentity, setLoadedIdentity] = useState(identity);
   const [src, setSrc] = useState<string | null>(null);
   const [size, setSize] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -8,12 +11,14 @@ export function useBlobSrc(filePath: string, sourceSessionId?: string | null, bu
 
   useEffect(() => {
     let cancelled = false;
+    setLoadedIdentity(identity);
     setError(null);
+    setSize(null);
     revokeRef.current?.();
     revokeRef.current = null;
     setSrc(null);
     void import("@/lib/file-blob")
-      .then(({ fileToObjectUrl }) => fileToObjectUrl(filePath, sourceSessionId))
+      .then(({ fileToObjectUrl }) => fileToObjectUrl(environmentId, filePath, sourceSessionId))
       .then((r) => {
         if (cancelled) {
           r.revoke();
@@ -31,7 +36,13 @@ export function useBlobSrc(filePath: string, sourceSessionId?: string | null, bu
       revokeRef.current?.();
       revokeRef.current = null;
     };
-  }, [filePath, sourceSessionId, bust]);
+  }, [environmentId, filePath, sourceSessionId, bust, identity]);
 
-  return { src, size, error, setError, setSize };
+  return {
+    src: loadedIdentity === identity ? src : null,
+    size: loadedIdentity === identity ? size : null,
+    error: loadedIdentity === identity ? error : null,
+    setError,
+    setSize,
+  };
 }

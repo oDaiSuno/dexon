@@ -26,6 +26,7 @@ async function openPreview(t, createHtmlPreview, releaseHtmlPreview = async () =
     t,
     api.FileViewer,
     {
+      environmentId: "primary",
       filePath: "/workspace/example.html",
       cwd: "/workspace",
       sourceSessionId: "session-one",

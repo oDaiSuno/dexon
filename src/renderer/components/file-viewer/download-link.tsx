@@ -1,8 +1,11 @@
+import type { FileViewerProps } from "./types";
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useState } from "react";
 import { getFileName } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
 
-export function DownloadLink({ filePath, sourceSessionId }: { filePath: string; sourceSessionId?: string | null }) {
+export function DownloadLink({ environmentId: requestedEnvironmentId, filePath, sourceSessionId }: FileViewerProps) {
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   return (
@@ -14,7 +17,9 @@ export function DownloadLink({ filePath, sourceSessionId }: { filePath: string; 
       onClick={() => {
         setBusy(true);
         void import("@/lib/file-blob")
-          .then(({ downloadFileViaRpc }) => downloadFileViaRpc(filePath, getFileName(filePath), sourceSessionId))
+          .then(({ downloadFileViaRpc }) =>
+            downloadFileViaRpc(environmentId, filePath, getFileName(filePath), sourceSessionId),
+          )
           .catch((e) => console.error("download failed", e))
           .finally(() => setBusy(false));
       }}

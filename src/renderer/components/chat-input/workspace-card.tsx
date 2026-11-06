@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { useI18n } from "@/i18n";
+import { useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import { DisabledReason, useRevealInFileManagerLabel } from "../disabled-reason";
 import { KeyHint } from "./SendControls";
 import { CLEAR, HOVER, paint } from "./menu-chrome";
 import type { ComposerCardBranch, ComposerWorkspaceCard, ComposerWorkspaceSwitchable } from "./types";
@@ -48,6 +52,11 @@ export function WorkspaceCard({
   onFocusTrigger: () => void;
 }) {
   const { t } = useI18n();
+  const environmentId = useFileEnvironment();
+  const { isPrimary, unavailable } = environmentAffordances(
+    useEnvironments().find((view) => view.id === environmentId),
+  );
+  const copyLabel = isPrimary ? t("copyPath", "Copy path") : t("remoteCopyPath", "Copy remote path");
   const card = workspace.card;
   const rootRef = useRef<HTMLDivElement>(null);
   const latestCardRef = useRef(card);
@@ -58,13 +67,7 @@ export function WorkspaceCard({
   const [actionError, setActionError] = useState<string | null>(null);
   const [position, setPosition] = useState(() => cardHeight(anchorRef));
 
-  const platform = window.piBridge?.platform;
-  const revealLabel =
-    platform === "win32"
-      ? t("openInExplorer", "Open in File Explorer")
-      : platform === "linux"
-        ? t("openInFileManager", "Open in File Manager")
-        : t("openInFinder", "Open in Finder");
+  const revealLabel = useRevealInFileManagerLabel(!isPrimary);
 
   useLayoutEffect(() => {
     setPosition(cardHeight(anchorRef));
@@ -338,21 +341,23 @@ export function WorkspaceCard({
               borderTop: "1px solid var(--fx-line-default)",
             }}
           >
-            <button
-              type="button"
-              onClick={() =>
-                runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
-              }
-              style={{ ...FOOTER_BUTTON, color: "var(--fx-text-body)" }}
-              className="type-label-default"
-              onMouseEnter={(event) => paint(event, HOVER)}
-              onMouseLeave={(event) => paint(event, CLEAR)}
-            >
-              <span style={{ display: "flex", flexShrink: 0, color: "var(--fx-text-secondary)" }}>
-                <ExternalLinkGlyph size={13} />
-              </span>
-              {revealLabel}
-            </button>
+            <DisabledReason reason={unavailable.revealInFileManager}>
+              <button
+                type="button"
+                onClick={() =>
+                  runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
+                }
+                style={{ ...FOOTER_BUTTON, color: "var(--fx-text-body)" }}
+                className="type-label-default"
+                onMouseEnter={(event) => paint(event, HOVER)}
+                onMouseLeave={(event) => paint(event, CLEAR)}
+              >
+                <span style={{ display: "flex", flexShrink: 0, color: "var(--fx-text-secondary)" }}>
+                  <ExternalLinkGlyph size={13} />
+                </span>
+                {revealLabel}
+              </button>
+            </DisabledReason>
             <button
               type="button"
               onClick={() => runAction(workspace.copyPath, () => t("copyFailed", "Copy failed"))}
@@ -364,7 +369,7 @@ export function WorkspaceCard({
               <span style={{ display: "flex", flexShrink: 0, color: "var(--fx-text-secondary)" }}>
                 <CopyGlyph size={13} />
               </span>
-              {t("copyPath", "Copy path")}
+              {copyLabel}
             </button>
             <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
               {hints.map((hint) => (

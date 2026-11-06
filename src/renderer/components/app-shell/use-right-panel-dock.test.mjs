@@ -7,10 +7,6 @@ import test from "node:test";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 
-// Characterization tests for the split-out right panel dock owner of AppShell:
-// managed process badge, auto-activation, empty-tab collapse, per-kind width
-// persistence, keyboard resize, and browser tab surface requests.
-
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
 const { resetRpc, useRightPanelDock } = await importTestBundle("app-shell-right-panel-dock", {
@@ -150,8 +146,7 @@ async function withEnvironment(options, run) {
 
 async function mountDock(env, { isMobile = false, sidebarOpen = true } = {}) {
   const calls = { collapseSidebar: 0 };
-  // Stable identity mirrors the real wiring (a useCallback in AppShell); an
-  // unstable callback would re-subscribe the process stream on every render.
+
   const onCollapseSidebar = () => {
     calls.collapseSidebar += 1;
   };
@@ -234,9 +229,13 @@ test("closes the panel when the last file tab closes on the files tab", async ()
         tab: { id: "file:/a.ts", label: "a.ts", filePath: "/a.ts" },
       });
     });
-    assert.equal(mounted.state.value.activeFileTabId, "file:/a.ts");
+    assert.equal(mounted.state.value.activeFileTabId, '["primary","/a.ts"]');
     await act(async () => {
-      mounted.state.value.dispatchFileTab({ type: "close", tabId: "file:/a.ts", fallbackTabId: EXPLORER_TAB_ID });
+      mounted.state.value.dispatchFileTab({
+        type: "close",
+        tabId: '["primary","/a.ts"]',
+        fallbackTabId: EXPLORER_TAB_ID,
+      });
     });
     assert.equal(mounted.state.value.fileTabs.length, 0);
     assert.equal(mounted.state.value.activeFileTabId, EXPLORER_TAB_ID);
@@ -257,7 +256,11 @@ test("keeps the panel open when a file tab closes while a tool tab is active", a
       mounted.state.value.dispatchFileTab({ type: "select", tabId: BROWSER_TAB_ID });
     });
     await act(async () => {
-      mounted.state.value.dispatchFileTab({ type: "close", tabId: "file:/a.ts", fallbackTabId: EXPLORER_TAB_ID });
+      mounted.state.value.dispatchFileTab({
+        type: "close",
+        tabId: '["primary","/a.ts"]',
+        fallbackTabId: EXPLORER_TAB_ID,
+      });
     });
     assert.equal(mounted.state.value.fileTabs.length, 0);
     assert.equal(mounted.state.value.activeFileTabId, BROWSER_TAB_ID);

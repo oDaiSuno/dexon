@@ -5,17 +5,12 @@ import path from "node:path";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 
-// Characterization tests for the split-out session directory owner. They pin
-// the current behavior of the sidebar data model: list loading, the live
-// running stream authority, host restarts, unread transitions, incremental
-// change events, persistence, and the sidebar-owned timers.
-
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { resetRpc, installApiShims, useSessionDirectory } = await importTestBundle("session-sidebar-directory", {
+const { resetRpc, installApiShims, useEnvironmentDirectories } = await importTestBundle("session-sidebar-directory", {
   stdin: {
     contents:
-      'export { useSessionDirectory } from "./src/renderer/components/session-sidebar/session-directory.ts";' +
+      'export { useEnvironmentDirectories } from "./src/renderer/components/session-sidebar/use-environment-directories.ts";' +
       '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts"; export {installApiShims} from "./src/renderer/lib/api-fetch.ts";',
     resolveDir: projectRoot,
     sourcefile: "session-directory-test-entry.ts",
@@ -154,7 +149,7 @@ function installEnvironment({ responses, storage, scheduler } = {}) {
 export function createProbe() {
   const state = { value: undefined };
   function Probe({ hookArgs }) {
-    state.value = useSessionDirectory(hookArgs);
+    state.value = useEnvironmentDirectories(hookArgs).find((directory) => directory.environment.id === "primary");
     return null;
   }
   return { state, Probe };

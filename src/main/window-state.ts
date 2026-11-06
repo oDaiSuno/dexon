@@ -1,8 +1,4 @@
-import {
-  fromLegacyOpenProjects,
-  parseProjectSpacesState,
-  toLegacyOpenProjects,
-} from "../shared/project-space-state.ts";
+import { recoverProjectSpacesState, toLegacyOpenProjects } from "../shared/project-space-state.ts";
 import { app, type BrowserWindow } from "electron";
 import fs from "fs";
 import path from "path";
@@ -36,10 +32,14 @@ export function loadUiState(): UiState {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
     const state = parsed as UiState;
-    if ("chatAppearance" in state) state.chatAppearance = normalizeChatAppearance(state.chatAppearance);
-    state.projectSpaces = state.projectSpaces
-      ? parseProjectSpacesState(state.projectSpaces)
-      : fromLegacyOpenProjects(state.openProjects);
+    if ("chatAppearance" in state) {
+      try {
+        state.chatAppearance = normalizeChatAppearance(state.chatAppearance);
+      } catch {
+        delete state.chatAppearance;
+      }
+    }
+    state.projectSpaces = recoverProjectSpacesState(state.projectSpaces, state.openProjects);
     return state;
   } catch {
     return {};

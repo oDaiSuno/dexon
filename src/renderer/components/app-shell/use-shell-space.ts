@@ -1,10 +1,11 @@
-import { useCallback, useMemo, type RefObject } from "react";
+import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { defaultSpaceFolder } from "@/lib/space-identity";
 import type { SessionInfo } from "@/lib/types";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useActiveEnvironment } from "@/lib/environment-registry";
 import { useComposerWorkspace } from "./composer-workspace";
-import { useOpenProjects } from "./use-open-projects";
+import { useProjectSpaces } from "./use-project-spaces";
 import type { SpaceCoordination } from "./use-space-coordination";
 import { useSpaceOwner } from "./use-space-owner";
 import { useWorkspaceCard } from "./use-workspace-card";
@@ -30,6 +31,19 @@ export function useShellSpace(props: {
 
   const environment = useActiveEnvironment();
   const isPrimary = environment.id === PRIMARY_ENVIRONMENT_ID;
+  const [localHomeDir, setLocalHomeDir] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    void getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID)
+      .getHome()
+      .then(({ home }) => {
+        if (!cancelled) setLocalHomeDir(home);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const space = useSpaceOwner({
     refreshKey,
     coordination,
@@ -45,13 +59,8 @@ export function useShellSpace(props: {
     },
   });
 
-  const openProjects = useOpenProjects({
-    defaultSpace:
-      coordination.personalCwd ??
-      (coordination.spacePhase.phase === "idle" ||
-      (coordination.spacePhase.phase === "preparing" && coordination.spacePhase.target === "personal")
-        ? null
-        : defaultSpaceFolder(null, space.homeDir)),
+  const openProjects = useProjectSpaces({
+    defaultSpace: coordination.personalCwd ?? defaultSpaceFolder(null, isPrimary ? space.homeDir : localHomeDir),
     currentProject: isPrimary
       ? ((selectedSession
           ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd))
@@ -63,15 +72,14 @@ export function useShellSpace(props: {
     onCloseCurrent: space.handleReturnToPersonalSpace,
   });
 
-  const projectPath = space.project?.path;
-  const { projects: primaryProjects, isMissing: primaryMissing } = openProjects;
+  const { spaces, isMissing: spaceMissing } = openProjects;
   const cardProjects = useMemo(
-    () => (isPrimary ? primaryProjects : projectPath ? [projectPath] : []),
-    [isPrimary, primaryProjects, projectPath],
+    () => spaces.filter((mounted) => mounted.environmentId === environment.id).map((mounted) => mounted.path),
+    [spaces, environment.id],
   );
   const isMissing = useCallback(
-    (folder: string | null | undefined) => isPrimary && primaryMissing(folder),
-    [isPrimary, primaryMissing],
+    (folder: string | null | undefined) => spaceMissing(folder, environment.id),
+    [environment.id, spaceMissing],
   );
   const card = useWorkspaceCard({
     workspace: space.workspace,

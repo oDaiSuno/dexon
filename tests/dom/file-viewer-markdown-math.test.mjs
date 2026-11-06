@@ -30,7 +30,12 @@ test("when a markdown file holding \\[可选参数\\] and $5 和 $10 is previewe
   const view = await mount(
     t,
     api.FileViewer,
-    { filePath: "/workspace/docs/notes.md", cwd: "/workspace", sourceSessionId: "session-one" },
+    {
+      environmentId: "primary",
+      filePath: "/workspace/docs/notes.md",
+      cwd: "/workspace",
+      sourceSessionId: "session-one",
+    },
     { release: host.close },
   );
   await waitFor(() => assert.ok(view.container.querySelector("p"), "the markdown file opens in the rendered preview"));

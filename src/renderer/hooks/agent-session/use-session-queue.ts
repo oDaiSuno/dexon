@@ -1,22 +1,20 @@
 import { sendAgentCommand } from "@/lib/agent-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { canSendToEnvironment } from "@/lib/space-attribution";
 import { useCallback } from "react";
 import { ThinkingLevelOption, UseAgentSessionOptions } from "./shared";
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
-  "sessionIdRef" | "t" | "setQueuedMessages" | "modelChoice" | "ensuringNewSessionRef"
+  "environmentId" | "sessionIdRef" | "t" | "setQueuedMessages" | "modelChoice" | "ensuringNewSessionRef"
 > &
   Pick<SessionExtensions, "addNotice">;
 export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOptions) {
-  const { sessionIdRef, addNotice, t, setQueuedMessages, modelChoice, ensuringNewSessionRef } = context;
-
-  // Queued (undelivered) messages live in the queue panel only; the chat gets
-  // the real user message when pi delivers it (user message_end event). An
-  // optimistic chat bubble here would duplicate the queue panel and turn into
-  // a ghost message if the queue is recalled.
+  const { environmentId, sessionIdRef, addNotice, t, setQueuedMessages, modelChoice, ensuringNewSessionRef } = context;
   const handleSteer = useCallback(
     async (message: string) => {
+      if (!canSendToEnvironment(environmentId)) return { ok: false };
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -27,24 +25,27 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
         throw error;
       }
       try {
-        await sendAgentCommand(sid, {
+        await getEnvironmentApiClient(environmentId).agentCommand(sid, {
           type: "steer",
           message,
         });
+        return { ok: true };
       } catch (error) {
         console.error("Failed to steer:", error);
         addNotice({
           type: "error",
           message: t("steerFailedNotQueued", "Unable to steer the running agent. The message was not queued."),
         });
+        if (!canSendToEnvironment(environmentId)) return { ok: false };
         throw error;
       }
     },
-    [addNotice, sessionIdRef, t],
+    [environmentId, addNotice, sessionIdRef, t],
   );
 
   const handlePromptWithStreamingBehavior = useCallback(
     async (message: string, behavior: "steer" | "followUp") => {
+      if (!canSendToEnvironment(environmentId)) return { ok: false };
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -55,25 +56,28 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
         throw error;
       }
       try {
-        await sendAgentCommand(sid, {
+        await getEnvironmentApiClient(environmentId).agentCommand(sid, {
           type: "prompt",
           message,
           streamingBehavior: behavior,
         });
+        return { ok: true };
       } catch (error) {
         console.error("Failed to queue prompt:", error);
         addNotice({
           type: "error",
           message: t("promptQueueFailedNotQueued", "Unable to queue this prompt. The message was not queued."),
         });
+        if (!canSendToEnvironment(environmentId)) return { ok: false };
         throw error;
       }
     },
-    [addNotice, sessionIdRef, t],
+    [environmentId, addNotice, sessionIdRef, t],
   );
 
   const handleFollowUp = useCallback(
     async (message: string) => {
+      if (!canSendToEnvironment(environmentId)) return { ok: false };
       const sid = sessionIdRef.current;
       if (!sid) {
         const error = new Error("The active session is no longer available");
@@ -84,20 +88,22 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
         throw error;
       }
       try {
-        await sendAgentCommand(sid, {
+        await getEnvironmentApiClient(environmentId).agentCommand(sid, {
           type: "follow_up",
           message,
         });
+        return { ok: true };
       } catch (error) {
         console.error("Failed to follow up:", error);
         addNotice({
           type: "error",
           message: t("followUpQueueFailedNotQueued", "Unable to queue this follow-up. The message was not queued."),
         });
+        if (!canSendToEnvironment(environmentId)) return { ok: false };
         throw error;
       }
     },
-    [addNotice, sessionIdRef, t],
+    [environmentId, addNotice, sessionIdRef, t],
   );
 
   const handleAbortCompaction = useCallback(async () => {
@@ -115,8 +121,6 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
     if (!sid) return;
     try {
       const result = await sendAgentCommand<{ steering?: string[]; followUp?: string[] }>(sid, { type: "clear_queue" });
-      // clearQueue also emits an empty queue_update, but that only reaches us
-      // while the stream is connected — clear locally so idle recalls update the UI.
       setQueuedMessages({ steering: [], followUp: [] });
       const texts = [...(result?.steering ?? []), ...(result?.followUp ?? [])];
       if (texts.length > 0) {

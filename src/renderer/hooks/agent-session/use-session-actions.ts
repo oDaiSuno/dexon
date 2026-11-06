@@ -1,5 +1,7 @@
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { sendAgentCommand } from "@/lib/agent-client";
+import { canSendToEnvironment } from "@/lib/space-attribution";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { trackSessionNaming } from "@/lib/session-naming-store";
@@ -20,6 +22,7 @@ import type { SessionHistory } from "./use-session-history";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
   | "agentRunning"
   | "promptRunIdRef"
   | "optimisticUserMessageKeyRef"
@@ -64,6 +67,7 @@ function reportedThinkingLevel(reply: ModelCommandReply | null | undefined): Thi
 
 export function useSessionActions(context: Dependencies) {
   const {
+    environmentId,
     agentRunning,
     promptRunIdRef,
     updateHistory,
@@ -107,8 +111,9 @@ export function useSessionActions(context: Dependencies) {
   const handleSend = useCallback(
     async (message: string) => {
       const trimmedMessage = message.trim();
-      if (!trimmedMessage) return;
-      if (agentRunning) return;
+      if (!trimmedMessage || agentRunning || agentRunningRef.current) return { ok: false };
+      if (!canSendToEnvironment(environmentId) || (!session && !(isNew && newSessionCwd))) return { ok: false };
+      const client = getEnvironmentApiClient(environmentId);
       const intent = readPromptIntent(message);
       const isConversationTurn = intent.kind !== "command";
       const promptRunId = promptRunIdRef.current + 1;
@@ -143,38 +148,47 @@ export function useSessionActions(context: Dependencies) {
               if (existingSid) {
                 const chosenLevel = thinkingLevel;
                 await modelChoice.choose({ model: selectedModel }, async () => {
-                  const reply = await sendAgentCommand<ModelCommandReply>(sid, {
+                  const reply = await client.agentCommand(sid, {
                     type: "set_model",
                     provider: selectedModel.provider,
                     modelId: selectedModel.modelId,
                   });
-                  if (!chosenLevel) return { thinkingLevel: reportedThinkingLevel(reply) };
-                  await sendAgentCommand(sid, { type: "set_thinking_level", level: chosenLevel });
+                  if (!chosenLevel) return { thinkingLevel: reportedThinkingLevel(reply as ModelCommandReply) };
+                  await client.agentCommand(sid, { type: "set_thinking_level", level: chosenLevel });
                   return { thinkingLevel: chosenLevel };
                 });
               }
             }
             await ensureEventsConnected(sid);
-            await sendAgentCommand(sid, {
+            if (!canSendToEnvironment(environmentId))
+              throw new Error(t("remoteAttributionSendHint", "You can send after reconnecting"));
+            await client.agentCommand(sid, {
               type: "prompt",
               message,
             });
             promoteNewSession(1, promptIntentText(intent));
             if (shouldAutoTitleMessage(message)) {
-              void trackSessionNaming(sid, () => requestAutoSessionTitle({ sessionId: sid, prompt: message }));
+              void trackSessionNaming(sid, () =>
+                requestAutoSessionTitle({ sessionId: sid, prompt: message, environmentId }),
+              );
             }
           }
         } else if (session) {
           sentSessionId = session.id;
           await ensureEventsConnected(session.id);
-          await sendAgentCommand(session.id, {
+          if (!canSendToEnvironment(environmentId))
+            throw new Error(t("remoteAttributionSendHint", "You can send after reconnecting"));
+          await client.agentCommand(session.id, {
             type: "prompt",
             message,
           });
         }
-        if (!isConversationTurn && sentSessionId) {
+        if (!sentSessionId)
+          throw new Error(t("remoteAttributionSessionUnavailable", "The send destination is no longer available"));
+        if (!isConversationTurn) {
           void waitForPromptSettlement(sentSessionId, promptRunId);
         }
+        return { ok: true };
       } catch (e) {
         console.error("Failed to send message:", e);
         const optimisticKey = optimisticUserMessageKeyRef.current;
@@ -195,11 +209,12 @@ export function useSessionActions(context: Dependencies) {
         setAgentRunning(false);
         setAgentPhase(null);
         dispatch({ type: "end" });
-        // ISSUE-006: rethrow so ChatInput restores the draft
+        if (!canSendToEnvironment(environmentId)) return { ok: false };
         throw e;
       }
     },
     [
+      environmentId,
       agentRunning,
       promptRunIdRef,
       updateHistory,
@@ -281,7 +296,6 @@ export function useSessionActions(context: Dependencies) {
       }
       if (gen !== contextGenRef.current) return;
       setActiveLeafId(actualLeafId);
-      // loadContext bumps gen again — pass through by reusing after navigate
       contextGenRef.current = gen;
       await loadContext(sid, actualLeafId);
       await refreshContextUsage(sid);
@@ -321,8 +335,6 @@ export function useSessionActions(context: Dependencies) {
           const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
           return { thinkingLevel: reportedThinkingLevel(reply) };
         });
-        // The context window may differ between models — refresh immediately
-        // instead of waiting for the next agent_end.
         await refreshContextUsage(sid);
       } catch (e) {
         console.error("Failed to set model:", e);

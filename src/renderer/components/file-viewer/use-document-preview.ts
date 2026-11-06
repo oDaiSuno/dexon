@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { DOCX_PREVIEW_MAX_BYTES } from "@/lib/file-types";
@@ -5,9 +6,16 @@ import { createDocxPreviewHtml } from "@/lib/docx-preview-html";
 import { useI18n } from "@/i18n";
 import { useFileWatch } from "./use-file-watch";
 
-export function useDocumentPreview(filePath: string, sourceSessionId: string | null | undefined, isPdf: boolean) {
+export function useDocumentPreview(
+  environmentId: EnvironmentId,
+  filePath: string,
+  sourceSessionId: string | null | undefined,
+  isPdf: boolean,
+) {
   const { isDark } = useTheme();
   const { t } = useI18n();
+  const identity = JSON.stringify([environmentId, filePath, sourceSessionId]);
+  const [loadedIdentity, setLoadedIdentity] = useState(identity);
   const [bust, setBust] = useState(0);
   const [size, setSize] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +24,7 @@ export function useDocumentPreview(filePath: string, sourceSessionId: string | n
 
   useEffect(() => {
     let cancelled = false;
+    setLoadedIdentity(identity);
     setError(null);
     setSize(null);
     revokeRef.current?.();
@@ -26,7 +35,7 @@ export function useDocumentPreview(filePath: string, sourceSessionId: string | n
       try {
         if (isPdf) {
           const { fileToObjectUrl } = await import("@/lib/file-blob");
-          const r = await fileToObjectUrl(filePath, sourceSessionId);
+          const r = await fileToObjectUrl(environmentId, filePath, sourceSessionId);
           if (cancelled) {
             r.revoke();
             return;
@@ -36,8 +45,8 @@ export function useDocumentPreview(filePath: string, sourceSessionId: string | n
           setSize(r.size);
           return;
         }
-        const { call } = await import("@/lib/api-client");
-        const preview = await call("files.preview", {
+        const { getEnvironmentApiClient } = await import("@/lib/api-client");
+        const preview = await getEnvironmentApiClient(environmentId).call("files.preview", {
           path: filePath,
           sourceSessionId: sourceSessionId ?? undefined,
         });
@@ -72,7 +81,7 @@ export function useDocumentPreview(filePath: string, sourceSessionId: string | n
       revokeRef.current?.();
       revokeRef.current = null;
     };
-  }, [filePath, isDark, isPdf, sourceSessionId, bust, t]);
+  }, [environmentId, filePath, isDark, isPdf, sourceSessionId, bust, t, identity]);
 
   const onChange = useCallback(
     (s?: number) => {
@@ -88,7 +97,12 @@ export function useDocumentPreview(filePath: string, sourceSessionId: string | n
     },
     [isPdf, t],
   );
-  const watching = useFileWatch(filePath, sourceSessionId, onChange);
+  const watching = useFileWatch(environmentId, filePath, sourceSessionId, onChange);
 
-  return { size, error, previewUrl, watching };
+  return {
+    size: loadedIdentity === identity ? size : null,
+    error: loadedIdentity === identity ? error : null,
+    previewUrl: loadedIdentity === identity ? previewUrl : null,
+    watching,
+  };
 }

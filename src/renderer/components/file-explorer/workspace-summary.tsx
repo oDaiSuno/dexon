@@ -12,6 +12,7 @@ import { CHANGE_SWATCH_COLOR, FILE_CHANGES, type FileChange } from "./git-marks"
 export type WatchState = "connecting" | "live" | "static";
 
 export function WorkspaceSummary({
+  serverLabel,
   cwd,
   personalCwd,
   homeDir,
@@ -20,6 +21,7 @@ export function WorkspaceSummary({
   loading,
   loadingBranch,
 }: {
+  serverLabel?: string;
   cwd: string;
   personalCwd: string | null;
   homeDir: string;
@@ -31,6 +33,7 @@ export function WorkspaceSummary({
   return (
     <div className="flex flex-col gap-[8px]">
       <WorkspaceTitle
+        serverLabel={serverLabel}
         cwd={cwd}
         personalCwd={personalCwd}
         homeDir={homeDir}
@@ -49,12 +52,14 @@ export function WorkspaceSummary({
 }
 
 function WorkspaceTitle({
+  serverLabel,
   cwd,
   personalCwd,
   homeDir,
   watch,
   isGit,
 }: {
+  serverLabel?: string;
   cwd: string;
   personalCwd: string | null;
   homeDir: string;
@@ -76,7 +81,9 @@ function WorkspaceTitle({
           <FolderGitIcon />
         </span>
       )}
-      <span className="type-body-medium max-w-[60%] shrink-0 truncate text-[var(--fx-text-primary)]">{name}</span>
+      <span className="type-body-medium max-w-[60%] shrink-0 truncate text-[var(--fx-text-primary)]">
+        {serverLabel ? `${name} (${serverLabel})` : name}
+      </span>
       <span className="type-mono-meta min-w-0 flex-1 truncate text-[var(--fx-text-tertiary)]" title={cwd}>
         {location}
       </span>

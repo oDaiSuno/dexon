@@ -1,7 +1,7 @@
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
 import {
-  useReducer,
   useCallback,
   useEffect,
   useRef,
@@ -9,7 +9,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { reduceFileTabState } from "@/lib/file-tab-state";
+import { useEnvironmentFileTabs } from "./use-environment-file-tabs";
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import {
   RIGHT_PANEL_DEFAULT_WIDTH,
   RIGHT_PANEL_MIN_WIDTH,
@@ -63,15 +64,18 @@ export function useRightPanelDock({
   onCollapseSidebar: () => void;
   suspended?: boolean;
 }) {
-  const environmentId = useActiveEnvironment().id;
-  const { embeddedBrowser } = useActiveEnvironmentAffordances();
+  const environmentId = useFileEnvironment();
+  const { embeddedBrowser } = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const suspendedRef = useRef(suspended);
   suspendedRef.current = suspended;
-  const [{ tabs: fileTabs, activeTabId: requestedTabId }, dispatchFileTab] = useReducer(reduceFileTabState, {
-    tabs: [],
-    activeTabId: EXPLORER_TAB_ID,
-  });
-  const activeFileTabId = !embeddedBrowser && requestedTabId === BROWSER_TAB_ID ? EXPLORER_TAB_ID : requestedTabId;
+  const { fileTabs, requestedTabId, dispatchFileTab } = useEnvironmentFileTabs(environmentId);
+  const activeFileTabId =
+    requestedTabId === EXPLORER_TAB_ID ||
+    requestedTabId === PROCESSES_TAB_ID ||
+    (requestedTabId === BROWSER_TAB_ID && embeddedBrowser) ||
+    fileTabs.some((tab) => tab.id === requestedTabId)
+      ? requestedTabId
+      : EXPLORER_TAB_ID;
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [rightPanelBounds, setRightPanelBounds] = useState(() =>
     getRightPanelWidthBounds(window.innerWidth, sidebarOpen),
@@ -136,7 +140,7 @@ export function useRightPanelDock({
       disposed = true;
       unsubscribe?.();
     };
-  }, [environmentId, isMobile, onCollapseSidebar]);
+  }, [environmentId, isMobile, onCollapseSidebar, dispatchFileTab]);
 
   const handleRightPanelResizeStart = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -234,7 +238,7 @@ export function useRightPanelDock({
     };
     window.addEventListener("dexon:open-browser-tab", openBrowserTab);
     return () => window.removeEventListener("dexon:open-browser-tab", openBrowserTab);
-  }, [embeddedBrowser, openRightPanel]);
+  }, [embeddedBrowser, openRightPanel, dispatchFileTab]);
 
   useEffect(
     () =>
@@ -242,7 +246,7 @@ export function useRightPanelDock({
         dispatchFileTab({ type: "select", tabId: PROCESSES_TAB_ID });
         openRightPanel();
       }),
-    [openRightPanel],
+    [openRightPanel, dispatchFileTab],
   );
 
   useEffect(() => {
@@ -260,7 +264,7 @@ export function useRightPanelDock({
       disposed = true;
       off();
     };
-  }, [embeddedBrowser, openRightPanel]);
+  }, [embeddedBrowser, openRightPanel, dispatchFileTab]);
 
   const handleRightPanelResizeKeyDown = useCallback(
     (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -288,18 +292,19 @@ export function useRightPanelDock({
     [activeFileTabId, isMobile, rightPanelWidth, sidebarOpen],
   );
 
-  const previousFileTabCountRef = useRef(fileTabs.length);
+  const previousFileTabsRef = useRef({ environmentId, count: fileTabs.length });
   useEffect(() => {
     if (
-      previousFileTabCountRef.current > 0 &&
+      previousFileTabsRef.current.environmentId === environmentId &&
+      previousFileTabsRef.current.count > 0 &&
       fileTabs.length === 0 &&
       activeFileTabId !== BROWSER_TAB_ID &&
       activeFileTabId !== PROCESSES_TAB_ID
     ) {
       setRightPanelOpen(false);
     }
-    previousFileTabCountRef.current = fileTabs.length;
-  }, [activeFileTabId, fileTabs.length]);
+    previousFileTabsRef.current = { environmentId, count: fileTabs.length };
+  }, [environmentId, activeFileTabId, fileTabs.length]);
 
   return {
     fileTabs,

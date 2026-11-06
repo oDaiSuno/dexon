@@ -1,7 +1,9 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useState } from "react";
 import { getFileApiUrl } from "./file-api-url";
 
 export function useFileWatch(
+  environmentId: EnvironmentId,
   filePath: string,
   sourceSessionId: string | null | undefined,
   onChange: (size?: number) => void,
@@ -9,7 +11,7 @@ export function useFileWatch(
   const [watching, setWatching] = useState(false);
   useEffect(() => {
     setWatching(false);
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new EventSource(getFileApiUrl(environmentId, filePath, "watch", sourceSessionId));
     es.addEventListener("connected", () => setWatching(true));
     es.addEventListener("change", (e) => {
       try {
@@ -22,6 +24,6 @@ export function useFileWatch(
     es.addEventListener("error", () => setWatching(false));
     es.onerror = () => setWatching(false);
     return () => es.close();
-  }, [filePath, sourceSessionId, onChange]);
+  }, [environmentId, filePath, sourceSessionId, onChange]);
   return watching;
 }

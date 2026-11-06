@@ -26,10 +26,14 @@ import {
 import { remarkLeadingSkill } from "@shared/markdown-attachment-tokens";
 import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
-import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import type { EnvironmentId } from "@contract/environment";
 import { CodeBlock, MermaidBlock, type CodeBlockVariant } from "./markdown/code-block";
 
 interface MarkdownBodyProps {
+  environmentId?: EnvironmentId;
   children: string;
   className?: string;
   isStreaming?: boolean;
@@ -57,7 +61,7 @@ interface ChipNodeData {
 
 type MarkdownRenderContextValue = Pick<
   MarkdownBodyProps,
-  "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile" | "codeBlockVariant"
+  "environmentId" | "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile" | "codeBlockVariant"
 >;
 
 const MarkdownRenderContext = createContext<MarkdownRenderContextValue>({});
@@ -89,14 +93,19 @@ function MarkdownPre({ children }: MarkdownComponentProps<"pre">) {
 }
 
 function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownComponentProps<"a">) {
-  const { cwd, onOpenFile } = useContext(MarkdownRenderContext);
+  const { cwd, onOpenFile, environmentId: requestedEnvironmentId } = useContext(MarkdownRenderContext);
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const { language, t } = useI18n();
-  const affordances = useActiveEnvironmentAffordances();
+  const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const [menuError, setMenuError] = useState(false);
-  const filePath = onOpenFile ? resolveLocalFileHref(href, cwd) : null;
+  const filePath = resolveLocalFileHref(href, cwd);
   if (!filePath || !onOpenFile) {
     return (
-      <a href={href} {...props}>
+      <a
+        href={href}
+        {...props}
+        onClick={filePath && !affordances.isPrimary ? (event) => event.preventDefault() : undefined}
+      >
         {children}
       </a>
     );
@@ -145,9 +154,10 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
 }
 
 function MarkdownImg({ src, alt, node: _node, ...props }: MarkdownComponentProps<"img">) {
-  const { cwd, imageBasePath, sourceSessionId } = useContext(MarkdownRenderContext);
+  const { cwd, imageBasePath, sourceSessionId, environmentId } = useContext(MarkdownRenderContext);
   return (
     <MarkdownImage
+      environmentId={environmentId}
       src={src}
       alt={alt}
       cwd={cwd}
@@ -193,6 +203,7 @@ const fileAwareUrlTransform: UrlTransform = (url, key, node) => {
 };
 
 export function MarkdownBody({
+  environmentId: requestedEnvironmentId,
   children,
   className,
   isStreaming,
@@ -204,10 +215,11 @@ export function MarkdownBody({
   codeBlockVariant,
   mathMode = "chat",
 }: MarkdownBodyProps) {
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
-    () => ({ isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
-    [codeBlockVariant, cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
+    () => ({ environmentId, isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
+    [environmentId, codeBlockVariant, cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
   );
   const hasInlineChips = inlineChips !== undefined;
   const leadingSkill = inlineChips?.leadingSkill ?? null;
@@ -242,6 +254,7 @@ export function MarkdownBody({
 }
 
 function MarkdownImage({
+  environmentId: requestedEnvironmentId,
   src,
   alt,
   cwd,
@@ -249,10 +262,14 @@ function MarkdownImage({
   sourceSessionId,
   ...props
 }: ImgHTMLAttributes<HTMLImageElement> & {
+  environmentId?: EnvironmentId;
   cwd?: string;
   relativeBase?: string;
   sourceSessionId?: string | null;
 }) {
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
+  const identity = JSON.stringify([environmentId, src, cwd, relativeBase, sourceSessionId]);
+  const [loadedIdentity, setLoadedIdentity] = useState(identity);
   const localPath = useMemo(
     () => resolveLocalFileHref(typeof src === "string" ? src : undefined, cwd, relativeBase),
     [cwd, relativeBase, src],
@@ -261,6 +278,7 @@ function MarkdownImage({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    setLoadedIdentity(identity);
     if (!localPath) {
       setPreviewSrc(typeof src === "string" ? src : null);
       setFailed(false);
@@ -273,7 +291,7 @@ function MarkdownImage({
     setFailed(false);
 
     void import("@/lib/file-blob")
-      .then(({ fileToObjectUrl }) => fileToObjectUrl(localPath, sourceSessionId))
+      .then(({ fileToObjectUrl }) => fileToObjectUrl(environmentId, localPath, sourceSessionId))
       .then((result) => {
         if (disposed) {
           result.revoke();
@@ -290,7 +308,10 @@ function MarkdownImage({
       disposed = true;
       revoke?.();
     };
-  }, [localPath, sourceSessionId, src]);
+  }, [environmentId, localPath, sourceSessionId, src, identity]);
+
+  if (loadedIdentity !== identity)
+    return <span className="markdown-image-loading" aria-label={alt || "Loading image"} />;
 
   if (failed) {
     return (

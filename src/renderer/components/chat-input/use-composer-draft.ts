@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { DraftPersistenceController, getDraft } from "@/lib/draft-store";
+import { DraftPersistenceController, getDraft, mergeCarriedDraft } from "@/lib/draft-store";
+import { takeDraftPromotion } from "@/lib/unsaved-messages";
 import { insertAttachmentToken } from "@shared/attachment-tokens";
 import { registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 import {
@@ -226,8 +227,13 @@ export function useComposerDraft({ draftKey, t, onImageNotice }: Options): Compo
     if (previousKey && previousKey !== draftKey) {
       const migrationStillOwnsDraft =
         previousMigration?.key === previousKey && previousMigration.revision === bufferRef.current.draft.revision;
-      if (!migrationStillOwnsDraft)
+      if (draftKey && takeDraftPromotion(previousKey, draftKey)) {
+        const carried = mergeCarriedDraft(getDraft(draftKey), bufferRef.current.draft.text);
+        if (carried) persistenceRef.current?.commit(draftKey, carried);
+        persistenceRef.current?.clear(previousKey);
+      } else if (!migrationStillOwnsDraft) {
         persistenceRef.current?.commit(previousKey, { value: bufferRef.current.draft.text });
+      }
       if (isNewWorkspaceScopeKey(previousKey) && draftKey && !isNewWorkspaceScopeKey(draftKey)) {
         carryLocalCommands(previousKey, draftKey);
       }

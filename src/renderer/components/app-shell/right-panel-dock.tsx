@@ -1,5 +1,11 @@
 import { useI18n } from "@/i18n";
-import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import type { UnavailableReason } from "@/lib/environment-affordances";
+import { DisabledReason } from "../disabled-reason";
+import { useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import type { FileTab } from "@/lib/file-tab-state";
+import { RemoteWorkspaceActions } from "../file-explorer/remote-workspace-actions";
 import { formatNumber } from "@/lib/locale-format";
 import {
   RIGHT_PANEL_MAX_VIEWPORT_RATIO,
@@ -29,7 +35,7 @@ import { BROWSER_TAB_ID, EXPLORER_TAB_ID, PROCESSES_TAB_ID } from "./use-right-p
 
 export function RightPanelDock({
   activeFileTabId: requestedTabId,
-  fileTabs,
+  fileTabs: providedTabs,
   dispatchFileTab,
   rightPanelOpen,
   rightPanelWidth,
@@ -56,7 +62,7 @@ export function RightPanelDock({
   suspended = false,
 }: {
   activeFileTabId: string;
-  fileTabs: { id: string; label: string; filePath: string; sourceSessionId?: string | null }[];
+  fileTabs: FileTab[];
   dispatchFileTab: (
     action: { type: "select"; tabId: string } | { type: "close"; tabId: string; fallbackTabId: string },
   ) => void;
@@ -85,14 +91,29 @@ export function RightPanelDock({
   suspended?: boolean;
 }) {
   const { language, t } = useI18n();
-  const environmentId = useActiveEnvironment().id;
-  const { embeddedBrowser } = useActiveEnvironmentAffordances();
-  const activeFileTabId = !embeddedBrowser && requestedTabId === BROWSER_TAB_ID ? EXPLORER_TAB_ID : requestedTabId;
+  const environmentId = useFileEnvironment();
+  const { embeddedBrowser, isPrimary, unavailable } = environmentAffordances(
+    useEnvironments().find((view) => view.id === environmentId),
+  );
+  const fileTabs = useMemo(
+    () => providedTabs.filter((tab) => tab.environmentId === environmentId),
+    [providedTabs, environmentId],
+  );
+  const activeFileTabId =
+    requestedTabId === EXPLORER_TAB_ID ||
+    requestedTabId === PROCESSES_TAB_ID ||
+    (requestedTabId === BROWSER_TAB_ID && embeddedBrowser) ||
+    fileTabs.some((tab) => tab.id === requestedTabId)
+      ? requestedTabId
+      : EXPLORER_TAB_ID;
   const activeFileTab = fileTabs.find((tab) => tab.id === activeFileTabId) ?? null;
-  const [lastFileTabId, setLastFileTabId] = useState<string | null>(null);
-  if (activeFileTab && activeFileTab.id !== lastFileTabId) setLastFileTabId(activeFileTab.id);
+  const [lastFileTabIds, setLastFileTabIds] = useState(new Map<string, string>());
+  const lastFileTabId = lastFileTabIds.get(environmentId);
+  if (activeFileTab && activeFileTab.id !== lastFileTabId) {
+    setLastFileTabIds(new Map(lastFileTabIds).set(environmentId, activeFileTab.id));
+  }
   const explorerFilePath = fileTabs.find((tab) => tab.id === lastFileTabId)?.filePath ?? null;
-  const changed = useChangedPaths(fileTabs.length > 0 ? explorerCwd : null, explorerRefreshKey);
+  const changed = useChangedPaths(environmentId, fileTabs.length > 0 ? explorerCwd : null, explorerRefreshKey);
   const changedTabIds = useMemo(
     () =>
       new Set(
@@ -149,12 +170,12 @@ export function RightPanelDock({
           onSelect={(tabId) => dispatchFileTab({ type: "select", tabId })}
           labels={{
             [EXPLORER_TAB_ID]: t("explorer", "Explorer"),
-            [BROWSER_TAB_ID]: t("browser", "Browser"),
+            [BROWSER_TAB_ID]: isPrimary ? t("browser", "Browser") : t("remoteLocalPreview", "Local preview"),
             [PROCESSES_TAB_ID]: t("processes", "Processes"),
           }}
           count={managedProcessCount > 0 || managedProcessAttention ? managedProcessCount : null}
           attention={managedProcessAttention}
-          browserEnabled={embeddedBrowser}
+          browserUnavailable={unavailable.embeddedBrowser}
         />
         <div className="right-panel-header-spacer" />
         {activeFileTabId === EXPLORER_TAB_ID && explorerCwd && (
@@ -206,8 +227,14 @@ export function RightPanelDock({
                 background: "var(--fx-surface-sidebar)",
               }}
             >
+              <RemoteWorkspaceActions
+                key={JSON.stringify([environmentId, explorerCwd])}
+                environmentId={environmentId}
+                path={explorerCwd}
+              />
               <FileExplorer
                 key={environmentId}
+                environmentId={environmentId}
                 cwd={explorerCwd}
                 personalCwd={personalCwd}
                 homeDir={homeDir}
@@ -224,7 +251,8 @@ export function RightPanelDock({
           )
         ) : activeFileTab?.filePath ? (
           <FileViewer
-            key={`${environmentId}:${activeFileTab.id ?? activeFileTab.filePath}`}
+            key={activeFileTab.id}
+            environmentId={activeFileTab.environmentId}
             filePath={activeFileTab.filePath}
             cwd={activeCwd ?? undefined}
             sourceSessionId={activeFileTab.sourceSessionId}
@@ -298,19 +326,19 @@ function DockSwitcher({
   labels,
   count,
   attention,
-  browserEnabled,
+  browserUnavailable,
 }: {
   activeFileTabId: string;
   onSelect: (tabId: DockTabId) => void;
   labels: Record<DockTabId, string>;
   count: number | null;
   attention: boolean;
-  browserEnabled: boolean;
+  browserUnavailable?: UnavailableReason;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [pill, setPill] = useState<{ left: number; width: number } | null>(null);
   const [gliding, setGliding] = useState(false);
-  const tabs = DOCK_TABS.filter((tab) => browserEnabled || tab.id !== BROWSER_TAB_ID);
+  const tabs = DOCK_TABS;
   const activeIndex = tabs.findIndex((tab) => tab.id === activeFileTabId);
   const layoutKey = `${tabs.map((tab) => labels[tab.id]).join("|")}|${count ?? ""}`;
 
@@ -348,24 +376,25 @@ function DockSwitcher({
       {tabs.map((tab) => {
         const active = tab.id === activeFileTabId;
         return (
-          <button
-            key={tab.id}
-            type="button"
-            data-dock-tab
-            className={`dock-switcher-tab ${active ? "type-label-medium" : "type-label-default"}`}
-            onClick={() => onSelect(tab.id)}
-            aria-pressed={active}
-          >
-            <DockIcon kind={tab.icon} size={13} />
-            {labels[tab.id]}
-            {tab.id === PROCESSES_TAB_ID && count !== null && (
-              <span
-                className={`dock-switcher-count type-mono-meta${attention ? " dock-switcher-count-attention" : ""}`}
-              >
-                {count}
-              </span>
-            )}
-          </button>
+          <DisabledReason key={tab.id} reason={tab.id === BROWSER_TAB_ID ? browserUnavailable : null}>
+            <button
+              type="button"
+              data-dock-tab
+              className={`dock-switcher-tab ${active ? "type-label-medium" : "type-label-default"}`}
+              onClick={() => onSelect(tab.id)}
+              aria-pressed={active}
+            >
+              <DockIcon kind={tab.icon} size={13} />
+              {labels[tab.id]}
+              {tab.id === PROCESSES_TAB_ID && count !== null && (
+                <span
+                  className={`dock-switcher-count type-mono-meta${attention ? " dock-switcher-count-attention" : ""}`}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          </DisabledReason>
         );
       })}
     </div>

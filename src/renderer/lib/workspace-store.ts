@@ -2,7 +2,7 @@ import type { PiBridge } from "@contract/desktop";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import {
   fromLegacyOpenProjects,
-  parseProjectSpacesState,
+  recoverProjectSpacesState,
   projectKeyOf,
   type ProjectKey,
   type ProjectSpaceRef,
@@ -27,6 +27,11 @@ export interface WorkspaceSnapshot {
   readonly seeded: readonly EnvironmentId[];
   readonly focus: WorkspaceFocus;
 }
+type WorkspaceChange = (snapshot: WorkspaceSnapshot) => Partial<WorkspaceSnapshot>;
+interface WorkspaceOperation {
+  change: WorkspaceChange;
+  removesFocus?: (focus: WorkspaceFocus) => boolean;
+}
 const primaryFocus = (): WorkspaceFocus => ({ environmentId: PRIMARY_ENVIRONMENT_ID, spaceKey: null, sessionId: null });
 export class WorkspaceStore {
   private snapshot: WorkspaceSnapshot = { loaded: false, spaces: [], seeded: [], focus: primaryFocus() };
@@ -35,6 +40,8 @@ export class WorkspaceStore {
   private loading: Promise<void> | null = null;
   private pending: ProjectSpacesState | null = null;
   private writing: Promise<void> | null = null;
+  private preLoadOps: WorkspaceOperation[] = [];
+  private focusChangedBeforeLoad = false;
   getSnapshot = (): WorkspaceSnapshot => this.snapshot;
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -43,51 +50,62 @@ export class WorkspaceStore {
     };
   };
   initialize(bridge: PiBridge): Promise<void> {
-    if (this.bridge === bridge) return this.loading ?? Promise.resolve();
+    if (this.bridge === bridge) {
+      if (this.snapshot.loaded) return Promise.resolve();
+      if (this.loading) return this.loading;
+      this.loading = this.load(bridge);
+      return this.loading;
+    }
     if (this.bridge) {
       this.pending = null;
       this.snapshot = { loaded: false, spaces: [], seeded: [], focus: primaryFocus() };
     }
+    this.preLoadOps = [];
+    this.focusChangedBeforeLoad = false;
     this.bridge = bridge;
     this.loading = this.load(bridge);
     return this.loading;
   }
   private async load(bridge: PiBridge): Promise<void> {
-    const initial = this.snapshot;
-    let changedDuringLoad = false;
     try {
       const [ui, environments] = await Promise.all([bridge.getUiState?.(), bridge.listEnvironments?.()]);
       if (this.bridge !== bridge) return;
-      changedDuringLoad = this.snapshot !== initial;
-      const state = ui?.projectSpaces
-        ? parseProjectSpacesState(ui.projectSpaces)
-        : fromLegacyOpenProjects(ui?.openProjects);
+      const changedDuringLoad = this.focusChangedBeforeLoad || this.preLoadOps.length > 0;
+      const state = recoverProjectSpacesState(ui?.projectSpaces, ui?.openProjects);
+      const reconciled = this.preLoadOps.reduce<WorkspaceSnapshot>(
+        (snapshot, operation) => ({ ...snapshot, ...operation.change(snapshot) }),
+        { ...this.snapshot, spaces: state.spaces.map(mountSpace), seeded: [...state.seeded] },
+      );
       const remembered = state.lastFocusedSpace;
       const enabled =
         remembered?.environmentId === PRIMARY_ENVIRONMENT_ID ||
         environments?.environments.some((view) => view.id === remembered?.environmentId && view.enabled);
       const restored =
-        remembered && enabled && state.spaces.some((space) => projectKeyOf(space) === projectKeyOf(remembered))
+        remembered && enabled && reconciled.spaces.some((space) => space.key === projectKeyOf(remembered))
           ? remembered
           : null;
+      const preserveFocus =
+        this.focusChangedBeforeLoad &&
+        !this.preLoadOps.some((operation) => operation.removesFocus?.(this.snapshot.focus));
       this.snapshot = {
         loaded: true,
-        spaces: this.snapshot.spaces === initial.spaces ? state.spaces.map(mountSpace) : this.snapshot.spaces,
-        seeded: this.snapshot.seeded === initial.seeded ? state.seeded : this.snapshot.seeded,
-        focus:
-          this.snapshot.focus !== initial.focus
-            ? this.snapshot.focus
-            : restored
-              ? { environmentId: restored.environmentId, spaceKey: projectKeyOf(restored), sessionId: null }
-              : primaryFocus(),
+        spaces: reconciled.spaces,
+        seeded: reconciled.seeded,
+        focus: preserveFocus
+          ? this.snapshot.focus
+          : restored
+            ? { environmentId: restored.environmentId, spaceKey: projectKeyOf(restored), sessionId: null }
+            : primaryFocus(),
       };
+      this.preLoadOps = [];
+      this.focusChangedBeforeLoad = false;
+      this.loading = null;
+      this.notify();
+      if (changedDuringLoad) this.persistSnapshot();
     } catch {
-      if (this.bridge === bridge) this.snapshot = { ...this.snapshot, loaded: true };
-    } finally {
       if (this.bridge === bridge) {
-        this.snapshot = { ...this.snapshot, loaded: true };
+        this.loading = null;
         this.notify();
-        if (changedDuringLoad) this.persistSnapshot();
       }
     }
   }
@@ -102,7 +120,8 @@ export class WorkspaceStore {
     this.commit({ focus: { environmentId: ref.environmentId, spaceKey: projectKeyOf(ref), sessionId: null } });
   }
   async mountAndOpen(ref: ProjectSpaceRef): Promise<"opened" | "invalid"> {
-    await this.loading;
+    if (!this.snapshot.loaded && this.bridge) await this.initialize(this.bridge);
+    if (!this.snapshot.loaded) return "invalid";
     const { getEnvironmentApiClient } = await import("./api-client");
     const result = await getEnvironmentApiClient(ref.environmentId).validateCwd(ref.path);
     if (!result.ok) return "invalid";
@@ -110,42 +129,65 @@ export class WorkspaceStore {
     const spaceKey = projectKeyOf(canonical);
     const spaces = addProjectSpace(this.snapshot.spaces, canonical);
     if (!spaces.some((space) => space.key === spaceKey)) return "invalid";
-    this.commit({ spaces, focus: { environmentId: ref.environmentId, spaceKey, sessionId: null } });
+    this.commit((snapshot) => ({
+      spaces: addProjectSpace(snapshot.spaces, canonical),
+      focus: { environmentId: ref.environmentId, spaceKey, sessionId: null },
+    }));
     return "opened";
   }
   noteCurrentProject(ref: ProjectSpaceRef, defaultSpace: ProjectSpaceRef | null): void {
     if (defaultSpace && projectKeyOf(ref) === projectKeyOf(defaultSpace)) return;
     if (this.snapshot.spaces.some((space) => space.key === projectKeyOf(ref))) return;
-    this.commit({ spaces: addProjectSpace(this.snapshot.spaces, ref, defaultSpace) });
+    this.commit((snapshot) => ({ spaces: addProjectSpace(snapshot.spaces, ref, defaultSpace) }));
   }
   seedFromSessions(environmentId: EnvironmentId, roots: readonly string[]): void {
     if (this.snapshot.seeded.includes(environmentId)) return;
     const refs = fromLegacyOpenProjects(roots)
       .spaces.slice(0, 20)
-      .map((ref) => ({ ...ref, environmentId }));
-    let spaces = [...this.snapshot.spaces];
-    for (const ref of refs.reverse()) spaces = addProjectSpace(spaces, ref);
-    this.commit({ spaces, seeded: [...this.snapshot.seeded, environmentId] });
+      .map((ref) => ({ ...ref, environmentId }))
+      .reverse();
+    this.commit((snapshot) => {
+      if (snapshot.seeded.includes(environmentId)) return {};
+      let spaces = [...snapshot.spaces];
+      for (const ref of refs) spaces = addProjectSpace(spaces, ref);
+      return { spaces, seeded: [...snapshot.seeded, environmentId] };
+    });
   }
   unmount(key: ProjectKey): void {
-    this.commit({
-      spaces: this.snapshot.spaces.filter((space) => space.key !== key),
-      ...(this.snapshot.focus.spaceKey === key ? { focus: primaryFocus() } : {}),
-    });
+    const removesFocus = (focus: WorkspaceFocus) => focus.spaceKey === key;
+    this.commit(
+      (snapshot) => ({
+        spaces: snapshot.spaces.filter((space) => space.key !== key),
+        ...(removesFocus(snapshot.focus) ? { focus: primaryFocus() } : {}),
+      }),
+      removesFocus,
+    );
   }
   unmountEnvironment(environmentId: EnvironmentId): void {
-    this.commit({
-      spaces: this.snapshot.spaces.filter((space) => space.environmentId !== environmentId),
-      ...(this.snapshot.focus.environmentId === environmentId ? { focus: primaryFocus() } : {}),
-    });
+    const removesFocus = (focus: WorkspaceFocus) => focus.environmentId === environmentId;
+    this.commit(
+      (snapshot) => ({
+        spaces: snapshot.spaces.filter((space) => space.environmentId !== environmentId),
+        ...(removesFocus(snapshot.focus) ? { focus: primaryFocus() } : {}),
+      }),
+      removesFocus,
+    );
   }
   move(key: ProjectKey, offset: -1 | 1, defaultSpace: ProjectSpaceRef | null): void {
-    this.commit({ spaces: moveProjectSpace(this.snapshot.spaces, key, offset, defaultSpace) });
+    this.commit((snapshot) => ({ spaces: moveProjectSpace(snapshot.spaces, key, offset, defaultSpace) }));
   }
   reorder(from: number, to: number, defaultSpace: ProjectSpaceRef | null): void {
-    this.commit({ spaces: reorderProjectSpaces(this.snapshot.spaces, from, to, defaultSpace) });
+    this.commit((snapshot) => ({ spaces: reorderProjectSpaces(snapshot.spaces, from, to, defaultSpace) }));
   }
-  private commit(patch: Partial<WorkspaceSnapshot>): void {
+  private commit(
+    change: Pick<WorkspaceSnapshot, "focus"> | WorkspaceChange,
+    removesFocus?: (focus: WorkspaceFocus) => boolean,
+  ): void {
+    const patch = typeof change === "function" ? change(this.snapshot) : change;
+    if (!this.snapshot.loaded) {
+      if (typeof change === "function") this.preLoadOps.push({ change, removesFocus });
+      if ("focus" in patch) this.focusChangedBeforeLoad = true;
+    }
     this.snapshot = { ...this.snapshot, ...patch };
     this.notify();
     if (this.snapshot.loaded) this.persistSnapshot();

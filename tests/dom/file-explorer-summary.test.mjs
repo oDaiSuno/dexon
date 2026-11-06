@@ -208,7 +208,12 @@ function dock(patch = {}) {
 
 test("back in the explorer, the file last viewed in a tab is marked as the current row until its tab is closed", async (t) => {
   explorerHost(t, { entries: [file("index.ts"), file("README.md")] });
-  const tab = { id: `file:${PROJECT}/index.ts`, label: "index.ts", filePath: `${PROJECT}/index.ts` };
+  const tab = {
+    environmentId: "primary",
+    id: `file:${PROJECT}/index.ts`,
+    label: "index.ts",
+    filePath: `${PROJECT}/index.ts`,
+  };
   const view = await mount(t, api.RightPanelDock, dock({ fileTabs: [tab], activeFileTabId: tab.id }));
   await view.update(dock({ fileTabs: [tab], activeFileTabId: "explorer" }));
   const row = (name) => button(view.container, `打开文件 ${name}`);

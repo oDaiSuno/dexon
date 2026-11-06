@@ -6,6 +6,7 @@ import type {
 } from "@/hooks/useAgentSession";
 import type { RefObject } from "react";
 import type { ModelCatalogStatus } from "@contract/types";
+import type { EnvironmentId } from "@contract/environment";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 import type { ThinkingLevel } from "./thinking-art";
@@ -14,12 +15,19 @@ import type { SlashCompletion } from "./command-slot";
 
 export type { RecallablePrompt } from "./prompt-history";
 
+export type SubmissionOutcome = void | { ok: boolean };
+export type SubmissionHandler = (message: string) => SubmissionOutcome | Promise<SubmissionOutcome>;
+
 export interface ChatInputProps {
-  onSend: (message: string) => void | Promise<unknown> | { ok?: boolean };
+  environmentId?: EnvironmentId;
+  onSend: SubmissionHandler;
   onAbort: () => void;
-  onSteer?: (message: string) => Promise<void> | void;
-  onFollowUp?: (message: string) => Promise<void> | void;
-  onPromptWithStreamingBehavior?: (message: string, behavior: "steer" | "followUp") => Promise<void> | void;
+  onSteer?: SubmissionHandler;
+  onFollowUp?: SubmissionHandler;
+  onPromptWithStreamingBehavior?: (
+    message: string,
+    behavior: "steer" | "followUp",
+  ) => SubmissionOutcome | Promise<SubmissionOutcome>;
   isStreaming: boolean;
   model?: { provider: string; modelId: string } | null;
   isAutoModelSelection?: boolean;
@@ -52,9 +60,7 @@ export interface ChatInputProps {
   onAudioUnlock?: () => void;
   draftKey?: string;
   promptHistory?: readonly RecallablePrompt[];
-  /** Session working directory — enables the @ file autocomplete menu. */
   cwd?: string | null;
-  /** Whether this input is currently user-visible and interactive. */
   visible?: boolean;
   remote?: ComposerRemote | null;
   navigation?: ComposerNavigation;

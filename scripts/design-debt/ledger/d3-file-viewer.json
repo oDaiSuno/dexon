@@ -61,12 +61,6 @@
   ],
   "colors": [
     {
-      "file": "src/renderer/components/file-viewer/image-viewer.tsx",
-      "color": "rgba(0,0,0,0.15)",
-      "count": 1,
-      "hint": "阴影改用 var(--shadow-popover)（菜单、浮层）/ var(--shadow-dialog)（对话框）/ var(--shadow-card)（小卡片）中最接近的一档"
-    },
-    {
       "file": "src/renderer/lib/docx-preview-html.ts",
       "color": "#0f0e0c",
       "count": 1,

@@ -6,6 +6,7 @@ import type { CatalogSkill } from "./use-skill-catalog";
 import { ComposerEditable } from "./ComposerEditable";
 import type {
   CaretPlacement,
+  ChatInputProps,
   ComposerChange,
   ComposerEditableHandle,
   ComposerNavigation,
@@ -19,6 +20,8 @@ import { PlusMenuLayer } from "./plus-menu-layer";
 import { SkillPickerPanel } from "./SkillPickerPanel";
 import { SkillRevealCard } from "./SkillRevealCard";
 import { SendSquare, StopSquare } from "./SendControls";
+import { ComposerEnvironmentStrip } from "./composer-environment-strip";
+import type { SendGate } from "@/lib/space-attribution";
 import { SessionControls } from "./SessionControls";
 import type { ThinkingLevel } from "./thinking-art";
 import { SlashMenu } from "./SlashMenu";
@@ -30,12 +33,13 @@ import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps {
+  sendGate: SendGate;
   rootRef: RefObject<HTMLDivElement | null>;
   visible: boolean;
   isMobile: boolean;
   isStreaming: boolean;
   hasSteering: boolean;
-  onFollowUp?: (message: string) => Promise<void> | void;
+  onFollowUp?: ChatInputProps["onFollowUp"];
   value: string;
   restoreCaret?: CaretPlacement;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
@@ -131,6 +135,7 @@ export interface ComposerViewProps {
 export function ComposerView(props: ComposerViewProps) {
   const { t } = useI18n();
   const {
+    sendGate,
     rootRef,
     visible,
     isMobile,
@@ -278,6 +283,8 @@ export function ComposerView(props: ComposerViewProps) {
           <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
         )}
 
+        <ComposerEnvironmentStrip />
+
         <div data-composer-anchor style={{ position: "relative" }}>
           <PlusMenuLayer
             plusMenuOpen={plusMenuOpen}
@@ -392,17 +399,22 @@ export function ComposerView(props: ComposerViewProps) {
               </div>
               {isStreaming ? (
                 value.trim() && onFollowUp ? (
-                  <SendSquare armed onSend={onQueue} />
+                  <SendSquare armed onSend={onQueue} gate={sendGate} />
                 ) : (
                   <StopSquare onAbort={onAbort} />
                 )
               ) : (
-                <SendSquare armed={Boolean(value.trim())} onSend={onSend} />
+                <SendSquare armed={Boolean(value.trim())} onSend={onSend} gate={sendGate} />
               )}
             </div>
           </div>
         </div>
 
+        {!sendGate.allowed && (
+          <p className="composer-send-hint type-meta-default" role="status">
+            {sendGate.hint}
+          </p>
+        )}
         <div
           style={{
             marginTop: 10,
