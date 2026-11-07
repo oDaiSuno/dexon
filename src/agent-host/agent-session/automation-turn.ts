@@ -2,6 +2,7 @@ import type { EffectObservation } from "../effect-observation";
 import type { AutomationResultSink } from "./automation-result-tool";
 import { promptOnChosenModel } from "./chosen-model-prompt";
 import { isMutatingWorkspaceTool } from "./execution-profile";
+import { unavailableModelOf } from "./model-gate";
 import type { AgentSessionWrapper } from "./wrapper";
 
 export interface AutomationTurnOptions<T = unknown> {
@@ -124,7 +125,8 @@ async function observeTurn<T>(
         output: { result: state.value, sessionId: wrapper.sessionId, mutatingToolCalls: mutatingCalls.size },
       };
     }
-    const code = stopped ?? "agent_no_result";
+    const modelUnavailable = !stopped && unavailableModelOf(promptError) !== null;
+    const code = stopped ?? (modelUnavailable ? "model_unavailable" : "agent_no_result");
     const message =
       stopped === "timeout"
         ? "Automation turn timed out before a quiescent result was available"
@@ -144,7 +146,7 @@ async function observeTurn<T>(
         },
       };
     }
-    return { kind: "not_applied", transient: stopped !== null, error: { code, message } };
+    return { kind: "not_applied", transient: stopped !== null || modelUnavailable, error: { code, message } };
   } finally {
     wrapper.blockAutomationTools();
     clearTimeout(timeout);

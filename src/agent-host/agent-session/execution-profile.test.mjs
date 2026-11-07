@@ -449,6 +449,7 @@ test("RPC persists origins before startup and reopens sealed", { timeout: 10_000
   const faux = fauxProvider();
   wrapper.inner.modelRuntime.registerNativeProvider(faux.provider);
   await wrapper.inner.setModel(faux.getModel());
+  await wrapper.inner.settingsManager.flush();
   faux.setResponses([toolResponse(fauxToolCall("automation_result", { count: 4 }))]);
   assert.equal(
     (await wrapper.runAutomationTurn("Persist result", { timeoutMs: 2_000, sink: execution.result.sink })).kind,
@@ -488,9 +489,10 @@ test("the automation launch handle settles after disposal, retains sealed histor
   const faux = fauxProvider();
   session.inner.modelRuntime.registerNativeProvider(faux.provider);
   await session.inner.setModel(faux.getModel());
+  await session.inner.settingsManager.flush();
   faux.setResponses([toolResponse(fauxToolCall("automation_result", { count: 6 }))]);
   const observation = await handle.runTurn("Finish", { timeoutMs: 2_000 });
-  assert.equal(observation.kind, "applied");
+  assert.equal(observation.kind, "applied", JSON.stringify(observation));
   assert.deepEqual(observation.output.result, { count: 6 });
   assert.equal(runtime.getRpcSession(handle.sessionId), undefined);
   assert.equal(runtime.getSessionOrigin(handle.sessionId).relation, "automation");
