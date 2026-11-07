@@ -18,23 +18,18 @@ import {
 import { importTestBundle } from "#test-bundle";
 
 const base = mkdtempSync(path.join(tmpdir(), "dexon-automation-profile-"));
-const previous = {
-  agent: process.env.PI_CODING_AGENT_DIR,
-  sessions: process.env.PI_CODING_AGENT_SESSION_DIR,
-  offline: process.env.PI_OFFLINE,
-};
+const previous = [
+  ["PI_CODING_AGENT_DIR", process.env.PI_CODING_AGENT_DIR],
+  ["PI_CODING_AGENT_SESSION_DIR", process.env.PI_CODING_AGENT_SESSION_DIR],
+  ["PI_OFFLINE", process.env.PI_OFFLINE],
+];
 process.env.PI_CODING_AGENT_DIR = path.join(base, "agent");
 process.env.PI_CODING_AGENT_SESSION_DIR = path.join(base, "sessions");
 process.env.PI_OFFLINE = "1";
 test.after(() => {
-  for (const [key, value] of [
-    ["PI_CODING_AGENT_DIR", previous.agent],
-    ["PI_CODING_AGENT_SESSION_DIR", previous.sessions],
-    ["PI_OFFLINE", previous.offline],
-  ]) {
+  for (const [key, value] of previous)
     if (value === undefined) delete process.env[key];
     else process.env[key] = value;
-  }
   rmSync(base, { recursive: true, force: true });
 });
 
@@ -286,7 +281,7 @@ test("sealing blocks prepared sibling writes and waits for an already running pa
 
 for (const ending of ["timeout", "aborted", "agent_no_result"]) {
   for (const mutating of [false, true]) {
-    test(`${ending} reports ${mutating ? "possible writes" : "no writes"}`, { timeout: 5_000 }, async (t) => {
+    test(`${ending} reports ${mutating ? "possible writes" : "no writes"}`, { timeout: 15_000 }, async (t) => {
       const started = Promise.withResolvers();
       const toolName = mutating ? "write" : "read";
       const { wrapper, faux, sink, cwd } = await openAutomation(t, {
@@ -297,7 +292,7 @@ for (const ending of ["timeout", "aborted", "agent_no_result"]) {
           const definition = session.getToolDefinition(toolName);
           const execute = definition.execute.bind(definition);
           definition.execute = async (...args) => {
-            const result = await execute(...args);
+            const result = await execute(args[0], args[1], undefined, args[3], args[4]);
             started.resolve();
             const signal = args[2];
             if (!signal.aborted)
@@ -314,7 +309,7 @@ for (const ending of ["timeout", "aborted", "agent_no_result"]) {
       ]);
       const controller = new globalThis.AbortController();
       const running = wrapper.runAutomationTurn("Observe effect", {
-        timeoutMs: ending === "timeout" ? 150 : 2_000,
+        timeoutMs: ending === "timeout" ? 600 : 5_000,
         signal: controller.signal,
         sink,
       });

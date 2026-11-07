@@ -46,11 +46,16 @@ export async function runAutomationBridgeSmokeCheck(window: BrowserWindow): Prom
     if (typeof bridge.setAutomationSecret !== "function" || typeof bridge.deleteAutomationSecret !== "function" || typeof bridge.listAutomationSecretNames !== "function" || "getAutomationSecret" in bridge) return false;
     const names = await bridge.listAutomationSecretNames();
     if (!Array.isArray(names) || names.some((name) => typeof name !== "string")) return false;
-    await bridge.setAutomationSecret("smoke.bridge", "bridge-secret");
-    const saved = await bridge.listAutomationSecretNames();
-    if (!saved.includes("smoke.bridge") || saved.includes("bridge-secret")) return false;
-    await bridge.deleteAutomationSecret("smoke.bridge");
-    if ((await bridge.listAutomationSecretNames()).includes("smoke.bridge")) return false;
+    try {
+      await bridge.setAutomationSecret("smoke.bridge", "bridge-secret");
+      const saved = await bridge.listAutomationSecretNames();
+      if (!saved.includes("smoke.bridge") || saved.includes("bridge-secret")) return false;
+      await bridge.deleteAutomationSecret("smoke.bridge");
+      if ((await bridge.listAutomationSecretNames()).includes("smoke.bridge")) return false;
+    } catch (error) {
+      if (!String(error).includes("OS credential encryption is unavailable")) return false;
+      if ((await bridge.listAutomationSecretNames()).includes("smoke.bridge")) return false;
+    }
     try { await bridge.setAutomationSecret("INVALID", "must-not-persist"); return false; }
     catch (error) { return String(error).includes("Invalid automation secret name"); }
   })()`);

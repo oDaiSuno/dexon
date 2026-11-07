@@ -36,9 +36,7 @@ export class CredentialVault {
     const temp = `${this.filePath}.${process.pid}.${Date.now()}.tmp`;
     fs.writeFileSync(temp, JSON.stringify(data, null, 2), { encoding: "utf8", mode: 0o600 });
     fs.renameSync(temp, this.filePath);
-    try {
-      fs.chmodSync(this.filePath, 0o600);
-    } catch {}
+    if (process.platform !== "win32") fs.chmodSync(this.filePath, 0o600);
   }
   private assertAvailable(): void {
     if (!safeStorage.isEncryptionAvailable()) {

@@ -105,7 +105,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS runs_latest_pending ON runs (lane_key)
   WHERE lane_overflow = 'latest' AND phase = 'pending';
 CREATE INDEX IF NOT EXISTS runs_lane_live ON runs (lane_key) WHERE lane_key IS NOT NULL AND phase IN (${sqlEnumList(LIVE_RUN_PHASES)});
 CREATE INDEX IF NOT EXISTS runs_lane_pending ON runs (lane_key, created_at_ms) WHERE phase = 'pending';
-CREATE INDEX IF NOT EXISTS runs_ready ON runs (admitted_at_ms) WHERE phase = 'ready';
+CREATE INDEX IF NOT EXISTS runs_ready ON runs (admitted_at_ms, created_at_ms) WHERE phase = 'ready';
 CREATE INDEX IF NOT EXISTS runs_executing ON runs (task_id) WHERE phase IN ('running','cancelling');
 CREATE INDEX IF NOT EXISTS runs_backoff_due ON runs (wake_at_ms) WHERE phase = 'backoff';
 CREATE INDEX IF NOT EXISTS runs_by_task ON runs (task_id, created_at_ms DESC);

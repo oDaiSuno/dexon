@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { RpcError } from "../../contract/types";
 import { AutomationStore, systemClock } from "./store";
@@ -20,6 +20,7 @@ const defaults: RuntimeLimits = {
 export function createAutomationRuntime(deps: AutomationRuntimeDeps): AutomationRuntime {
   const limits = { ...defaults, ...deps.limits };
   const clock = deps.clock ?? systemClock;
+  const dbFile = path.join(deps.dataDirectory, "automation.sqlite");
   const listeners = new Set<(change: AutomationChange) => void>();
   let status: RuntimeStatus = { kind: "stopped" };
   let store: AutomationStore | null = null;
@@ -29,17 +30,19 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
   let probeScripts: ReturnType<typeof createScriptAction> | null = null;
   let queued = false;
   let stopping: Promise<void> | null = null;
-  function available(): AutomationStore {
-    if (!store || status.kind !== "ready")
+  function assertReady(): void {
+    if (status.kind !== "ready")
       throw new RpcError({
         code: "UNAVAILABLE",
         message: status.kind === "unavailable" ? status.reason : "Automation runtime is not ready",
       });
-    return store;
+  }
+  function reportError(error: unknown): void {
+    deps.onError?.(error);
   }
   function fail(error: unknown): void {
     status = { kind: "unavailable", reason: error instanceof Error ? error.message : "Automation runtime failed" };
-    deps.onError?.(error);
+    reportError(error);
   }
   function changed(change: AutomationChange): void {
     for (const listener of listeners) {
@@ -47,18 +50,63 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
         listener(change);
       } catch {}
     }
-    if (queued || status.kind !== "ready") return;
+    if (queued || status.kind !== "ready" || !pool || !scheduler) return;
     queued = true;
     queueMicrotask(() => {
       queued = false;
-      if (status.kind !== "ready") return;
+      if (status.kind !== "ready" || !pool || !scheduler) return;
       try {
-        pool!.pump();
-        scheduler!.rearm();
+        pool.pump();
+        scheduler.rearm();
       } catch (error) {
-        fail(error);
+        reportError(error);
       }
     });
+  }
+  function openStore(): AutomationStore {
+    if (store) return store;
+    mkdirSync(deps.dataDirectory, { recursive: true });
+    const opened = AutomationStore.open(dbFile, clock);
+    if (!(opened instanceof AutomationStore)) {
+      status = { kind: "unavailable", reason: opened.detail };
+      throw new RpcError({ code: "UNAVAILABLE", message: opened.detail });
+    }
+    store = opened;
+    const execDeps = { ...deps, fetch: deps.fetch ?? fetch };
+    executors = createStepExecutors(execDeps);
+    probeScripts = createScriptAction(deps.secrets);
+    pool = new DriverPool(store, executors, clock, {
+      maxConcurrentDrivers: limits.maxConcurrentDrivers,
+      maxOutputBytes: limits.maxOutputBytes,
+      onError: reportError,
+    });
+    scheduler = new AutomationScheduler(
+      store,
+      createWatchProbe({ ...execDeps, store, script: probeScripts, maxOutputBytes: limits.maxOutputBytes }),
+      clock,
+      { maxSleepMs: limits.maxSchedulerSleepMs, resumeGraceMs: limits.resumeGraceMs, onError: reportError },
+    );
+    store.recover(clock.now());
+    store.onCommit((change) =>
+      changed({
+        taskIds: "taskId" in change ? [change.taskId] : [],
+        runIds: "runId" in change ? [change.runId] : [],
+        inboxChanged: "runId" in change,
+      }),
+    );
+    scheduler.start();
+    pool.pump();
+    return store;
+  }
+  function available(): AutomationStore {
+    assertReady();
+    return openStore();
+  }
+  function peekStore(): AutomationStore | null {
+    assertReady();
+    if (store) return store;
+    if (!existsSync(dbFile)) return null;
+    return openStore();
   }
   const runtime: AutomationRuntime = {
     status: () => ({ ...status }),
@@ -70,38 +118,8 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
         for (const [key, value] of Object.entries(limits))
           if (!Number.isSafeInteger(value) || value < (key.endsWith("GraceMs") ? 0 : 1))
             throw new Error(`Invalid automation limit: ${key}`);
-        mkdirSync(deps.dataDirectory, { recursive: true });
-        const opened = AutomationStore.open(path.join(deps.dataDirectory, "automation.sqlite"), clock);
-        if (!(opened instanceof AutomationStore)) {
-          status = { kind: "unavailable", reason: opened.detail };
-          return;
-        }
-        store = opened;
-        const execDeps = { ...deps, fetch: deps.fetch ?? fetch };
-        executors = createStepExecutors(execDeps);
-        probeScripts = createScriptAction(deps.secrets);
-        pool = new DriverPool(store, executors, clock, {
-          maxConcurrentDrivers: limits.maxConcurrentDrivers,
-          maxOutputBytes: limits.maxOutputBytes,
-          onError: fail,
-        });
-        scheduler = new AutomationScheduler(
-          store,
-          createWatchProbe({ ...execDeps, store, script: probeScripts, maxOutputBytes: limits.maxOutputBytes }),
-          clock,
-          { maxSleepMs: limits.maxSchedulerSleepMs, resumeGraceMs: limits.resumeGraceMs, onError: fail },
-        );
-        store.recover(clock.now());
-        store.onCommit((change) =>
-          changed({
-            taskIds: "taskId" in change ? [change.taskId] : [],
-            runIds: "runId" in change ? [change.runId] : [],
-            inboxChanged: "runId" in change,
-          }),
-        );
         status = { kind: "ready" };
-        scheduler.start();
-        pool.pump();
+        if (existsSync(dbFile)) openStore();
       } catch (error) {
         fail(error);
       }
@@ -123,8 +141,9 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
       return stopping;
     },
     async saveTask(spec) {
-      const db = available();
+      assertReady();
       assertTaskSpec(spec);
+      const db = available();
       const task = db.saveTask(spec);
       const revision = db.getTaskRevision(task.id, task.currentRevision)!;
       return {
@@ -141,17 +160,19 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
       return available().disableTask(taskId);
     },
     deleteTask(taskId) {
-      available().deleteTask(taskId);
+      peekStore()?.deleteTask(taskId);
     },
     listTasks(query = {}) {
-      return available()
-        .listTasks()
-        .filter((task) => query.cwd === undefined || task.cwd === query.cwd);
+      return (
+        peekStore()
+          ?.listTasks()
+          .filter((task) => query.cwd === undefined || task.cwd === query.cwd) ?? []
+      );
     },
     getTask(taskId, revision) {
-      const db = available();
-      const task = db.getTask(taskId);
-      const result = task ? db.getTaskRevision(taskId, revision ?? task.currentRevision) : null;
+      const db = peekStore();
+      const task = db?.getTask(taskId);
+      const result = db && task ? db.getTaskRevision(taskId, revision ?? task.currentRevision) : null;
       if (!result) throw new RpcError({ code: "NOT_FOUND", message: "Automation task revision not found" });
       return result;
     },
@@ -164,15 +185,15 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
       return db.getRun(runId)!;
     },
     listRuns(query = {}) {
-      return available().listRuns(query);
+      return peekStore()?.listRuns(query) ?? [];
     },
     getRun(runId) {
-      const run = available().getRun(runId);
+      const run = peekStore()?.getRun(runId);
       if (!run) throw new RpcError({ code: "NOT_FOUND", message: "Automation run not found" });
       return run;
     },
     listInbox() {
-      return available().listInbox();
+      return peekStore()?.listInbox() ?? [];
     },
     resolveInbox(request) {
       return available().resolveInbox(request);
@@ -181,7 +202,7 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
       return { woke: available().emitSignal(taskId, emit).woke.length };
     },
     async tickNow() {
-      available();
+      if (!peekStore()) return;
       await scheduler!.tickNow();
       pool!.pump();
     },

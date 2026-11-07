@@ -54,9 +54,6 @@ export default defineConfig([
     splitting: false,
     treeshake: true,
     define: piVersionDefine,
-    banner: {
-      js: "",
-    },
     outExtension() {
       return { js: ".mjs" };
     },
