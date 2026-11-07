@@ -14,7 +14,9 @@ export function desktopSecurityChecks(read) {
   const weixinChannelApi = read("src/agent-host/channels/adapters/weixin/api.ts");
   const telegramChannelApi = read("src/agent-host/channels/adapters/telegram/api.ts");
   const feishuChannelApi = read("src/agent-host/channels/adapters/feishu/api.ts");
-  const channelManager = read("src/agent-host/channels/channel-manager.ts");
+  const channelManager = ["channel-manager", "channel-context", "channel-login", "channel-inbound", "channel-delivery"]
+    .map((name) => read(`src/agent-host/channels/${name}.ts`))
+    .join("\n");
   const channelMediaStore = read("src/agent-host/channels/media-store.ts");
   const channelOutboundFiles = read("src/agent-host/channels/outbound-files.ts");
   const channelPiBridge = read("src/agent-host/channels/pi-session-bridge.ts");

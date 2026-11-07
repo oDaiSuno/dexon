@@ -23,6 +23,20 @@ const GROUPS = [
     extensionRe: /\.(?:ts|tsx|mjs)$/,
   },
   {
+    name: "消息渠道运行时",
+    dirs: ["src/agent-host/channels"],
+    files: [],
+    requiredRoots: [
+      "src/agent-host/channels/channel-manager.ts",
+      "src/agent-host/channels/channel-context.ts",
+      "src/agent-host/channels/channel-login.ts",
+      "src/agent-host/channels/channel-inbound.ts",
+      "src/agent-host/channels/channel-delivery.ts",
+    ],
+    excludeTests: true,
+    extensionRe: /\.(?:ts|tsx|mjs)$/,
+  },
+  {
     name: "shell 组合根与侧栏模块",
     dirs: ["src/renderer/components/app-shell", "src/renderer/components/session-sidebar"],
     files: ["src/renderer/components/AppShell.tsx"],
