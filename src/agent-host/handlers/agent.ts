@@ -6,6 +6,7 @@ import { ensureSessionEvents } from "../session-event-binding";
 import { resolveSessionPath } from "../session-reader";
 import { launchDesktopSession } from "../session-launcher";
 import { nameSession, parseNamingRequest } from "../session-naming";
+import { isReadOnlyAgentCommand, SessionAccess, sessionOriginStore } from "../session-origin-store";
 
 export function registerAgentHandlers(server: RpcServer): void {
   server.handle({
@@ -40,9 +41,11 @@ export function registerAgentHandlers(server: RpcServer): void {
         sessionId: string;
         command: Record<string, unknown>;
       };
+      if (!isReadOnlyAgentCommand(command.type)) {
+        SessionAccess.authorizeMutation(sessionOriginStore, sessionId, "agent_command");
+      }
       const existing = getRpcSession(sessionId);
       if (existing?.isAlive()) {
-        // Ensure event subscription
         ensureSessionEvents(server, existing, sessionId);
         return existing.send(command);
       }

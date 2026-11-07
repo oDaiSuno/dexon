@@ -21,7 +21,7 @@ import {
   type DesktopSessionLaunch,
   type LaunchedDesktopSession,
 } from "../session-launcher";
-import { getSessionOrigin, setSessionOrigin } from "../session-origin-store";
+import { getSessionOrigin, SessionAccess, sessionOriginStore } from "../session-origin-store";
 import { resolveSessionPath } from "../session-reader";
 import {
   CALLER_ONLY_REFUSAL,
@@ -67,7 +67,7 @@ export class SessionOrchestrationService {
 
   runningAgentSessions(): number {
     return listRpcSessions().filter(
-      (session) => session.isRunning() && getSessionOrigin(session.sessionId)?.createdBySessionId,
+      (session) => session.isRunning() && getSessionOrigin(session.sessionId)?.relation === "delegate",
     ).length;
   }
 
@@ -149,6 +149,7 @@ export class SessionOrchestrationService {
   ): Promise<{ sessionId: string; status: SessionLiveStatus | "idle"; wait?: SessionWaitResult }> {
     throwIfAborted(signal);
     if (input.sessionId === callerId) throw new SessionOrchestrationError(SELF_TARGET_REFUSAL);
+    SessionAccess.authorizeMutation(sessionOriginStore, input.sessionId, "session_prompt");
     await this.assertSameProject(callerId, input.sessionId);
     const settings = getSessionOrchestrationSettings();
     const origin = getSessionOrigin(input.sessionId);
@@ -157,7 +158,7 @@ export class SessionOrchestrationService {
     }
 
     const target = await this.requireLiveSession(input.sessionId);
-    const wakingIdleAgentSession = !target.isRunning() && Boolean(origin?.createdBySessionId);
+    const wakingIdleAgentSession = !target.isRunning() && origin?.relation === "delegate";
     if (wakingIdleAgentSession && this.agentSessionLoad() >= settings.maxRunning) {
       throw new SessionOrchestrationError(runningLimitRefusal(settings.maxRunning));
     }
@@ -261,9 +262,10 @@ export class SessionOrchestrationService {
   private async launchDelegate(callerId: string, launch: DesktopSessionLaunch): Promise<LaunchedDesktopSession> {
     this.pendingAgentLaunches += 1;
     try {
-      const launched = await launchDesktopSession(launch);
-      setSessionOrigin(launched.sessionId, { relation: "delegate", createdBySessionId: callerId });
-      return launched;
+      return await launchDesktopSession({
+        ...launch,
+        origin: { relation: "delegate", createdBySessionId: callerId },
+      });
     } finally {
       this.pendingAgentLaunches = Math.max(0, this.pendingAgentLaunches - 1);
     }

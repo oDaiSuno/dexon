@@ -10,7 +10,10 @@ process.env.PI_CODING_AGENT_SESSION_DIR = path.join(isolatedAgentDirectory, "ses
 process.env.PI_OFFLINE = "1";
 test.after(() => rmSync(isolatedAgentDirectory, { recursive: true, force: true }));
 let modulePromise;
-
+const cleanups = [];
+test.afterEach(async () => {
+  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+});
 export async function loadHandlersModule() {
   if (modulePromise) return modulePromise;
   modulePromise = (async () => {
@@ -22,12 +25,11 @@ export async function loadHandlersModule() {
   })();
   return modulePromise;
 }
-
 export async function captureHandlers() {
   const { registerHandlers } = await loadHandlersModule();
   const handlers = {};
   const events = [];
-  registerHandlers({
+  const cleanup = registerHandlers({
     handle(next) {
       Object.assign(handlers, next);
     },
@@ -35,9 +37,9 @@ export async function captureHandlers() {
       events.push({ topic, key, data });
     },
   });
+  cleanups.push(cleanup);
   return { handlers, events };
 }
-
 export async function waitFor(predicate, timeoutMs, stepMs = 50) {
   const deadline = Date.now() + timeoutMs;
   while (!predicate()) {

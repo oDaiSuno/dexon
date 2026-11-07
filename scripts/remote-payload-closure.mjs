@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire, isBuiltin } from "node:module";
 export function packageNameOf(specifier) {
-  if (specifier.startsWith(".") || path.isAbsolute(specifier) || isBuiltin(specifier)) return null;
+  if (specifier.startsWith("node:") || specifier.startsWith(".") || path.isAbsolute(specifier) || isBuiltin(specifier))
+    return null;
   return specifier.startsWith("@") ? specifier.split("/").slice(0, 2).join("/") : specifier.split("/")[0];
 }
 export function productionPackageClosure(root, specifiers) {

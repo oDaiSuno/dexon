@@ -1,4 +1,13 @@
 import { existsSync } from "node:fs";
+import { createAutomationResultSink } from "./agent-session/automation-result-tool";
+import type {
+  AgentWorkspaceTool,
+  AutomationStepRef,
+  AutomationResultContract,
+} from "./agent-session/execution-profile";
+import type { AutomationTurnOutput } from "./agent-session/automation-turn";
+import type { EffectObservation } from "./effect-observation";
+import type { SetSessionOriginInput } from "./session-origin-store";
 import type { ToolIntent } from "./agent-session/tool-intent";
 import type { RpcServer } from "../contract/rpc";
 import { RpcError } from "../contract/types";
@@ -12,6 +21,7 @@ import { announceSessionOnFirstMessage } from "./session-source";
 export interface DesktopSessionLaunch {
   cwd: string;
   tools?: ToolIntent | readonly string[];
+  origin?: SetSessionOriginInput;
   provider?: string;
   modelId?: string;
   thinkingLevel?: string;
@@ -53,6 +63,7 @@ export async function launchDesktopSession(launch: DesktopSessionLaunch): Promis
     cwd,
     launch.tools,
     initialModel,
+    { origin: launch.origin },
   );
   allowFileRoot(cwd);
 
@@ -82,4 +93,80 @@ export async function launchDesktopSession(launch: DesktopSessionLaunch): Promis
   if (launch.announceChange !== false) await emitIndexedSessionChange(server, realSessionId, cwd);
 
   return { sessionId: realSessionId, session, data, ...(turn ? { turn } : {}) };
+}
+
+export type AutomationSessionLaunch<T = unknown> = {
+  readonly cwd: string;
+  readonly step: AutomationStepRef;
+  readonly tools: readonly AgentWorkspaceTool[];
+  readonly provider?: string;
+  readonly modelId?: string;
+  readonly model?: { readonly provider: string; readonly modelId: string } | null;
+  readonly thinkingLevel?: string | null;
+  readonly name?: string;
+} & ({ readonly result: AutomationResultContract<T> } | { readonly resultSchema: Record<string, unknown> });
+
+export interface AutomationSessionHandle<T = unknown> {
+  readonly sessionId: string;
+  runTurn(
+    prompt: string,
+    options: { readonly timeoutMs: number; readonly signal?: AbortSignal },
+  ): Promise<EffectObservation<AutomationTurnOutput<T>>>;
+  dispose(): Promise<void>;
+}
+
+export async function launchAutomationSession<T = unknown>(
+  launch: AutomationSessionLaunch<T>,
+): Promise<AutomationSessionHandle<T>> {
+  if (!launch.cwd || !existsSync(launch.cwd))
+    throw new RpcError({ code: "BAD_REQUEST", message: "Automation cwd must be an existing directory" });
+  const result =
+    "result" in launch
+      ? launch.result
+      : { schema: launch.resultSchema, sink: createAutomationResultSink<T>(launch.resultSchema) };
+  const initialModel =
+    launch.model ??
+    (launch.provider && launch.modelId ? { provider: launch.provider, modelId: launch.modelId } : undefined);
+  const { session, realSessionId } = await startRpcSession(
+    createAgentNewLockKey(),
+    "",
+    launch.cwd,
+    undefined,
+    initialModel,
+    {
+      profile: { kind: "automation", step: launch.step, tools: launch.tools, result },
+      origin: { relation: "automation", sourceType: "automation", automationStep: launch.step },
+    },
+  );
+  const dispose = () => session.dispose({ abort: true, reason: "automation-step-ended" });
+  try {
+    ensureSessionEvents(sessionLauncherServer(), session, realSessionId);
+    await session.configureLaunch({
+      ...(initialModel ? initialModel : {}),
+      ...(launch.thinkingLevel ? { thinkingLevel: launch.thinkingLevel } : {}),
+      ...(launch.name ? { name: launch.name } : {}),
+    });
+  } catch (error) {
+    await dispose();
+    throw error;
+  }
+  let started = false;
+  return {
+    sessionId: realSessionId,
+    async runTurn(prompt, options) {
+      if (started || !session.isAlive())
+        return {
+          kind: "not_applied",
+          transient: false,
+          error: { code: "invalid_input", message: "Automation session supports only one turn" },
+        };
+      started = true;
+      try {
+        return await session.runAutomationTurn(prompt, { ...options, sink: result.sink });
+      } finally {
+        await dispose();
+      }
+    },
+    dispose,
+  };
 }

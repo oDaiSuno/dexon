@@ -1,6 +1,3 @@
-/* ── Accordion (transitions.dev 21-accordion: grid-rows 0fr↔1fr,
-     no JS height measuring; padding belongs on the inner clip box) ── */
-
 .chat-acc-panel {
   display: grid;
   grid-template-rows: 0fr;
@@ -487,30 +484,4 @@
   box-shadow: var(--shadow-hairline-card);
   overflow: hidden;
   min-width: 0;
-}
-
-/* ── Spinner ring (Beautiful UI Steps active row) ── */
-
-.chat-spinner-ring {
-  width: 13px;
-  height: 13px;
-  border-radius: 50%;
-  border: 1.5px solid var(--fx-line-strong);
-  border-top-color: var(--fx-text-secondary);
-  animation: chat-spin 700ms var(--ease-linear) infinite;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-acc-panel,
-  .chat-acc-chevron,
-  .chat-tool-spinner,
-  .chat-tool-meta-running,
-  .chat-session-tool,
-  .chat-session-tool-dot,
-  .chat-session-card,
-  .chat-session-brief,
-  .chat-quiet-head {
-    transition: none !important;
-    animation: none !important;
-  }
 }

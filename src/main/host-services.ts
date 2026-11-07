@@ -8,7 +8,12 @@ import type { ManagedProcessCapability } from "../contract/processes";
 import type { WindowsManagedProcessHelperResolution } from "../shared/windows-managed-process-helper";
 import { isExecutionIntent } from "../shared/toolchains/types";
 import { normalizeSessionOrchestrationSettings } from "../shared/session-orchestration";
-import { createCredentialRequestHandler, type CredentialVault } from "./credential-vault";
+import {
+  createCredentialRequestHandler,
+  createAutomationSecretRequestHandler,
+  type CredentialVault,
+} from "./credential-vault";
+import { createAutomationConsentRequestHandler } from "./automation-consent";
 import { canRestartHostAfterCleanup } from "./managed-process/restart-gate";
 import { managedProcessDialogCopy } from "./managed-process/dialog-copy";
 import { loadUiState } from "./window-state";
@@ -45,7 +50,14 @@ export function installHostServices({
   hostManager.setBrowserCapabilitySnapshot(browserService.getCapabilitySnapshot());
   hostManager.setSessionOrchestrationSettings(loadUiState().sessionOrchestration);
   const credentialRequestHandler = createCredentialRequestHandler(credentialVault);
+  const automationSecrets = createAutomationSecretRequestHandler(credentialVault);
+  const automationConsent = createAutomationConsentRequestHandler(async (options) => {
+    const window = getMainWindow();
+    return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+  });
   hostManager.setRequestHandler(async (method, params) => {
+    if (method.startsWith("automationSecrets.")) return automationSecrets(method, params);
+    if (method.startsWith("automationConsent.")) return automationConsent(method, params);
     if (method.startsWith("channelSecrets.")) return credentialRequestHandler(method, params);
     if (method === "toolchain.getSnapshot") return toolchainManager.getSnapshot();
     if (method === "toolchain.resolve") {

@@ -1,14 +1,14 @@
 import { type AgentSessionRuntimeDiagnostic } from "@earendil-works/pi-coding-agent";
-import { randomUUID } from "crypto";
 import type { ChannelId } from "../../shared/channel-types";
-import type { AgentSessionLike, ExtensionUiContextLike, ToolLoadoutReader } from "../../shared/pi-types";
+import type { AgentSessionLike, ToolLoadoutReader } from "../../shared/pi-types";
 import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-orchestration";
-import type { AgentMessage, ChannelMessageAttachment, ExtensionUiRequest } from "../../shared/types";
+import type { AgentMessage, ChannelMessageAttachment } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { setBrowserSessionSource } from "../browser-tools";
 import { toDisplayEvent } from "../display-message";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
 import { desktopToolIntents } from "../session-tool-store";
+import { isReadOnlyAgentCommand, type SessionMutationOperation } from "../session-origin-store";
 import type { ChosenSessionModel } from "../session-model";
 
 import { notifyRunningChange } from "../rpc-manager";
@@ -22,25 +22,27 @@ import { decorateUserMessageEvent } from "./message-sources";
 import { runOrchestratedTurn as runOrchestratedTurnOn } from "./orchestrated-turn";
 import { QueuedTurns } from "./queued-turns";
 import { RetryOutcomeRecorder } from "./retry-outcome";
-import { readToolGlobals, RunPolicy, type ToolchainSection } from "./run-policy";
+import { readToolGlobals, type RunPolicy, type ToolchainSection } from "./run-policy";
+import {
+  headlessReason,
+  immutableExecutionProfile,
+  ExecutionProfileControl,
+  ProfileRunPolicy,
+  type SessionExecutionProfile,
+} from "./execution-profile";
+import {
+  runAutomationTurn as runAutomationTurnOn,
+  type AutomationTurnOptions,
+  type AutomationTurnOutput,
+} from "./automation-turn";
+import type { EffectObservation } from "../effect-observation";
 import { SessionModelState } from "./session-model-state";
 import type { ToolIntentStore } from "./tool-intent";
 import { SessionTurnStatus } from "./turn-status";
-import type {
-  AgentEvent,
-  EventListener,
-  ExtensionCommandContextActionsLike,
-  ExternalSessionCommand,
-  OrchestratedTurnOutcome,
-} from "./types";
-
-// ============================================================================
-// AgentSessionWrapper
-// Wraps AgentSession with the same interface the rest of the app expects
-// ============================================================================
+import type { AgentEvent, EventListener, ExternalSessionCommand, OrchestratedTurnOutcome } from "./types";
 
 export class AgentSessionWrapper extends SessionExtensionUi {
-  public readonly inner: AgentSessionLike;
+  public readonly inner: AgentSessionLike & ToolLoadoutReader;
   private listeners: EventListener[] = [];
   private promptRunning = false;
   private queuedTurnCount = 0;
@@ -54,10 +56,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private externalTurnChannel: ChannelId | null = null;
   private externalTurnAttachments: ChannelMessageAttachment[] | null = null;
   private externalTurnProgress: ((event: AgentEvent) => void) | null = null;
-  private extensionsBound = false;
-  private extensionBindingPromise: Promise<void> | null = null;
-  private extensionBindingError: unknown = null;
-  private extensionBindingAttempt = 0;
   private unsubscribe: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyCallbacks = new Set<() => void>();
@@ -65,32 +63,61 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private _alive = true;
   public readonly sessionModel = new SessionModelState();
   public readonly runPolicy: RunPolicy;
+  public readonly executionToolchain: ToolchainSection | null;
+  private readonly profile: SessionExecutionProfile;
+  private readonly execution: ExecutionProfileControl;
 
   constructor(
     inner: AgentSessionLike & ToolLoadoutReader,
     options: {
+      profile?: SessionExecutionProfile;
       intents?: ToolIntentStore;
       toolchain?: ToolchainSection | null;
     } = {},
   ) {
     super();
     this.inner = inner;
-    this.runPolicy = new RunPolicy({
+    this.profile = immutableExecutionProfile(options.profile ?? { kind: "interactive" });
+    this.executionToolchain = options.toolchain ?? null;
+    this.runPolicy = new ProfileRunPolicy(this.profile, {
       session: inner,
       toolchain: options.toolchain ?? null,
       intents: options.intents ?? desktopToolIntents,
       globals: readToolGlobals,
     });
+    this.execution = new ExecutionProfileControl(this.profile, inner, this.runPolicy, (event) => this.emit(event));
+  }
+  get executionProfile(): SessionExecutionProfile {
+    return this.profile;
   }
 
+  protected headlessReason(): "automation" | "channel" | null {
+    return headlessReason(this.profile, this.externalTurnActive);
+  }
+  applyActiveTools(): void {
+    this.execution.applyActiveTools();
+  }
+  syncBrowserToolActivation(): void {
+    this.applyActiveTools();
+  }
+  syncSessionToolActivation(): void {
+    this.applyActiveTools();
+  }
+  automationToolBlocked(name: string): boolean {
+    return this.execution.blocked(name);
+  }
+  blockAutomationTools(): void {
+    this.execution.block();
+  }
+  private authorizeMutation(operation: SessionMutationOperation): void {
+    this.execution.authorizeMutation(this.sessionId, operation);
+  }
   get sessionId(): string {
     return this.inner.sessionId;
   }
-
   get sessionFile(): string {
     return this.inner.sessionFile ?? "";
   }
-
   get cwd(): string {
     const cwd = this.inner.sessionManager.getHeader()?.cwd;
     return typeof cwd === "string" ? cwd : "";
@@ -123,6 +150,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   start(): void {
+    if (this.profile.kind !== "interactive") this.applyActiveTools();
     this.unsubscribe = this.inner.subscribe((sourceEvent: AgentEvent) => {
       this.resetIdleTimer();
       const event = toDisplayEvent(sourceEvent);
@@ -138,11 +166,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       }
       try {
         this.externalTurnProgress?.(displayEvent);
-      } catch {
-        // Channel progress is best-effort and must never interrupt the Agent.
-      }
-      // Streaming / compaction / tool events flow through here; re-broadcast
-      // the running-status snapshot so the sidebar can update live.
+      } catch {}
       notifyRunningChange();
     });
     this.resetIdleTimer();
@@ -169,100 +193,13 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     });
   }
 
+  protected override onExtensionsBound(): void {
+    if (this.profile.kind !== "interactive") this.applyActiveTools();
+  }
+
   setRuntimeDiagnostics(diagnostics: readonly AgentSessionRuntimeDiagnostic[]): void {
     this.runtimeDiagnosticStatuses = new Map(
       projectExtensionDiagnostics(diagnostics).map(({ key, text }) => [key, text]),
-    );
-  }
-
-  beginExtensionBinding(): void {
-    void this.ensureExtensionsBound().catch((err) => {
-      console.error(
-        "[dexon] failed to dispatch session_start to extensions:",
-        err instanceof Error ? err.message : err,
-      );
-    });
-  }
-
-  private ensureExtensionsBound(): Promise<void> {
-    if (this.extensionsBound) return Promise.resolve();
-    if (this.extensionBindingPromise) return this.extensionBindingPromise;
-
-    this.extensionBindingError = null;
-    const attempt = ++this.extensionBindingAttempt;
-    const startedAt = Date.now();
-    const bindingPromise: Promise<void> = (async () => {
-      if (!this._alive) return;
-      const uiContext = this.createExtensionUiContext();
-      if (typeof this.inner.bindExtensions === "function") {
-        const bindExtensions = this.inner.bindExtensions as (bindings: {
-          uiContext?: ExtensionUiContextLike;
-          mode?: "rpc";
-          commandContextActions?: ExtensionCommandContextActionsLike;
-          shutdownHandler?: () => void;
-          onError?: (error: { extensionPath: string; event: string; error: string }) => void;
-        }) => Promise<void>;
-        await bindExtensions.call(this.inner, {
-          uiContext,
-          mode: "rpc",
-          commandContextActions: this.createExtensionCommandContextActions(),
-          shutdownHandler: () =>
-            this.emit({
-              type: "extension_ui_request",
-              id: randomUUID(),
-              method: "notify",
-              notifyType: "warning",
-              message: "Extension requested shutdown, but shutdown is not supported in Pi Desktop.",
-            } as ExtensionUiRequest as AgentEvent),
-          onError: (error) =>
-            this.emit({
-              type: "extension_error",
-              extensionPath: error.extensionPath,
-              event: error.event,
-              error: error.error,
-            }),
-        });
-      } else {
-        this.inner.extensionRunner.setUIContext?.(uiContext, "rpc");
-      }
-      this.extensionsBound = true;
-      console.log(`[dexon] session_start dispatched to extensions for session ${this.inner.sessionId}`);
-    })()
-      .catch((err) => {
-        this.extensionBindingError = err;
-        console.warn(
-          `[dexon] extension binding attempt ${attempt} failed after ${Date.now() - startedAt}ms for session ${this.inner.sessionId}`,
-        );
-        throw err;
-      })
-      .finally(() => {
-        if (this.extensionBindingPromise === bindingPromise) this.extensionBindingPromise = null;
-      });
-    this.extensionBindingPromise = bindingPromise;
-
-    return bindingPromise;
-  }
-
-  private async waitForExtensionsBound(): Promise<void> {
-    try {
-      if (!this.extensionsBound) await this.ensureExtensionsBound();
-    } catch (err) {
-      throw err instanceof Error ? err : new Error(String(err));
-    }
-    if (this.extensionBindingError) {
-      throw this.extensionBindingError instanceof Error
-        ? this.extensionBindingError
-        : new Error(String(this.extensionBindingError));
-    }
-  }
-
-  private shouldWaitForExtensions(type: string): boolean {
-    return (
-      type === "prompt" ||
-      type === "edit_message" ||
-      type === "steer" ||
-      type === "follow_up" ||
-      type === "get_commands"
     );
   }
 
@@ -274,7 +211,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     }
   }
 
-  protected emit(event: AgentEvent): void {
+  public emit(event: AgentEvent): void {
     if (event.type === "prompt_error") {
       notifyRunningChange();
     } else if (event.type === "extension_ui_snapshot") {
@@ -283,13 +220,11 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     for (const listener of this.listeners) {
       try {
         listener(event);
-      } catch {
-        /* Observers must never strand a request. */
-      }
+      } catch {}
     }
   }
 
-  private enqueueTurn<T>(task: () => Promise<T>): Promise<T> {
+  enqueueTurn<T>(task: () => Promise<T>): Promise<T> {
     this.queuedTurnCount += 1;
     this.turnStatus.beginTurn();
     notifyRunningChange();
@@ -315,6 +250,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   runOrchestratedTurn(params: { message: string; source?: SessionSourceRef }): Promise<OrchestratedTurnOutcome> {
+    this.authorizeMutation("session_prompt");
     return runOrchestratedTurnOn(
       {
         inner: this.inner,
@@ -335,6 +271,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   }
 
   runExternalTurn(params: ExternalTurnParams): Promise<{ runId: string; finalText: string }> {
+    this.authorizeMutation("session_prompt");
     return runExternalTurnOn(
       {
         inner: this.inner,
@@ -361,25 +298,15 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     );
   }
 
-  private async reloadSessionResources(): Promise<void> {
-    if (this.extensionBindingPromise) {
-      try {
-        await this.extensionBindingPromise;
-      } catch {
-        // Reload is the explicit recovery path for a failed extension bind.
-      }
-    }
-    this.extensionsBound = false;
-    this.extensionBindingPromise = null;
-    this.extensionBindingError = null;
-    this.cancelInteractiveRequests();
-    this.extensionStatuses.clear();
-    this.extensionWidgets.clear();
-    await this.inner.reload();
-    await this.ensureExtensionsBound();
+  runAutomationTurn<T>(
+    prompt: string,
+    options: AutomationTurnOptions<T>,
+  ): Promise<EffectObservation<AutomationTurnOutput<T>>> {
+    return runAutomationTurnOn(this, prompt, options);
   }
 
   async runExternalCommand(params: { command: ExternalSessionCommand; customInstructions?: string }): Promise<void> {
+    this.authorizeMutation("agent_command");
     await this.enqueueTurn(async () => {
       if (params.command === "compact") {
         await this.inner.compact(params.customInstructions);
@@ -393,7 +320,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(
       () => {
-        // Never idle-evict a still-running agent (ISSUE-003)
         if (this.isRunning()) {
           this.resetIdleTimer();
           return;
@@ -421,9 +347,29 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     this.destroyCallbacks.add(cb);
     return () => this.destroyCallbacks.delete(cb);
   }
+  async configureLaunch(settings: {
+    provider?: string;
+    modelId?: string;
+    thinkingLevel?: string;
+    name?: string;
+  }): Promise<void> {
+    this.execution.authorizeLaunchConfiguration(this.sessionId, this.isRunning());
+    if (settings.provider && settings.modelId)
+      await this.dispatchCommand({ type: "set_model", provider: settings.provider, modelId: settings.modelId });
+    if (settings.thinkingLevel)
+      await this.dispatchCommand({ type: "set_thinking_level", level: settings.thinkingLevel });
+    if (settings.name) await this.dispatchCommand({ type: "set_session_name", name: settings.name });
+  }
+
   async send(command: Record<string, unknown>): Promise<unknown> {
+    if (!isReadOnlyAgentCommand(command.type)) this.authorizeMutation("agent_command");
+    return this.dispatchCommand(command);
+  }
+
+  private async dispatchCommand(command: Record<string, unknown>): Promise<unknown> {
     this.resetIdleTimer();
-    if (this.shouldWaitForExtensions(command.type as string)) await this.waitForExtensionsBound();
+    if (["prompt", "edit_message", "steer", "follow_up", "get_commands"].includes(String(command.type)))
+      await this.waitForExtensionsBound();
     const result = await sendSessionCommand(command, {
       sessionId: this.sessionId,
       inner: this.inner,
@@ -450,10 +396,6 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     return result;
   }
 
-  /**
-   * Stop the underlying agent and release resources. Calls are idempotent and
-   * concurrent owners share one teardown attempt.
-   */
   dispose(options: { abort?: boolean; reason?: string; timeoutMs?: number } = {}): Promise<void> {
     if (this.disposePromise) return this.disposePromise;
     const abort = options.abort !== false;
@@ -483,9 +425,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     for (const callback of destroyCallbacks) {
       try {
         callback();
-      } catch {
-        /* isolate teardown owners */
-      }
+      } catch {}
     }
     notifyRunningChange();
   }

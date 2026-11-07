@@ -1,4 +1,4 @@
-export const SESSION_RELATIONS = ["fork", "delegate"] as const;
+export const SESSION_RELATIONS = ["delegate", "fork", "channel", "automation"] as const;
 export type SessionRelation = (typeof SESSION_RELATIONS)[number];
 
 export const SESSION_LIVE_STATUSES = ["awaiting_input", "error", "running"] as const;

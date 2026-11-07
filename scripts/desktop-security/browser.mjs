@@ -1,5 +1,12 @@
 export function browserSecurityChecks(read) {
-  const main = read("src/main/main.ts");
+  const main = [
+    "src/main/main.ts",
+    "src/main/host-services.ts",
+    "src/main/host-notifications.ts",
+    "src/main/packaged-startup-validation.ts",
+  ]
+    .map(read)
+    .join("\n");
   const windowFactory = read("src/main/window.ts");
   const preload = read("src/preload/preload.ts");
   const rpcManager = [

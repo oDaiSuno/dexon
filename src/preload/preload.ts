@@ -99,6 +99,9 @@ if (
     openDirectory: (fsPath) => ipcRenderer.invoke("desktop:open-directory", fsPath),
     openFile: (fsPath) => ipcRenderer.invoke("desktop:open-file", fsPath),
     setChannelCredential: (payload) => ipcRenderer.invoke("desktop:set-channel-credential", payload),
+    setAutomationSecret: (name, value) => ipcRenderer.invoke("desktop:set-automation-secret", name, value),
+    deleteAutomationSecret: (name) => ipcRenderer.invoke("desktop:delete-automation-secret", name),
+    listAutomationSecretNames: () => ipcRenderer.invoke("desktop:list-automation-secret-names"),
     saveFile: (opts) => ipcRenderer.invoke("desktop:save-file", opts),
     saveBinaryFile: (opts) => ipcRenderer.invoke("desktop:save-binary-file", opts),
     createHtmlPreview: (content, filePath, sourceSessionId) =>

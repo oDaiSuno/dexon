@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import test from "node:test";
 import { copyProductionPackages, packageNameOf, productionPackageClosure } from "./remote-payload-closure.mjs";
@@ -30,6 +31,21 @@ test("remote package closure follows production dependencies and ignores Node bu
   assert.deepEqual(readdirSync(path.join(destination, "node_modules")), ["a", "b"]);
   assert.equal(packageNameOf("@scope/package/subpath"), "@scope/package");
   assert.equal(packageNameOf("node:crypto"), null);
+});
+
+test("remote package closure excludes SQLite even when the build process disables the optional builtin", () => {
+  const output = execFileSync(
+    process.execPath,
+    [
+      "--no-experimental-sqlite",
+      "--input-type=module",
+      "--eval",
+      `import { productionPackageClosure } from ${JSON.stringify(new URL("./remote-payload-closure.mjs", import.meta.url).href)};
+       console.log(JSON.stringify(productionPackageClosure(${JSON.stringify(process.cwd())}, ["node:sqlite", "node:fs"])));`,
+    ],
+    { encoding: "utf8" },
+  );
+  assert.deepEqual(JSON.parse(output), []);
 });
 
 test("archive enumeration includes hidden runtime manifests in repeatable order", (t) => {

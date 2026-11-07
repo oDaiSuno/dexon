@@ -1,14 +1,12 @@
-/**
- * Register all Api handlers on the RPC server.
- * Implements the desktop RPC contract in the Agent Host process.
- *
- * This is a thin composition root: domain registrars under ./handlers/ own
- * their services and method subsets. The root only wires host-level streams,
- * initializes the shared managed-process service, and aggregates cleanup in
- * the original registration order of the pre-split implementation.
- */
 import type { RpcServer } from "../contract/rpc";
 import { registerAgentHandlers } from "./handlers/agent";
+import { registerAutomationHandlers } from "./handlers/automation";
+import { ChannelManager, type ChannelManagerOptions } from "./channels/channel-manager";
+import { ensureSessionEvents } from "./session-event-binding";
+import { desktopUserDataPath } from "./desktop-state-file";
+import { createAutomationRuntime, type AutomationRuntimeDeps } from "./automation";
+import { callMain } from "./parent-rpc";
+import path from "node:path";
 import { registerAuthHandlers } from "./handlers/auth";
 import { registerChannelHandlers } from "./handlers/channels";
 import { registerFileHandlers } from "./handlers/files";
@@ -21,20 +19,20 @@ import { registerResourceHandlers } from "./handlers/resources";
 import { registerSessionHandlers } from "./handlers/sessions";
 import { initializeManagedProcessService } from "./managed-process/runtime";
 import { getRpcSessionStatuses, listRpcSessions, subscribeRunningSessions } from "./rpc-manager";
-import { initializeSessionLauncher } from "./session-launcher";
+import { initializeSessionLauncher, launchAutomationSession } from "./session-launcher";
 import { initializeSessionOrchestrationService } from "./session-orchestration/service";
 import { initializeSessionOrchestrationSettings } from "./session-orchestration/settings";
-
 export { applySessionNameIfEmpty } from "./session-naming";
 export { credentialMutationFailure } from "./handlers/auth";
 export { initializeChannels } from "./handlers/channels";
 export { projectModelsList } from "./handlers/models";
 export { createAgentNewLockKey } from "./session-event-binding";
-
-export function registerHandlers(server: RpcServer): () => Promise<void> {
-  // Running sessions stream + tray badge signal to main via parentPort
-  subscribeRunningSessions((ids) => {
-    // Both fields remain in the current stream contract for renderer compatibility.
+export interface HostHandlerOptions {
+  readonly channels?: ChannelManagerOptions;
+  readonly automation?: Pick<AutomationRuntimeDeps, "dataDirectory" | "limits">;
+}
+export function registerHandlers(server: RpcServer, options: HostHandlerOptions = {}): () => Promise<void> {
+  const unsubscribeRunning = subscribeRunningSessions((ids) => {
     server.emit("agent.running", "*", {
       type: "running",
       sessionIds: ids,
@@ -43,20 +41,30 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
     } as never);
     try {
       process.parentPort?.postMessage({ type: "running-sessions", sessionIds: ids });
-    } catch {
-      /* ignore */
-    }
+    } catch {}
   });
-
   const managedProcesses = initializeManagedProcessService(server);
   initializeSessionLauncher(server);
   initializeSessionOrchestrationService();
   initializeSessionOrchestrationSettings();
-
   const processCleanup = registerProcessHandlers(server, { managedProcesses });
   const sessionsCleanup = registerSessionHandlers(server, { managedProcesses });
   registerAgentHandlers(server);
-  const channelsCleanup = registerChannelHandlers(server);
+  const channelManager = new ChannelManager(
+    server,
+    (session, sessionId) => ensureSessionEvents(server, session, sessionId),
+    options.channels,
+  );
+  const channelsCleanup = registerChannelHandlers(server, channelManager);
+  const automationRuntime = createAutomationRuntime({
+    dataDirectory: path.join(desktopUserDataPath(), "automation"),
+    channels: channelManager,
+    agentSessions: { launch: launchAutomationSession },
+    secrets: { read: (name) => callMain<string | null>("automationSecrets.get", { name }) },
+    ...options.automation,
+  });
+  const automationCleanup = registerAutomationHandlers(server, automationRuntime);
+  const automationStarted = automationRuntime.start();
   const filesCleanup = registerFileHandlers(server);
   const modelsCleanup = registerModelHandlers(server);
   registerModelsConfigHandlers(server);
@@ -70,15 +78,15 @@ export function registerHandlers(server: RpcServer): () => Promise<void> {
   });
   registerResourceHandlers(server);
   registerHostHandlers(server);
-
-  // Preserve the original cleanup sequence of the pre-split implementation:
-  // model catalog refreshes, managed processes, channels, file watches, then
-  // RPC sessions.
   return async () => {
+    await automationStarted;
+    await automationRuntime.stop();
+    automationCleanup();
     await modelsCleanup();
     await processCleanup();
     await channelsCleanup();
     await filesCleanup();
     await sessionsCleanup();
+    unsubscribeRunning();
   };
 }

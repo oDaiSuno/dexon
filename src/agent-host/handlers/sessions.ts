@@ -7,7 +7,13 @@ import type { SessionTreeNode } from "../../shared/types";
 import { callMain } from "../parent-rpc";
 import type { ManagedProcessService } from "../managed-process/service";
 import { clearSessionEventBinding } from "../session-event-binding";
-import { getRpcSession, getRpcSessionStatuses, getRunningRpcSessionIds, disposeAllRpcSessions } from "../rpc-manager";
+import {
+  getRpcSession,
+  getRpcSessionStatuses,
+  getRunningRpcSessionIds,
+  disposeAllRpcSessions,
+  listRpcSessions,
+} from "../rpc-manager";
 import { resolveSessionContextWindow } from "../model-runtime";
 import {
   buildSessionContext,
@@ -35,7 +41,7 @@ import { getDesktopSessionToolIntent } from "../session-tool-store";
 import { computeSessionStats } from "../session-stats";
 import { sessionIndex } from "../session-index";
 import { deleteSessionLeafChoice } from "../session-leaf-store";
-import { deleteSessionOrigin } from "../session-origin-store";
+import { deleteSessionOrigin, SessionAccess, sessionOriginStore } from "../session-origin-store";
 import { resolveSessionBranch } from "../session-leaf";
 import { removeSessionTranscript } from "../session-orchestration/transcript";
 import { projectSessionTreeForResponse } from "../project-tree";
@@ -52,9 +58,7 @@ function canonicalPathForComparison(candidate: string): string {
   try {
     const realpath = realpathSync.native ?? realpathSync;
     canonical = realpath(resolved);
-  } catch {
-    // Historical session cwd values can refer to directories that no longer exist.
-  }
+  } catch {}
   return process.platform === "win32" ? canonical.toLowerCase() : canonical;
 }
 
@@ -89,6 +93,14 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     return Boolean(session?.isAlive() && session.isRunning());
   }
 
+  function activeAutomationSessionIds(): ReadonlySet<string> {
+    return new Set(
+      listRpcSessions()
+        .filter((session) => session.isAlive() && session.executionProfile?.kind === "automation")
+        .map((session) => session.sessionId),
+    );
+  }
+
   async function collectDescendantIds(rootId: string): Promise<string[]> {
     const sessions = await listHistorySessions();
     const childrenByParent = new Map<string, string[]>();
@@ -118,6 +130,9 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
   }
 
   async function deleteOneSession(id: string, force: boolean): Promise<void> {
+    SessionAccess.authorizeMutation(sessionOriginStore, id, "delete", {
+      activeAutomationSessionIds: activeAutomationSessionIds(),
+    });
     const savedPath = await resolveSessionPath(id);
     const unsaved = savedPath ? null : findUnsavedSession(id);
     if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
@@ -373,7 +388,6 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       if (format === "json") {
         return { content: raw, suggestedName: `session-${id}.json` };
       }
-      // Simple markdown export of session file content
       const sm = SessionManager.open(filePath);
       const context = buildSessionContext(sm.getEntries() as never);
       const lines: string[] = [`# Session ${id}`, ""];
@@ -396,6 +410,12 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const unsaved = savedPath ? null : findUnsavedSession(id);
       if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
       const descendants = await collectDescendantIds(id);
+      const activeIds = activeAutomationSessionIds();
+      for (const sessionId of [id, ...descendants]) {
+        SessionAccess.authorizeMutation(sessionOriginStore, sessionId, "delete", {
+          activeAutomationSessionIds: activeIds,
+        });
+      }
       if (!force) {
         const runningDescendants = descendants.filter(sessionIsRunning);
         if (runningDescendants.length > 0) {
@@ -432,6 +452,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
 
     "sessions.rename": async (params) => {
       const { id, name } = params as { id: string; name: string };
+      SessionAccess.authorizeMutation(sessionOriginStore, id, "rename");
       if (!name?.trim()) {
         throw new RpcError({ code: "BAD_REQUEST", message: "name is required" });
       }
@@ -442,7 +463,6 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         const filePath = await resolveSessionPath(id);
         if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
         const sm = SessionManager.open(filePath);
-        // ISSUE-014: SDK uses appendSessionInfo, not setSessionName
         sm.appendSessionInfo(name.trim());
         invalidateSessionContent(filePath);
       }

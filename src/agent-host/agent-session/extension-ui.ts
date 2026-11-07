@@ -12,10 +12,24 @@ import { CustomUiBridge } from "./custom-ui";
 import { PendingUiRequests } from "./pending-ui";
 import type { AgentEvent, ExtensionCommandContextActionsLike } from "./types";
 
+export class HeadlessInteractionError extends Error {
+  readonly code = "headless_ui_blocked";
+  constructor(method: string) {
+    super(`Interactive UI method ${method} is unavailable for automation sessions`);
+    this.name = "HeadlessInteractionError";
+  }
+}
+
 export abstract class SessionExtensionUi {
   public abstract readonly inner: AgentSessionLike;
+  public abstract isAlive(): boolean;
+  private extensionsBound = false;
+  private extensionBindingPromise: Promise<void> | null = null;
+  private extensionBindingError: unknown = null;
+  private extensionBindingAttempt = 0;
+
   protected abstract emit(event: AgentEvent): void;
-  protected abstract externalTurnActive: boolean;
+  protected abstract headlessReason(): "automation" | "channel" | null;
 
   protected readonly uiRequests = new PendingUiRequests((event) => this.emit(event));
   protected readonly customUi = new CustomUiBridge(this.uiRequests, (event) => this.emit(event));
@@ -105,13 +119,18 @@ export abstract class SessionExtensionUi {
     return Array.from(this.extensionWidgets.values());
   }
 
-  private requestExtensionCustomUi<T>(factory: unknown, options?: unknown): Promise<T> {
+  private async requestExtensionCustomUi<T>(factory: unknown, options?: unknown): Promise<T> {
     if (this.blockHeadless("custom")) return Promise.resolve(undefined as T);
     return this.customUi.request<T>(factory, options);
   }
 
   private blockHeadless(feature: string): boolean {
-    if (!this.externalTurnActive) return false;
+    const reason = this.headlessReason();
+    if (!reason) return false;
+    if (reason === "automation") {
+      this.emit({ type: "automation_headless_ui_blocked", method: feature, reason });
+      throw new HeadlessInteractionError(feature);
+    }
     this.emit({
       type: "channel_headless_ui_blocked",
       feature,
@@ -120,7 +139,7 @@ export abstract class SessionExtensionUi {
     return true;
   }
 
-  private requestExtensionUi<T>(
+  private async requestExtensionUi<T>(
     request: Parameters<PendingUiRequests["open"]>[0],
     defaultValue: T,
     parseResponse: (response: ExtensionUiResponse) => T,
@@ -290,6 +309,110 @@ export abstract class SessionExtensionUi {
       setToolsExpanded: () => {},
     };
   }
+  protected onExtensionsBound(): void {}
+
+  beginExtensionBinding(): void {
+    void this.ensureExtensionsBound().catch((err) => {
+      console.error(
+        "[dexon] failed to dispatch session_start to extensions:",
+        err instanceof Error ? err.message : err,
+      );
+    });
+  }
+
+  private ensureExtensionsBound(): Promise<void> {
+    if (this.extensionsBound) return Promise.resolve();
+    if (this.extensionBindingPromise) return this.extensionBindingPromise;
+
+    this.extensionBindingError = null;
+    const attempt = ++this.extensionBindingAttempt;
+    const startedAt = Date.now();
+    const bindingPromise: Promise<void> = (async () => {
+      if (!this.isAlive()) return;
+      await this.bindExtensionUi();
+      this.onExtensionsBound();
+      this.extensionsBound = true;
+      console.log(`[dexon] session_start dispatched to extensions for session ${this.inner.sessionId}`);
+    })()
+      .catch((err) => {
+        this.extensionBindingError = err;
+        console.warn(
+          `[dexon] extension binding attempt ${attempt} failed after ${Date.now() - startedAt}ms for session ${this.inner.sessionId}`,
+        );
+        throw err;
+      })
+      .finally(() => {
+        if (this.extensionBindingPromise === bindingPromise) this.extensionBindingPromise = null;
+      });
+    this.extensionBindingPromise = bindingPromise;
+
+    return bindingPromise;
+  }
+
+  async waitForExtensionsBound(): Promise<void> {
+    try {
+      if (!this.extensionsBound) await this.ensureExtensionsBound();
+    } catch (err) {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+    if (this.extensionBindingError) {
+      throw this.extensionBindingError instanceof Error
+        ? this.extensionBindingError
+        : new Error(String(this.extensionBindingError));
+    }
+  }
+
+  protected async reloadSessionResources(): Promise<void> {
+    if (this.extensionBindingPromise) {
+      try {
+        await this.extensionBindingPromise;
+      } catch {}
+    }
+    this.extensionsBound = false;
+    this.extensionBindingPromise = null;
+    this.extensionBindingError = null;
+    this.cancelInteractiveRequests();
+    this.extensionStatuses.clear();
+    this.extensionWidgets.clear();
+    await this.inner.reload();
+    await this.ensureExtensionsBound();
+  }
+
+  protected async bindExtensionUi(): Promise<void> {
+    const uiContext = this.createExtensionUiContext();
+    if (typeof this.inner.bindExtensions !== "function") {
+      this.inner.extensionRunner.setUIContext?.(uiContext, "rpc");
+      return;
+    }
+    const bind = this.inner.bindExtensions as (bindings: {
+      uiContext: ExtensionUiContextLike;
+      mode: "rpc";
+      commandContextActions: ExtensionCommandContextActionsLike;
+      shutdownHandler: () => void;
+      onError: (error: { extensionPath: string; event: string; error: string }) => void;
+    }) => Promise<void>;
+    await bind.call(this.inner, {
+      uiContext,
+      mode: "rpc",
+      commandContextActions: this.createExtensionCommandContextActions(),
+      shutdownHandler: () =>
+        this.emit({
+          type: "extension_ui_request",
+          id: randomUUID(),
+          method: "notify",
+          notifyType: "warning",
+          message: "Extension requested shutdown, but shutdown is not supported in Pi Desktop.",
+        }),
+      onError: (error) =>
+        this.emit({
+          type: "extension_error",
+          extensionPath: error.extensionPath,
+          event: error.event,
+          error: error.error,
+        }),
+    });
+  }
+
   protected createExtensionCommandContextActions(): ExtensionCommandContextActionsLike {
     return {
       waitForIdle: async () => {
