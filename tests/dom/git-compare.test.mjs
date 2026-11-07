@@ -236,6 +236,7 @@ test("file tabs of files that differ from the last commit carry a changed mark, 
   };
   host(t, explorerReplies({ status }));
   const tab = (name) => ({
+    environmentId: "primary",
     id: `file:${PROJECT}/${name}`,
     label: name.split("/").pop(),
     filePath: `${PROJECT}/${name}`,

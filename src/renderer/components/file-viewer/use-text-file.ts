@@ -1,8 +1,9 @@
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { INITIAL_TEXT_FILE_LOAD_STATE, textFileLoadReducer, type TextFileData } from "@/lib/file-viewer-load-state";
 import { createBoundedTextDiff } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { collapseDiff } from "./diff-segments";
 import { getFileApiUrl } from "./file-api-url";
 
@@ -24,8 +25,10 @@ function summarizeDiff(oldContent: string, newContent: string): DiffSummary | nu
   };
 }
 
-export function useTextFile(filePath: string, sourceSessionId?: string | null) {
+export function useTextFile(environmentId: EnvironmentId, filePath: string, sourceSessionId?: string | null) {
   const { t } = useI18n();
+  const identity = JSON.stringify([environmentId, filePath, sourceSessionId]);
+  const [loadIdentity, setLoadIdentity] = useState(identity);
   const [loadState, dispatchLoad] = useReducer(textFileLoadReducer, INITIAL_TEXT_FILE_LOAD_STATE);
   const [head, setHead] = useState<{ filePath: string; content: string } | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -40,7 +43,7 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     (targetPath: string) => {
       const gen = ++loadGen.current;
       return import("@/lib/file-blob")
-        .then(({ readFilePayload }) => readFilePayload(targetPath, sourceSessionId))
+        .then(({ readFilePayload }) => readFilePayload(environmentId, targetPath, sourceSessionId))
         .then((d) => {
           if (gen !== loadGen.current) return null;
           if (d.error) {
@@ -72,21 +75,25 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
           return null;
         });
     },
-    [sourceSessionId, t],
+    [environmentId, sourceSessionId, t],
   );
 
   const fetchHead = useCallback(() => {
     const gen = loadGen.current;
-    return call("git.headContent", { path: filePath, sourceSessionId: sourceSessionId ?? undefined })
+    return getEnvironmentApiClient(environmentId)
+      .call("git.headContent", { path: filePath, sourceSessionId: sourceSessionId ?? undefined })
       .then((r) => {
-        if (gen === loadGen.current) setHead(r.comparable ? { filePath, content: r.content } : null);
+        if (gen === loadGen.current)
+          setHead(r.comparable ? { filePath: qualifyProjectKey(environmentId, filePath), content: r.content } : null);
       })
       .catch(() => {
         if (gen === loadGen.current) setHead(null);
       });
-  }, [filePath, sourceSessionId]);
+  }, [environmentId, filePath, sourceSessionId]);
 
   useEffect(() => {
+    let disposed = false;
+    setLoadIdentity(identity);
     dispatchLoad({ type: "reset" });
     setHead(null);
     setPreviewMode(false);
@@ -100,11 +107,11 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     }
 
     void fetchContent(filePath).then((data) => {
-      if (data?.language === "markdown") setPreviewMode(true);
+      if (!disposed && data?.language === "markdown") setPreviewMode(true);
     });
     void fetchHead();
 
-    const es = new EventSource(getFileApiUrl(filePath, "watch", sourceSessionId));
+    const es = new EventSource(getFileApiUrl(environmentId, filePath, "watch", sourceSessionId));
     esRef.current = es;
 
     es.addEventListener("connected", () => {
@@ -125,14 +132,15 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
     };
 
     return () => {
+      disposed = true;
       loadGen.current += 1;
       es.close();
       esRef.current = null;
     };
-  }, [filePath, fetchContent, fetchHead, sourceSessionId]);
+  }, [environmentId, filePath, fetchContent, fetchHead, sourceSessionId, identity]);
 
   const content = loadState.status === "ready" ? loadState.data.content : null;
-  const headContent = head && head.filePath === filePath ? head.content : null;
+  const headContent = head && head.filePath === qualifyProjectKey(environmentId, filePath) ? head.content : null;
   const hasDiff = content !== null && headContent !== null;
   const diffSummary = useMemo(
     () => (hasDiff && headContent !== content ? summarizeDiff(headContent!, content!) : null),
@@ -140,7 +148,7 @@ export function useTextFile(filePath: string, sourceSessionId?: string | null) {
   );
 
   return {
-    loadState,
+    loadState: loadIdentity === identity ? loadState : INITIAL_TEXT_FILE_LOAD_STATE,
     hasDiff,
     headContent,
     diffSummary,

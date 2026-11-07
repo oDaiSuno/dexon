@@ -1,0 +1,77 @@
+.remote-folder-picker-body {
+  display: grid;
+  grid-template-columns: minmax(0, 256px) minmax(0, 1fr);
+  min-height: 420px;
+}
+
+.remote-folder-picker .remote-folder-columns > section {
+  min-width: 0;
+}
+
+.remote-folder-server-column {
+  border-right: 1px solid var(--fx-line-default);
+}
+
+.remote-folder-server-list {
+  max-height: 310px;
+}
+
+.remote-folder-picker-target {
+  flex: 1;
+}
+
+.remote-folder-picker .remote-folder-choice {
+  gap: var(--space-2);
+}
+
+.remote-folder-branch {
+  max-width: 45%;
+}
+
+@media (max-width: 720px) {
+  .remote-folder-picker-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .remote-folder-picker-body > aside {
+    border-right: 0;
+    border-bottom: 1px solid var(--fx-line-default);
+  }
+
+  .remote-folder-picker-body > aside > ul {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr));
+    max-height: 180px;
+  }
+
+  .remote-folder-picker-target {
+    flex-basis: 100%;
+  }
+
+  .remote-folder-picker [role="dialog"] > header {
+    flex-wrap: wrap;
+  }
+
+  .remote-folder-header-action {
+    order: 1;
+    flex-basis: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .remote-folder-picker .remote-folder-choice {
+    display: grid;
+    grid-template-columns: var(--space-4) minmax(0, 1fr);
+    column-gap: var(--space-1);
+  }
+
+  .remote-folder-choice .remote-folder-name {
+    grid-column: 2;
+  }
+
+  .remote-folder-choice .remote-folder-branch,
+  .remote-folder-choice .remote-folder-selected {
+    grid-column: 1 / -1;
+    max-width: 100%;
+    text-align: left;
+  }
+}

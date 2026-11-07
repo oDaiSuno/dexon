@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { getParentFilePath } from "@shared/file-paths";
@@ -16,11 +18,14 @@ import {
   SwitcherSearchRow,
   iconBox,
 } from "./project-switcher-parts";
-import { spaceActions } from "./project-switcher-actions";
+import { projectSwitcherSources } from "./project-switcher-sources";
 
 export interface SwitcherProject {
   root: string;
   name: string;
+  environmentId?: string;
+  key?: string;
+  host?: string;
 }
 
 function folderIcon(size?: number, strokeWidth?: number) {
@@ -38,7 +43,11 @@ export function ProjectSwitcherCard({
   projects,
   inspectFolder,
   onOpenFolder,
+  onOpenProject,
   onChooseFolder,
+  onChooseRemoteFolder,
+  onOpenServerSettings,
+  onlineServerCount = 0,
   onBackToPersonalSpace,
   onChoose,
 }: {
@@ -48,7 +57,11 @@ export function ProjectSwitcherCard({
   projects: readonly SwitcherProject[];
   inspectFolder?: (typed: string) => Promise<string | null>;
   onOpenFolder?: (folder: string) => void;
+  onOpenProject?: (space: ProjectSpaceRef) => void;
   onChooseFolder: () => void;
+  onChooseRemoteFolder?: () => void;
+  onOpenServerSettings?: () => void;
+  onlineServerCount?: number;
   onBackToPersonalSpace: () => void;
   onChoose: (run: () => void) => void;
 }) {
@@ -66,7 +79,7 @@ export function ProjectSwitcherCard({
   const folder = useFolderSuggestion(query, inspectFolder);
   const matches = typed
     ? projects.filter((project) =>
-        [project.name, project.root, abbreviateHomePath(project.root, homeDir)].some((value) =>
+        [project.name, project.host ?? "", project.root, abbreviateHomePath(project.root, homeDir)].some((value) =>
           value.toLocaleLowerCase().includes(needle),
         ),
       )
@@ -81,26 +94,35 @@ export function ProjectSwitcherCard({
       run: () => onOpenFolder(folder),
     });
   }
-  if (typed && onOpenFolder) {
+  if (typed && (onOpenProject || onOpenFolder)) {
     for (const project of matches) {
       lead.push({
-        key: project.root,
+        key: project.key ?? project.root,
         label: project.name,
-        detail: abbreviateHomePath(getParentFilePath(project.root), homeDir),
+        detail: project.host ?? abbreviateHomePath(getParentFilePath(project.root), homeDir),
         title: project.root,
         icon: folderIcon(),
-        run: () => onOpenFolder(project.root),
+        run: () =>
+          onOpenProject
+            ? onOpenProject({ environmentId: project.environmentId ?? PRIMARY_ENVIRONMENT_ID, path: project.root })
+            : onOpenFolder?.(project.root),
       });
     }
   }
 
-  const actions = spaceActions({
+  const actions = projectSwitcherSources({
     labels: {
       add: t("addProjectSpace", "Add project space from folder…"),
       back: t("backToPersonalSpace", "Back to default space"),
+      remote: t("navAddRemoteProject", "Add project space from remote server…"),
+      settings: t("navConnectRemoteServer", "Connect a remote server…"),
+      online: t("navServersOnline", "{count} online ›").replace("{count}", String(onlineServerCount)),
+      settingsHint: t("navServerSettingsHint", "Settings ↗"),
     },
     mac,
     onChooseFolder,
+    onChooseRemoteFolder,
+    onOpenServerSettings,
     onBackToPersonalSpace,
   });
 

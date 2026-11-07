@@ -34,6 +34,8 @@ const SWITCHER = "Switch or add project";
 const COLLAPSE_ALL = "Collapse all projects";
 const EXPAND_CURRENT = "Expand current project";
 const ADD_FROM_FOLDER = "Add project space from folder…";
+const REMOTE_SOURCE = "Add project space from remote server…";
+const SERVER_SETTINGS = "Connect a remote server…";
 const BACK_TO_DEFAULT = "Back to default space";
 const SEARCH_CARD = "Search or open a project…";
 const PROJECT_SESSION = "Project release notes";
@@ -175,14 +177,18 @@ test("the card closes again from the +, from Escape and from a press outside it"
   await waitFor(() => assert.equal(cards().length, 0));
 });
 
-test("the card holds the search box, the current project and the two space actions in that order, without Close project", async (t) => {
+test("the card holds the search box, the current project and the four space sources in that order, without Close project", async (t) => {
   const scene = await ready(t);
   const card = await openCard(scene);
   const search = control(card, "searchbox", SEARCH_CARD);
   const group = visibleText(card, "Current project");
   const name = visibleText(card, PROJECT);
   const folder = visibleText(card, "/work");
-  assert.deepEqual(cardActions(card), [ADD_FROM_FOLDER, BACK_TO_DEFAULT], "the two space actions, in order");
+  assert.deepEqual(
+    cardActions(card),
+    [ADD_FROM_FOLDER, REMOTE_SOURCE, SERVER_SETTINGS, BACK_TO_DEFAULT],
+    "the four space sources, in order",
+  );
   assert.ok(precedes(search, group), "the search box comes first");
   assert.ok(precedes(group, name), "the current project is named under its own heading");
   assert.ok(precedes(name, folder), "the folder the project lives in follows its name");
@@ -391,7 +397,12 @@ test("in Chinese the header reads 切换或新增项目, then 收起全部项目
     return open[0];
   });
   const card = cards()[0];
-  assert.deepEqual(cardActions(card), ["从文件夹新增项目空间…", "返回默认空间"]);
+  const actions = cardActions(card);
+  assert.equal(actions.length, 4);
+  assert.equal(actions[0], "从文件夹新增项目空间…");
+  assert.match(actions[1], /^(从远程服务器增加项目空间…|Add project space from remote server…)$/);
+  assert.match(actions[2], /^(去连接远程服务器…|Connect a remote server…)$/);
+  assert.equal(actions[3], "返回默认空间");
   await keyDown(card, "Escape");
   await waitFor(() => assert.equal(cards().length, 0));
   await click(control(scene.history(), "button", "收起全部项目"));

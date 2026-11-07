@@ -1,3 +1,4 @@
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import { getFileExt } from "@/lib/file-types";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -7,11 +8,17 @@ import type { FileViewerProps } from "./types";
 import { useDocumentPreview } from "./use-document-preview";
 import { WatchIndicator } from "./watch-indicator";
 
-export function DocumentViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
+export function DocumentViewer({
+  filePath,
+  cwd,
+  sourceSessionId,
+  environmentId: requestedEnvironmentId,
+}: FileViewerProps) {
   const { language, t } = useI18n();
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const ext = getFileExt(filePath);
   const isPdf = ext === "pdf";
-  const { size, error, previewUrl, watching } = useDocumentPreview(filePath, sourceSessionId, isPdf);
+  const { size, error, previewUrl, watching } = useDocumentPreview(environmentId, filePath, sourceSessionId, isPdf);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -39,7 +46,7 @@ export function DocumentViewer({ filePath, cwd, sourceSessionId }: FileViewerPro
         </span>
         <span style={{ marginLeft: "auto" }}>{ext === "docx" ? t("docxPreview", "DOCX preview") : "PDF"}</span>
         {size != null && <span>{formatFileSize(size, language)}</span>}
-        <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
+        <DownloadLink environmentId={environmentId} filePath={filePath} sourceSessionId={sourceSessionId} />
         <WatchIndicator watching={watching} noShrink />
       </div>
       <div style={{ flex: 1, minHeight: 0, background: "var(--fx-surface-raised)" }}>

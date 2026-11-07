@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { subscribeProjectSwitcherRequest } from "@/lib/project-switcher-request";
@@ -8,7 +9,7 @@ import { ProjectSwitcherCard, type SwitcherProject } from "./project-switcher-ca
 import { useAnchoredPopover } from "./use-anchored-popover";
 import { HeaderButton, PlusGlyph } from "./section-header-buttons";
 
-const CARD_WIDTH = 280;
+const CARD_WIDTH = 316;
 
 export function ProjectSwitcherPopover({
   spaceName,
@@ -17,7 +18,11 @@ export function ProjectSwitcherPopover({
   projects,
   inspectFolder,
   onOpenFolder,
+  onOpenProject,
   onChooseFolder,
+  onChooseRemoteFolder,
+  onOpenServerSettings,
+  onlineServerCount,
   onBackToPersonalSpace,
 }: {
   spaceName: string;
@@ -26,7 +31,11 @@ export function ProjectSwitcherPopover({
   projects: readonly SwitcherProject[];
   inspectFolder?: (typed: string) => Promise<string | null>;
   onOpenFolder?: (folder: string) => void;
+  onOpenProject?: (space: ProjectSpaceRef) => void;
   onChooseFolder: () => void;
+  onChooseRemoteFolder?: () => void;
+  onOpenServerSettings?: () => void;
+  onlineServerCount?: number;
   onBackToPersonalSpace: () => void;
 }) {
   const { t } = useI18n();
@@ -54,7 +63,7 @@ export function ProjectSwitcherPopover({
             role="menu"
             aria-label={spaceName}
             tabIndex={-1}
-            className="composer-pop-in"
+            className="app-nav composer-pop-in"
             onKeyDown={(event) => popover.closeOnEscapeOrTab(event)}
             style={{
               position: "fixed",
@@ -79,7 +88,11 @@ export function ProjectSwitcherPopover({
               projects={projects}
               inspectFolder={inspectFolder}
               onOpenFolder={onOpenFolder}
+              onOpenProject={onOpenProject}
               onChooseFolder={onChooseFolder}
+              onChooseRemoteFolder={onChooseRemoteFolder}
+              onOpenServerSettings={onOpenServerSettings}
+              onlineServerCount={onlineServerCount}
               onBackToPersonalSpace={onBackToPersonalSpace}
               onChoose={popover.choose}
             />

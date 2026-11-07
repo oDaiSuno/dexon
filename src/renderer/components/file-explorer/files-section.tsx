@@ -16,11 +16,13 @@ const SKELETON_ROWS: [number, number][] = [
 
 export function FilesSectionHeader({
   onCollapseAll,
+  remote = false,
   filterable,
   showingChanges,
   onToggleChangesOnly,
 }: {
   onCollapseAll: () => void;
+  remote?: boolean;
   filterable: boolean;
   showingChanges: boolean;
   onToggleChangesOnly: () => void;
@@ -30,7 +32,11 @@ export function FilesSectionHeader({
   return (
     <div className="flex h-[28px] items-center gap-[2px] pr-[2px] pl-[8px]">
       <h2 className="type-label-medium m-0 min-w-0 flex-1 truncate text-[var(--fx-text-secondary)]">
-        {showingChanges ? t("explorerChangesSection", "Changes") : t("explorerFilesSection", "Files")}
+        {showingChanges
+          ? t("explorerChangesSection", "Changes")
+          : remote
+            ? t("remoteProjectFiles", "Remote project files")
+            : t("explorerFilesSection", "Files")}
       </h2>
       {filterable && (
         <button

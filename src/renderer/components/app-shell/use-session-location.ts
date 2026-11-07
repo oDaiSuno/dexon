@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { useActiveEnvironment } from "@/lib/environment-registry";
 import { worktreePathsEqual } from "@shared/worktree-path";
 
 export interface SessionLocation {
@@ -8,35 +9,32 @@ export interface SessionLocation {
 }
 
 export function useSessionLocation(cwd: string | null): SessionLocation | null {
-  const [location, setLocation] = useState<SessionLocation | null>(null);
-
+  const environment = useActiveEnvironment();
+  const generation = environment.status.phase === "connected" ? environment.status.generation : null;
+  const key = JSON.stringify([environment.id, generation, cwd]);
+  const [location, setLocation] = useState<{ key: string; value: SessionLocation } | null>(null);
   useEffect(() => {
-    if (!cwd) {
-      setLocation(null);
-      return;
-    }
+    if (!cwd) return;
     let cancelled = false;
-    setLocation((prev) => prev ?? { branch: null, isWorktree: false });
+    const api = getEnvironmentApiClient(environment.id);
     void Promise.all([
-      call("git.branch", { path: cwd }).catch(() => ({ isGit: false, branch: null })),
-      call("worktrees.list", { projectRoot: cwd }).catch(() => ({ worktrees: [] })),
-    ]).then(
-      ([branchResult, listResult]) => {
-        if (cancelled) return;
-        const worktrees = (listResult as { worktrees?: { path: string; isMain?: boolean }[] }).worktrees ?? [];
-        setLocation({
+      api.call("git.branch", { path: cwd }).catch(() => ({ isGit: false, branch: null })),
+      api.listWorktrees(cwd).catch(() => ({ worktrees: [] })),
+    ]).then(([branchResult, listResult]) => {
+      if (cancelled) return;
+      setLocation({
+        key,
+        value: {
           branch: branchResult.branch ?? null,
-          isWorktree: worktrees.some((entry) => worktreePathsEqual(entry.path, cwd) && entry.isMain !== true),
-        });
-      },
-      () => {
-        if (!cancelled) setLocation({ branch: null, isWorktree: false });
-      },
-    );
+          isWorktree: listResult.worktrees.some(
+            (entry) => worktreePathsEqual(entry.path, cwd) && entry.isMain !== true,
+          ),
+        },
+      });
+    });
     return () => {
       cancelled = true;
     };
-  }, [cwd]);
-
-  return location;
+  }, [cwd, environment.id, key]);
+  return location?.key === key ? location.value : null;
 }

@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState, type ClipboardEvent, type MutableRefObject } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type MutableRefObject } from "react";
+import type { EnvironmentId } from "@contract/environment";
+import { environmentAffordances } from "@/lib/environment-affordances";
 import { processImageFileBatch } from "@/lib/image-file-processing";
 import { ImageNormalizationError } from "@/lib/image-normalization";
 import { modelSupportsImages } from "@/lib/model-selection";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview, registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 import type { ComposerEditableHandle } from "./types";
-import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { useEnvironments } from "@/lib/environment-registry";
 
 interface FileInspection {
   exists: boolean;
@@ -16,6 +18,8 @@ interface FileInspection {
 type Translate = (key: string, fallback: string) => string;
 
 interface Options {
+  environmentId: EnvironmentId;
+  draftKey?: string;
   value: string;
   visible: boolean;
   cwd?: string | null;
@@ -42,6 +46,8 @@ function extensionForImageMime(mimeType: string): string | null {
 }
 
 export function useComposerAttachments({
+  environmentId,
+  draftKey,
   value,
   visible,
   cwd,
@@ -51,9 +57,21 @@ export function useComposerAttachments({
   t,
   onImageNotice,
 }: Options) {
-  const affordances = useActiveEnvironmentAffordances();
-  const [fileInspectionByPath, setFileInspectionByPath] = useState<Map<string, FileInspection>>(new Map());
-  const [tokenPreviewsByPath, setTokenPreviewsByPath] = useState<Map<string, string | null>>(new Map());
+  const environments = useEnvironments();
+  const affordances = environmentAffordances(environments.find((view) => view.id === environmentId));
+  const scope = JSON.stringify([environmentId, draftKey ?? null, cwd ?? null]);
+  const currentScope = useRef(scope);
+  currentScope.current = scope;
+  const [inspections, setInspections] = useState({ scope, paths: new Map<string, FileInspection>() });
+  const [previews, setPreviews] = useState({ scope, paths: new Map<string, string | null>() });
+  const fileInspectionByPath = useMemo(
+    () => (inspections.scope === scope ? inspections.paths : new Map<string, FileInspection>()),
+    [inspections, scope],
+  );
+  const tokenPreviewsByPath = useMemo(
+    () => (previews.scope === scope ? previews.paths : new Map<string, string | null>()),
+    [previews, scope],
+  );
   const attachmentTokens = useMemo(() => findAttachmentTokens(value), [value]);
   const tokenPaths = useMemo(
     () => Array.from(new Set(attachmentTokens.map((token) => token.path))),
@@ -93,11 +111,12 @@ export function useComposerAttachments({
         ext: extensionForImageMime(image.mimeType) ?? "png",
       });
       if (!result?.ok) return { ok: false, code: result?.code ?? "stage-unavailable" };
-      registerStagedPreviewUrl(result.staged.path, image.previewUrl);
+      if (currentScope.current !== scope) return { ok: false, code: "scope-changed" };
+      registerStagedPreviewUrl(result.staged.path, image.previewUrl, environmentId);
       editableRef.current?.insertTokenAtCaret(result.staged.path);
       return { ok: true };
     },
-    [editableRef],
+    [editableRef, environmentId, scope],
   );
 
   const processFiles = useCallback(
@@ -109,6 +128,7 @@ export function useComposerAttachments({
       let unsupportedOnly = true;
       let pathlessCount = 0;
       for (const file of files) {
+        if (currentScope.current !== scope) return;
         const absolutePath = window.piBridge?.getPathForFile?.(file) ?? "";
         if (absolutePath) {
           insertAttachmentPath(absolutePath);
@@ -161,7 +181,7 @@ export function useComposerAttachments({
           ),
         );
       }
-      onImageNotice(notices.length > 0 ? notices.join(". ") : null);
+      if (currentScope.current === scope) onImageNotice(notices.length > 0 ? notices.join(". ") : null);
     },
     [
       insertAttachmentPath,
@@ -171,6 +191,7 @@ export function useComposerAttachments({
       t,
       visible,
       affordances.attachLocalFiles,
+      scope,
     ],
   );
 
@@ -196,7 +217,7 @@ export function useComposerAttachments({
         cancelled = true;
       };
     if (!affordances.attachLocalFiles || attachmentTokens.length === 0 || !window.piBridge?.inspectLocalFiles) {
-      setFileInspectionByPath(new Map());
+      setInspections({ scope, paths: new Map() });
       return () => {
         cancelled = true;
       };
@@ -210,15 +231,15 @@ export function useComposerAttachments({
           const tokenPath = tokenPaths[index];
           if (tokenPath) next.set(tokenPath, inspection);
         });
-        setFileInspectionByPath(next);
+        setInspections({ scope, paths: next });
       })
       .catch(() => {
-        if (!cancelled) setFileInspectionByPath(new Map());
+        if (!cancelled) setInspections({ scope, paths: new Map() });
       });
     return () => {
       cancelled = true;
     };
-  }, [attachmentTokens.length, cwd, tokenPaths, visible, affordances.attachLocalFiles]);
+  }, [attachmentTokens.length, cwd, tokenPaths, visible, affordances.attachLocalFiles, scope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -227,27 +248,15 @@ export function useComposerAttachments({
         cancelled = true;
       };
     const imagePaths = tokenPaths.filter(isImagePath);
-    if (imagePaths.length === 0) {
-      setTokenPreviewsByPath((previous) => (previous.size === 0 ? previous : new Map()));
-      return () => {
-        cancelled = true;
-      };
-    }
-    imagePaths.forEach((path) => {
-      if (tokenPreviewsByPath.has(path)) return;
-      void loadAttachmentPreview(path).then((url) => {
-        if (cancelled) return;
-        setTokenPreviewsByPath((previous) => {
-          const next = new Map(previous);
-          next.set(path, url);
-          return next;
-        });
-      });
+    void Promise.all(
+      imagePaths.map(async (path) => [path, await loadAttachmentPreview(path, undefined, environmentId)] as const),
+    ).then((entries) => {
+      if (!cancelled) setPreviews({ scope, paths: new Map(entries) });
     });
     return () => {
       cancelled = true;
     };
-  }, [tokenPaths, tokenPreviewsByPath, visible]);
+  }, [environmentId, scope, tokenPaths, visible]);
 
   return {
     attachmentTokens,

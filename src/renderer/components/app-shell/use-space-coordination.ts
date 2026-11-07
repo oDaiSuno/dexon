@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { defaultCwd, validateCwd } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { parseStoredSpaceCwd, resolveStartupSpace } from "@/lib/space-startup";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { getActiveEnvironmentId, environmentRegistry } from "@/lib/environment-registry";
+import { workspaceStore } from "@/lib/workspace-store";
 import { environmentAffordances } from "@/lib/environment-affordances";
 
 const defaultSpaceIo: SpaceCoordinationIo = createDefaultSpaceIo();
@@ -33,17 +34,16 @@ export function createDefaultSpaceIo(): SpaceCoordinationIo {
       return parseStoredSpaceCwd(state?.lastSpaceCwd);
     },
     preparePersonalSpace: async () => {
-      const prepared = await defaultCwd();
+      const prepared = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).defaultCwd();
       if (!prepared?.cwd) throw new Error("Personal directory preparation failed");
       return prepared.cwd;
     },
     validateSpace: async (path) => {
-      const result = await validateCwd(path);
+      const result = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).validateCwd(path);
       if (!result.ok || !result.path) throw new Error(result.error ?? "Invalid directory");
       return result.path;
     },
     persistSpaceCwd: async (path) => {
-      if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) return;
       if (!window.piBridge) throw new Error("Desktop preferences are unavailable");
       await window.piBridge.setUiState({ lastSpaceCwd: path });
     },
@@ -197,7 +197,7 @@ export function useSpaceCoordination({
 
   const noteExternalCwd = useCallback(
     (cwd: string | null, origin: "user" | "coordinator" = "user") => {
-      if (!cwd || origin === "coordinator") return;
+      if (!cwd || origin === "coordinator" || getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) return;
       const current = phaseRef.current;
       if (current.phase === "ready" && current.cwd === cwd) return;
       generationRef.current += 1;
@@ -219,7 +219,13 @@ export function useSpaceCoordination({
     else void preparePersonal();
   }, [preparePersonal, restoreStored]);
 
-  const returnToPersonalSpace = useCallback(() => preparePersonal(), [preparePersonal]);
+  const returnToPersonalSpace = useCallback(() => {
+    workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: personalCwd ?? "/" });
+    return preparePersonal().then((cwd) => {
+      if (cwd) workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: cwd });
+      return cwd;
+    });
+  }, [preparePersonal, personalCwd]);
 
   const openCurrentFolder = useCallback(async () => {
     const current = phaseRef.current;

@@ -7,17 +7,14 @@ import test from "node:test";
 import { createElement } from "react";
 import { act, create } from "react-test-renderer";
 
-// Characterization tests for the split-out workspace/session navigation owner
-// of AppShell: same-project vs cross-project cwd rules, restore suppression,
-// the session selection transitions, and the desktop menu wiring.
-
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { resetRpc, useWorkspaceNavigation } = await importTestBundle("app-shell-workspace-navigation", {
+const { resetRpc, useWorkspaceNavigation, workspaceStore } = await importTestBundle("app-shell-workspace-navigation", {
   stdin: {
     contents:
       'export { useWorkspaceNavigation } from "./src/renderer/components/app-shell/use-workspace-navigation.ts";' +
-      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts";',
+      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts";' +
+      '\nexport {workspaceStore} from "./src/renderer/lib/workspace-store.ts";',
     resolveDir: projectRoot,
     sourcefile: "workspace-navigation-test-entry.ts",
     loader: "ts",
@@ -234,7 +231,6 @@ test("a restored session survives the initial cwd update but closes on a later p
     const restoredIdentity = mounted.state.value.sessionKey;
     assert.equal(mounted.state.value.initialSessionRestored, true);
     assert.deepEqual(env.harness.routerReplaceCalls, []);
-    // The restore flow's own cwd effect must not close the just-restored session.
     await act(async () => {
       mounted.state.value.handleCwdChange("/cross-project", "/cross-project");
     });
@@ -308,6 +304,20 @@ test("adopts created sessions and hydrates the missing project root", async () =
     assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=new-1"]]);
     await act(async () => {});
     assert.equal(mounted.state.value.selectedSession.projectRoot, "/repo");
+    await mounted.unmount();
+  });
+});
+
+test("a created session keeps its explicit server after the workspace focus changes", async () => {
+  await withEnvironment({}, async (env) => {
+    const mounted = await mountNavigation(env);
+    await act(async () => {
+      await workspaceStore.initialize(globalThis.window.piBridge);
+      workspaceStore.openSpace({ environmentId: "gpu", path: "/same/project" });
+      mounted.state.value.handleSessionCreated(session("created-primary", { environmentId: "primary", cwd: "/repo" }));
+    });
+    assert.equal(workspaceStore.getSnapshot().focus.environmentId, "primary");
+    assert.equal(mounted.state.value.selectedSession?.environmentId, "primary");
     await mounted.unmount();
   });
 });

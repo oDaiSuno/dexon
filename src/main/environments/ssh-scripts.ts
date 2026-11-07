@@ -23,6 +23,29 @@ export function validateSshTarget(target: SshEnvironmentTarget): void {
     if (port !== undefined && (!Number.isInteger(port) || port < 1 || port > 65535))
       throw new Error("Invalid SSH port");
   }
+  if (
+    target.identityFile !== undefined &&
+    (typeof target.identityFile !== "string" ||
+      !target.identityFile.trim() ||
+      target.identityFile.length > 4096 ||
+      target.identityFile.startsWith("-") ||
+      /\p{Cc}/u.test(target.identityFile))
+  )
+    throw new Error("Invalid SSH identity file");
+  if (
+    target.proxyJump !== undefined &&
+    (typeof target.proxyJump !== "string" ||
+      target.proxyJump.length > 4096 ||
+      /\p{Cc}/u.test(target.proxyJump) ||
+      target.proxyJump.split(",").some((jump) => {
+        const match =
+          /^(?:[a-z_][a-z0-9_.-]{0,63}@)?(?:[a-z0-9][a-z0-9._-]{0,252}|\[[a-f0-9:.]+(?:%[a-z0-9_.-]+)?\])(?::([0-9]{1,5}))?$/iu.exec(
+            jump,
+          );
+        return !match || (match[1] !== undefined && (Number(match[1]) < 1 || Number(match[1]) > 65535));
+      }))
+  )
+    throw new Error("Invalid SSH proxy jump");
   if (target.remoteStateDir !== undefined) validateRemotePath(target.remoteStateDir);
 }
 
@@ -31,7 +54,7 @@ function validateRemotePath(value: string): void {
     throw new Error("Invalid remote path");
 }
 
-function remotePath(value: string | undefined, fallback: string): string {
+export function remotePath(value: string | undefined, fallback: string): string {
   if (value === undefined) return `"$HOME"/${shellQuote(fallback)}`;
   validateRemotePath(value);
   return value.startsWith("~/") ? `"$HOME"/${shellQuote(value.slice(2))}` : shellQuote(value);
@@ -46,6 +69,9 @@ export function targetConnectionKey(target: SshEnvironmentTarget): string {
     target.port ?? 22,
     target.remotePort ?? 3780,
     target.remoteStateDir ?? "~/.dexon",
+    ...(target.identityFile === undefined && target.proxyJump === undefined
+      ? []
+      : [target.identityFile ?? null, target.proxyJump ?? null]),
   ]);
 }
 
@@ -53,9 +79,9 @@ export function computeSshStateKey(target: SshEnvironmentTarget): string {
   return createHash("sha256").update(targetConnectionKey(target)).digest("hex").slice(0, 16);
 }
 
-function ledgerPath(stateKey: string): string {
+function ledgerPath(stateKey: string, stateDir?: string): string {
   if (!/^[a-f0-9]{16}$/u.test(stateKey)) throw new Error("Invalid SSH state key");
-  return `"$HOME/.dexon/ssh-launch/${stateKey}"`;
+  return `${remotePath(stateDir, ".dexon")}/ssh-launch/${stateKey}`;
 }
 
 export function buildRemoteLaunchScript(options: {
@@ -63,18 +89,20 @@ export function buildRemoteLaunchScript(options: {
   preferredPort: number;
   remoteStateDir?: string;
   daemonScriptPath?: string;
+  nodePath?: string;
 }): string {
   const port = options.preferredPort ?? 3780;
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("Invalid preferred remote port");
-  return `set -eu\numask 077\ncommand -v node >/dev/null 2>&1 || { printf 'missing-node: node is not installed\\n' >&2; exit 127; }\nnode - ${ledgerPath(options.stateKey)} ${port} ${remotePath(options.remoteStateDir, ".dexon")} ${remotePath(options.daemonScriptPath, ".dexon/agent-host/index.mjs")} <<'DEXON_LAUNCH'\n${String.raw`const fs = require("node:fs");
+  return `set -eu\numask 077\n${options.nodePath ? shellQuote(options.nodePath) : "node"} - ${ledgerPath(options.stateKey, options.remoteStateDir)} ${port} ${remotePath(options.remoteStateDir, ".dexon")} ${remotePath(options.daemonScriptPath, ".dexon/agent-host/index.mjs")} ${shellQuote(options.stateKey)} <<'DEXON_LAUNCH'\n${String.raw`const fs = require("node:fs");
 const http = require("node:http");
 const crypto = require("node:crypto");
 const net = require("node:net");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
-const [ledger, preferred, stateDir, daemonEntry] = process.argv.slice(2);
+const [ledger, preferred, stateDir, daemonEntry, stateKey] = process.argv.slice(2);
+const legacy = path.join(process.env.HOME, ".dexon", "ssh-launch", stateKey);
 const file = name => path.join(ledger, name);
-const read = name => { try { return fs.readFileSync(file(name), "utf8").trim(); } catch (error) { if (error.code === "ENOENT") return ""; throw error; } };
+const read = name => { try { return fs.readFileSync(file(name), "utf8").trim(); } catch (error) { if (error.code !== "ENOENT") throw error; try { return fs.readFileSync(path.join(legacy, name), "utf8").trim(); } catch { return ""; } } };
 const write = (name, value) => fs.writeFileSync(file(name), String(value), { mode: 0o600 });
 const alive = pid => { if (!/^[1-9][0-9]*$/.test(pid) || Number(pid) <= 1) return false; try { process.kill(Number(pid), 0); return true; } catch (error) { return error.code === "EPERM"; } };
 const readTokenAndEnvId = () => {
@@ -181,22 +209,37 @@ const acquireLaunchLock = async () => {
 DEXON_LAUNCH`;
 }
 
-export function buildRemoteStopScript(options: { stateKey: string }): string {
+export function buildRemoteStopScript(options: {
+  stateKey: string;
+  remoteStateDir?: string;
+  nodePath?: string;
+}): string {
   return `set -eu
-ledger=${ledgerPath(options.stateKey)}
-[ -f "$ledger/managed" ] || exit 0
-[ "$(cat "$ledger/managed")" = "managed" ] || exit 0
-pid=$(cat "$ledger/pid" 2>/dev/null || true)
-case "$pid" in ''|*[!0-9]*) exit 0 ;; esac
-[ "$pid" -gt 1 ] || exit 0
-if kill -0 "$pid" 2>/dev/null; then
-  kill "$pid"
-  count=0
-  while kill -0 "$pid" 2>/dev/null; do
-    [ "$count" -lt 20 ] || { printf 'Remote daemon did not stop within 2 seconds\\n' >&2; exit 1; }
-    sleep 0.1
-    count=$((count + 1))
-  done
-fi
-rm -f "$ledger/pid" "$ledger/port" "$ledger/managed"`;
+${options.nodePath ? shellQuote(options.nodePath) : "node"} - ${ledgerPath(options.stateKey, options.remoteStateDir)} ${remotePath(options.remoteStateDir, ".dexon")} ${shellQuote(options.stateKey)} <<'DEXON_STOP'
+${String.raw`const fs = require("node:fs"), path = require("node:path"), crypto = require("node:crypto");
+let [ledger, state, key] = process.argv.slice(2);
+if (!fs.existsSync(path.join(ledger, "managed"))) ledger = path.join(process.env.HOME, ".dexon", "ssh-launch", key);
+const read = name => { try { return fs.readFileSync(path.join(ledger, name), "utf8").trim(); } catch { return ""; } };
+const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; } };
+(async () => {
+  if (read("managed") !== "managed") return process.stdout.write("not-owned");
+  const pid = Number(read("pid")), port = Number(read("port"));
+  if (!Number.isInteger(pid) || pid <= 1 || !Number.isInteger(port) || port < 1 || port > 65535) return process.stdout.write("not-owned");
+  if (alive(pid)) {
+    const owner = JSON.parse(fs.readFileSync(path.join(state, "daemon-owner.lock"), "utf8"));
+    if (owner.pid !== pid) return process.stdout.write("not-owned");
+    const token = fs.readFileSync(path.join(state, "auth-token"), "utf8").trim();
+    const identity = JSON.parse(fs.readFileSync(path.join(state, "environment.json"), "utf8"));
+    const nonce = crypto.randomBytes(16).toString("hex");
+    const response = await fetch("http://127.0.0.1:" + port + "/.well-known/dexon/environment", { headers: { "x-dexon-nonce": nonce }, signal: AbortSignal.timeout(2000) });
+    if (response.headers.get("x-dexon-proof") !== crypto.createHmac("sha256", token).update(nonce).digest("hex") || (await response.json()).environmentId !== identity.environmentId) throw new Error("Remote daemon ownership could not be verified");
+    process.kill(pid, "SIGTERM");
+    const deadline = Date.now() + 3000;
+    while (alive(pid) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
+    if (alive(pid)) throw new Error("Remote daemon did not stop within 3 seconds");
+  }
+  for (const name of ["pid", "port", "managed"]) fs.rmSync(path.join(ledger, name), { force: true });
+  process.stdout.write("stopped");
+})().catch(error => { process.stderr.write(error.message + "\n"); process.exitCode = 1; });`}
+DEXON_STOP`;
 }

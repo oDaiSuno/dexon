@@ -4,6 +4,8 @@ import { useDragDrop } from "@/hooks/useDragDrop";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useObservedElementHeight } from "@/hooks/useObservedElementHeight";
 import { useI18n } from "@/i18n";
+import { getActiveEnvironmentId } from "@/lib/environment-registry";
+import { newSessionDraftKey } from "@/lib/unsaved-messages";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
 import type { ImageContent } from "@/lib/types";
@@ -49,6 +51,7 @@ export function useChatWindow({
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
   const isMobile = useIsMobile(visible);
   const { t } = useI18n();
+  const [newSessionEnvironmentId] = useState(getActiveEnvironmentId);
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -58,11 +61,6 @@ export function useChatWindow({
     () => [thinkingExpansionStore, processDetailsExpansionStore],
     [thinkingExpansionStore, processDetailsExpansionStore],
   );
-
-  // Wrap onAgentEnd to play the completion sound. This is more reliable than
-  // wrapping handleAgentEventRef because useAgentSession overwrites that ref
-  // on every render (it syncs the latest callback), which would blow away an
-  // externally-installed wrapper after the first re-render.
   const playDoneSoundRef = useRef(playDoneSound);
 
   playDoneSoundRef.current = playDoneSound;
@@ -159,9 +157,6 @@ export function useChatWindow({
     restoreReadingPosition,
     expansionStores,
   });
-
-  // Push session stats up to AppShell for the top bar.
-  // Compare scalar fields to avoid loops from new object identity each render.
   const statsKey = sessionStats
     ? [
         sessionStats.sessionId,
@@ -197,8 +192,6 @@ export function useChatWindow({
     },
     [onSessionStatsChange],
   );
-
-  // Push context usage up to AppShell as well.
   const ctxKey = contextUsage ? JSON.stringify(contextUsage) : null;
 
   const contextUsageRef = useRef(contextUsage);
@@ -256,7 +249,6 @@ export function useChatWindow({
 
   const onDrop = useCallback(
     (files: File[]) => {
-      // Attaching while the agent runs is fine — send stays gated separately.
       chatInputRef?.current?.addFiles(files);
     },
     [chatInputRef],
@@ -385,6 +377,7 @@ export function useChatWindow({
 
   const chatInputElement = (
     <ChatInput
+      environmentId={session?.environmentId ?? newSessionEnvironmentId}
       ref={chatInputRef}
       promptHistory={promptHistory}
       onSend={handleSend}
@@ -422,7 +415,7 @@ export function useChatWindow({
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
       onAudioUnlock={unlockAudio}
-      draftKey={session?.id ?? (newSessionCwd ? `new:${newSessionCwd}` : undefined)}
+      draftKey={session?.id ?? (newSessionCwd ? newSessionDraftKey(newSessionCwd, newSessionEnvironmentId) : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
       visible={visible}
       remote={remote}

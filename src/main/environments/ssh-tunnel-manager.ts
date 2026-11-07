@@ -1,14 +1,13 @@
-import { execFile, spawn, type ChildProcess } from "node:child_process";
+import path from "node:path";
+import type { RemoteRuntimeMeta, RemoveOutcome } from "../../contract/environment-commands.ts";
+import { RemotePayloadCatalog } from "./remote-payload.ts";
+import { RemoteProvisioner, type StageReporter } from "./remote-provisioner.ts";
+import { runSsh, sshArguments, sshFailure, runLocalSshTool } from "./ssh-command.ts";
+import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import type { EnvironmentDescriptor, SshEnvironmentTarget } from "../../contract/environment.ts";
 import { fetchUnauthenticatedDescriptor, type RemoteEndpoint } from "./remote-endpoint.ts";
-import {
-  buildRemoteLaunchScript,
-  buildRemoteStopScript,
-  computeSshStateKey,
-  shellQuote,
-  validateSshTarget,
-} from "./ssh-scripts.ts";
+import { buildRemoteLaunchScript, buildRemoteStopScript, computeSshStateKey } from "./ssh-scripts.ts";
 import {
   classifyConnectError,
   EnvironmentConnectionError,
@@ -26,57 +25,11 @@ export interface SshTunnelEntry extends RemoteEndpoint {
   ownership: "managed" | "external";
   process: ChildProcess;
   descriptor: EnvironmentDescriptor;
+  runtime: RemoteRuntimeMeta;
+  nodePath: string;
 }
 
 type CloseMode = "disconnect" | "stop-managed";
-
-function sshArguments(target: SshEnvironmentTarget): string[] {
-  validateSshTarget(target);
-  return [
-    "-T",
-    "-o",
-    "ExitOnForwardFailure=yes",
-    "-o",
-    "ControlMaster=no",
-    "-o",
-    "ControlPath=none",
-    "-o",
-    "ControlPersist=no",
-    "-o",
-    "ServerAliveInterval=15",
-    "-o",
-    "ServerAliveCountMax=3",
-    "-o",
-    "BatchMode=yes",
-    "-o",
-    "ConnectTimeout=15",
-    ...(target.port === undefined ? [] : ["-p", String(target.port)]),
-    ...(target.user === undefined ? [] : ["-l", target.user]),
-    ...(target.hostname === undefined ? [] : ["-o", `HostName=${target.hostname}`]),
-  ];
-}
-
-function executeRemote(target: SshEnvironmentTarget, script: string, signal?: AbortSignal): Promise<string> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      "ssh",
-      [...sshArguments(target), "-n", target.sshAlias, `sh -c ${shellQuote(script)}`],
-      { timeout: 45_000, maxBuffer: 262_144, windowsHide: true, signal },
-      (error, stdout, stderr) => {
-        if (!error) resolve(stdout);
-        else if (error.code === "ENOENT")
-          reject(new EnvironmentConnectionError("blocked", "configuration", "SSH executable is unavailable"));
-        else
-          reject(
-            new Error(
-              stderr.trim().slice(-4096) ||
-                (error.killed && !signal?.aborted ? "Remote SSH command timed out" : "Remote SSH command failed"),
-            ),
-          );
-      },
-    );
-  });
-}
 
 async function reserveLoopbackPort(): Promise<{ port: number; release: () => Promise<void> }> {
   const server = createServer();
@@ -122,10 +75,57 @@ export class SshEnvironmentManager {
   private disposed = false;
   private readonly controller = new AbortController();
 
-  private readonly options: { daemonScriptPath?: string };
+  private readonly options: { payloadDirectory?: string };
+  private provisioner: RemoteProvisioner | null = null;
 
-  constructor(options: { daemonScriptPath?: string } = {}) {
+  constructor(options: { payloadDirectory?: string } = {}) {
     this.options = options;
+  }
+
+  private getProvisioner(): RemoteProvisioner {
+    return (this.provisioner ??= new RemoteProvisioner(
+      new RemotePayloadCatalog(this.options.payloadDirectory ?? path.resolve(process.cwd(), "out/remote-payload")),
+    ));
+  }
+
+  probe(target: SshEnvironmentTarget, signal?: AbortSignal, report?: StageReporter) {
+    return this.getProvisioner().probe(
+      target,
+      AbortSignal.any([this.controller.signal, ...(signal ? [signal] : [])]),
+      report,
+    );
+  }
+
+  async trustHostKey(target: SshEnvironmentTarget, knownHost?: string, knownHostsFile?: string): Promise<void> {
+    const host =
+      knownHost ??
+      (target.port && target.port !== 22
+        ? `[${target.hostname ?? target.sshAlias}]:${target.port}`
+        : (target.hostname ?? target.sshAlias));
+    if (!host || host.startsWith("-") || /[\0\r\n]/u.test(host)) throw new Error("Invalid known host");
+    await runLocalSshTool(
+      "ssh-keygen",
+      ["-R", host, ...(knownHostsFile ? ["-f", knownHostsFile] : [])],
+      this.controller.signal,
+    );
+  }
+
+  async stopRemoteDaemon(target: SshEnvironmentTarget): Promise<RemoveOutcome["remoteDaemon"]> {
+    const key = computeSshStateKey(target);
+    return this.withTargetLock(key, async () => {
+      const existing = this.tunnels.get(key);
+      const probe = existing ? null : await this.probe(target);
+      if (!existing && (!probe?.daemon.running || probe.daemon.ownership !== "managed")) return "not-owned";
+      if (existing?.ownership === "external") return "not-owned";
+      const nodePath = existing?.nodePath ?? probe?.node?.path;
+      if (!nodePath) return "unreachable";
+      const output = await runSsh(
+        target,
+        buildRemoteStopScript({ stateKey: key, remoteStateDir: target.remoteStateDir, nodePath }),
+        { signal: this.controller.signal, timeoutMs: 10000 },
+      );
+      return output.trim() === "stopped" ? "stopped" : "not-owned";
+    });
   }
 
   async withTargetLock<T>(stateKey: string, fn: () => Promise<T>): Promise<T> {
@@ -143,7 +143,11 @@ export class SshEnvironmentManager {
     }
   }
 
-  async ensureTunnel(target: SshEnvironmentTarget, signal?: AbortSignal): Promise<SshTunnelEntry> {
+  async ensureTunnel(
+    target: SshEnvironmentTarget,
+    signal?: AbortSignal,
+    report: StageReporter = () => {},
+  ): Promise<SshTunnelEntry> {
     const key = computeSshStateKey(target);
     const cancellation = AbortSignal.any([this.controller.signal, ...(signal ? [signal] : [])]);
     return this.withTargetLock(key, async () => {
@@ -154,15 +158,28 @@ export class SshEnvironmentManager {
         this.tunnels.delete(key);
         await this.closeTunnelEntry(oldEntry, "disconnect");
       }
-      const output = await executeRemote(
+      const runtime = await this.getProvisioner().prepare(target, cancellation, report);
+      if (runtime.restartDaemon) {
+        const fresh = await this.probe(target, cancellation);
+        if (fresh.daemon.ownership === "managed" && fresh.daemon.activeSessions === 0)
+          await runSsh(
+            target,
+            buildRemoteStopScript({ stateKey: key, remoteStateDir: target.remoteStateDir, nodePath: runtime.nodePath }),
+            { signal: cancellation },
+          );
+        else runtime.updatePending = true;
+      }
+      report("starting-daemon");
+      const output = await runSsh(
         target,
         buildRemoteLaunchScript({
           stateKey: key,
           preferredPort: target.remotePort ?? 3780,
           remoteStateDir: target.remoteStateDir,
-          daemonScriptPath: this.options.daemonScriptPath,
+          daemonScriptPath: runtime.daemonScriptPath,
+          nodePath: runtime.nodePath,
         }),
-        cancellation,
+        { signal: cancellation },
       );
       cancellation.throwIfAborted();
       let launch: { port?: unknown; ownership?: unknown; authToken?: unknown };
@@ -214,7 +231,7 @@ export class SshEnvironmentManager {
         let descriptor: EnvironmentDescriptor | undefined;
         while (!descriptor) {
           if (spawnError || child.exitCode !== null || child.signalCode !== null)
-            throw spawnError ?? new Error(diagnostic.trim() || "SSH forward exited");
+            throw spawnError ?? sshFailure(diagnostic.trim() || "SSH forward exited", target);
           if (!forwardReady) {
             if (cancellation.aborted || Date.now() >= deadline)
               throw new EnvironmentConnectionError("transient", "timeout", "SSH forward setup timed out");
@@ -227,6 +244,7 @@ export class SshEnvironmentManager {
               target.expectedEnvironmentId,
               QUICK_PROBE_TIMEOUT_MS,
               cancellation,
+              launch.authToken,
             );
           } catch (error) {
             if (cancellation.aborted || classifyConnectError(error).kind === "blocked" || Date.now() >= deadline)
@@ -244,6 +262,15 @@ export class SshEnvironmentManager {
           ownership: launch.ownership,
           process: child,
           descriptor,
+          nodePath: runtime.nodePath,
+          runtime: {
+            nodeVersion: descriptor.runtime?.nodeVersion ?? runtime.probe.node!.version,
+            payloadVersion:
+              descriptor.runtime?.payloadVersion ?? runtime.probe.daemon.payloadVersion ?? runtime.payloadVersion,
+            startedAt: descriptor.runtime?.startedAt ?? Date.now(),
+            ownership: launch.ownership,
+            updatePending: runtime.updatePending,
+          },
           httpBaseUrl,
           wsUrl: `ws://127.0.0.1:${reservation.port}/rpc`,
           authToken: launch.authToken,
@@ -258,10 +285,11 @@ export class SshEnvironmentManager {
   }
 
   async closeTunnel(target: SshEnvironmentTarget, mode: CloseMode = "disconnect"): Promise<void> {
+    if (mode === "stop-managed") await this.stopRemoteDaemon(target);
     const key = computeSshStateKey(target);
     await this.withTargetLock(key, async () => {
       const entry = this.tunnels.get(key);
-      if (entry) await this.closeTunnelEntry(entry, mode);
+      if (entry) await this.closeTunnelEntry(entry, "disconnect");
     });
   }
 
@@ -270,7 +298,14 @@ export class SshEnvironmentManager {
     if (ownsRemote) this.tunnels.delete(entry.key);
     await terminateForward(entry.process);
     if (ownsRemote && entry.ownership === "managed" && mode === "stop-managed") {
-      await executeRemote(entry.target, buildRemoteStopScript({ stateKey: entry.key }));
+      await runSsh(
+        entry.target,
+        buildRemoteStopScript({
+          stateKey: entry.key,
+          remoteStateDir: entry.target.remoteStateDir,
+          nodePath: entry.nodePath,
+        }),
+      );
     }
   }
 

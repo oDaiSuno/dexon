@@ -10,7 +10,9 @@ import {
 } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
-import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { useActiveEnvironment, useEnvironments } from "@/lib/environment-registry";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { useSendGate } from "@/lib/space-attribution";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { ComposerView } from "./chat-input/composer-view";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
@@ -28,12 +30,17 @@ import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableH
 export type { ChatInputHandle } from "./chat-input/types";
 export type { ChatInputProps as Props } from "./chat-input/types";
 
+function submissionRejected(result: unknown): boolean {
+  return Boolean(result && typeof result === "object" && "ok" in result && result.ok === false);
+}
+
 function supportsReasoning(levels?: string[]): boolean {
   return levels?.some((level) => level !== "off") ?? false;
 }
 
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
   {
+    environmentId: providedEnvironmentId,
     onSend,
     onAbort,
     onSteer,
@@ -81,7 +88,11 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 ) {
   const isMobile = useIsMobile(visible);
   const { t } = useI18n();
-  const affordances = useActiveEnvironmentAffordances();
+  const activeEnvironment = useActiveEnvironment();
+  const environments = useEnvironments();
+  const environmentId = providedEnvironmentId ?? activeEnvironment.id;
+  const affordances = environmentAffordances(environments.find((view) => view.id === environmentId));
+  const sendGate = useSendGate();
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRootRef = useRef<HTMLDivElement>(null);
@@ -97,6 +108,8 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const skills = useComposerSkills({ skillCatalog, visible, editableRef });
   const { closePlusMenu, closeTransientMenus } = skills;
   const attachments = useComposerAttachments({
+    environmentId,
+    draftKey,
     value: draft.shown,
     visible,
     cwd,
@@ -116,6 +129,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   const handleSend = useCallback(async () => {
     if (!visible || isStreaming) return;
+    if (!sendGate.allowed) return;
     const ticket = draft.submit();
     if (!ticket) return;
     onAudioUnlock?.();
@@ -129,39 +143,40 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
         }
       }
       const settled = await Promise.resolve(onSend(ticket.message));
-      if (settled && typeof settled === "object" && "ok" in settled && settled.ok === false) {
+      if (submissionRejected(settled)) {
         draft.restoreFailed(ticket, "send", null);
       }
     } catch (error) {
       draft.restoreFailed(ticket, "send", typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""));
     }
-  }, [attachments.attachmentTokens.length, draft, isStreaming, onAudioUnlock, onBuiltinCommand, onSend, t, visible]);
+  }, [
+    attachments.attachmentTokens.length,
+    draft,
+    isStreaming,
+    onAudioUnlock,
+    onBuiltinCommand,
+    onSend,
+    sendGate.allowed,
+    t,
+    visible,
+  ]);
 
-  const sendQueued = useCallback(
-    async (mode: "steer" | "followup") => {
-      if (!visible) return;
-      const ticket = draft.submit();
-      if (!ticket) return;
-      const message = ticket.message;
-      onAudioUnlock?.();
-      const behavior = mode === "steer" ? "steer" : "followUp";
-      try {
-        if (message.startsWith("/") && onPromptWithStreamingBehavior) {
-          await Promise.resolve(onPromptWithStreamingBehavior(message, behavior));
-          return;
-        }
-        if (mode === "steer" && onSteer) await Promise.resolve(onSteer(message));
-        else if (mode === "followup" && onFollowUp) await Promise.resolve(onFollowUp(message));
-      } catch (error) {
-        draft.restoreFailed(
-          ticket,
-          "queue",
-          typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""),
-        );
-      }
-    },
-    [draft, visible, onAudioUnlock, onFollowUp, onPromptWithStreamingBehavior, onSteer, t],
-  );
+  const sendQueued = useCallback(async () => {
+    if (!visible || !sendGate.allowed || !onFollowUp) return;
+    const ticket = draft.submit();
+    if (!ticket) return;
+    const message = ticket.message;
+    onAudioUnlock?.();
+    try {
+      const settled =
+        message.startsWith("/") && onPromptWithStreamingBehavior
+          ? await onPromptWithStreamingBehavior(message, "followUp")
+          : await onFollowUp(message);
+      if (submissionRejected(settled)) draft.restoreFailed(ticket, "queue", null);
+    } catch (error) {
+      draft.restoreFailed(ticket, "queue", typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""));
+    }
+  }, [draft, visible, onAudioUnlock, onFollowUp, onPromptWithStreamingBehavior, sendGate.allowed, t]);
 
   const suggestions = useComposerSuggestions({
     skillCatalog,
@@ -206,7 +221,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     editableRef,
     onEnter: () => {
       if (isStreaming) {
-        if (onFollowUp) void sendQueued("followup");
+        if (onFollowUp) void sendQueued();
       } else {
         void handleSend();
       }
@@ -348,6 +363,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   return (
     <ComposerView
+      sendGate={sendGate}
       rootRef={inputRootRef}
       visible={visible}
       isMobile={isMobile}
@@ -361,7 +377,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       processFiles={attachments.processFiles}
       onSend={() => void handleSend()}
       onAbort={handleAbort}
-      onQueue={() => void sendQueued("followup")}
+      onQueue={() => void sendQueued()}
       onChange={handleComposerChange}
       onKeyDown={keys.onKeyDown}
       onPaste={attachments.handlePaste}

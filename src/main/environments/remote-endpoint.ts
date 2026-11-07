@@ -1,3 +1,4 @@
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   DEXON_ENVIRONMENT_PROTOCOL_VERSION,
   PRIMARY_ENVIRONMENT_ID,
@@ -69,12 +70,15 @@ export async function fetchUnauthenticatedDescriptor(
   expectedEnvironmentId?: string,
   timeoutMs = REMOTE_PROBE_TIMEOUT_MS,
   signal?: AbortSignal,
+  proofToken?: string,
 ): Promise<EnvironmentDescriptor> {
   const url = new URL("/.well-known/dexon/environment", httpBaseUrl);
   if (url.username || url.password || !["http:", "https:"].includes(url.protocol)) {
     throw new EnvironmentConnectionError("blocked", "configuration", "Invalid descriptor URL");
   }
+  const nonce = proofToken ? randomBytes(16).toString("hex") : null;
   const requestOptions = {
+    ...(nonce ? { headers: { "x-dexon-nonce": nonce } } : {}),
     cache: "no-store" as const,
     redirect: "error" as const,
     credentials: "omit" as const,
@@ -89,6 +93,18 @@ export async function fetchUnauthenticatedDescriptor(
       response.status === 401 ? "authentication" : response.status === 403 ? "permission" : "endpoint-unavailable",
       `Environment descriptor request failed (${response.status})`,
     );
+  }
+  if (nonce && proofToken) {
+    const proof = response.headers.get("x-dexon-proof") ?? "";
+    const expected = createHmac("sha256", proofToken).update(nonce).digest("hex");
+    if (!/^[a-f0-9]{64}$/u.test(proof) || !timingSafeEqual(Buffer.from(proof, "hex"), Buffer.from(expected, "hex"))) {
+      await response.body?.cancel();
+      throw new EnvironmentConnectionError(
+        "blocked",
+        "authentication",
+        "Remote environment did not prove possession of the bound token",
+      );
+    }
   }
   const reader = response.body?.getReader();
   if (!reader) throw new EnvironmentConnectionError("blocked", "configuration", "Missing environment descriptor");
@@ -127,9 +143,25 @@ export async function fetchUnauthenticatedDescriptor(
       "blocked",
       "identity-mismatch",
       "Remote environment identity does not match the bound environment",
+      {
+        reason: "identity-mismatch",
+        detail: "Remote environment identity does not match the bound environment",
+        expectedEnvironmentId,
+        actualEnvironmentId: descriptor.environmentId,
+        mismatchLayer: "dexon-environment-id",
+      },
     );
   }
   if (descriptor.protocolVersion !== DEXON_ENVIRONMENT_PROTOCOL_VERSION) {
+    if (
+      typeof descriptor.protocolVersion === "number" &&
+      descriptor.protocolVersion < DEXON_ENVIRONMENT_PROTOCOL_VERSION
+    )
+      throw new EnvironmentConnectionError("blocked", "outdated-daemon", "Remote daemon requires an update", {
+        reason: "outdated-daemon",
+        detail: "Remote daemon requires an update",
+        remoteProtocolVersion: descriptor.protocolVersion,
+      });
     throw new EnvironmentConnectionError("blocked", "unsupported-protocol", "Unsupported environment protocol version");
   }
   if (
@@ -147,6 +179,16 @@ export async function fetchUnauthenticatedDescriptor(
   ) {
     throw new EnvironmentConnectionError("blocked", "configuration", "Invalid environment descriptor shape");
   }
+  if (
+    descriptor.runtime &&
+    (typeof descriptor.runtime.nodeVersion !== "string" ||
+      !descriptor.runtime.nodeVersion ||
+      typeof descriptor.runtime.payloadVersion !== "string" ||
+      !descriptor.runtime.payloadVersion ||
+      !Number.isFinite(descriptor.runtime.startedAt) ||
+      descriptor.runtime.startedAt <= 0)
+  )
+    throw new EnvironmentConnectionError("blocked", "configuration", "Invalid remote runtime descriptor");
   return descriptor;
 }
 

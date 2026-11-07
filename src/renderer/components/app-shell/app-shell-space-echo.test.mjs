@@ -99,7 +99,13 @@ test("a deep link resolving with startup restore keeps the requested session and
   await settle();
   assert.match(view.container.textContent, /Deep-linked fixture conversation/);
   assert.equal(dom.window.location.search, "?session=sB");
-  assert.deepEqual(writes.at(-1), { lastSpaceCwd: "/B" });
+  assert.deepEqual(
+    writes.findLast((patch) => "lastSpaceCwd" in patch),
+    { lastSpaceCwd: "/B" },
+  );
+  const savedSpaces = writes.findLast((patch) => patch.projectSpaces)?.projectSpaces;
+  assert.equal(savedSpaces.lastFocusedSpace.environmentId, "primary");
+  assert.equal(savedSpaces.lastFocusedSpace.path, "/B");
   const remembered = writes.slice();
   await settle();
   assert.deepEqual(writes, remembered, "settled UI does not keep rewriting the remembered space");

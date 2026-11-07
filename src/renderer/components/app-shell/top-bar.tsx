@@ -4,6 +4,8 @@ import { formatTokenCount } from "../chat-input/SessionControls";
 import { PathChevron, ProjectGlyph, SessionBreadcrumb, SessionTitle } from "./session-breadcrumb";
 import { UsageCard } from "./session-info-popover";
 import { formatUsageCost, formatUsagePercent } from "./usage-format";
+import { ServerGlyph, TopBarServerStatus } from "./top-bar-server-status";
+import { useSpaceAttribution } from "@/lib/space-attribution";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SessionCopyFeedback, SessionCopyField, ContextUsageState, UsageCompaction } from "./use-session-info";
@@ -269,6 +271,7 @@ export function TopBar({
   showChat: boolean;
 }) {
   const { language, t } = useI18n();
+  const attribution = useSpaceAttribution();
   const usageRef = useRef<HTMLDivElement | null>(null);
   const capsuleRef = useRef<HTMLButtonElement | null>(null);
   const restoreFocusRef = useRef(false);
@@ -342,8 +345,8 @@ export function TopBar({
         flexShrink: 0,
         gap: 10,
         height: 56,
-        padding: "0 16px 0 24px",
-        borderBottom: "1px solid var(--fx-line-subtle)",
+        padding: "0 18px 0 20px",
+        borderBottom: "1px solid var(--fx-line-default)",
         background: "var(--fx-surface-main)",
         position: "relative",
         zIndex: 2,
@@ -355,7 +358,7 @@ export function TopBar({
         <>
           {projectName && !isMobile && (
             <>
-              <ProjectGlyph />
+              {attribution.kind === "remote" ? <ServerGlyph /> : <ProjectGlyph />}
               <span
                 className="type-body-large"
                 style={{
@@ -369,9 +372,11 @@ export function TopBar({
               >
                 {projectName}
               </span>
+              <TopBarServerStatus />
               <PathChevron />
             </>
           )}
+          {(!projectName || isMobile) && <TopBarServerStatus />}
           {selectedSession ? (
             <SessionBreadcrumb session={selectedSession} compact={isMobile} />
           ) : (

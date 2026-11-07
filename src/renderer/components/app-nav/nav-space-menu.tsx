@@ -1,6 +1,7 @@
 import { useEffect, type CSSProperties, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
+import type { ProjectSpaceRow } from "./project-space-rows";
 import { ProjectMenuContent } from "./project-menu";
 import { useAnchoredPopover } from "./use-anchored-popover";
 
@@ -21,6 +22,11 @@ const TRIGGER_STYLE: CSSProperties = {
 };
 
 export interface NavProjectMenuProps {
+  project?: ProjectSpaceRow;
+  onNewSession?: () => void;
+  onCopyPath?: () => void;
+  onOpenServerSettings?: () => void;
+  onReveal?: () => void;
   spaceName: string;
   projectPath: string;
   revealed?: boolean;
@@ -34,6 +40,11 @@ export interface NavProjectMenuProps {
 }
 
 export function NavSpaceMenu({
+  project,
+  onNewSession,
+  onCopyPath,
+  onOpenServerSettings,
+  onReveal,
   spaceName,
   projectPath,
   revealed = true,
@@ -46,7 +57,8 @@ export function NavSpaceMenu({
   onClose,
 }: NavProjectMenuProps) {
   const { t } = useI18n();
-  const popover = useAnchoredPopover(MENU_WIDTH);
+  const width = project && project.environmentId !== "primary" ? 236 : MENU_WIDTH;
+  const popover = useAnchoredPopover(width);
   const { open, popoverRef: menuRef } = popover;
 
   useEffect(() => {
@@ -114,13 +126,13 @@ export function NavSpaceMenu({
             role="menu"
             aria-label={spaceName}
             tabIndex={-1}
-            className="composer-pop-in"
+            className="app-nav composer-pop-in"
             onKeyDown={onMenuKeyDown}
             style={{
               position: "fixed",
               display: "flex",
               flexDirection: "column",
-              width: MENU_WIDTH,
+              width,
               padding: 4,
               zIndex: 1000,
               background: "var(--fx-surface-raised)",
@@ -131,6 +143,11 @@ export function NavSpaceMenu({
             }}
           >
             <ProjectMenuContent
+              project={project}
+              onNewSession={() => popover.choose(() => onNewSession?.())}
+              onCopyPath={() => popover.choose(() => onCopyPath?.())}
+              onOpenServerSettings={() => popover.choose(() => onOpenServerSettings?.())}
+              onReveal={() => popover.choose(() => onReveal?.())}
               missing={missing}
               canMoveUp={canMoveUp}
               canMoveDown={canMoveDown}

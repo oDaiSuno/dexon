@@ -1,3 +1,6 @@
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import { getSessionEnvironmentId } from "@/lib/environment-registry";
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownBody, type InlineChips } from "../MarkdownBody";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
@@ -19,6 +22,7 @@ function imageSourceOf(block: ImageContent): string {
 }
 
 export function UserMessageBubble({
+  environmentId: requestedEnvironmentId,
   message,
   sessionId,
   cwd,
@@ -29,6 +33,7 @@ export function UserMessageBubble({
   leadingSkillName,
   imageBlocks,
 }: {
+  environmentId?: EnvironmentId;
   message: UserMessage;
   sessionId?: string | null;
   cwd?: string;
@@ -39,6 +44,9 @@ export function UserMessageBubble({
   leadingSkillName: string | null;
   imageBlocks: ImageContent[];
 }) {
+  const environmentId = useFileEnvironment(
+    requestedEnvironmentId ?? (sessionId ? getSessionEnvironmentId(sessionId) : undefined),
+  );
   const tokenImagePaths = useMemo(
     () =>
       findAttachmentTokens(prose)
@@ -48,19 +56,19 @@ export function UserMessageBubble({
   );
   const [tokenPreviews, setTokenPreviews] = useState<Map<string, string | null>>(new Map());
   const imageTokenPreviews = tokenImagePaths
-    .map((path) => ({ path, url: tokenPreviews.get(path) }))
+    .map((path) => ({ path, url: tokenPreviews.get(qualifyProjectKey(environmentId, path)) }))
     .filter((entry): entry is { path: string; url: string } => typeof entry.url === "string" && entry.url.length > 0);
 
   useEffect(() => {
     if (tokenImagePaths.length === 0) return;
     let cancelled = false;
     tokenImagePaths.forEach((path) => {
-      if (tokenPreviews.has(path)) return;
-      void loadAttachmentPreview(path, sessionId ?? undefined).then((url) => {
+      if (tokenPreviews.has(qualifyProjectKey(environmentId, path))) return;
+      void loadAttachmentPreview(path, sessionId ?? undefined, environmentId).then((url) => {
         if (cancelled) return;
         setTokenPreviews((prev) => {
           const next = new Map(prev);
-          next.set(path, url);
+          next.set(qualifyProjectKey(environmentId, path), url);
           return next;
         });
       });
@@ -68,15 +76,22 @@ export function UserMessageBubble({
     return () => {
       cancelled = true;
     };
-  }, [sessionId, tokenImagePaths, tokenPreviews]);
+  }, [environmentId, sessionId, tokenImagePaths, tokenPreviews]);
 
   const inlineChips = useMemo<InlineChips>(
     () => ({
       leadingSkill: leadingSkillName,
-      attachment: ({ path }) => <AttachmentChip path={path} cwd={cwd} previewUrl={tokenPreviews.get(path) ?? null} />,
+      attachment: ({ path }) => (
+        <AttachmentChip
+          environmentId={environmentId}
+          path={path}
+          cwd={cwd}
+          previewUrl={tokenPreviews.get(qualifyProjectKey(environmentId, path)) ?? null}
+        />
+      ),
       skill: (name) => <SkillChip name={name} />,
     }),
-    [cwd, leadingSkillName, tokenPreviews],
+    [environmentId, cwd, leadingSkillName, tokenPreviews],
   );
 
   return (
@@ -137,7 +152,14 @@ export function UserMessageBubble({
         )}
         {(prose.trim() || leadingSkillName) && (
           <LongPromptFold>
-            <MarkdownBody className="markdown-user-message" cwd={cwd} onOpenFile={onOpenFile} inlineChips={inlineChips}>
+            <MarkdownBody
+              environmentId={environmentId}
+              sourceSessionId={sessionId}
+              className="markdown-user-message"
+              cwd={cwd}
+              onOpenFile={onOpenFile}
+              inlineChips={inlineChips}
+            >
               {prose}
             </MarkdownBody>
           </LongPromptFold>

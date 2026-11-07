@@ -79,11 +79,6 @@ export function extractServerHandlers(name, source) {
   return handlers;
 }
 
-/**
- * Collect server.handle registrations across every source module. Duplicate
- * method names are preserved in the result so exactCoverageFailures still
- * reports cross-module double registrations as errors.
- */
 export function extractServerHandlersFromSources(sources) {
   return sources.flatMap((source) => extractServerHandlers(source.name, source.source));
 }
@@ -312,8 +307,7 @@ export function loadContractSources(root) {
     .map((file) => ({ name: file, source: read(file) }));
   return {
     api: read("src/contract/api.ts"),
-    // Handler registration may live in any agent-host module (handlers.ts is
-    // just the composition root), so scan the same glob used for streams.
+
     handlers: streamSources,
     streamSources,
     desktop: read("src/contract/desktop.ts"),
@@ -328,6 +322,11 @@ export function loadContractSources(root) {
 function run() {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   try {
+    const required = /range:\s*"([^"]+)"/u.exec(
+      fs.readFileSync(path.join(root, "src/contract/environment-status.ts"), "utf8"),
+    )?.[1];
+    const engine = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).engines.node;
+    if (required !== engine) throw new Error("Desktop and remote Node requirements must agree");
     const counts = assertContractCoverage(loadContractSources(root));
     console.log(
       `Contract coverage OK: ${counts.apiMethods} Api handlers, ${counts.streamTopics} Streams topics, ${counts.bridgeMethods} PiBridge methods, ${counts.browserBridgeMethods} Browser bridge methods, and ${counts.browserHostMethods} Browser Host methods`,

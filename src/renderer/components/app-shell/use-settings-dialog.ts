@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { SettingsTab } from "../SettingsConfig";
+import { subscribeSettingsRequest } from "@/lib/settings-request";
 
 export function useSettingsDialog() {
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -16,6 +17,8 @@ export function useSettingsDialog() {
     setSettingsOpen(false);
     setSettingsInitialTab("general");
   }, []);
+
+  useEffect(() => subscribeSettingsRequest(openSettings), [openSettings]);
 
   useEffect(() => {
     const offSettings = window.piBridge?.onMenu?.("settings", () => openSettings("general"));

@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { getParentFilePath } from "@/lib/file-paths";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { MarkdownBody } from "../MarkdownBody";
@@ -15,6 +16,7 @@ function sourceLanguage(language: string, filePath: string): string {
 }
 
 export interface TextFileContentProps {
+  environmentId: EnvironmentId;
   filePath: string;
   cwd?: string;
   sourceSessionId?: string | null;
@@ -30,6 +32,7 @@ export interface TextFileContentProps {
 }
 
 export function TextFileContent({
+  environmentId,
   filePath,
   cwd,
   sourceSessionId,
@@ -57,10 +60,16 @@ export function TextFileContent({
           summary={diffSummary}
         />
       ) : isHtml && previewMode ? (
-        <HtmlPreview content={data.content} filePath={filePath} sourceSessionId={sourceSessionId} />
+        <HtmlPreview
+          environmentId={environmentId}
+          content={data.content}
+          filePath={filePath}
+          sourceSessionId={sourceSessionId}
+        />
       ) : isMarkdown && previewMode ? (
         <div className="file-markdown-preview type-body-relaxed">
           <MarkdownBody
+            environmentId={environmentId}
             className="markdown-file-preview"
             cwd={cwd}
             imageBasePath={getParentFilePath(filePath)}

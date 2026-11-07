@@ -1,5 +1,6 @@
 import { readPromptIntent, titleSourceOf } from "@shared/prompt-intent";
-import { call } from "./api-client";
+import { call, getEnvironmentApiClient } from "./api-client";
+import type { EnvironmentId } from "@contract/environment";
 import { trackSessionNaming } from "./session-naming-store";
 
 export const AUTO_TITLE_STORAGE_KEY = "dexon:autoSessionTitle";
@@ -19,7 +20,6 @@ function readEnabled(): boolean {
   }
 }
 
-/** Whether the "Auto-title new sessions" setting is enabled (default: on). */
 export function isAutoSessionTitleEnabled(): boolean {
   return readEnabled();
 }
@@ -29,9 +29,7 @@ export function setAutoSessionTitleEnabled(enabled: boolean): void {
   try {
     if (enabled) window.localStorage.removeItem(AUTO_TITLE_STORAGE_KEY);
     else window.localStorage.setItem(AUTO_TITLE_STORAGE_KEY, "off");
-  } catch {
-    /* localStorage unavailable — keep the default behavior */
-  }
+  } catch {}
 }
 
 export function getSessionNamingModel(): SessionNamingModel | null {
@@ -72,12 +70,14 @@ export function shouldAutoTitleMessage(message: string): boolean {
 export interface AutoSessionTitleOptions {
   sessionId: string;
   prompt: string;
+  environmentId?: EnvironmentId;
 }
 
 export async function requestAutoSessionTitle(options: AutoSessionTitleOptions): Promise<string | null> {
   try {
     const namingModel = getSessionNamingModel();
-    const result = await call("agent.generateTitle", {
+    const send = options.environmentId ? getEnvironmentApiClient(options.environmentId).call : call;
+    const result = await send("agent.generateTitle", {
       sessionId: options.sessionId,
       trigger: "first-prompt",
       prompt: options.prompt,

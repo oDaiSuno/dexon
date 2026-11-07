@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import { useI18n } from "@/i18n";
 import { ArrowUpIcon, StopIcon } from "./icons";
+import type { SendGate } from "@/lib/space-attribution";
 
 function squareBase(): CSSProperties {
   return {
@@ -19,27 +20,32 @@ function squareBase(): CSSProperties {
   };
 }
 
-/** 32×32 tactile send square. Inverse-ink filled when armed, quiet gray
- *  when the draft is empty. */
-export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => void }) {
+export function SendSquare({ armed, onSend, gate }: { armed: boolean; onSend: () => void; gate?: SendGate | null }) {
   const { t } = useI18n();
+  const blocked = gate ? !gate.allowed : false;
+  const disabled = !armed || blocked;
+  const label = blocked && gate ? gate.label : t("send", "Send");
+  const hint = blocked && gate ? gate.hint : undefined;
+
   return (
     <button
       type="button"
-      aria-label={t("send", "Send")}
-      disabled={!armed}
+      aria-label={label}
+      title={hint}
+      disabled={disabled}
       onClick={onSend}
       style={{
         ...squareBase(),
-        background: armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)",
-        color: armed ? "var(--fx-text-inverse)" : "var(--fx-text-tertiary)",
-        cursor: armed ? "pointer" : "not-allowed",
+        background: armed && !blocked ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)",
+        color: armed && !blocked ? "var(--fx-text-inverse)" : "var(--fx-text-tertiary)",
+        cursor: armed && !blocked ? "pointer" : "not-allowed",
       }}
       onMouseEnter={(e) => {
-        if (armed) e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
+        if (armed && !blocked) e.currentTarget.style.background = "var(--fx-surface-inverse-hover)";
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = armed ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)";
+        e.currentTarget.style.background =
+          armed && !blocked ? "var(--fx-surface-inverse)" : "var(--fx-surface-selected)";
       }}
       className="tap-scale"
     >
@@ -48,9 +54,6 @@ export function SendSquare({ armed, onSend }: { armed: boolean; onSend: () => vo
   );
 }
 
-/** While streaming with an empty draft, the send slot becomes a stop
- *  button — same 32×32 square, radius, and inverse ink as the send
- *  square; only the glyph changes (white stop mark). */
 export function StopSquare({ onAbort }: { onAbort: () => void }) {
   const { t } = useI18n();
   return (

@@ -1,37 +1,29 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { SessionInfo } from "@/lib/types";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { PRIMARY_ENVIRONMENT_ID, qualifySessionKey } from "@contract/environment";
 import { useI18n } from "@/i18n";
-import { filterSessionsForQuery, projectSessionGroups, sessionProjectKey, type ProjectKey } from "@/lib/session-list";
+import { filterSessionsForQuery } from "@/lib/session-list";
 import { ProjectSessionList, SessionListStatus, type SessionListHandlers } from "../session-sidebar/session-groups";
-import { IDLE_PROJECT_ACTIVITY, type ProjectActivity } from "@/lib/sidebar-activity";
 import { projectRowFace } from "./project-row-status";
 import { ProjectRow } from "./project-row";
 import { useProjectDrag } from "./use-project-drag";
 import { ChevronsGlyph, HeaderButton } from "./section-header-buttons";
 import type { SwitcherProject } from "./project-switcher-card";
-import { EnvironmentSectionList, type RemoteEnvironmentGroup } from "./environment-section-list";
+import type { ProjectSpaceRow } from "./project-space-rows";
 
 export interface RevealRequest {
   readonly seq: number;
   readonly sessionId: string;
-}
-
-export interface ListedProject {
-  root: string;
-  missing: boolean;
+  readonly environmentId?: string;
 }
 
 export interface ProjectTreeOptions {
-  currentProject: string;
-  projectActivity?: (key: ProjectKey) => ProjectActivity;
-  projectName: (root: string) => string;
-  isPinnedProject?: (root: string) => boolean;
-  listedProjects?: readonly ListedProject[];
   expandedProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
   renderSwitcher?: (switchTargets: readonly SwitcherProject[]) => ReactNode;
   onReorderProjects?: (from: number, to: number) => void;
-  renderProjectActions?: (name: string, revealed: boolean, project: ListedProject) => ReactNode;
+  renderProjectActions?: (name: string, revealed: boolean, project: ProjectSpaceRow) => ReactNode;
+  onEnvironmentRefresh?: (environmentId: string) => void;
+  onEnvironmentSessionDeleted?: (environmentId: string, sessionId: string) => void;
 }
 
 function SectionHeader({ actions }: { actions: ReactNode }) {
@@ -56,22 +48,22 @@ function SectionHeader({ actions }: { actions: ReactNode }) {
 }
 
 export function NavHistory({
-  sessions,
+  rows,
   query,
   loading,
   error,
   tree,
   revealRequest,
-  remoteGroups = [],
+  selectedEnvironmentId = PRIMARY_ENVIRONMENT_ID,
   ...handlers
 }: {
-  sessions: SessionInfo[];
+  rows: readonly ProjectSpaceRow[];
   query: string;
   loading: boolean;
   error: string | null;
   tree: ProjectTreeOptions;
   revealRequest?: RevealRequest | null;
-  remoteGroups?: readonly RemoteEnvironmentGroup[];
+  selectedEnvironmentId?: string;
 } & SessionListHandlers) {
   const { t } = useI18n();
   const [localOpen, setLocalOpen] = useState<ReadonlyMap<string, boolean>>(() => new Map());
@@ -83,55 +75,39 @@ export function NavHistory({
   useEffect(() => {
     if (!revealRequest || revealRequest.sessionId !== handlers.selectedSessionId) return;
     const row = [...(listRef.current?.querySelectorAll<HTMLElement>("[data-session-id]") ?? [])].find(
-      (element) => element.dataset.sessionId === revealRequest.sessionId,
+      (element) =>
+        element.dataset.sessionId === revealRequest.sessionId &&
+        element.closest<HTMLElement>("[data-environment-id]")?.dataset.environmentId ===
+          (revealRequest.environmentId ?? selectedEnvironmentId),
     );
     row?.scrollIntoView({ block: "nearest" });
-  }, [revealRequest, handlers.selectedSessionId]);
-  const drag = useProjectDrag({
-    listRef,
-    onReorder: (from, to) => tree.onReorderProjects?.(from, to),
-  });
-
+  }, [revealRequest, handlers.selectedSessionId, selectedEnvironmentId]);
+  const drag = useProjectDrag({ listRef, onReorder: (from, to) => tree.onReorderProjects?.(from, to) });
   const searching = query.trim().length > 0;
-  const currentKey = tree.currentProject ? sessionProjectKey(tree.currentProject) : "";
-  const base = useMemo(
-    () =>
-      projectSessionGroups(sessions, {
-        listedProjects: tree.listedProjects,
-        currentProject: tree.currentProject,
-        isPinnedProject: tree.isPinnedProject,
-      }),
-    [sessions, tree.listedProjects, tree.currentProject, tree.isPinnedProject],
-  );
-
-  const projects = base
-    .map((project) => ({ ...project, visible: filterSessionsForQuery([...project.sessions], query) }))
-    .filter((project) => !searching || project.visible.length > 0);
-  const switchTargets = base
-    .filter((project) => project.key !== currentKey)
-    .map((project) => ({ root: project.root, name: tree.projectName(project.root) }));
-  const isOpen = (key: string) => expandedProjects.get(key) ?? key === currentKey;
-  const anyOpen = base.some((project) => isOpen(project.key));
+  const projects = rows
+    .map((row, index) => ({ ...row, index, visible: filterSessionsForQuery([...row.sessions], query) }))
+    .filter((row) => !searching || row.visible.length > 0);
+  const switchTargets = rows
+    .filter((row) => !row.current)
+    .map((row) => ({
+      root: row.path,
+      name: row.name,
+      environmentId: row.environmentId,
+      key: row.key,
+      host: row.environmentId === PRIMARY_ENVIRONMENT_ID ? undefined : row.environment.label,
+    }));
+  const isOpen = (row: ProjectSpaceRow) => expandedProjects.get(row.key) ?? row.current;
+  const anyOpen = rows.some(isOpen);
   const foldAll = () => {
-    for (const project of base) if (isOpen(project.key)) toggleProject(project.key, false);
+    for (const row of rows) if (isOpen(row)) toggleProject(row.key, false);
   };
   const openCurrent = () => {
-    if (currentKey) toggleProject(currentKey, true);
+    for (const row of rows) if (row.current) toggleProject(row.key, true);
   };
-  const nothingMatches = searching && projects.length === 0;
-  const missingLabel = t("missingFolder", "Folder not found");
-
   return (
     <nav
       aria-label={t("navHistory", "Project spaces")}
-      style={{
-        flex: "1 1 auto",
-        overflowY: "auto",
-        minHeight: 80,
-        display: "flex",
-        flexDirection: "column",
-        gap: 4,
-      }}
+      style={{ flex: "1 1 auto", overflowY: "auto", minHeight: 80, display: "flex", flexDirection: "column", gap: 4 }}
     >
       <SectionHeader
         actions={
@@ -151,74 +127,111 @@ export function NavHistory({
           </>
         }
       />
-      <SessionListStatus loading={loading} error={error} empty={nothingMatches} hasActiveFilter={searching} />
+      <SessionListStatus
+        loading={loading}
+        error={error}
+        empty={searching && projects.length === 0}
+        hasActiveFilter={searching}
+      />
       <div
         ref={listRef}
         role="list"
         aria-label={t("navHistory", "Project spaces")}
         style={{ display: "flex", flexDirection: "column", gap: 2 }}
       >
-        {projects.map((project, index) => {
-          const current = project.key === currentKey;
-          const open = searching || isOpen(project.key);
-          const name = tree.projectName(project.root);
-          const count = project.visible.length;
-          const row = (
-            <ProjectRow
-              name={name}
-              path={project.root}
-              count={count}
-              countLabel={t("sessionCount", "{count} sessions").replace("{count}", String(count))}
-              open={open}
-              current={current}
-              missing={project.missing}
-              missingLabel={missingLabel}
-              face={projectRowFace({
-                open,
-                missing: project.missing,
-                totalSessions: count,
-                activity: tree.projectActivity?.(project.key) ?? IDLE_PROJECT_ACTIVITY,
-              })}
-              dragging={drag.draggingIndex === index}
-              onDragStart={
-                tree.onReorderProjects && !searching && index > 0 ? (event) => drag.start(index, event) : undefined
-              }
-              consumeDragClick={drag.consumeClick}
-              onToggle={() => {
-                if (!searching) toggleProject(project.key, !isOpen(project.key));
-              }}
-              actions={
-                tree.renderProjectActions
-                  ? (revealed) => tree.renderProjectActions?.(name, revealed, project)
-                  : undefined
-              }
-            >
-              {open &&
-                (project.visible.length > 0 ? (
-                  <ProjectSessionList sessions={project.visible} {...handlers} />
-                ) : (
-                  !loading &&
-                  !error && (
-                    <div style={{ paddingLeft: "var(--space-4)" }}>
-                      <SessionListStatus loading={false} error={null} empty hasActiveFilter={false} />
-                    </div>
-                  )
-                ))}
-            </ProjectRow>
-          );
+        {projects.map((project) => {
+          const open = searching || isOpen(project);
+          const remote = project.environmentId !== PRIMARY_ENVIRONMENT_ID;
           return (
             <div
               key={project.key}
-              role={current ? "group" : undefined}
-              aria-label={current ? t("workspaceControls", "Workspace controls") : undefined}
+              data-environment-id={project.environmentId}
+              role={project.current ? "group" : undefined}
+              aria-label={project.current ? t("workspaceControls", "Workspace controls") : undefined}
               style={{ display: "flex", flexDirection: "column" }}
             >
-              {row}
+              <ProjectRow
+                name={project.name}
+                path={project.path}
+                spaceKey={project.key}
+                count={project.visible.length}
+                countLabel={t("sessionCount", "{count} sessions").replace("{count}", String(project.visible.length))}
+                open={open}
+                current={project.current}
+                missing={project.missing}
+                missingLabel={t("missingFolder", "Folder not found")}
+                remote={remote ? { label: project.environment.label, connection: project.connection } : undefined}
+                face={projectRowFace({
+                  open,
+                  missing: project.missing,
+                  totalSessions: project.visible.length,
+                  activity: project.activity,
+                })}
+                dragging={drag.draggingIndex === project.index}
+                onDragStart={
+                  tree.onReorderProjects && !searching && !project.pinned && project.index > 0
+                    ? (event) => drag.start(project.index, event)
+                    : undefined
+                }
+                consumeDragClick={drag.consumeClick}
+                onToggle={() => {
+                  if (!searching) toggleProject(project.key, !isOpen(project));
+                }}
+                actions={
+                  tree.renderProjectActions
+                    ? (revealed) => tree.renderProjectActions?.(project.name, revealed, project)
+                    : undefined
+                }
+              >
+                {open &&
+                  (project.visible.length > 0 ? (
+                    <ProjectSessionList
+                      {...handlers}
+                      sessions={project.visible}
+                      activity={project.sessionActivity}
+                      homeDir={project.homeDir || handlers.homeDir}
+                      selectedSessionId={
+                        project.environmentId === selectedEnvironmentId ? handlers.selectedSessionId : null
+                      }
+                      foldedSessionIds={
+                        new Set(
+                          project.sessions
+                            .filter(
+                              (session) =>
+                                handlers.foldedSessionIds?.has(qualifySessionKey(project.environmentId, session.id)) ||
+                                (project.environmentId === PRIMARY_ENVIRONMENT_ID &&
+                                  handlers.foldedSessionIds?.has(session.id)),
+                            )
+                            .map((session) => session.id),
+                        )
+                      }
+                      onToggleFold={(id) => handlers.onToggleFold?.(qualifySessionKey(project.environmentId, id))}
+                      onRenamed={() =>
+                        tree.onEnvironmentRefresh
+                          ? tree.onEnvironmentRefresh(project.environmentId)
+                          : handlers.onRenamed()
+                      }
+                      onSessionDeleted={(id) =>
+                        tree.onEnvironmentSessionDeleted
+                          ? tree.onEnvironmentSessionDeleted(project.environmentId, id)
+                          : handlers.onSessionDeleted(id)
+                      }
+                    />
+                  ) : (
+                    <div style={{ paddingLeft: "var(--space-4)" }}>
+                      <SessionListStatus
+                        loading={project.loading}
+                        error={project.error}
+                        empty
+                        hasActiveFilter={searching}
+                      />
+                    </div>
+                  ))}
+              </ProjectRow>
             </div>
           );
         })}
       </div>
-      <EnvironmentSectionList remoteGroups={remoteGroups} query={query} />
     </nav>
   );
 }

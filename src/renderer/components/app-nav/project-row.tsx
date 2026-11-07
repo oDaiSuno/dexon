@@ -1,4 +1,6 @@
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
+import type { ConnectionPresentation } from "@/lib/connection-presentation";
+import { ProjectHostCapsule, ServerGlyph } from "./project-host-capsule";
 import { faceEmphasized, ProjectRowTrail, type ProjectRowFace } from "./project-row-status";
 
 const DUOTONE_FOLDER_OPEN = {
@@ -77,6 +79,8 @@ export function ProjectRow({
   missing = false,
   missingLabel,
   dragging = false,
+  remote,
+  spaceKey,
   onToggle,
   onDragStart,
   consumeDragClick,
@@ -93,6 +97,8 @@ export function ProjectRow({
   missing?: boolean;
   missingLabel?: string;
   dragging?: boolean;
+  remote?: { label: string; connection: ConnectionPresentation };
+  spaceKey?: string;
   onToggle: () => void;
   onDragStart?: (event: MouseEvent<HTMLElement>) => void;
   consumeDragClick?: () => boolean;
@@ -103,6 +109,7 @@ export function ProjectRow({
   const [focused, setFocused] = useState(false);
   const countId = useId();
   const statusId = useId();
+  const hostId = useId();
   const resolvedFace: ProjectRowFace = missing
     ? { kind: "missing" }
     : (face ?? { kind: open ? "open" : "closed-quiet", totalSessions: count });
@@ -114,6 +121,15 @@ export function ProjectRow({
   return (
     <div
       role="listitem"
+      data-project-space={spaceKey}
+      data-tone={remote?.connection.tone}
+      onContextMenu={(event) => {
+        if ((event.target as Element).closest("[data-session-id]")) return;
+        const trigger = event.currentTarget.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]');
+        if (!trigger) return;
+        event.preventDefault();
+        if (trigger.getAttribute("aria-expanded") !== "true") trigger.click();
+      }}
       title={path}
       onMouseEnter={() => setHovered(true)}
       onMouseMove={() => {
@@ -141,7 +157,11 @@ export function ProjectRow({
           type="button"
           data-project-row
           aria-label={name}
-          aria-describedby={isMissing ? undefined : emphasized ? `${countId} ${statusId}` : countId}
+          aria-describedby={
+            [remote ? hostId : "", isMissing ? "" : emphasized ? `${countId} ${statusId}` : countId]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
           aria-expanded={open}
           aria-current={current ? "location" : undefined}
           onMouseDown={onDragStart}
@@ -153,10 +173,10 @@ export function ProjectRow({
             gridArea: "1 / 1",
             display: "flex",
             alignItems: "center",
-            gap: "var(--space-2)",
+            gap: remote ? 5 : "var(--space-2)",
             width: "100%",
             height: 32,
-            padding: "0 10px",
+            padding: remote ? "0 8px" : "0 10px",
             background: hovered && !dragging ? "var(--fx-surface-hover)" : "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
@@ -165,8 +185,14 @@ export function ProjectRow({
             transition: "background var(--duration-quick) var(--ease-smooth-out)",
           }}
         >
-          <ChevronGlyph open={open} />
-          {isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
+          {remote ? (
+            <ServerGlyph />
+          ) : (
+            <>
+              <ChevronGlyph open={open} />
+              {isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
+            </>
+          )}
           <span
             className={emphasized ? "type-body-large-medium" : "type-body-large"}
             style={{
@@ -175,15 +201,21 @@ export function ProjectRow({
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              color: isMissing
-                ? "var(--fx-text-tertiary)"
-                : emphasized
-                  ? "var(--fx-text-primary)"
-                  : "var(--fx-text-body)",
+              color:
+                remote?.connection.tone === "offline"
+                  ? "var(--fx-text-tertiary)"
+                  : remote?.connection.tone === "blocked"
+                    ? "var(--fx-text-secondary)"
+                    : isMissing
+                      ? "var(--fx-text-tertiary)"
+                      : emphasized
+                        ? "var(--fx-text-primary)"
+                        : "var(--fx-text-body)",
             }}
           >
             {name}
           </span>
+          {remote && <ProjectHostCapsule id={hostId} label={remote.label} connection={remote.connection} />}
           {isMissing ? (
             <span
               className="type-label-default"

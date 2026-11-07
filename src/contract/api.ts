@@ -1,3 +1,4 @@
+import type { FolderListing } from "./folder-browse";
 import type {
   AgentCommand,
   AgentEvent,
@@ -199,9 +200,9 @@ export interface Api {
     params: { path: string; sourceSessionId?: string };
     result: GitHeadContentResult;
   };
-  "projects.inspectFolder": {
+  "projects.browse": {
     params: { path: string };
-    result: { ok: boolean; path?: string; error?: string };
+    result: FolderListing;
   };
 
   "agent.new": {

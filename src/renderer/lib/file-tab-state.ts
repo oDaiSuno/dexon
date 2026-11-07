@@ -1,4 +1,7 @@
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
+
 export interface FileTab {
+  environmentId: EnvironmentId;
   id: string;
   label: string;
   filePath: string;
@@ -21,15 +24,14 @@ export function reduceFileTabState(state: FileTabState, action: FileTabAction): 
   }
 
   if (action.type === "open") {
-    const existing = state.tabs.find((tab) => tab.id === action.tab.id);
+    const opened = { ...action.tab, id: qualifyProjectKey(action.tab.environmentId, action.tab.filePath) };
+    const existing = state.tabs.find((tab) => tab.id === opened.id);
     const tabs = !existing
-      ? [...state.tabs, action.tab]
-      : action.tab.sourceSessionId && existing.sourceSessionId !== action.tab.sourceSessionId
-        ? state.tabs.map((tab) =>
-            tab.id === action.tab.id ? { ...tab, sourceSessionId: action.tab.sourceSessionId } : tab,
-          )
+      ? [...state.tabs, opened]
+      : opened.sourceSessionId && existing.sourceSessionId !== opened.sourceSessionId
+        ? state.tabs.map((tab) => (tab.id === opened.id ? { ...tab, sourceSessionId: opened.sourceSessionId } : tab))
         : state.tabs;
-    return { tabs, activeTabId: action.tab.id };
+    return { tabs, activeTabId: opened.id };
   }
 
   const closedIndex = state.tabs.findIndex((tab) => tab.id === action.tabId);

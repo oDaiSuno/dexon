@@ -18,6 +18,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
+    "build:remote-payload": "node scripts/build-remote-payload.mjs",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
     "build:windows-helper": "node scripts/build-windows-managed-helper.mjs",
@@ -61,6 +62,7 @@
     "test:sidebar-pulse-well-electron": "node scripts/test-sidebar-pulse-well-electron.mjs",
     "test:app-navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/dom/app-navigation-*.test.mjs",
     "test:app-navigation-electron": "node scripts/test-app-navigation-electron.mjs",
+    "test:remote-projects-electron": "node scripts/test-remote-projects-electron.mjs",
     "test:project-list-electron": "node scripts/test-project-list-electron.mjs",
     "test:reading-position-electron": "node scripts/test-reading-position-electron.mjs",
     "test:browser-agent-e2e": "node scripts/test-browser-agent-e2e.mjs",

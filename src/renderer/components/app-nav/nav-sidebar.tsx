@@ -2,13 +2,14 @@ import { useMemo, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
-import { projectSessionGroups, sessionProjectKey } from "@/lib/session-list";
+import type { ListedProject } from "@/lib/session-list";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
+import type { ProjectSpaceRow } from "./project-space-rows";
+import { useNavigationProjects } from "./use-navigation-projects";
 import type { SessionActivity } from "@/lib/session-tree-status";
-import { sessionActivityFromLegacySignals } from "@/lib/session-activity-state";
-import { buildSidebarActivity } from "@/lib/sidebar-activity";
 import { activityCountsPhrase } from "../session-sidebar/session-status-indicators";
 import { PanelLeftIcon } from "./nav-space-menu";
-import { NavHistory, type ListedProject, type RevealRequest } from "./nav-history";
+import { NavHistory, type RevealRequest } from "./nav-history";
 import { RecessedPulseWell } from "./recessed-pulse-well";
 import { ProjectRowActions } from "./project-row-actions";
 import { ProjectSwitcherPopover } from "./project-switcher-popover";
@@ -20,7 +21,6 @@ import { RailButton, SettingsButton, UpdateButton } from "./nav-sidebar-buttons"
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
 import { APP_VERSION } from "@/lib/app-version";
-import type { RemoteEnvironmentGroup } from "./environment-section-list";
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
@@ -64,6 +64,9 @@ export function NavSidebar({
   updateAvailable = false,
   onSessionDeleted,
   onChooseFolder,
+  onChooseRemoteFolder,
+  onOpenServerSettings,
+  onlineServerCount,
   onOpenFolder,
   inspectFolder,
   onBackToPersonalSpace,
@@ -81,7 +84,14 @@ export function NavSidebar({
   onMoveProject,
   onCloseProject,
   onReorderProjects,
-  remoteGroups,
+  projectRows,
+  selectedEnvironmentId,
+  onOpenProject,
+  onNewProjectSession,
+  onCopyProjectPath,
+  onRevealProject,
+  onEnvironmentRefresh,
+  onEnvironmentSessionDeleted,
 }: {
   expanded: boolean;
   visible?: boolean;
@@ -90,7 +100,14 @@ export function NavSidebar({
   spaceName?: string;
   spacePath: string;
   sessions: SessionInfo[];
-  remoteGroups?: readonly RemoteEnvironmentGroup[];
+  projectRows?: readonly ProjectSpaceRow[];
+  selectedEnvironmentId?: string;
+  onOpenProject?: (space: ProjectSpaceRef) => void;
+  onNewProjectSession?: (space: ProjectSpaceRef) => void;
+  onCopyProjectPath?: (space: ProjectSpaceRef) => void;
+  onRevealProject?: (space: ProjectSpaceRef) => void;
+  onEnvironmentRefresh?: (environmentId: string) => void;
+  onEnvironmentSessionDeleted?: (environmentId: string, sessionId: string) => void;
   loading: boolean;
   error: string | null;
   selectedSessionId: string | null;
@@ -110,6 +127,9 @@ export function NavSidebar({
   updateAvailable?: boolean;
   onSessionDeleted?: (id: string) => void;
   onChooseFolder: () => void;
+  onChooseRemoteFolder?: () => void;
+  onOpenServerSettings?: () => void;
+  onlineServerCount?: number;
   onOpenFolder?: (folder: string) => void;
   inspectFolder?: (typed: string) => Promise<string | null>;
   onBackToPersonalSpace: () => void;
@@ -123,9 +143,9 @@ export function NavSidebar({
   expandedProjects?: ReadonlyMap<string, boolean>;
   onToggleProject?: (key: string, open: boolean) => void;
   isDefaultProject?: (root: string) => boolean;
-  canMoveProject?: (root: string, offset: -1 | 1) => boolean;
-  onMoveProject?: (root: string, offset: -1 | 1) => void;
-  onCloseProject?: (root: string) => void;
+  canMoveProject?: (root: string, offset: -1 | 1, environmentId?: string) => boolean;
+  onMoveProject?: (root: string, offset: -1 | 1, environmentId?: string) => void;
+  onCloseProject?: (root: string, environmentId?: string) => void;
   onReorderProjects?: (from: number, to: number) => void;
 }) {
   const { t } = useI18n();
@@ -141,20 +161,20 @@ export function NavSidebar({
   );
   const currentPage = settingsOpen ? null : page;
   const onNewSessionPage = currentPage === "chat" && selectedSessionId === null;
-  const resolvedActivity = useMemo(
-    () =>
-      activity ??
-      sessionActivityFromLegacySignals({ liveStatuses: liveStatuses ?? {}, runningSessionIds, unreadSessionIds }),
-    [activity, liveStatuses, runningSessionIds, unreadSessionIds],
-  );
-  const projects = useMemo(
-    () => projectSessionGroups(sessions, { listedProjects, currentProject: projectRoot, isPinnedProject }),
-    [sessions, listedProjects, projectRoot, isPinnedProject],
-  );
-  const sidebar = useMemo(
-    () => buildSidebarActivity(projects, resolvedActivity, nameOfProject),
-    [projects, resolvedActivity, nameOfProject],
-  );
+  const { rows, sidebar, resolvedActivity } = useNavigationProjects({
+    projectRows,
+    sessions,
+    listedProjects,
+    currentProject: projectRoot,
+    isPinnedProject,
+    projectName: nameOfProject,
+    loading,
+    error,
+    activity,
+    liveStatuses,
+    runningSessionIds,
+    unreadSessionIds,
+  });
 
   if (!expanded) {
     return (
@@ -329,6 +349,7 @@ export function NavSidebar({
         visible={visible}
         searching={query.trim().length > 0}
         selectedSessionId={selectedSessionId}
+        selectedEnvironmentId={selectedEnvironmentId}
         onOpenSession={onSelectSession}
       />
 
@@ -341,21 +362,18 @@ export function NavSidebar({
         }}
       >
         <NavHistory
-          sessions={sessions}
-          remoteGroups={remoteGroups}
+          rows={rows}
+          selectedEnvironmentId={selectedEnvironmentId}
           revealRequest={revealRequest}
           query={query}
           loading={loading}
           error={error}
           tree={{
-            currentProject: projectRoot,
-            projectActivity: sidebar.project,
-            projectName: nameOfProject,
-            isPinnedProject,
-            listedProjects,
             expandedProjects,
             onToggleProject,
             onReorderProjects,
+            onEnvironmentRefresh,
+            onEnvironmentSessionDeleted,
             renderSwitcher: (switchTargets) => (
               <ProjectSwitcherPopover
                 spaceName={nameOfProject(projectRoot)}
@@ -364,7 +382,11 @@ export function NavSidebar({
                 projects={switchTargets}
                 inspectFolder={inspectFolder}
                 onOpenFolder={onOpenFolder}
+                onOpenProject={onOpenProject}
                 onChooseFolder={onChooseFolder}
+                onChooseRemoteFolder={onChooseRemoteFolder}
+                onOpenServerSettings={onOpenServerSettings}
+                onlineServerCount={onlineServerCount}
                 onBackToPersonalSpace={onBackToPersonalSpace}
               />
             ),
@@ -373,11 +395,15 @@ export function NavSidebar({
                 name={name}
                 revealed={revealed}
                 project={project}
-                workInFlight={sidebar.project(sessionProjectKey(project.root)).workInFlight}
+                workInFlight={project.activity.workInFlight}
                 isDefaultProject={isDefaultProject}
                 canMoveProject={canMoveProject}
                 onMoveProject={onMoveProject}
                 onCloseProject={onCloseProject}
+                onNewSession={onNewProjectSession}
+                onCopyPath={onCopyProjectPath}
+                onRevealProject={onRevealProject}
+                onOpenServerSettings={onOpenServerSettings}
               />
             ),
           }}

@@ -1,3 +1,4 @@
+import { parseProjectSpacesState } from "../shared/project-space-state.ts";
 import type { DesktopUiStatePatch } from "../contract/desktop";
 import { isChatAppearancePreferences } from "../shared/chat-appearance.ts";
 import { isSessionOrchestrationSettings } from "../shared/session-orchestration.ts";
@@ -10,6 +11,7 @@ const RENDERER_WRITABLE_UI_STATE_FIELDS = new Set([
   "chatAppearance",
   "lastSpaceCwd",
   "openProjects",
+  "projectSpaces",
 ]);
 
 const MAX_OPEN_PROJECTS = 200;
@@ -60,6 +62,7 @@ export function validateDesktopUiStatePatch(value: unknown): DesktopUiStatePatch
   if ("openProjects" in patch) {
     validated.openProjects = validateOpenProjects(patch.openProjects);
   }
+  if ("projectSpaces" in patch) validated.projectSpaces = parseProjectSpacesState(patch.projectSpaces);
   return validated;
 }
 

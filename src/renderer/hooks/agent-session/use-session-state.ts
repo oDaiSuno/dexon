@@ -9,6 +9,7 @@ import type { SessionStatsInfo } from "@/lib/pi-types";
 import { type SessionLoadTrace } from "@/lib/session-performance";
 import { summarizeSessionMessages } from "@/lib/session-stats";
 import { unsavedMessagesFor } from "@/lib/unsaved-messages";
+import { getActiveEnvironmentId } from "@/lib/environment-registry";
 import type {
   AgentMessage,
   AssistantContentBlock,
@@ -50,6 +51,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   } = opts;
 
   const isNew = session === null && newSessionCwd !== null;
+  const [environmentId] = useState(() => session?.environmentId ?? getActiveEnvironmentId());
 
   const [data, setData] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(!isNew);
@@ -99,7 +101,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [interactiveTools] = useState(
     () => new InteractiveToolStore(session?.id ?? null, sendAgentCommand, toolDraftStorage()),
   );
-  const [unsavedMessages] = useState(() => unsavedMessagesFor(session?.id ?? null, newSessionCwd));
+  const [unsavedMessages] = useState(() => unsavedMessagesFor(session?.id ?? null, newSessionCwd, environmentId));
   const [extensionStatuses, setExtensionStatuses] = useState<ExtensionStatusItem[]>([]);
   const [extensionWidgets, setExtensionWidgets] = useState<ExtensionWidgetItem[]>([]);
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessages>({ steering: [], followUp: [] });
@@ -107,8 +109,6 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [historyRevision, setHistoryRevision] = useState<string | null>(null);
   const [olderOutline, setOlderOutline] = useState<TurnOutlineItem[]>([]);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  // True when the chat viewport has scrolled away from the bottom; drives the
-  // floating "scroll to bottom" affordance in ChatWindow.
   const [isAwayFromBottom, setIsAwayFromBottom] = useState(false);
 
   const eventUnsubRef = useRef<(() => void) | null>(null);
@@ -133,9 +133,6 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const scrollbarHoldRef = useRef(false);
   const scrollbarReleaseAtRef = useRef(0);
   const externalTurnAutoFollowRef = useRef(false);
-  // Set when the user explicitly re-attaches the viewport to the newest
-  // content (clicks "scroll to bottom"); live-follow then stays engaged until
-  // the user scrolls away again or the run ends.
   const autoFollowMagnetRef = useRef(false);
   const sessionChangeIgnoreScrollUntilRef = useRef(0);
   const ensuringNewSessionRef = useRef<Promise<string | null> | null>(null);
@@ -177,6 +174,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     } satisfies SessionStatsInfo;
   })();
   return {
+    environmentId,
     loadedMessagesRef,
     loadedEntryIdsRef,
     unsavedMessages,

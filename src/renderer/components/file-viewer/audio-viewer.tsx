@@ -1,3 +1,4 @@
+import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useCallback, useState } from "react";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -16,11 +17,17 @@ function formatDuration(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps) {
+export function AudioViewer({
+  filePath,
+  cwd,
+  sourceSessionId,
+  environmentId: requestedEnvironmentId,
+}: FileViewerProps) {
   const { language, t } = useI18n();
+  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const [bust, setBust] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
-  const { src, size, error, setError, setSize } = useBlobSrc(filePath, sourceSessionId, bust);
+  const { src, size, error, setError, setSize } = useBlobSrc(environmentId, filePath, sourceSessionId, bust);
   const onChange = useCallback(
     (s?: number) => {
       if (typeof s === "number") setSize(s);
@@ -30,7 +37,7 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
     },
     [setSize, setError],
   );
-  const watching = useFileWatch(filePath, sourceSessionId, onChange);
+  const watching = useFileWatch(environmentId, filePath, sourceSessionId, onChange);
 
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
 
@@ -59,7 +66,7 @@ export function AudioViewer({ filePath, cwd, sourceSessionId }: FileViewerProps)
         {duration != null && <span>{formatDuration(duration)}</span>}
         {size != null && <span>{formatFileSize(size, language)}</span>}
         <WatchIndicator watching={watching} />
-        <DownloadLink filePath={filePath} sourceSessionId={sourceSessionId} />
+        <DownloadLink environmentId={environmentId} filePath={filePath} sourceSessionId={sourceSessionId} />
       </div>
       <div
         style={{

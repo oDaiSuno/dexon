@@ -1,22 +1,5 @@
 #!/usr/bin/env node
-/**
- * 架构约束检查 —— 静态约束的流放地（不属于行为测试套件）。
- *
- * 两级约束，执法强度不同：
- *
- *   不变量（阻断，退出码 1）：编码"结构契约"——必备模块与真实边界。
- *     理由：结构变更必须是有意识的行为；契约随结构变更同步更新
- *     （与 check:contract 的注册覆盖同一思路）。改一个名字就该改一行契约，
- *     这是"让架构决策显式化"，不是猜复杂度。
- *
- *   卫生指标（默认只报告，退出码 0）：行数预算。
- *     理由：行数只是复杂度的间接代理——好文件可能超长，坏文件可能很短。
- *     把它绝对化会诱发"为过检查而人为假拆分"（两个假模块比一个诚实的
- *     长文件更有害），因此默认只警告不阻断。它的价值是迫使对话：
- *     谁超出预算，谁来说明理由。
- *     - PI_ARCH_BUDGET_LINES 可临时调整预算（验证本脚本用）
- *     - --strict 或 PI_ARCH_STRICT=1 可临时强制阻断（重构运动期间防复发用）
- */
+
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -26,7 +9,6 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const BUDGET_LINES = Number(process.env.PI_ARCH_BUDGET_LINES ?? 500);
 const STRICT = process.argv.includes("--strict") || process.env.PI_ARCH_STRICT === "1";
 
-// 每组 = 一次原测试文件的搬迁。extensions 控制收集哪些源码文件（忠实原约束）。
 const GROUPS = [
   {
     name: "shell 组合根与侧栏模块",
@@ -89,15 +71,12 @@ const GROUPS = [
     extensionRe: /\.(?:ts|tsx)$/,
   },
   {
-    // 行数卫生（建议级）：样式表。
     name: "样式表",
     dirs: ["src/renderer/styles"],
     files: ["src/renderer/globals.css"],
     extensionRe: /\.css$/,
   },
   {
-    // 行数卫生（建议级）：i18n 词典。原 i18n-dictionaries-structure 的行数预算迁入
-    // （切片四批）；接线不变量（每个分片必须入组合根）在 check:i18n 的结构检查里阻断。
     name: "i18n 词典",
     dirs: ["src/renderer/i18n"],
     files: ["src/renderer/i18n-dictionaries.ts"],
@@ -105,7 +84,6 @@ const GROUPS = [
   },
 ];
 
-// The old tool-card line-budget test belongs beside other size reports.
 GROUPS.push({
   name: "交互卡片与集成属主",
   dirs: [
@@ -130,9 +108,6 @@ GROUPS.push({
   extensionRe: /\.(?:ts|tsx|mjs|css)$/,
 });
 
-// 所有权禁令（阻断）：结构性规则，禁止在指定文件中重现特定形态。
-// 本组来自原 session-sidebar-timer-contract.test.mjs 的 tripwire：侧栏子组件的
-// 焦点延迟必须经属主 deferFocus（卸载时可整体取消），不得自建 setTimeout 焦点。
 const PATTERN_BANS = [
   {
     name: "导航展示边界",
@@ -176,7 +151,6 @@ function physicalLineCount(content) {
 }
 
 function checkGroup(group) {
-  // 不变量级：结构契约（缺失即 FAIL）
   const failures = [];
   for (const required of group.requiredRoots ?? []) {
     if (!existsSync(path.join(root, required))) failures.push(`缺少必备文件: ${required}`);
@@ -192,14 +166,12 @@ function checkGroup(group) {
     if (existsSync(full)) collectCodeFiles(full, group.extensionRe, group.excludeTests, files);
     else failures.push(`缺少目录: ${dir}`);
   }
-  // File count is an indirect complexity signal, not an architectural
-  // relation. Merging modules must not fail a correct implementation.
+
   const warnings = [];
   if (group.minFiles !== undefined && files.length < group.minFiles) {
     warnings.push(`${group.name}: 文件数 ${files.length} 低于原拆分参考 ${group.minFiles}，请审视职责是否仍清晰`);
   }
 
-  // 卫生级：行数预算（超出即 WARN，默认不阻断）
   for (const file of files) {
     const lines = physicalLineCount(readFileSync(file, "utf8"));
     if (lines > BUDGET_LINES) warnings.push(`${path.relative(root, file)}: ${lines} 行（预算 ${BUDGET_LINES}）`);
@@ -207,8 +179,6 @@ function checkGroup(group) {
   return { failures, warnings, fileCount: files.length };
 }
 
-// CSS 接线契约（阻断级）：原 css-structure.test.mjs 迁入（切片三批）。
-// 导入顺序即级联顺序，是设计契约不是巧合；孤儿文件与缺口同样阻断。
 const EXPECTED_CSS_IMPORT_ORDER = [
   "globals.css",
   "styles/tokens.css",
@@ -216,6 +186,9 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/motion-tokens.css",
   "styles/base.css",
   "styles/controls.css",
+  "styles/remote-folder-picker.css",
+  "styles/remote-disabled-reason.css",
+  "styles/remote-space-attribution.css",
   "styles/session-row.css",
   "styles/session-menu.css",
   "styles/composer.css",
@@ -259,7 +232,6 @@ function checkCssWiring() {
     if (!imports.includes(`styles/${name}`)) failures.push(`孤儿样式分片未被 styles/index.ts 引用: styles/${name}`);
   }
 
-  // 渲染器树内只允许入口与已接线分片存在。
   const onDisk = [];
   const walk = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {

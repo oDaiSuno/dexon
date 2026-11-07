@@ -1,18 +1,6 @@
-import { readFile } from "@/lib/api-client";
-
-/**
- * Object-URL cache for attachment token previews.
- *
- * Freshly staged clipboard images have their bytes in the renderer at paste
- * time, so their preview is registered synchronously before the token is even
- * inserted. Everything else (history messages, restored drafts with files that
- * still exist) loads lazily through the `files.read` bridge, which allows
- * paths that appear in the session's message text.
- *
- * Evicted entries are not revoked: blob URLs are tiny bookkeeping objects and
- * revoking one that is still displayed in the transcript would break rendering.
- * The cache is capped high enough that realistic sessions never hit it.
- */
+import { PRIMARY_ENVIRONMENT_ID, qualifyProjectKey, type EnvironmentId } from "@contract/environment";
+import { getActiveEnvironmentId } from "./environment-registry";
+import { readFilePayload } from "./file-blob";
 
 const MAX_CACHE_ENTRIES = 128;
 
@@ -26,19 +14,28 @@ function evictIfNeeded(): void {
   }
 }
 
-/** Register a preview URL produced from in-memory bytes (fresh paste path). */
-export function registerStagedPreviewUrl(path: string, url: string): void {
-  if (!path || !url || cache.has(path)) return;
-  cache.set(path, Promise.resolve(url));
+export function registerStagedPreviewUrl(
+  path: string,
+  url: string,
+  environmentId: EnvironmentId = PRIMARY_ENVIRONMENT_ID,
+): void {
+  if (!path || !url) return;
+  const key = qualifyProjectKey(environmentId, path);
+  if (!cache.has(key)) cache.set(key, Promise.resolve(url));
+  evictIfNeeded();
 }
 
-/** Resolve a preview object URL for a token path; null when unavailable. */
-export function loadAttachmentPreview(path: string, sessionId?: string): Promise<string | null> {
-  const cached = cache.get(path);
+export function loadAttachmentPreview(
+  path: string,
+  sessionId?: string,
+  environmentId: EnvironmentId = getActiveEnvironmentId(),
+): Promise<string | null> {
+  const key = qualifyProjectKey(environmentId, path);
+  const cached = cache.get(key);
   if (cached) return cached;
   const pending = (async () => {
     try {
-      const result = await readFile(path, sessionId);
+      const result = await readFilePayload(environmentId, path, sessionId);
       if (!result || result.encoding !== "base64") return null;
       const mime = typeof result.mime === "string" ? result.mime : "application/octet-stream";
       const bytes = base64ToBytes(result.content);
@@ -47,7 +44,10 @@ export function loadAttachmentPreview(path: string, sessionId?: string): Promise
       return null;
     }
   })();
-  cache.set(path, pending);
+  cache.set(key, pending);
+  void pending.then((url) => {
+    if (!url && cache.get(key) === pending) cache.delete(key);
+  });
   evictIfNeeded();
   return pending;
 }

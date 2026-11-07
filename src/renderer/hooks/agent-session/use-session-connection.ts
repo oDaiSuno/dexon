@@ -1,5 +1,6 @@
 import { sendAgentCommand } from "@/lib/agent-client";
-import { newAgent, subscribeAgentEvents } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { canSendToEnvironment } from "@/lib/space-attribution";
 import { connectTimedEventStream, type EventStreamConnectionResult } from "@/lib/event-stream-connection";
 import { carryUnsavedMessages } from "@/lib/unsaved-messages";
 import type { InteractiveSnapshot } from "@shared/interactive-tools";
@@ -16,6 +17,8 @@ import type { SessionState } from "./use-session-state";
 import type { SessionHistory } from "./use-session-history";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
+  | "t"
   | "interactiveTools"
   | "sessionIdRef"
   | "isNew"
@@ -35,6 +38,8 @@ type Dependencies = Pick<
   Pick<SessionHistory, "loadSession">;
 export function useSessionConnection(context: Dependencies) {
   const {
+    environmentId,
+    t,
     interactiveTools,
     sessionIdRef,
     isNew,
@@ -58,9 +63,10 @@ export function useSessionConnection(context: Dependencies) {
       const sid = sessionIdRef.current;
       if (!isNew || !newSessionCwd || !sid || newSessionPromotedRef.current) return;
       newSessionPromotedRef.current = true;
-      carryUnsavedMessages(newSessionCwd, sid);
+      carryUnsavedMessages(newSessionCwd, sid, environmentId);
       onSessionCreated?.({
         id: sid,
+        environmentId,
         path: "",
         cwd: newSessionCwd,
         name: undefined,
@@ -70,7 +76,7 @@ export function useSessionConnection(context: Dependencies) {
         firstMessage,
       });
     },
-    [isNew, newSessionCwd, newSessionPromotedRef, onSessionCreated, sessionIdRef],
+    [environmentId, isNew, newSessionCwd, newSessionPromotedRef, onSessionCreated, sessionIdRef],
   );
 
   const ensureNewSession = useCallback(async () => {
@@ -81,7 +87,9 @@ export function useSessionConnection(context: Dependencies) {
     const promise = (async () => {
       const selectedModel = newSessionModel ?? newSessionDefaultModel;
       if (selectedModel) setPendingModel(selectedModel);
-      const result = await newAgent({
+      if (!canSendToEnvironment(environmentId))
+        throw new Error(t("remoteAttributionSendHint", "You can send after reconnecting"));
+      const result = await getEnvironmentApiClient(environmentId).newAgent({
         cwd: newSessionCwd,
         type: "ensure_session",
         ...(selectedModel ? { provider: selectedModel.provider, modelId: selectedModel.modelId } : {}),
@@ -100,6 +108,8 @@ export function useSessionConnection(context: Dependencies) {
       ensuringNewSessionRef.current = null;
     }
   }, [
+    environmentId,
+    t,
     sessionIdRef,
     isNew,
     newSessionCwd,
@@ -137,7 +147,7 @@ export function useSessionConnection(context: Dependencies) {
       return connectTimedEventStream({
         manager: eventConnectionManager,
         subscribe: (onEvent) =>
-          subscribeAgentEvents(sid, onEvent, () => {
+          getEnvironmentApiClient(environmentId).subscribeAgentEvents(sid, onEvent, () => {
             if (sessionIdRef.current === sid) void loadSession(sid, false, true);
           }),
         onEvent: (event) => {
@@ -150,7 +160,7 @@ export function useSessionConnection(context: Dependencies) {
         timeoutMs: EVENT_STREAM_CONNECT_TIMEOUT_MS,
       });
     },
-    [eventConnectionManager, handleAgentEventRef, interactiveTools, sessionIdRef, loadSession],
+    [environmentId, eventConnectionManager, handleAgentEventRef, interactiveTools, sessionIdRef, loadSession],
   );
 
   const ensureEventsConnected = useCallback(

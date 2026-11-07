@@ -1,7 +1,10 @@
-import { useCallback, useEffect, useEffectEvent, useId, useState } from "react";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { getFileApiUrl } from "../file-viewer/file-api-url";
+import { copyText } from "@/lib/clipboard";
+import { useCallback, useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import { getFileIcon, FolderIcon } from "../FileIcons";
 import { Icon } from "../chat-input/icons";
-import { encodeFilePathForApi, getRelativeFilePath, joinFilePath } from "@/lib/file-paths";
+import { getRelativeFilePath, joinFilePath } from "@/lib/file-paths";
 import { directoryRefreshAction, shouldLoadDirectoryOnExpand } from "@/lib/directory-refresh";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { useI18n } from "@/i18n";
@@ -30,6 +33,7 @@ export interface FileNode {
 }
 
 export interface TreeShared {
+  environmentId: EnvironmentId;
   cwd: string;
   activeFilePath: string | null;
   onOpenFile: (filePath: string, fileName: string) => void;
@@ -52,9 +56,8 @@ function folderChangeLabel(t: Translate, change: FolderChange): string {
   return t("explorerFolderConflicted", "Contains conflicts");
 }
 
-export async function fetchEntries(dirPath: string, t: Translate): Promise<FileNode[]> {
-  const encoded = encodeFilePathForApi(dirPath);
-  const res = await fetch(`/api/files/${encoded}?type=list`);
+export async function fetchEntries(environmentId: EnvironmentId, dirPath: string, t: Translate): Promise<FileNode[]> {
+  const res = await fetch(getFileApiUrl(environmentId, dirPath, "list"));
   if (!res.ok) {
     let message = t("fileListLoadFailedStatus", "Failed to load files (HTTP {status})").replace(
       "{status}",
@@ -121,24 +124,34 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
   const [loading, setLoading] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [focusedWithin, setFocusedWithin] = useState(false);
+  const [copyError, setCopyError] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const descriptionId = useId();
+  const loadGeneration = useRef(0);
+  useEffect(
+    () => () => {
+      loadGeneration.current += 1;
+    },
+    [tree.environmentId, node.fullPath],
+  );
 
   const loadChildren = useCallback(
     async (force = false) => {
       if (loaded && !stale && !force) return;
+      const generation = ++loadGeneration.current;
       setLoading(true);
       try {
-        const entries = await fetchEntries(node.fullPath, t);
+        const entries = await fetchEntries(tree.environmentId, node.fullPath, t);
+        if (generation !== loadGeneration.current) return;
         setChildren(entries);
         setLoaded(true);
         setStale(false);
       } catch {
       } finally {
-        setLoading(false);
+        if (generation === loadGeneration.current) setLoading(false);
       }
     },
-    [loaded, node.fullPath, stale, t],
+    [tree.environmentId, loaded, node.fullPath, stale, t],
   );
 
   const refreshFromKey = useEffectEvent(() => {
@@ -171,7 +184,9 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
   const described = node.isDir
     ? folderChange && folderChangeLabel(t, folderChange)
     : fileMark && fileChangeLabel(t, fileMark.change);
-  const actionsShown = (hovered || focusedWithin) && (!node.isDir || Boolean(tree.onAtMention));
+  const actionsShown =
+    (hovered || focusedWithin) &&
+    (!node.isDir || Boolean(tree.onAtMention) || tree.environmentId !== PRIMARY_ENVIRONMENT_ID);
   const showStatus = Boolean(described) && !actionsShown;
 
   const background = current
@@ -272,6 +287,19 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
                 {t("mention", "mention")}
               </button>
             )}
+            {tree.environmentId !== PRIMARY_ENVIRONMENT_ID && (
+              <button
+                type="button"
+                className="remote-workspace-action type-meta-default"
+                onClick={() => {
+                  setCopyError(false);
+                  void copyText(node.fullPath).catch(() => setCopyError(true));
+                }}
+                aria-label={t("remoteCopyPath", "Copy remote path")}
+              >
+                {t("remoteCopyPath", "Copy remote path")}
+              </button>
+            )}
             {!node.isDir && (
               <button
                 type="button"
@@ -281,7 +309,7 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
                   e.stopPropagation();
                   setDownloading(true);
                   void import("@/lib/file-blob")
-                    .then(({ downloadFileViaRpc }) => downloadFileViaRpc(node.fullPath, node.name))
+                    .then(({ downloadFileViaRpc }) => downloadFileViaRpc(tree.environmentId, node.fullPath, node.name))
                     .catch((error) => console.error("download failed", error))
                     .finally(() => setDownloading(false));
                 }}
@@ -294,6 +322,11 @@ export function TreeNode({ node, depth, tree }: { node: FileNode; depth: number;
           </div>
         )}
       </div>
+      {copyError && (
+        <span role="alert" className="type-meta-default">
+          {t("copyFailed", "Copy failed")}
+        </span>
+      )}
       {node.isDir && open && (
         <div className="flex flex-col gap-[1px]">
           {children.map((child) => (

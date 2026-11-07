@@ -1,8 +1,10 @@
+import type { EnvironmentId } from "@contract/environment";
 import { encodeFilePathForApi } from "@/lib/file-paths";
 
 export function getFileApiUrl(
+  environmentId: EnvironmentId,
   filePath: string,
-  type: "read" | "download" | "meta" | "preview" | "watch",
+  type: "list" | "read" | "download" | "meta" | "preview" | "watch",
   sourceSessionId?: string | null,
   params: Record<string, string | number | undefined> = {},
 ): string {
@@ -12,5 +14,6 @@ export function getFileApiUrl(
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined) searchParams.set(key, String(value));
   }
+  searchParams.set("environment", environmentId);
   return `/api/files/${encoded}?${searchParams.toString()}`;
 }

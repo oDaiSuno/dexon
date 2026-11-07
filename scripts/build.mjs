@@ -15,5 +15,6 @@ if (process.platform === "win32" && process.arch === "x64") {
   run(process.execPath, ["scripts/build-windows-managed-helper.mjs"]);
 }
 run(process.execPath, ["scripts/build-main.mjs"]);
+run(process.execPath, ["scripts/build-remote-payload.mjs"]);
 run("npx", ["vite", "build", "--config", "vite.config.ts"]);
 console.log("[build] done → out/");

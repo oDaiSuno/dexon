@@ -1,0 +1,180 @@
+.remote-connection[data-tone="online"] {
+  color: var(--fx-status-success-text);
+}
+
+.remote-connection[data-tone="online"] .remote-attribution-dot {
+  background: var(--fx-status-success);
+}
+
+.top-bar-server-status[data-tone="online"] {
+  background: var(--fx-status-success-soft);
+  border: 1px solid var(--fx-status-success-border);
+}
+
+.remote-connection[data-tone="pending"] {
+  color: var(--fx-status-warning-text);
+}
+
+.remote-connection[data-tone="pending"] .remote-attribution-dot {
+  background: var(--fx-status-warning);
+}
+
+.top-bar-server-status[data-tone="pending"] {
+  background: var(--fx-status-warning-soft);
+  border: 1px solid var(--fx-status-warning-border);
+}
+
+.remote-connection[data-tone="offline"] {
+  color: var(--fx-text-tertiary);
+}
+
+.remote-connection[data-tone="offline"] .remote-attribution-dot {
+  background: var(--fx-text-faint);
+}
+
+.top-bar-server-status[data-tone="offline"] {
+  background: var(--fx-surface-card);
+  border: 1px solid var(--fx-line-default);
+}
+
+.remote-connection[data-tone="blocked"] {
+  color: var(--fx-status-danger-text);
+}
+
+.remote-connection[data-tone="blocked"] .remote-attribution-dot {
+  background: var(--fx-status-danger);
+}
+
+.top-bar-server-status[data-tone="blocked"] {
+  background: var(--fx-status-danger-soft);
+  border: 1px solid var(--fx-status-danger-border);
+}
+
+.remote-attribution-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: var(--fx-status-success);
+}
+
+.top-bar-server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 2px 8px 2px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.composer-environment-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 8px;
+  color: var(--fx-text-primary);
+}
+
+.composer-environment-strip-path {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--fx-text-tertiary);
+}
+
+.composer-environment-strip-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+}
+
+.reconnect-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 10px 20px;
+  background: var(--fx-status-warning-soft);
+  border-bottom: 1px solid var(--fx-status-warning-border);
+  color: var(--fx-status-warning-text);
+}
+
+.reconnect-banner-message {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.reconnect-banner-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 10px 0 8px;
+  border-radius: 6px;
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-status-warning-border);
+  color: var(--fx-status-warning-text);
+  cursor: pointer;
+}
+
+.reconnect-banner-action:hover {
+  background: var(--fx-surface-hover-overlay);
+}
+
+.reconnect-banner-action:disabled {
+  cursor: not-allowed;
+}
+
+.remote-daemon-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 12px;
+  margin-bottom: 28px;
+  border-radius: 999px;
+  background: var(--fx-status-success-soft);
+  border: 1px solid var(--fx-status-success-border);
+  color: var(--fx-status-success-text);
+}
+
+.remote-daemon-capsule .remote-attribution-dot {
+  width: 7px;
+  height: 7px;
+}
+
+.composer-send-hint {
+  margin: 8px 14px 0;
+  color: var(--fx-status-warning-text);
+}
+
+.reconnect-banner[data-tone="offline"] {
+  background: var(--fx-surface-card);
+  border-bottom-color: var(--fx-line-default);
+  color: var(--fx-text-tertiary);
+}
+
+.reconnect-banner[data-tone="offline"] .reconnect-banner-action {
+  border-color: var(--fx-line-default);
+  color: var(--fx-text-primary);
+}
+
+.remote-session-unavailable {
+  padding: 10px 20px;
+  color: var(--fx-text-secondary);
+}
+
+.reconnect-banner[data-tone="blocked"] {
+  background: var(--fx-status-danger-soft);
+  border-bottom-color: var(--fx-status-danger-border);
+  color: var(--fx-status-danger-text);
+}
+
+.reconnect-banner[data-tone="blocked"] .reconnect-banner-action {
+  border-color: var(--fx-status-danger-border);
+  color: var(--fx-status-danger-text);
+}
