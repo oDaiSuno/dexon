@@ -14,6 +14,7 @@ import { useActiveEnvironment, useEnvironments } from "@/lib/environment-registr
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { useSendGate } from "@/lib/space-attribution";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
+import { modelSupportsImages } from "@/lib/model-selection";
 import { ComposerView } from "./chat-input/composer-view";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
 import { buildPromptHistory, localCommandsFor, recordLocalCommand } from "./chat-input/prompt-history";
@@ -113,8 +114,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     value: draft.shown,
     visible,
     cwd,
-    model,
-    modelList,
+    supportsImages: modelSupportsImages(
+      model ? { provider: model.provider, id: model.modelId } : null,
+      modelList ?? [],
+    ),
     editableRef,
     t,
     onImageNotice: setImageAttachNotice,
@@ -385,9 +388,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       onCompositionEnd={keys.onCompositionEnd}
       tokenPreviewsByPath={attachments.tokenPreviewsByPath}
       missingTokenInspections={attachments.missingTokenInspections}
-      onRevealToken={(path) => {
-        if (affordances.revealInFileManager) void window.piBridge?.showItemInFolder?.(path);
-      }}
+      onRevealToken={attachments.revealToken}
       onSkillReveal={skills.revealSkill}
       skillsByName={skillCatalog.byName}
       attachmentTokens={attachments.attachmentTokens}

@@ -3,8 +3,7 @@ import type { EnvironmentId } from "@contract/environment";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { processImageFileBatch } from "@/lib/image-file-processing";
 import { ImageNormalizationError } from "@/lib/image-normalization";
-import { modelSupportsImages } from "@/lib/model-selection";
-import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
+import { findAttachmentTokens, isImagePath, resolveAttachmentRevealPath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview, registerStagedPreviewUrl } from "@/lib/attachment-token-previews";
 import type { ComposerEditableHandle } from "./types";
 import { useEnvironments } from "@/lib/environment-registry";
@@ -19,12 +18,12 @@ type Translate = (key: string, fallback: string) => string;
 
 interface Options {
   environmentId: EnvironmentId;
+  sessionId?: string | null;
   draftKey?: string;
   value: string;
   visible: boolean;
   cwd?: string | null;
-  model?: { provider: string; modelId: string } | null;
-  modelList?: { id: string; name: string; provider: string; input?: ("text" | "image")[] }[];
+  supportsImages?: boolean | null;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
   t: Translate;
   onImageNotice: (notice: string | null) => void;
@@ -47,23 +46,31 @@ function extensionForImageMime(mimeType: string): string | null {
 
 export function useComposerAttachments({
   environmentId,
+  sessionId,
   draftKey,
   value,
   visible,
   cwd,
-  model,
-  modelList,
+  supportsImages,
   editableRef,
   t,
   onImageNotice,
 }: Options) {
   const environments = useEnvironments();
   const affordances = environmentAffordances(environments.find((view) => view.id === environmentId));
-  const scope = JSON.stringify([environmentId, draftKey ?? null, cwd ?? null]);
-  const currentScope = useRef(scope);
+  const scope = useMemo(() => ({ environmentId, sessionId, draftKey, cwd }), [environmentId, sessionId, draftKey, cwd]);
+  const currentScope = useRef<typeof scope | null>(scope);
   currentScope.current = scope;
   const [inspections, setInspections] = useState({ scope, paths: new Map<string, FileInspection>() });
   const [previews, setPreviews] = useState({ scope, paths: new Map<string, string | null>() });
+  const [processing, setProcessing] = useState({ scope, count: 0 });
+
+  useEffect(() => {
+    currentScope.current = scope;
+    return () => {
+      if (currentScope.current === scope) currentScope.current = null;
+    };
+  }, [scope]);
   const fileInspectionByPath = useMemo(
     () => (inspections.scope === scope ? inspections.paths : new Map<string, FileInspection>()),
     [inspections, scope],
@@ -77,11 +84,6 @@ export function useComposerAttachments({
     () => Array.from(new Set(attachmentTokens.map((token) => token.path))),
     [attachmentTokens],
   );
-  const selectedModelSupportsImages = modelSupportsImages(
-    model ? { provider: model.provider, id: model.modelId } : null,
-    modelList ?? [],
-  );
-
   const missingTokenInspections = useMemo(() => {
     const missing = new Map<string, boolean>();
     for (const token of attachmentTokens) {
@@ -98,9 +100,18 @@ export function useComposerAttachments({
     [editableRef],
   );
 
+  const revealToken = useCallback(
+    (path: string) => {
+      const target = affordances.revealInFileManager ? resolveAttachmentRevealPath(path, cwd ?? undefined) : null;
+      if (target) void window.piBridge?.showItemInFolder?.(target);
+    },
+    [affordances.revealInFileManager, cwd],
+  );
+
   const stageClipboardImageFile = useCallback(
     async (file: File): Promise<{ ok: boolean; code?: string }> => {
       const { images, failures } = await processImageFileBatch([file]);
+      if (currentScope.current !== scope) return { ok: false, code: "scope-changed" };
       const image = images[0];
       if (!image) {
         const failure = failures[0]?.error;
@@ -110,8 +121,8 @@ export function useComposerAttachments({
         base64: image.data,
         ext: extensionForImageMime(image.mimeType) ?? "png",
       });
-      if (!result?.ok) return { ok: false, code: result?.code ?? "stage-unavailable" };
       if (currentScope.current !== scope) return { ok: false, code: "scope-changed" };
+      if (!result?.ok) return { ok: false, code: result?.code ?? "stage-unavailable" };
       registerStagedPreviewUrl(result.staged.path, image.previewUrl, environmentId);
       editableRef.current?.insertTokenAtCaret(result.staged.path);
       return { ok: true };
@@ -121,72 +132,82 @@ export function useComposerAttachments({
 
   const processFiles = useCallback(
     async (files: File[]) => {
-      if (!visible || !affordances.attachLocalFiles) return;
-      const notices: string[] = [];
-      let staged = 0;
-      let failed = 0;
-      let unsupportedOnly = true;
-      let pathlessCount = 0;
-      for (const file of files) {
-        if (currentScope.current !== scope) return;
-        const absolutePath = window.piBridge?.getPathForFile?.(file) ?? "";
-        if (absolutePath) {
-          insertAttachmentPath(absolutePath);
-          continue;
-        }
-        if (!file.type.startsWith("image/")) {
-          pathlessCount += 1;
-          continue;
-        }
-        try {
-          const result = await stageClipboardImageFile(file);
-          if (result.ok) {
-            staged += 1;
+      if (!visible || !affordances.attachLocalFiles || currentScope.current !== scope) return;
+      setProcessing((current) => ({ scope, count: (current.scope === scope ? current.count : 0) + 1 }));
+      try {
+        const notices: string[] = [];
+        let staged = 0;
+        let failed = 0;
+        let unsupportedOnly = true;
+        let pathlessCount = 0;
+        for (const file of files) {
+          if (currentScope.current !== scope) return;
+          const absolutePath = window.piBridge?.getPathForFile?.(file) ?? "";
+          if (absolutePath) {
+            insertAttachmentPath(absolutePath);
             continue;
           }
-          failed += 1;
-          if (result.code !== "unsupported-format") unsupportedOnly = false;
-        } catch {
-          failed += 1;
-          unsupportedOnly = false;
+          if (!file.type.startsWith("image/")) {
+            pathlessCount += 1;
+            continue;
+          }
+          try {
+            const result = await stageClipboardImageFile(file);
+            if (currentScope.current !== scope) return;
+            if (result.ok) {
+              staged += 1;
+              continue;
+            }
+            failed += 1;
+            if (result.code !== "unsupported-format") unsupportedOnly = false;
+          } catch {
+            failed += 1;
+            unsupportedOnly = false;
+          }
+        }
+        if (pathlessCount > 0) {
+          notices.push(
+            t("pathlessFilesAttachFailed", "{count} files had no local path and were not added").replace(
+              "{count}",
+              String(pathlessCount),
+            ),
+          );
+        }
+        if (failed > 0) {
+          notices.push(
+            staged > 0
+              ? t("someImagesAttachFailed", "{failed} of {total} images could not be attached")
+                  .replace("{failed}", String(failed))
+                  .replace("{total}", String(failed + staged))
+              : unsupportedOnly
+                ? t(
+                    "imageFormatUnsupported",
+                    "This image format is not supported. Convert it to PNG or JPEG and try again.",
+                  )
+                : t("imagesAttachFailed", "The selected images could not be attached"),
+          );
+        }
+        if (staged > 0 && supportsImages === false) {
+          notices.push(
+            t(
+              "modelImageUnsupported",
+              "The selected model does not accept image input. Attached images will not be shown to the model.",
+            ),
+          );
+        }
+        if (currentScope.current === scope) onImageNotice(notices.length > 0 ? notices.join(". ") : null);
+      } finally {
+        if (currentScope.current === scope) {
+          setProcessing((current) =>
+            current.scope === scope ? { scope, count: Math.max(0, current.count - 1) } : current,
+          );
         }
       }
-      if (pathlessCount > 0) {
-        notices.push(
-          t("pathlessFilesAttachFailed", "{count} files had no local path and were not added").replace(
-            "{count}",
-            String(pathlessCount),
-          ),
-        );
-      }
-      if (failed > 0) {
-        notices.push(
-          staged > 0
-            ? t("someImagesAttachFailed", "{failed} of {total} images could not be attached")
-                .replace("{failed}", String(failed))
-                .replace("{total}", String(failed + staged))
-            : unsupportedOnly
-              ? t(
-                  "imageFormatUnsupported",
-                  "This image format is not supported. Convert it to PNG or JPEG and try again.",
-                )
-              : t("imagesAttachFailed", "The selected images could not be attached"),
-        );
-      }
-      if (staged > 0 && selectedModelSupportsImages === false) {
-        notices.push(
-          t(
-            "modelImageUnsupported",
-            "The selected model does not accept image input. Attached images will not be shown to the model.",
-          ),
-        );
-      }
-      if (currentScope.current === scope) onImageNotice(notices.length > 0 ? notices.join(". ") : null);
     },
     [
       insertAttachmentPath,
       onImageNotice,
-      selectedModelSupportsImages,
+      supportsImages,
       stageClipboardImageFile,
       t,
       visible,
@@ -249,19 +270,23 @@ export function useComposerAttachments({
       };
     const imagePaths = tokenPaths.filter(isImagePath);
     void Promise.all(
-      imagePaths.map(async (path) => [path, await loadAttachmentPreview(path, undefined, environmentId)] as const),
+      imagePaths.map(
+        async (path) => [path, await loadAttachmentPreview(path, sessionId ?? undefined, environmentId)] as const,
+      ),
     ).then((entries) => {
       if (!cancelled) setPreviews({ scope, paths: new Map(entries) });
     });
     return () => {
       cancelled = true;
     };
-  }, [environmentId, scope, tokenPaths, visible]);
+  }, [environmentId, sessionId, scope, tokenPaths, visible]);
 
   return {
     attachmentTokens,
     missingTokenInspections,
     tokenPreviewsByPath,
+    isProcessingImages: processing.scope === scope && processing.count > 0,
+    revealToken,
     insertAttachmentPath,
     processFiles,
     handlePaste,

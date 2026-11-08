@@ -1,5 +1,5 @@
 import { buildAtInsertText, extractAtQuery, type AtQueryMatch } from "@/lib/file-fuzzy";
-import { looksLikePath } from "@shared/attachment-tokens";
+import { attachmentTokenText, looksLikePath } from "@shared/attachment-tokens";
 import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
 import { SKILL_ATTR, segmentComposerText, type ComposerSegment } from "./composer-dom";
 import { completionSegments, leadingSlashTokenEnd, type SlashCompletion } from "./command-slot";
@@ -44,30 +44,35 @@ function holderFor(doc: Document, nodes: readonly Node[]): HTMLElement {
 }
 
 export function applyComposerEdit(root: HTMLElement, edit: ComposerEdit, chips: ChipFactory): boolean {
+  if (editingRoots.has(root)) return false;
   const doc = root.ownerDocument;
   const before = readComposerText(root);
+  const inserted = edit.content
+    .map((segment) =>
+      segment.type === "text"
+        ? segment.text
+        : segment.type === "skill"
+          ? skillCommandText(segment.name)
+          : attachmentTokenText(segment.path),
+    )
+    .join("");
   const holder = holderFor(doc, buildNodes(doc, edit.content, chips));
+  if (edit.end === before.text.length && inserted.endsWith("\n")) holder.append(doc.createTextNode("\n"));
   const markup = holder.innerHTML;
   if (!markup && edit.start === edit.end) return true;
-  const expected = readComposerText(holder).text;
+  const nextText = before.text.slice(0, edit.start) + inserted + before.text.slice(edit.end);
+  const nextCursor = Math.max(0, Math.min(nextText.length, edit.start + inserted.length - (edit.caretFromEnd ?? 0)));
   selectOffsets(root, before, edit.start, edit.end);
   const applied = runNativeCommand(root, () =>
     markup ? doc.execCommand("insertHTML", false, markup) : doc.execCommand("delete"),
   );
-  if (!applied) return false;
-  const replacingAll = edit.start === 0 && edit.end === before.text.length;
-  if (replacingAll && readComposerText(root).text !== expected) {
-    resetComposerContent(root, expected, chips);
-    const reset = readComposerText(root);
-    const caret = Math.max(0, reset.text.length - (edit.caretFromEnd ?? 0));
-    selectOffsets(root, reset, caret, caret);
-    return true;
+  if (!applied || readComposerText(root).text !== nextText) {
+    const hadFocus = doc.activeElement === root;
+    resetComposerContent(root, nextText, chips);
+    if (hadFocus) root.focus({ preventScroll: true });
   }
-  if (edit.caretFromEnd !== undefined) {
-    const after = readComposerText(root);
-    const caret = after.text.length - (before.text.length - edit.end) - edit.caretFromEnd;
-    selectOffsets(root, after, caret, caret);
-  }
+  const after = readComposerText(root);
+  selectOffsets(root, after, nextCursor, nextCursor);
   return true;
 }
 
@@ -123,7 +128,7 @@ export function planInsertAttachment(map: ComposerTextMap, selection: ComposerSe
 }
 
 export function planReplaceAll(map: ComposerTextMap, text: string): ComposerEdit {
-  return { start: 0, end: map.text.length, content: segmentsForValue(text), caretFromEnd: 0 };
+  return { start: 0, end: map.text.length, content: segmentComposerText(text), caretFromEnd: 0 };
 }
 
 export function planFillCommandSlot(map: ComposerTextMap, completion: SlashCompletion): ComposerEdit {
