@@ -13,7 +13,17 @@ export interface MenuKeyHint {
   label: string;
 }
 
-export function MenuPanel({ label, role, children }: { label?: string; role?: "group" | "menu"; children: ReactNode }) {
+export function MenuPanel({
+  label,
+  role,
+  placement = "above",
+  children,
+}: {
+  label?: string;
+  role?: "group" | "menu";
+  placement?: "above" | "below";
+  children: ReactNode;
+}) {
   return (
     <div
       className="composer-pop-in"
@@ -23,9 +33,10 @@ export function MenuPanel({ label, role, children }: { label?: string; role?: "g
         position: "absolute",
         left: 0,
         right: 0,
-        bottom: "calc(100% + 8px)",
+        top: placement === "below" ? "calc(100% + 8px)" : undefined,
+        bottom: placement === "above" ? "calc(100% + 8px)" : undefined,
         zIndex: 120,
-        transformOrigin: "bottom center",
+        transformOrigin: placement === "above" ? "bottom center" : "top center",
         display: "flex",
         flexDirection: "column",
         background: "var(--fx-surface-raised)",

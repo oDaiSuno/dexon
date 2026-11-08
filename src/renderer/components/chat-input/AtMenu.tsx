@@ -31,9 +31,9 @@ const LIST_STYLE = {
   padding: 6,
 } as const;
 
-/** @ file autocomplete list above the composer. Presentation only. */
 export function AtMenu({
   suggestionState,
+  placement = "above",
   matches,
   activeIndex,
   itemRefs,
@@ -41,6 +41,7 @@ export function AtMenu({
   onHover,
 }: {
   suggestionState: AtSuggestionState | null;
+  placement?: "above" | "below";
   matches: FileIndexEntry[];
   activeIndex: number;
   itemRefs: { current: (HTMLButtonElement | null)[] };
@@ -132,7 +133,7 @@ export function AtMenu({
       ? t("fileSuggestionsUnavailable", "File suggestions are temporarily unavailable")
       : panelLabel;
   return (
-    <MenuPanel label={panelLabel}>
+    <MenuPanel label={panelLabel} placement={placement}>
       <MenuHeader
         announcement={announcement}
         sigil="@"

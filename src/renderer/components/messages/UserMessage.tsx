@@ -100,6 +100,12 @@ export function UserMessageView({
     >
       {editing ? (
         <UserMessageEditor
+          key={`${sessionId ?? ""}:${entryId}`}
+          registerFiles={editHandlers?.registerFiles}
+          environmentId={editHandlers?.environmentId}
+          supportsImages={editHandlers?.supportsImages}
+          sessionId={sessionId}
+          cwd={cwd}
           text={editDraft.text}
           images={editDraft.images}
           bubbleStyle={bubbleStyle}

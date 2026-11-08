@@ -44,6 +44,7 @@ const FROM_SESSION_REPLY = "迁移清单已完成";
 const DELEGATED = "请在另一个会话里开始迁移";
 const DELEGATED_REPLY = "已交给另一个会话";
 const THUMB_PATH = "/tmp/tall-shot.png";
+const EDIT_SHOT_PATH = "src/edit-shot.png";
 const THUMB_PROSE = "缩略图夹在句中 @/tmp/tall-shot.png 之后继续写字";
 const THUMB_BASE64 = tallShotPng();
 const LARGE_SHOT_BASE64 = shotPng(240, 160);
@@ -195,10 +196,11 @@ const sessionHost = createSessionTestHost({
 const host = {
   ...sessionHost,
   call(method, params) {
-    if (method === "files.index") return { files: [], truncated: false };
+    if (method === "files.index") return { files: [EDIT_SHOT_PATH], truncated: false };
     if (method === "skills.list") return { skills: [] };
     if (method === "files.read") {
-      if (params?.path !== THUMB_PATH) return null;
+      if (params?.path !== THUMB_PATH && params?.path !== EDIT_SHOT_PATH) return null;
+      if (params.path === EDIT_SHOT_PATH && params.sourceSessionId !== "user-bubble") return null;
       const bytes = globalThis.atob(THUMB_BASE64).length;
       return { content: THUMB_BASE64, encoding: "base64", mime: "image/png", size: bytes };
     }
@@ -558,6 +560,60 @@ window.userBubble = {
   },
   composerThumbnailChip() {
     return thumbnailSummary(composerChip(THUMB_PATH));
+  },
+  editAttachment() {
+    const input = byRole(document, "textbox", "Edit message");
+    if (!input) return null;
+    const chip = [...input.querySelectorAll("[title]")].find(
+      (candidate) => candidate.getAttribute("title") === THUMB_PATH,
+    );
+    const menu = byRole(document, "group", /^Files ·/);
+    const option = menu?.querySelector("button");
+    const optionRect = option?.getBoundingClientRect();
+    const optionPoint = optionRect
+      ? { x: Math.round(optionRect.left + optionRect.width / 2), y: Math.round(optionRect.top + optionRect.height / 2) }
+      : null;
+    const optionHit = optionPoint ? document.elementFromPoint(optionPoint.x, optionPoint.y) : null;
+    return {
+      rect: bounds(input),
+      thumbnail: thumbnailSummary(chip),
+      chips: [...input.querySelectorAll(".token-chip[title]")].map((candidate) => ({
+        path: candidate.getAttribute("title"),
+        thumbnail: thumbnailSummary(candidate),
+      })),
+      menu: menu
+        ? {
+            rect: bounds(menu),
+            text: menu.textContent,
+            optionVisible: Boolean(option && optionHit && option.contains(optionHit)),
+            optionPoint,
+            optionHit: optionHit
+              ? { tag: optionHit.tagName, className: optionHit.className, text: optionHit.textContent.slice(0, 120) }
+              : null,
+          }
+        : null,
+    };
+  },
+  focusEditAtEnd() {
+    const input = byRole(document, "textbox", "Edit message");
+    if (!input) return;
+    input.scrollIntoView({ block: "start" });
+    input.focus();
+    const range = document.createRange();
+    range.selectNodeContents(input);
+    range.collapse(false);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  },
+  editChipCenter(title) {
+    const input = byRole(document, "textbox", "Edit message");
+    const chip = input
+      ? [...input.querySelectorAll(".token-chip[title]")].find((candidate) => candidate.getAttribute("title") === title)
+      : null;
+    if (!chip) return null;
+    const rect = chip.getBoundingClientRect();
+    return { x: Math.round(rect.x + rect.width / 2), y: Math.round(rect.y + rect.height / 2) };
   },
   focusComposer() {
     editor()?.focus();
