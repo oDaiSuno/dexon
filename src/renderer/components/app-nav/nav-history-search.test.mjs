@@ -101,7 +101,7 @@ function queryAll(root, selector) {
 }
 
 function visibleTitles(root) {
-  return queryAll(root, "[role='listitem']")
+  return queryAll(root, "[role='listitem'][data-session-id]")
     .map((row) => row.textContent ?? "")
     .filter((text) => text.trim().length > 0);
 }
@@ -192,10 +192,23 @@ test("filtering matches the five approved fields: id, cwd and branch", async () 
   }
 });
 
-test("a deep hit keeps its whole ancestor chain visible", async () => {
+test("search reveals a batched old deep hit and clearing restores the collapsed five-root view", async () => {
   const root = createManagedDomRoot();
   try {
-    await root.render(createElement(NavSidebar, historyProps()));
+    const sessions = [1, 2, 3, 4, 5].map((index) => sessionFixture(`recent-${index}`, { modified: iso(index) }));
+    sessions.push(
+      sessionFixture("sess-root", { name: "root plain", modified: iso(240) }),
+      sessionFixture("sess-mid", { name: "mid plain", parentSessionId: "sess-root", modified: iso(240) }),
+      sessionFixture("sess-deep", {
+        name: "deep leaf",
+        parentSessionId: "sess-mid",
+        firstMessage: "deephit",
+        modified: iso(240),
+      }),
+    );
+    await root.render(createElement(NavSidebar, historyProps({ sessions })));
+    assert.equal(visibleTitles(root).length, 5);
+    assert.doesNotMatch(visibleTitles(root).join("\n"), /root plain/);
     const input = searchBox(root);
     await type(root, input, "deephit");
 
@@ -206,7 +219,35 @@ test("a deep hit keeps its whole ancestor chain visible", async () => {
         `hit ancestors must stay visible, missing: ${expected}`,
       );
     }
-    assert.doesNotMatch(titles.join("\n"), /alpha render bug/, "unrelated rows must stay hidden");
+    assert.doesNotMatch(titles.join("\n"), /First message of recent/, "unrelated rows must stay hidden");
+    await click(root.container.querySelector('[aria-label="Clear session search"]'));
+    assert.equal(searchBox(root).value, "");
+    assert.equal(visibleTitles(root).length, 5);
+    assert.doesNotMatch(visibleTitles(root).join("\n"), /root plain|mid plain|deep leaf/);
+    assert.ok(root.container.querySelector('[aria-label="Load more sessions"]'));
+  } finally {
+    await root.unmount();
+  }
+});
+
+test("search shows every matching old root beyond five and Escape restores the progressive view", async () => {
+  const root = createManagedDomRoot();
+  try {
+    const sessions = [1, 2, 3, 4, 5, 6, 7].map((index) =>
+      sessionFixture(`archive-${index}`, { name: `Archived task ${index}`, modified: iso(240 + index) }),
+    );
+    await root.render(createElement(NavSidebar, historyProps({ sessions })));
+    assert.equal(visibleTitles(root).length, 5);
+    const search = searchBox(root);
+    await type(root, search, "Archived task");
+    assert.deepEqual(
+      queryAll(root, "[data-session-id]").map((row) => row.dataset.sessionId),
+      ["archive-1", "archive-2", "archive-3", "archive-4", "archive-5", "archive-6", "archive-7"],
+    );
+    assert.equal(root.container.querySelector('[aria-label="Load more sessions"]'), null);
+    await keyDown(search, "Escape");
+    assert.equal(visibleTitles(root).length, 5);
+    assert.ok(root.container.querySelector('[aria-label="Load more sessions"]'));
   } finally {
     await root.unmount();
   }

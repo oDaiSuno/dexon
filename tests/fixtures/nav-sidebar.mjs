@@ -20,7 +20,14 @@ export const sessionTreeRoots = {
   chain: "sess-refactor-login",
 };
 
-export const sessionTreeFoldedIds = [sessionTreeRoots.folded];
+export const sessionTreeExpandedIds = [
+  sessionTreeRoots.expanded,
+  sessionTreeRoots.chain,
+  "sess-migrate-api",
+  "sess-api-tests",
+  "sess-flaky-test",
+  "sess-fixtures",
+];
 
 export const sessionTreeStatuses = {
   "sess-asking-scope": "awaiting_input",

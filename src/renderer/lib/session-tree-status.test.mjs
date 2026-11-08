@@ -114,16 +114,22 @@ test("Pulse activity includes unread after live activity without changing counte
   assert.equal(statusApi.isPulseActivity("idle"), false);
 });
 
-test("Pulse roots surface unread descendants while session-tree rows keep unread on its own session", () => {
-  const [tree] = buildSessionTree([session("root"), session("child", { parentSessionId: "root" })]);
+test("collapsed rows and Pulse roots surface unread fork descendants without overriding live activity", () => {
+  const [tree] = buildSessionTree([
+    session("root"),
+    session("branch", { parentSessionId: "root", relation: "fork" }),
+    session("child", { parentSessionId: "branch", relation: "fork" }),
+  ]);
   const signals = { liveStatuses: {}, runningSessionIds: new Set(), unreadSessionIds: new Set(["child"]) };
   const descendants = descendantActivity(tree, signals);
   assert.equal(statusApi.indicatedPulseActivity("idle", descendants), "unread");
-  assert.equal(statusApi.indicatedActivity("idle", descendants), "idle");
+  assert.equal(statusApi.indicatedActivity("idle", descendants), "unread");
   for (const own of ["awaiting_input", "error", "running", "unread"]) {
     assert.equal(statusApi.indicatedPulseActivity(own, descendants), own);
+    assert.equal(statusApi.indicatedActivity(own, descendants), own);
   }
   assert.equal(statusApi.indicatedPulseActivity("unread", null), "unread");
+  assert.equal(statusApi.indicatedActivity("idle", null), "idle");
 });
 
 test("the first unread descendant follows creation-tree order with live status ahead of unread", () => {
@@ -153,7 +159,6 @@ for (const [own, childStatus, expected] of [
   ["running", "error", "error"],
   ["awaiting_input", "error", "awaiting_input"],
   ["error", "running", "error"],
-  ["idle", "unread", "idle"],
   ["running", "unread", "running"],
 ]) {
   test(`a parent in ${own} with descendant status ${childStatus} indicates ${expected}`, () => {

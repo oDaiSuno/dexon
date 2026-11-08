@@ -115,8 +115,20 @@ test("selected sessions stay read on completion and opening or deleting clears p
   assert.equal(sessionActivityOf(ledger).of("opened"), "idle");
   ledger = activityReducer(ledger, { type: "deleted", sessionId: "deleted" });
   assert.equal(sessionActivityOf(ledger).of("deleted"), "idle");
-  ledger = activityReducer(ledger, { type: "listed", sessionIds: new Set() });
+  ledger = activityReducer(ledger, { type: "listed", sessions: [] });
   assert.equal(sessionActivityOf(ledger).of("background"), "idle");
+});
+
+test("deleting a delegate forgets its identity before later unclassified activity completes", () => {
+  let ledger = initialActivityState(new Set());
+  ledger = activityReducer(ledger, { type: "listed", sessions: [{ id: "a", relation: "delegate" }] });
+  ledger = frame(ledger, { a: "running" });
+  ledger = activityReducer(ledger, { type: "deleted", sessionId: "a" });
+  ledger = frame(ledger, {});
+  assert.equal(sessionActivityOf(ledger).of("a"), "idle");
+  ledger = frame(ledger, { a: "running" });
+  ledger = frame(ledger, {});
+  assert.equal(sessionActivityOf(ledger).of("a"), "unread");
 });
 
 test("stream authority survives stale snapshots and resumes after a host restart", () => {

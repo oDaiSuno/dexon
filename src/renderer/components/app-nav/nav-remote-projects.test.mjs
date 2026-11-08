@@ -12,6 +12,7 @@ import {
   restoreGlobals,
 } from "../../../../tests/support/renderer.mjs";
 import { accessibleName, allByRole } from "../../../../tests/support/dom-queries.mjs";
+import { createElement, useState } from "react";
 
 after(restoreGlobals);
 const { NavSidebar } = await loadRenderer(
@@ -221,6 +222,132 @@ test("searching by remote host opens the matching environment even when another 
   await input(search, "staging");
   await keyDown(search, "Enter");
   assert.deepEqual(opened, [{ environmentId: "staging", path: "/work/trainer" }]);
+});
+
+for (const controlled of [false, true]) {
+  test(`${controlled ? "controlled" : "local"} branch expansion stays separate when local and remote sessions share IDs`, async (t) => {
+    const sessions = (environmentId, cwd) => [
+      {
+        id: "same-root",
+        name: "Shared root",
+        path: "/sessions/root.json",
+        cwd,
+        created: "2026-01-01T00:00:00.000Z",
+        modified: "2026-01-01T00:00:00.000Z",
+        firstMessage: "root",
+        messageCount: 2,
+        environmentId,
+      },
+      {
+        id: "same-child",
+        name: "Shared child",
+        path: "/sessions/child.json",
+        cwd,
+        parentSessionId: "same-root",
+        created: "2026-01-01T00:00:00.000Z",
+        modified: "2026-01-01T00:00:00.000Z",
+        firstMessage: "child",
+        messageCount: 2,
+        environmentId,
+      },
+    ];
+    const local = remoteRow({
+      key: '["primary","/work/trainer"]',
+      environmentId: "primary",
+      name: "local trainer",
+      sessions: sessions("primary", "/work/trainer"),
+    });
+    const remote = remoteRow({ sessions: sessions("gpu-a100", "/work/trainer") });
+    function NavigationOwner() {
+      const [expandedSessionIds, setExpandedSessionIds] = useState(() => new Set());
+      return createElement(
+        NavSidebar,
+        props({
+          projectRows: [local, remote],
+          expandedProjects: new Map([
+            [local.key, true],
+            [remote.key, true],
+          ]),
+          ...(controlled
+            ? {
+                expandedSessionIds,
+                onToggleExpand: (id) =>
+                  setExpandedSessionIds((current) => {
+                    const next = new Set(current);
+                    if (!next.delete(id)) next.add(id);
+                    return next;
+                  }),
+              }
+            : {}),
+        }),
+      );
+    }
+    const view = await mount(t, NavigationOwner);
+    const environment = (id) => view.container.querySelector(`[data-environment-id="${id}"]`);
+    assert.equal(allByRole(environment("primary"), "button", /^Shared child/).length, 0);
+    assert.equal(allByRole(environment("gpu-a100"), "button", /^Shared child/).length, 0);
+    await click(button(environment("primary"), "Expand forks"));
+    assert.equal(allByRole(environment("primary"), "button", /^Shared child/).length, 1);
+    assert.equal(allByRole(environment("gpu-a100"), "button", /^Shared child/).length, 0);
+    await click(button(environment("gpu-a100"), "Expand forks"));
+    assert.equal(allByRole(environment("gpu-a100"), "button", /^Shared child/).length, 1);
+    await click(button(environment("primary"), "Collapse forks"));
+    assert.equal(allByRole(environment("primary"), "button", /^Shared child/).length, 0);
+    assert.equal(allByRole(environment("gpu-a100"), "button", /^Shared child/).length, 1);
+  });
+}
+
+test("selected old roots and Load more stay scoped to their project when environments share session IDs", async (t) => {
+  const sessions = Array.from({ length: 7 }, (_, index) => ({
+    id: `shared-${index + 1}`,
+    name: `Shared task ${index + 1}`,
+    path: `/sessions/shared-${index + 1}.json`,
+    cwd: "/work/trainer",
+    created: "2026-01-01T00:00:00.000Z",
+    modified: `2026-01-${String(31 - index).padStart(2, "0")}T00:00:00.000Z`,
+    firstMessage: "shared task",
+    messageCount: 2,
+  }));
+  const local = remoteRow({
+    key: '["primary","/work/trainer"]',
+    environmentId: "primary",
+    name: "local trainer",
+    sessions,
+  });
+  const remote = remoteRow({ sessions });
+  const view = await mount(
+    t,
+    NavSidebar,
+    props({
+      projectRows: [local, remote],
+      expandedProjects: new Map([
+        [local.key, true],
+        [remote.key, true],
+      ]),
+      selectedSessionId: "shared-7",
+      selectedEnvironmentId: "gpu-a100",
+    }),
+  );
+  const environment = (id) => view.container.querySelector(`[data-environment-id="${id}"]`);
+  const ids = (id) => [...environment(id).querySelectorAll("[data-session-id]")].map((row) => row.dataset.sessionId);
+  assert.deepEqual(ids("primary"), ["shared-1", "shared-2", "shared-3", "shared-4", "shared-5"]);
+  assert.deepEqual(ids("gpu-a100"), ["shared-1", "shared-2", "shared-3", "shared-4", "shared-5", "shared-7"]);
+  assert.equal(button(environment("gpu-a100"), "Shared task 7").getAttribute("aria-current"), "page");
+  assert.equal(button(environment("primary"), "Load more sessions").querySelector(".type-mono-meta").textContent, "2");
+  assert.equal(button(environment("gpu-a100"), "Load more sessions").querySelector(".type-mono-meta").textContent, "1");
+  await click(button(environment("primary"), "Load more sessions"));
+  assert.deepEqual(ids("primary"), [
+    "shared-1",
+    "shared-2",
+    "shared-3",
+    "shared-4",
+    "shared-5",
+    "shared-6",
+    "shared-7",
+  ]);
+  assert.deepEqual(ids("gpu-a100"), ["shared-1", "shared-2", "shared-3", "shared-4", "shared-5", "shared-7"]);
+  assert.equal(button(environment("primary"), "Shared task 7").getAttribute("aria-current"), null);
+  assert.ok(button(environment("gpu-a100"), "Load more sessions"));
 });
 
 test("right-clicking a remote project opens the same project actions menu", async (t) => {
