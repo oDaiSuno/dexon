@@ -568,6 +568,12 @@ window.userBubble = {
       (candidate) => candidate.getAttribute("title") === THUMB_PATH,
     );
     const menu = byRole(document, "group", /^Files ·/);
+    const option = menu?.querySelector("button");
+    const optionRect = option?.getBoundingClientRect();
+    const optionPoint = optionRect
+      ? { x: Math.round(optionRect.left + optionRect.width / 2), y: Math.round(optionRect.top + optionRect.height / 2) }
+      : null;
+    const optionHit = optionPoint ? document.elementFromPoint(optionPoint.x, optionPoint.y) : null;
     return {
       rect: bounds(input),
       thumbnail: thumbnailSummary(chip),
@@ -575,7 +581,17 @@ window.userBubble = {
         path: candidate.getAttribute("title"),
         thumbnail: thumbnailSummary(candidate),
       })),
-      menu: menu ? { rect: bounds(menu), text: menu.textContent } : null,
+      menu: menu
+        ? {
+            rect: bounds(menu),
+            text: menu.textContent,
+            optionVisible: Boolean(option && optionHit && option.contains(optionHit)),
+            optionPoint,
+            optionHit: optionHit
+              ? { tag: optionHit.tagName, className: optionHit.className, text: optionHit.textContent.slice(0, 120) }
+              : null,
+          }
+        : null,
     };
   },
   focusEditAtEnd() {

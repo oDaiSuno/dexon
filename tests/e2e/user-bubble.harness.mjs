@@ -535,9 +535,9 @@ async function run() {
       "the editing file menu finds a project image",
     );
     const open = await page("editAttachment()");
-    assert.ok(open.menu.rect.top >= open.rect.bottom, "the file menu opens below the bubble editor");
-    assert.ok(open.menu.rect.bottom <= 900, "the menu remains inside the real window");
     measurement.open = open;
+    assert.ok(open.menu.rect.top >= open.rect.bottom, "the file menu opens below the bubble editor");
+    assert.ok(open.menu.optionVisible, "the file option is visibly reachable below the topmost editor");
     await capture("30-edit-file-menu-below");
     await key("Tab");
     await waitFor(
@@ -553,6 +553,18 @@ async function run() {
       "/workspace/project/src/edit-shot.png",
       "the editing pill reveals its project file",
     );
+    await page("focusEditAtEnd()");
+    await type(" @edit-shot");
+    await waitFor(
+      "window.userBubble.editAttachment()?.menu?.optionVisible",
+      "the completion option is reachable by mouse",
+    );
+    await click((await page("editAttachment()")).menu.optionPoint);
+    await waitFor(
+      "window.userBubble.editAttachment()?.chips.filter(chip => chip.path === 'src/edit-shot.png').length === 2 && !window.userBubble.editAttachment()?.menu",
+      "clicking the option adds a second attachment and closes the menu",
+    );
+    measurement.clicked = await page("editAttachment()");
     await page("focusEditAtEnd()");
     await type(" @");
     await waitFor("!!window.userBubble.editAttachment()?.menu", "typing @ reopens the editing menu");
