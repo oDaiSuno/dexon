@@ -45,6 +45,7 @@ test("a forked session and a session created by another session carry different 
     }),
   ]);
   await waitFor(() => historyRow(scene, "Relation root"));
+  await click(control(scene.history(), "button", "Expand forks"));
   const fork = accessibleName(historyRow(scene, "Forked child"));
   const delegate = accessibleName(historyRow(scene, "Delegated child"));
   assert.match(fork, /Forked session/, "a copy of the conversation is announced as a fork");
@@ -56,6 +57,10 @@ test("a forked session and a session created by another session carry different 
 test("a chain six levels deep renders, and the indent stops growing after the third level", async (t) => {
   const scene = await startSessionScene(t, depthChain());
   await waitFor(() => historyRow(scene, "Depth 0"));
+  for (let level = 0; level < 5; level += 1) {
+    const row = historyRow(scene, `Depth ${level}`).closest('[role="listitem"]');
+    await click(control(row, "button", "Expand forks"));
+  }
   const rows = [0, 1, 2, 3, 4, 5].map((level) => historyRow(scene, `Depth ${level}`));
   for (let level = 1; level < rows.length; level += 1)
     assert.ok(precedes(rows[level - 1], rows[level]), `Depth ${level} stays below Depth ${level - 1}`);
@@ -78,6 +83,8 @@ test("a tree of forks still nests and folds the way it did before", async (t) =>
   ]);
   await waitFor(() => historyRow(scene, "Fork root"));
   assert.equal(accessibleName(historyRow(scene, "Fork root")), "Fork root", "a root shows no relation marker");
+  assert.equal(roles(scene.history(), "button", /^Fork child/).length, 0);
+  await click(control(scene.history(), "button", "Expand forks"));
   assert.ok(precedes(historyRow(scene, "Fork root"), historyRow(scene, "Fork child")));
   await click(control(scene.history(), "button", "Collapse forks"));
   await waitFor(() => assert.equal(roles(scene.history(), "button", /^Fork child/).length, 0));

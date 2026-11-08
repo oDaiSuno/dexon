@@ -86,15 +86,12 @@ export function createEnvironmentDirectory(
         sessions = data.sessions.map((session) =>
           environmentId === PRIMARY_ENVIRONMENT_ID ? session : { ...session, environmentId },
         );
+        ledger = activityReducer(ledger, { type: "listed", sessions });
         ledger = activityReducer(ledger, {
           type: "frame",
           source: "snapshot",
           live: parseLiveFrame(data),
           at: Date.now(),
-        });
-        ledger = activityReducer(ledger, {
-          type: "listed",
-          sessionIds: new Set(sessions.map((session) => session.id)),
         });
         error = null;
         if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
@@ -154,6 +151,9 @@ export function createEnvironmentDirectory(
               ? { ...event, session: { ...event.session, environmentId } }
               : event;
           sessions = applySessionChangedEvent(sessions, changed) ?? sessions;
+          if (changed.session && !changed.deleted) {
+            ledger = activityReducer(ledger, { type: "upserted", session: changed.session });
+          }
         }
         if (event.deleted && event.sessionId) {
           ledger = activityReducer(ledger, { type: "deleted", sessionId: event.sessionId });

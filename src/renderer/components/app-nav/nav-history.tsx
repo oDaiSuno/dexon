@@ -188,24 +188,33 @@ export function NavHistory({
                     <ProjectSessionList
                       {...handlers}
                       sessions={project.visible}
+                      searching={searching}
                       activity={project.sessionActivity}
                       homeDir={project.homeDir || handlers.homeDir}
                       selectedSessionId={
                         project.environmentId === selectedEnvironmentId ? handlers.selectedSessionId : null
                       }
-                      foldedSessionIds={
-                        new Set(
-                          project.sessions
-                            .filter(
-                              (session) =>
-                                handlers.foldedSessionIds?.has(qualifySessionKey(project.environmentId, session.id)) ||
-                                (project.environmentId === PRIMARY_ENVIRONMENT_ID &&
-                                  handlers.foldedSessionIds?.has(session.id)),
+                      expandedSessionIds={
+                        handlers.expandedSessionIds
+                          ? new Set(
+                              project.sessions
+                                .filter(
+                                  (session) =>
+                                    handlers.expandedSessionIds?.has(
+                                      qualifySessionKey(project.environmentId, session.id),
+                                    ) ||
+                                    (project.environmentId === PRIMARY_ENVIRONMENT_ID &&
+                                      handlers.expandedSessionIds?.has(session.id)),
+                                )
+                                .map((session) => session.id),
                             )
-                            .map((session) => session.id),
-                        )
+                          : undefined
                       }
-                      onToggleFold={(id) => handlers.onToggleFold?.(qualifySessionKey(project.environmentId, id))}
+                      onToggleExpand={
+                        handlers.onToggleExpand
+                          ? (id) => handlers.onToggleExpand?.(qualifySessionKey(project.environmentId, id))
+                          : undefined
+                      }
                       onRenamed={() =>
                         tree.onEnvironmentRefresh
                           ? tree.onEnvironmentRefresh(project.environmentId)

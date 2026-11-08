@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { precedes } from "../support/dom-queries.mjs";
-import { act, control, historyRow, restoreGlobals, waitFor } from "../support/app-navigation.mjs";
+import { act, click, control, historyRow, restoreGlobals, waitFor } from "../support/app-navigation.mjs";
 import { startSessionScene } from "../support/session-tree-scene.mjs";
 import { daysAgo, minutesAgo, treeSession } from "../fixtures/session-tree-data.mjs";
 
@@ -42,6 +42,7 @@ function childrenInDocumentOrder(scene) {
 test("siblings keep the order they were created in even when a later one was modified last", async (t) => {
   const scene = await startSessionScene(t, siblingTree());
   await waitFor(() => historyRow(scene, "Order parent"));
+  await click(control(scene.history(), "button", "Expand forks"));
   const [first, second, third] = childrenInDocumentOrder(scene);
   assert.ok(precedes(first, second), "the first child stays above the second");
   assert.ok(precedes(second, third), "the second child stays above the third");
@@ -53,6 +54,7 @@ test("a child the Host reports as freshly modified keeps its place among its sib
   await waitFor(() =>
     assert.ok(scene.external.sessionChangedSubscribers() > 0, "the sidebar listens for session changes"),
   );
+  await click(control(scene.history(), "button", "Expand forks"));
   const before = historyRow(scene, "Third child").textContent;
   await act(async () => scene.external.updateSession("order-third", { modified: minutesAgo(0) }));
   await waitFor(() => {
@@ -77,6 +79,7 @@ test("a tree whose root is ten days old but whose child was modified now is list
     treeSession("group-control", { name: "Fresh root", created: minutesAgo(2), modified: minutesAgo(1) }),
   ]);
   await waitFor(() => historyRow(scene, "Old root"));
+  await click(control(scene.history(), "button", "Expand forks"));
   const freshRoot = control(scene.container, "button", "Fresh root");
   assert.ok(precedes(historyRow(scene, "Old root"), freshRoot), "the old root is ranked by its active child");
   assert.ok(precedes(historyRow(scene, "Fresh child"), freshRoot), "the active child stays with its root");

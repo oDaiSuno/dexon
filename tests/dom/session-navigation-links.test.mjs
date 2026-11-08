@@ -43,6 +43,11 @@ test("opening a session three levels deep shows its whole path and every ancesto
       modified: minutesAgo(20),
     }),
   ]);
+  await waitFor(() => historyRow(scene, "Root plan"));
+  for (const title of ["Root plan", "Mid migration"]) {
+    const row = historyRow(scene, title).closest('[role="listitem"]');
+    await click(control(row, "button", "Expand forks"));
+  }
   await click(await waitFor(() => historyRow(scene, "Leaf tests")));
   await waitFor(() => visibleText(chat(scene), "path-leaf marker"));
   const path = sessionPath(scene);

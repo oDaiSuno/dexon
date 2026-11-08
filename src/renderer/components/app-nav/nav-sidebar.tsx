@@ -71,8 +71,8 @@ export function NavSidebar({
   inspectFolder,
   onBackToPersonalSpace,
   spacePanel,
-  foldedSessionIds,
-  onToggleFold,
+  expandedSessionIds,
+  onToggleExpand,
   currentProject,
   projectName,
   isPinnedProject,
@@ -134,8 +134,8 @@ export function NavSidebar({
   inspectFolder?: (typed: string) => Promise<string | null>;
   onBackToPersonalSpace: () => void;
   spacePanel?: ReactNode;
-  foldedSessionIds?: ReadonlySet<string>;
-  onToggleFold?: (sessionId: string) => void;
+  expandedSessionIds?: ReadonlySet<string>;
+  onToggleExpand?: (sessionId: string) => void;
   currentProject?: string;
   projectName?: (root: string) => string;
   isPinnedProject?: (root: string) => boolean;
@@ -416,8 +416,8 @@ export function NavSidebar({
           onSelectSession={onSelectSession}
           onRenamed={onRefreshSessions}
           onSessionDeleted={(id) => onSessionDeleted?.(id)}
-          foldedSessionIds={foldedSessionIds}
-          onToggleFold={onToggleFold}
+          expandedSessionIds={expandedSessionIds}
+          onToggleExpand={onToggleExpand}
         />
       </div>
 

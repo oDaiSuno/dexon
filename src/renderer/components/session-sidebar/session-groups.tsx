@@ -1,7 +1,9 @@
+import { useState } from "react";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import { buildSessionTree } from "@/lib/session-tree";
+import { partitionSessionRoots } from "@/lib/session-root-batch";
 import type { SessionActivity, SessionActivitySignals } from "@/lib/session-tree-status";
 import { SessionTreeItem } from "./session-tree-item";
 
@@ -15,8 +17,9 @@ export interface SessionListHandlers {
   onSelectSession: (session: SessionInfo) => void;
   onRenamed: () => void;
   onSessionDeleted: (id: string) => void;
-  foldedSessionIds?: ReadonlySet<string>;
-  onToggleFold?: (sessionId: string) => void;
+  expandedSessionIds?: ReadonlySet<string>;
+  onToggleExpand?: (sessionId: string) => void;
+  searching?: boolean;
 }
 
 export function SessionListStatus({
@@ -54,12 +57,22 @@ export function SessionListStatus({
 }
 
 export function ProjectSessionList({ sessions, ...handlers }: { sessions: SessionInfo[] } & SessionListHandlers) {
+  const { t } = useI18n();
+  const [showAll, setShowAll] = useState(false);
   const signals: SessionActivity | SessionActivitySignals = handlers.activity ?? {
     liveStatuses: handlers.liveStatuses ?? {},
     runningSessionIds: handlers.runningSessionIds,
     unreadSessionIds: handlers.unreadSessionIds,
   };
   const sessionTree = buildSessionTree(sessions);
+  const { visible, hiddenCount } =
+    showAll || handlers.searching
+      ? { visible: sessionTree, hiddenCount: 0 }
+      : partitionSessionRoots(sessionTree, {
+          now: Date.now(),
+          signals,
+          selectedSessionId: handlers.selectedSessionId,
+        });
 
   return (
     <div style={{ paddingLeft: "var(--space-4)" }}>
@@ -74,7 +87,7 @@ export function ProjectSessionList({ sessions, ...handlers }: { sessions: Sessio
           borderLeft: "1px solid var(--fx-line-default)",
         }}
       >
-        {sessionTree.map((node) => (
+        {visible.map((node) => (
           <SessionTreeItem
             key={node.session.id}
             node={node}
@@ -85,11 +98,41 @@ export function ProjectSessionList({ sessions, ...handlers }: { sessions: Sessio
             onSessionDeleted={handlers.onSessionDeleted}
             depth={0}
             homeDir={handlers.homeDir}
-            foldedSessionIds={handlers.foldedSessionIds}
-            onToggleFold={handlers.onToggleFold}
+            expandedSessionIds={handlers.expandedSessionIds}
+            onToggleExpand={handlers.onToggleExpand}
+            searching={handlers.searching}
           />
         ))}
       </div>
+      {hiddenCount > 0 && (
+        <button
+          type="button"
+          aria-label={t("loadMoreSessions", "Load more sessions")}
+          onClick={() => setShowAll(true)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            flexShrink: 0,
+            width: "100%",
+            height: 24,
+            boxSizing: "border-box",
+            padding: "2px 8px 0",
+            gap: 6,
+            border: 0,
+            borderTop: "1px solid var(--fx-line-default)",
+            background: "transparent",
+            cursor: "pointer",
+            textAlign: "left",
+          }}
+        >
+          <span className="type-meta-default" style={{ flex: 1, color: "var(--fx-text-tertiary)" }}>
+            {t("loadMoreSessions", "Load more sessions")}
+          </span>
+          <span className="type-mono-meta" style={{ color: "var(--fx-text-secondary)" }}>
+            {hiddenCount}
+          </span>
+        </button>
+      )}
     </div>
   );
 }

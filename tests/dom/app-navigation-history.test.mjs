@@ -155,10 +155,10 @@ async function collapseAndExpand(scene) {
 
 test("folded forks stay folded after the navigation is collapsed and expanded again", async (t) => {
   const scene = await startNavigation(t, { forks: true });
-  await waitFor(() => {
-    historyRows(scene, "Another personal conversation");
-    historyRow(scene, "Forked personal conversation");
-  });
+  await waitFor(() => historyRows(scene, "Another personal conversation"));
+  assert.equal(roles(scene.history(), "button", /^Forked personal conversation/).length, 0);
+  await click(control(scene.history(), "button", "Expand forks"));
+  await waitFor(() => historyRow(scene, "Forked personal conversation"));
   await click(control(scene.history(), "button", "Collapse forks"));
   await waitFor(() => assert.equal(roles(scene.history(), "button", /^Forked personal conversation/).length, 0));
   await collapseAndExpand(scene);
