@@ -69,7 +69,7 @@ export function indicatedActivity(
   descendants: SubtreeActivity | null,
 ): SessionActivityStatus {
   const bubbled = descendants?.status;
-  return bubbled && isCountedActivity(bubbled) ? moreUrgent(own, bubbled) : own;
+  return bubbled && isPulseActivity(bubbled) ? moreUrgent(own, bubbled) : own;
 }
 
 export function indicatedPulseActivity(

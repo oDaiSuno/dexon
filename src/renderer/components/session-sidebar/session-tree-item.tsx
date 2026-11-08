@@ -58,8 +58,9 @@ export function SessionTreeItem({
   depth,
   nextSibling = null,
   homeDir = "",
-  foldedSessionIds,
-  onToggleFold,
+  expandedSessionIds,
+  onToggleExpand,
+  searching = false,
 }: {
   node: SessionTreeNode;
   selectedSessionId: string | null;
@@ -70,14 +71,17 @@ export function SessionTreeItem({
   depth: number;
   nextSibling?: SessionTreeNode | null;
   homeDir?: string;
-  foldedSessionIds?: ReadonlySet<string>;
-  onToggleFold?: (sessionId: string) => void;
+  expandedSessionIds?: ReadonlySet<string>;
+  onToggleExpand?: (sessionId: string) => void;
+  searching?: boolean;
 }) {
-  const [localCollapsed, setLocalCollapsed] = useState(false);
-  const collapsed = foldedSessionIds ? foldedSessionIds.has(node.session.id) : localCollapsed;
-  const toggleCollapsed = onToggleFold
-    ? () => onToggleFold(node.session.id)
-    : () => setLocalCollapsed((value) => !value);
+  const [localCollapsed, setLocalCollapsed] = useState(true);
+  const collapsed = !searching && (expandedSessionIds ? !expandedSessionIds.has(node.session.id) : localCollapsed);
+  const toggleCollapsed = () => {
+    if (searching) return;
+    if (onToggleExpand) onToggleExpand(node.session.id);
+    else setLocalCollapsed((value) => !value);
+  };
   const hasChildren = node.children.length > 0;
   const activity = ownActivity(node.session.id, signals);
   const relation = sessionRelation(node.session);
@@ -122,8 +126,9 @@ export function SessionTreeItem({
             depth={depth + 1}
             nextSibling={node.children[index + 1] ?? null}
             homeDir={homeDir}
-            foldedSessionIds={foldedSessionIds}
-            onToggleFold={onToggleFold}
+            expandedSessionIds={expandedSessionIds}
+            onToggleExpand={onToggleExpand}
+            searching={searching}
           />
         ))}
       {expanded && depth > 0 && nextTone && (

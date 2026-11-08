@@ -77,7 +77,7 @@ function assertHistoryState(state) {
       `revealed session content stays inside History: ${JSON.stringify({ part, row: state.row, history: state.history })}`,
     );
   assert.equal(state.projectOpen, "true");
-  assert.equal(state.folded, 0);
+  assert.equal(state.expandedAncestors, 2, "both ancestors of the revealed target are expanded");
   assert.ok(state.scrollTop > 0, "real history scrolled to the urgent descendant");
   assert.equal(state.statusName, "Waiting for your answer");
   assert.ok(
@@ -153,9 +153,15 @@ async function run() {
   assert.ok(summary.badge.right < summary.more.x, "waiting badge remains left of the real more button");
   await capture("summary-and-hover", { expanded, ...summary });
   await click("well", "button", { pattern: "Expand active sessions" });
+  await click("history", "button", "navigation-project");
+  await waitFor("window.pulseProof.targetState().projectOpen === 'true'");
+  const initialTree = await js("window.pulseProof.targetState()");
+  assert.equal(initialTree.present, false, "the urgent descendant starts collapsed");
+  assert.equal(initialTree.expandedAncestors, 0);
   await click("well", "button", { pattern: "pulse-root" });
   await revealed("first-reveal");
   await js("window.pulseProof.fold('pulse-middle'); window.pulseProof.fold('pulse-root')");
+  await waitFor("!window.pulseProof.targetState().present");
   await js("window.pulseProof.scrollAway()");
   await click("history", "button", "navigation-project");
   await waitFor("!window.pulseProof.targetState().present");

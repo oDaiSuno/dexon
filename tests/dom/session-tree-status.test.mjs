@@ -45,14 +45,17 @@ async function openMixedTree(t) {
   await waitFor(() => historyRow(scene, "Aggregate parent"));
   await act(async () => scene.external.running(["agg-run-1", "agg-run-2"], MIXED_STATUSES));
   await waitFor(() =>
-    assert.match(accessibleName(historyRow(scene, "Waiting child")), new RegExp(AWAITING), "the child shows it waits"),
+    assert.match(
+      accessibleName(historyRow(scene, "Aggregate parent")),
+      new RegExp(AWAITING),
+      "the collapsed tree shows it waits",
+    ),
   );
   return scene;
 }
 
 test("a collapsed parent shows the most urgent status inside it together with the counts", async (t) => {
   const scene = await openMixedTree(t);
-  await click(control(scene.history(), "button", "Collapse forks"));
   await waitFor(() => assert.equal(roles(scene.history(), "button", /^Waiting child/).length, 0));
   const name = accessibleName(historyRow(scene, "Aggregate parent"));
   assert.match(name, new RegExp(AWAITING), "the most urgent descendant status is the one the row shows");
@@ -71,7 +74,6 @@ test("an unread parent shows its waiting child's indicator while the forks are c
   );
   await act(async () => scene.external.running(["agg-run-1", "agg-run-2"], MIXED_STATUSES));
   await waitFor(() => assert.match(accessibleName(historyRow(scene, "Aggregate parent")), /New activity/));
-  await click(control(scene.history(), "button", "Collapse forks"));
   const parent = historyRow(scene, "Aggregate parent");
   assert.ok(
     parent.querySelector('[aria-label="Waiting for your answer"]'),
@@ -103,7 +105,6 @@ for (const [own, childStatus, label] of [
       await act(async () => scene.external.running([], { "urgent-child": childStatus }));
       assert.match(accessibleName(historyRow(scene, "Parent task")), /New activity/);
     }
-    await click(control(scene.history(), "button", "Collapse forks"));
     const parent = historyRow(scene, "Parent task");
     assert.ok(parent.querySelector(`[aria-label="${label}"]`));
     assert.equal(parent.querySelector('[aria-label="New session activity"]'), null);
@@ -111,7 +112,7 @@ for (const [own, childStatus, label] of [
   });
 }
 
-test("unread descendants keep their dot on their own row instead of bubbling it to a collapsed parent", async (t) => {
+test("unread forks bubble their dot to a collapsed parent and keep it on their own row when expanded", async (t) => {
   const scene = await startSessionScene(t, [
     treeSession("read-parent", { name: "Read parent", created: minutesAgo(30), modified: minutesAgo(30) }),
     treeSession("unread-child", { name: "Unread child", parentSessionId: "read-parent", created: minutesAgo(29) }),
@@ -119,11 +120,13 @@ test("unread descendants keep their dot on their own row instead of bubbling it 
   await waitFor(() => historyRow(scene, "Read parent"));
   await act(async () => scene.external.running(["unread-child"]));
   await act(async () => scene.external.running([]));
-  assert.ok(historyRow(scene, "Unread child").querySelector('[aria-label="New session activity"]'));
-  await click(control(scene.history(), "button", "Collapse forks"));
   const parent = historyRow(scene, "Read parent");
-  assert.equal(parent.querySelector('[aria-label="New session activity"]'), null);
+  assert.ok(parent.querySelector('[aria-label="New session activity"]'));
   assert.equal(parent.querySelector('[aria-label="Agent running"]'), null);
+  assert.equal(roles(scene.history(), "button", /^Unread child/).length, 0);
+  await click(control(scene.history(), "button", "Expand forks"));
+  assert.equal(historyRow(scene, "Read parent").querySelector('[aria-label="New session activity"]'), null);
+  assert.ok(historyRow(scene, "Unread child").querySelector('[aria-label="New session activity"]'));
 });
 
 test("clearing a background failure never exposes a false unread dot in the history", async (t) => {
@@ -141,6 +144,7 @@ test("clearing a background failure never exposes a false unread dot in the hist
 
 test("an expanded parent shows no descendant status and each child shows only its own", async (t) => {
   const scene = await openMixedTree(t);
+  await click(control(scene.history(), "button", "Expand forks"));
   assert.equal(accessibleName(historyRow(scene, "Aggregate parent")), "Aggregate parent");
   assert.match(accessibleName(historyRow(scene, "Running child one")), /Agent running/);
   assert.doesNotMatch(accessibleName(historyRow(scene, "Running child one")), new RegExp(AWAITING));
@@ -166,8 +170,7 @@ test("a collapsed parent whose only busy descendant waits for the user says so f
   ]);
   await waitFor(() => historyRow(scene, "Quiet parent"));
   await act(async () => scene.external.running([], { "quiet-wait": "awaiting_input" }));
-  await waitFor(() => assert.match(accessibleName(historyRow(scene, "Asking child")), new RegExp(AWAITING)));
-  await click(control(scene.history(), "button", "Collapse forks"));
+  await waitFor(() => assert.match(accessibleName(historyRow(scene, "Quiet parent")), new RegExp(AWAITING)));
   await waitFor(() => assert.equal(roles(scene.history(), "button", /^Asking child/).length, 0));
   const name = accessibleName(historyRow(scene, "Quiet parent"));
   assert.match(name, new RegExp(AWAITING));

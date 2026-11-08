@@ -4,13 +4,180 @@ import { act } from "react";
 import { createDeferred } from "#test-timing";
 import {
   session,
+  createStorage,
   respondWithSessions,
   createProbe,
   mountProbe,
   withEnvironment,
 } from "./session-directory.harness.mjs";
+import { api, mountProjectProbe } from "../app-shell/project-spaces-test-harness.mjs";
+import { remoteServer } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
 
 const UNREAD_STORAGE_KEY = "dexon:unread-session-ids";
+
+test("known delegate completions stay read while root and fork completions remain unread", async () => {
+  const sessions = [
+    session("root"),
+    session("delegate", { parentSessionId: "root", relation: "delegate" }),
+    session("fork", { parentSessionId: "root", relation: "fork" }),
+    session("legacy-fork", { parentSessionId: "root" }),
+  ];
+  await withEnvironment({ responses: respondWithSessions(sessions) }, async (env) => {
+    const { state, Probe } = createProbe();
+    const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+    await act(async () => env.running({ sessionIds: ["root", "delegate", "fork", "legacy-fork"] }));
+    assert.equal(state.value.activity.of("delegate"), "running");
+    await act(async () => env.running({ sessionIds: [] }));
+    assert.equal(state.value.activity.of("delegate"), "idle");
+    assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork", "legacy-fork"]);
+    assert.deepEqual(JSON.parse(env.store.getItem(UNREAD_STORAGE_KEY)), ["root", "fork", "legacy-fork"]);
+    await mounted.unmount();
+  });
+});
+
+test("hydrated delegate unread is cleaned and persisted separately for local and remote directories", async (t) => {
+  const storage = createStorage();
+  storage.setItem("pi-web:unread-session-ids", JSON.stringify(["shared", "delegate", "fork", "legacy-fork", "gone"]));
+  storage.setItem(`${UNREAD_STORAGE_KEY}:gpu`, JSON.stringify(["root", "shared", "fork", "gone"]));
+  await withEnvironment(
+    {
+      storage,
+      responses: respondWithSessions([
+        session("shared"),
+        session("delegate", { parentSessionId: "shared", relation: "delegate" }),
+        session("fork", { parentSessionId: "shared", relation: "fork" }),
+        session("legacy-fork", { parentSessionId: "shared" }),
+      ]),
+    },
+    async (env) => {
+      const { state, Probe } = createProbe();
+      const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+      assert.deepEqual([...state.value.unreadSessionIds], ["shared", "fork", "legacy-fork"]);
+      assert.equal(state.value.activity.of("delegate"), "idle");
+      assert.deepEqual(JSON.parse(storage.getItem(UNREAD_STORAGE_KEY)), ["shared", "fork", "legacy-fork"]);
+      assert.equal(storage.getItem("pi-web:unread-session-ids"), null);
+      assert.deepEqual(JSON.parse(storage.getItem(`${UNREAD_STORAGE_KEY}:gpu`)), ["root", "shared", "fork", "gone"]);
+      await mounted.unmount();
+    },
+  );
+  const host = await mountProjectProbe(t, () => api.useEnvironmentDirectories({ selectedSessionId: null }), {
+    target: { localStorage: storage },
+    servers: [remoteServer("gpu")],
+    reply: (_id, method) => {
+      assert.equal(method, "sessions.list");
+      return {
+        sessions: [
+          session("root"),
+          session("shared", { parentSessionId: "root", relation: "delegate" }),
+          session("fork", { parentSessionId: "root", relation: "fork" }),
+        ],
+        runningSessionIds: [],
+      };
+    },
+  });
+  const remote = host.get().find((directory) => directory.environment.id === "gpu");
+  assert.equal(remote.error, null);
+  assert.deepEqual([...remote.unreadSessionIds], ["root", "fork"]);
+  assert.equal(remote.activity.of("shared"), "idle");
+  assert.deepEqual(JSON.parse(storage.getItem(`${UNREAD_STORAGE_KEY}:gpu`)), ["root", "fork"]);
+  assert.deepEqual(JSON.parse(storage.getItem(UNREAD_STORAGE_KEY)), ["shared", "fork", "legacy-fork"]);
+});
+
+test("a delegate upsert before the first list suppresses completion without pruning unrelated root and fork unread", async () => {
+  const snapshot = createDeferred();
+  const storage = createStorage();
+  storage.setItem(UNREAD_STORAGE_KEY, JSON.stringify(["root", "fork"]));
+  const sessions = [
+    session("root"),
+    session("fork", { parentSessionId: "root", relation: "fork" }),
+    session("delegate", { parentSessionId: "root", relation: "delegate" }),
+  ];
+  await withEnvironment(
+    {
+      storage,
+      responses: (method) => {
+        if (method === "sessions.list") return snapshot.promise;
+        throw new Error(`unexpected Host request: ${method}`);
+      },
+    },
+    async (env) => {
+      const { state, Probe } = createProbe();
+      const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+      assert.equal(state.value.loading, true);
+      await act(async () => env.sessionChanged({ cwd: sessions[2].cwd, session: sessions[2] }));
+      assert.deepEqual(
+        state.value.sessions.map((item) => item.id),
+        ["delegate"],
+      );
+      assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+      assert.deepEqual(JSON.parse(storage.getItem(UNREAD_STORAGE_KEY)), ["root", "fork"]);
+      await act(async () => env.running({ sessionIds: ["delegate"] }));
+      assert.equal(state.value.activity.of("delegate"), "running");
+      await act(async () => env.running({ sessionIds: [] }));
+      assert.equal(state.value.activity.of("delegate"), "idle");
+      assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+      env.setReplies(respondWithSessions(sessions));
+      await act(async () => snapshot.resolve({ sessions, runningSessionIds: ["delegate"] }));
+      assert.equal(state.value.loading, false);
+      assert.equal(state.value.activity.of("delegate"), "idle");
+      assert.deepEqual(JSON.parse(storage.getItem(UNREAD_STORAGE_KEY)), ["root", "fork"]);
+      await mounted.unmount();
+    },
+  );
+});
+
+test("late delegate metadata clears its completion and other partial updates preserve unread eligibility", async () => {
+  const root = session("root");
+  const fork = session("fork", { parentSessionId: "root", relation: "fork" });
+  const delegate = session("delegate", { parentSessionId: "root", relation: "delegate" });
+  await withEnvironment({ responses: respondWithSessions([root, fork]) }, async (env) => {
+    const { state, Probe } = createProbe();
+    const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+    await act(async () => env.running({ sessionIds: ["root", "fork", "delegate"] }));
+    await act(async () => env.running({ sessionIds: [] }));
+    assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork", "delegate"]);
+    await act(async () => env.sessionChanged({ cwd: delegate.cwd, session: delegate }));
+    assert.equal(state.value.activity.of("delegate"), "idle");
+    assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+    assert.deepEqual(JSON.parse(env.store.getItem(UNREAD_STORAGE_KEY)), ["root", "fork"]);
+    await act(async () => env.sessionChanged({ cwd: root.cwd, session: { ...root, name: "renamed" } }));
+    await act(async () => env.running({ sessionIds: ["root", "fork", "delegate"] }));
+    await act(async () => env.running({ sessionIds: [] }));
+    assert.equal(state.value.activity.of("delegate"), "idle");
+    assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+    await mounted.unmount();
+  });
+});
+
+test("restarted snapshots prune removed completions and learn delegate identity without overriding later streams", async () => {
+  const root = session("root");
+  const fork = session("fork", { parentSessionId: "root", relation: "fork" });
+  const delegate = session("delegate", { parentSessionId: "root" });
+  await withEnvironment(
+    {
+      responses: respondWithSessions(
+        [root, fork, delegate, session("removed")],
+        ["root", "fork", "delegate", "removed"],
+      ),
+    },
+    async (env) => {
+      const { state, Probe } = createProbe();
+      const mounted = await mountProbe(env, Probe, { selectedSessionId: null, refreshKey: 0 });
+      assert.deepEqual([...state.value.runningSessionIds], ["root", "fork", "delegate", "removed"]);
+      env.setReplies(respondWithSessions([root, fork, { ...delegate, relation: "delegate" }]));
+      await act(async () => env.restart());
+      assert.equal(state.value.activity.of("delegate"), "idle");
+      assert.equal(state.value.activity.of("removed"), "idle");
+      assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+      assert.deepEqual(JSON.parse(env.store.getItem(UNREAD_STORAGE_KEY)), ["root", "fork"]);
+      await act(async () => env.running({ sessionIds: ["uncatalogued"] }));
+      await act(async () => state.value.refreshSessions(false));
+      assert.equal(state.value.activity.of("uncatalogued"), "running");
+      assert.deepEqual([...state.value.unreadSessionIds], ["root", "fork"]);
+      await mounted.unmount();
+    },
+  );
+});
 
 test("observed runs keep their start across frames and reset it only when another run starts", async (t) => {
   let now = 1000;
