@@ -13,13 +13,15 @@ import {
   settle,
   waitFor,
 } from "../../../tests/support/renderer.mjs";
-import { useState, createElement } from "react";
+import { useState, createElement, createRef } from "react";
+import { createSessionTestHost } from "../../../tests/fixtures/session-host.mjs";
+import { turnDetail, assistantReply, textBlock } from "../../../tests/fixtures/chat-answer-turn.mjs";
 import { byRole } from "../../../tests/support/dom-queries.mjs";
 import { installRendererApi } from "../../../tests/support/renderer-api.mjs";
 
-const { UserMessageView, resetRpc, installApiShims } = await loadRenderer(
+const { UserMessageView, ChatWindow, ThinkingExpansionStore, resetRpc, installApiShims } = await loadRenderer(
   "user-message-edit-attachments",
-  'export {UserMessageView} from "./src/renderer/components/messages/UserMessage.tsx";',
+  'export {UserMessageView} from "./src/renderer/components/messages/UserMessage.tsx"; export {ChatWindow} from "./src/renderer/components/ChatWindow.tsx"; export {ThinkingExpansionStore} from "./src/renderer/lib/thinking-expansion-store.ts";',
 );
 after(restoreGlobals);
 
@@ -310,4 +312,159 @@ test("restored queries stay closed while caret changes can reopen a newly edited
   assert.equal(byRole(view.container, "group", /^Files ·/), undefined);
   await caretAt(editor(view), 9);
   await waitFor(() => assert.ok(byRole(view.container, "group", "Files · 1 match")));
+});
+
+function conversation(id, value = "old question") {
+  return turnDetail(id, [
+    { role: "user", content: [OLD_IMAGE, textBlock(value)], timestamp: 1000 },
+    assistantReply([textBlock("old answer")]),
+  ]);
+}
+
+async function mountConversation(t, { id = "attachment-drop", bridge = {}, host: overrides = {} } = {}) {
+  const details = new Map([[id, conversation(id)]]);
+  const host = createSessionTestHost({
+    getSession: async (sid) => details.get(sid),
+    sendAgentCommand: async () => ({}),
+    ...overrides,
+  });
+  dom.window.piBridge = {
+    getPathForFile: (file) => file.testPath ?? "",
+    inspectLocalFiles: async ({ paths }) => paths.map(() => ({ exists: true, isFile: true, insideCwd: true })),
+    ...bridge,
+  };
+  const boundary = installRendererApi(dom.window, { resetRpc, installApiShims }, () => host);
+  let view;
+  t.after(async () => {
+    try {
+      await view?.unmount();
+    } finally {
+      boundary.close();
+    }
+  });
+  const props = {
+    session: details.get(id).info,
+    newSessionCwd: null,
+    chatInputRef: createRef(),
+    thinkingExpansionStore: new ThinkingExpansionStore(),
+    processDetailsExpansionStore: new ThinkingExpansionStore(),
+  };
+  view = await mount(t, ChatWindow, props);
+  await waitFor(() => assert.ok(byRole(view.container, "button", "Edit")));
+  return { view, host, details, props };
+}
+
+function bottomEditor(view) {
+  return byRole(byRole(view.container, "group", "Message input"), "textbox");
+}
+
+function editCommands(host) {
+  return host.sendCommands.map((request) => request.payload).filter((payload) => payload.type === "edit_message");
+}
+
+async function drop(target, files) {
+  const event = new dom.window.Event("drop", { bubbles: true, cancelable: true });
+  Object.defineProperty(event, "dataTransfer", {
+    value: { files, items: files.map((file) => ({ kind: "file", type: file.type, getAsFile: () => file })) },
+  });
+  await act(async () => target.dispatchEvent(event));
+}
+
+test("window drops edit only the historical message, explicitly remove its old image and return to the bottom after Send", async (t) => {
+  const { view, host } = await mountConversation(t);
+  await typeText(bottomEditor(view), "bottom draft");
+  await openEditor(view);
+  await typeText(editor(view), "left right");
+  await caretAt(editor(view), 5);
+  await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-dropped.txt")]);
+  assert.ok(pill(editor(view), "/tmp/issue98-dropped.txt"), "a window drop reaches the active editor caret");
+  assert.equal(bottomEditor(view).textContent, "bottom draft", "the bottom draft is untouched");
+  await click(control(view, "Remove image"));
+  await typeText(editor(view), "");
+  await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-replacement.txt")]);
+  await click(control(view, "Send"));
+  await waitFor(() => assert.equal(editCommands(host).length, 1));
+  assert.deepEqual(editCommands(host), [
+    { type: "edit_message", entryId: "attachment-drop-entry-0", message: "@/tmp/issue98-replacement.txt", images: [] },
+  ]);
+  await waitFor(() => assert.equal(byRole(view.container, "textbox", "Edit message"), undefined));
+  await caretAt(bottomEditor(view), "bottom draft".length);
+  await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-after-send.txt")]);
+  assert.ok(pill(bottomEditor(view), "/tmp/issue98-after-send.txt"), "Send restores bottom-composer drop routing");
+  assert.ok(bottomEditor(view).textContent.startsWith("bottom draft"));
+});
+
+test("cancel restores bottom drop routing without carrying the edited attachment into the original bubble", async (t) => {
+  const { view, host } = await mountConversation(t, { id: "attachment-cancel-drop" });
+  await typeText(bottomEditor(view), "keep this draft");
+  await openEditor(view);
+  await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-discarded.txt")]);
+  assert.ok(pill(editor(view), "/tmp/issue98-discarded.txt"));
+  assert.equal(bottomEditor(view).textContent, "keep this draft");
+  await click(control(view, "Cancel"));
+  assert.equal(view.container.textContent.includes("issue98-discarded.txt"), false);
+  assert.ok(view.container.textContent.includes("old question"));
+  await caretAt(bottomEditor(view), "keep this draft".length);
+  await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-after-cancel.txt")]);
+  assert.ok(pill(bottomEditor(view), "/tmp/issue98-after-cancel.txt"));
+  assert.deepEqual(editCommands(host), []);
+});
+
+for (const transition of ["cancel", "session", "unmount"]) {
+  test(`late clipboard staging cannot leak after editor ${transition}`, async (t) => {
+    const staged = deferred();
+    let requested = false;
+    const { view, host, props, details } = await mountConversation(t, {
+      id: `attachment-late-${transition}`,
+      bridge: {
+        stageClipboardImage() {
+          requested = true;
+          return staged.promise;
+        },
+      },
+    });
+    await typeText(bottomEditor(view), "untouched bottom");
+    await openEditor(view);
+    await paste(editor(view), { files: [clipboardImage()] });
+    await waitFor(() => assert.equal(requested, true));
+    if (transition === "cancel") {
+      await click(control(view, "Cancel"));
+      await openEditor(view);
+    } else if (transition === "session") {
+      const next = conversation("attachment-next-session");
+      details.set(next.info.id, next);
+      await view.update({ ...props, session: next.info });
+      await waitFor(() => assert.ok(byRole(view.container, "button", "Edit")));
+      await openEditor(view);
+    } else {
+      await view.unmount();
+    }
+    await act(async () => staged.resolve({ ok: true, staged: { path: `/tmp/issue98-late-${transition}.gif` } }));
+    await settle();
+    assert.equal(view.container.textContent.includes(`issue98-late-${transition}.gif`), false);
+    assert.deepEqual(editCommands(host), []);
+    if (transition !== "unmount") {
+      assert.ok(editor(view).textContent.includes("old question"));
+      assert.equal(control(view, "Send").disabled, false, "the new editor does not inherit an old processing gate");
+      assert.equal(pill(bottomEditor(view), `/tmp/issue98-late-${transition}.gif`), undefined);
+    }
+  });
+}
+
+test("replacing the historical image with a text attachment sends an explicit empty image list to Host", async (t) => {
+  const { view, host } = await mountConversation(t, { id: "attachment-explicit-image-removal" });
+  await openEditor(view);
+  await typeText(editor(view), "");
+  await paste(editor(view), { files: [localFile("/tmp/issue98-new-reference.txt")] });
+  await click(control(view, "Remove image"));
+  await click(control(view, "Send"));
+  await waitFor(() => assert.equal(editCommands(host).length, 1));
+  assert.deepEqual(editCommands(host), [
+    {
+      type: "edit_message",
+      entryId: "attachment-explicit-image-removal-entry-0",
+      message: "@/tmp/issue98-new-reference.txt",
+      images: [],
+    },
+  ]);
 });
