@@ -301,15 +301,14 @@ export function useChatWindow({
   }, [handleEditMessage]);
   const editHandlers = useMemo<EditDraftHandlers>(
     () => ({
+      environmentId: session?.environmentId ?? newSessionEnvironmentId,
       start: startEdit,
       change: changeEdit,
       removeImage: removeEditImage,
       cancel: cancelEdit,
-      send: () => {
-        void sendEdit();
-      },
+      send: sendEdit,
     }),
-    [cancelEdit, changeEdit, removeEditImage, sendEdit, startEdit],
+    [cancelEdit, changeEdit, newSessionEnvironmentId, removeEditImage, sendEdit, session?.environmentId, startEdit],
   );
 
   useEffect(() => {

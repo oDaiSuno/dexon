@@ -1,4 +1,8 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import type { EnvironmentId } from "@contract/environment";
+import { useFileEnvironment } from "@/lib/use-file-environment";
+import { getSessionEnvironmentId } from "@/lib/environment-registry";
+import { useComposerAttachments } from "../chat-input/use-composer-attachments";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
 import { Button } from "../form-controls";
@@ -19,11 +23,12 @@ export interface EditDraft {
 }
 
 export interface EditDraftHandlers {
+  environmentId?: EnvironmentId;
   start(entryId: string, text: string, imageBlocks: ImageContent[]): void;
   change(text: string): void;
   removeImage(index: number): void;
   cancel(): void;
-  send(): void;
+  send(): void | Promise<void>;
 }
 
 export function flatImageOf(block: ImageContent): OutgoingImage | null {
@@ -46,6 +51,9 @@ const NO_SKILLS = new Map<string, { readonly description: string }>();
 const ignoreReveal = () => undefined;
 
 export function UserMessageEditor({
+  environmentId: requestedEnvironmentId,
+  sessionId,
+  cwd,
   text,
   images,
   bubbleStyle,
@@ -54,26 +62,48 @@ export function UserMessageEditor({
   onCancel,
   onSend,
 }: {
+  environmentId?: EnvironmentId;
+  sessionId?: string | null;
+  cwd?: string;
   text: string;
   images: OutgoingImage[];
   bubbleStyle: { background: string; foreground: string };
   onChange: (text: string) => void;
   onRemoveImage: (index: number) => void;
   onCancel: () => void;
-  onSend: () => void;
+  onSend: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
+  const environmentId = useFileEnvironment(
+    requestedEnvironmentId ?? (sessionId ? getSessionEnvironmentId(sessionId) : undefined),
+  );
   const handleRef = useRef<ComposerEditableHandle | null>(null);
   const compositionRef = useRef<CompositionState>({ composing: false, endedAt: 0 });
-  const canSend = text.trim() !== "" || images.length > 0;
+  const [isPending, setIsPending] = useState(false);
+  const attachments = useComposerAttachments({
+    environmentId,
+    sessionId,
+    value: text,
+    visible: true,
+    cwd,
+    editableRef: handleRef,
+    t,
+    onImageNotice: ignoreReveal,
+  });
+  const canSend = !isPending && !attachments.isProcessingImages && (text.trim() !== "" || images.length > 0);
 
   useEffect(() => {
     handleRef.current?.focus();
   }, []);
 
-  const submit = () => {
+  const submit = async () => {
     if (!canSend) return;
-    onSend();
+    setIsPending(true);
+    try {
+      await onSend();
+    } finally {
+      setIsPending(false);
+    }
   };
 
   return (
@@ -151,7 +181,7 @@ export function UserMessageEditor({
                 return;
               }
               event.preventDefault();
-              submit();
+              void submit();
               return;
             }
             if (event.key === "Escape") {
@@ -160,12 +190,7 @@ export function UserMessageEditor({
               onCancel();
             }
           }}
-          onPaste={(event) => {
-            const pasted = event.clipboardData?.getData("text/plain") ?? "";
-            if (!pasted) return;
-            event.preventDefault();
-            handleRef.current?.pasteTextAtCaret(pasted);
-          }}
+          onPaste={attachments.handlePaste}
           onCompositionStart={() => {
             compositionRef.current.composing = true;
           }}

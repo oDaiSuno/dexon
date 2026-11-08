@@ -100,6 +100,9 @@ export function UserMessageView({
     >
       {editing ? (
         <UserMessageEditor
+          environmentId={editHandlers?.environmentId}
+          sessionId={sessionId}
+          cwd={cwd}
           text={editDraft.text}
           images={editDraft.images}
           bubbleStyle={bubbleStyle}
