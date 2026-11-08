@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EnvironmentId } from "@contract/environment";
 import { useFileEnvironment } from "@/lib/use-file-environment";
 import { getSessionEnvironmentId } from "@/lib/environment-registry";
@@ -27,6 +27,7 @@ export interface EditDraft {
 
 export interface EditDraftHandlers {
   environmentId?: EnvironmentId;
+  registerFiles?(processFiles: (files: File[]) => Promise<void>): () => void;
   start(entryId: string, text: string, imageBlocks: ImageContent[]): void;
   change(text: string): void;
   removeImage(index: number): void;
@@ -47,6 +48,79 @@ export function flatImageOf(block: ImageContent): OutgoingImage | null {
   return null;
 }
 
+export function useMessageEdit({
+  sessionId,
+  environmentId,
+  sendMessage,
+}: {
+  sessionId?: string;
+  environmentId: EnvironmentId;
+  sendMessage: (entryId: string, text: string, images: OutgoingImage[]) => Promise<void>;
+}) {
+  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
+  const editDraftRef = useRef<EditDraft | null>(null);
+  const editFilesRef = useRef<((files: File[]) => Promise<void>) | null>(null);
+  editDraftRef.current = editDraft;
+
+  const registerEditFiles = useCallback((processFiles: (files: File[]) => Promise<void>) => {
+    editFilesRef.current = processFiles;
+    return () => {
+      if (editFilesRef.current === processFiles) editFilesRef.current = null;
+    };
+  }, []);
+  const cancelEdit = useCallback(() => {
+    editFilesRef.current = null;
+    editDraftRef.current = null;
+    setEditDraft(null);
+  }, []);
+  const editHandlers = useMemo<EditDraftHandlers>(
+    () => ({
+      environmentId,
+      registerFiles: registerEditFiles,
+      start(entryId, text, imageBlocks) {
+        const draft = {
+          entryId,
+          text,
+          images: imageBlocks.map(flatImageOf).filter((image): image is OutgoingImage => image !== null),
+        };
+        editFilesRef.current = null;
+        editDraftRef.current = draft;
+        setEditDraft(draft);
+      },
+      change(text) {
+        setEditDraft((current) => (current ? { ...current, text } : current));
+      },
+      removeImage(index) {
+        setEditDraft((current) =>
+          current ? { ...current, images: current.images.filter((_image, position) => position !== index) } : current,
+        );
+      },
+      cancel: cancelEdit,
+      async send() {
+        const draft = editDraftRef.current;
+        if (!draft) return;
+        const accepted = await sendMessage(draft.entryId, draft.text, draft.images).then(
+          () => true,
+          () => false,
+        );
+        if (accepted && editDraftRef.current === draft) cancelEdit();
+      },
+    }),
+    [cancelEdit, environmentId, registerEditFiles, sendMessage],
+  );
+
+  useLayoutEffect(() => {
+    cancelEdit();
+  }, [cancelEdit, sessionId]);
+
+  const dropEditFiles = useCallback((files: File[]) => {
+    if (!editDraftRef.current) return false;
+    void editFilesRef.current?.(files);
+    return true;
+  }, []);
+  return { editDraft, editHandlers, dropEditFiles };
+}
+
 const NO_PREVIEWS = new Map<string, string | null>();
 const NO_MISSING = new Map<string, boolean>();
 const NO_SKILLS = new Map<string, { readonly description: string }>();
@@ -57,6 +131,7 @@ export function UserMessageEditor({
   environmentId: requestedEnvironmentId,
   sessionId,
   cwd,
+  registerFiles,
   text,
   images,
   bubbleStyle,
@@ -68,6 +143,7 @@ export function UserMessageEditor({
   environmentId?: EnvironmentId;
   sessionId?: string | null;
   cwd?: string;
+  registerFiles?: EditDraftHandlers["registerFiles"];
   text: string;
   images: OutgoingImage[];
   bubbleStyle: { background: string; foreground: string };
@@ -106,6 +182,8 @@ export function UserMessageEditor({
   useEffect(() => {
     handleRef.current?.focus();
   }, []);
+
+  useEffect(() => registerFiles?.(attachments.processFiles), [attachments.processFiles, registerFiles]);
 
   const submit = async () => {
     if (!canSend) return;

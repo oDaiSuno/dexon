@@ -77,6 +77,8 @@ export function useSessionVersions(context: Dependencies) {
         messages: loadedMessagesRef.current,
         entryIds: loadedEntryIdsRef.current,
       };
+      const original = previousHistory.messages[previousHistory.entryIds.indexOf(entryId)];
+      const hadImages = Array.isArray(original?.content) && original.content.some((block) => block.type === "image");
       const userMsg = {
         role: "user",
         content:
@@ -109,7 +111,7 @@ export function useSessionVersions(context: Dependencies) {
           type: "edit_message",
           entryId,
           message: trimmedMessage,
-          ...(images.length > 0 ? { images } : {}),
+          ...(images.length > 0 || hadImages ? { images } : {}),
         });
         if (readPromptIntent(trimmedMessage).kind === "command")
           void waitForPromptSettlement(sid, promptRunIdRef.current);

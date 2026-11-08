@@ -378,6 +378,11 @@ test("window drops edit only the historical message, explicitly remove its old i
   await caretAt(editor(view), 5);
   await drop(byRole(view.container, "group", "Messages"), [localFile("/tmp/issue98-dropped.txt")]);
   assert.ok(pill(editor(view), "/tmp/issue98-dropped.txt"), "a window drop reaches the active editor caret");
+  assert.equal(
+    editor(view).textContent,
+    "left issue98-dropped.txt right",
+    "the drop preserves text on both sides of the caret",
+  );
   assert.equal(bottomEditor(view).textContent, "bottom draft", "the bottom draft is untouched");
   await click(control(view, "Remove image"));
   await typeText(editor(view), "");

@@ -100,6 +100,8 @@ export function UserMessageView({
     >
       {editing ? (
         <UserMessageEditor
+          key={`${sessionId ?? ""}:${entryId}`}
+          registerFiles={editHandlers?.registerFiles}
           environmentId={editHandlers?.environmentId}
           sessionId={sessionId}
           cwd={cwd}

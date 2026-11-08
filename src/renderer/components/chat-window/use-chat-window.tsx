@@ -8,16 +8,10 @@ import { getActiveEnvironmentId } from "@/lib/environment-registry";
 import { newSessionDraftKey } from "@/lib/unsaved-messages";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
-import type { ImageContent } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChatInput } from "../ChatInput";
 import { recallablePrompts } from "../chat-input/prompt-history";
-import {
-  flatImageOf,
-  type EditDraft,
-  type EditDraftHandlers,
-  type OutgoingImage,
-} from "../messages/user-message-editor";
+import { useMessageEdit } from "../messages/user-message-editor";
 import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
@@ -247,11 +241,18 @@ export function useChatWindow({
     [onModelIdChange],
   );
 
+  const { editDraft, editHandlers, dropEditFiles } = useMessageEdit({
+    sessionId: session?.id,
+    environmentId: session?.environmentId ?? newSessionEnvironmentId,
+    sendMessage: handleEditMessage,
+  });
+
   const onDrop = useCallback(
     (files: File[]) => {
+      if (dropEditFiles(files)) return;
       chatInputRef?.current?.addFiles(files);
     },
-    [chatInputRef],
+    [chatInputRef, dropEditFiles],
   );
 
   const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop, visible);
@@ -269,51 +270,6 @@ export function useChatWindow({
 
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
   const promptHistory = useMemo(() => recallablePrompts(messages), [messages]);
-
-  const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
-  const editDraftRef = useRef<EditDraft | null>(null);
-  editDraftRef.current = editDraft;
-
-  const startEdit = useCallback((entryId: string, text: string, imageBlocks: ImageContent[]) => {
-    setEditDraft({
-      entryId,
-      text,
-      images: imageBlocks.map((block) => flatImageOf(block)).filter((image): image is OutgoingImage => image !== null),
-    });
-  }, []);
-  const changeEdit = useCallback((text: string) => {
-    setEditDraft((current) => (current ? { ...current, text } : current));
-  }, []);
-  const removeEditImage = useCallback((index: number) => {
-    setEditDraft((current) =>
-      current ? { ...current, images: current.images.filter((_image, position) => position !== index) } : current,
-    );
-  }, []);
-  const cancelEdit = useCallback(() => setEditDraft(null), []);
-  const sendEdit = useCallback(async () => {
-    const draft = editDraftRef.current;
-    if (!draft) return;
-    const accepted = await handleEditMessage(draft.entryId, draft.text, draft.images).then(
-      () => true,
-      () => false,
-    );
-    if (accepted) setEditDraft(null);
-  }, [handleEditMessage]);
-  const editHandlers = useMemo<EditDraftHandlers>(
-    () => ({
-      environmentId: session?.environmentId ?? newSessionEnvironmentId,
-      start: startEdit,
-      change: changeEdit,
-      removeImage: removeEditImage,
-      cancel: cancelEdit,
-      send: sendEdit,
-    }),
-    [cancelEdit, changeEdit, newSessionEnvironmentId, removeEditImage, sendEdit, session?.environmentId, startEdit],
-  );
-
-  useEffect(() => {
-    setEditDraft(null);
-  }, [session?.id]);
 
   const {
     olderHistorySentinelRef,
