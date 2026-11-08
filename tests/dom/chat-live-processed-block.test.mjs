@@ -1,18 +1,19 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
+import { byRole, click, restoreGlobals, text } from "../support/renderer.mjs";
 import {
-  accessibleName,
-  act,
-  byRole,
-  click,
-  dom,
-  loadRenderer,
-  mount,
-  restoreGlobals,
-  text,
-} from "../support/renderer.mjs";
-import { installApiHostBridge } from "../support/api-host.mjs";
-import { createSessionTestHost } from "../../src/renderer/hooks/agent-session/session-hook-harness.mjs";
+  QUESTION,
+  durationToken,
+  footerCopies,
+  isBefore,
+  labelOf,
+  messagesArea,
+  processGroups,
+  scene,
+  settle,
+  thinkingRows,
+  tick,
+} from "../support/chat-live-processed-block.mjs";
 import {
   ANALYSIS,
   CONCLUSION,
@@ -25,123 +26,9 @@ import {
   textBlock,
   thinkingBlock,
   toolOutput,
-  turnDetail,
-  userTurn,
 } from "../fixtures/chat-answer-turn.mjs";
 
-const { ChatWindow, ThinkingExpansionStore, resetRpc } = await loadRenderer(
-  "chat-live-processed-block",
-  'export {ChatWindow} from "./src/renderer/components/ChatWindow.tsx"; export {ThinkingExpansionStore} from "./src/renderer/lib/thinking-expansion-store.ts";',
-);
 after(restoreGlobals);
-
-const FOLLOWING = dom.window.Node.DOCUMENT_POSITION_FOLLOWING;
-const QUESTION = { ...userTurn(), timestamp: at(0) };
-
-function messagesArea(container) {
-  const area = byRole(container, "group", "Messages");
-  assert.ok(area, "the conversation shows its message area");
-  return area;
-}
-
-function processGroups(container) {
-  return [...messagesArea(container).querySelectorAll("button[aria-expanded]")].filter((node) =>
-    /process details|processed/i.test(node.textContent),
-  );
-}
-
-function labelOf(container, index = 0) {
-  const groups = processGroups(container);
-  assert.ok(groups[index], `the conversation shows a Processed block number ${index + 1}`);
-  return groups[index].textContent.trim();
-}
-
-function thinkingRows(container) {
-  return [...messagesArea(container).querySelectorAll("button")].filter((node) =>
-    /Deep thinking/.test(node.textContent),
-  );
-}
-
-function footerCopies(container) {
-  return [...messagesArea(container).querySelectorAll("button")].filter(
-    (node) => accessibleName(node) === "Copy message" && node.classList.contains("message-hover-action"),
-  );
-}
-
-function isBefore(earlier, later, label) {
-  assert.ok(earlier.compareDocumentPosition(later) & FOLLOWING, label);
-}
-
-function durationToken(node) {
-  return [...node.querySelectorAll("*")]
-    .map((candidate) => (candidate.children.length === 0 ? candidate.textContent.trim() : ""))
-    .find((value) => /^(\d+\.\d+s|\d+m\d+s|\d+s)$/.test(value));
-}
-
-async function settle() {
-  for (let pass = 0; pass < 3; pass += 1) {
-    await act(async () => {
-      await new Promise((resolve) => setImmediate(resolve));
-    });
-  }
-}
-
-async function tick(t, milliseconds) {
-  await act(async () => t.mock.timers.tick(milliseconds));
-  await settle();
-}
-
-async function scene(t, id, { now, messages = [QUESTION] } = {}) {
-  if (now !== undefined) t.mock.timers.enable({ apis: ["Date", "setInterval"], now });
-  let current = turnDetail(id, messages);
-  let runActive = true;
-  const host = createSessionTestHost({
-    getSession: async () => current,
-    agentState: async () => (runActive ? { running: true, state: { isStreaming: true } } : { running: false }),
-    sendAgentCommand: async () => ({}),
-  });
-  dom.window.piBridge = {};
-  const boundary = installApiHostBridge(dom.window, () => host, resetRpc);
-  const props = {
-    session: current.info,
-    newSessionCwd: null,
-    thinkingExpansionStore: new ThinkingExpansionStore(),
-    processDetailsExpansionStore: new ThinkingExpansionStore(),
-  };
-  let view;
-  t.after(async () => {
-    try {
-      await view?.unmount();
-    } finally {
-      boundary.close();
-    }
-  });
-  const show = async () => {
-    view = await mount(t, ChatWindow, props);
-    await settle();
-  };
-  await show();
-  const emit = async (event) => {
-    await act(async () => {
-      for (const sink of host.eventSinks.filter((candidate) => candidate.active)) sink.onEvent(event);
-    });
-    await settle();
-  };
-  return {
-    host,
-    emit,
-    root: view.container,
-    setDetail: (next) => (current = turnDetail(id, next)),
-    endRun: () => {
-      runActive = false;
-    },
-    reopen: async () => {
-      await view.unmount();
-      await show();
-      return view.container;
-    },
-  };
-}
 
 test("when a live reply starts thinking and then calls a tool, its whole process waits behind one collapsed Processed block", async (t) => {
   const { root, emit } = await scene(t, "live-one-block", { now: at(5) });
@@ -438,4 +325,93 @@ test("when the reader opens the block that is still running, the live thinking i
   await tick(t, 2000);
   const later = Number.parseFloat(durationToken(row));
   assert.ok(later > started, `the running tool keeps counting: ${started}s became ${later}s`);
+});
+
+for (const partial of [false, true]) {
+  test(`a length-limited ${partial ? "partial answer" : "thinking reply"} freezes its process and shows the cutoff below it`, async (t) => {
+    const { root, emit, setDetail, endRun } = await scene(t, `length-${partial}`, { now: at(12) });
+    await emit({ type: "agent_start" });
+    await emit({ type: "message_start", message: assistantReply([], "stop", at(0)) });
+    await emit({ type: "message_update", message: assistantReply([thinkingBlock(ANALYSIS)], "stop", at(0)) });
+    const frozen = labelOf(root);
+    const content = [thinkingBlock(ANALYSIS), ...(partial ? [textBlock(CONCLUSION)] : [])];
+    const truncated = {
+      ...assistantReply(content, "length", at(0)),
+      dexonTiming: {
+        blocks: [{ startedAt: at(1), endedAt: at(12) }, ...(partial ? [{ startedAt: at(12), endedAt: at(12) }] : [])],
+      },
+    };
+    setDetail([QUESTION, truncated]);
+    endRun();
+    await emit({ type: "message_end", message: truncated });
+    await emit({ type: "agent_end" });
+    await tick(t, 30_000);
+    assert.equal(labelOf(root), frozen, "truncation freezes the elapsed process time");
+    const notice = text(messagesArea(root), "Output reached the maximum length limit");
+    assert.ok(notice, "a cutoff is visible even when no answer body was generated");
+    isBefore(processGroups(root)[0], notice, "the cutoff is read below the Processed block");
+    assert.ok(text(root, 'The reply was cut off before completion. Send "Continue" or retry.'));
+    if (partial) assert.ok(text(root, CONCLUSION), "text written before truncation is preserved");
+  });
+}
+
+for (const stopReason of ["length", "stop"]) {
+  test(`a ${stopReason} retry containing only thinking does not erase the earlier failure`, async (t) => {
+    const failed = { ...assistantReply([], "error", at(3)), errorMessage: FAILURE_DETAIL };
+    const retry = assistantReply([thinkingBlock(REANALYSIS)], stopReason, at(8));
+    const { root } = await scene(t, `retry-${stopReason}`, { messages: [QUESTION, failed, retry] });
+    assert.ok(text(messagesArea(root), FAILURE_DETAIL), "a retry without an answer cannot resolve an earlier failure");
+    if (stopReason === "length") assert.ok(text(root, "Output reached the maximum length limit"));
+  });
+}
+
+test("a completed thinking-only turn opens its thinking for the reader and remains collapsible", async (t) => {
+  const { root, emit, setDetail, endRun } = await scene(t, "thinking-only-completed", { now: at(10) });
+  const reasoning = `${ANALYSIS}\n</｜DSML｜calls>`;
+  await emit({ type: "agent_start" });
+  await emit({ type: "message_start", message: assistantReply([], "stop", at(0)) });
+  await emit({ type: "message_update", message: assistantReply([thinkingBlock(reasoning)], "stop", at(0)) });
+  assert.equal(processGroups(root)[0].getAttribute("aria-expanded"), "false", "live thinking remains collapsed");
+  const completed = assistantReply([thinkingBlock(reasoning)], "stop", at(10));
+  setDetail([QUESTION, completed]);
+  endRun();
+  await emit({ type: "message_end", message: completed });
+  await emit({ type: "agent_end" });
+  assert.equal(
+    processGroups(root)[0].getAttribute("aria-expanded"),
+    "true",
+    "no answer means the thinking opens by default",
+  );
+  assert.ok(
+    text(messagesArea(root).querySelector(".chat-think-box"), reasoning),
+    "the thinking text itself is mounted and readable",
+  );
+  assert.ok(text(root, "No reply body was generated in this turn"));
+  await click(processGroups(root)[0]);
+  assert.equal(
+    processGroups(root)[0].getAttribute("aria-expanded"),
+    "false",
+    "the reader can still collapse the process",
+  );
+  assert.ok(text(root, "No reply body was generated in this turn"), "the notice remains outside the collapsed panel");
+});
+
+test("a host restart during streaming warns once per run and ignores restarts while idle", async (t) => {
+  const { root, emit, restart, endRun, setDetail } = await scene(t, "host-restart");
+  const warning = "The background service restarted and interrupted the current reply.";
+  await restart();
+  assert.equal(text(root, warning), undefined, "an idle conversation is not interrupted");
+  await emit({ type: "agent_start" });
+  await emit({ type: "message_start", message: assistantReply([], "stop", at(0)) });
+  await emit({ type: "message_update", message: assistantReply([thinkingBlock(ANALYSIS)], "stop", at(0)) });
+  await restart();
+  await restart();
+  const notices = [...root.querySelectorAll('[data-tone="warning"]')].filter((node) =>
+    node.textContent.includes(warning),
+  );
+  assert.equal(notices.length, 1, "duplicate restart signals show one warning for the active reply");
+  setDetail([QUESTION]);
+  endRun();
+  await restart();
+  assert.equal(byRole(root, "button", "Stop agent"), undefined, "restart reconciles the session back to idle");
 });
