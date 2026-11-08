@@ -3,12 +3,13 @@ import {
   getAssistantFailureDetail,
   hasRenderableAssistantMessage,
   isAssistantFailure,
+  isAssistantLengthTruncated,
   isEmptyTextBlock,
   isEmptyThinkingBlock,
 } from "@/lib/message-display";
 import { thinkingDurationSeconds } from "@/lib/process-flow";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
-import { FailureLine } from "./FailureLine";
+import { FailureLine, LengthLimitLine } from "./FailureLine";
 import { StreamSpeedHint } from "./StreamSpeedHint";
 import { ThinkingBlock } from "./ThinkingBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
@@ -57,8 +58,12 @@ export function AssistantMessageView({
     .filter(({ block }) => !isEmptyThinkingBlock(block, { isStreaming }) && !isEmptyTextBlock(block, { isStreaming }));
   const blocks = blockItems.map(({ block }) => block);
   const failed = isAssistantFailure(message);
+  const truncated = isAssistantLengthTruncated(message);
 
   if (!hasRenderableAssistantMessage(message, { isStreaming }) && !isStreaming) return null;
+  if (truncated && blocks.length === 0 && !isStreaming) {
+    return <LengthLimitLine detail={getAssistantFailureDetail(message)} />;
+  }
   if (failed && blocks.length === 0 && !isStreaming) {
     return <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />;
   }
@@ -90,6 +95,7 @@ export function AssistantMessageView({
         {failed && !isStreaming && (
           <FailureLine detail={getAssistantFailureDetail(message)} retried={retried} retry={message.retry} />
         )}
+        {truncated && !isStreaming && <LengthLimitLine detail={getAssistantFailureDetail(message)} />}
       </div>
     </div>
   );

@@ -382,8 +382,9 @@ test("a completed thinking-only turn opens its thinking for the reader and remai
     "true",
     "no answer means the thinking opens by default",
   );
-  assert.ok(
-    text(messagesArea(root).querySelector(".chat-think-box"), reasoning),
+  assert.equal(
+    messagesArea(root).querySelector(".chat-think-box")?.textContent,
+    reasoning,
     "the thinking text itself is mounted and readable",
   );
   assert.ok(text(root, "No reply body was generated in this turn"));

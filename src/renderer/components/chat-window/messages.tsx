@@ -201,6 +201,7 @@ export function ChatMessages({
           createdSessionCount={piece.flow.createdSessionCount}
           durationSeconds={piece.durationSeconds}
           liveStartedAt={piece.liveStartedAt}
+          unanswered={piece.unanswered}
           onReaderAction={inProgress ? disengageAutoFollow : undefined}
         >
           <ProcessFlow
@@ -209,6 +210,7 @@ export function ChatMessages({
             onOpenFile={onOpenFile}
             onLoadDeferredContent={loadDeferredContent}
             thinkingExpansionStore={thinkingExpansionStore}
+            unanswered={piece.unanswered}
             speedHint={piece.liveStartedAt === undefined ? undefined : streamingMessage}
           />
         </ProcessDetailsGroup>

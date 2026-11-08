@@ -1,5 +1,10 @@
 import { type MessageRenderRole } from "@/lib/message-render-key";
-import { isAssistantFailure, splitAssistantBlockRuns, type AssistantBlockItem } from "@/lib/message-display";
+import {
+  isAssistantFailure,
+  isAssistantLengthTruncated,
+  splitAssistantBlockRuns,
+  type AssistantBlockItem,
+} from "@/lib/message-display";
 import {
   blockEndedAt,
   blockStartedAt,
@@ -44,6 +49,7 @@ export interface TurnProcessPiece {
   durationSeconds?: number;
   startedAt?: number;
   liveStartedAt?: number;
+  unanswered?: boolean;
   open: boolean;
 }
 
@@ -422,7 +428,7 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
         piece.firstIndex,
       );
     }
-    if (isAssistantFailure(assistant)) {
+    if (isAssistantFailure(assistant) || isAssistantLengthTruncated(assistant)) {
       flushGroup();
       if (!resolvedIndices.has(index)) {
         const key = input.keyFor(assistant, entryId, "failure");
@@ -441,6 +447,16 @@ export function buildTurnLayout(input: TurnLayoutInput): TurnLayout {
   flushGroup();
 
   markOpenBlock(pieces, input.live === true);
+  const lastPiece = pieces[pieces.length - 1];
+  if (
+    !input.live &&
+    (messages[lastAssistantIndex] as AssistantMessage).stopReason === "stop" &&
+    pieces.every((piece) => piece.kind === "process" && piece.flow.toolCallCount === 0) &&
+    lastPiece?.kind === "process" &&
+    lastPiece.flow.items.some((item) => item.kind === "thinking")
+  ) {
+    lastPiece.unanswered = true;
+  }
 
   return { pieces, lastAssistantIndex, footer: footerFor(input, pieces, lastAssistantIndex) };
 }

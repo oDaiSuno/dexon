@@ -1,5 +1,5 @@
 import { type AgentPhase } from "@/hooks/useAgentSession";
-import { isAssistantFailure } from "@/lib/message-display";
+import { isAssistantFailure, isAssistantLengthTruncated, isAssistantTurnResolution } from "@/lib/message-display";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { ReadingPositionRegistry } from "@/lib/reading-position-store";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
@@ -120,12 +120,11 @@ export function classifyTurnFailures(messages: AgentMessage[]): TurnFailureClass
       laterSuccessInTurn = false;
     } else if (message.role === "assistant") {
       const assistant = message as AssistantMessage;
-      if (isAssistantFailure(assistant)) {
-        if (laterAssistantInTurn) retried.add(idx);
-        if (laterSuccessInTurn) resolved.add(idx);
-      }
+      if (isAssistantFailure(assistant) && laterAssistantInTurn) retried.add(idx);
+      if ((isAssistantFailure(assistant) || isAssistantLengthTruncated(assistant)) && laterSuccessInTurn)
+        resolved.add(idx);
       laterAssistantInTurn = true;
-      if (assistant.stopReason !== "error" && assistant.stopReason !== "aborted") laterSuccessInTurn = true;
+      if (isAssistantTurnResolution(assistant)) laterSuccessInTurn = true;
     }
   }
   return { retried, resolved };

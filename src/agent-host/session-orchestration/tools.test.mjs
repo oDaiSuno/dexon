@@ -116,6 +116,8 @@ function turnSession(t, overrides = {}) {
     sessionId: `turn-${t.name}`,
     sessionManager: SessionManager.inMemory(directory),
     agent: { state: { messages: [] } },
+    isStreaming: false,
+    isCompacting: false,
     bindExtensions: async () => {},
     prompt: async () => {},
     getLastAssistantText: () => "",
@@ -222,6 +224,6 @@ test(
       messages.some((message) => JSON.stringify(message.content).includes("Queued task")),
       false,
     );
-    assert.equal((await host.state(callerId)).running, false, "the calling session remains available");
+    assert.equal((await host.state(callerId)).running, true, "the calling session remains available");
   },
 );

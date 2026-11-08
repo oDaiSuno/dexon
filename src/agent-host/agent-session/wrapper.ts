@@ -231,10 +231,10 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     const run = this.turnTail
       .catch(() => undefined)
       .then(async () => {
-        if (!this._alive) throw new Error("Agent session is no longer available");
-        this.promptRunning = true;
-        notifyRunningChange();
         try {
+          if (!this._alive) throw new Error("Agent session is no longer available");
+          this.promptRunning = true;
+          notifyRunningChange();
           return await task();
         } finally {
           this.promptRunning = false;
@@ -255,6 +255,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       {
         inner: this.inner,
         sessionId: this.sessionId,
+        isAlive: () => this.isAlive(),
         enqueueTurn: (task) => this.enqueueTurn(task),
         queuedTurns: this.queuedTurns,
         chosenModel: () => this.chosenModel(),
@@ -414,6 +415,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   destroy(): void {
     if (!this._alive) return;
     this._alive = false;
+    this.queuedTurns.cancelAll();
     browserAgentRuntime.clearSession(this.sessionId);
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.unsubscribe?.();
