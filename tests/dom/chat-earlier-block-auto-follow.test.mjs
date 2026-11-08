@@ -62,7 +62,7 @@ async function scene(t, id) {
   });
   const detail = turnDetail(id, [
     { ...userTurn(), timestamp: at(0) },
-    assistantReply([thinkingBlock(EARLIER_THINKING)], "stop", at(5)),
+    assistantReply([thinkingBlock(EARLIER_THINKING), textBlock("上一轮的回答")], "stop", at(5)),
     { ...followUpUserTurn(), timestamp: at(10) },
   ]);
   const host = createSessionTestHost({
@@ -112,6 +112,11 @@ test("while a reply is in progress, opening the Processed block of an earlier tu
   assert.equal(distanceFromBottom(chat), 0, "the page follows a growing reply while the reader does nothing");
   assert.equal(jumpButton(root), undefined, "there is nothing to jump back to while the page follows");
 
+  assert.equal(
+    processGroups(root)[0].getAttribute("aria-expanded"),
+    "false",
+    "the earlier answered turn starts closed",
+  );
   await click(processGroups(root)[0]);
   await settle();
   assert.ok(

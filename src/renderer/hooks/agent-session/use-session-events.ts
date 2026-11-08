@@ -93,6 +93,7 @@ export function useSessionEvents(context: Dependencies) {
     expansionStores,
   } = context;
 
+  const restartNoticeRunRef = useRef<number | null>(null);
   const finishPromptWithoutStream = useCallback(
     async (sid: string | null = sessionIdRef.current, runId?: number) => {
       // Bail out before loadSession too: a stale finish for a previous run
@@ -134,19 +135,13 @@ export function useSessionEvents(context: Dependencies) {
       while (agentRunningRef.current && Date.now() - startedAt < PROMPT_SETTLE_MAX_MS) {
         if (runId !== undefined && promptRunIdRef.current !== runId) return;
         try {
-          try {
-            const data = await agentState(sid);
-            const state = data.state as AgentStateResponse | undefined;
-            if (!data.running || !state || (!state.isStreaming && !state.isPromptRunning)) {
-              await finishPromptWithoutStream(sid, runId);
-              return;
-            }
-          } catch {
-            // ignore single poll failure
+          const data = await agentState(sid);
+          const state = data.state as AgentStateResponse | undefined;
+          if (!data.running || !state || (!state.isStreaming && !state.isPromptRunning)) {
+            await finishPromptWithoutStream(sid, runId);
+            return;
           }
-        } catch {
-          // The live MessagePort stream remains the primary completion path.
-        }
+        } catch {}
         await delay(PROMPT_SETTLE_POLL_MS);
       }
     },
@@ -200,29 +195,39 @@ export function useSessionEvents(context: Dependencies) {
     ],
   );
 
-  // Recovery net for missed stream events: while the agent is running, verify
-  // against the server periodically and whenever the tab returns to the
-  // foreground or the network comes back.
   useEffect(() => {
     if (!agentRunning) return;
     const reconcile = () => {
-      // Read the ref on every tick: for brand-new sessions the id is
-      // assigned only after ensure_session returns.
       const sid = sessionIdRef.current;
       if (sid) void reconcileAgentState(sid);
     };
     const onVisible = () => {
       if (document.visibilityState === "visible") reconcile();
     };
+    const offRestart = window.piBridge?.onHostRestarted?.(() => {
+      if (!agentRunningRef.current) return;
+      if (restartNoticeRunRef.current !== promptRunIdRef.current) {
+        restartNoticeRunRef.current = promptRunIdRef.current;
+        addNotice({
+          type: "warning",
+          message: t(
+            "hostRestartedTurnInterrupted",
+            "The background service restarted and interrupted the current reply.",
+          ),
+        });
+      }
+      reconcile();
+    });
     const interval = setInterval(reconcile, AGENT_STATE_RECONCILE_MS);
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", reconcile);
     return () => {
+      offRestart?.();
       clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", reconcile);
     };
-  }, [agentRunning, reconcileAgentState, sessionIdRef]);
+  }, [addNotice, agentRunning, agentRunningRef, promptRunIdRef, reconcileAgentState, sessionIdRef, t]);
 
   useEffect(() => {
     agentRunningRef.current = agentRunning;

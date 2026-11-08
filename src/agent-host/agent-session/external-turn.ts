@@ -36,16 +36,16 @@ export function runExternalTurn(
   params: ExternalTurnParams,
 ): Promise<{ runId: string; finalText: string }> {
   return host.enqueueTurn(async () => {
-    await host.assertModelUsable();
-    host.emit({ type: "channel_turn_start", runId: params.runId });
-    host.beginExternalTurn({
-      channel: params.channel,
-      attachments: params.channelAttachments ?? null,
-      progress: params.onProgress ?? null,
-    });
-    host.setBrowserSource("channel", params.channel);
-    browserAgentRuntime.beginTurn(host.sessionId, "channel");
     try {
+      await host.assertModelUsable();
+      host.emit({ type: "channel_turn_start", runId: params.runId });
+      host.beginExternalTurn({
+        channel: params.channel,
+        attachments: params.channelAttachments ?? null,
+        progress: params.onProgress ?? null,
+      });
+      host.setBrowserSource("channel", params.channel);
+      browserAgentRuntime.beginTurn(host.sessionId, "channel");
       host.inner.sessionManager.appendCustomEntry(CHANNEL_SOURCE_TYPE, {
         runId: params.runId,
         channel: params.channel,

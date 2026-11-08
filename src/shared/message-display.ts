@@ -8,8 +8,27 @@ export function isAssistantFailure(message: AssistantMessage): boolean {
   return message.stopReason === "error";
 }
 
+export function isAssistantLengthTruncated(message: AssistantMessage): boolean {
+  return message.stopReason === "length";
+}
+
+export function hasAssistantAnswerOrToolCall(message: AssistantMessage, options: DisplayOptions = {}): boolean {
+  return getDisplayableAssistantBlocks(message, options).some(
+    (block) => isAnswerBlock(block) || block.type === "toolCall",
+  );
+}
+
+export function isAssistantTurnResolution(message: AssistantMessage): boolean {
+  return (
+    message.stopReason !== "error" &&
+    message.stopReason !== "aborted" &&
+    message.stopReason !== "length" &&
+    hasAssistantAnswerOrToolCall(message)
+  );
+}
+
 export function getAssistantFailureDetail(message: AssistantMessage): string | null {
-  if (!isAssistantFailure(message)) return null;
+  if (!isAssistantFailure(message) && !isAssistantLengthTruncated(message)) return null;
   const detail = message.errorMessage?.trim();
   return detail ? detail : null;
 }
@@ -36,7 +55,11 @@ export function getDisplayableAssistantBlocks(
 }
 
 export function hasRenderableAssistantMessage(message: AssistantMessage, options: DisplayOptions = {}): boolean {
-  return isAssistantFailure(message) || getDisplayableAssistantBlocks(message, options).length > 0;
+  return (
+    isAssistantFailure(message) ||
+    isAssistantLengthTruncated(message) ||
+    getDisplayableAssistantBlocks(message, options).length > 0
+  );
 }
 
 export type AssistantBlockRunKind = "answer" | "process";

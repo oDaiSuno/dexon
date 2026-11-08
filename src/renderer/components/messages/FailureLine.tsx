@@ -121,6 +121,21 @@ export function FailureLine({
   );
 }
 
+export function LengthLimitLine({ detail }: { detail?: string | null }) {
+  const { t } = useI18n();
+  return (
+    <UpstreamErrorCard
+      role="status"
+      data-testid="assistant-length-limit-message"
+      title={t("outputLengthLimitTitle", "Output reached the maximum length limit")}
+    >
+      <UpstreamErrorMessage code={null}>
+        {detail || t("outputLengthLimitDetail", 'The reply was cut off before completion. Send "Continue" or retry.')}
+      </UpstreamErrorMessage>
+    </UpstreamErrorCard>
+  );
+}
+
 export function RetryCountdownLine({
   attempt,
   maxAttempts,

@@ -3,28 +3,25 @@ import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expans
 import { useDelayedUnmount } from "./shared";
 import type { ThinkingContent } from "@/lib/types";
 
-/* Deep-thinking row, isomorphic with tool rows — one shared form for the
-   live tail, the final message and the process-details group: spark icon +
-   label + gray summary chip + duration, no disclosure arrow. The chip
-   toggles the full trace in a gray box below; while the block is still
-   streaming the label shimmers and the trace stays open. */
 export function ThinkingBlock({
   block,
   duration,
   stateKey,
   store,
   streaming,
+  unanswered,
 }: {
   block: ThinkingContent;
   duration?: number;
   stateKey: string;
   store?: ThinkingExpansionStore;
   streaming?: boolean;
+  unanswered?: boolean;
 }) {
   const [expanded, toggle] = useExpansion(store, stateKey);
   const { t } = useI18n();
   const isWorking = streaming === true && duration === undefined;
-  const showTrace = expanded ?? isWorking;
+  const showTrace = expanded ?? (unanswered || isWorking);
   const traceMounted = useDelayedUnmount(showTrace);
   const preview = block.thinking.trim().replace(/\s+/g, " ");
 

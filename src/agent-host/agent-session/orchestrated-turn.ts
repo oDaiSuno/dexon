@@ -12,6 +12,7 @@ import type { AgentEvent, OrchestratedTurnOutcome } from "./types";
 export interface OrchestratedTurnHost extends ChosenModelHost {
   readonly sessionId: string;
   readonly queuedTurns: QueuedTurns;
+  isAlive?: () => boolean;
   enqueueTurn<T>(task: () => Promise<T>): Promise<T>;
   waitForExtensionsBound(): Promise<void>;
   assertModelUsable(): Promise<void>;
@@ -58,44 +59,52 @@ function runQueuedTurn(
   params: { message: string; source?: SessionSourceRef },
   turn: { cancelled: () => boolean },
 ): Promise<OrchestratedTurnOutcome> {
-  return host.enqueueTurn(async () => {
-    if (turn.cancelled()) return { stopped: true };
-    await host.waitForExtensionsBound();
-    try {
-      await host.assertModelUsable();
-    } catch (error) {
+  return host
+    .enqueueTurn<OrchestratedTurnOutcome>(async () => {
+      if (turn.cancelled() || host.isAlive?.() === false) return { stopped: true };
+      try {
+        await host.waitForExtensionsBound();
+        await host.assertModelUsable();
+      } catch (error) {
+        if (turn.cancelled() || host.isAlive?.() === false) return { stopped: true };
+        return refuseTurn(host, error);
+      }
+      if (turn.cancelled() || host.isAlive?.() === false) return { stopped: true };
+      browserAgentRuntime.beginTurn(host.sessionId, "local");
+      host.setMessageSource(params.source ?? null);
+      try {
+        if (params.source) {
+          host.inner.sessionManager.appendCustomEntry(SESSION_SOURCE_TYPE, {
+            sessionId: params.source.sessionId,
+            ...(params.source.title ? { title: params.source.title } : {}),
+          });
+        }
+        const before = messageList(host.inner).length;
+        await promptOnChosenModel(host, params.message, { source: "rpc" });
+        const outcome = lastAssistantOutcome(messageList(host.inner).slice(before));
+        if (outcome?.kind === "error") {
+          host.recordTurnError(outcome.error);
+          host.emit({ type: "prompt_done" });
+          return { error: outcome.error };
+        }
+        if (outcome?.kind === "stopped") {
+          host.emit({ type: "prompt_done" });
+          return { stopped: true };
+        }
+        const reply = host.inner.getLastAssistantText()?.trim() ?? "";
+        host.emit({ type: "prompt_done" });
+        return reply ? { reply } : {};
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        host.emit({ type: "prompt_error", errorMessage: message });
+        host.emit({ type: "prompt_done" });
+        return { error: message };
+      } finally {
+        host.setMessageSource(null);
+      }
+    })
+    .catch((error) => {
+      if (turn.cancelled() || host.isAlive?.() === false) return { stopped: true };
       return refuseTurn(host, error);
-    }
-    browserAgentRuntime.beginTurn(host.sessionId, "local");
-    host.setMessageSource(params.source ?? null);
-    try {
-      if (params.source) {
-        host.inner.sessionManager.appendCustomEntry(SESSION_SOURCE_TYPE, {
-          sessionId: params.source.sessionId,
-          ...(params.source.title ? { title: params.source.title } : {}),
-        });
-      }
-      const before = messageList(host.inner).length;
-      await promptOnChosenModel(host, params.message, { source: "rpc" });
-      const outcome = lastAssistantOutcome(messageList(host.inner).slice(before));
-      if (outcome?.kind === "error") {
-        host.emit({ type: "prompt_done" });
-        return { error: outcome.error };
-      }
-      if (outcome?.kind === "stopped") {
-        host.emit({ type: "prompt_done" });
-        return { stopped: true };
-      }
-      const reply = host.inner.getLastAssistantText()?.trim() ?? "";
-      host.emit({ type: "prompt_done" });
-      return reply ? { reply } : {};
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      host.emit({ type: "prompt_error", errorMessage: message });
-      host.emit({ type: "prompt_done" });
-      return { error: message };
-    } finally {
-      host.setMessageSource(null);
-    }
-  });
+    });
 }
