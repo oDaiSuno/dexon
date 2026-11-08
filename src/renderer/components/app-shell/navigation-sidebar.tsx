@@ -21,6 +21,7 @@ import type { ProjectWorkspaceState, WorkspaceSelectResult } from "../session-si
 import { useInitialSessionRestore } from "../session-sidebar/use-initial-session-restore";
 import { RemoteFolderPickerDialog } from "../remote-folder-picker/remote-folder-picker-dialog";
 import { NavSpacePanel, type SpaceNotice } from "./nav-space-panel";
+import { useShownSessionReveal } from "./use-shown-session-reveal";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { ProjectSpaces } from "./use-project-spaces";
 import type { SettingsTab } from "../SettingsConfig";
@@ -77,7 +78,7 @@ export function NavigationSidebar({
   );
   const activeEnvironment = useActiveEnvironment();
   const [mobileReady, setMobileReady] = useState(false);
-  const [foldedSessionIds, setFoldedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [expandedSessionIds, setExpandedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
   const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
   const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [spaceError, setSpaceError] = useState<string | null>(null);
@@ -129,9 +130,9 @@ export function NavigationSidebar({
     if (expanded) resetWorktreeDropdownForOutsideClick();
     onToggle();
   }, [expanded, onToggle, resetWorktreeDropdownForOutsideClick]);
-  const toggleFold = useCallback(
+  const toggleExpand = useCallback(
     (sessionId: string) =>
-      setFoldedSessionIds((current) => {
+      setExpandedSessionIds((current) => {
         const next = new Set(current);
         if (!next.delete(sessionId)) next.add(sessionId);
         return next;
@@ -142,26 +143,44 @@ export function NavigationSidebar({
     (key: string, nextOpen: boolean) => setExpandedProjects((current) => new Map(current).set(key, nextOpen)),
     [],
   );
-  const selectSession = useCallback(
-    (session: SessionInfo) => {
+  const revealSession = useCallback(
+    (session: SessionInfo, introducedAncestorIds?: readonly string[]) => {
       const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
       const root = session.projectRoot ?? session.cwd;
-      if (root)
+      if (root && introducedAncestorIds === undefined)
         setExpandedProjects((current) => new Map(current).set(projectKeyOf({ environmentId, path: root }), true));
       const members = directories.find((item) => item.environment.id === environmentId)?.sessions ?? [];
-      const ancestors = sessionAncestorIds(members, session.id).map((id) => qualifySessionKey(environmentId, id));
-      setFoldedSessionIds((current) => {
-        if (!ancestors.some((id) => current.has(id))) return current;
+      const ancestors = (introducedAncestorIds ?? sessionAncestorIds(members, session.id)).map((id) =>
+        qualifySessionKey(environmentId, id),
+      );
+      setExpandedSessionIds((current) => {
+        if (ancestors.every((id) => current.has(id))) return current;
         const next = new Set(current);
-        for (const id of ancestors) next.delete(id);
+        for (const id of ancestors) next.add(id);
         return next;
       });
       setRevealRequest((previous) => ({ seq: (previous?.seq ?? 0) + 1, sessionId: session.id, environmentId }));
+    },
+    [directories],
+  );
+  const shownDirectory = directories.find((item) => item.environment.id === activeEnvironment.id);
+  const shownSession = shownDirectory?.sessions.find((session) => session.id === shownSessionId);
+  useShownSessionReveal(
+    shownSessionId ? qualifySessionKey(activeEnvironment.id, shownSessionId) : null,
+    shownSession,
+    shownDirectory?.sessions ?? [],
+    revealSession,
+  );
+  const selectSession = useCallback(
+    (session: SessionInfo) => {
+      revealSession(session);
+      const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+      const root = session.projectRoot ?? session.cwd;
       const readableOnly = openProjects.isMissing(root, environmentId);
       if (session.cwd && !readableOnly) setSelectedCwd(session.cwd);
       onSelectSession(session, false, readableOnly);
     },
-    [directories, openProjects, setSelectedCwd, onSelectSession],
+    [revealSession, openProjects, setSelectedCwd, onSelectSession],
   );
   const createSession = useCallback(() => {
     if (
@@ -355,8 +374,8 @@ export function NavigationSidebar({
           }}
           inspectFolder={inspectFolder}
           onBackToPersonalSpace={backToPersonalSpace}
-          foldedSessionIds={foldedSessionIds}
-          onToggleFold={toggleFold}
+          expandedSessionIds={expandedSessionIds}
+          onToggleExpand={toggleExpand}
           spacePanel={<NavSpacePanel notice={notice} />}
         />
       </div>

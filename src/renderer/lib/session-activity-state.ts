@@ -1,5 +1,6 @@
 import { SESSION_LIVE_STATUSES, type SessionLiveStatus } from "@shared/session-orchestration";
 import type { SessionActivity, SessionActivitySignals } from "./session-tree-status";
+import type { SessionInfo } from "./types";
 
 export type LiveStatusMap = ReadonlyMap<string, SessionLiveStatus>;
 
@@ -33,6 +34,7 @@ interface ActivityLedgerState {
   readonly selected: string | null;
   readonly live: ReadonlyMap<string, LiveEntry>;
   readonly unread: ReadonlySet<string>;
+  readonly delegateIds: ReadonlySet<string>;
 }
 
 export type ActivityEvent =
@@ -44,7 +46,8 @@ export type ActivityEvent =
     }
   | { readonly type: "selected"; readonly sessionId: string | null }
   | { readonly type: "deleted"; readonly sessionId: string }
-  | { readonly type: "listed"; readonly sessionIds: ReadonlySet<string> }
+  | { readonly type: "listed"; readonly sessions: readonly Pick<SessionInfo, "id" | "relation">[] }
+  | { readonly type: "upserted"; readonly session: Pick<SessionInfo, "id" | "relation"> }
   | { readonly type: "host_restarted" };
 
 export const UNREAD_WHEN_LEAVING: Readonly<Record<SessionLiveStatus, boolean>> = {
@@ -54,7 +57,7 @@ export const UNREAD_WHEN_LEAVING: Readonly<Record<SessionLiveStatus, boolean>> =
 };
 
 export function initialActivityState(unread: ReadonlySet<string>): ActivityLedgerState {
-  return { feed: "none", selected: null, live: new Map(), unread: new Set(unread) };
+  return { feed: "none", selected: null, live: new Map(), unread: new Set(unread), delegateIds: new Set() };
 }
 
 export function activityReducer(state: ActivityLedgerState, event: ActivityEvent): ActivityLedgerState {
@@ -71,7 +74,14 @@ export function activityReducer(state: ActivityLedgerState, event: ActivityEvent
         unread.delete(id);
       }
       for (const [id, before] of state.live) {
-        if (!live.has(id) && UNREAD_WHEN_LEAVING[before.status] && id !== state.selected) unread.add(id);
+        if (
+          !live.has(id) &&
+          UNREAD_WHEN_LEAVING[before.status] &&
+          id !== state.selected &&
+          !state.delegateIds.has(id)
+        ) {
+          unread.add(id);
+        }
       }
       return { ...state, feed: event.source, live, unread };
     }
@@ -83,13 +93,29 @@ export function activityReducer(state: ActivityLedgerState, event: ActivityEvent
     case "deleted": {
       const live = new Map(state.live);
       const unread = new Set(state.unread);
+      const delegateIds = new Set(state.delegateIds);
       live.delete(event.sessionId);
       unread.delete(event.sessionId);
-      return { ...state, live, unread };
+      delegateIds.delete(event.sessionId);
+      return { ...state, live, unread, delegateIds };
     }
     case "listed": {
-      const unread = new Set([...state.unread].filter((id) => event.sessionIds.has(id)));
-      return { ...state, unread };
+      const sessionIds = new Set(event.sessions.map((session) => session.id));
+      const delegateIds = new Set(
+        event.sessions.filter((session) => session.relation === "delegate").map((session) => session.id),
+      );
+      const unread = new Set([...state.unread].filter((id) => sessionIds.has(id) && !delegateIds.has(id)));
+      const live = state.feed === "stream" ? state.live : new Map([...state.live].filter(([id]) => sessionIds.has(id)));
+      return { ...state, live, unread, delegateIds };
+    }
+    case "upserted": {
+      const delegateIds = new Set(state.delegateIds);
+      const unread = new Set(state.unread);
+      if (event.session.relation === "delegate") {
+        delegateIds.add(event.session.id);
+        unread.delete(event.session.id);
+      } else delegateIds.delete(event.session.id);
+      return { ...state, unread, delegateIds };
     }
     case "host_restarted":
       return state.feed === "stream" ? { ...state, feed: "snapshot" } : state;

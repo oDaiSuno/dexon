@@ -31,7 +31,7 @@ for (const [id, parent] of [
 }
 for (let i = 0; i < 36; i++) {
   const detail = startedConversation(`filler-${i}`, P.project, `Recent task ${i}`);
-  Object.assign(detail.info, { name: `Recent task ${i}`, modified: "2026-09-06T10:00:00.000Z" });
+  Object.assign(detail.info, { name: `Recent task ${i}`, modified: new Date(Date.now() - i * 60_000).toISOString() });
   external.addConversation(detail);
 }
 const error = startedConversation("pulse-error", P.other, "Failed background task");
@@ -174,7 +174,9 @@ window.pulseProof = {
       titleWidth: target?.querySelector("[data-session-row-title]")?.getBoundingClientRect().width ?? null,
       parts: button ? [...button.children].map((element) => ({ text: element.textContent, ...box(element) })) : [],
       projectOpen: getByRole(history(), "button", "navigation-project").getAttribute("aria-expanded"),
-      folded: allByRole(history(), "button", "Expand forks").length,
+      expandedAncestors: ["pulse-root", "pulse-middle"].filter(
+        (id) => session(id) && allByRole(session(id), "button", "Collapse forks").length > 0,
+      ).length,
       name: button ? accessibleName(button) : null,
     };
   },

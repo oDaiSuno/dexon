@@ -110,6 +110,7 @@ test("a child conversation opened from its nested row in the session tree return
   const scene = await startSessionScene(t, [root, child, second]);
   installChatGeometry(t, { markers: markersOf(child, second) });
 
+  await click(control(scene.history(), "button", "Expand forks"));
   assert.ok(
     precedes(historyRow(scene, "Reading root"), historyRow(scene, "Long reading session")),
     "the child is listed under its parent",

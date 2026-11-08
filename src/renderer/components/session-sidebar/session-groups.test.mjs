@@ -52,7 +52,7 @@ function installWindowStub() {
 // flips "today" into "yesterday". Pin Date for this whole test process (the
 // runner measures durations with hrtime, so the report is unaffected).
 const REAL_DATE = Date;
-const FIXED_NOW = REAL_DATE.parse("2026-09-15T10:30:00");
+const FIXED_NOW = REAL_DATE.parse("2026-09-15T10:30:00.000Z");
 class FixedDate extends REAL_DATE {
   constructor(...args) {
     // `new Date(undefined)` must behave like the no-arg form (production code
@@ -156,7 +156,7 @@ test("a project's sessions render as one list along a single guide line, newest 
   }
 });
 
-test("child sessions nest after their parent inside the same group", async () => {
+test("child sessions start collapsed and expand after their parent on request", async () => {
   const restore = installWindowStub();
   let root;
   try {
@@ -167,6 +167,10 @@ test("child sessions nest after their parent inside the same group", async () =>
       modified: daysAgoAtMidnight(0),
     });
     root = await renderView(viewProps({ sessions: [child, parent] }));
+    assert.doesNotMatch(textOf(root).join("\n"), /child session/, "children start hidden");
+    await act(async () => {
+      root.root.findByProps({ "aria-label": "Expand forks" }).props.onClick({ stopPropagation() {} });
+    });
     const flat = textOf(root).join("\n");
     const parentIndex = flat.indexOf("parent session");
     const childIndex = flat.indexOf("child session");
@@ -200,6 +204,9 @@ test("rows keep the order their sessions were created in", async () => {
       modified: new Date(todayStart.getTime() + 1).toISOString(),
     });
     root = await renderView(viewProps({ sessions: [newer, older, parent] }));
+    await act(async () => {
+      root.root.findByProps({ "aria-label": "Expand forks" }).props.onClick({ stopPropagation() {} });
+    });
     const flat = textOf(root).join("\n");
     const newerIndex = flat.indexOf("newer second written");
     const olderIndex = flat.indexOf("older first written");
@@ -207,6 +214,158 @@ test("rows keep the order their sessions were created in", async () => {
     assert.ok(olderIndex < newerIndex, "the session created first renders first even when it was modified last");
   } finally {
     root?.unmount?.();
+    restore();
+  }
+});
+
+function visibleSessionIds(root) {
+  return root.root
+    .findAll((node) => node.type === "div" && node.props.role === "listitem")
+    .map((node) => node.props["data-session-id"]);
+}
+
+test("an old project starts with its five newest root trees", async () => {
+  const restore = installWindowStub();
+  let root;
+  try {
+    const sessions = [10, 9, 8, 7, 6, 5, 4].map((day) =>
+      sessionFixture(`old-${day}`, { modified: `2026-09-${String(day).padStart(2, "0")}T00:00:00.000Z` }),
+    );
+    root = await renderView(viewProps({ sessions }));
+    assert.deepEqual(visibleSessionIds(root), ["old-10", "old-9", "old-8", "old-7", "old-6"]);
+  } finally {
+    await act(async () => root?.unmount());
+    restore();
+  }
+});
+
+test("the 72-hour window includes its exact boundary and every recent root beyond five", async () => {
+  const restore = installWindowStub();
+  let root;
+  try {
+    const sessions = [
+      sessionFixture("recent-a", { modified: "2026-09-15T09:00:00.000Z" }),
+      sessionFixture("recent-b", { modified: "2026-09-15T08:00:00.000Z" }),
+      sessionFixture("recent-c", { modified: "2026-09-14T12:00:00.000Z" }),
+      sessionFixture("recent-d", { modified: "2026-09-13T12:00:00.000Z" }),
+      sessionFixture("recent-e", { modified: "2026-09-12T11:00:00.000Z" }),
+      sessionFixture("boundary", { modified: "2026-09-12T10:30:00.000Z" }),
+      sessionFixture("too-old", { modified: "2026-09-12T10:29:59.999Z" }),
+      sessionFixture("invalid", { modified: "0000-invalid" }),
+    ];
+    root = await renderView(viewProps({ sessions }));
+    assert.deepEqual(visibleSessionIds(root), ["recent-a", "recent-b", "recent-c", "recent-d", "recent-e", "boundary"]);
+  } finally {
+    await act(async () => root?.unmount());
+    restore();
+  }
+});
+
+test("old trees stay visible for running, waiting, error or unread activity at any depth", async () => {
+  const restore = installWindowStub();
+  let root;
+  try {
+    for (const status of ["running", "awaiting_input", "error", "unread"]) {
+      for (const depth of [0, 1, 3]) {
+        const sessions = [10, 9, 8, 7, 6].map((day) =>
+          sessionFixture(`baseline-${day}`, { modified: `2026-09-${String(day).padStart(2, "0")}T00:00:00.000Z` }),
+        );
+        sessions.push(sessionFixture("active-root", { modified: "2026-08-01T00:00:00.000Z" }));
+        let activeId = "active-root";
+        for (let level = 1; level <= depth; level += 1) {
+          const id = `active-${level}`;
+          sessions.push(
+            sessionFixture(id, { parentSessionId: activeId, relation: "fork", modified: "2026-08-01T00:00:00.000Z" }),
+          );
+          activeId = id;
+        }
+        root = await renderView(
+          viewProps({
+            sessions,
+            activity: { of: (id) => (id === activeId ? status : "idle"), runAge: () => ({ kind: "not-running" }) },
+          }),
+        );
+        assert.deepEqual(
+          visibleSessionIds(root),
+          ["baseline-10", "baseline-9", "baseline-8", "baseline-7", "baseline-6", "active-root"],
+          `${status} at depth ${depth} keeps its tree`,
+        );
+        await act(async () => root.unmount());
+        root = null;
+      }
+    }
+  } finally {
+    await act(async () => root?.unmount());
+    restore();
+  }
+});
+
+test("an old selected root or descendant keeps its root tree visible without loading unrelated roots", async () => {
+  const restore = installWindowStub();
+  let root;
+  try {
+    const sessions = [10, 9, 8, 7, 6].map((day) =>
+      sessionFixture(`baseline-${day}`, { modified: `2026-09-${String(day).padStart(2, "0")}T00:00:00.000Z` }),
+    );
+    sessions.push(
+      sessionFixture("selected-root", { modified: "2026-08-01T00:00:00.000Z" }),
+      sessionFixture("selected-middle", { parentSessionId: "selected-root", modified: "2026-08-01T00:00:00.000Z" }),
+      sessionFixture("selected-deep", { parentSessionId: "selected-middle", modified: "2026-08-01T00:00:00.000Z" }),
+      sessionFixture("unrelated-old", { modified: "2026-07-01T00:00:00.000Z" }),
+    );
+    for (const selectedSessionId of ["selected-root", "selected-deep"]) {
+      root = await renderView(viewProps({ sessions, selectedSessionId }));
+      assert.deepEqual(visibleSessionIds(root), [
+        "baseline-10",
+        "baseline-9",
+        "baseline-8",
+        "baseline-7",
+        "baseline-6",
+        "selected-root",
+      ]);
+      await act(async () => root.unmount());
+      root = null;
+    }
+  } finally {
+    await act(async () => root?.unmount());
+    restore();
+  }
+});
+
+test("Load more shows the remaining root count and reveals all remaining roots in one click", async () => {
+  const restore = installWindowStub();
+  let root;
+  try {
+    const sessions = Array.from({ length: 12 }, (_, index) =>
+      sessionFixture(`root-${index + 1}`, { modified: `2026-08-${String(31 - index).padStart(2, "0")}T00:00:00.000Z` }),
+    );
+    root = await renderView(viewProps({ sessions }));
+    const buttons = root.root.findAll(
+      (node) => node.type === "button" && node.props["aria-label"] === "Load more sessions",
+    );
+    assert.equal(buttons.length, 1, "a project with hidden roots offers Load more");
+    assert.equal(buttons[0].findByProps({ className: "type-mono-meta" }).children.join(""), "7");
+    await act(async () => buttons[0].props.onClick());
+    assert.deepEqual(visibleSessionIds(root), [
+      "root-1",
+      "root-2",
+      "root-3",
+      "root-4",
+      "root-5",
+      "root-6",
+      "root-7",
+      "root-8",
+      "root-9",
+      "root-10",
+      "root-11",
+      "root-12",
+    ]);
+    assert.equal(
+      root.root.findAll((node) => node.type === "button" && node.props["aria-label"] === "Load more sessions").length,
+      0,
+    );
+  } finally {
+    await act(async () => root?.unmount());
     restore();
   }
 });

@@ -59,7 +59,7 @@ test("collapsed projects inherit waiting and completion unread while search pres
   );
 });
 
-test("a completed background delegate stays in the Well until its unread session is selected", async (t) => {
+test("a completed background delegate leaves the Well without creating unread activity", async (t) => {
   const { navigationBoundary } = await import("../fixtures/app-navigation-host.mjs");
   const { startedConversation } = await import("../fixtures/app-navigation-data.mjs");
   const options = { openProjects: [P.personal, P.project] };
@@ -71,22 +71,15 @@ test("a completed background delegate stays in the Well until its unread session
   await waitFor(() => assert.ok(external.runningSubscribers() > 0));
   await act(async () => external.running(["done-child"]));
   await act(async () => external.running([]));
-  const well = control(scene.navigation(), "region", "Active sessions");
-  const completed = control(well, "button", /Project release notes · 1 unread/);
-  assert.match(completed.textContent, /New activity/);
-  assert.equal(
-    control(projectItem(scene, "navigation-project"), "button", "navigation-project").getAttribute("aria-expanded"),
-    "false",
-  );
-  await click(completed);
-  await waitFor(() => {
-    assert.equal(
-      control(scene.history(), "button", /^Completed delegate(?: ·|$)/).getAttribute("aria-current"),
-      "page",
-    );
-    assert.equal(roles(scene.navigation(), "region", "Active sessions").length, 0);
-    assert.doesNotMatch(projectItem(scene, "navigation-project").textContent, /1 unread/);
-  });
+  await scene.settled();
+  assert.equal(roles(scene.navigation(), "region", "Active sessions").length, 0);
+  assert.doesNotMatch(projectItem(scene, "navigation-project").textContent, /1 unread/);
+  await click(control(projectItem(scene, "navigation-project"), "button", "navigation-project"));
+  const parent = control(scene.history(), "button", "Project release notes").closest('[role="listitem"]');
+  assert.equal(parent.querySelector('[aria-label="New session activity"]'), null);
+  await click(control(parent, "button", "Expand forks"));
+  const child = control(scene.history(), "button", /^Completed delegate(?: ·|$)/);
+  assert.equal(child.querySelector('[aria-label="New session activity"]'), null);
 });
 
 test("live search yields a 28px Well summary and Escape restores the expanded Well and stored collapsed project", async (t) => {
@@ -146,9 +139,11 @@ test("the urgent descendant is revealed again after refolding both ancestors and
   await act(async () => external.running([], { urgent: "awaiting_input" }));
   await click(control(projectItem(scene, "navigation-project"), "button", "navigation-project"));
   let history = scene.history();
-  const folds = roles(history, "button", "Collapse forks");
-  await click(folds[1]);
-  await click(folds[0]);
+  assert.equal(
+    roles(history, "button", /urgent · Waiting for your answer/).length,
+    0,
+    "the project starts with child trees collapsed",
+  );
   const well = control(scene.navigation(), "region", "Active sessions");
   await click(control(well, "button", /Project release notes/));
   await waitFor(() =>
@@ -160,6 +155,12 @@ test("the urgent descendant is revealed again after refolding both ancestors and
   assert.ok(scene.history().querySelector('[data-session-id="urgent"]'));
   await click(roles(scene.history(), "button", "Collapse forks")[1]);
   await click(roles(scene.history(), "button", "Collapse forks")[0]);
+  await scene.settled();
+  assert.equal(
+    roles(scene.history(), "button", /urgent · Waiting for your answer/).length,
+    0,
+    "manual collapse stays effective while the target remains selected",
+  );
   await click(control(projectItem(scene, "navigation-project"), "button", "navigation-project"));
   await click(control(well, "button", /Project release notes/));
   await waitFor(() =>

@@ -3,12 +3,13 @@ import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { NavSidebar } from "../../src/renderer/components/app-nav/nav-sidebar.tsx";
 import { setAppLanguage } from "../../src/renderer/i18n.ts";
+import { qualifySessionKey } from "../../src/contract/environment.ts";
 import { call, resetRpc } from "../../src/renderer/lib/api-client.ts";
 import { installApiShims } from "../../src/renderer/lib/api-fetch.ts";
 import { installApiHostBridge } from "../support/api-host.mjs";
 import {
   navigationSessions,
-  sessionTreeFoldedIds,
+  sessionTreeExpandedIds,
   sessionTreeRunningIds,
   sessionTreeSessions,
   sessionTreeStatuses,
@@ -60,17 +61,19 @@ function NavigationScene({
   expanded: initialExpanded,
   spaceName,
   initialSessions,
-  foldedSessionIds,
+  expandedSessionIds,
   liveStatuses,
   runningSessionIds,
 }) {
   const [expanded, setExpanded] = useState(initialExpanded);
   const [page, setPage] = useState("chat");
   const [currentSessions, setSessions] = useState(initialSessions);
-  const [folded, setFolded] = useState(() => new Set(foldedSessionIds));
+  const [expandedSessions, setExpandedSessions] = useState(
+    () => new Set(expandedSessionIds.map((id) => qualifySessionKey("primary", id))),
+  );
   const refresh = async () => setSessions((await call("sessions.list")).sessions);
-  const toggleFold = (sessionId) =>
-    setFolded((current) => {
+  const toggleExpand = (sessionId) =>
+    setExpandedSessions((current) => {
       const next = new Set(current);
       if (!next.delete(sessionId)) next.add(sessionId);
       return next;
@@ -90,8 +93,8 @@ function NavigationScene({
       liveStatuses,
       runningSessionIds: new Set(runningSessionIds),
       unreadSessionIds: new Set(),
-      foldedSessionIds: folded,
-      onToggleFold: toggleFold,
+      expandedSessionIds: expandedSessions,
+      onToggleExpand: toggleExpand,
       homeDir: "/Users/tester",
       onToggleExpanded: () => setExpanded((value) => !value),
       onNavigate: setPage,
@@ -157,7 +160,13 @@ window.navLayout = {
           expanded,
           spaceName,
           initialSessions: listed.sessions,
-          foldedSessionIds: treeScene && !unfolded ? sessionTreeFoldedIds : [],
+          expandedSessionIds: treeScene
+            ? unfolded
+              ? listed.sessions
+                  .filter((session) => listed.sessions.some((child) => child.parentSessionId === session.id))
+                  .map((session) => session.id)
+              : sessionTreeExpandedIds
+            : [],
           liveStatuses: treeScene ? sessionTreeStatuses : {},
           runningSessionIds: treeScene ? sessionTreeRunningIds : [],
         }),
