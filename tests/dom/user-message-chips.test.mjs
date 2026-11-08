@@ -122,18 +122,28 @@ test("an attachment inside inline code stays literal text instead of a chip", as
 });
 
 test("a prose attachment becomes a chip with no leftover @ and no local-file link", async (t) => {
-  const view = await openMessage(t, "看一下 @/tmp/shot.png 吧\n\nsee /tmp/report.md");
+  const prose =
+    "覆盖“再编辑时新增图片/文件并发送”、“替换/移除原有附件”、“仅保留新增附件且清空文字时可发送、全部清空时禁用发送”以及“取消编辑不污染原消息”四个核心场景";
+  const view = await openMessage(
+    t,
+    `看一下 @/tmp/shot.png 吧\n\nsee /tmp/report.md\n\n${prose}\n\n[报告](file:///tmp/report.md)`,
+  );
   const sentences = paragraphs(view.container);
   assert.equal(visibleText(sentences[0], ["/tmp/shot.png"]), "看一下 [shot.png] 吧");
-  assert.equal(sentences.length, 2, "the sentence and the plain line stay separate paragraphs");
+  assert.equal(sentences.length, 4, "the attachment, plain path, prose, and explicit link stay separate paragraphs");
   assert.ok(!sentences[0].textContent.includes("@"), "the chip leaves no stray @ behind");
-  const tokenLinks = [...view.container.querySelectorAll("a")].filter((element) =>
-    element.textContent.includes("/tmp/shot.png"),
-  );
-  assert.deepEqual(tokenLinks, [], "the attached path is not also turned into a local-file link");
-  const [plainLink] = sentences[1].querySelectorAll("a");
-  assert.equal(plainLink.textContent, "/tmp/report.md");
-  assert.match(plainLink.getAttribute("href"), /^file:/);
+  assert.equal(sentences[0].querySelectorAll("a").length, 0, "the attachment is not also a local-file link");
+  for (const [paragraph, expectedText] of [
+    [sentences[1], "see /tmp/report.md"],
+    [sentences[2], prose],
+  ]) {
+    assert.equal(paragraph.textContent, expectedText);
+    assert.equal(paragraph.querySelectorAll("a").length, 0, "ordinary prose stays text without links");
+  }
+  const explicitLinks = sentences[3].querySelectorAll("a");
+  assert.equal(explicitLinks.length, 1);
+  assert.equal(explicitLinks[0].textContent, "报告");
+  assert.equal(explicitLinks[0].getAttribute("href"), "file:///tmp/report.md");
 });
 
 test("chips show the file name and keep the full path in the tooltip", async (t) => {
