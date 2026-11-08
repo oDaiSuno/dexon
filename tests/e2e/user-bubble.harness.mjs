@@ -57,7 +57,14 @@ async function capture(name) {
   return `${name}.png`;
 }
 
+function focusWindow() {
+  app.focus({ steal: true });
+  window.focus();
+  window.webContents.focus();
+}
+
 async function key(keyCode) {
+  focusWindow();
   window.webContents.sendInputEvent({ type: "keyDown", keyCode });
   if (keyCode === "Enter") window.webContents.sendInputEvent({ type: "char", keyCode: "\r" });
   window.webContents.sendInputEvent({ type: "keyUp", keyCode });
@@ -65,11 +72,13 @@ async function key(keyCode) {
 }
 
 async function type(value) {
+  focusWindow();
   for (const character of value) window.webContents.sendInputEvent({ type: "char", keyCode: character });
   await settle();
 }
 
 async function click({ x, y }) {
+  focusWindow();
   window.webContents.sendInputEvent({ type: "mouseMove", x, y });
   window.webContents.sendInputEvent({ type: "mouseDown", x, y, button: "left", clickCount: 1 });
   window.webContents.sendInputEvent({ type: "mouseUp", x, y, button: "left", clickCount: 1 });
@@ -123,6 +132,18 @@ async function setReducedMotion(enabled) {
 
 function verticallyOverlaps(left, right) {
   return left.top < right.bottom && right.top < left.bottom;
+}
+
+async function openAttachmentEditor() {
+  await page('configure({ language: "en-US", theme: "light" })');
+  await waitFor(`!!window.userBubble.layout(${JSON.stringify(THUMB_MARKER)}).exists`, "the thumbnail message renders");
+  await page(`scrollTo(${JSON.stringify(THUMB_MARKER)})`);
+  await paint();
+  const edit = await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`);
+  assert.ok(edit, "the historical message has an edit control");
+  await hover(edit);
+  await click(await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`));
+  await waitFor("!!window.userBubble.editAttachment()", "the bubble editor opens");
 }
 
 async function run() {
@@ -496,24 +517,62 @@ async function run() {
   });
 
   await scene("reediting-a-message-keeps-the-attachment-thumbnail", async (measurement) => {
-    await page('configure({ language: "en-US", theme: "light" })');
-    await waitFor(
-      `!!window.userBubble.layout(${JSON.stringify(THUMB_MARKER)}).exists`,
-      "the thumbnail message renders",
-    );
-    await page(`scrollTo(${JSON.stringify(THUMB_MARKER)})`);
-    await paint();
-    const edit = await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`);
-    assert.ok(edit, "the historical message has an edit control");
-    await hover(edit);
-    await click(await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`));
-    await waitFor("!!window.userBubble.editAttachment()", "the bubble editor opens");
+    await openAttachmentEditor();
     await waitFor(
       "window.userBubble.editAttachment()?.thumbnail?.thumb?.loaded",
       "the editing pill keeps its thumbnail",
     );
     Object.assign(measurement, await page("editAttachment()"));
     return { screenshot: await capture("29-edit-attachment-thumbnail") };
+  });
+
+  await scene("reediting-completes-files-below-the-bubble-and-cancels-cleanly", async (measurement) => {
+    await openAttachmentEditor();
+    await page("focusEditAtEnd()");
+    await type(" @edit-shot");
+    await waitFor(
+      "window.userBubble.editAttachment()?.menu?.text.includes('edit-shot.png')",
+      "the editing file menu finds a project image",
+    );
+    const open = await page("editAttachment()");
+    assert.ok(open.menu.rect.top >= open.rect.bottom, "the file menu opens below the bubble editor");
+    assert.ok(open.menu.rect.bottom <= 900, "the menu remains inside the real window");
+    measurement.open = open;
+    await capture("30-edit-file-menu-below");
+    await key("Tab");
+    await waitFor(
+      "window.userBubble.editAttachment()?.chips.some(chip => chip.path === 'src/edit-shot.png' && chip.thumbnail?.thumb?.loaded)",
+      "Tab inserts a project attachment with its session-authorized thumbnail",
+    );
+    measurement.completed = await page("editAttachment()");
+    assert.equal(measurement.completed.menu, null, "completion closes the file menu");
+    const screenshot = await capture("31-edit-completed-attachment");
+    await click(await page('editChipCenter("src/edit-shot.png")'));
+    assert.equal(
+      (await page("revealed()")).at(-1),
+      "/workspace/project/src/edit-shot.png",
+      "the editing pill reveals its project file",
+    );
+    await page("focusEditAtEnd()");
+    await type(" @");
+    await waitFor("!!window.userBubble.editAttachment()?.menu", "typing @ reopens the editing menu");
+    await key("Escape");
+    const dismissed = await page("editAttachment()");
+    assert.ok(dismissed, "the first Escape keeps the message editor open");
+    assert.equal(dismissed.menu, null, "the first Escape only closes the file menu");
+    await key("Escape");
+    await waitFor("!window.userBubble.editAttachment()", "the second Escape cancels editing");
+    const restored = await page(`layout(${JSON.stringify(THUMB_MARKER)})`);
+    assert.ok(
+      restored.chips.some((chip) => chip.title === THUMB_PATH),
+      "cancel restores the historical attachment",
+    );
+    assert.ok(
+      !restored.chips.some((chip) => chip.title === "src/edit-shot.png"),
+      "cancel does not add the editing attachment to the original bubble",
+    );
+    measurement.restored = restored.chips;
+    return { screenshot };
   });
 
   assert.deepEqual(failures, [], "the real chat window reports no renderer errors");
