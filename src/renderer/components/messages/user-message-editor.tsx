@@ -3,6 +3,9 @@ import type { EnvironmentId } from "@contract/environment";
 import { useFileEnvironment } from "@/lib/use-file-environment";
 import { getSessionEnvironmentId } from "@/lib/environment-registry";
 import { useComposerAttachments } from "../chat-input/use-composer-attachments";
+import { useAtSuggestions } from "../chat-input/use-at-suggestions";
+import { initialTriggerGate, nextTriggerGate, openTrigger } from "../chat-input/composer-trigger";
+import { AtMenu } from "../chat-input/AtMenu";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
 import { Button } from "../form-controls";
@@ -90,6 +93,14 @@ export function UserMessageEditor({
     t,
     onImageNotice: ignoreReveal,
   });
+  const [gate, setGate] = useState(initialTriggerGate);
+  const trigger = openTrigger(gate, true);
+  const suggestions = useAtSuggestions({
+    cwd,
+    atTrigger: trigger?.kind === "at" ? trigger : null,
+    editableRef: handleRef,
+    onDismiss: () => setGate((current) => nextTriggerGate(current, { type: "dismissed" }, Boolean(cwd))),
+  });
   const canSend = !isPending && !attachments.isProcessingImages && (text.trim() !== "" || images.length > 0);
 
   useEffect(() => {
@@ -111,6 +122,7 @@ export function UserMessageEditor({
       <div
         className="chat-reading type-chat-body"
         style={{
+          position: "relative",
           minWidth: 0,
           maxWidth: "100%",
           background: bubbleStyle.background,
@@ -121,6 +133,17 @@ export function UserMessageEditor({
           wordBreak: "break-word",
         }}
       >
+        {suggestions.atMenuOpen && suggestions.atQuery && (
+          <AtMenu
+            placement="below"
+            suggestionState={suggestions.activeSuggestionState}
+            matches={suggestions.atMatches}
+            activeIndex={suggestions.atActiveIndex}
+            itemRefs={suggestions.atItemRefs}
+            onApply={suggestions.applyAtCompletion}
+            onHover={suggestions.setAtActiveIndex}
+          />
+        )}
         {images.length > 0 && (
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: text.trim() ? 8 : 0 }}>
             {images.map((image, index) => (
@@ -171,6 +194,7 @@ export function UserMessageEditor({
           ariaLabel={t("editMessageField", "Edit message")}
           placeholder=""
           onChange={(change) => {
+            setGate((current) => nextTriggerGate(current, { type: "changed", change }, Boolean(cwd)));
             if (change.cause === "edit") onChange(change.snapshot.text);
           }}
           onKeyDown={(event) => {
@@ -180,12 +204,20 @@ export function UserMessageEditor({
                 if (action === "prevent") event.preventDefault();
                 return;
               }
+            }
+            if (
+              compositionRef.current.composing ||
+              event.nativeEvent.isComposing === true ||
+              event.nativeEvent.keyCode === 229
+            )
+              return;
+            if (suggestions.handleMenuKey(event)) return;
+            if (event.key === "Enter" && !event.shiftKey) {
               event.preventDefault();
               void submit();
               return;
             }
             if (event.key === "Escape") {
-              if (compositionEnterAction(event.nativeEvent, compositionRef.current, Date.now()) === "swallow") return;
               event.preventDefault();
               onCancel();
             }
