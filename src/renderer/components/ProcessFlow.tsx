@@ -8,17 +8,13 @@ import { DeferredContentActions } from "./messages/shared";
 import { ThinkingBlock } from "./messages/ThinkingBlock";
 import { ToolCallBlock } from "./messages/ToolCallBlock";
 
-/**
- * Continuous process stream inside the collapsed process-details group:
- * thinking rows, tool-call rows and custom messages interleave in the order
- * the agent produced them — no per-message usage lines, no per-message spacing.
- */
 export function ProcessFlow({
   items,
   cwd,
   onOpenFile,
   onLoadDeferredContent,
   thinkingExpansionStore,
+  unanswered,
   speedHint,
 }: {
   items: ProcessFlowItem[];
@@ -26,6 +22,7 @@ export function ProcessFlow({
   onOpenFile?: (filePath: string) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
+  unanswered?: boolean;
   speedHint?: AssistantMessage;
 }) {
   return (
@@ -41,6 +38,7 @@ export function ProcessFlow({
                   duration={item.duration}
                   stateKey={`${item.entryId ?? "assistant"}:${item.blockIndex}`}
                   store={thinkingExpansionStore}
+                  unanswered={unanswered}
                   streaming={item.streaming}
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />

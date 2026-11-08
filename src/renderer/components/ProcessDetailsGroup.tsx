@@ -11,13 +11,14 @@ export function ProcessDetailsGroup({
   createdSessionCount = 0,
   durationSeconds,
   liveStartedAt,
+  unanswered,
   onReaderAction,
   children,
   stateKey,
   expansionStore,
 }: Props) {
   const [remembered, toggle] = useExpansion(expansionStore, stateKey);
-  const expanded = remembered ?? false;
+  const expanded = remembered ?? unanswered ?? false;
   const contentMounted = useDelayedUnmount(expanded);
   const { language, t } = useI18n();
   const liveElapsed = useElapsedSince(liveStartedAt);
@@ -85,6 +86,15 @@ export function ProcessDetailsGroup({
           {contentMounted && <div style={{ marginTop: 8, paddingLeft: 4 }}>{children}</div>}
         </div>
       </div>
+      {unanswered && (
+        <div
+          className="type-meta-default"
+          data-testid="turn-no-answer-notice"
+          style={{ marginTop: 6, paddingLeft: 4, color: "var(--fx-text-tertiary)" }}
+        >
+          {t("turnNoAnswerGenerated", "No reply body was generated in this turn")}
+        </div>
+      )}
     </div>
   );
 }
@@ -95,6 +105,7 @@ interface Props {
   createdSessionCount?: number;
   durationSeconds?: number;
   liveStartedAt?: number;
+  unanswered?: boolean;
   onReaderAction?: () => void;
   children: ReactNode;
   stateKey: string;

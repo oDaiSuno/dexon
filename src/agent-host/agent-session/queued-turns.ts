@@ -11,6 +11,13 @@ export class QueuedTurns {
     return () => this.turns.delete(turn);
   }
 
+  cancelAll(): void {
+    for (const turn of this.turns) {
+      turn.cancel();
+    }
+    this.turns.clear();
+  }
+
   cancelFrom(sourceSessionId: string): void {
     for (const turn of this.turns) {
       if (turn.sourceSessionId === sourceSessionId) turn.cancel();

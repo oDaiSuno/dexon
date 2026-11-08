@@ -129,6 +129,7 @@ export class SessionOrchestrationService {
       cwd: launched.session.cwd || cwd,
     };
 
+    if (!input.wait) launched.turn?.catch(() => undefined);
     throwIfAborted(signal);
     const wait = input.wait
       ? await this.waitOn(callerId, launched.sessionId, input.timeoutSeconds, launched.turn, signal)
@@ -168,6 +169,7 @@ export class SessionOrchestrationService {
     const turn = wakingIdleAgentSession
       ? this.startTurnWithReservedSlot(target, turnParams)
       : target.runOrchestratedTurn(turnParams);
+    if (!input.wait) turn.catch(() => undefined);
     const wait = input.wait
       ? await this.waitOn(callerId, input.sessionId, input.timeoutSeconds, turn, signal)
       : undefined;
@@ -251,6 +253,7 @@ export class SessionOrchestrationService {
     await this.assertSameProject(callerId, sessionId);
     this.requireOwnedSession(callerId, sessionId, "closed");
     const target = getRpcSession(sessionId);
+    target?.queuedTurns.cancelAll();
     if (target?.isAlive()) await target.dispose({ abort: true, reason: "agent-session-close" });
     return { sessionId, status: "closed" };
   }

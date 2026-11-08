@@ -176,3 +176,43 @@ test("renders a generic failure state when the provider omits error detail", asy
   assert.equal(getAssistantFailureDetail(message), null);
   assert.equal(hasRenderableAssistantMessage(message), true);
 });
+
+test("length-limited replies remain renderable without blocks and never resolve an earlier failure", async () => {
+  const subject = await loadSubject();
+  const message = { ...assistant([]), stopReason: "length" };
+  assert.equal(subject.hasRenderableAssistantMessage(message), true, "an empty truncated reply still needs its notice");
+  assert.equal(subject.isAssistantLengthTruncated?.(message), true, "the length stop reason identifies truncation");
+  assert.equal(subject.isAssistantTurnResolution?.(message), false, "a truncated reply cannot resolve the turn");
+});
+
+test("thinking-only and empty normal completions do not resolve earlier failures", async () => {
+  const subject = await loadSubject();
+  for (const content of [
+    [],
+    [{ type: "thinking", thinking: "A reply hidden inside thinking" }],
+    [{ type: "text", text: "  " }],
+  ]) {
+    assert.equal(
+      subject.isAssistantTurnResolution?.({ ...assistant(content), stopReason: "stop" }),
+      false,
+      "a normal stop needs a real answer or tool call to resolve the turn",
+    );
+  }
+});
+
+test("a completed answer, image or tool call resolves the turn but truncated text does not", async () => {
+  const subject = await loadSubject();
+  for (const content of [
+    [{ type: "text", text: "A real answer" }],
+    [{ type: "image", source: { type: "url", url: "https://example.com/answer.png" } }],
+    [toolCall],
+  ]) {
+    const message = { ...assistant(content), stopReason: "stop" };
+    assert.equal(subject.hasAssistantAnswerOrToolCall?.(message), true);
+    assert.equal(subject.isAssistantTurnResolution?.(message), true);
+    assert.equal(subject.isAssistantLengthTruncated?.(message), false);
+    for (const stopReason of ["length", "error", "aborted"]) {
+      assert.equal(subject.isAssistantTurnResolution?.({ ...message, stopReason }), false);
+    }
+  }
+});

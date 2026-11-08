@@ -8,6 +8,7 @@ interface AssistantLike {
   role?: unknown;
   stopReason?: unknown;
   errorMessage?: unknown;
+  content?: unknown;
 }
 
 function assistantMessageOf(message: unknown): AssistantLike | null {
@@ -16,9 +17,21 @@ function assistantMessageOf(message: unknown): AssistantLike | null {
   return typed.role === "assistant" ? typed : null;
 }
 
+function hasNonEmptyAssistantText(message: AssistantLike): boolean {
+  return (
+    Array.isArray(message.content) &&
+    message.content.some(
+      (block) => block?.type === "text" && typeof block.text === "string" && block.text.trim().length > 0,
+    )
+  );
+}
+
 function outcomeOf(message: AssistantLike): AssistantTurnOutcome | null {
   if (message.stopReason === "aborted") return { kind: "stopped" };
   const reported = typeof message.errorMessage === "string" ? message.errorMessage.trim() : "";
+  if (message.stopReason === "length" && !hasNonEmptyAssistantText(message)) {
+    return { kind: "error", error: reported || "Output reached the maximum length limit" };
+  }
   if (!reported && message.stopReason !== "error") return null;
   return { kind: "error", error: reported || "The last turn failed" };
 }
