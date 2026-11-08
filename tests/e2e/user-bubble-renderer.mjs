@@ -559,6 +559,14 @@ window.userBubble = {
   composerThumbnailChip() {
     return thumbnailSummary(composerChip(THUMB_PATH));
   },
+  editAttachment() {
+    const input = byRole(document, "textbox", "Edit message");
+    if (!input) return null;
+    const chip = [...input.querySelectorAll("[title]")].find(
+      (candidate) => candidate.getAttribute("title") === THUMB_PATH,
+    );
+    return { rect: bounds(input), thumbnail: thumbnailSummary(chip) };
+  },
   focusComposer() {
     editor()?.focus();
   },

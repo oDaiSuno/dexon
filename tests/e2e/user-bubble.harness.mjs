@@ -495,6 +495,27 @@ async function run() {
     records: () => records,
   });
 
+  await scene("reediting-a-message-keeps-the-attachment-thumbnail", async (measurement) => {
+    await page('configure({ language: "en-US", theme: "light" })');
+    await waitFor(
+      `!!window.userBubble.layout(${JSON.stringify(THUMB_MARKER)}).exists`,
+      "the thumbnail message renders",
+    );
+    await page(`scrollTo(${JSON.stringify(THUMB_MARKER)})`);
+    await paint();
+    const edit = await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`);
+    assert.ok(edit, "the historical message has an edit control");
+    await hover(edit);
+    await click(await page(`rowButtonPoint(${JSON.stringify(THUMB_MARKER)}, "Edit")`));
+    await waitFor("!!window.userBubble.editAttachment()", "the bubble editor opens");
+    await waitFor(
+      "window.userBubble.editAttachment()?.thumbnail?.thumb?.loaded",
+      "the editing pill keeps its thumbnail",
+    );
+    Object.assign(measurement, await page("editAttachment()"));
+    return { screenshot: await capture("29-edit-attachment-thumbnail") };
+  });
+
   assert.deepEqual(failures, [], "the real chat window reports no renderer errors");
 }
 

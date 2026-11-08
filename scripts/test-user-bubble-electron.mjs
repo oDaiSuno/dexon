@@ -37,5 +37,6 @@ await runRendererElectronCheck({
     "reduced-motion-switches-the-fold-at-once",
     "resizing-a-long-prompt-reports-no-observer-errors",
     "the-fold-bar-speaks-the-app-language",
+    "reediting-a-message-keeps-the-attachment-thumbnail",
   ],
 });
