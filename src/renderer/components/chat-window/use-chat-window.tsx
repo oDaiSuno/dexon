@@ -6,6 +6,7 @@ import { useObservedElementHeight } from "@/hooks/useObservedElementHeight";
 import { useI18n } from "@/i18n";
 import { getActiveEnvironmentId } from "@/lib/environment-registry";
 import { newSessionDraftKey } from "@/lib/unsaved-messages";
+import { modelSupportsImages } from "@/lib/model-selection";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -244,6 +245,10 @@ export function useChatWindow({
   const { editDraft, editHandlers, dropEditFiles } = useMessageEdit({
     sessionId: session?.id,
     environmentId: session?.environmentId ?? newSessionEnvironmentId,
+    supportsImages: modelSupportsImages(
+      displayModelValue ? { provider: displayModelValue.provider, id: displayModelValue.modelId } : null,
+      modelList,
+    ),
     sendMessage: handleEditMessage,
   });
 

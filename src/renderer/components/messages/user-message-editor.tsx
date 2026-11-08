@@ -6,6 +6,7 @@ import { useComposerAttachments } from "../chat-input/use-composer-attachments";
 import { useAtSuggestions } from "../chat-input/use-at-suggestions";
 import { initialTriggerGate, nextTriggerGate, openTrigger } from "../chat-input/composer-trigger";
 import { AtMenu } from "../chat-input/AtMenu";
+import { ComposerBanner } from "../chat-input/StatusBanners";
 import { useI18n } from "@/i18n";
 import { ComposerEditable } from "../chat-input/ComposerEditable";
 import { Button } from "../form-controls";
@@ -27,6 +28,7 @@ export interface EditDraft {
 
 export interface EditDraftHandlers {
   environmentId?: EnvironmentId;
+  supportsImages?: boolean | null;
   registerFiles?(processFiles: (files: File[]) => Promise<void>): () => void;
   start(entryId: string, text: string, imageBlocks: ImageContent[]): void;
   change(text: string): void;
@@ -51,10 +53,12 @@ export function flatImageOf(block: ImageContent): OutgoingImage | null {
 export function useMessageEdit({
   sessionId,
   environmentId,
+  supportsImages,
   sendMessage,
 }: {
   sessionId?: string;
   environmentId: EnvironmentId;
+  supportsImages?: boolean | null;
   sendMessage: (entryId: string, text: string, images: OutgoingImage[]) => Promise<void>;
 }) {
   const [editDraft, setEditDraft] = useState<EditDraft | null>(null);
@@ -76,6 +80,7 @@ export function useMessageEdit({
   const editHandlers = useMemo<EditDraftHandlers>(
     () => ({
       environmentId,
+      supportsImages,
       registerFiles: registerEditFiles,
       start(entryId, text, imageBlocks) {
         const draft = {
@@ -106,7 +111,7 @@ export function useMessageEdit({
         if (accepted && editDraftRef.current === draft) cancelEdit();
       },
     }),
-    [cancelEdit, environmentId, registerEditFiles, sendMessage],
+    [cancelEdit, environmentId, registerEditFiles, sendMessage, supportsImages],
   );
 
   useLayoutEffect(() => {
@@ -121,8 +126,6 @@ export function useMessageEdit({
   return { editDraft, editHandlers, dropEditFiles };
 }
 
-const NO_PREVIEWS = new Map<string, string | null>();
-const NO_MISSING = new Map<string, boolean>();
 const NO_SKILLS = new Map<string, { readonly description: string }>();
 
 const ignoreReveal = () => undefined;
@@ -132,6 +135,7 @@ export function UserMessageEditor({
   sessionId,
   cwd,
   registerFiles,
+  supportsImages,
   text,
   images,
   bubbleStyle,
@@ -144,6 +148,7 @@ export function UserMessageEditor({
   sessionId?: string | null;
   cwd?: string;
   registerFiles?: EditDraftHandlers["registerFiles"];
+  supportsImages?: boolean | null;
   text: string;
   images: OutgoingImage[];
   bubbleStyle: { background: string; foreground: string };
@@ -159,15 +164,17 @@ export function UserMessageEditor({
   const handleRef = useRef<ComposerEditableHandle | null>(null);
   const compositionRef = useRef<CompositionState>({ composing: false, endedAt: 0 });
   const [isPending, setIsPending] = useState(false);
+  const [imageAttachNotice, setImageAttachNotice] = useState<string | null>(null);
   const attachments = useComposerAttachments({
     environmentId,
     sessionId,
     value: text,
     visible: true,
     cwd,
+    supportsImages,
     editableRef: handleRef,
     t,
-    onImageNotice: ignoreReveal,
+    onImageNotice: setImageAttachNotice,
   });
   const [gate, setGate] = useState(initialTriggerGate);
   const trigger = openTrigger(gate, true);
@@ -197,6 +204,14 @@ export function UserMessageEditor({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: "68ch", width: "100%" }}>
+      {imageAttachNotice && (
+        <ComposerBanner
+          tone="error"
+          message={imageAttachNotice}
+          onDismiss={() => setImageAttachNotice(null)}
+          dismissLabel={t("dismissImageAttachError", "Dismiss image attachment error")}
+        />
+      )}
       <div
         className="chat-reading type-chat-body"
         style={{
@@ -308,9 +323,9 @@ export function UserMessageEditor({
             compositionRef.current.composing = false;
             compositionRef.current.endedAt = Date.now();
           }}
-          previewsByPath={NO_PREVIEWS}
-          missingByPath={NO_MISSING}
-          onRevealToken={ignoreReveal}
+          previewsByPath={attachments.tokenPreviewsByPath}
+          missingByPath={attachments.missingTokenInspections}
+          onRevealToken={attachments.revealToken}
           onSkillReveal={ignoreReveal}
           removeLabel={t("remove", "Remove")}
           skillsByName={NO_SKILLS}
