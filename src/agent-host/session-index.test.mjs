@@ -1,9 +1,10 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { clearImmediate } from "node:timers";
 
 const fixtureRoot = mkdtempSync(path.join(tmpdir(), "pi-session-index-"));
 const sessionsRoot = path.join(fixtureRoot, "sessions");
@@ -14,12 +15,23 @@ process.env.PI_CODING_AGENT_SESSION_DIR = sessionsRoot;
 process.env.PI_CODING_AGENT_DIR = fixtureRoot;
 test.after(() => rmSync(fixtureRoot, { recursive: true, force: true }));
 const { SessionManager } = await import("@earendil-works/pi-coding-agent");
-const { SessionIndex, listAllSessions } = await importTestBundle("src/agent-host/session-index", {
-  packages: "external",
-  stdin: {
-    contents: 'export { SessionIndex } from "./session-index"; export { listAllSessions } from "./session-reader";',
-    resolveDir: import.meta.dirname,
-  },
+const { SessionIndex, sessionIndex, listAllSessions, invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy } =
+  await importTestBundle("src/agent-host/session-index", {
+    packages: "external",
+    stdin: {
+      contents:
+        'export { SessionIndex, sessionIndex } from "./session-index"; export { listAllSessions } from "./session-reader"; export { invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy } from "../shared/allowed-roots";',
+      resolveDir: import.meta.dirname,
+    },
+  });
+const cachePath = path.join(fixtureRoot, "desktop", "session-index-cache.json");
+
+test.beforeEach(() => {
+  rmSync(sessionsRoot, { recursive: true, force: true });
+  mkdirSync(path.join(sessionsRoot, "project"), { recursive: true });
+  rmSync(cachePath, { force: true });
+  setAllowedRootsWatcherHealthy(false);
+  invalidateAllowedRootsCache();
 });
 
 function writeSession(id, options = {}) {
@@ -77,6 +89,7 @@ test("refreshAll reuses unchanged records and derives parent ids", async () => {
 });
 
 test("refreshPath updates only one changed file and removePath deletes it", async () => {
+  writeSession("parent");
   const index = new SessionIndex();
   await index.refreshAll();
   const parentPath = await index.resolvePath("parent");
@@ -174,4 +187,142 @@ test("skill session previews match in the index and when the index is unavailabl
     fallback.find((session) => session.id === "skill-preview").firstMessage,
     "/skill:fast-context 帮我梳理架构",
   );
+});
+
+test("a restarted index reuses persisted summaries and removes externally deleted sessions from its cache", async () => {
+  const parentPath = writeSession("cached-parent", { timestamp: "2026-08-01T00:00:00.000Z" });
+  const childPath = writeSession("cached-child", {
+    timestamp: "2026-08-02T00:00:00.000Z",
+    parentSession: parentPath,
+  });
+  const original = new SessionIndex();
+  await original.refreshAll();
+  assert.equal(original.getMetrics().filesParsed, 2);
+
+  const restored = new SessionIndex();
+  await restored.refreshAll();
+  assert.equal(restored.getMetrics().filesParsed, 0, "unchanged histories are not parsed after restart");
+  assert.equal(restored.getMetrics().filesReused, 2, "both persisted fingerprints are reused");
+  assert.deepEqual(
+    (await restored.getAll()).map(({ id, path, cwd, firstMessage, messageCount, parentSessionId, projectRoot }) => ({
+      id,
+      path,
+      cwd,
+      firstMessage,
+      messageCount,
+      parentSessionId,
+      projectRoot,
+    })),
+    [
+      {
+        id: "cached-child",
+        path: childPath,
+        cwd: projectRoot,
+        firstMessage: "cached-child",
+        messageCount: 1,
+        parentSessionId: "cached-parent",
+        projectRoot,
+      },
+      {
+        id: "cached-parent",
+        path: parentPath,
+        cwd: projectRoot,
+        firstMessage: "cached-parent",
+        messageCount: 1,
+        parentSessionId: undefined,
+        projectRoot,
+      },
+    ],
+  );
+  const persisted = JSON.parse(readFileSync(cachePath, "utf8"));
+  assert.equal(persisted.version, 1);
+  assert.deepEqual(Object.keys(persisted.records).sort(), [parentPath, childPath].sort());
+  assert.equal(Object.hasOwn(persisted.records[childPath].info, "parentSessionId"), false);
+  assert.equal(Object.hasOwn(persisted.records[childPath].info, "projectRoot"), false);
+
+  unlinkSync(parentPath);
+  await restored.refreshAll();
+  assert.equal(restored.getByPath(parentPath), null);
+  const remaining = await restored.getAll();
+  assert.deepEqual(
+    remaining.map((session) => session.id),
+    ["cached-child"],
+  );
+  assert.equal(remaining[0].parentSessionId, undefined);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(cachePath, "utf8")).records), [childPath]);
+});
+
+test("cold and cached history scans let queued event-loop callbacks run before the scan finishes", async () => {
+  const files = Array.from({ length: 40 }, (_, index) => writeSession(`yield-${index}`));
+  for (const cold of [true, false]) {
+    const index = new SessionIndex();
+    const progress = [];
+    let finished = false;
+    let pending;
+    const observe = () => {
+      if (finished) return;
+      progress.push(files.filter((filePath) => index.getByPath(filePath)).length);
+      pending = setImmediate(observe);
+    };
+    pending = setImmediate(observe);
+    try {
+      await index.refreshAll();
+    } finally {
+      finished = true;
+      clearImmediate(pending);
+    }
+    assert.ok(progress.length >= 2, "queued callbacks run during both cold and cached scans");
+    if (cold) {
+      assert.ok(
+        progress.some((count) => count > 0 && count < 40),
+        "a callback observes a partially indexed history before scanning completes",
+      );
+    } else {
+      assert.equal(index.getMetrics().filesParsed, 0);
+      assert.equal(index.getMetrics().filesReused, 40);
+    }
+  }
+});
+
+test("a healthy watcher lets session listing reuse a recent scan until roots or the file set change", async (t) => {
+  writeSession("recent");
+  setAllowedRootsWatcherHealthy(true);
+  t.after(() => setAllowedRootsWatcherHealthy(false));
+  await sessionIndex.refreshAll();
+
+  assert.deepEqual(
+    (await listAllSessions()).map((session) => session.id),
+    ["recent"],
+  );
+  assert.equal(sessionIndex.getMetrics().filesParsed, 0);
+  assert.equal(sessionIndex.getMetrics().filesReused, 0, "the recent scan is reused without file fingerprint checks");
+
+  invalidateAllowedRootsCache();
+  await listAllSessions();
+  assert.equal(sessionIndex.getMetrics().filesParsed, 0);
+  assert.equal(sessionIndex.getMetrics().filesReused, 1, "root invalidation forces a fingerprint scan");
+
+  writeSession("new-session", { timestamp: "2026-08-07T00:00:00.000Z" });
+  assert.deepEqual(
+    (await listAllSessions()).map((session) => session.id),
+    ["new-session", "recent"],
+  );
+  assert.equal(sessionIndex.getMetrics().filesParsed, 1);
+  assert.equal(sessionIndex.getMetrics().filesReused, 1);
+
+  setAllowedRootsWatcherHealthy(false);
+  appendFileSync(
+    path.join(sessionsRoot, "project", "recent.jsonl"),
+    `${JSON.stringify({
+      type: "session_info",
+      id: "recent-name",
+      parentId: "recent-user",
+      timestamp: "2026-08-08T00:00:00.000Z",
+      name: "updated without a watcher",
+    })}\n`,
+  );
+  const withoutWatcher = await listAllSessions();
+  assert.equal(withoutWatcher.find((session) => session.id === "recent").name, "updated without a watcher");
+  assert.equal(sessionIndex.getMetrics().filesParsed, 1);
+  assert.equal(sessionIndex.getMetrics().filesReused, 1);
 });

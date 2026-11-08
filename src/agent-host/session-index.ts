@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { SessionEntry, SessionInfo } from "../shared/types";
@@ -8,27 +8,33 @@ import { inheritProject, locateSessionProject, type LocatedProject, type Project
 import { flushSessionProjects } from "./session-project-store";
 import { sessionsRoot } from "./session-dir";
 import { getProjectCacheRevision } from "../shared/worktree";
+import { getAllowedRootsGeneration } from "../shared/allowed-roots";
+import {
+  fingerprint,
+  readFingerprintOrNull,
+  sameFingerprint,
+  loadSessionIndexCache,
+  saveSessionIndexCache,
+  type Fingerprint,
+  type PersistedIndexRecord,
+} from "./session-index-cache";
 
 const PROJECT_VIEW_TTL_MS = 60_000;
+const YIELD_BUDGET_MS = 15;
+const YIELD_PARSED_BATCH = 1;
+const YIELD_REUSED_BATCH = 16;
+export const RECENT_INDEX_REFRESH_TTL_MS = 2_000;
 
-interface Fingerprint {
-  size: number;
-  mtimeMs: number;
-  ctimeMs: number;
-  ino: number;
-}
-
-interface IndexRecord {
-  filePath: string;
-  fingerprint: Fingerprint;
-  info: SessionInfo | null;
-  parentPath?: string;
-  valid: boolean;
+interface IndexRecord extends PersistedIndexRecord {
   located?: LocatedProject | null;
   projectResolved?: boolean;
 }
 
 type ResolvedRecord = IndexRecord & { info: SessionInfo };
+
+export interface RefreshAllOptions {
+  maxAgeMs?: number;
+}
 
 export interface SessionIndexMetrics {
   filesDiscovered: number;
@@ -38,18 +44,8 @@ export interface SessionIndexMetrics {
   totalMs: number;
 }
 
-function fingerprint(filePath: string): Fingerprint {
-  const stat = statSync(filePath);
-  return { size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino };
-}
-
-function sameFingerprint(left: Fingerprint, right: Fingerprint): boolean {
-  return (
-    left.size === right.size &&
-    left.mtimeMs === right.mtimeMs &&
-    left.ctimeMs === right.ctimeMs &&
-    left.ino === right.ino
-  );
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 function discoverSessionFiles(root: string): string[] {
@@ -79,6 +75,10 @@ export class SessionIndex {
   private tail: Promise<unknown> = Promise.resolve();
   private refreshPromise: Promise<void> | null = null;
   private initialized = false;
+  private cacheHydrated = false;
+  private cacheDirty = false;
+  private lastFullRefreshAt = 0;
+  private lastRefreshRootsGeneration = -1;
   private projectRevision = -1;
   private projectViewsRefreshedAt = 0;
   private metrics: SessionIndexMetrics = {
@@ -91,6 +91,42 @@ export class SessionIndex {
 
   private sessionsRoot(): string {
     return sessionsRoot();
+  }
+
+  private hydrateFromCache(root: string): void {
+    if (this.cacheHydrated) return;
+    this.cacheHydrated = true;
+    for (const record of loadSessionIndexCache()) {
+      const resolved = path.resolve(record.filePath);
+      if (!resolved.startsWith(`${root}${path.sep}`) || !resolved.endsWith(".jsonl")) continue;
+      this.byPath.set(resolved, {
+        ...record,
+        filePath: resolved,
+        info: record.info ? { ...record.info, path: resolved } : null,
+        projectResolved: false,
+      });
+    }
+    this.rebuildDerivedState();
+  }
+
+  private flushCacheIfDirty(): void {
+    if (!this.cacheDirty) return;
+    saveSessionIndexCache(this.byPath.values());
+    this.cacheDirty = false;
+  }
+
+  private canSkipRecentFullRefresh(maxAgeMs: number, files: string[]): boolean {
+    const ageMs = Date.now() - this.lastFullRefreshAt;
+    return (
+      this.initialized &&
+      maxAgeMs > 0 &&
+      this.lastFullRefreshAt > 0 &&
+      ageMs >= 0 &&
+      ageMs < maxAgeMs &&
+      this.lastRefreshRootsGeneration === getAllowedRootsGeneration() &&
+      files.length === this.byPath.size &&
+      files.every((filePath) => this.byPath.has(filePath))
+    );
   }
 
   private rebuildDerivedState(): void {
@@ -181,12 +217,8 @@ export class SessionIndex {
         };
       } catch {
         if (attempt === 0) {
-          try {
-            const after = fingerprint(filePath);
-            if (!sameFingerprint(before, after)) continue;
-          } catch {
-            // File disappeared; the invalid record is removed on the next discovery pass.
-          }
+          const after = readFingerprintOrNull(filePath);
+          if (after && !sameFingerprint(before, after)) continue;
         }
         return { filePath, fingerprint: before, info: null, valid: false };
       }
@@ -198,48 +230,91 @@ export class SessionIndex {
     return this.refreshAll();
   }
 
-  refreshAll(): Promise<void> {
-    if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = this.exclusive(async () => {
-      const startedAt = performance.now();
-      const files = discoverSessionFiles(this.sessionsRoot());
-      const discovered = new Set(files);
-      let filesParsed = 0;
-      let filesReused = 0;
-      let invalidFiles = 0;
+  private async runFullScan(root: string, files: string[], startedAt: number): Promise<void> {
+    const rootsGenAtStart = getAllowedRootsGeneration();
+    this.hydrateFromCache(root);
+    const discovered = new Set(files);
+    let filesParsed = 0;
+    let filesReused = 0;
+    let filesRemoved = 0;
+    let invalidFiles = 0;
+    let parsedSinceYield = 0;
+    let reusedSinceYield = 0;
+    let lastYieldAt = performance.now();
 
-      for (const existingPath of [...this.byPath.keys()]) {
-        if (!discovered.has(existingPath)) this.byPath.delete(existingPath);
+    for (const existingPath of this.byPath.keys()) {
+      if (!discovered.has(existingPath)) {
+        this.byPath.delete(existingPath);
+        filesRemoved += 1;
       }
-      for (const filePath of files) {
-        let currentFingerprint: Fingerprint;
-        try {
-          currentFingerprint = fingerprint(filePath);
-        } catch {
-          continue;
-        }
-        const existing = this.byPath.get(filePath);
-        if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) {
-          filesReused += 1;
-          if (!existing.valid) invalidFiles += 1;
-          continue;
-        }
+    }
+    for (const [fileIndex, filePath] of files.entries()) {
+      let currentFingerprint: Fingerprint;
+      try {
+        currentFingerprint = fingerprint(filePath);
+      } catch {
+        continue;
+      }
+      const existing = this.byPath.get(filePath);
+      if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) {
+        filesReused += 1;
+        reusedSinceYield += 1;
+        if (!existing.valid) invalidFiles += 1;
+      } else {
         const record = await this.parsePath(filePath, currentFingerprint);
         this.byPath.set(filePath, record);
         filesParsed += 1;
+        parsedSinceYield += 1;
         if (!record.valid) invalidFiles += 1;
       }
-      this.rebuildDerivedState();
-      await this.resolveProjects([...this.byPath.values()].filter((record) => !record.projectResolved));
-      if (filesParsed > 0) this.projectViewsRefreshedAt = 0;
-      this.initialized = true;
-      this.metrics = {
-        filesDiscovered: files.length,
-        filesParsed,
-        filesReused,
-        invalidFiles,
-        totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
-      };
+      if (
+        fileIndex < files.length - 1 &&
+        (parsedSinceYield >= YIELD_PARSED_BATCH ||
+          reusedSinceYield >= YIELD_REUSED_BATCH ||
+          performance.now() - lastYieldAt >= YIELD_BUDGET_MS)
+      ) {
+        await yieldToEventLoop();
+        parsedSinceYield = 0;
+        reusedSinceYield = 0;
+        lastYieldAt = performance.now();
+      }
+    }
+    this.rebuildDerivedState();
+    await this.resolveProjects([...this.byPath.values()].filter((record) => !record.projectResolved));
+    if (filesParsed > 0 || filesRemoved > 0) {
+      this.projectViewsRefreshedAt = 0;
+      this.cacheDirty = true;
+    }
+    this.flushCacheIfDirty();
+    this.initialized = true;
+    this.lastFullRefreshAt = Date.now();
+    this.lastRefreshRootsGeneration = rootsGenAtStart;
+    this.metrics = {
+      filesDiscovered: files.length,
+      filesParsed,
+      filesReused,
+      invalidFiles,
+      totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
+    };
+  }
+
+  refreshAll(options: RefreshAllOptions = {}): Promise<void> {
+    if (this.refreshPromise) return this.refreshPromise;
+    this.refreshPromise = this.exclusive(async () => {
+      const startedAt = performance.now();
+      const root = this.sessionsRoot();
+      const files = discoverSessionFiles(root);
+      if (this.canSkipRecentFullRefresh(options.maxAgeMs ?? 0, files)) {
+        this.metrics = {
+          filesDiscovered: files.length,
+          filesParsed: 0,
+          filesReused: 0,
+          invalidFiles: [...this.byPath.values()].filter((record) => !record.valid).length,
+          totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
+        };
+        return;
+      }
+      await this.runFullScan(root, files, startedAt);
     }).finally(() => {
       this.refreshPromise = null;
     });
@@ -251,6 +326,7 @@ export class SessionIndex {
       const resolved = path.resolve(filePath);
       const root = this.sessionsRoot();
       if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
+      this.hydrateFromCache(root);
       if (!resolved.endsWith(".jsonl") || !existsSync(resolved)) {
         this.removePath(resolved);
         return null;
@@ -272,6 +348,8 @@ export class SessionIndex {
       this.byPath.set(resolved, record);
       this.rebuildDerivedState();
       await this.resolveProjects([record]);
+      this.cacheDirty = true;
+      this.flushCacheIfDirty();
       this.initialized = true;
       this.metrics = {
         filesDiscovered: 1,
@@ -285,10 +363,15 @@ export class SessionIndex {
   }
 
   removePath(filePath: string): SessionInfo | null {
-    const existing = this.byPath.get(path.resolve(filePath));
-    this.byPath.delete(path.resolve(filePath));
+    this.hydrateFromCache(this.sessionsRoot());
+    const resolved = path.resolve(filePath);
+    const existing = this.byPath.get(resolved);
+    if (!existing) return null;
+    this.byPath.delete(resolved);
     this.rebuildDerivedState();
-    return existing?.info ?? null;
+    this.cacheDirty = true;
+    this.flushCacheIfDirty();
+    return existing.info;
   }
 
   getByPath(filePath: string): SessionInfo | null {

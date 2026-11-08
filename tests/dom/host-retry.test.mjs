@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { dom, byRole, click, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
+import { createDeferred } from "#test-timing";
+import { act, dom, byRole, click, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
 import { installRendererApi } from "../support/renderer-api.mjs";
 import { navigationBoundary } from "../fixtures/app-navigation-host.mjs";
 
@@ -49,4 +50,43 @@ test("when restarting the Agent Host is refused, Retry keeps the card and shows 
     { timeout: BOOT_TIMEOUT },
   );
   assert.ok(scene.card(), "the card still says the Agent Host cannot be reached");
+});
+
+test("when the Agent Host restarts, the mounted app stays in place while RPC reconnects", async (t) => {
+  dom.window.localStorage.clear();
+  dom.window.history.replaceState(null, "", "/");
+  api.setAppLanguage("en-US");
+  const external = navigationBoundary({ history: false });
+  t.after(() => external.releaseHolds());
+  const restartHandlers = new Set();
+  const reconnected = createDeferred();
+  let reconnecting = false;
+  external.bridge.getHostStatus = () => (reconnecting ? reconnected.promise : Promise.resolve("ready"));
+  external.bridge.onHostRestarted = (handler) => {
+    restartHandlers.add(handler);
+    return () => restartHandlers.delete(handler);
+  };
+  const installBoundary = () => installRendererApi(dom.window, api, () => external.host, { bridge: external.bridge });
+  let boundary = installBoundary();
+  const view = await mount(t, api.App, {}, { release: () => boundary.close() });
+  const filePanelButton = () => byRole(view.container, "button", "Show file panel");
+  await waitFor(() => assert.ok(filePanelButton(), "the app has mounted"), { timeout: BOOT_TIMEOUT });
+  const originalButton = filePanelButton();
+
+  reconnecting = true;
+  boundary.close();
+  boundary = installBoundary();
+  try {
+    await act(async () => {
+      for (const handler of [...restartHandlers]) handler({ reason: "crash-recovery" });
+    });
+    assert.ok(filePanelButton() === originalButton, "the existing app DOM remains mounted during reconnect");
+    assert.equal(originalButton.isConnected, true);
+    assert.equal(view.container.textContent.includes("reconnecting"), false, "no reconnect placeholder replaces it");
+  } finally {
+    await act(async () => reconnected.resolve("ready"));
+  }
+  await waitFor(() => assert.ok(filePanelButton() === originalButton, "reconnection keeps the same app DOM"), {
+    timeout: BOOT_TIMEOUT,
+  });
 });

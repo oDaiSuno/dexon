@@ -74,7 +74,6 @@ export function App() {
     const offRestart = window.piBridge?.onHostRestarted?.((payload) => {
       console.warn("[dexon] host restarted:", payload.reason);
       resetRpc();
-      setReady(false);
       setStatus("Agent Host restarted — reconnecting…");
       setError(null);
       connect();
@@ -90,7 +89,6 @@ export function App() {
       void window.piBridge?.exportDiagnostics?.();
     });
 
-    // Clear dock badge when user focuses the app
     const onFocus = () => window.piBridge?.clearBadge?.();
     window.addEventListener("focus", onFocus);
 

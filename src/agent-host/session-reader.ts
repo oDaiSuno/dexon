@@ -25,14 +25,17 @@ import { branchAt, type SessionBranch } from "./session-branch";
 import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { locateSessionProject, type LocatedProject } from "./session-project";
 import { flushSessionProjects } from "./session-project-store";
-import { sessionIndex } from "./session-index";
+import { RECENT_INDEX_REFRESH_TTL_MS, sessionIndex } from "./session-index";
+import { isAllowedRootsWatcherHealthy } from "../shared/allowed-roots";
 import { withSessionOrigin } from "./session-origin-store";
 
 export { getAgentDir };
 
 export async function listAllSessions(): Promise<SessionInfo[]> {
   try {
-    await sessionIndex.refreshAll();
+    await sessionIndex.refreshAll(
+      isAllowedRootsWatcherHealthy() ? { maxAgeMs: RECENT_INDEX_REFRESH_TTL_MS } : undefined,
+    );
     return await sessionIndex.getAll();
   } catch (error) {
     console.error("[agent-host] session index unavailable; falling back to pi listAll:", error);
@@ -45,8 +48,6 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
   const pathToId = new Map<string, string>();
   for (const s of piSessions) pathToId.set(s.path, s.id);
 
-  // Resolve each unique cwd to its project root (main repo shared by all
-  // worktrees). resolveProject caches per-cwd, so this is cheap after warmup.
   const uniqueCwds = [...new Set(piSessions.map((s) => s.cwd).filter(Boolean))];
   const projectByCwd = new Map<string, ProjectInfo>();
   await Promise.all(
@@ -57,7 +58,6 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
 
   const cache = getPathCache();
   return piSessions.map((s) => {
-    // Populate path cache so resolveSessionPath works without a full scan
     cache.set(s.id, s.path);
     const project = s.cwd ? projectByCwd.get(s.cwd) : undefined;
     return withSessionOrigin({
@@ -76,8 +76,6 @@ async function listAllSessionsFallback(): Promise<SessionInfo[]> {
   });
 }
 
-// Session path cache: sessionId → absolute file path. Its lifetime is bounded
-// by the Agent Host utility process.
 const sessionPathCache = new Map<string, string>();
 
 function getPathCache(): Map<string, string> {
@@ -155,7 +153,6 @@ function getMessageActivityTime(entry: SessionEntry): number | undefined {
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
-/** Build the Desktop SessionInfo for one already-open session without scanning all session files. */
 export async function buildSessionInfoFromManager(
   filePath: string,
   manager: SessionManager,
@@ -376,11 +373,8 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
       const displayMessage = toDisplayMessage(entry.message);
       if (!displayMessage) return null;
       const message = normalizeToolCalls(displayMessage);
-      // pi stamps message.timestamp at message START; the entry is written at
-      // message COMPLETION. Prefer the entry time so duration math (turn
-      // length, thinking/tool durations) reflects actual elapsed work.
-      const completedAt = parseEntryTimestamp(entry.timestamp);
-      return completedAt !== undefined ? { ...message, timestamp: completedAt } : message;
+      const entryCompletionTimeMs = parseEntryTimestamp(entry.timestamp);
+      return entryCompletionTimeMs !== undefined ? { ...message, timestamp: entryCompletionTimeMs } : message;
     }
     case "compaction":
       return {
@@ -419,7 +413,6 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
   }
 }
 
-/** Broadcast a sessions.changed event that reflects the refreshed index state. */
 export async function emitIndexedSessionChange(
   server: RpcServer,
   sessionId: string,
