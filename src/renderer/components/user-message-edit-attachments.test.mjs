@@ -29,8 +29,8 @@ const PNG_DATA = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8
 const GIF_DATA = "R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 const OLD_IMAGE = { type: "image", data: PNG_DATA, mimeType: "image/png" };
 
-function MessageFixture({ message, onSend, ...props }) {
-  const [editDraft, setEditDraft] = useState(null);
+function MessageFixture({ message, onSend, initialDraft = null, ...props }) {
+  const [editDraft, setEditDraft] = useState(initialDraft);
   return createElement(UserMessageView, {
     message,
     entryId: "attachment-entry",
@@ -88,7 +88,7 @@ async function mountMessage(t, { content = "before after", onSend, bridge = {}, 
     },
     ...props,
   });
-  await openEditor(view);
+  if (!props.initialDraft) await openEditor(view);
   return { view, sent };
 }
 
@@ -321,8 +321,10 @@ function conversation(id, value = "old question") {
   ]);
 }
 
-async function mountConversation(t, { id = "attachment-drop", bridge = {}, host: overrides = {} } = {}) {
-  const details = new Map([[id, conversation(id)]]);
+async function mountConversation(t, { id = "attachment-drop", cwd, bridge = {}, host: overrides = {} } = {}) {
+  const detail = conversation(id);
+  if (cwd) detail.info.cwd = cwd;
+  const details = new Map([[id, detail]]);
   const host = createSessionTestHost({
     getSession: async (sid) => details.get(sid),
     sendAgentCommand: async () => ({}),
@@ -472,4 +474,134 @@ test("replacing the historical image with a text attachment sends an explicit em
       images: [],
     },
   ]);
+});
+
+function editingDraft(value) {
+  return { entryId: "attachment-entry", text: value, images: [] };
+}
+
+test("a fresh historical image preview is read with session authorization and shown inside the editing pill", async (t) => {
+  const path = "/outside/issue98-fresh-authorized-preview.gif";
+  const value = `inspect @${path}`;
+  const requests = [];
+  const blobs = new Map();
+  t.mock.method(URL, "createObjectURL", (blob) => {
+    const url = `blob:issue98-historical-${blobs.size}`;
+    blobs.set(url, blob);
+    return url;
+  });
+  const { view } = await mountMessage(t, {
+    content: value,
+    initialDraft: editingDraft(value),
+    host: {
+      readFile: async (filePath, sourceSessionId) => {
+        requests.push({ path: filePath, sourceSessionId });
+        if (sourceSessionId !== "attachment-session") throw new Error("Historical image requires its session");
+        return { content: GIF_DATA, encoding: "base64", mime: "image/gif" };
+      },
+    },
+  });
+  await waitFor(() => assert.equal(requests.length, 1));
+  assert.deepEqual(requests, [{ path, sourceSessionId: "attachment-session" }]);
+  await waitFor(() =>
+    assert.ok(pill(editor(view), path)?.querySelector("img"), "the historical pill shows its preview"),
+  );
+  const image = pill(editor(view), path).querySelector("img");
+  const blob = blobs.get(image.getAttribute("src"));
+  assert.ok(blob, "the thumbnail uses the actual Host image bytes");
+  assert.equal(blob.type, "image/gif");
+  assert.deepEqual(Buffer.from(await blob.arrayBuffer()), Buffer.from(GIF_DATA, "base64"));
+});
+
+test("a missing historical attachment is visually marked inside the editor", async (t) => {
+  const path = "/outside/issue98-missing-report.txt";
+  const inspections = [];
+  const value = `inspect @${path}`;
+  const { view } = await mountMessage(t, {
+    content: value,
+    initialDraft: editingDraft(value),
+    bridge: {
+      inspectLocalFiles: async (request) => {
+        inspections.push(request);
+        return [{ exists: false, isFile: false, insideCwd: false }];
+      },
+    },
+  });
+  await waitFor(() => assert.ok(pill(editor(view), path).classList.contains("token-chip-missing")));
+  assert.deepEqual(inspections, [{ paths: [path], cwd: "/project" }]);
+});
+
+test("clicking a historical relative attachment reveals its resolved file and cancel restores the original bubble", async (t) => {
+  const path = "src/issue98-reveal.ts";
+  const value = `inspect @${path}`;
+  const revealed = [];
+  const { view, sent } = await mountMessage(t, {
+    content: value,
+    initialDraft: editingDraft(value),
+    bridge: { showItemInFolder: async (filePath) => revealed.push(filePath) },
+  });
+  await click(pill(editor(view), path));
+  assert.deepEqual(revealed, ["/project/src/issue98-reveal.ts"]);
+  await paste(editor(view), { files: [localFile("/tmp/issue98-unsaved-reference.txt")] });
+  await click(control(view, "Cancel"));
+  assert.equal(byRole(view.container, "textbox", "Edit message"), undefined);
+  assert.ok(view.container.textContent.includes("issue98-reveal.ts"));
+  assert.equal(view.container.textContent.includes("issue98-unsaved-reference.txt"), false);
+  assert.deepEqual(sent, []);
+});
+
+for (const [name, file, expected] of [
+  [
+    "unsupported image format",
+    () => new File(["heic"], "shot.heic", { type: "image/heic" }),
+    /image format.*not supported/i,
+  ],
+  ["pathless non-image file", () => new File(["text"], "report.txt", { type: "text/plain" }), /no local path/i],
+]) {
+  test(`an ${name} shows a dismissible attachment notice without changing the old message`, async (t) => {
+    const { view, sent } = await mountMessage(t);
+    await paste(editor(view), { files: [file()] });
+    await waitFor(() => assert.match(byRole(view.container, "alert")?.textContent ?? "", expected));
+    await click(byRole(byRole(view.container, "alert"), "button", "Dismiss image attachment error"));
+    assert.equal(byRole(view.container, "alert"), undefined);
+    assert.equal(editor(view).textContent, "before after");
+    await click(control(view, "Cancel"));
+    assert.ok(view.container.textContent.includes("before after"));
+    assert.deepEqual(sent, []);
+  });
+}
+
+test("the actual window model's text-only capability produces a dismissible image notice in the editor", async (t) => {
+  const { view, host } = await mountConversation(t, {
+    id: "attachment-text-only-model",
+    cwd: "/fixture/issue98-text-only-model",
+    host: {
+      listModels: async () => ({
+        models: [
+          { id: "fixture-model", provider: "fixture", name: "Text-only fixture", input: ["text"] },
+          { id: "vision-model", provider: "fixture", name: "Vision fixture", input: ["text", "image"] },
+        ],
+        nameMap: { "fixture:fixture-model": "Text-only fixture", "fixture:vision-model": "Vision fixture" },
+        thinkingLevels: {},
+        thinkingLevelMaps: {},
+        defaultModel: null,
+        catalog: { source: "cache", refreshed: false, aborted: false, warnings: [] },
+      }),
+    },
+    bridge: { stageClipboardImage: async () => ({ ok: true, staged: { path: "/tmp/issue98-model-notice.gif" } }) },
+  });
+  await waitFor(() => assert.ok(view.container.textContent.includes("Text-only fixture")));
+  await openEditor(view);
+  await paste(editor(view), { files: [clipboardImage()] });
+  await waitFor(() => assert.ok(pill(editor(view), "/tmp/issue98-model-notice.gif")));
+  await waitFor(() =>
+    assert.match(byRole(view.container, "alert")?.textContent ?? "", /model does not accept image input/i),
+  );
+  await click(byRole(byRole(view.container, "alert"), "button", "Dismiss image attachment error"));
+  assert.equal(byRole(view.container, "alert"), undefined);
+  assert.ok(pill(editor(view), "/tmp/issue98-model-notice.gif"), "dismissing a notice does not discard the attachment");
+  await click(control(view, "Cancel"));
+  assert.ok(view.container.textContent.includes("old question"));
+  assert.equal(view.container.textContent.includes("issue98-model-notice.gif"), false);
+  assert.deepEqual(editCommands(host), []);
 });
