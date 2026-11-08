@@ -15,9 +15,9 @@ import {
 } from "../../../tests/support/renderer.mjs";
 import { useState, createElement } from "react";
 import { byRole } from "../../../tests/support/dom-queries.mjs";
-import { installApiHostBridge } from "../../../tests/support/api-host.mjs";
+import { installRendererApi } from "../../../tests/support/renderer-api.mjs";
 
-const { UserMessageView, resetRpc } = await loadRenderer(
+const { UserMessageView, resetRpc, installApiShims } = await loadRenderer(
   "user-message-edit-attachments",
   'export {UserMessageView} from "./src/renderer/components/messages/UserMessage.tsx";',
 );
@@ -64,11 +64,12 @@ async function mountMessage(t, { content = "before after", onSend, bridge = {}, 
     inspectLocalFiles: async ({ paths }) => paths.map(() => ({ exists: true, isFile: true, insideCwd: true })),
     ...bridge,
   };
-  const boundary = installApiHostBridge(
-    dom.window,
-    () => ({ call: async () => ({}), readFile: async () => null, ...host }),
-    resetRpc,
-  );
+  const boundary = installRendererApi(dom.window, { resetRpc, installApiShims }, () => ({
+    call: async (method) =>
+      method === "files.index" ? { matches: [{ path: "src/issue98.ts", isDir: false }], truncated: false } : {},
+    readFile: async () => null,
+    ...host,
+  }));
   let view;
   t.after(async () => {
     try {
@@ -228,4 +229,85 @@ test("a pending edit cannot be sent twice", async (t) => {
   assert.equal(sent.length, 1);
   await act(async () => pending.resolve());
   assert.equal(control(view, "Send").disabled, false, "a settled send no longer blocks the editor");
+});
+
+for (const key of ["Enter", "Tab"]) {
+  test(`${key} completes a file below the sent-message editor without submitting`, async (t) => {
+    const requests = [];
+    const { view, sent } = await mountMessage(t, {
+      host: {
+        call: async (method, params) => {
+          if (method !== "files.index") return {};
+          requests.push(params);
+          return { matches: [{ path: "src/issue98.ts", isDir: false }], truncated: false };
+        },
+      },
+    });
+    await typeText(editor(view), "review @");
+    await waitFor(() => assert.ok(byRole(view.container, "group", "Files · 1 match")));
+    const menu = byRole(view.container, "group", "Files · 1 match");
+    assert.equal(menu.style.top, "calc(100% + 8px)", "the file menu opens below the editor");
+    assert.equal(menu.parentElement.style.position, "relative", "the editor anchors its own menu");
+    assert.equal(requests[0].root, "/project");
+    assert.equal(requests[0].query, "");
+    await keyDown(editor(view), key);
+    assert.ok(pill(editor(view), "src/issue98.ts"), "the chosen file becomes a pill");
+    assert.equal(byRole(view.container, "group", /^Files ·/), undefined);
+    assert.deepEqual(sent, [], "completion is not Send");
+    await click(control(view, "Send"));
+    assert.deepEqual(sent, [{ text: "review @src/issue98.ts ", images: [] }]);
+  });
+}
+
+test("the first Escape dismisses file suggestions and the second discards new text and attachments", async (t) => {
+  const { view, sent } = await mountMessage(t);
+  await paste(editor(view), { files: [localFile("/tmp/issue98-cancel.txt")] });
+  await paste(editor(view), { value: " @" });
+  await waitFor(() => assert.ok(byRole(view.container, "group", "Files · 1 match")));
+  await keyDown(editor(view), "Escape");
+  assert.equal(byRole(view.container, "group", /^Files ·/), undefined);
+  assert.ok(pill(editor(view), "/tmp/issue98-cancel.txt"), "closing the menu does not discard the edit");
+  await act(async () => dom.window.document.dispatchEvent(new dom.window.Event("selectionchange")));
+  assert.equal(
+    byRole(view.container, "group", /^Files ·/),
+    undefined,
+    "caret observation does not reopen a dismissed query",
+  );
+  await keyDown(editor(view), "Escape");
+  assert.equal(byRole(view.container, "textbox", "Edit message"), undefined);
+  assert.ok(view.container.textContent.includes("before after"), "the original bubble is restored");
+  assert.equal(view.container.textContent.includes("issue98-cancel.txt"), false);
+  assert.deepEqual(sent, []);
+});
+
+test("composition Enter and Escape do not complete a file, send or cancel the edit", async (t) => {
+  const { view, sent } = await mountMessage(t);
+  await typeText(editor(view), "review @");
+  await waitFor(() => assert.ok(byRole(view.container, "group", "Files · 1 match")));
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  await act(async () => editor(view).dispatchEvent(new dom.window.Event("compositionstart", { bubbles: true })));
+  await keyDown(editor(view), "Enter", { isComposing: true });
+  await keyDown(editor(view), "Escape", { isComposing: true });
+  assert.ok(byRole(view.container, "group", "Files · 1 match"));
+  assert.equal(pill(editor(view), "src/issue98.ts"), undefined);
+  assert.deepEqual(sent, []);
+  await act(async () => editor(view).dispatchEvent(new dom.window.Event("compositionend", { bubbles: true })));
+  await keyDown(editor(view), "Enter");
+  assert.equal(pill(editor(view), "src/issue98.ts"), undefined, "the composition-end Enter is not a completion");
+  now += 101;
+  await keyDown(editor(view), "Enter");
+  assert.ok(pill(editor(view), "src/issue98.ts"));
+  assert.deepEqual(sent, []);
+});
+
+test("restored queries stay closed while caret changes can reopen a newly edited query", async (t) => {
+  const { view } = await mountMessage(t, { content: "review @" });
+  assert.equal(byRole(view.container, "group", /^Files ·/), undefined);
+  await caretAt(editor(view), 8);
+  assert.equal(byRole(view.container, "group", /^Files ·/), undefined, "restoring text does not pop open a menu");
+  await typeText(editor(view), "review @s note");
+  assert.equal(byRole(view.container, "group", /^Files ·/), undefined);
+  await caretAt(editor(view), 9);
+  await waitFor(() => assert.ok(byRole(view.container, "group", "Files · 1 match")));
 });
