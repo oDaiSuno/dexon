@@ -150,6 +150,7 @@ export function ChatMessages({
         <div
           key={screenKey}
           className="chat-history-item"
+          style={editDraft && editDraft.entryId === entryIds[idx] ? { contentVisibility: "visible" } : undefined}
           ref={attachVisibleRef(idx, currentRefIdx)}
           {...readingAnchorAttributes(renderKey)}
         >
