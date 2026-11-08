@@ -49,6 +49,51 @@ function description(control) {
     .trim();
 }
 
+const remoteProject = {
+  label: "gpu-a100",
+  connection: { tone: "online", status: { kind: "connected", label: "Online" }, canSend: true },
+};
+
+for (const [location, remote] of [
+  ["local", undefined],
+  ["remote", remoteProject],
+]) {
+  test(`${location} project rows show the chevron direction for their expansion state`, async (t) => {
+    const view = await mount(t, ProjectRow, props({ kind: "closed-quiet", totalSessions: 14 }, { remote }));
+    const toggle = button(view.container, "alpha-api");
+    const chevron = toggle.querySelector('[data-project-glyph="chevron"]');
+    assert.ok(chevron, "the project row always displays an expansion chevron");
+    assert.equal(chevron.querySelector("path").getAttribute("d"), "m9 18 6-6-6-6");
+    await view.update(props({ kind: "open", totalSessions: 14 }, { remote, open: true }));
+    assert.equal(chevron.querySelector("path").getAttribute("d"), "m6 9 6 6 6-6");
+    await view.update(props({ kind: "closed-quiet", totalSessions: 14 }, { remote, open: false }));
+    assert.equal(chevron.querySelector("path").getAttribute("d"), "m9 18 6-6-6-6");
+  });
+
+  test(`${location} project rows use the shared leading spacing`, async (t) => {
+    const view = await mount(t, ProjectRow, props({ kind: "closed-quiet", totalSessions: 14 }, { remote }));
+    const toggle = button(view.container, "alpha-api");
+    assert.match(toggle.style.padding, /^0(?:px)? 10px$/u);
+    assert.equal(toggle.style.gap, "var(--space-2)");
+  });
+}
+
+test("a missing remote project shows a dashed folder instead of the server glyph", async (t) => {
+  const view = await mount(
+    t,
+    ProjectRow,
+    props({ kind: "closed-quiet", totalSessions: 14 }, { remote: remoteProject, missing: true }),
+  );
+  const toggle = button(view.container, "alpha-api");
+  assert.ok(
+    !toggle.querySelector('[data-project-glyph="server"]'),
+    "a missing remote folder does not use the server glyph",
+  );
+  const folder = toggle.querySelector("path[stroke-dasharray]");
+  assert.ok(folder, "the missing remote folder uses the dashed missing-folder icon");
+  assert.equal(folder.getAttribute("stroke-dasharray"), "3 2.4");
+});
+
 test("an unread project shows its dot and total, then preserves the dot left of More on hover and focus", async (t) => {
   const view = await mount(t, ProjectRow, props({ kind: "closed-unread", totalSessions: 14, unreadCount: 2 }));
   const row = byRole(view.container, "listitem");
