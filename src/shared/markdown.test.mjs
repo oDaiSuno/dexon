@@ -6,15 +6,18 @@ import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
+import remarkParse from "remark-parse";
+import { unified } from "unified";
+import { visit } from "unist-util-visit";
 import {
+  chatRemarkPlugins,
   filePreviewRemarkPlugins,
-  linkifyLocalFileText,
   markdownRehypePlugins,
-  remarkLocalFileLinks,
+  userMessageRemarkPlugins,
 } from "./markdown.ts";
 
-test("Markdown plugins preserve GFM/math, add AST path links, and sanitize raw HTML", () => {
-  assert.deepEqual(filePreviewRemarkPlugins, [remarkGfm, remarkMath, remarkLocalFileLinks]);
+test("Markdown plugins preserve GFM/math and sanitize raw HTML", () => {
+  assert.deepEqual(filePreviewRemarkPlugins, [remarkGfm, remarkMath]);
   assert.equal(markdownRehypePlugins[0], rehypeRaw);
   assert.equal(markdownRehypePlugins[1][0], rehypeSanitize);
   assert.equal(markdownRehypePlugins[2][0], rehypeKatex);
@@ -24,75 +27,75 @@ test("Markdown plugins preserve GFM/math, add AST path links, and sanitize raw H
   assert.ok(schema.protocols.href.includes("file"));
 });
 
-function linkTargets(value) {
-  return linkifyLocalFileText(value)
-    .filter((node) => node.type === "link")
-    .map((node) => [node.children[0].value, node.url]);
+const pipelines = [
+  ["chat", chatRemarkPlugins],
+  ["file preview", filePreviewRemarkPlugins],
+  ["user message", userMessageRemarkPlugins],
+];
+
+const proseExamples = [
+  [
+    "the boundary-test sentence",
+    "补充或更新公共边界测试与 `scripts/test-user-bubble-electron.mjs` 端到端验证，覆盖“再编辑时新增图片/文件并发送”、“替换/移除原有附件”、“仅保留新增附件且清空文字时可发送、全部清空时禁用发送”以及“取消编辑不污染原消息”四个核心场景，并使用 `env -u PI_DESKTOP_USER_DATA` 运行验证给出实际通过结果。",
+    "补充或更新公共边界测试与 scripts/test-user-bubble-electron.mjs 端到端验证，覆盖“再编辑时新增图片/文件并发送”、“替换/移除原有附件”、“仅保留新增附件且清空文字时可发送、全部清空时禁用发送”以及“取消编辑不污染原消息”四个核心场景，并使用 env -u PI_DESKTOP_USER_DATA 运行验证给出实际通过结果。",
+    ["scripts/test-user-bubble-electron.mjs", "env -u PI_DESKTOP_USER_DATA"],
+  ],
+  ["an image/file phrase", "图片/文件", "图片/文件", []],
+  ["a read/write phrase", "读/写", "读/写", []],
+  ["a slash command", "/sharpen", "/sharpen", []],
+  ["a bare POSIX path", "/tmp/report.md", "/tmp/report.md", []],
+  ["a bare Windows path", String.raw`C:\Users\me\a.exe`, String.raw`C:\Users\me\a.exe`, []],
+  ["a bare UNC path", String.raw`\\server\share\report.docx`, String.raw`\server\share\report.docx`, []],
+  ["a bare directory path", "/tmp/dexon-ui-test.Xu9qVi/repo/folder", "/tmp/dexon-ui-test.Xu9qVi/repo/folder", []],
+];
+
+const linkExamples = [
+  ["[MarkdownBody.tsx](/Users/me/project/src/MarkdownBody.tsx)", "/Users/me/project/src/MarkdownBody.tsx"],
+  ["[说明](docs/release.md)", "docs/release.md"],
+  ["[报告](file:///tmp/report.md)", "file:///tmp/report.md"],
+  ["<file:///tmp/report.md>", "file:///tmp/report.md"],
+  ["https://example.com", "https://example.com"],
+];
+
+for (const [pipeline, plugins] of pipelines) {
+  for (const [example, markdown, expectedText, expectedInlineCode] of proseExamples) {
+    test(`${pipeline} keeps ${example} as text without links`, async () => {
+      const processor = unified().use(remarkParse).use(plugins);
+      const tree = await processor.run(processor.parse(markdown));
+      const nodes = [];
+      visit(tree, (node) => {
+        nodes.push(node);
+      });
+      assert.deepEqual(
+        nodes.filter((node) => node.type === "link"),
+        [],
+      );
+      assert.equal(
+        nodes
+          .filter((node) => node.type === "text" || node.type === "inlineCode")
+          .map((node) => node.value)
+          .join(""),
+        expectedText,
+      );
+      assert.deepEqual(
+        nodes.filter((node) => node.type === "inlineCode").map((node) => node.value),
+        expectedInlineCode,
+      );
+    });
+  }
+
+  for (const [markdown, expectedUrl] of linkExamples) {
+    test(`${pipeline} preserves the link in ${markdown}`, async () => {
+      const processor = unified().use(remarkParse).use(plugins);
+      const tree = await processor.run(processor.parse(markdown));
+      const links = [];
+      visit(tree, "link", (node) => {
+        links.push(node);
+      });
+      assert.deepEqual(
+        links.map((node) => node.url),
+        [expectedUrl],
+      );
+    });
+  }
 }
-
-test("links POSIX, Windows, UNC, and canonical file URLs from ordinary text nodes", () => {
-  assert.deepEqual(linkTargets("at /home/me/src/main.ts:10 now"), [
-    ["/home/me/src/main.ts:10", "file:///home/me/src/main.ts:10"],
-  ]);
-  assert.deepEqual(linkTargets(String.raw`at C:\Users\me\Pi Desktop.exe now`), [
-    [String.raw`C:\Users\me\Pi Desktop.exe`, "file:///C:/Users/me/Pi%20Desktop.exe"],
-  ]);
-  assert.deepEqual(linkTargets(String.raw`at \\server\share\report.docx now`), [
-    [String.raw`\\server\share\report.docx`, "file://server/share/report.docx"],
-  ]);
-  assert.deepEqual(linkTargets("at file:///tmp/a%20b.txt now"), [["file:///tmp/a%20b.txt", "file:///tmp/a%20b.txt"]]);
-});
-
-test("links multiple paths while preserving trailing punctuation and @ project references", () => {
-  const nodes = linkifyLocalFileText("@src/main.ts then /tmp/a.txt, and /tmp/b.txt.");
-  assert.equal(
-    nodes.map((node) => (node.type === "text" ? node.value : node.children[0].value)).join(""),
-    "@src/main.ts then /tmp/a.txt, and /tmp/b.txt.",
-  );
-  assert.deepEqual(
-    nodes.filter((node) => node.type === "link").map((node) => node.url),
-    ["file:///tmp/a.txt", "file:///tmp/b.txt"],
-  );
-});
-
-test("separates adjacent local paths joined by English or Chinese prose", () => {
-  assert.deepEqual(linkTargets("compare /tmp/a.txt 和 /tmp/b.txt"), [
-    ["/tmp/a.txt", "file:///tmp/a.txt"],
-    ["/tmp/b.txt", "file:///tmp/b.txt"],
-  ]);
-  assert.deepEqual(linkTargets("compare /tmp/a.txt and /tmp/b.txt"), [
-    ["/tmp/a.txt", "file:///tmp/a.txt"],
-    ["/tmp/b.txt", "file:///tmp/b.txt"],
-  ]);
-});
-
-test("links local filenames containing spaces and absolute directories without extensions", () => {
-  assert.deepEqual(linkTargets("open /tmp/a b.txt now"), [["/tmp/a b.txt", "file:///tmp/a%20b.txt"]]);
-  assert.deepEqual(linkTargets("open /tmp/dexon-ui-test.Xu9qVi/repo/folder now"), [
-    ["/tmp/dexon-ui-test.Xu9qVi/repo/folder", "file:///tmp/dexon-ui-test.Xu9qVi/repo/folder"],
-  ]);
-});
-
-test("AST transform skips existing links, images, code, inline code, HTML, and math", () => {
-  const tree = {
-    type: "root",
-    children: [
-      { type: "paragraph", children: [{ type: "text", value: "/tmp/plain.txt" }] },
-      { type: "link", url: "https://example.com", children: [{ type: "text", value: "/tmp/link.txt" }] },
-      { type: "image", url: "/tmp/image.png", children: [] },
-      { type: "code", value: "/tmp/code.txt" },
-      { type: "inlineCode", value: "/tmp/inline.txt" },
-      { type: "html", value: '<a href="https://example.com/x">x</a>' },
-      { type: "math", value: "/tmp/math.txt" },
-    ],
-  };
-  remarkLocalFileLinks()(tree);
-  assert.equal(tree.children[0].children[0].type, "link");
-  assert.equal(tree.children[1].children[0].type, "text");
-  assert.equal(tree.children[1].children[0].value, "/tmp/link.txt");
-  assert.equal(tree.children[5].value, '<a href="https://example.com/x">x</a>');
-});
-
-test("does not treat web URLs, relative @ references, or bare drive roots as local paths", () => {
-  assert.deepEqual(linkTargets("https://example.com/x @src/main.ts C:\\"), []);
-});
