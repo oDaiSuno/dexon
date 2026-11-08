@@ -106,7 +106,7 @@ function remoteRow(overrides = {}) {
   };
 }
 
-test("a mounted remote space with no sessions remains visible with its host and connection tone", async (t) => {
+test("a mounted remote space with no sessions keeps its host and glyphs while expansion changes", async (t) => {
   const view = await mount(t, NavSidebar, props({ projectRows: [remoteRow()] }));
   const project = button(view.container, "trainer");
   assert.ok(project, "an empty remote project is still a mounted project space");
@@ -116,6 +116,15 @@ test("a mounted remote space with no sessions remains visible with its host and 
   assert.equal(host?.getAttribute("data-tone"), "online");
   assert.equal(host?.getAttribute("title"), "lab-h100-cluster-node01 · Online");
   assert.ok(project.querySelector('[data-project-glyph="server"]'));
+  const chevron = project.querySelector('[data-project-glyph="chevron"]');
+  assert.ok(chevron, "a mounted remote project displays its expansion chevron");
+  assert.equal(chevron.querySelector("path").getAttribute("d"), "m9 18 6-6-6-6");
+  await click(project);
+  assert.equal(project.getAttribute("aria-expanded"), "true");
+  assert.equal(chevron.querySelector("path").getAttribute("d"), "m6 9 6 6 6-6");
+  await click(project);
+  assert.equal(project.getAttribute("aria-expanded"), "false");
+  assert.equal(chevron.querySelector("path").getAttribute("d"), "m9 18 6-6-6-6");
 });
 
 test("a remote project's menu exposes its server and path, disables Finder with a reason, and removes only that space", async (t) => {
