@@ -24,6 +24,8 @@ export async function verifyUnifiedSidebar({ driver, fixture, views }) {
     "a unified zero-session remote project row",
   );
   const rows = await driver.read("rows");
+  const local = rows.find((item) => !item.host && item.name === "Default space");
+  assert.ok(local, "Local and remote projects use the same list");
   const nav = { role: "navigation", name: "Main navigation" };
   assert.equal(
     (await driver.page("elements", { role: "button", name: "Disconnect", scope: nav })).length,
@@ -37,12 +39,18 @@ export async function verifyUnifiedSidebar({ driver, fixture, views }) {
   assert.match(remote.host.name, /Online/u);
   assert.ok(remote.host.rect.width <= 74, "The remote host capsule respects the explicit 74px maximum width");
   assert.equal(remote.host.rect.height, 18);
+  assert.ok(remote.chevron, "The remote project displays an expansion chevron");
+  assert.ok(local.chevron, "The local project displays an expansion chevron");
+  assert.equal(remote.chevron.rect.width, 14);
+  assert.equal(remote.chevron.rect.height, 14);
   assert.equal(remote.glyph.rect.width, 14);
   assert.equal(remote.glyph.rect.height, 14);
-  assert.ok(
-    rows.some((item) => !item.host && item.name === "Default space"),
-    "Local and remote projects use the same list",
-  );
+  assert.equal(remote.chevron.rect.x, local.chevron.rect.x);
+  assert.ok(remote.label, "The remote project name is measurable");
+  assert.ok(local.label, "The local project name is measurable");
+  assert.equal(remote.label.rect.x, local.label.rect.x);
+  assert.equal(remote.label.rect.x - remote.rect.x, 57);
+  assert.equal(local.label.rect.x - local.rect.x, 57);
   await driver.clickCss(driver.rowTarget(views.alpha, fixture.project));
   const toggled = await driver.row(views.alpha, fixture.project);
   assert.notEqual(toggled.expanded, remote.expanded, "The remote row expands and collapses like a local project");

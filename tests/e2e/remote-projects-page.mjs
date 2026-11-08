@@ -92,12 +92,16 @@ export function remoteProjectsPage(operation, args = {}) {
       const parent = projectParent(row);
       const host = parent.querySelector("[data-project-host]");
       const glyph = row.querySelector('[data-project-glyph="server"]');
+      const chevron = row.querySelector('[data-project-glyph="chevron"]');
+      const label = row.querySelector("span.type-body-large, span.type-body-large-medium");
       return {
         ...describe(row),
         path: parent.getAttribute("title"),
         tone: parent.getAttribute("data-tone"),
         host: host ? describe(host) : null,
         glyph: glyph ? describe(glyph) : null,
+        chevron: chevron ? describe(chevron) : null,
+        label: label ? describe(label) : null,
       };
     });
   if (operation === "all") return candidates(args).map(describe);

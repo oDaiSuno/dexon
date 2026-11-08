@@ -52,6 +52,7 @@ function MissingFolderGlyph() {
 function ChevronGlyph({ open }: { open: boolean }) {
   return (
     <svg
+      data-project-glyph="chevron"
       width={14}
       height={14}
       viewBox="0 0 24 24"
@@ -173,10 +174,10 @@ export function ProjectRow({
             gridArea: "1 / 1",
             display: "flex",
             alignItems: "center",
-            gap: remote ? 5 : "var(--space-2)",
+            gap: "var(--space-2)",
             width: "100%",
             height: 32,
-            padding: remote ? "0 8px" : "0 10px",
+            padding: "0 10px",
             background: hovered && !dragging ? "var(--fx-surface-hover)" : "transparent",
             border: "none",
             borderRadius: "var(--radius-control)",
@@ -185,13 +186,24 @@ export function ProjectRow({
             transition: "background var(--duration-quick) var(--ease-smooth-out)",
           }}
         >
-          {remote ? (
-            <ServerGlyph />
+          <ChevronGlyph open={open} />
+          {isMissing ? (
+            <MissingFolderGlyph />
+          ) : remote ? (
+            <span
+              style={{
+                width: 17,
+                height: 17,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              <ServerGlyph />
+            </span>
           ) : (
-            <>
-              <ChevronGlyph open={open} />
-              {isMissing ? <MissingFolderGlyph /> : <FolderGlyph open={open} />}
-            </>
+            <FolderGlyph open={open} />
           )}
           <span
             className={emphasized ? "type-body-large-medium" : "type-body-large"}

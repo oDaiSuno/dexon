@@ -14,7 +14,7 @@ export function ServerGlyph() {
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
-      style={{ flexShrink: 0, color: "var(--fx-text-tertiary)" }}
+      style={{ display: "block", flexShrink: 0, color: "var(--fx-text-tertiary)" }}
     >
       <rect x="3" y="3" width="18" height="7" rx="2" />
       <rect x="3" y="14" width="18" height="7" rx="2" />
