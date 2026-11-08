@@ -1,6 +1,3 @@
-/**
- * Watch ~/.pi/agent session directory and push sessions.changed events.
- */
 import fs from "fs";
 import path from "path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -8,7 +5,7 @@ import type { RpcServer } from "../contract/rpc";
 import { invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy } from "./file-access";
 import { sessionIndex } from "./session-index";
 import { sessionsRoot as resolveSessionsRoot } from "./session-dir";
-import { classifySessionWatchChange } from "./session-watch-policy";
+import { classifySessionWatchChange, didSessionRootsChange } from "./session-watch-policy";
 
 export function startSessionWatcher(server: RpcServer): () => void {
   let agentDir: string;
@@ -38,12 +35,12 @@ export function startSessionWatcher(server: RpcServer): () => void {
       void (async () => {
         timer = null;
         try {
-          invalidateAllowedRootsCache();
           const pendingPaths = [...changedPaths];
           changedPaths.clear();
           const shouldRefreshAll = fullRefreshRequired;
           fullRefreshRequired = false;
           if (shouldRefreshAll) {
+            invalidateAllowedRootsCache();
             await sessionIndex.refreshAll();
             server.emit("sessions.changed", "*", { cwd: null, fullRefresh: true });
             return;
@@ -51,6 +48,7 @@ export function startSessionWatcher(server: RpcServer): () => void {
           for (const filePath of pendingPaths) {
             const previous = sessionIndex.getByPath(filePath);
             const session = await sessionIndex.refreshPath(filePath);
+            if (didSessionRootsChange(previous, session)) invalidateAllowedRootsCache();
             if (session) {
               server.emit("sessions.changed", session.id, { cwd: session.cwd, sessionId: session.id, session });
             } else if (previous) {
@@ -64,6 +62,7 @@ export function startSessionWatcher(server: RpcServer): () => void {
             }
           }
         } catch (error) {
+          invalidateAllowedRootsCache();
           console.error("[agent-host] session watcher refresh failed:", error);
           server.emit("sessions.changed", "*", { cwd: null, fullRefresh: true });
         }
