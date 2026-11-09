@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { AppShell } from "@/components/AppShell";
-import { ensureRpc } from "@/lib/api-client";
+import { ensureRpc, resetRpc } from "@/lib/api-client";
 import { useChatAppearance } from "@/hooks/useChatAppearance";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -99,6 +99,7 @@ export function App() {
       return;
     }
     if (cancelledRef.current) return;
+    resetRpc();
     setError(null);
     setStatus("Waiting for Agent Host…");
     connect();

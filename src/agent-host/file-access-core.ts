@@ -33,6 +33,20 @@ export type DirectoryValidation =
   | { ok: true; path: string; canonicalPath: string }
   | { ok: false; error: string; reason: "missing" | "not-directory" | "denied" | "io-error" };
 
+function hasNonDirectoryAncestor(candidate: string): boolean {
+  let current = path.dirname(path.resolve(candidate));
+  while (true) {
+    try {
+      return !statSync(current).isDirectory();
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") return false;
+      const parent = path.dirname(current);
+      if (parent === current) return false;
+      current = parent;
+    }
+  }
+}
+
 export function validateExistingDirectory(candidate: unknown): DirectoryValidation {
   if (typeof candidate !== "string" || !candidate)
     return { ok: false, reason: "missing", error: "Directory does not exist" };
@@ -43,7 +57,11 @@ export function validateExistingDirectory(candidate: unknown): DirectoryValidati
     return { ok: true, path: candidate, canonicalPath };
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
-    if (code === "ENOENT") return { ok: false, reason: "missing", error: "Directory does not exist" };
+    if (code === "ENOENT") {
+      return hasNonDirectoryAncestor(candidate)
+        ? { ok: false, reason: "not-directory", error: "Not a directory" }
+        : { ok: false, reason: "missing", error: "Directory does not exist" };
+    }
     if (code === "ENOTDIR") return { ok: false, reason: "not-directory", error: "Not a directory" };
     if (code === "EACCES" || code === "EPERM") return { ok: false, reason: "denied", error: "Directory access denied" };
     return { ok: false, reason: "io-error", error: "Unable to access directory" };

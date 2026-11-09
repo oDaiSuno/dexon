@@ -10,6 +10,8 @@ export interface IsolatedNodeJobOptions {
   readonly timeoutMs: number;
   readonly maxInputBytes: number;
   readonly env: NodeJS.ProcessEnv;
+  readonly cwd?: string;
+  readonly ipcLifeline?: boolean;
   readonly signal?: AbortSignal;
   readonly terminationGraceMs?: number;
   readonly execPath?: string;
@@ -64,10 +66,11 @@ export async function runIsolatedNodeJob(options: IsolatedNodeJobOptions): Promi
     try {
       child = (options.spawnProcess ?? spawn)(options.execPath ?? process.execPath, [options.entryPath], {
         env: options.env,
+        ...(options.cwd ? { cwd: options.cwd } : {}),
         shell: false,
-        detached: true,
+        detached: process.platform !== "win32",
         windowsHide: true,
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: options.ipcLifeline ? ["pipe", "pipe", "pipe", "ipc"] : ["pipe", "pipe", "pipe"],
       });
     } catch (cause) {
       reject(new IsolatedJobError("spawn", `Could not start the isolated ${label}`, { cause }));

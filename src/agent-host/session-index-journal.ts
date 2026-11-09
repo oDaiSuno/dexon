@@ -30,14 +30,18 @@ async function readOptional(filePath: string): Promise<string | null> {
 }
 
 function applyLine(records: Map<string, PersistedIndexRecord>, line: string): void {
-  const value = JSON.parse(line) as { op?: unknown; r?: unknown; p?: unknown };
+  let value: { op?: unknown; r?: unknown; p?: unknown };
+  try {
+    value = JSON.parse(line) as { op?: unknown; r?: unknown; p?: unknown };
+  } catch {
+    return;
+  }
   if (value.op === "del" && typeof value.p === "string") {
     records.delete(value.p);
     return;
   }
   const record = value.op === "put" ? normalizePersistedRecord("", value.r) : undefined;
-  if (!record) throw new Error("Invalid session index journal record");
-  records.set(record.filePath, record);
+  if (record) records.set(record.filePath, record);
 }
 
 export class SessionIndexJournal {
@@ -59,21 +63,38 @@ export class SessionIndexJournal {
   private async readSnapshot(): Promise<PersistedIndexRecord[]> {
     const text = await readOptional(this.filePath);
     if (text !== null) {
-      const replay = this.replay(text);
-      let step = replay.next();
-      while (!step.done) {
-        await yieldToEventLoop();
-        step = replay.next();
+      try {
+        const replay = this.replay(text);
+        let step = replay.next();
+        while (!step.done) {
+          await yieldToEventLoop();
+          step = replay.next();
+        }
+        if (!text.endsWith("\n")) await fs.truncate(this.filePath, this.completeBytes(text));
+        return step.value;
+      } catch (error) {
+        console.error("[agent-host] session index journal is unreadable; rebuilding:", error);
+        this.hasSnapshot = false;
+        this.lines = 0;
+        await this.writeSnapshot([]);
+        return [];
       }
-      if (!text.endsWith("\n")) await fs.truncate(this.filePath, this.completeBytes(text));
-      return step.value;
     }
     const legacy = await readOptional(path.join(this.directory, LEGACY_CACHE_FILE));
-    const records = legacy === null ? [] : parseLegacyCache(legacy);
+    let records: PersistedIndexRecord[] = [];
+    let legacyValid = false;
+    if (legacy !== null) {
+      try {
+        records = parseLegacyCache(legacy);
+        legacyValid = true;
+      } catch (error) {
+        console.error("[agent-host] legacy session index cache is invalid; ignoring:", error);
+      }
+    }
     await fs.mkdir(this.directory, { recursive: true, mode: 0o700 });
     await this.writeSnapshot(records);
     this.lines = records.length;
-    this.hasSnapshot = legacy !== null;
+    this.hasSnapshot = legacyValid;
     return records;
   }
 
@@ -88,20 +109,37 @@ export class SessionIndexJournal {
     };
     const text = read(this.filePath);
     if (text !== null) {
-      const replay = this.replay(text);
-      let step = replay.next();
-      while (!step.done) step = replay.next();
-      if (!text.endsWith("\n")) truncateSync(this.filePath, this.completeBytes(text));
-      return step.value;
+      try {
+        const replay = this.replay(text);
+        let step = replay.next();
+        while (!step.done) step = replay.next();
+        if (!text.endsWith("\n")) truncateSync(this.filePath, this.completeBytes(text));
+        return step.value;
+      } catch (error) {
+        console.error("[agent-host] session index journal is unreadable; rebuilding:", error);
+        this.hasSnapshot = false;
+        this.lines = 0;
+        void this.enqueue(() => this.writeSnapshot([])).catch(() => undefined);
+        return [];
+      }
     }
     const legacy = read(path.join(this.directory, LEGACY_CACHE_FILE));
-    const records = legacy === null ? [] : parseLegacyCache(legacy);
+    let records: PersistedIndexRecord[] = [];
+    let legacyValid = false;
+    if (legacy !== null) {
+      try {
+        records = parseLegacyCache(legacy);
+        legacyValid = true;
+      } catch (error) {
+        console.error("[agent-host] legacy session index cache is invalid; ignoring:", error);
+      }
+    }
     mkdirSync(this.directory, { recursive: true, mode: 0o700 });
     void this.enqueue(async () => {
       await this.writeSnapshot(records);
       this.lines = records.length;
     }).catch(() => undefined);
-    this.hasSnapshot = legacy !== null;
+    this.hasSnapshot = legacyValid;
     return records;
   }
 

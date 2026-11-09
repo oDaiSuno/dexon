@@ -67,14 +67,17 @@ function asPlainNodeEnv(job: CatalogJob): NodeJS.ProcessEnv {
 }
 
 async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: number): Promise<CatalogSnapshot> {
+  const entryPath = workerEntryPath();
   const result = parseCatalogJobResult(
     await runIsolatedNodeJob({
-      entryPath: workerEntryPath(),
+      entryPath,
       input: job,
       marker: CATALOG_RESULT_MARKER,
       timeoutMs,
       maxInputBytes: 64 * 1024,
       env: asPlainNodeEnv(job),
+      cwd: path.dirname(entryPath),
+      ipcLifeline: true,
       signal,
       label: "Model catalog worker",
       sanitizeStderr: () => "Model catalog worker failed",
@@ -208,7 +211,7 @@ export class ModelCatalogService {
       })
       .catch((error: unknown) => {
         if (this.entries.get(key) === entry) {
-          if (signal.aborted) {
+          if (signal.aborted || (job.kind === "refresh" && previous)) {
             this.entries.delete(key);
             if (previous) this.remember(this.cacheKey(job.cwd, previous.epoch), { state: "ready", value: previous });
           } else {

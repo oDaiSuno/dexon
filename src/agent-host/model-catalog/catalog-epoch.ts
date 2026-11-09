@@ -8,6 +8,13 @@ export interface CatalogEpoch {
 }
 
 const contentFingerprints = new Map<string, { revision: string; digest: string }>();
+const PREFERENCE_ONLY_SETTINGS = new Set([
+  "enabledModels",
+  "defaultProvider",
+  "defaultModel",
+  "defaultThinkingLevel",
+  "modelThinkingLevels",
+]);
 
 export function catalogInputs(cwd: string, agentDir: string): readonly string[] {
   return [
@@ -18,10 +25,28 @@ export function catalogInputs(cwd: string, agentDir: string): readonly string[] 
   ];
 }
 
+function normalizedContent(file: string): string {
+  const raw = readFileSync(file, "utf8").trim();
+  if (path.basename(file) !== "settings.json") return raw;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return raw;
+    return JSON.stringify(
+      Object.fromEntries(
+        Object.entries(parsed as Record<string, unknown>)
+          .filter(([key]) => !PREFERENCE_ONLY_SETTINGS.has(key))
+          .sort(([a], [b]) => a.localeCompare(b)),
+      ),
+    );
+  } catch {
+    return raw;
+  }
+}
+
 function contentFingerprint(file: string, revision: string): string {
   const cached = contentFingerprints.get(file);
   if (cached?.revision === revision) return cached.digest;
-  const digest = `${file}:${createHash("sha256").update(readFileSync(file, "utf8").trim()).digest("hex")}`;
+  const digest = `${file}:${createHash("sha256").update(normalizedContent(file)).digest("hex")}`;
   contentFingerprints.delete(file);
   contentFingerprints.set(file, { revision, digest });
   if (contentFingerprints.size > 64) contentFingerprints.delete(contentFingerprints.keys().next().value!);
@@ -29,7 +54,7 @@ function contentFingerprint(file: string, revision: string): string {
 }
 
 function fingerprint(file: string): string {
-  const contentBased = ["auth.json", "models-store.json"].includes(path.basename(file));
+  const contentBased = ["auth.json", "models-store.json", "settings.json"].includes(path.basename(file));
   try {
     const info = statSync(file);
     const own = `${file}:${info.size}:${info.mtimeMs}:${info.ctimeMs}:${info.ino}`;

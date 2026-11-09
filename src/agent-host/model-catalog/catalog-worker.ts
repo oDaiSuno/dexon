@@ -7,9 +7,12 @@ import {
   type CatalogSnapshot,
 } from "./catalog-protocol.ts";
 
+if (process.connected) {
+  process.on("disconnect", () => process.exit(1));
+}
+
 async function buildCatalog(input: unknown): Promise<CatalogSnapshot> {
   const job = parseCatalogJob(input);
-  process.chdir(job.cwd);
   process.env.PI_CODING_AGENT_DIR = job.agentDir;
   if (job.offline) process.env.PI_OFFLINE = "1";
   else delete process.env.PI_OFFLINE;
