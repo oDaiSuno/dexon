@@ -7,7 +7,7 @@ import { trySpawnHost, type HostSpawnResult } from "./host-restart-core";
 import { appendMainLogs } from "./logger";
 import { HostOutputLineBuffer } from "./logger-core";
 
-export function spawnHost(hostEntry: string): HostSpawnResult<UtilityProcess> {
+function asUtilityProcessEnv(): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [key, value] of Object.entries(process.env)) {
     if (typeof value === "string") env[key] = value;
@@ -16,12 +16,15 @@ export function spawnHost(hostEntry: string): HostSpawnResult<UtilityProcess> {
   env.PI_AGENT_HOST = "1";
   env.PI_DESKTOP_USER_DATA = app.getPath("userData");
   env.PI_DESKTOP_VERSION = app.getVersion();
+  return env;
+}
 
+export function spawnHost(hostEntry: string): HostSpawnResult<UtilityProcess> {
   return trySpawnHost(() =>
     utilityProcess.fork(hostEntry, [], {
       serviceName: "pi-agent-host",
       stdio: "pipe",
-      env,
+      env: asUtilityProcessEnv(),
       cwd: os.homedir(),
     }),
   );

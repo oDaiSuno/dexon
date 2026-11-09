@@ -59,10 +59,14 @@ function workerEntryPath(): string {
   throw new Error("Model catalog worker is unavailable");
 }
 
-async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: number): Promise<CatalogSnapshot> {
+function asPlainNodeEnv(job: CatalogJob): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: "1", PI_CODING_AGENT_DIR: job.agentDir };
   if (job.offline) env.PI_OFFLINE = "1";
   else delete env.PI_OFFLINE;
+  return env;
+}
+
+async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: number): Promise<CatalogSnapshot> {
   const result = parseCatalogJobResult(
     await runIsolatedNodeJob({
       entryPath: workerEntryPath(),
@@ -70,7 +74,7 @@ async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: nu
       marker: CATALOG_RESULT_MARKER,
       timeoutMs,
       maxInputBytes: 64 * 1024,
-      env,
+      env: asPlainNodeEnv(job),
       signal,
       label: "Model catalog worker",
       sanitizeStderr: () => "Model catalog worker failed",

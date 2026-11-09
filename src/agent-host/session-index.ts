@@ -64,18 +64,22 @@ export class SessionIndex {
     totalMs: 0,
   };
 
+  private ensureJournal(): SessionIndexJournal {
+    return (this.journal ??= new SessionIndexJournal(desktopUserDataPath()));
+  }
+
   private async hydrate(): Promise<void> {
     if (this.hydrated) return;
-    this.journal ??= new SessionIndexJournal(desktopUserDataPath());
+    const journal = this.ensureJournal();
     this.hydrating = true;
     try {
-      this.installRecords(await this.journal.load());
+      this.installRecords(await journal.load(), journal);
     } finally {
       this.hydrating = false;
     }
   }
 
-  private installRecords(records: PersistedIndexRecord[]): void {
+  private installRecords(records: PersistedIndexRecord[], journal: SessionIndexJournal): void {
     const root = sessionsRoot();
     for (const record of records) {
       const resolved = path.resolve(record.filePath);
@@ -87,9 +91,9 @@ export class SessionIndex {
         info: record.info ? { ...record.info, path: resolved } : null,
       });
     }
-    this.snapshotReady = this.journal!.hasSnapshot;
+    this.snapshotReady = journal.hasSnapshot;
     this.hydrated = true;
-    for (const removed of this.removedBeforeHydration) this.journal!.remove(removed);
+    for (const removed of this.removedBeforeHydration) journal.remove(removed);
     this.removedBeforeHydration.clear();
   }
 
@@ -214,8 +218,9 @@ export class SessionIndex {
       invalidFiles: this.state.invalidCount,
       totalMs: Math.round((performance.now() - started) * 10) / 10,
     };
-    await this.journal!.writeChanges(plan.upserts, plan.removals);
-    this.journal!.maybeCompact(this.state.entries(), this.state.size);
+    const journal = this.ensureJournal();
+    await journal.writeChanges(plan.upserts, plan.removals);
+    journal.maybeCompact(this.state.entries(), this.state.size);
     return changes;
   }
 
@@ -298,8 +303,9 @@ export class SessionIndex {
       invalidFiles: record.valid ? 0 : 1,
       totalMs: Math.round((performance.now() - started) * 10) / 10,
     };
-    await this.journal!.put(record);
-    this.journal!.maybeCompact(this.state.entries(), this.state.size);
+    const journal = this.ensureJournal();
+    await journal.put(record);
+    journal.maybeCompact(this.state.entries(), this.state.size);
     return change;
   }
 
@@ -369,8 +375,8 @@ export class SessionIndex {
 
   removePath(filePath: string): SessionInfo | null {
     if (!this.hydrated && !this.hydrating) {
-      this.journal ??= new SessionIndexJournal(desktopUserDataPath());
-      this.installRecords(this.journal.loadSync());
+      const journal = this.ensureJournal();
+      this.installRecords(journal.loadSync(), journal);
     }
     const resolved = path.resolve(filePath);
     const previous = this.state.info(resolved);

@@ -138,13 +138,26 @@ export function parseCatalogJobResult(value: unknown): CatalogJobResult {
     ) {
       throw new Error("Invalid catalog thinking levels");
     }
-    if (
-      model.input !== undefined &&
-      (!Array.isArray(model.input) || !model.input.every((input) => input === "text" || input === "image"))
-    ) {
+    const input =
+      model.input === undefined
+        ? undefined
+        : Array.isArray(model.input) &&
+            model.input.every((item): item is "text" | "image" => item === "text" || item === "image")
+          ? model.input
+          : null;
+    if (input === null) {
       throw new Error("Invalid catalog model inputs");
     }
-    return catalogModel(model as unknown as CatalogModel);
+    return catalogModel({
+      id: model.id,
+      name: model.name,
+      provider: model.provider,
+      reasoning: model.reasoning,
+      ...(input ? { input } : {}),
+      ...(thinkingLevelMap
+        ? { thinkingLevelMap: thinkingLevelMap as NonNullable<CatalogModel["thinkingLevelMap"]> }
+        : {}),
+    });
   });
   return {
     ok: true,
