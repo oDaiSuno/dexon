@@ -11,27 +11,28 @@ import { BrowserError } from "./browser/browser-error";
 import { createHostExitSignal, reserveHostRestart, type HostExitSignal } from "./host-restart-core";
 import { forwardHostOutput, spawnHost } from "./host-spawn";
 import { randomUUID } from "node:crypto";
-import { evaluateHeartbeatTick } from "../shared/heartbeat-liveness";
+import { assessHostLiveness, PRIMARY_HOST_LIVENESS } from "../shared/host-liveness";
+import {
+  EMPTY_ACTIVITY,
+  parseHostToMain,
+  stakeOf,
+  type HostActivitySnapshot,
+  type HostToMain,
+  type MainToHost,
+} from "../shared/host-protocol";
 
 export { getUserDataPath, resolveHostEntry, resolvePreloadPath, resolveRendererEntry } from "./host-spawn";
 
 const CRASH_WINDOW_MS = 30_000;
 const MAX_RESTARTS = 2;
-const PING_INTERVAL_MS = 15_000;
-const PING_TIMEOUT_MS = 10_000;
+const HUNG_SHUTDOWN_GRACE_MS = 1500;
 
 export type HostStatus = "starting" | "ready" | "crashed" | "stopped";
 
 export type HostMessage =
-  | { type: "ready"; ts?: number; piVersion?: string }
-  | { type: "pong"; ts?: number }
-  | { type: "log"; message: string }
-  | { type: "running-sessions"; sessionIds: string[] }
-  | { type: "agent-end"; sessionId: string; eventType?: string }
-  | { type: "toolchain:ack"; revision: number }
-  | { type: "browser:ack"; revision: number }
-  | { type: "managed-process-owner:ack"; version: 1; hostInstanceId: string }
-  | { type: string; [key: string]: unknown };
+  | HostToMain
+  | { readonly type: "host-restarted"; readonly reason: "crash-recovery" }
+  | { readonly type: "host-exited"; readonly code: number };
 
 export class HostManager {
   private child: UtilityProcess | null = null;
@@ -43,6 +44,10 @@ export class HostManager {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private lastPong = 0;
   private lastPingTick = 0;
+  private activity: HostActivitySnapshot = EMPTY_ACTIVITY;
+  private lastLagMs = 0;
+  private stallLogged = false;
+  private pingSeq = 0;
   private onStatusChange: ((s: HostStatus, detail?: string) => void) | null = null;
   private onHostMessage: ((msg: HostMessage) => void) | null = null;
   private pendingPorts: MessagePortMain[] = [];
@@ -131,22 +136,7 @@ export class HostManager {
     this.clearPing();
     this.status = "stopped";
     this.readySince = null;
-    if (this.child) {
-      try {
-        this.child.postMessage({ type: "shutdown" });
-      } catch {
-        try {
-          this.child.kill();
-        } catch {}
-      }
-      const child = this.child;
-      setTimeout(() => {
-        if (this.child !== child) return;
-        try {
-          child.kill();
-        } catch {}
-      }, 10_000).unref();
-    }
+    if (this.child) this.shutdownChild(this.child, 10_000);
     return exitPromise;
   }
 
@@ -237,6 +227,9 @@ export class HostManager {
     this.browserAckRevision = -1;
     this.hostInstanceId = randomUUID();
     this.managedProcessOwnerReady = false;
+    this.activity = EMPTY_ACTIVITY;
+    this.lastLagMs = 0;
+    this.stallLogged = false;
     this.setStatus("starting");
 
     const spawnResult = spawnHost(this.hostEntry);
@@ -264,9 +257,14 @@ export class HostManager {
     });
 
     child.on("message", (msg: unknown) => {
-      const m = msg as HostMessage;
-      if (m?.type === "ready") {
-        this.piVersion = typeof m.piVersion === "string" ? m.piVersion : null;
+      if (this.child !== child || this.status === "stopped") return;
+      const m = parseHostToMain(msg);
+      if (!m) {
+        appendMainLog("agent-host dropped malformed message");
+        return;
+      }
+      if (m.type === "ready") {
+        this.piVersion = m.piVersion;
         appendMainLog(`agent-host ready pi=${this.piVersion ?? "unknown"}`);
         const restarted = this.wasReadyBeforeExit;
         this.wasReadyBeforeExit = false;
@@ -283,54 +281,49 @@ export class HostManager {
         if (restarted) {
           this.onHostMessage?.({ type: "host-restarted", reason: "crash-recovery" });
         }
-      } else if (m?.type === "pong") {
+      } else if (m.type === "pong") {
         this.lastPong = Date.now();
-      } else if (m?.type === "log") {
+        this.activity = m.activity;
+        this.lastLagMs = m.lagMaxMs;
+        this.stallLogged = false;
+      } else if (m.type === "activity") {
+        this.activity = m.activity;
+      } else if (m.type === "log") {
         appendMainLog(`[host] ${m.message}`);
-      } else if (m?.type === "toolchain:ack") {
-        const revision = Number(m.revision);
-        if (Number.isSafeInteger(revision) && revision >= 0) {
-          this.toolchainAckRevision = Math.max(this.toolchainAckRevision, revision);
-          appendMainLog(`agent-host toolchain ack revision=${revision}`);
-        }
-      } else if (m?.type === "browser:ack") {
-        const revision = Number(m.revision);
-        if (Number.isSafeInteger(revision) && revision >= 0) {
-          this.browserAckRevision = Math.max(this.browserAckRevision, revision);
-          appendMainLog(`agent-host browser ack revision=${revision}`);
-        }
-      } else if (m?.type === "managed-process-owner:ack") {
-        if (m.version === 1 && m.hostInstanceId === this.hostInstanceId && this.child === child) {
+      } else if (m.type === "toolchain:ack") {
+        this.toolchainAckRevision = Math.max(this.toolchainAckRevision, m.revision);
+        appendMainLog(`agent-host toolchain ack revision=${m.revision}`);
+      } else if (m.type === "browser:ack") {
+        this.browserAckRevision = Math.max(this.browserAckRevision, m.revision);
+        appendMainLog(`agent-host browser ack revision=${m.revision}`);
+      } else if (m.type === "managed-process-owner:ack") {
+        if (m.hostInstanceId === this.hostInstanceId) {
           this.managedProcessOwnerReady = true;
           appendMainLog("agent-host managed process owner identity acknowledged");
         }
-      } else if (m?.type === "host-rpc") {
-        const request = m as HostMessage & { id?: string; method?: string; params?: unknown };
-        const id = String(request.id ?? "");
-        const method = String(request.method ?? "");
-        if (id && method) {
-          void (async () => {
+      } else if (m.type === "host-rpc") {
+        const { id, method, params } = m;
+        void (async () => {
+          try {
+            if (!this.requestHandler) throw new Error("Main request handler is unavailable");
+            const result = await this.requestHandler(method, params);
             try {
-              if (!this.requestHandler) throw new Error("Main request handler is unavailable");
-              const result = await this.requestHandler(method, request.params);
-              try {
-                child.postMessage({ type: "host-rpc-result", id, ok: true, result });
-              } catch {}
-            } catch (error) {
-              try {
-                child.postMessage({
-                  type: "host-rpc-result",
-                  id,
-                  ok: false,
-                  error:
-                    error instanceof BrowserError
-                      ? error.toJSON()
-                      : { message: error instanceof Error ? error.message : String(error) },
-                });
-              } catch {}
-            }
-          })();
-        }
+              child.postMessage({ type: "host-rpc-result", id, ok: true, result } satisfies MainToHost);
+            } catch {}
+          } catch (error) {
+            try {
+              child.postMessage({
+                type: "host-rpc-result",
+                id,
+                ok: false,
+                error:
+                  error instanceof BrowserError
+                    ? error.toJSON()
+                    : { message: error instanceof Error ? error.message : String(error) },
+              } satisfies MainToHost);
+            } catch {}
+          }
+        })();
       }
       this.onHostMessage?.(m);
     });
@@ -338,12 +331,15 @@ export class HostManager {
     child.on("exit", (code) => {
       appendMainLog(`agent-host exit code=${code}`);
       this.onHostMessage?.({ type: "host-exited", code });
-      this.clearPing();
       const wasCurrentChild = this.child === child;
       if (wasCurrentChild) this.child = null;
       exitSignal.resolve();
       if (this.childExitSignal === exitSignal) this.childExitSignal = null;
       if (!wasCurrentChild) return;
+      this.clearPing();
+      this.activity = EMPTY_ACTIVITY;
+      this.lastLagMs = 0;
+      this.stallLogged = false;
       if (this.status === "stopped") return;
 
       this.wasReadyBeforeExit = this.status === "ready" || this.status === "starting";
@@ -391,58 +387,42 @@ export class HostManager {
     this.pingTimer = setInterval(() => {
       if (!this.child) return;
       const now = Date.now();
-      const heartbeat = evaluateHeartbeatTick({
+      const verdict = assessHostLiveness({
         now,
         lastTickAt: this.lastPingTick,
-        lastAcknowledgedAt: this.lastPong,
-        intervalMs: PING_INTERVAL_MS,
-        timeoutMs: PING_TIMEOUT_MS,
+        lastPongAt: this.lastPong,
+        atStake: stakeOf(this.activity),
       });
       this.lastPingTick = now;
-      if (heartbeat.clockDiscontinuity) this.lastPong = now;
-      if (heartbeat.timedOut) {
-        appendMainLog("agent-host ping timeout — killing");
-        try {
-          this.child.kill();
-        } catch {}
+      if (verdict.kind === "clock-jump") {
+        this.lastPong = now;
+        this.stallLogged = false;
+      } else if (verdict.kind === "stalled" && !this.stallLogged) {
+        this.logWatchdog("stalled", verdict.silentMs);
+        this.stallLogged = true;
+      } else if (verdict.kind === "hung") {
+        this.logWatchdog("ping-timeout", verdict.silentMs);
+        this.clearPing();
+        this.shutdownChild(this.child, HUNG_SHUTDOWN_GRACE_MS);
         return;
       }
-      try {
-        this.child.postMessage({ type: "ping" });
-      } catch {}
-    }, PING_INTERVAL_MS);
+      this.postToHost({ type: "ping", seq: ++this.pingSeq });
+    }, PRIMARY_HOST_LIVENESS.intervalMs);
   }
 
   private postToolchainSnapshot(type: "toolchain:init" | "toolchain:changed"): void {
     if (!this.child || !this.toolchainSnapshot) return;
-    try {
-      this.child.postMessage({ type, snapshot: this.toolchainSnapshot });
-    } catch (error) {
-      appendMainLog(`toolchain snapshot delivery failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.postToHost({ type, snapshot: this.toolchainSnapshot });
   }
 
   private postBrowserSnapshot(type: "browser:init" | "browser:changed"): void {
     if (!this.child || !this.browserCapabilitySnapshot) return;
-    try {
-      this.child.postMessage({ type, snapshot: this.browserCapabilitySnapshot });
-    } catch (error) {
-      appendMainLog(`browser snapshot delivery failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.postToHost({ type, snapshot: this.browserCapabilitySnapshot });
   }
 
   private postSessionOrchestrationSettings(): void {
     if (!this.child || !this.sessionOrchestrationSettings) return;
-    try {
-      this.child.postMessage({
-        type: "session-orchestration:settings",
-        settings: this.sessionOrchestrationSettings,
-      });
-    } catch (error) {
-      appendMainLog(
-        `session collaboration settings delivery failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    this.postToHost({ type: "session-orchestration:settings", settings: this.sessionOrchestrationSettings });
   }
 
   private postManagedProcessOwnerIdentity(): void {
@@ -465,6 +445,40 @@ export class HostManager {
     } catch {
       appendMainLog("managed process owner identity delivery failed");
     }
+  }
+
+  private postToHost(message: MainToHost): void {
+    try {
+      this.child?.postMessage(message);
+    } catch (error) {
+      appendMainLog(`${message.type} delivery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private shutdownChild(child: UtilityProcess, graceMs: number): void {
+    try {
+      child.postMessage({ type: "shutdown" } satisfies MainToHost);
+    } catch {}
+    setTimeout(() => {
+      if (this.child !== child) return;
+      try {
+        child.kill();
+      } catch {}
+    }, graceMs).unref();
+  }
+
+  private logWatchdog(reason: "stalled" | "ping-timeout", silentMs: number): void {
+    appendMainLog(
+      `agent-host watchdog ${JSON.stringify({
+        reason,
+        silentMs,
+        atStake: stakeOf(this.activity),
+        running: this.activity.running,
+        starting: this.activity.starting,
+        lastLagMs: this.lastLagMs,
+        pid: this.child?.pid ?? null,
+      })}`,
+    );
   }
 
   private clearPing(): void {

@@ -11,6 +11,9 @@ import { readPiRuntimeVersion } from "./runtime-version";
 import { applyManagedProcessOwnerIdentity } from "./managed-process/owner-identity";
 import { initializeStandaloneHostPlatform } from "./platform-services";
 import { startDaemonServer, type DaemonServer } from "./daemon-server";
+import { HostActivity } from "./host-activity";
+import { subscribeActivity } from "./rpc-manager";
+import type { MainToHost } from "../shared/host-protocol";
 
 function parseStandaloneArguments(args: string[]) {
   const { values } = parseArgs({
@@ -37,6 +40,8 @@ const standalonePlatform = standaloneOptions
   : null;
 let daemon: DaemonServer | undefined;
 
+const hostActivity = new HostActivity({ post: (message) => process.parentPort?.postMessage(message) });
+const stopActivity = subscribeActivity((activity) => hostActivity.observe(activity));
 const server = createRpcServer();
 const restoreGitRunner = installToolchainGitRunner();
 const stopHandlers = registerHandlers(server);
@@ -54,17 +59,9 @@ function log(message: string): void {
 const parentPort = process.parentPort;
 if (parentPort) {
   parentPort.on("message", (event) => {
-    const msg = event.data as {
-      type?: string;
-      snapshot?: ToolchainSnapshot | BrowserCapabilitySnapshot;
-      version?: unknown;
-      mainPid?: unknown;
-      mainStartFingerprint?: unknown;
-      mainImagePath?: unknown;
-      hostInstanceId?: unknown;
-    };
+    const msg = event.data as MainToHost;
     if (msg?.type === "ping") {
-      parentPort.postMessage({ type: "pong", ts: Date.now() });
+      parentPort.postMessage(hostActivity.pong(msg.seq));
       return;
     }
     if (msg?.type === "attach-port") {
@@ -117,6 +114,8 @@ if (parentPort) {
       return;
     }
     if (msg?.type === "shutdown") {
+      stopActivity();
+      hostActivity.dispose();
       stopWatcher();
       restoreGitRunner();
       void stopHandlers().finally(() => process.exit(0));
@@ -143,6 +142,8 @@ if (parentPort) {
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
+    stopActivity();
+    hostActivity.dispose();
     stopWatcher();
     restoreGitRunner();
     void (async () => {
