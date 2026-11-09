@@ -1,173 +1,45 @@
-import { createRpcClient, type PiRpc } from "@contract/rpc";
+import type { PiRpc } from "@contract/rpc";
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "@contract/api";
 import type { DefaultThinkingLevel } from "@contract/types";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { createEnvironmentApiClient } from "./environment-connection";
-import { requestEnvironmentPort } from "./environment-port";
 import {
+  environmentRegistry,
   getActiveEnvironmentConnection,
-  getActiveEnvironmentId,
   getEnvironmentConnection,
   getSessionEnvironmentId,
-  registerEnvironmentSessions,
-  registerEnvironmentSession,
 } from "./environment-registry";
 
-let rpc: PiRpc | null = null;
-let connectPromise: Promise<PiRpc> | null = null;
-
 export function resetRpc(): void {
-  try {
-    rpc?.close();
-  } catch {}
-  rpc = null;
-  connectPromise = null;
+  environmentRegistry.findConnection(PRIMARY_ENVIRONMENT_ID)?.close();
 }
 
-const HOST_READY_TIMEOUT_MS = 30_000;
-const PING_TIMEOUT_MS = 10_000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} (timeout ${ms}ms)`)), ms);
-    promise.then(
-      (v) => {
-        clearTimeout(timer);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(timer);
-        reject(e);
-      },
-    );
-  });
-}
-
-async function requestHostPort(): Promise<MessagePort> {
-  return (await requestEnvironmentPort(PRIMARY_ENVIRONMENT_ID)).port;
-}
-
-async function waitForHostReady(): Promise<void> {
-  if (!window.piBridge) {
-    throw new Error("piBridge not available — not running inside Electron?");
-  }
-  let status = await window.piBridge.getHostStatus();
-  if (status === "ready") return;
-  if (status === "crashed") {
-    throw new Error("Agent Host crashed before UI connected");
-  }
-
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      off();
-      reject(new Error(`Agent Host not ready (status=${status})`));
-    }, HOST_READY_TIMEOUT_MS);
-
-    const off = window.piBridge!.onHostStatus((s) => {
-      status = s.status;
-      if (s.status === "ready") {
-        clearTimeout(timer);
-        off();
-        resolve();
-      } else if (s.status === "crashed") {
-        clearTimeout(timer);
-        off();
-        reject(new Error(s.detail || "Agent Host crashed"));
-      }
-    });
-
-    void window.piBridge!.getHostStatus().then((s) => {
-      if (s === "ready") {
-        clearTimeout(timer);
-        off();
-        resolve();
-      } else if (s === "crashed") {
-        clearTimeout(timer);
-        off();
-        reject(new Error("Agent Host crashed"));
-      }
-    });
-  });
-}
-
-export async function ensureRpc(): Promise<PiRpc> {
-  if (rpc) return rpc;
-  if (connectPromise) return connectPromise;
-
-  connectPromise = (async () => {
-    if (!window.piBridge) {
-      throw new Error("piBridge not available — not running inside Electron?");
-    }
-    await waitForHostReady();
-    const port = await requestHostPort();
-    const client = createRpcClient(port);
-    await withTimeout(client.call("host.ping"), PING_TIMEOUT_MS, "host.ping failed");
-    rpc = client;
-    return client;
-  })();
-
-  try {
-    return await connectPromise;
-  } catch (e) {
-    connectPromise = null;
-    rpc = null;
-    throw e;
-  }
+export function ensureRpc(): Promise<PiRpc> {
+  return getEnvironmentConnection(PRIMARY_ENVIRONMENT_ID).ensureRpc();
 }
 
 export function getRpc(): PiRpc | null {
-  return rpc;
+  return environmentRegistry.findConnection(PRIMARY_ENVIRONMENT_ID)?.getRpc() ?? null;
 }
 
-export async function call<M extends ApiMethod>(
+export function call<M extends ApiMethod>(
   method: M,
   ...args: ApiParams<M> extends void ? [] | [void] : [ApiParams<M>]
 ): Promise<ApiResult<M>> {
-  if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) {
-    return getActiveEnvironmentConnection().call(method, ...(args as never));
-  }
-  return callPrimary(method, ...(args as never));
+  return getActiveEnvironmentConnection().call(method, ...(args as never));
 }
 
-export async function subscribe<T extends StreamTopic>(
-  topic: T,
-  key: string,
-  on: (ev: Streams[T]) => void,
-  onGap?: () => void,
-): Promise<() => void> {
-  if (getActiveEnvironmentId() !== PRIMARY_ENVIRONMENT_ID) {
-    return getActiveEnvironmentConnection().subscribe(topic, key, on, onGap);
-  }
-  return subscribePrimary(topic, key, on);
-}
-
-async function callPrimary<M extends ApiMethod>(
-  method: M,
-  ...args: ApiParams<M> extends void ? [] | [void] : [ApiParams<M>]
-): Promise<ApiResult<M>> {
-  const client = await ensureRpc();
-  const result = await client.call(method, ...(args as never));
-  if (method === "sessions.list" && Array.isArray((result as ApiResult<"sessions.list">)?.sessions))
-    registerEnvironmentSessions(PRIMARY_ENVIRONMENT_ID, (result as ApiResult<"sessions.list">).sessions);
-  if (method === "agent.new" && typeof (result as ApiResult<"agent.new">)?.sessionId === "string")
-    registerEnvironmentSession(PRIMARY_ENVIRONMENT_ID, (result as ApiResult<"agent.new">).sessionId);
-  return result;
-}
-
-async function subscribePrimary<T extends StreamTopic>(
+export function subscribe<T extends StreamTopic>(
   topic: T,
   key: string,
   on: (event: Streams[T]) => void,
+  onGap?: () => void,
 ): Promise<() => void> {
-  return (await ensureRpc()).subscribe(topic, key, on);
+  return getActiveEnvironmentConnection().subscribe(topic, key, on, onGap);
 }
 
-const primaryApiClient = createEnvironmentApiClient({ call: callPrimary, subscribe: subscribePrimary });
-
 export function getEnvironmentApiClient(environmentId: EnvironmentId) {
-  return environmentId === PRIMARY_ENVIRONMENT_ID
-    ? primaryApiClient
-    : createEnvironmentApiClient(getEnvironmentConnection(environmentId));
+  return createEnvironmentApiClient(getEnvironmentConnection(environmentId));
 }
 
 export function getSessionApiClient(sessionId: string) {
@@ -314,14 +186,18 @@ export async function subscribeAgentEvents(
   return getSessionApiClient(sessionId).subscribeAgentEvents(sessionId, on, onGap);
 }
 
-export async function subscribeRunning(on: (ev: Streams["agent.running"]) => void) {
-  return subscribe("agent.running", "*", on);
+export async function subscribeRunning(on: (ev: Streams["agent.running"]) => void, onGap?: () => void) {
+  return subscribe("agent.running", "*", on, onGap);
 }
 
-export async function subscribeSessionsChanged(on: (ev: Streams["sessions.changed"]) => void) {
-  return subscribe("sessions.changed", "*", on);
+export async function subscribeSessionsChanged(on: (ev: Streams["sessions.changed"]) => void, onGap?: () => void) {
+  return subscribe("sessions.changed", "*", on, onGap);
 }
 
-export async function subscribeAuthLogin(provider: string, on: (ev: Streams["auth.login"]) => void) {
-  return subscribe("auth.login", provider, on);
+export async function subscribeAuthLogin(
+  provider: string,
+  on: (ev: Streams["auth.login"]) => void,
+  onGap?: () => void,
+) {
+  return subscribe("auth.login", provider, on, onGap);
 }

@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { AppShell } from "@/components/AppShell";
-import { ensureRpc, resetRpc } from "@/lib/api-client";
+import { ensureRpc } from "@/lib/api-client";
 import { useChatAppearance } from "@/hooks/useChatAppearance";
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -71,16 +71,7 @@ export function App() {
 
     connect();
 
-    const offRestart = window.piBridge?.onHostRestarted?.((payload) => {
-      console.warn("[dexon] host restarted:", payload.reason);
-      resetRpc();
-      setStatus("Agent Host restarted — reconnecting…");
-      setError(null);
-      connect();
-    });
-
     const offCrash = window.piBridge?.onHostCrashed?.((payload) => {
-      resetRpc();
       setReady(false);
       setError(payload.detail || "Agent Host crashed and could not recover");
     });
@@ -94,7 +85,6 @@ export function App() {
 
     return () => {
       cancelledRef.current = true;
-      offRestart?.();
       offCrash?.();
       offMenuDiag?.();
       window.removeEventListener("focus", onFocus);

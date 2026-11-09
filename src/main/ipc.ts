@@ -217,7 +217,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     const manager = getHostManager();
     if (!manager) return;
     const { port1 } = manager.createRendererChannel();
-    event.sender.postMessage("desktop:host-port", null, [port1]);
+    event.sender.postMessage("desktop:host-port", { generation: manager.getGeneration() }, [port1]);
   });
   trustedHandle("desktop:open-external", async (_event, url: string) => {
     if (typeof url !== "string") return;

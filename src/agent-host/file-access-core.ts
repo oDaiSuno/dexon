@@ -7,16 +7,10 @@ export function isWindowsAbsolutePath(filePath: string): boolean {
   return WINDOWS_ABSOLUTE_RE.test(filePath) || filePath.startsWith("\\\\") || filePath.startsWith("//");
 }
 
-/**
- * Resolve the nearest existing ancestor so a symlink cannot be hidden behind
- * one or more not-yet-created path segments.
- */
 export function canonicalPath(filePath: string, useWindowsRules: boolean): string {
   const resolver = useWindowsRules ? path.win32 : path;
   let current = resolver.resolve(filePath);
 
-  // Cross-platform Windows path tests must stay lexical. On Windows itself,
-  // realpath provides the same symlink/junction protection as the POSIX path.
   if (useWindowsRules && process.platform !== "win32") return resolver.normalize(current);
 
   const missingSegments: string[] = [];
@@ -35,21 +29,24 @@ export function canonicalPath(filePath: string, useWindowsRules: boolean): strin
   }
 }
 
-export type DirectoryValidation = { ok: true; path: string; canonicalPath: string } | { ok: false; error: string };
+export type DirectoryValidation =
+  | { ok: true; path: string; canonicalPath: string }
+  | { ok: false; error: string; reason: "missing" | "not-directory" | "denied" | "io-error" };
 
-/**
- * Validate that a candidate refers to an existing directory and resolve its
- * canonical (realpath) path for authorization.
- */
 export function validateExistingDirectory(candidate: unknown): DirectoryValidation {
-  if (typeof candidate !== "string" || !candidate) return { ok: false, error: "Directory does not exist" };
+  if (typeof candidate !== "string" || !candidate)
+    return { ok: false, reason: "missing", error: "Directory does not exist" };
   try {
     const realpath = realpathSync.native ?? realpathSync;
     const canonicalPath = realpath(candidate);
-    if (!statSync(canonicalPath).isDirectory()) return { ok: false, error: "Not a directory" };
+    if (!statSync(canonicalPath).isDirectory()) return { ok: false, reason: "not-directory", error: "Not a directory" };
     return { ok: true, path: candidate, canonicalPath };
-  } catch {
-    return { ok: false, error: "Directory does not exist" };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return { ok: false, reason: "missing", error: "Directory does not exist" };
+    if (code === "ENOTDIR") return { ok: false, reason: "not-directory", error: "Not a directory" };
+    if (code === "EACCES" || code === "EPERM") return { ok: false, reason: "denied", error: "Directory access denied" };
+    return { ok: false, reason: "io-error", error: "Unable to access directory" };
   }
 }
 

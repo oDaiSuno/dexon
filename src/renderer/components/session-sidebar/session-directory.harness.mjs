@@ -1,5 +1,5 @@
 import { realRendererGraphOptions } from "../renderer-real-graph.mjs";
-import { installRendererApi } from "../../../../tests/support/renderer-api.mjs";
+import { installPrimaryHost } from "../../hooks/agent-session/primary-host-test-fixture.mjs";
 import { importTestBundle } from "#test-bundle";
 import path from "node:path";
 import { createElement } from "react";
@@ -7,19 +7,24 @@ import { act, create } from "react-test-renderer";
 
 const projectRoot = path.resolve(import.meta.dirname, "../../../..");
 
-const { resetRpc, installApiShims, useEnvironmentDirectories } = await importTestBundle("session-sidebar-directory", {
-  stdin: {
-    contents:
-      'export { useEnvironmentDirectories } from "./src/renderer/components/session-sidebar/use-environment-directories.ts";' +
-      '\nexport {resetRpc} from "./src/renderer/lib/api-client.ts"; export {installApiShims} from "./src/renderer/lib/api-fetch.ts";',
-    resolveDir: projectRoot,
-    sourcefile: "session-directory-test-entry.ts",
-    loader: "ts",
+const { resetRpc, environmentRegistry, useEnvironmentDirectories } = await importTestBundle(
+  "session-sidebar-directory",
+  {
+    stdin: {
+      contents: [
+        'export { useEnvironmentDirectories } from "./src/renderer/components/session-sidebar/use-environment-directories.ts";',
+        'export { resetRpc } from "./src/renderer/lib/api-client.ts";',
+        'export { environmentRegistry } from "./src/renderer/lib/environment-registry.ts";',
+      ].join("\n"),
+      resolveDir: projectRoot,
+      sourcefile: "session-directory-test-entry.ts",
+      loader: "ts",
+    },
+    tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
+    external: ["react", "react-dom", "react-dom/*"],
+    ...realRendererGraphOptions(projectRoot),
   },
-  tsconfig: path.join(projectRoot, "tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-  ...realRendererGraphOptions(projectRoot),
-});
+);
 
 export function session(id, overrides = {}) {
   return {
@@ -55,14 +60,46 @@ export function respondWithSessions(sessionsList, runningSessionIds = []) {
 
 const TIMED_GLOBALS = ["window", "setTimeout", "clearTimeout", "IS_REACT_ACT_ENVIRONMENT"];
 
-function installEnvironment({ responses, storage, scheduler } = {}) {
+function createMicrotaskChannel() {
+  const listeners = [new Map(), new Map()];
+  let closed = false;
+  const ports = listeners.map((events, index) => ({
+    addEventListener(type, listener) {
+      const set = events.get(type) ?? new Set();
+      set.add(listener);
+      events.set(type, set);
+    },
+    removeEventListener(type, listener) {
+      events.get(type)?.delete(listener);
+    },
+    start() {},
+    postMessage(data) {
+      if (closed) throw new Error("Session directory Host port is closed");
+      const message = structuredClone(data);
+      globalThis.queueMicrotask(() => {
+        if (closed) return;
+        for (const listener of listeners[1 - index].get("message") ?? []) listener({ data: message });
+      });
+    },
+    close() {
+      if (closed) return;
+      closed = true;
+      for (const events of listeners) {
+        for (const listener of events.get("close") ?? []) listener();
+      }
+    },
+  }));
+  return { port1: ports[0], port2: ports[1] };
+}
+
+async function installEnvironment({ responses, storage, scheduler } = {}) {
   const originals = new Map(TIMED_GLOBALS.map((name) => [name, Object.getOwnPropertyDescriptor(globalThis, name)]));
   const store = storage ?? createStorage();
-  const restartHandlers = [];
   const sessionChangedListeners = [];
   const cleanups = [];
 
   let reply = responses;
+  let generation = 1;
 
   const harness = {
     call(method, params) {
@@ -78,19 +115,10 @@ function installEnvironment({ responses, storage, scheduler } = {}) {
     },
   };
 
-  globalThis.__sessionDirectoryHarness = harness;
+  resetRpc();
   globalThis.window = {
     location: { href: "http://localhost/" },
     localStorage: store,
-    piBridge: {
-      onHostRestarted: (handler) => {
-        restartHandlers.push(handler);
-        return () => {
-          const index = restartHandlers.indexOf(handler);
-          if (index >= 0) restartHandlers.splice(index, 1);
-        };
-      },
-    },
     addEventListener() {},
     removeEventListener() {},
   };
@@ -99,11 +127,20 @@ function installEnvironment({ responses, storage, scheduler } = {}) {
     globalThis.clearTimeout = scheduler.clearTimeout;
   }
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const hostBoundary = installRendererApi(
+  const hostBoundary = installPrimaryHost(
     globalThis.window,
-    { installApiShims, resetRpc },
-    () => globalThis.__sessionDirectoryHarness,
+    {
+      "sessions.list": (params) => harness.call("sessions.list", params),
+      "system.home": (params) => harness.call("system.home", params),
+    },
+    {
+      createChannel: createMicrotaskChannel,
+      subscribe: (topic, _key, listener) =>
+        topic === "sessions.changed" ? harness.subscribeSessionsChanged(listener) : () => {},
+    },
   );
+  environmentRegistry.initialize();
+  await globalThis.window.piBridge.listEnvironments();
 
   return {
     store,
@@ -114,7 +151,7 @@ function installEnvironment({ responses, storage, scheduler } = {}) {
       hostBoundary.emit("agent.running", "*", { type: "running", ...payload });
     },
     restart() {
-      for (const handler of [...restartHandlers]) handler();
+      hostBoundary.publish(++generation);
     },
     sessionChanged(event) {
       for (const listener of [...sessionChangedListeners]) listener(event);
@@ -132,11 +169,15 @@ function installEnvironment({ responses, storage, scheduler } = {}) {
         }
       }
       try {
+        resetRpc();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
         hostBoundary.close();
       } catch (error) {
         errors.push(error);
       }
-      delete globalThis.__sessionDirectoryHarness;
       for (const [name, descriptor] of originals) {
         if (descriptor) Object.defineProperty(globalThis, name, descriptor);
         else delete globalThis[name];
@@ -178,7 +219,7 @@ export async function mountProbe(env, Probe, hookArgs) {
 }
 
 export async function withEnvironment(options, run) {
-  const env = installEnvironment(options);
+  const env = await installEnvironment(options);
   try {
     await run(env);
   } finally {

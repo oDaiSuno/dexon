@@ -14,7 +14,7 @@ import {
   SlashCommandsResponse,
 } from "./shared";
 import type { SessionState } from "./use-session-state";
-import type { SessionHistory } from "./use-session-history";
+import type { SessionEvents } from "./use-session-events";
 type Dependencies = Pick<
   SessionState,
   | "environmentId"
@@ -35,7 +35,7 @@ type Dependencies = Pick<
   | "eventConnectionManager"
   | "handleAgentEventRef"
 > &
-  Pick<SessionHistory, "loadSession">;
+  Pick<SessionEvents, "reconcileAgentState">;
 export function useSessionConnection(context: Dependencies) {
   const {
     environmentId,
@@ -55,7 +55,7 @@ export function useSessionConnection(context: Dependencies) {
     setSlashCommandsLoading,
     eventConnectionManager,
     handleAgentEventRef,
-    loadSession,
+    reconcileAgentState,
   } = context;
 
   const promoteNewSession = useCallback(
@@ -148,7 +148,8 @@ export function useSessionConnection(context: Dependencies) {
         manager: eventConnectionManager,
         subscribe: (onEvent) =>
           getEnvironmentApiClient(environmentId).subscribeAgentEvents(sid, onEvent, () => {
-            if (sessionIdRef.current === sid) void loadSession(sid, false, true);
+            if (sessionIdRef.current !== sid) return;
+            void reconcileAgentState(sid);
           }),
         onEvent: (event) => {
           interactiveTools.bindSession(sid);
@@ -160,7 +161,7 @@ export function useSessionConnection(context: Dependencies) {
         timeoutMs: EVENT_STREAM_CONNECT_TIMEOUT_MS,
       });
     },
-    [environmentId, eventConnectionManager, handleAgentEventRef, interactiveTools, sessionIdRef, loadSession],
+    [environmentId, eventConnectionManager, handleAgentEventRef, interactiveTools, sessionIdRef, reconcileAgentState],
   );
 
   const ensureEventsConnected = useCallback(

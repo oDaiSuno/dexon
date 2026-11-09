@@ -11,6 +11,13 @@ export {
   createWebSocketServerPort,
 } from "./rpc-channel.ts";
 
+export const TRANSPORT_FAILURE_CODES = ["CLOSED", "TIMEOUT", "DISCONNECTED"] as const;
+export type TransportFailureCode = (typeof TRANSPORT_FAILURE_CODES)[number];
+
+export function isTransportFailure(error: unknown): boolean {
+  return isRpcError(error) && (TRANSPORT_FAILURE_CODES as readonly string[]).includes(error.code);
+}
+
 export type WireRequest = {
   kind: "request";
   id: string;

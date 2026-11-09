@@ -41,8 +41,8 @@ export class EnvironmentRegistry {
     const revision = ++this.revision;
     this.snapshot = { revision: -1, policy: DEFAULT_LIFECYCLE_POLICY, environments: [defaultPrimaryEnvironmentView] };
     this.replaceViews([defaultPrimaryEnvironmentView]);
-    if (bridge) void workspaceStore.initialize(bridge);
     if (typeof bridge?.listEnvironments !== "function") return;
+    void workspaceStore.initialize(bridge);
     if (typeof bridge.onEnvironmentsChanged === "function") {
       this.offChanges = bridge.onEnvironmentsChanged((views) => {
         if (this.bridge !== bridge) return;
@@ -72,6 +72,10 @@ export class EnvironmentRegistry {
       this.listeners.delete(listener);
     };
   };
+
+  findConnection(id: EnvironmentId): EnvironmentConnection | undefined {
+    return this.connections.get(id);
+  }
 
   getConnection(id: EnvironmentId): EnvironmentConnection {
     this.initialize();

@@ -20,8 +20,15 @@ export function installHostNotifications(options: {
   onUnreadSession: () => void;
 }) {
   const { hostManager, environmentManager } = options;
+  let notifiedGeneration = hostManager.getGeneration();
+  const notifyRestart = (reason: string) => {
+    const generation = hostManager.getGeneration();
+    if (generation <= 1 || generation === notifiedGeneration) return;
+    notifiedGeneration = generation;
+    for (const win of BrowserWindow.getAllWindows()) win.webContents.send("host:restarted", { reason });
+  };
   hostManager.setStatusListener((status, detail) => {
-    environmentManager.notifyPrimaryStatus(status);
+    environmentManager.notifyPrimaryStatus();
     appendMainLog(`host status=${status} ${detail ?? ""}`);
     if (options.packagedStartupValidation) {
       options.startupValidation.hostReady = status === "ready";
@@ -38,13 +45,11 @@ export function installHostNotifications(options: {
     }
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send("host:status", { status, detail });
-      if (status === "ready" && detail?.includes("restart")) {
-        win.webContents.send("host:restarted", { reason: detail });
-      }
       if (status === "crashed") {
         win.webContents.send("host:crashed", { detail });
       }
     }
+    if (status === "ready") notifyRestart(detail ?? "crash-recovery");
   });
 
   hostManager.setMessageListener((msg) => {
@@ -80,9 +85,7 @@ export function installHostNotifications(options: {
         options.onUnreadSession();
       }
     } else if (msg.type === "host-restarted") {
-      for (const win of BrowserWindow.getAllWindows()) {
-        win.webContents.send("host:restarted", { reason: String(msg.reason ?? "restart") });
-      }
+      notifyRestart(String(msg.reason ?? "restart"));
     }
   });
 }
