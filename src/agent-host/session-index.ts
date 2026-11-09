@@ -1,36 +1,32 @@
-import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
-import type { SessionEntry, SessionInfo } from "../shared/types";
-import { buildSessionInfoFromManager } from "./session-reader";
-import { withSessionOrigin } from "./session-origin-store";
-import { inheritProject, locateSessionProject, type LocatedProject, type ProjectLookupEntry } from "./session-project";
-import { flushSessionProjects } from "./session-project-store";
-import { sessionsRoot } from "./session-dir";
+import type { SessionInfo } from "../shared/types";
 import { getProjectCacheRevision } from "../shared/worktree";
-import { getAllowedRootsGeneration } from "../shared/allowed-roots";
+import { getAllowedRootsGeneration, invalidateAllowedRootsCache } from "../shared/allowed-roots";
+import { desktopUserDataPath } from "./desktop-state-file";
+import { sessionsRoot } from "./session-dir";
 import {
-  fingerprint,
   readFingerprintOrNull,
   sameFingerprint,
-  loadSessionIndexCache,
-  saveSessionIndexCache,
   type Fingerprint,
   type PersistedIndexRecord,
 } from "./session-index-cache";
+import { SessionIndexState } from "./session-index-state";
+import { SessionIndexJournal } from "./session-index-journal";
+import { type EntryChange, type IndexChange, type IndexDelta, rootsChanged } from "./session-index-delta";
+import {
+  discoverSessionFiles,
+  entryFromLiveSession,
+  isUnderRoot,
+  parseSessionFile,
+  planReconcile,
+  type LiveSessionSource,
+  type SavedSessionHint,
+} from "./session-index-scan";
+import { locateSessionProject } from "./session-project";
+import { flushSessionProjects } from "./session-project-store";
 
 const PROJECT_VIEW_TTL_MS = 60_000;
-const YIELD_BUDGET_MS = 15;
-const YIELD_PARSED_BATCH = 1;
-const YIELD_REUSED_BATCH = 16;
 export const RECENT_INDEX_REFRESH_TTL_MS = 2_000;
-
-interface IndexRecord extends PersistedIndexRecord {
-  located?: LocatedProject | null;
-  projectResolved?: boolean;
-}
-
-type ResolvedRecord = IndexRecord & { info: SessionInfo };
 
 export interface RefreshAllOptions {
   maxAgeMs?: number;
@@ -44,39 +40,18 @@ export interface SessionIndexMetrics {
   totalMs: number;
 }
 
-function yieldToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
-
-function discoverSessionFiles(root: string): string[] {
-  if (!existsSync(root)) return [];
-  const files: string[] = [];
-  const directories = [root];
-  while (directories.length > 0) {
-    const directory = directories.pop()!;
-    let entries;
-    try {
-      entries = readdirSync(directory, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const candidate = path.join(directory, entry.name);
-      if (entry.isDirectory()) directories.push(candidate);
-      else if (entry.isFile() && entry.name.endsWith(".jsonl")) files.push(candidate);
-    }
-  }
-  return files;
-}
-
 export class SessionIndex {
-  private readonly byPath = new Map<string, IndexRecord>();
-  private readonly pathById = new Map<string, string>();
+  private readonly state = new SessionIndexState();
+  private readonly savedHints = new Map<string, SavedSessionHint>();
+  private readonly published = new Map<string, { fingerprint: Fingerprint; info: SessionInfo }>();
+  private readonly removedBeforeHydration = new Set<string>();
+  private journal: SessionIndexJournal | null = null;
   private tail: Promise<unknown> = Promise.resolve();
   private refreshPromise: Promise<void> | null = null;
+  private hydrated = false;
+  private hydrating = false;
   private initialized = false;
-  private cacheHydrated = false;
-  private cacheDirty = false;
+  private snapshotReady = false;
   private lastFullRefreshAt = 0;
   private lastRefreshRootsGeneration = -1;
   private projectRevision = -1;
@@ -89,70 +64,37 @@ export class SessionIndex {
     totalMs: 0,
   };
 
-  private sessionsRoot(): string {
-    return sessionsRoot();
+  private async hydrate(): Promise<void> {
+    if (this.hydrated) return;
+    this.journal ??= new SessionIndexJournal(desktopUserDataPath());
+    this.hydrating = true;
+    try {
+      this.installRecords(await this.journal.load());
+    } finally {
+      this.hydrating = false;
+    }
   }
 
-  private hydrateFromCache(root: string): void {
-    if (this.cacheHydrated) return;
-    this.cacheHydrated = true;
-    for (const record of loadSessionIndexCache()) {
+  private installRecords(records: PersistedIndexRecord[]): void {
+    const root = sessionsRoot();
+    for (const record of records) {
       const resolved = path.resolve(record.filePath);
-      if (!resolved.startsWith(`${root}${path.sep}`) || !resolved.endsWith(".jsonl")) continue;
-      this.byPath.set(resolved, {
+      if (!isUnderRoot(resolved, root) || !resolved.endsWith(".jsonl") || this.removedBeforeHydration.has(resolved))
+        continue;
+      this.state.upsert({
         ...record,
         filePath: resolved,
         info: record.info ? { ...record.info, path: resolved } : null,
-        projectResolved: false,
       });
     }
-    this.rebuildDerivedState();
-  }
-
-  private flushCacheIfDirty(): void {
-    if (!this.cacheDirty) return;
-    saveSessionIndexCache(this.byPath.values());
-    this.cacheDirty = false;
-  }
-
-  private canSkipRecentFullRefresh(maxAgeMs: number, files: string[]): boolean {
-    const ageMs = Date.now() - this.lastFullRefreshAt;
-    return (
-      this.initialized &&
-      maxAgeMs > 0 &&
-      this.lastFullRefreshAt > 0 &&
-      ageMs >= 0 &&
-      ageMs < maxAgeMs &&
-      this.lastRefreshRootsGeneration === getAllowedRootsGeneration() &&
-      files.length === this.byPath.size &&
-      files.every((filePath) => this.byPath.has(filePath))
-    );
-  }
-
-  private rebuildDerivedState(): void {
-    this.pathById.clear();
-    const idByPath = new Map<string, string>();
-    for (const record of this.byPath.values()) {
-      if (record.info) {
-        this.pathById.set(record.info.id, record.filePath);
-        idByPath.set(record.filePath, record.info.id);
-      }
-    }
-    for (const record of this.byPath.values()) {
-      if (!record.info) continue;
-      const parentSessionId = record.parentPath ? idByPath.get(record.parentPath) : undefined;
-      record.info = withSessionOrigin({
-        ...record.info,
-        ...(parentSessionId ? { parentSessionId } : { parentSessionId: undefined }),
-      });
-    }
+    this.snapshotReady = this.journal!.hasSnapshot;
+    this.hydrated = true;
+    for (const removed of this.removedBeforeHydration) this.journal!.remove(removed);
+    this.removedBeforeHydration.clear();
   }
 
   private exclusive<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.tail.then(
-      () => task(),
-      () => task(),
-    );
+    const run = this.tail.then(task, task);
     this.tail = run.then(
       () => undefined,
       () => undefined,
@@ -160,242 +102,337 @@ export class SessionIndex {
     return run;
   }
 
-  private refreshProjectViews(): Promise<void> {
-    return this.exclusive(async () => {
-      const revision = getProjectCacheRevision();
-      if (revision === this.projectRevision && Date.now() - this.projectViewsRefreshedAt < PROJECT_VIEW_TTL_MS) return;
-      await this.resolveProjects([...this.byPath.values()]);
-      this.projectRevision = revision;
-      this.projectViewsRefreshedAt = Date.now();
-    });
+  private async preserveSnapshot<T>(task: () => Promise<T>, fallback: () => T): Promise<T> {
+    try {
+      return await task();
+    } catch (error) {
+      if (!this.snapshotReady) throw error;
+      console.error("[agent-host] session index refresh failed; retaining last snapshot:", error);
+      return fallback();
+    }
   }
 
-  private async resolveProjects(records: IndexRecord[]): Promise<void> {
-    const targets = records.filter((record): record is ResolvedRecord => Boolean(record.info));
-    await Promise.all(
-      targets.map(async (record) => {
-        record.located = await locateSessionProject(record.info);
-      }),
-    );
-    const lookup = (id: string): ProjectLookupEntry | undefined => {
-      const record = this.byPath.get(this.pathById.get(id) ?? "");
-      if (!record?.info) return undefined;
-      return { located: record.located ?? null, parentSessionId: record.info.parentSessionId };
+  recordSavedSession(filePath: string, source: LiveSessionSource): () => void {
+    const resolved = path.resolve(filePath);
+    const current = readFingerprintOrNull(resolved);
+    const sessionId = source.getHeader()?.id;
+    if (!current || !sessionId || !isUnderRoot(resolved, sessionsRoot())) return () => undefined;
+    const hint: SavedSessionHint = { path: resolved, fingerprint: current, sessionId, source };
+    this.savedHints.set(resolved, hint);
+    return () => {
+      if (this.savedHints.get(resolved) === hint) this.savedHints.delete(resolved);
     };
-    for (const record of targets) {
-      const { worktreeBranch: _worktreeBranch, ...base } = record.info;
-      const project = record.located ?? inheritProject(record.info.id, lookup) ?? { projectRoot: record.info.cwd };
-      record.info = {
-        ...base,
-        projectRoot: project.projectRoot,
-        ...(project.worktreeBranch ? { worktreeBranch: project.worktreeBranch } : {}),
-      };
-      record.projectResolved = true;
+  }
+
+  private savedHint(filePath: string, current: Fingerprint): SavedSessionHint | undefined {
+    const hint = this.savedHints.get(filePath);
+    return hint && sameFingerprint(hint.fingerprint, current) && hint.source.getHeader()?.id === hint.sessionId
+      ? hint
+      : undefined;
+  }
+
+  private async readEntry(filePath: string, current: Fingerprint): Promise<PersistedIndexRecord> {
+    const hint = this.savedHint(filePath, current);
+    if (hint) {
+      const record = await entryFromLiveSession(hint);
+      const after = readFingerprintOrNull(filePath);
+      if (after && sameFingerprint(current, after) && this.savedHint(filePath, after) === hint) return record;
     }
+    return parseSessionFile(filePath, readFingerprintOrNull(filePath) ?? current);
+  }
+
+  private cause(filePath: string, current: Fingerprint): EntryChange["cause"] {
+    return this.savedHint(filePath, current) ? "live-append" : "external";
+  }
+
+  private async locate(records: readonly PersistedIndexRecord[]): Promise<void> {
+    const locations = await Promise.all(
+      records.map(async (record) => ({
+        filePath: record.filePath,
+        located: record.info ? await locateSessionProject(record.info) : null,
+      })),
+    );
+    for (const location of locations) this.state.locate(location.filePath, location.located);
     flushSessionProjects();
   }
 
-  private async parsePath(filePath: string, currentFingerprint: Fingerprint): Promise<IndexRecord> {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const before = attempt === 0 ? currentFingerprint : fingerprint(filePath);
-      try {
-        const manager = SessionManager.open(filePath);
-        const entries = manager.getEntries() as unknown as SessionEntry[];
-        const header = manager.getHeader();
-        const info = await buildSessionInfoFromManager(filePath, manager, entries, { resolveProjectInfo: false });
-        const after = fingerprint(filePath);
-        if (!sameFingerprint(before, after)) {
-          if (attempt === 0) continue;
-          throw new Error("session changed during index parse");
-        }
-        return {
-          filePath,
-          fingerprint: after,
-          info,
-          parentPath: header?.parentSession,
-          valid: Boolean(info),
-        };
-      } catch {
-        if (attempt === 0) {
-          const after = readFingerprintOrNull(filePath);
-          if (after && !sameFingerprint(before, after)) continue;
-        }
-        return { filePath, fingerprint: before, info: null, valid: false };
-      }
+  private canSkip(maxAgeMs: number, files: readonly string[]): boolean {
+    const age = Date.now() - this.lastFullRefreshAt;
+    return (
+      this.initialized &&
+      maxAgeMs > 0 &&
+      age >= 0 &&
+      age < maxAgeMs &&
+      this.lastRefreshRootsGeneration === getAllowedRootsGeneration() &&
+      files.length === this.state.size &&
+      files.every((filePath) => this.state.entry(filePath))
+    );
+  }
+
+  private async reconcile(root: string, files: readonly string[], attempt = 0): Promise<EntryChange[]> {
+    if (attempt > 1) throw new Error("Session index changed repeatedly during reconciliation");
+    const started = performance.now();
+    const revision = this.state.revision;
+    const plan = await planReconcile(root, files, this.state, (filePath, current) => this.readEntry(filePath, current));
+    if (revision !== this.state.revision) return this.reconcile(root, await discoverSessionFiles(root), attempt + 1);
+    const unresolved = [...this.state.entries()].filter(
+      (record) => isUnderRoot(record.filePath, root) && record.located === undefined,
+    );
+    const locations = await Promise.all(
+      [...unresolved, ...plan.upserts].map(async (record) => ({
+        filePath: record.filePath,
+        located: record.info ? await locateSessionProject(record.info) : null,
+      })),
+    );
+    if (revision !== this.state.revision) return this.reconcile(root, await discoverSessionFiles(root), attempt + 1);
+    const changes: EntryChange[] = [];
+    for (const filePath of plan.removals) {
+      changes.push({ filePath, before: this.state.info(filePath), after: null, cause: "external" });
+      this.state.remove(filePath);
     }
-    return { filePath, fingerprint: currentFingerprint, info: null, valid: false };
+    for (const record of plan.upserts) {
+      changes.push({
+        filePath: record.filePath,
+        before: this.state.info(record.filePath),
+        after: null,
+        cause: this.cause(record.filePath, record.fingerprint),
+      });
+      this.state.upsert(record);
+    }
+    for (const location of locations) this.state.locate(location.filePath, location.located);
+    for (const change of changes) change.after = this.state.info(change.filePath);
+    flushSessionProjects();
+    if (rootsChanged(changes)) invalidateAllowedRootsCache();
+    if (root === sessionsRoot()) {
+      this.snapshotReady = true;
+      this.initialized = true;
+    }
+    this.metrics = {
+      filesDiscovered: plan.filesDiscovered,
+      filesParsed: plan.filesParsed,
+      filesReused: plan.filesReused,
+      invalidFiles: this.state.invalidCount,
+      totalMs: Math.round((performance.now() - started) * 10) / 10,
+    };
+    await this.journal!.writeChanges(plan.upserts, plan.removals);
+    this.journal!.maybeCompact(this.state.entries(), this.state.size);
+    return changes;
   }
 
   initialize(): Promise<void> {
     return this.refreshAll();
   }
 
-  private async runFullScan(root: string, files: string[], startedAt: number): Promise<void> {
-    const rootsGenAtStart = getAllowedRootsGeneration();
-    this.hydrateFromCache(root);
-    const discovered = new Set(files);
-    let filesParsed = 0;
-    let filesReused = 0;
-    let filesRemoved = 0;
-    let invalidFiles = 0;
-    let parsedSinceYield = 0;
-    let reusedSinceYield = 0;
-    let lastYieldAt = performance.now();
-
-    for (const existingPath of this.byPath.keys()) {
-      if (!discovered.has(existingPath)) {
-        this.byPath.delete(existingPath);
-        filesRemoved += 1;
-      }
-    }
-    for (const [fileIndex, filePath] of files.entries()) {
-      let currentFingerprint: Fingerprint;
-      try {
-        currentFingerprint = fingerprint(filePath);
-      } catch {
-        continue;
-      }
-      const existing = this.byPath.get(filePath);
-      if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) {
-        filesReused += 1;
-        reusedSinceYield += 1;
-        if (!existing.valid) invalidFiles += 1;
-      } else {
-        const record = await this.parsePath(filePath, currentFingerprint);
-        this.byPath.set(filePath, record);
-        filesParsed += 1;
-        parsedSinceYield += 1;
-        if (!record.valid) invalidFiles += 1;
-      }
-      if (
-        fileIndex < files.length - 1 &&
-        (parsedSinceYield >= YIELD_PARSED_BATCH ||
-          reusedSinceYield >= YIELD_REUSED_BATCH ||
-          performance.now() - lastYieldAt >= YIELD_BUDGET_MS)
-      ) {
-        await yieldToEventLoop();
-        parsedSinceYield = 0;
-        reusedSinceYield = 0;
-        lastYieldAt = performance.now();
-      }
-    }
-    this.rebuildDerivedState();
-    await this.resolveProjects([...this.byPath.values()].filter((record) => !record.projectResolved));
-    if (filesParsed > 0 || filesRemoved > 0) {
-      this.projectViewsRefreshedAt = 0;
-      this.cacheDirty = true;
-    }
-    this.flushCacheIfDirty();
-    this.initialized = true;
-    this.lastFullRefreshAt = Date.now();
-    this.lastRefreshRootsGeneration = rootsGenAtStart;
-    this.metrics = {
-      filesDiscovered: files.length,
-      filesParsed,
-      filesReused,
-      invalidFiles,
-      totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
-    };
-  }
-
   refreshAll(options: RefreshAllOptions = {}): Promise<void> {
     if (this.refreshPromise) return this.refreshPromise;
-    this.refreshPromise = this.exclusive(async () => {
-      const startedAt = performance.now();
-      const root = this.sessionsRoot();
-      const files = discoverSessionFiles(root);
-      if (this.canSkipRecentFullRefresh(options.maxAgeMs ?? 0, files)) {
-        this.metrics = {
-          filesDiscovered: files.length,
-          filesParsed: 0,
-          filesReused: 0,
-          invalidFiles: [...this.byPath.values()].filter((record) => !record.valid).length,
-          totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
-        };
-        return;
-      }
-      await this.runFullScan(root, files, startedAt);
-    }).finally(() => {
+    this.refreshPromise = this.exclusive(() =>
+      this.preserveSnapshot(
+        async () => {
+          await this.hydrate();
+          const root = sessionsRoot();
+          const rootsGeneration = getAllowedRootsGeneration();
+          const files = await discoverSessionFiles(root);
+          if (this.canSkip(options.maxAgeMs ?? 0, files)) {
+            this.metrics = {
+              filesDiscovered: files.length,
+              filesParsed: 0,
+              filesReused: 0,
+              invalidFiles: this.state.invalidCount,
+              totalMs: 0,
+            };
+            return;
+          }
+          const changes = await this.reconcile(root, files);
+          this.lastFullRefreshAt = Date.now();
+          this.lastRefreshRootsGeneration = rootsGeneration + (rootsChanged(changes) ? 1 : 0);
+        },
+        () => undefined,
+      ),
+    ).finally(() => {
       this.refreshPromise = null;
     });
     return this.refreshPromise;
   }
 
+  private async refreshFile(filePath: string): Promise<EntryChange | null> {
+    const resolved = path.resolve(filePath);
+    if (!isUnderRoot(resolved, sessionsRoot()) || !resolved.endsWith(".jsonl")) return null;
+    const before = this.state.info(resolved);
+    const current = readFingerprintOrNull(resolved);
+    if (!current) {
+      if (!this.state.entry(resolved)) return null;
+      this.removePath(resolved);
+      return { filePath: resolved, before, after: null, cause: "external" };
+    }
+    const existing = this.state.entry(resolved);
+    if (existing && sameFingerprint(existing.fingerprint, current)) {
+      if (existing.located === undefined) await this.locate([existing]);
+      return null;
+    }
+    const started = performance.now();
+    const record = await this.readEntry(resolved, current);
+    const located =
+      existing?.info?.cwd === record.info?.cwd && existing?.located !== undefined
+        ? existing.located
+        : record.info
+          ? await locateSessionProject(record.info)
+          : null;
+    if (!readFingerprintOrNull(resolved)) {
+      this.removePath(resolved);
+      return { filePath: resolved, before, after: null, cause: "external" };
+    }
+    this.state.upsert(record);
+    this.state.locate(resolved, located);
+    const change: EntryChange = {
+      filePath: resolved,
+      before,
+      after: this.state.info(resolved),
+      cause: this.cause(resolved, record.fingerprint),
+    };
+    if (rootsChanged([change])) invalidateAllowedRootsCache();
+    flushSessionProjects();
+    this.metrics = {
+      filesDiscovered: 1,
+      filesParsed: 1,
+      filesReused: 0,
+      invalidFiles: record.valid ? 0 : 1,
+      totalMs: Math.round((performance.now() - started) * 10) / 10,
+    };
+    await this.journal!.put(record);
+    this.journal!.maybeCompact(this.state.entries(), this.state.size);
+    return change;
+  }
+
   refreshPath(filePath: string): Promise<SessionInfo | null> {
-    return this.exclusive(async () => {
-      const resolved = path.resolve(filePath);
-      const root = this.sessionsRoot();
-      if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null;
-      this.hydrateFromCache(root);
-      if (!resolved.endsWith(".jsonl") || !existsSync(resolved)) {
-        this.removePath(resolved);
-        return null;
-      }
-      let currentFingerprint: Fingerprint;
-      try {
-        currentFingerprint = fingerprint(resolved);
-      } catch {
-        this.removePath(resolved);
-        return null;
-      }
-      const existing = this.byPath.get(resolved);
-      if (existing && sameFingerprint(existing.fingerprint, currentFingerprint)) {
-        if (!existing.projectResolved) await this.resolveProjects([existing]);
-        return existing.info;
-      }
-      const startedAt = performance.now();
-      const record = await this.parsePath(resolved, currentFingerprint);
-      this.byPath.set(resolved, record);
-      this.rebuildDerivedState();
-      await this.resolveProjects([record]);
-      this.cacheDirty = true;
-      this.flushCacheIfDirty();
-      this.initialized = true;
-      this.metrics = {
-        filesDiscovered: 1,
-        filesParsed: 1,
-        filesReused: 0,
-        invalidFiles: record.valid ? 0 : 1,
-        totalMs: Math.round((performance.now() - startedAt) * 10) / 10,
+    return this.exclusive(() =>
+      this.preserveSnapshot(
+        async () => {
+          await this.hydrate();
+          await this.refreshFile(filePath);
+          return this.getByPath(filePath);
+        },
+        () => this.getByPath(filePath),
+      ),
+    );
+  }
+
+  private publishChange(filePath: string, change: EntryChange | null): EntryChange | null {
+    const record = this.state.entry(filePath);
+    const previous = this.published.get(filePath);
+    const after = this.state.info(filePath);
+    if (!change) {
+      if (record && previous && sameFingerprint(record.fingerprint, previous.fingerprint)) return null;
+      if (!record && !previous) return null;
+      change = {
+        filePath,
+        before: previous?.info ?? after,
+        after,
+        cause: record ? this.cause(filePath, record.fingerprint) : "external",
       };
-      return record.info;
-    });
+    }
+    change.after = after;
+    if (record && after) this.published.set(filePath, { fingerprint: record.fingerprint, info: after });
+    else this.published.delete(filePath);
+    return change;
+  }
+
+  apply(changes: readonly IndexChange[]): Promise<IndexDelta> {
+    return this.exclusive(() =>
+      this.preserveSnapshot(
+        async () => {
+          await this.hydrate();
+          const candidates = new Map<string, EntryChange | null>();
+          const delta: IndexDelta = { changes: [], fullRefresh: false };
+          for (const change of changes) {
+            if (change.kind === "file") {
+              const filePath = path.resolve(change.path);
+              candidates.set(filePath, await this.refreshFile(filePath));
+            } else {
+              const root = change.kind === "unknown" ? sessionsRoot() : path.resolve(change.dir);
+              if (root !== sessionsRoot() && !isUnderRoot(root, sessionsRoot())) continue;
+              const files = await discoverSessionFiles(root);
+              for (const entry of await this.reconcile(root, files)) candidates.set(entry.filePath, entry);
+              if (change.kind === "unknown") delta.fullRefresh = true;
+              else for (const filePath of files) if (!candidates.has(filePath)) candidates.set(filePath, null);
+            }
+          }
+          for (const [filePath, entry] of candidates) {
+            const change = this.publishChange(filePath, entry);
+            if (change) delta.changes.push(change);
+          }
+          return delta;
+        },
+        () => ({ changes: [], fullRefresh: true }),
+      ),
+    );
   }
 
   removePath(filePath: string): SessionInfo | null {
-    this.hydrateFromCache(this.sessionsRoot());
+    if (!this.hydrated && !this.hydrating) {
+      this.journal ??= new SessionIndexJournal(desktopUserDataPath());
+      this.installRecords(this.journal.loadSync());
+    }
     const resolved = path.resolve(filePath);
-    const existing = this.byPath.get(resolved);
-    if (!existing) return null;
-    this.byPath.delete(resolved);
-    this.rebuildDerivedState();
-    this.cacheDirty = true;
-    this.flushCacheIfDirty();
-    return existing.info;
+    const previous = this.state.info(resolved);
+    if (!this.hydrated) this.removedBeforeHydration.add(resolved);
+    if (!this.state.entry(resolved)) return previous;
+    this.state.remove(resolved);
+    this.savedHints.delete(resolved);
+    this.journal?.remove(resolved);
+    this.journal?.maybeCompact(this.state.entries(), this.state.size);
+    invalidateAllowedRootsCache();
+    return previous;
   }
 
   getByPath(filePath: string): SessionInfo | null {
-    return this.byPath.get(path.resolve(filePath))?.info ?? null;
+    return this.state.info(path.resolve(filePath));
+  }
+
+  getPathById(sessionId: string): string | null {
+    return this.state.pathOf(sessionId) ?? null;
+  }
+
+  getById(sessionId: string): SessionInfo | null {
+    return this.state.info(this.state.pathOf(sessionId) ?? "");
   }
 
   async getAll(): Promise<SessionInfo[]> {
     if (!this.initialized) await this.initialize();
-    await this.refreshProjectViews();
-    return [...this.byPath.values()]
-      .flatMap((record) => (record.info ? [record.info] : []))
-      .sort((left, right) => Date.parse(right.modified) - Date.parse(left.modified));
+    await this.exclusive(() =>
+      this.preserveSnapshot(
+        async () => {
+          const revision = getProjectCacheRevision();
+          if (revision === this.projectRevision && Date.now() - this.projectViewsRefreshedAt < PROJECT_VIEW_TTL_MS)
+            return;
+          await this.locate([...this.state.entries()]);
+          this.projectRevision = revision;
+          this.projectViewsRefreshedAt = Date.now();
+        },
+        () => undefined,
+      ),
+    );
+    return this.state.list();
   }
 
   async resolvePath(sessionId: string): Promise<string | null> {
     if (!this.initialized) await this.initialize();
-    const known = this.pathById.get(sessionId);
+    const known = this.state.pathOf(sessionId);
     if (known) return known;
     await this.refreshAll();
-    return this.pathById.get(sessionId) ?? null;
+    return this.state.pathOf(sessionId) ?? null;
+  }
+
+  invalidateAllowedRootsCache(): void {
+    invalidateAllowedRootsCache();
   }
 
   getMetrics(): SessionIndexMetrics {
     return { ...this.metrics };
+  }
+
+  async flush(): Promise<void> {
+    await this.tail;
+    await this.journal?.flush();
   }
 }
 

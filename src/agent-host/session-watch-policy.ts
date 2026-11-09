@@ -1,39 +1,24 @@
-import { existsSync } from "node:fs";
+import { statSync } from "node:fs";
 import path from "node:path";
 import type { SessionInfo } from "../shared/types";
 
-export type SessionWatchChange = { kind: "ignore" } | { kind: "refresh-all" } | { kind: "refresh-path"; path: string };
+export type SessionWatchChange =
+  { kind: "ignore" } | { kind: "file"; path: string } | { kind: "subtree"; dir: string } | { kind: "unknown" };
 
-export function classifySessionWatchChange(
-  agentDir: string,
-  sessionsRoot: string,
-  filename: string | Buffer | null,
-): SessionWatchChange {
-  if (!filename) return { kind: "refresh-all" };
-  const name = filename.toString();
-  const resolvedAgentDir = path.resolve(agentDir);
-  const candidate = path.resolve(resolvedAgentDir, name);
-  if (candidate !== resolvedAgentDir && !candidate.startsWith(`${resolvedAgentDir}${path.sep}`))
-    return { kind: "ignore" };
-  const baseName = path.basename(candidate);
-  if (
-    baseName.startsWith(".") ||
-    baseName.startsWith("session-index-cache.json") ||
-    baseName.startsWith("session-projects.json")
-  ) {
-    return { kind: "ignore" };
+export function classifySessionWatchChange(sessionsRoot: string, filename: string | Buffer | null): SessionWatchChange {
+  if (!filename) return { kind: "unknown" };
+  const root = path.resolve(sessionsRoot);
+  const candidate = path.resolve(root, filename.toString());
+  if (candidate !== root && !candidate.startsWith(`${root}${path.sep}`)) return { kind: "ignore" };
+  if (path.basename(candidate).startsWith(".")) return { kind: "ignore" };
+  if (candidate !== root && candidate.endsWith(".jsonl")) return { kind: "file", path: candidate };
+  try {
+    return statSync(candidate).isDirectory() ? { kind: "subtree", dir: candidate } : { kind: "ignore" };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" && code !== "ENOTDIR") return { kind: "unknown" };
+    return path.extname(candidate) ? { kind: "ignore" } : { kind: "subtree", dir: candidate };
   }
-  const resolvedSessionsRoot = path.resolve(sessionsRoot);
-  if (candidate === resolvedSessionsRoot || candidate.startsWith(`${resolvedSessionsRoot}${path.sep}`)) {
-    if (candidate !== resolvedSessionsRoot && candidate.endsWith(".jsonl")) {
-      return { kind: "refresh-path", path: candidate };
-    }
-    if (baseName.endsWith(".tmp")) return { kind: "ignore" };
-    if (existsSync(resolvedAgentDir) && !existsSync(candidate)) return { kind: "refresh-all" };
-    return { kind: "ignore" };
-  }
-  if (name.endsWith(".json") || name.includes("session")) return { kind: "refresh-all" };
-  return { kind: "ignore" };
 }
 
 type SessionRoots = Pick<SessionInfo, "cwd" | "projectRoot">;

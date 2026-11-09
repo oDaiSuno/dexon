@@ -15,14 +15,12 @@ import type {
   SessionContext,
   UserMessage,
 } from "../shared/types";
-import type { SessionInfo as PiSessionInfo } from "@earendil-works/pi-coding-agent";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
 import { toDisplayMessage } from "./display-message";
 import { promptIntentText, readPromptIntent } from "../shared/prompt-intent";
 import { versionsByEntryId } from "./session-versions";
 import { branchAt, type SessionBranch } from "./session-branch";
-import { resolveProject, type ProjectInfo } from "../shared/worktree";
 import { locateSessionProject, type LocatedProject } from "./session-project";
 import { flushSessionProjects } from "./session-project-store";
 import { RECENT_INDEX_REFRESH_TTL_MS, sessionIndex } from "./session-index";
@@ -32,51 +30,12 @@ import { withSessionOrigin } from "./session-origin-store";
 export { getAgentDir };
 
 export async function listAllSessions(): Promise<SessionInfo[]> {
-  try {
-    await sessionIndex.refreshAll(
-      isAllowedRootsWatcherHealthy() ? { maxAgeMs: RECENT_INDEX_REFRESH_TTL_MS } : undefined,
-    );
-    return await sessionIndex.getAll();
-  } catch (error) {
-    console.error("[agent-host] session index unavailable; falling back to pi listAll:", error);
-    return listAllSessionsFallback();
-  }
-}
-
-async function listAllSessionsFallback(): Promise<SessionInfo[]> {
-  const piSessions: PiSessionInfo[] = await SessionManager.listAll();
-  const pathToId = new Map<string, string>();
-  for (const s of piSessions) pathToId.set(s.path, s.id);
-
-  const uniqueCwds = [...new Set(piSessions.map((s) => s.cwd).filter(Boolean))];
-  const projectByCwd = new Map<string, ProjectInfo>();
-  await Promise.all(
-    uniqueCwds.map(async (cwd) => {
-      projectByCwd.set(cwd, await resolveProject(cwd));
-    }),
-  );
-
-  const cache = getPathCache();
-  return piSessions.map((s) => {
-    cache.set(s.id, s.path);
-    const project = s.cwd ? projectByCwd.get(s.cwd) : undefined;
-    return withSessionOrigin({
-      path: s.path,
-      id: s.id,
-      cwd: s.cwd,
-      name: s.name,
-      created: s.created instanceof Date ? s.created.toISOString() : String(s.created),
-      modified: s.modified instanceof Date ? s.modified.toISOString() : String(s.modified),
-      messageCount: countConversationMessages(getSessionEntries(s.path)),
-      firstMessage: toFirstMessage(s.firstMessage),
-      parentSessionId: s.parentSessionPath ? pathToId.get(s.parentSessionPath) : undefined,
-      projectRoot: project?.projectRoot ?? s.cwd,
-      ...(project?.isWorktree && project.branch ? { worktreeBranch: project.branch } : {}),
-    });
-  });
+  await sessionIndex.refreshAll(isAllowedRootsWatcherHealthy() ? { maxAgeMs: RECENT_INDEX_REFRESH_TTL_MS } : undefined);
+  return sessionIndex.getAll();
 }
 
 const sessionPathCache = new Map<string, string>();
+const sessionIdByPath = new Map<string, string>();
 
 function getPathCache(): Map<string, string> {
   return sessionPathCache;
@@ -85,15 +44,17 @@ function getPathCache(): Map<string, string> {
 export async function resolveSessionPath(sessionId: string): Promise<string | null> {
   const cached = getPathCache().get(sessionId);
   if (cached && existsSync(cached)) return cached;
-  if (cached) getPathCache().delete(sessionId);
+  if (cached) invalidateSessionPathCache(sessionId);
 
   const indexed = await sessionIndex.resolvePath(sessionId);
-  if (indexed) getPathCache().set(sessionId, indexed);
+  if (indexed) cacheSessionPath(sessionId, indexed);
   return indexed;
 }
 
 export function cacheSessionPath(sessionId: string, filePath: string): void {
+  invalidateSessionPathCache(sessionId);
   getPathCache().set(sessionId, filePath);
+  sessionIdByPath.set(filePath, sessionId);
 }
 
 export function getSessionIndexMetrics() {
@@ -101,14 +62,13 @@ export function getSessionIndexMetrics() {
 }
 
 export function invalidateSessionPathCache(sessionId: string): void {
+  const filePath = getPathCache().get(sessionId);
+  if (filePath && sessionIdByPath.get(filePath) === sessionId) sessionIdByPath.delete(filePath);
   getPathCache().delete(sessionId);
 }
 
 function findCachedSessionId(filePath: string): string | undefined {
-  for (const [id, cachedPath] of getPathCache()) {
-    if (cachedPath === filePath) return id;
-  }
-  return undefined;
+  return sessionIdByPath.get(filePath);
 }
 
 function getMessageTextContent(message: unknown): string {
@@ -155,7 +115,7 @@ function getMessageActivityTime(entry: SessionEntry): number | undefined {
 
 export async function buildSessionInfoFromManager(
   filePath: string,
-  manager: SessionManager,
+  manager: Pick<SessionManager, "getHeader" | "getSessionName">,
   entries: SessionEntry[],
   options: { resolveProjectInfo?: boolean } = {},
 ): Promise<SessionInfo | null> {
@@ -422,11 +382,16 @@ export async function emitIndexedSessionChange(
     const filePath = await resolveSessionPath(sessionId);
     const session = filePath ? await sessionIndex.refreshPath(filePath) : null;
     if (session) {
-      server.emit("sessions.changed", session.id, { cwd: session.cwd, sessionId: session.id, session });
+      server.emit("sessions.changed", session.id, {
+        cwd: session.cwd,
+        sessionId: session.id,
+        session,
+        cause: "mutation",
+      });
       return;
     }
   } catch (error) {
     console.error("[agent-host] failed to refresh changed session:", error);
   }
-  server.emit("sessions.changed", "*", { cwd, fullRefresh: true });
+  server.emit("sessions.changed", "*", { cwd, fullRefresh: true, cause: "mutation" });
 }

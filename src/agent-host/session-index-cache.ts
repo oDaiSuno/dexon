@@ -1,7 +1,5 @@
-import { readFileSync, statSync } from "node:fs";
-import path from "node:path";
+import { statSync } from "node:fs";
 import type { SessionInfo } from "../shared/types";
-import { atomicWriteText, desktopUserDataPath } from "./desktop-state-file";
 
 export interface Fingerprint {
   size: number;
@@ -18,15 +16,6 @@ export interface PersistedIndexRecord {
   valid: boolean;
 }
 
-interface SessionIndexCacheFile {
-  version: 1;
-  records: Record<string, PersistedIndexRecord>;
-}
-
-function cacheFilePath(): string {
-  return path.join(desktopUserDataPath(), "session-index-cache.json");
-}
-
 export function fingerprint(filePath: string): Fingerprint {
   const stat = statSync(filePath);
   return { size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino };
@@ -35,9 +24,15 @@ export function fingerprint(filePath: string): Fingerprint {
 export function readFingerprintOrNull(filePath: string): Fingerprint | null {
   try {
     return fingerprint(filePath);
-  } catch {
-    return null;
+  } catch (error) {
+    if (isMissingFile(error)) return null;
+    throw error;
   }
+}
+
+export function isMissingFile(error: unknown): boolean {
+  const code = (error as NodeJS.ErrnoException)?.code;
+  return code === "ENOENT" || code === "ENOTDIR";
 }
 
 export function sameFingerprint(left: Fingerprint, right: Fingerprint): boolean {
@@ -72,7 +67,7 @@ function normalizeFingerprint(value: unknown): Fingerprint | undefined {
   };
 }
 
-function toPersistedSessionInfo(info: SessionInfo | null): SessionInfo | null {
+export function toPersistedSessionInfo(info: SessionInfo | null): SessionInfo | null {
   if (!info) return null;
   return {
     path: info.path,
@@ -113,7 +108,7 @@ function normalizeSessionInfo(value: unknown): SessionInfo | null | undefined {
   });
 }
 
-function normalizePersistedRecord(rawPath: string, value: unknown): PersistedIndexRecord | undefined {
+export function normalizePersistedRecord(rawPath: string, value: unknown): PersistedIndexRecord | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const candidate = value as Record<string, unknown>;
   const filePath = (typeof candidate.filePath === "string" && candidate.filePath.trim()) || rawPath.trim();
@@ -131,37 +126,25 @@ function normalizePersistedRecord(rawPath: string, value: unknown): PersistedInd
   };
 }
 
-export function loadSessionIndexCache(): PersistedIndexRecord[] {
-  try {
-    const raw = JSON.parse(readFileSync(cacheFilePath(), "utf8")) as Partial<SessionIndexCacheFile>;
-    if (raw?.version !== 1 || !raw.records || typeof raw.records !== "object" || Array.isArray(raw.records)) {
-      return [];
-    }
-    const records: PersistedIndexRecord[] = [];
-    for (const [key, value] of Object.entries(raw.records)) {
-      const record = normalizePersistedRecord(key, value);
-      if (record) records.push(record);
-    }
-    return records;
-  } catch {
-    return [];
-  }
+export function toPersistedRecord(record: PersistedIndexRecord): PersistedIndexRecord {
+  return {
+    filePath: record.filePath,
+    fingerprint: record.fingerprint,
+    info: toPersistedSessionInfo(record.info),
+    ...(record.parentPath ? { parentPath: record.parentPath } : {}),
+    valid: record.valid,
+  };
 }
 
-export function saveSessionIndexCache(records: Iterable<PersistedIndexRecord>): void {
-  const payload: SessionIndexCacheFile = { version: 1, records: {} };
-  for (const record of records) {
-    payload.records[record.filePath] = {
-      filePath: record.filePath,
-      fingerprint: record.fingerprint,
-      info: toPersistedSessionInfo(record.info),
-      ...(record.parentPath ? { parentPath: record.parentPath } : {}),
-      valid: record.valid,
-    };
+export function parseLegacyCache(text: string): PersistedIndexRecord[] {
+  const raw = JSON.parse(text) as { version?: unknown; records?: unknown };
+  if (raw?.version !== 1 || !raw.records || typeof raw.records !== "object" || Array.isArray(raw.records)) {
+    throw new Error("Invalid session index cache");
   }
-  try {
-    atomicWriteText(cacheFilePath(), JSON.stringify(payload));
-  } catch (error) {
-    console.error("[agent-host] failed to flush session index cache:", error);
+  const records: PersistedIndexRecord[] = [];
+  for (const [key, value] of Object.entries(raw.records)) {
+    const record = normalizePersistedRecord(key, value);
+    if (record) records.push(record);
   }
+  return records;
 }
