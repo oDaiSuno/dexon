@@ -449,7 +449,12 @@ export interface Api {
   "system.home": { params: void; result: { home: string } };
   "system.validateCwd": {
     params: { path: string };
-    result: { ok: boolean; path?: string; error?: string };
+    result: {
+      ok: boolean;
+      path?: string;
+      error?: string;
+      reason?: "missing" | "not-directory" | "denied" | "io-error";
+    };
   };
   "system.defaultCwd": { params: void; result: { cwd: string } };
   "system.allowRoot": { params: { path: string }; result: { ok: true } };
@@ -467,6 +472,7 @@ export interface Streams {
     session?: SessionInfo;
     deleted?: boolean;
     fullRefresh?: boolean;
+    cause?: "live-append" | "mutation" | "external";
   };
   "files.changed": {
     path: string;

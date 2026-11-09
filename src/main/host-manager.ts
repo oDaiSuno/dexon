@@ -1,12 +1,6 @@
-/**
- * Supervises the Agent Host utilityProcess.
- * Forwards MessagePorts between renderer and Host; restarts on crash.
- */
-import { app, utilityProcess, MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
+import { MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
 import fs from "fs";
-import os from "os";
-import path from "path";
-import { appendMainLog, appendMainLogs } from "./logger";
+import { appendMainLog } from "./logger";
 import type { ToolchainSnapshot } from "../shared/toolchains/types";
 import type { BrowserCapabilitySnapshot } from "../contract/browser";
 import {
@@ -14,11 +8,12 @@ import {
   type SessionOrchestrationSettings,
 } from "../shared/session-orchestration";
 import { BrowserError } from "./browser/browser-error";
-import { createHostExitSignal, reserveHostRestart, trySpawnHost, type HostExitSignal } from "./host-restart-core";
-import { HostOutputLineBuffer } from "./logger-core";
+import { createHostExitSignal, reserveHostRestart, type HostExitSignal } from "./host-restart-core";
+import { forwardHostOutput, spawnHost } from "./host-spawn";
 import { randomUUID } from "node:crypto";
 import { evaluateHeartbeatTick } from "../shared/heartbeat-liveness";
-import { resolveDevRendererPort } from "../shared/dev-renderer-origin";
+
+export { getUserDataPath, resolveHostEntry, resolvePreloadPath, resolveRendererEntry } from "./host-spawn";
 
 const CRASH_WINDOW_MS = 30_000;
 const MAX_RESTARTS = 2;
@@ -42,6 +37,8 @@ export class HostManager {
   private child: UtilityProcess | null = null;
   private childExitSignal: HostExitSignal | null = null;
   private status: HostStatus = "stopped";
+  private generation = 0;
+  private readySince: number | null = null;
   private restartTimes: number[] = [];
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private lastPong = 0;
@@ -81,6 +78,14 @@ export class HostManager {
 
   getStatus(): HostStatus {
     return this.status;
+  }
+
+  getGeneration(): number {
+    return this.generation;
+  }
+
+  getReadySince(): number | null {
+    return this.readySince;
   }
 
   getPiVersion(): string | null {
@@ -125,24 +130,21 @@ export class HostManager {
     const exitPromise = this.childExitSignal?.promise ?? Promise.resolve();
     this.clearPing();
     this.status = "stopped";
+    this.readySince = null;
     if (this.child) {
       try {
         this.child.postMessage({ type: "shutdown" });
       } catch {
         try {
           this.child.kill();
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
       const child = this.child;
       setTimeout(() => {
         if (this.child !== child) return;
         try {
           child.kill();
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }, 10_000).unref();
     }
     return exitPromise;
@@ -164,18 +166,14 @@ export class HostManager {
     this.spawn();
   }
 
-  /** Hand a MessagePort to the Host so a renderer can talk to it directly. */
   attachRendererPort(port: MessagePortMain): void {
     if (!this.child || this.status !== "ready") {
       this.pendingPorts.push(port);
-      // Still try — host may accept once ready
       if (this.child) {
         try {
           this.child.postMessage({ type: "attach-port" }, [port]);
           this.pendingPorts = this.pendingPorts.filter((p) => p !== port);
-        } catch {
-          /* keep pending */
-        }
+        } catch {}
       }
       return;
     }
@@ -186,14 +184,12 @@ export class HostManager {
     }
   }
 
-  /** Create a MessageChannel and return the renderer-side port after Host attach. */
   createRendererChannel(): { port1: MessagePortMain; port2: MessagePortMain } {
     const { port1, port2 } = new MessageChannelMain();
     this.attachRendererPort(port2);
     return { port1, port2 };
   }
 
-  /** Issue a one-shot RPC from the main process to the Host. */
   call<T>(method: string, params?: unknown, timeoutMs = 10_000): Promise<T> {
     if (this.status !== "ready") {
       return Promise.reject(new Error("Agent Host is not ready"));
@@ -230,39 +226,20 @@ export class HostManager {
   }
 
   private setStatus(s: HostStatus, detail?: string): void {
+    if (s !== "ready") this.readySince = null;
     this.status = s;
     this.onStatusChange?.(s, detail);
   }
 
   private spawn(): void {
     appendMainLog(`spawning agent-host: ${this.hostEntry}`);
-    // A replacement utility process must acknowledge both policy snapshots
-    // itself; an acknowledgement from the previous Host is not transferable.
     this.toolchainAckRevision = -1;
     this.browserAckRevision = -1;
     this.hostInstanceId = randomUUID();
     this.managedProcessOwnerReady = false;
     this.setStatus("starting");
 
-    // utilityProcess.fork rejects undefined env values
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (typeof v === "string") env[k] = v;
-    }
-    // Host must NOT run as pure node — it needs parentPort from utilityProcess
-    delete env.ELECTRON_RUN_AS_NODE;
-    env.PI_AGENT_HOST = "1";
-    env.PI_DESKTOP_USER_DATA = app.getPath("userData");
-    env.PI_DESKTOP_VERSION = app.getVersion();
-
-    const spawnResult = trySpawnHost(() =>
-      utilityProcess.fork(this.hostEntry, [], {
-        serviceName: "pi-agent-host",
-        stdio: "pipe",
-        env,
-        cwd: os.homedir(),
-      }),
-    );
+    const spawnResult = spawnHost(this.hostEntry);
     if (!spawnResult.ok) {
       appendMainLog(`agent-host spawn failed: ${spawnResult.error}`);
       this.scheduleRestart(`Host failed to spawn: ${spawnResult.error}`);
@@ -270,8 +247,6 @@ export class HostManager {
     }
     const child = spawnResult.child;
     const exitSignal = createHostExitSignal();
-    const stdoutBuffer = new HostOutputLineBuffer((lines) => appendMainLogs(lines.map((line) => `[host:out] ${line}`)));
-    const stderrBuffer = new HostOutputLineBuffer((lines) => appendMainLogs(lines.map((line) => `[host:err] ${line}`)));
 
     this.child = child;
     this.childExitSignal = exitSignal;
@@ -279,7 +254,6 @@ export class HostManager {
 
     child.on("spawn", () => {
       appendMainLog("agent-host spawned");
-      // Flush any pending ports
       for (const port of this.pendingPorts.splice(0)) {
         try {
           child.postMessage({ type: "attach-port" }, [port]);
@@ -300,6 +274,10 @@ export class HostManager {
         this.postBrowserSnapshot("browser:init");
         this.postSessionOrchestrationSettings();
         this.postManagedProcessOwnerIdentity();
+        if (this.status !== "ready") {
+          this.generation += 1;
+          this.readySince = Date.now();
+        }
         this.setStatus("ready");
         this.startPing();
         if (restarted) {
@@ -337,9 +315,7 @@ export class HostManager {
               const result = await this.requestHandler(method, request.params);
               try {
                 child.postMessage({ type: "host-rpc-result", id, ok: true, result });
-              } catch {
-                /* child exited while the request was running */
-              }
+              } catch {}
             } catch (error) {
               try {
                 child.postMessage({
@@ -351,9 +327,7 @@ export class HostManager {
                       ? error.toJSON()
                       : { message: error instanceof Error ? error.message : String(error) },
                 });
-              } catch {
-                /* child exited while the request was running */
-              }
+              } catch {}
             }
           })();
         }
@@ -389,10 +363,7 @@ export class HostManager {
       })();
     });
 
-    child.stdout?.on("data", (buf: Buffer) => stdoutBuffer.push(buf.toString()));
-    child.stdout?.on("end", () => stdoutBuffer.flush());
-    child.stderr?.on("data", (buf: Buffer) => stderrBuffer.push(buf.toString()));
-    child.stderr?.on("end", () => stderrBuffer.flush());
+    forwardHostOutput(child);
   }
 
   private scheduleRestart(reason: string): void {
@@ -433,16 +404,12 @@ export class HostManager {
         appendMainLog("agent-host ping timeout — killing");
         try {
           this.child.kill();
-        } catch {
-          /* ignore */
-        }
+        } catch {}
         return;
       }
       try {
         this.child.postMessage({ type: "ping" });
-      } catch {
-        /* ignore */
-      }
+      } catch {}
     }, PING_INTERVAL_MS);
   }
 
@@ -506,34 +473,4 @@ export class HostManager {
       this.pingTimer = null;
     }
   }
-}
-
-export function resolveHostEntry(mainDirectory = __dirname): string {
-  // ESM agent-host (pi packages are import-only)
-  return path.join(mainDirectory, "agent-host.mjs");
-}
-
-export function resolvePreloadPath(mainDirectory = __dirname): string {
-  return path.join(mainDirectory, "..", "preload", "preload.js");
-}
-
-export function resolveRendererEntry(isDev: boolean, mainDirectory = __dirname): string {
-  // Explicit Vite URL (npm run dev sets this)
-  if (process.env.VITE_DEV_SERVER_URL) {
-    return process.env.VITE_DEV_SERVER_URL;
-  }
-  // Prefer built renderer whenever it exists (works for `npm start` after build)
-  const builtIndex = path.join(mainDirectory, "..", "renderer", "index.html");
-  if (fs.existsSync(builtIndex)) {
-    return "app://bundle/index.html";
-  }
-  // Dev without prior build: expect Vite on the configured dev port
-  if (isDev) {
-    return `http://localhost:${resolveDevRendererPort(process.env.DEXON_DEV_PORT)}`;
-  }
-  return "app://bundle/index.html";
-}
-
-export function getUserDataPath(...parts: string[]): string {
-  return path.join(app.getPath("userData"), ...parts);
 }
