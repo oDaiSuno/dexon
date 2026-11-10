@@ -97,21 +97,21 @@ test("models.list resolves a slow command-backed key while caller timers remain 
     );
     assert.doesNotMatch(JSON.stringify(result), /sk-test|secret-catalog-header|Authorization/);
     assert.ok(ticks >= 50, `concurrent timers fired only ${ticks} times`);
-    assert.ok(lagMs < 250, `caller event-loop lag reached ${lagMs}ms`);
-    assert.ok(maxGap < 250, `caller timer gap reached ${maxGap}ms`);
+    assert.ok(lagMs < 100, `caller event-loop lag reached ${lagMs}ms`);
+    assert.ok(maxGap < 150, `caller timer gap reached ${maxGap}ms`);
   } finally {
     lag.disable();
     clearInterval(timer);
   }
 });
 
-test("a second models.list for the same cwd and epoch returns from memory in under 5ms", async (t) => {
+test("a second models.list for the same cwd and epoch returns from memory in under 25ms", async (t) => {
   const started = performance.now();
   const result = await handlers["models.list"]({ cwd: project });
   const cachedMs = performance.now() - started;
   t.diagnostic(JSON.stringify({ cachedMs }));
   assert.ok(result.models.some((model) => model.provider === "slow-catalog" && model.id === "slow-chat"));
-  assert.ok(cachedMs < 250, `cached model list took ${cachedMs}ms`);
+  assert.ok(cachedMs < 25, `cached model list took ${cachedMs}ms`);
 });
 
 const { ModelCatalogService } = await importTestBundle("model-catalog-service", {
@@ -357,11 +357,14 @@ test("disposing the catalog aborts active isolated jobs and prevents further rea
     started.resolve();
     return abortableJob(signal);
   });
-  const rejected = assert.rejects(service.get(project));
+  const rejected = assert.rejects(
+    service.get(project),
+    (error) => error.code === "CLOSED" && /disposed/.test(error.message),
+  );
   await started.promise;
   await service.dispose();
   await rejected;
-  await assert.rejects(service.get(project), /disposed/);
+  await assert.rejects(service.get(project), (error) => error.code === "CLOSED" && /disposed/.test(error.message));
 });
 
 test("returning to a previously cached cwd and epoch reuses that exact snapshot", async (t) => {

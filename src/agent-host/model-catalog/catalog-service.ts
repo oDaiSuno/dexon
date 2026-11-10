@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import { RpcError } from "../../contract/types.ts";
 import { runIsolatedNodeJob } from "../isolated-node-job.ts";
 import { MODEL_CATALOG_REFRESH_TIMEOUT_MS, ModelCatalogRefreshAbortedError } from "../model-runtime.ts";
 import { catalogEpoch, type CatalogEpoch } from "./catalog-epoch.ts";
@@ -145,6 +146,7 @@ export class ModelCatalogService {
       active.controller.signal.throwIfAborted();
       return await this.build(job, epoch, previous, active.controller.signal);
     } catch (error) {
+      if (this.disposed) throw this.disposedError();
       if (!active.controller.signal.aborted) throw error;
       if (!previous) throw new ModelCatalogRefreshAbortedError(active.abortKind ?? "cancelled");
       return {
@@ -224,6 +226,7 @@ export class ModelCatalogService {
             });
           }
         }
+        if (this.disposed) throw this.disposedError();
         throw error;
       })
       .finally(() => {
@@ -282,7 +285,11 @@ export class ModelCatalogService {
     return this.options.now?.() ?? Date.now();
   }
 
+  private disposedError(): RpcError {
+    return new RpcError({ code: "CLOSED", message: "Model catalog service is disposed" });
+  }
+
   private assertActive(): void {
-    if (this.disposed) throw new Error("Model catalog service is disposed");
+    if (this.disposed) throw this.disposedError();
   }
 }
