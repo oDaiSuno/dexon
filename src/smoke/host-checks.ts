@@ -224,6 +224,16 @@ export async function runSmokeHostChecks(
         filePath: smokeSkill.filePath,
       });
       if (skillContent.content !== updatedSkill) throw new Error("skills.set did not persist exact content");
+      const models = await call<{
+        models?: unknown[];
+      }>("models.list", { cwd: repo });
+      if (!Array.isArray(models.models)) throw new Error("models.list returned an invalid shape");
+      const modelDefaults = await call<{
+        thinkingLevel?: string;
+      }>("models.defaults.get", { cwd: repo });
+      if (typeof modelDefaults.thinkingLevel !== "string") {
+        throw new Error("models.defaults.get returned an invalid shape");
+      }
       await call("files.watchStart", { path: repo });
       const changeEvent = waitForEvent(
         "files.changed",

@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
@@ -77,7 +78,7 @@ async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: nu
       timeoutMs,
       maxInputBytes: 64 * 1024,
       env: asPlainNodeEnv(job),
-      cwd: path.dirname(entryPath),
+      cwd: os.tmpdir(),
       ipcLifeline: true,
       signal,
       label: "Model catalog worker",
