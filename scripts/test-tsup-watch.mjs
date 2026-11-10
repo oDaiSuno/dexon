@@ -17,6 +17,8 @@ const outputGroups = [
     "out/main/agent-host.mjs.map",
     "out/main/plugin-worker.mjs",
     "out/main/plugin-worker.mjs.map",
+    "out/main/model-catalog-worker.mjs",
+    "out/main/model-catalog-worker.mjs.map",
     "out/main/managed-process-worker.mjs",
     "out/main/managed-process-worker.mjs.map",
   ],

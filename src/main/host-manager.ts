@@ -1,12 +1,6 @@
-/**
- * Supervises the Agent Host utilityProcess.
- * Forwards MessagePorts between renderer and Host; restarts on crash.
- */
-import { app, utilityProcess, MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
+import { MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
 import fs from "fs";
-import os from "os";
-import path from "path";
-import { appendMainLog, appendMainLogs } from "./logger";
+import { appendMainLog } from "./logger";
 import type { ToolchainSnapshot } from "../shared/toolchains/types";
 import type { BrowserCapabilitySnapshot } from "../contract/browser";
 import {
@@ -14,38 +8,46 @@ import {
   type SessionOrchestrationSettings,
 } from "../shared/session-orchestration";
 import { BrowserError } from "./browser/browser-error";
-import { createHostExitSignal, reserveHostRestart, trySpawnHost, type HostExitSignal } from "./host-restart-core";
-import { HostOutputLineBuffer } from "./logger-core";
+import { createHostExitSignal, reserveHostRestart, type HostExitSignal } from "./host-restart-core";
+import { forwardHostOutput, spawnHost } from "./host-spawn";
 import { randomUUID } from "node:crypto";
-import { evaluateHeartbeatTick } from "../shared/heartbeat-liveness";
-import { resolveDevRendererPort } from "../shared/dev-renderer-origin";
+import { assessHostLiveness, PRIMARY_HOST_LIVENESS } from "../shared/host-liveness";
+import {
+  EMPTY_ACTIVITY,
+  parseHostToMain,
+  stakeOf,
+  type HostActivitySnapshot,
+  type HostToMain,
+  type MainToHost,
+} from "../shared/host-protocol";
+
+export { getUserDataPath, resolveHostEntry, resolvePreloadPath, resolveRendererEntry } from "./host-spawn";
 
 const CRASH_WINDOW_MS = 30_000;
 const MAX_RESTARTS = 2;
-const PING_INTERVAL_MS = 15_000;
-const PING_TIMEOUT_MS = 10_000;
+const HUNG_SHUTDOWN_GRACE_MS = 1500;
 
 export type HostStatus = "starting" | "ready" | "crashed" | "stopped";
 
 export type HostMessage =
-  | { type: "ready"; ts?: number; piVersion?: string }
-  | { type: "pong"; ts?: number }
-  | { type: "log"; message: string }
-  | { type: "running-sessions"; sessionIds: string[] }
-  | { type: "agent-end"; sessionId: string; eventType?: string }
-  | { type: "toolchain:ack"; revision: number }
-  | { type: "browser:ack"; revision: number }
-  | { type: "managed-process-owner:ack"; version: 1; hostInstanceId: string }
-  | { type: string; [key: string]: unknown };
+  | HostToMain
+  | { readonly type: "host-restarted"; readonly reason: "crash-recovery" }
+  | { readonly type: "host-exited"; readonly code: number };
 
 export class HostManager {
   private child: UtilityProcess | null = null;
   private childExitSignal: HostExitSignal | null = null;
   private status: HostStatus = "stopped";
+  private generation = 0;
+  private readySince: number | null = null;
   private restartTimes: number[] = [];
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private lastPong = 0;
   private lastPingTick = 0;
+  private activity: HostActivitySnapshot = EMPTY_ACTIVITY;
+  private lastLagMs = 0;
+  private stallLogged = false;
+  private pingSeq = 0;
   private onStatusChange: ((s: HostStatus, detail?: string) => void) | null = null;
   private onHostMessage: ((msg: HostMessage) => void) | null = null;
   private pendingPorts: MessagePortMain[] = [];
@@ -81,6 +83,14 @@ export class HostManager {
 
   getStatus(): HostStatus {
     return this.status;
+  }
+
+  getGeneration(): number {
+    return this.generation;
+  }
+
+  getReadySince(): number | null {
+    return this.readySince;
   }
 
   getPiVersion(): string | null {
@@ -125,26 +135,8 @@ export class HostManager {
     const exitPromise = this.childExitSignal?.promise ?? Promise.resolve();
     this.clearPing();
     this.status = "stopped";
-    if (this.child) {
-      try {
-        this.child.postMessage({ type: "shutdown" });
-      } catch {
-        try {
-          this.child.kill();
-        } catch {
-          /* ignore */
-        }
-      }
-      const child = this.child;
-      setTimeout(() => {
-        if (this.child !== child) return;
-        try {
-          child.kill();
-        } catch {
-          /* ignore */
-        }
-      }, 10_000).unref();
-    }
+    this.readySince = null;
+    if (this.child) this.shutdownChild(this.child, 10_000);
     return exitPromise;
   }
 
@@ -164,18 +156,14 @@ export class HostManager {
     this.spawn();
   }
 
-  /** Hand a MessagePort to the Host so a renderer can talk to it directly. */
   attachRendererPort(port: MessagePortMain): void {
     if (!this.child || this.status !== "ready") {
       this.pendingPorts.push(port);
-      // Still try — host may accept once ready
       if (this.child) {
         try {
           this.child.postMessage({ type: "attach-port" }, [port]);
           this.pendingPorts = this.pendingPorts.filter((p) => p !== port);
-        } catch {
-          /* keep pending */
-        }
+        } catch {}
       }
       return;
     }
@@ -186,14 +174,12 @@ export class HostManager {
     }
   }
 
-  /** Create a MessageChannel and return the renderer-side port after Host attach. */
   createRendererChannel(): { port1: MessagePortMain; port2: MessagePortMain } {
     const { port1, port2 } = new MessageChannelMain();
     this.attachRendererPort(port2);
     return { port1, port2 };
   }
 
-  /** Issue a one-shot RPC from the main process to the Host. */
   call<T>(method: string, params?: unknown, timeoutMs = 10_000): Promise<T> {
     if (this.status !== "ready") {
       return Promise.reject(new Error("Agent Host is not ready"));
@@ -230,39 +216,23 @@ export class HostManager {
   }
 
   private setStatus(s: HostStatus, detail?: string): void {
+    if (s !== "ready") this.readySince = null;
     this.status = s;
     this.onStatusChange?.(s, detail);
   }
 
   private spawn(): void {
     appendMainLog(`spawning agent-host: ${this.hostEntry}`);
-    // A replacement utility process must acknowledge both policy snapshots
-    // itself; an acknowledgement from the previous Host is not transferable.
     this.toolchainAckRevision = -1;
     this.browserAckRevision = -1;
     this.hostInstanceId = randomUUID();
     this.managedProcessOwnerReady = false;
+    this.activity = EMPTY_ACTIVITY;
+    this.lastLagMs = 0;
+    this.stallLogged = false;
     this.setStatus("starting");
 
-    // utilityProcess.fork rejects undefined env values
-    const env: Record<string, string> = {};
-    for (const [k, v] of Object.entries(process.env)) {
-      if (typeof v === "string") env[k] = v;
-    }
-    // Host must NOT run as pure node — it needs parentPort from utilityProcess
-    delete env.ELECTRON_RUN_AS_NODE;
-    env.PI_AGENT_HOST = "1";
-    env.PI_DESKTOP_USER_DATA = app.getPath("userData");
-    env.PI_DESKTOP_VERSION = app.getVersion();
-
-    const spawnResult = trySpawnHost(() =>
-      utilityProcess.fork(this.hostEntry, [], {
-        serviceName: "pi-agent-host",
-        stdio: "pipe",
-        env,
-        cwd: os.homedir(),
-      }),
-    );
+    const spawnResult = spawnHost(this.hostEntry);
     if (!spawnResult.ok) {
       appendMainLog(`agent-host spawn failed: ${spawnResult.error}`);
       this.scheduleRestart(`Host failed to spawn: ${spawnResult.error}`);
@@ -270,8 +240,6 @@ export class HostManager {
     }
     const child = spawnResult.child;
     const exitSignal = createHostExitSignal();
-    const stdoutBuffer = new HostOutputLineBuffer((lines) => appendMainLogs(lines.map((line) => `[host:out] ${line}`)));
-    const stderrBuffer = new HostOutputLineBuffer((lines) => appendMainLogs(lines.map((line) => `[host:err] ${line}`)));
 
     this.child = child;
     this.childExitSignal = exitSignal;
@@ -279,7 +247,6 @@ export class HostManager {
 
     child.on("spawn", () => {
       appendMainLog("agent-host spawned");
-      // Flush any pending ports
       for (const port of this.pendingPorts.splice(0)) {
         try {
           child.postMessage({ type: "attach-port" }, [port]);
@@ -290,9 +257,14 @@ export class HostManager {
     });
 
     child.on("message", (msg: unknown) => {
-      const m = msg as HostMessage;
-      if (m?.type === "ready") {
-        this.piVersion = typeof m.piVersion === "string" ? m.piVersion : null;
+      if (this.child !== child || this.status === "stopped") return;
+      const m = parseHostToMain(msg);
+      if (!m) {
+        appendMainLog("agent-host dropped malformed message");
+        return;
+      }
+      if (m.type === "ready") {
+        this.piVersion = m.piVersion;
         appendMainLog(`agent-host ready pi=${this.piVersion ?? "unknown"}`);
         const restarted = this.wasReadyBeforeExit;
         this.wasReadyBeforeExit = false;
@@ -300,63 +272,58 @@ export class HostManager {
         this.postBrowserSnapshot("browser:init");
         this.postSessionOrchestrationSettings();
         this.postManagedProcessOwnerIdentity();
+        if (this.status !== "ready") {
+          this.generation += 1;
+          this.readySince = Date.now();
+        }
         this.setStatus("ready");
         this.startPing();
         if (restarted) {
           this.onHostMessage?.({ type: "host-restarted", reason: "crash-recovery" });
         }
-      } else if (m?.type === "pong") {
+      } else if (m.type === "pong") {
         this.lastPong = Date.now();
-      } else if (m?.type === "log") {
+        this.activity = m.activity;
+        this.lastLagMs = m.lagMaxMs;
+        this.stallLogged = false;
+      } else if (m.type === "activity") {
+        this.activity = m.activity;
+      } else if (m.type === "log") {
         appendMainLog(`[host] ${m.message}`);
-      } else if (m?.type === "toolchain:ack") {
-        const revision = Number(m.revision);
-        if (Number.isSafeInteger(revision) && revision >= 0) {
-          this.toolchainAckRevision = Math.max(this.toolchainAckRevision, revision);
-          appendMainLog(`agent-host toolchain ack revision=${revision}`);
-        }
-      } else if (m?.type === "browser:ack") {
-        const revision = Number(m.revision);
-        if (Number.isSafeInteger(revision) && revision >= 0) {
-          this.browserAckRevision = Math.max(this.browserAckRevision, revision);
-          appendMainLog(`agent-host browser ack revision=${revision}`);
-        }
-      } else if (m?.type === "managed-process-owner:ack") {
-        if (m.version === 1 && m.hostInstanceId === this.hostInstanceId && this.child === child) {
+      } else if (m.type === "toolchain:ack") {
+        this.toolchainAckRevision = Math.max(this.toolchainAckRevision, m.revision);
+        appendMainLog(`agent-host toolchain ack revision=${m.revision}`);
+      } else if (m.type === "browser:ack") {
+        this.browserAckRevision = Math.max(this.browserAckRevision, m.revision);
+        appendMainLog(`agent-host browser ack revision=${m.revision}`);
+      } else if (m.type === "managed-process-owner:ack") {
+        if (m.hostInstanceId === this.hostInstanceId) {
           this.managedProcessOwnerReady = true;
           appendMainLog("agent-host managed process owner identity acknowledged");
         }
-      } else if (m?.type === "host-rpc") {
-        const request = m as HostMessage & { id?: string; method?: string; params?: unknown };
-        const id = String(request.id ?? "");
-        const method = String(request.method ?? "");
-        if (id && method) {
-          void (async () => {
+      } else if (m.type === "host-rpc") {
+        const { id, method, params } = m;
+        void (async () => {
+          try {
+            if (!this.requestHandler) throw new Error("Main request handler is unavailable");
+            const result = await this.requestHandler(method, params);
             try {
-              if (!this.requestHandler) throw new Error("Main request handler is unavailable");
-              const result = await this.requestHandler(method, request.params);
-              try {
-                child.postMessage({ type: "host-rpc-result", id, ok: true, result });
-              } catch {
-                /* child exited while the request was running */
-              }
-            } catch (error) {
-              try {
-                child.postMessage({
-                  type: "host-rpc-result",
-                  id,
-                  ok: false,
-                  error:
-                    error instanceof BrowserError
-                      ? error.toJSON()
-                      : { message: error instanceof Error ? error.message : String(error) },
-                });
-              } catch {
-                /* child exited while the request was running */
-              }
-            }
-          })();
-        }
+              child.postMessage({ type: "host-rpc-result", id, ok: true, result } satisfies MainToHost);
+            } catch {}
+          } catch (error) {
+            try {
+              child.postMessage({
+                type: "host-rpc-result",
+                id,
+                ok: false,
+                error:
+                  error instanceof BrowserError
+                    ? error.toJSON()
+                    : { message: error instanceof Error ? error.message : String(error) },
+              } satisfies MainToHost);
+            } catch {}
+          }
+        })();
       }
       this.onHostMessage?.(m);
     });
@@ -364,12 +331,15 @@ export class HostManager {
     child.on("exit", (code) => {
       appendMainLog(`agent-host exit code=${code}`);
       this.onHostMessage?.({ type: "host-exited", code });
-      this.clearPing();
       const wasCurrentChild = this.child === child;
       if (wasCurrentChild) this.child = null;
       exitSignal.resolve();
       if (this.childExitSignal === exitSignal) this.childExitSignal = null;
       if (!wasCurrentChild) return;
+      this.clearPing();
+      this.activity = EMPTY_ACTIVITY;
+      this.lastLagMs = 0;
+      this.stallLogged = false;
       if (this.status === "stopped") return;
 
       this.wasReadyBeforeExit = this.status === "ready" || this.status === "starting";
@@ -389,10 +359,7 @@ export class HostManager {
       })();
     });
 
-    child.stdout?.on("data", (buf: Buffer) => stdoutBuffer.push(buf.toString()));
-    child.stdout?.on("end", () => stdoutBuffer.flush());
-    child.stderr?.on("data", (buf: Buffer) => stderrBuffer.push(buf.toString()));
-    child.stderr?.on("end", () => stderrBuffer.flush());
+    forwardHostOutput(child);
   }
 
   private scheduleRestart(reason: string): void {
@@ -420,62 +387,42 @@ export class HostManager {
     this.pingTimer = setInterval(() => {
       if (!this.child) return;
       const now = Date.now();
-      const heartbeat = evaluateHeartbeatTick({
+      const verdict = assessHostLiveness({
         now,
         lastTickAt: this.lastPingTick,
-        lastAcknowledgedAt: this.lastPong,
-        intervalMs: PING_INTERVAL_MS,
-        timeoutMs: PING_TIMEOUT_MS,
+        lastPongAt: this.lastPong,
+        atStake: stakeOf(this.activity),
       });
       this.lastPingTick = now;
-      if (heartbeat.clockDiscontinuity) this.lastPong = now;
-      if (heartbeat.timedOut) {
-        appendMainLog("agent-host ping timeout — killing");
-        try {
-          this.child.kill();
-        } catch {
-          /* ignore */
-        }
+      if (verdict.kind === "clock-jump") {
+        this.lastPong = now;
+        this.stallLogged = false;
+      } else if (verdict.kind === "stalled" && !this.stallLogged) {
+        this.logWatchdog("stalled", verdict.silentMs);
+        this.stallLogged = true;
+      } else if (verdict.kind === "hung") {
+        this.logWatchdog("ping-timeout", verdict.silentMs);
+        this.clearPing();
+        this.shutdownChild(this.child, HUNG_SHUTDOWN_GRACE_MS);
         return;
       }
-      try {
-        this.child.postMessage({ type: "ping" });
-      } catch {
-        /* ignore */
-      }
-    }, PING_INTERVAL_MS);
+      this.postToHost({ type: "ping", seq: ++this.pingSeq });
+    }, PRIMARY_HOST_LIVENESS.intervalMs);
   }
 
   private postToolchainSnapshot(type: "toolchain:init" | "toolchain:changed"): void {
     if (!this.child || !this.toolchainSnapshot) return;
-    try {
-      this.child.postMessage({ type, snapshot: this.toolchainSnapshot });
-    } catch (error) {
-      appendMainLog(`toolchain snapshot delivery failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.postToHost({ type, snapshot: this.toolchainSnapshot });
   }
 
   private postBrowserSnapshot(type: "browser:init" | "browser:changed"): void {
     if (!this.child || !this.browserCapabilitySnapshot) return;
-    try {
-      this.child.postMessage({ type, snapshot: this.browserCapabilitySnapshot });
-    } catch (error) {
-      appendMainLog(`browser snapshot delivery failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    this.postToHost({ type, snapshot: this.browserCapabilitySnapshot });
   }
 
   private postSessionOrchestrationSettings(): void {
     if (!this.child || !this.sessionOrchestrationSettings) return;
-    try {
-      this.child.postMessage({
-        type: "session-orchestration:settings",
-        settings: this.sessionOrchestrationSettings,
-      });
-    } catch (error) {
-      appendMainLog(
-        `session collaboration settings delivery failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
+    this.postToHost({ type: "session-orchestration:settings", settings: this.sessionOrchestrationSettings });
   }
 
   private postManagedProcessOwnerIdentity(): void {
@@ -500,40 +447,44 @@ export class HostManager {
     }
   }
 
+  private postToHost(message: MainToHost): void {
+    try {
+      this.child?.postMessage(message);
+    } catch (error) {
+      appendMainLog(`${message.type} delivery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private shutdownChild(child: UtilityProcess, graceMs: number): void {
+    try {
+      child.postMessage({ type: "shutdown" } satisfies MainToHost);
+    } catch {}
+    setTimeout(() => {
+      if (this.child !== child) return;
+      try {
+        child.kill();
+      } catch {}
+    }, graceMs).unref();
+  }
+
+  private logWatchdog(reason: "stalled" | "ping-timeout", silentMs: number): void {
+    appendMainLog(
+      `agent-host watchdog ${JSON.stringify({
+        reason,
+        silentMs,
+        atStake: stakeOf(this.activity),
+        running: this.activity.running,
+        starting: this.activity.starting,
+        lastLagMs: this.lastLagMs,
+        pid: this.child?.pid ?? null,
+      })}`,
+    );
+  }
+
   private clearPing(): void {
     if (this.pingTimer) {
       clearInterval(this.pingTimer);
       this.pingTimer = null;
     }
   }
-}
-
-export function resolveHostEntry(mainDirectory = __dirname): string {
-  // ESM agent-host (pi packages are import-only)
-  return path.join(mainDirectory, "agent-host.mjs");
-}
-
-export function resolvePreloadPath(mainDirectory = __dirname): string {
-  return path.join(mainDirectory, "..", "preload", "preload.js");
-}
-
-export function resolveRendererEntry(isDev: boolean, mainDirectory = __dirname): string {
-  // Explicit Vite URL (npm run dev sets this)
-  if (process.env.VITE_DEV_SERVER_URL) {
-    return process.env.VITE_DEV_SERVER_URL;
-  }
-  // Prefer built renderer whenever it exists (works for `npm start` after build)
-  const builtIndex = path.join(mainDirectory, "..", "renderer", "index.html");
-  if (fs.existsSync(builtIndex)) {
-    return "app://bundle/index.html";
-  }
-  // Dev without prior build: expect Vite on the configured dev port
-  if (isDev) {
-    return `http://localhost:${resolveDevRendererPort(process.env.DEXON_DEV_PORT)}`;
-  }
-  return "app://bundle/index.html";
-}
-
-export function getUserDataPath(...parts: string[]): string {
-  return path.join(app.getPath("userData"), ...parts);
 }

@@ -19,7 +19,7 @@ import {
   type EnvironmentId,
   type EnvironmentView,
 } from "../../contract/environment.ts";
-import type { HostManager, HostStatus } from "../host-manager.ts";
+import type { HostManager } from "../host-manager.ts";
 import { EnvironmentStore, type StoredEnvironment } from "./environment-store.ts";
 import { EnvironmentSupervisor, type EnvironmentWakeupReason } from "./environment-supervisor.ts";
 import { bridgeRendererPort } from "./renderer-port-bridge.ts";
@@ -38,11 +38,8 @@ export class EnvironmentManager {
   private readonly environments = new Map<EnvironmentId, EnvironmentEntry>();
   private readonly locks = new Map<EnvironmentId, Promise<void>>();
   private readonly listeners = new Set<(snapshot: EnvironmentsSnapshot) => void>();
-  private primaryGeneration = 0;
   private revision = 0;
-  private primarySince = Date.now();
   private primaryDescriptor: EnvironmentDescriptor | null = null;
-  private primaryStatus: HostStatus;
   private disposed = false;
 
   private readonly options: {
@@ -64,7 +61,6 @@ export class EnvironmentManager {
     this.store = new EnvironmentStore(options.userDataDir);
     this.sshTunnelManager =
       options.sshTunnelManager ?? new SshEnvironmentManager({ payloadDirectory: options.payloadDirectory });
-    this.primaryStatus = options.hostManager.getStatus();
     this.primaryDescriptor = this.buildPrimaryDescriptor();
     if (options.onChanged) this.listeners.add(options.onChanged);
     for (const configuration of this.store.load()) this.register(configuration);
@@ -73,11 +69,12 @@ export class EnvironmentManager {
       for (const { configuration, supervisor } of this.environments.values()) {
         if (configuration.enabled) void supervisor.connect();
       }
-      this.notifyPrimaryStatus(this.options.hostManager.getStatus());
+      this.notifyPrimaryStatus();
     });
   }
 
   listEnvironments(): EnvironmentView[] {
+    const host = this.options.hostManager;
     const primary: EnvironmentView = {
       id: PRIMARY_ENVIRONMENT_ID,
       label: "Primary",
@@ -85,9 +82,9 @@ export class EnvironmentManager {
       target: { kind: "primary" },
       descriptor: this.primaryDescriptor,
       status:
-        this.primaryStatus === "ready"
-          ? { phase: "connected", generation: this.primaryGeneration, since: this.primarySince }
-          : this.primaryStatus === "starting"
+        host.getStatus() === "ready"
+          ? { phase: "connected", generation: host.getGeneration(), since: host.getReadySince()! }
+          : host.getStatus() === "starting"
             ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
             : { phase: "offline", lastFailure: null },
     };
@@ -268,7 +265,7 @@ export class EnvironmentManager {
       try {
         sender.postMessage(
           "desktop:host-port",
-          { environmentId: PRIMARY_ENVIRONMENT_ID, generation: this.primaryGeneration },
+          { environmentId: PRIMARY_ENVIRONMENT_ID, generation: this.options.hostManager.getGeneration() },
           [port1],
         );
       } catch (error) {
@@ -301,13 +298,8 @@ export class EnvironmentManager {
     for (const entry of this.environments.values()) entry.supervisor.wakeup(reason);
   }
 
-  notifyPrimaryStatus(status: HostStatus): void {
+  notifyPrimaryStatus(): void {
     if (this.disposed) return;
-    if (status === "ready" && (this.primaryStatus !== "ready" || this.primaryGeneration === 0)) {
-      this.primaryGeneration += 1;
-      this.primarySince = Date.now();
-    }
-    this.primaryStatus = status;
     this.primaryDescriptor = this.buildPrimaryDescriptor();
     this.emit();
   }

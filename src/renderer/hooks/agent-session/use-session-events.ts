@@ -96,8 +96,6 @@ export function useSessionEvents(context: Dependencies) {
   const restartNoticeRunRef = useRef<number | null>(null);
   const finishPromptWithoutStream = useCallback(
     async (sid: string | null = sessionIdRef.current, runId?: number) => {
-      // Bail out before loadSession too: a stale finish for a previous run
-      // must not overwrite the messages of the run currently streaming.
       if (runId !== undefined && promptRunIdRef.current !== runId) return;
       try {
         if (sid) await loadSession(sid);
@@ -147,26 +145,14 @@ export function useSessionEvents(context: Dependencies) {
     },
     [agentRunningRef, finishPromptWithoutStream, promptRunIdRef],
   );
-
-  // Reconcile client streaming state with the server. When stream events are
-  // missed (renderer suspension, backgrounded tab, or a restarted Host),
-  // agent_end never arrives and the UI stays in streaming state forever.
-  // If the server reports idle while we still think it's running, finish
-  // through the same path as prompt_done.
   const reconcileAgentState = useCallback(
     async (sid: string) => {
       if (!agentRunningRef.current) return;
       const runId = promptRunIdRef.current;
       try {
         const data = await agentState(sid);
-        // A slow response can straddle a run boundary (previous run finished
-        // and the user already started the next one while this request was in
-        // flight) — everything in it is stale, drop it.
         if (promptRunIdRef.current !== runId) return;
         const state = (data.state ?? undefined) as AgentStateResponse | undefined;
-        // Mirror compaction state unconditionally: a missed compaction_end
-        // would otherwise leave the "Stop compaction" UI stuck. No state
-        // (wrapper destroyed) means nothing is compacting.
         setIsCompacting(state?.isCompacting ?? false);
         setQueuedMessages(normalizeQueuedMessages(state?.queuedMessages));
         const busy = data.running && state && (state.isStreaming || state.isPromptRunning || state.isCompacting);
@@ -178,9 +164,7 @@ export function useSessionEvents(context: Dependencies) {
           if (state.extensionWidgets !== undefined) setExtensionWidgets(state.extensionWidgets ?? []);
         }
         await finishPromptWithoutStream(sid, runId);
-      } catch {
-        // Network still down — the next poll / visibility / online tick retries.
-      }
+      } catch {}
     },
     [
       agentRunningRef,
@@ -260,8 +244,6 @@ export function useSessionEvents(context: Dependencies) {
           dispatch({ type: "start" });
           break;
         case "agent_end":
-          // A late agent_end can arrive over the stream after reconcileAgentState
-          // already finished this run — don't re-trigger completion.
           if (!agentRunningRef.current) break;
           if (event.willRetry === true) {
             dispatch({ type: "reset" });
@@ -309,9 +291,6 @@ export function useSessionEvents(context: Dependencies) {
           });
           break;
         case "message_start": {
-          // Ignore streaming events arriving after this run already finished
-          // (e.g. stream data buffered while the tab was frozen, flushed after
-          // reconcile) — they would resurrect a ghost streaming bubble.
           if (!agentRunningRef.current) break;
           const msg = event.message as Partial<AgentMessage> | undefined;
           if (msg?.role === "user") break;
@@ -340,17 +319,10 @@ export function useSessionEvents(context: Dependencies) {
           break;
         }
         case "message_end": {
-          // Same late-event guard: after reconcile finished this run,
-          // loadSession already loaded this message from the session file —
-          // appending it again would duplicate it.
           if (!agentRunningRef.current) break;
           const completed = event.message as AgentMessage | undefined;
           const streamingEntryId = unsavedMessages.endStreaming();
           if (completed && completed.role === "user") {
-            // Delivered steering/follow-up messages surface here as user
-            // messages. The run's initial prompt also emits one, but handleSend
-            // already appended it optimistically. Consume only the still-adjacent
-            // optimistic bubble; later same-text queue deliveries must render.
             const delivered = normalizeToolCalls(completed);
             const deliveredKey = userMessageKey(delivered);
             const optimisticKey = optimisticUserMessageKeyRef.current;
@@ -369,9 +341,6 @@ export function useSessionEvents(context: Dependencies) {
             });
             unsavedMessages.awaitSave(questionEntryId);
           } else if (completed) {
-            // pi stamps event messages at their START; the event itself fires
-            // at completion. Stamp receive time so duration math (turn header,
-            // thinking rows) stays valid until the post-run session reload.
             const stamped = { ...normalizeToolCalls(completed), timestamp: Date.now() } as AgentMessage;
             const entryId = streamingEntryId ?? unsavedMessages.nextEntryId();
             updateHistory((current) => appendLocalHistoryMessage(current, stamped, entryId));
@@ -443,8 +412,6 @@ export function useSessionEvents(context: Dependencies) {
             setCompactResult(null);
           } else if (!event.aborted) {
             setCompactResult(readCompactResult(event.result, (event.reason as string | undefined) ?? "auto"));
-            // includeState refreshes the live usage too — right after a
-            // compaction pi reports it as unknown until the next response.
             if (sessionIdRef.current) void loadSession(sessionIdRef.current, false, true);
           }
           break;
@@ -485,6 +452,6 @@ export function useSessionEvents(context: Dependencies) {
     ],
   );
   handleAgentEventRef.current = handleAgentEvent;
-  return { waitForPromptSettlement };
+  return { waitForPromptSettlement, reconcileAgentState };
 }
 export type SessionEvents = ReturnType<typeof useSessionEvents>;

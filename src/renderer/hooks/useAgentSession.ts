@@ -37,16 +37,15 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const state = useSessionState(opts);
   const history = useSessionHistory(state, readingVisible);
   const deferredContent = useSessionDeferredContent({ ...state, ...history });
-  const connection = useSessionConnection({ ...state, ...history });
-  const extensions = useSessionExtensions({ ...state, ...history, ...connection }, opts);
+  const extensions = useSessionExtensions(state, opts);
   const events = useSessionEvents({
     ...state,
     ...history,
-    ...connection,
     ...extensions,
     readingVisibleRef,
     expansionStores: opts.expansionStores,
   });
+  const connection = useSessionConnection({ ...state, ...history, ...events });
   const actions = useSessionActions({ ...state, ...history, ...connection, ...extensions, ...events });
   const versions = useSessionVersions({ ...state, ...history, ...connection, ...extensions, ...events });
   const models = useSessionModels({ ...state, ...history, ...connection, ...extensions, ...events, ...actions });
@@ -208,7 +207,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   const dismissNotice = useCallback((id: string) => dispatchNotice({ type: "mark_exiting", id }), [dispatchNotice]);
   const dismissCompactResult = useCallback(() => setCompactResult(null), [setCompactResult]);
   return {
-    // State
     data,
     loading,
     error,
@@ -250,13 +248,11 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     isAutoModelSelection: isNew && newSessionModel === null,
     agentPhase,
     isNew,
-    // "Scroll to bottom" affordance state + action
     isAwayFromBottom,
     reattachAutoFollow,
     disengageAutoFollow,
     isFollowingSuspended,
     settleAtLatest,
-    // Refs
     sessionIdRef,
     eventUnsubRef,
     messagesEndRef,
@@ -265,7 +261,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     lastUserMsgRef,
     pendingScrollToUserRef,
     initialScrollDoneRef,
-    // Actions
     handleSend,
     handleAbort,
     handleFork,
@@ -293,7 +288,6 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     dispatch,
     setAgentRunning,
     setForkingEntryId,
-    // Subscriptions
     handleAgentEventRef,
   };
 }

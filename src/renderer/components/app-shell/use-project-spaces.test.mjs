@@ -1,9 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { remoteServer } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
+import { deferred, remoteServer } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
 import { api, mountProjectProbe } from "./project-spaces-test-harness.mjs";
 
 const spaceProps = { defaultSpace: null, currentProject: null, refreshKey: 0, onCloseCurrent() {} };
+const primaryServer = (generation) => ({
+  ...remoteServer("primary", { phase: "connected", generation, since: generation * 1000 }),
+  target: { kind: "primary" },
+});
+
+test("a CLOSED primary probe preserves presence and a new generation validates the directory again", async (t) => {
+  const pending = deferred();
+  const host = await mountProjectProbe(t, (props) => api.useProjectSpaces(props), {
+    servers: [primaryServer(1)],
+    props: spaceProps,
+    reply: (_id, method) => (method === "host.ping" ? { ok: true } : pending.promise),
+  });
+  const bridge = globalThis.window.piBridge;
+  bridge.getHostStatus = async () => "ready";
+  bridge.requestHostPort = () => bridge.requestEnvironmentPort("primary");
+  await host.run(({ workspaceStore }) =>
+    workspaceStore.noteCurrentProject({ environmentId: "primary", path: "/work/app" }, null),
+  );
+  const validationCount = () => host.requests.filter((request) => request.method === "system.validateCwd").length;
+  assert.equal(validationCount(), 1);
+  await host.run(() => api.resetRpc());
+  assert.equal(host.get().isMissing("/work/app"), false, "a closed connection cannot prove a directory is missing");
+  pending.resolve({ ok: true, path: "/work/app" });
+  host.setReply(() => ({ ok: false, reason: "missing", error: "Directory does not exist" }));
+  await host.changeServers([primaryServer(2)]);
+  assert.equal(validationCount(), 2, "the next primary generation must revalidate without a manual refresh");
+  assert.equal(host.get().isMissing("/work/app"), true);
+  host.setReply(() => ({ ok: true, path: "/work/app" }));
+  await host.changeServers([primaryServer(3)]);
+  assert.equal(validationCount(), 3);
+  assert.equal(host.get().isMissing("/work/app"), false);
+});
 
 test("deployment progress elsewhere does not repeatedly reauthorize an unchanged mounted project", async (t) => {
   const gpu = remoteServer("gpu");
@@ -147,3 +179,35 @@ test("a saved space whose server is absent cannot displace the mounted rows duri
     ["gpu", "staging"],
   );
 });
+
+for (const reason of ["denied", "io-error"]) {
+  test(`a primary ${reason} answer preserves the last confirmed presence until the next connected generation`, async (t) => {
+    const host = await mountProjectProbe(t, (props) => api.useProjectSpaces(props), {
+      servers: [primaryServer(1)],
+      props: spaceProps,
+      reply: () => ({ ok: false, reason, error: "Directory unavailable" }),
+    });
+    const bridge = globalThis.window.piBridge;
+    bridge.requestHostPort = () => bridge.requestEnvironmentPort("primary");
+    await host.run(({ workspaceStore }) =>
+      workspaceStore.noteCurrentProject({ environmentId: "primary", path: "/work/app" }, null),
+    );
+    assert.equal(host.get().isMissing("/work/app"), false);
+    host.setReply(() => ({ ok: false, reason: "not-directory", error: "Not a directory" }));
+    await host.changeServers([primaryServer(2)]);
+    assert.equal(host.get().isMissing("/work/app"), true);
+    host.setReply(() => ({ ok: false, reason, error: "Directory unavailable" }));
+    await host.changeServers([primaryServer(3)]);
+    assert.equal(
+      host.get().isMissing("/work/app"),
+      true,
+      "an unknown answer must not erase a confirmed missing result",
+    );
+    const beforeOffline = host.requests.length;
+    await host.changeServers([{ ...primaryServer(3), status: { phase: "offline", lastFailure: null } }]);
+    assert.equal(host.requests.length, beforeOffline, "an offline primary cannot authorize a directory");
+    host.setReply(() => ({ ok: true, path: "/work/app" }));
+    await host.changeServers([primaryServer(4)]);
+    assert.equal(host.get().isMissing("/work/app"), false);
+  });
+}

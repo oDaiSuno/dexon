@@ -40,6 +40,7 @@ import { AgentSessionWrapper } from "./agent-session/wrapper";
 import type { AgentSessionLike, ToolLoadoutReader } from "../shared/pi-types";
 import type { SessionLiveStatus } from "../shared/session-orchestration";
 import type { SessionEntry } from "../shared/types";
+import type { HostActivitySnapshot } from "../shared/host-protocol";
 export { getLegacySessionToolNames } from "./agent-session/compat";
 export type { AgentEvent, ExternalSessionCommand, OrchestratedTurnOutcome } from "./agent-session/types";
 export { renderToolchainSection, RunPolicy } from "./agent-session/run-policy";
@@ -48,6 +49,7 @@ export { AgentSessionWrapper } from "./agent-session/wrapper";
 const sessionRegistry = new Map<string, AgentSessionWrapper>();
 const startLocks = new Map<string, Promise<{ session: AgentSessionWrapper; realSessionId: string }>>();
 const runningListeners = new Set<(ids: string[]) => void>();
+const activityListeners = new Set<(activity: HostActivitySnapshot) => void>();
 let registryCleanupInstalled = false;
 
 function getRegistry(): Map<string, AgentSessionWrapper> {
@@ -110,10 +112,33 @@ export function subscribeSessionStatuses(listener: () => void): () => void {
   return subscribeRunningSessions(() => listener());
 }
 
+export function activitySnapshot(): HostActivitySnapshot {
+  return { running: getRunningRpcSessionIds(), starting: [...startLocks.keys()] };
+}
+
+export function subscribeActivity(listener: (activity: HostActivitySnapshot) => void): () => void {
+  activityListeners.add(listener);
+  listener(activitySnapshot());
+  return () => {
+    activityListeners.delete(listener);
+  };
+}
+
 let lastRunningSnapshot = "";
+let lastActivitySnapshot = "";
 
 export function notifyRunningChange(): void {
-  const ids = getRunningRpcSessionIds();
+  const activity = activitySnapshot();
+  const activityKey = JSON.stringify([[...activity.running].sort(), [...activity.starting].sort()]);
+  if (activityKey !== lastActivitySnapshot) {
+    lastActivitySnapshot = activityKey;
+    for (const listener of activityListeners) {
+      try {
+        listener(activity);
+      } catch {}
+    }
+  }
+  const ids = [...activity.running];
   const statuses = getRpcSessionStatuses();
   const snapshot = JSON.stringify([[...ids].sort(), Object.entries(statuses).sort()]);
   if (snapshot === lastRunningSnapshot) return;
@@ -151,6 +176,7 @@ export async function startRpcSession(
   if (inflight) return inflight;
 
   const starting = (async () => {
+    await new Promise<void>((resolve) => setImmediate(resolve));
     const agentDir = getAgentDir();
 
     const sessionManager = sessionFile
@@ -293,8 +319,12 @@ export async function startRpcSession(
     wrapper.beginExtensionBinding();
 
     return { session: wrapper, realSessionId };
-  })().finally(() => locks.delete(sessionId));
+  })().finally(() => {
+    locks.delete(sessionId);
+    notifyRunningChange();
+  });
 
   locks.set(sessionId, starting);
+  notifyRunningChange();
   return starting;
 }

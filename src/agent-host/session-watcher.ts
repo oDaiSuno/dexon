@@ -1,99 +1,123 @@
-import fs from "fs";
-import path from "path";
-import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import fs from "node:fs";
 import type { RpcServer } from "../contract/rpc";
 import { invalidateAllowedRootsCache, setAllowedRootsWatcherHealthy } from "./file-access";
 import { sessionIndex } from "./session-index";
+import { emitIndexDelta, type IndexChange } from "./session-index-delta";
 import { sessionsRoot as resolveSessionsRoot } from "./session-dir";
-import { classifySessionWatchChange, didSessionRootsChange } from "./session-watch-policy";
+import { classifySessionWatchChange } from "./session-watch-policy";
+
+const DEBOUNCE_MS = 300;
+const MAX_WAIT_MS = 1000;
+const UNKNOWN_REFRESH_INTERVAL_MS = 5000;
+const REARM_BACKOFF_MS = [1000, 5000, 30_000];
 
 export function startSessionWatcher(server: RpcServer): () => void {
-  let agentDir: string;
-  try {
-    agentDir = getAgentDir();
-  } catch {
-    return () => {};
-  }
-
-  if (!fs.existsSync(agentDir)) {
-    try {
-      fs.mkdirSync(agentDir, { recursive: true });
-    } catch {
-      return () => {};
-    }
-  }
-
-  const sessionsRoot = resolveSessionsRoot(agentDir);
-  const changedPaths = new Set<string>();
-  let fullRefreshRequired = false;
+  const root = resolveSessionsRoot();
+  const files = new Set<string>();
+  const subtrees = new Set<string>();
+  let unknownPending = false;
+  let lastUnknownAt = -Infinity;
+  let stopped = false;
+  let firstPendingAt: number | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  const debounce = (changedPath?: string) => {
-    if (changedPath) changedPaths.add(changedPath);
-    else fullRefreshRequired = true;
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      void (async () => {
-        timer = null;
-        try {
-          const pendingPaths = [...changedPaths];
-          changedPaths.clear();
-          const shouldRefreshAll = fullRefreshRequired;
-          fullRefreshRequired = false;
-          if (shouldRefreshAll) {
-            invalidateAllowedRootsCache();
-            await sessionIndex.refreshAll();
-            server.emit("sessions.changed", "*", { cwd: null, fullRefresh: true });
-            return;
-          }
-          for (const filePath of pendingPaths) {
-            const previous = sessionIndex.getByPath(filePath);
-            const session = await sessionIndex.refreshPath(filePath);
-            if (didSessionRootsChange(previous, session)) invalidateAllowedRootsCache();
-            if (session) {
-              server.emit("sessions.changed", session.id, { cwd: session.cwd, sessionId: session.id, session });
-            } else if (previous) {
-              server.emit("sessions.changed", previous.id, {
-                cwd: previous.cwd,
-                sessionId: previous.id,
-                deleted: true,
-              });
-            } else {
-              server.emit("sessions.changed", "*", { cwd: null, fullRefresh: true });
-            }
-          }
-        } catch (error) {
-          invalidateAllowedRootsCache();
-          console.error("[agent-host] session watcher refresh failed:", error);
-          server.emit("sessions.changed", "*", { cwd: null, fullRefresh: true });
-        }
-      })();
-    }, 300);
+  let watcher: fs.FSWatcher | null = null;
+  let rearmTimer: ReturnType<typeof setTimeout> | null = null;
+  let rearmAttempts = 0;
+
+  const flush = async () => {
+    timer = null;
+    firstPendingAt = null;
+    const takeUnknown = unknownPending && Date.now() - lastUnknownAt >= UNKNOWN_REFRESH_INTERVAL_MS;
+    if (takeUnknown) lastUnknownAt = Date.now();
+    const changes: IndexChange[] = [
+      ...[...files].map((filePath) => ({ kind: "file" as const, path: filePath })),
+      ...[...subtrees].map((dir) => ({ kind: "subtree" as const, dir })),
+      ...(takeUnknown ? [{ kind: "unknown" as const }] : []),
+    ];
+    files.clear();
+    subtrees.clear();
+    if (takeUnknown) unknownPending = false;
+    if (unknownPending) schedule();
+    if (changes.length === 0) return;
+    try {
+      const delta = await sessionIndex.apply(changes);
+      if (!stopped) emitIndexDelta(server, delta);
+    } catch (error) {
+      invalidateAllowedRootsCache();
+      console.error("[agent-host] session watcher refresh failed:", error);
+      if (!stopped) emitIndexDelta(server, { changes: [], fullRefresh: true });
+    }
   };
 
-  let watcher: fs.FSWatcher | null = null;
-  try {
-    watcher = fs.watch(agentDir, { recursive: true }, (_event, filename) => {
-      const change = classifySessionWatchChange(agentDir, sessionsRoot, filename);
-      if (change.kind === "refresh-path") debounce(change.path);
-      else if (change.kind === "refresh-all") debounce();
-    });
-    watcher.on("error", (err) => {
-      console.error("[agent-host] session watcher error:", err);
-      setAllowedRootsWatcherHealthy(false);
-      invalidateAllowedRootsCache();
-    });
-    setAllowedRootsWatcherHealthy(true);
-  } catch (err) {
-    console.error("[agent-host] session watcher failed:", err);
-  }
+  const schedule = () => {
+    if (timer) clearTimeout(timer);
+    firstPendingAt ??= Date.now();
+    let delay = Math.min(DEBOUNCE_MS, Math.max(0, firstPendingAt + MAX_WAIT_MS - Date.now()));
+    if (unknownPending && files.size === 0 && subtrees.size === 0) {
+      delay = Math.max(delay, lastUnknownAt + UNKNOWN_REFRESH_INTERVAL_MS - Date.now());
+    }
+    timer = setTimeout(() => {
+      void flush();
+    }, delay);
+  };
+
+  const rearm = () => {
+    if (stopped || rearmTimer) return;
+    const delay = REARM_BACKOFF_MS[Math.min(rearmAttempts++, REARM_BACKOFF_MS.length - 1)];
+    rearmTimer = setTimeout(() => {
+      rearmTimer = null;
+      arm();
+    }, delay);
+  };
+
+  const failed = (error: unknown) => {
+    console.error("[agent-host] session watcher failed:", error);
+    setAllowedRootsWatcherHealthy(false);
+    invalidateAllowedRootsCache();
+    emitIndexDelta(server, { changes: [], fullRefresh: true });
+    rearm();
+  };
+
+  const arm = () => {
+    try {
+      fs.mkdirSync(root, { recursive: true });
+      const candidate = fs.watch(root, { recursive: true }, (_event, filename) => {
+        if (stopped) return;
+        const change = classifySessionWatchChange(root, filename);
+        if (change.kind === "ignore") return;
+        if (change.kind === "file") files.add(change.path);
+        else if (change.kind === "subtree") subtrees.add(change.dir);
+        else unknownPending = true;
+        schedule();
+      });
+      watcher = candidate;
+      candidate.on("error", (error) => {
+        if (stopped || watcher !== candidate) return;
+        watcher = null;
+        candidate.close();
+        failed(error);
+      });
+      setAllowedRootsWatcherHealthy(true);
+      if (rearmAttempts > 0) {
+        unknownPending = true;
+        schedule();
+      }
+      rearmAttempts = 0;
+    } catch (error) {
+      failed(error);
+    }
+  };
+  arm();
 
   return () => {
+    stopped = true;
     if (timer) clearTimeout(timer);
+    if (rearmTimer) clearTimeout(rearmTimer);
     watcher?.close();
     setAllowedRootsWatcherHealthy(false);
   };
 }
 
 export function agentSessionsPath(): string {
-  return path.join(getAgentDir());
+  return resolveSessionsRoot();
 }

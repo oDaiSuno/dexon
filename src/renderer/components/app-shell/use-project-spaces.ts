@@ -5,6 +5,7 @@ import { canMoveProjectSpace, withDefaultSpace } from "@/lib/project-spaces";
 import { projectKeyOf, type ProjectKey, type ProjectSpaceRef } from "@shared/project-space-state";
 import { workspaceStore, type MountedSpace } from "@/lib/workspace-store";
 import { useEnvironments } from "@/lib/environment-registry";
+import { mergeMissing, probePresence } from "@/lib/project-presence";
 
 export interface ProjectSpaces {
   spaces: readonly MountedSpace[];
@@ -38,7 +39,7 @@ export function useProjectSpaces({
     workspaceStore.getSnapshot,
   );
   const environments = useEnvironments();
-  const [missing, setMissing] = useState<ReadonlySet<string>>(() => new Set());
+  const [missing, setMissing] = useState<ReadonlySet<ProjectKey>>(() => new Set());
   const closingRef = useRef<ProjectKey | null>(null);
   useEffect(() => {
     if (window.piBridge) void workspaceStore.initialize(window.piBridge);
@@ -81,25 +82,14 @@ export function useProjectSpaces({
     const views = new Map(environmentViews.current.map((view) => [view.id, view]));
     const targets: ProjectSpaceRef[] = JSON.parse(validationTargetsKey);
     void Promise.all(
-      targets.map(async (space) => {
-        const key = projectKeyOf(space);
-        const view = views.get(space.environmentId);
-        if (space.environmentId !== PRIMARY_ENVIRONMENT_ID && view?.status.phase !== "connected")
-          return { key, missing: null };
-        try {
-          const result = await getEnvironmentApiClient(space.environmentId).validateCwd(space.path);
-          return { key, missing: !result.ok };
-        } catch {
-          return { key, missing: space.environmentId === PRIMARY_ENVIRONMENT_ID ? true : null };
-        }
-      }),
+      targets.map((space) =>
+        probePresence(space, views.get(space.environmentId), (path) =>
+          getEnvironmentApiClient(space.environmentId).validateCwd(path),
+        ),
+      ),
     ).then((checked) => {
       if (cancelled) return;
-      setMissing((previous) => {
-        const next = new Set<string>();
-        for (const result of checked) if (result.missing ?? previous.has(result.key)) next.add(result.key);
-        return next;
-      });
+      setMissing((previous) => mergeMissing(previous, checked));
     });
     return () => {
       cancelled = true;

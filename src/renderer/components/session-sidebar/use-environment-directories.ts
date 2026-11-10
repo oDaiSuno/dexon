@@ -61,11 +61,6 @@ export function useEnvironmentDirectories({
     }
   }, [environments, activeEnvironment.id, selectedSessionId, refreshKey]);
 
-  useEffect(
-    () =>
-      window.piBridge?.onHostRestarted?.(() => controllers.current.get(PRIMARY_ENVIRONMENT_ID)?.directory.restart()),
-    [],
-  );
   useEffect(() => {
     const current = controllers.current;
     return () => {

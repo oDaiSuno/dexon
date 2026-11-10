@@ -15,10 +15,17 @@ export function announceSavedMessage(
   sessionManager: LeafReaderLike,
   message: unknown,
   emit: (event: AgentEvent) => void,
+  onSaved?: () => void,
 ): void {
   queueMicrotask(() => {
     const entryId = savedEntryId(sessionManager, message);
-    if (entryId !== null) emit({ type: "message_saved", entryId });
+    if (entryId === null) return;
+    try {
+      onSaved?.();
+    } catch (error) {
+      console.error("[agent-host] failed to record saved session hint:", error);
+    }
+    emit({ type: "message_saved", entryId });
   });
 }
 

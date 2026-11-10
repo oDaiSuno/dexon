@@ -34,6 +34,7 @@ export default defineConfig([
     entry: {
       "agent-host": "src/agent-host/index.ts",
       "plugin-worker": "src/agent-host/plugin-worker.ts",
+      "model-catalog-worker": "src/agent-host/model-catalog/catalog-worker.ts",
       "managed-process-worker": "src/agent-host/managed-process/worker.ts",
     },
     format: ["esm"],

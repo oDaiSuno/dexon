@@ -1,6 +1,6 @@
-import { subscribeSessionsChanged } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
-import { useEffect, type MutableRefObject } from "react";
+import { useEffect, useRef, type MutableRefObject } from "react";
 import { EventStreamConnectionError, normalizeQueuedMessages } from "./shared";
 import type { SessionActions } from "./use-session-actions";
 import type { SessionConnection } from "./use-session-connection";
@@ -8,14 +8,10 @@ import type { SessionEvents } from "./use-session-events";
 import type { SessionHistory } from "./use-session-history";
 import type { SessionState } from "./use-session-state";
 
-/**
- * Runtime lifecycle of one mounted session: the mount-only subscription and
- * load, live-state restoration, and the outward state reports. Visual and
- * input wiring lives in use-session-reading so page visibility can pause the
- * reading branch without ever pausing this runtime.
- */
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
+  | "eventUnsubRef"
   | "historyGenerationRef"
   | "historyRevisionRef"
   | "previousCursorRef"
@@ -59,51 +55,59 @@ type Dependencies = Pick<
   };
 
 export function useSessionLifecycle(context: Dependencies) {
+  const mountContext = useRef(context);
   const {
-    historyGenerationRef,
-    historyRevisionRef,
-    previousCursorRef,
-    commitHistory,
-    olderRequestRef,
-    deferredContentCacheRef,
-    deferredContentRequestRef,
-    setHistoryRevision,
-    setPreviousCursor,
-    setLoadingOlder,
-    setOlderOutline,
-    session,
-    sessionChangeIgnoreScrollUntilRef,
-    sessionIdRef,
-    connectEvents,
-    loadSession,
+    environmentId,
+    eventUnsubRef,
     agentRunningRef,
-    setAgentRunning,
-    setAgentPhase,
-    dispatch,
-    waitForPromptSettlement,
-    setIsCompacting,
-    setContextUsage,
-    setSystemPrompt,
-    modelChoice,
-    snapshotOrder,
-    setExtensionStatuses,
-    setExtensionWidgets,
-    setQueuedMessages,
-    eventConnectionManager,
+    session,
+    loadSession,
     onSystemPromptChange,
     systemPrompt,
     onBranchDataChange,
     data,
     activeLeafId,
-    unsavedMessages,
     handleLeafChangeFromUi,
     readingVisible,
     readingVisibleRef,
     visualFrameIdsRef,
   } = context;
 
-  // Load session on mount
   useEffect(() => {
+    const {
+      historyGenerationRef,
+      historyRevisionRef,
+      previousCursorRef,
+      commitHistory,
+      olderRequestRef,
+      deferredContentCacheRef,
+      deferredContentRequestRef,
+      setHistoryRevision,
+      setPreviousCursor,
+      setLoadingOlder,
+      setOlderOutline,
+      session,
+      sessionChangeIgnoreScrollUntilRef,
+      sessionIdRef,
+      connectEvents,
+      loadSession,
+      agentRunningRef,
+      setAgentRunning,
+      setAgentPhase,
+      dispatch,
+      waitForPromptSettlement,
+      setIsCompacting,
+      setContextUsage,
+      setSystemPrompt,
+      modelChoice,
+      snapshotOrder,
+      setExtensionStatuses,
+      setExtensionWidgets,
+      setQueuedMessages,
+      eventConnectionManager,
+      unsavedMessages,
+      visualFrameIdsRef,
+    } = mountContext.current;
     let disposed = false;
     let unsubscribeEvents: (() => void) | undefined;
     const frameIds = visualFrameIdsRef.current;
@@ -121,10 +125,6 @@ export function useSessionLifecycle(context: Dependencies) {
     if (session) {
       sessionChangeIgnoreScrollUntilRef.current = Date.now() + 1500;
       sessionIdRef.current = session.id;
-
-      // Subscribe even when the session is currently idle. IM turns can start
-      // without a desktop prompt, so waiting for agentState.running would miss
-      // the entire external turn until this component is remounted.
       void connectEvents(session.id)
         .then((result) => {
           if (result.status !== "connected") throw new EventStreamConnectionError(result.status);
@@ -180,7 +180,6 @@ export function useSessionLifecycle(context: Dependencies) {
       unsubscribeEvents?.();
       eventConnectionManager.invalidate();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- session identity owns this lifecycle effect.
   }, []);
 
   const liveSessionId = session?.id ?? null;
@@ -188,11 +187,16 @@ export function useSessionLifecycle(context: Dependencies) {
     if (!liveSessionId) return;
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void subscribeSessionsChanged((event) => {
-      // includeState so externally-driven turns (messaging channels)
-      // also refresh the context usage, not just the message list.
-      if (!disposed && event.sessionId === liveSessionId) void loadSession(liveSessionId, false, true);
-    })
+    const reload = () => {
+      if (!disposed) void loadSession(liveSessionId, false, true);
+    };
+    void getEnvironmentApiClient(environmentId)
+      .subscribeSessionsChanged((event) => {
+        if (event.sessionId !== liveSessionId) return;
+        const eventsAttached = eventUnsubRef.current !== null;
+        if (event.cause === "live-append" && agentRunningRef.current && eventsAttached) return;
+        reload();
+      }, reload)
       .then((off) => {
         if (disposed) off();
         else unsubscribe = off;
@@ -204,7 +208,7 @@ export function useSessionLifecycle(context: Dependencies) {
       disposed = true;
       unsubscribe?.();
     };
-  }, [liveSessionId, loadSession]);
+  }, [environmentId, liveSessionId, loadSession, agentRunningRef, eventUnsubRef]);
 
   useEffect(() => {
     readingVisibleRef.current = readingVisible;

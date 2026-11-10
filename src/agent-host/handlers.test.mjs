@@ -227,6 +227,7 @@ test("file, git, worktree, skill, plugin, and system handlers return contract-sh
   assert.deepEqual(await handlers["system.validateCwd"]({ path: project }), { ok: true, path: project });
   assert.deepEqual(await handlers["system.validateCwd"]({ path: outsideFile }), {
     ok: false,
+    reason: "not-directory",
     error: "Not a directory",
   });
   await assert.rejects(

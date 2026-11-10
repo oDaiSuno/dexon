@@ -4,6 +4,7 @@ import type { AgentSessionLike, ToolLoadoutReader } from "../../shared/pi-types"
 import type { SessionLiveStatus, SessionSourceRef } from "../../shared/session-orchestration";
 import type { AgentMessage, ChannelMessageAttachment } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
+import { sessionIndex } from "../session-index";
 import { setBrowserSessionSource } from "../browser-tools";
 import { toDisplayEvent } from "../display-message";
 import { projectExtensionDiagnostics } from "../extension-diagnostics";
@@ -57,6 +58,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
   private externalTurnAttachments: ChannelMessageAttachment[] | null = null;
   private externalTurnProgress: ((event: AgentEvent) => void) | null = null;
   private unsubscribe: (() => void) | null = null;
+  private forgetSavedHint: (() => void) | null = null;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
   private destroyCallbacks = new Set<() => void>();
   private disposePromise: Promise<void> | null = null;
@@ -160,9 +162,18 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       const displayEvent = this.withMessageSources(this.blockTiming.observe(event));
       this.emit(displayEvent);
       if (event.type === "message_end") {
-        announceSavedMessage(this.inner.sessionManager, event.message, (saved) => {
-          if (this._alive) this.emit(saved);
-        });
+        announceSavedMessage(
+          this.inner.sessionManager,
+          event.message,
+          (saved) => {
+            if (this._alive) this.emit(saved);
+          },
+          () => {
+            if (!this._alive || !this.sessionFile) return;
+            this.forgetSavedHint?.();
+            this.forgetSavedHint = sessionIndex.recordSavedSession(this.sessionFile, this.inner.sessionManager);
+          },
+        );
       }
       try {
         this.externalTurnProgress?.(displayEvent);
@@ -420,6 +431,8 @@ export class AgentSessionWrapper extends SessionExtensionUi {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.unsubscribe?.();
     this.unsubscribe = null;
+    this.forgetSavedHint?.();
+    this.forgetSavedHint = null;
     this.uiRequests.destroy();
     this.listeners = [];
     const destroyCallbacks = [...this.destroyCallbacks];

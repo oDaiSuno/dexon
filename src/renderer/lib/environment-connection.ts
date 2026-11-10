@@ -1,9 +1,12 @@
-import { createRpcClient, type PiRpc, type RpcClientPort } from "@contract/rpc";
+import { createRpcClient, isTransportFailure, type PiRpc, type RpcClientPort } from "@contract/rpc";
+import { RpcError } from "@contract/types";
 import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "@contract/api";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId, type EnvironmentStatus } from "@contract/environment";
 import type { DefaultThinkingLevel } from "@contract/types";
 import type { SessionInfo } from "./types";
 import { requestEnvironmentPort } from "./environment-port";
+
+const HOST_READY_TIMEOUT_MS = 30_000;
 
 type LogicalSubscription = {
   topic: StreamTopic;
@@ -55,6 +58,7 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
   updateStatus(status: EnvironmentStatus): void {
     const previous = this.status;
     this.status = status;
+    if (this.pending && this.isPrimaryBootstrap()) return;
     if (status.phase !== "connected") {
       if (this.rpc || this.pending) this.reset();
       return;
@@ -69,29 +73,36 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
   ensureRpc(): Promise<PiRpc> {
     if (this.rpc) return Promise.resolve(this.rpc);
     if (this.pending) return this.pending;
-    if (
-      this.environmentId !== PRIMARY_ENVIRONMENT_ID &&
-      this.status.phase !== "connected" &&
-      this.status.phase !== "available"
-    ) {
-      return Promise.reject(new Error("Environment is not connected"));
+    const canConnect =
+      this.status.phase === "connected" || this.status.phase === "available" || this.isPrimaryBootstrap();
+    if (!canConnect) {
+      return Promise.reject(new RpcError({ code: "DISCONNECTED", message: "Environment is not connected" }));
     }
     const epoch = this.epoch;
-    const expectedGeneration = this.status.phase === "connected" ? this.status.generation : undefined;
     const controller = new AbortController();
     this.controller = controller;
-    const pending = requestEnvironmentPort(this.environmentId, controller.signal, expectedGeneration).then(
-      ({ port, generation }) => {
-        if (
-          epoch !== this.epoch ||
-          (generation !== undefined && expectedGeneration !== undefined && generation !== expectedGeneration)
-        ) {
-          port.close();
-          throw new Error("Environment connection was superseded");
-        }
-        return this.replacePort(port, generation ?? expectedGeneration ?? 0);
-      },
-    );
+    const pending = (async () => {
+      if (this.environmentId === PRIMARY_ENVIRONMENT_ID) await this.waitForPrimaryReady(controller.signal);
+      if (epoch !== this.epoch) throw new RpcError({ code: "DISCONNECTED", message: "Connection was superseded" });
+      const expectedGeneration = this.status.phase === "connected" ? this.status.generation : undefined;
+      const { port, generation } = await requestEnvironmentPort(
+        this.environmentId,
+        controller.signal,
+        expectedGeneration,
+      );
+      const currentGeneration = this.status.phase === "connected" ? this.status.generation : expectedGeneration;
+      if (
+        epoch !== this.epoch ||
+        (generation !== undefined && currentGeneration !== undefined && generation !== currentGeneration)
+      ) {
+        port.close();
+        throw new RpcError({ code: "DISCONNECTED", message: "Environment connection was superseded" });
+      }
+      return this.replacePort(port, generation ?? currentGeneration ?? 0);
+    })().catch((error: unknown) => {
+      if (isTransportFailure(error)) throw error;
+      throw new RpcError({ code: "DISCONNECTED", message: error instanceof Error ? error.message : String(error) });
+    });
     this.pending = pending;
     void pending
       .finally(() => {
@@ -101,6 +112,52 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
       })
       .catch(() => {});
     return pending;
+  }
+
+  private isPrimaryBootstrap(): boolean {
+    return this.environmentId === PRIMARY_ENVIRONMENT_ID && !this.connectedBefore;
+  }
+
+  private async waitForPrimaryReady(signal: AbortSignal): Promise<void> {
+    const bridge = typeof window === "undefined" ? undefined : window.piBridge;
+    if (!bridge) throw new RpcError({ code: "DISCONNECTED", message: "piBridge is unavailable" });
+    if (typeof bridge.getHostStatus !== "function") return;
+    const status = await bridge.getHostStatus();
+    if (signal.aborted) throw new RpcError({ code: "DISCONNECTED", message: "Environment connection was cancelled" });
+    if (status === "ready") return;
+    if (status === "crashed")
+      throw new RpcError({ code: "DISCONNECTED", message: "Agent Host crashed before UI connected" });
+    await new Promise<void>((resolve, reject) => {
+      let off = () => {};
+      const cleanup = () => {
+        clearTimeout(timer);
+        off();
+        signal.removeEventListener("abort", onAbort);
+      };
+      const onAbort = () => {
+        cleanup();
+        reject(new RpcError({ code: "DISCONNECTED", message: "Environment connection was cancelled" }));
+      };
+      const accept = (next: string, detail?: string) => {
+        if (next !== "ready" && next !== "crashed") return;
+        cleanup();
+        if (next === "ready") resolve();
+        else reject(new RpcError({ code: "DISCONNECTED", message: detail || "Agent Host crashed" }));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new RpcError({ code: "TIMEOUT", message: "Agent Host not ready" }));
+      }, HOST_READY_TIMEOUT_MS);
+      off = bridge.onHostStatus?.((next) => accept(next.status, next.detail)) ?? off;
+      signal.addEventListener("abort", onAbort, { once: true });
+      void bridge.getHostStatus().then(
+        (next) => accept(next),
+        (error: unknown) => {
+          cleanup();
+          reject(error);
+        },
+      );
+    });
   }
 
   replacePort(port: RpcClientPort, generation: number = this.generation + 1): PiRpc {
@@ -147,6 +204,8 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
   close(): void {
     this.reset();
     this.subscriptions.clear();
+    this.connectedBefore = false;
+    this.recoveryNeeded = false;
   }
 
   async call<M extends ApiMethod>(

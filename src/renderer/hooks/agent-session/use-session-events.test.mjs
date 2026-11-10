@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react-test-renderer";
+import { installPrimaryHost } from "./primary-host-test-fixture.mjs";
 
 import {
   createReadingSurface,
@@ -47,8 +48,10 @@ function trackHiddenGeometry(container) {
   };
 }
 
-/** Mounts one fixture session with a plain scroll surface and settles it. */
-async function mountedSession(t, { hostOverrides = {}, hookOptions = {}, bundleName = "session-events" } = {}) {
+async function mountedSession(
+  t,
+  { hostOverrides = {}, hookOptions = {}, bundleName = "session-events", primary = false } = {},
+) {
   const detail = createSessionDetail("s-1");
   const host = createSessionTestHost({ getSession: async () => detail, ...hostOverrides });
   const h = await createSessionHookHarness(t, {
@@ -56,10 +59,19 @@ async function mountedSession(t, { hostOverrides = {}, hookOptions = {}, bundleN
     host,
     attach: surfaceAttach(createReadingSurface()),
   });
+  const primaryHost = primary
+    ? installPrimaryHost(globalThis.window, {
+        "sessions.get": () => detail,
+        "agent.state": () => host.agentState("s-1"),
+        "models.list": () => host.listModels(),
+        "agent.command": (params) => host.sendAgentCommand(params.sessionId, params.command),
+      })
+    : null;
+  if (primaryHost) t.after(() => primaryHost.close());
   await h.mount({ session: detail.info, newSessionCwd: null, ...hookOptions });
   await h.flush();
   await h.env.flushRafUntilSettled();
-  return { h, host, detail };
+  return { h, host, detail, primaryHost };
 }
 
 test("agent_start and agent_end drive the run lifecycle and refresh from the host", async (t) => {
@@ -96,7 +108,6 @@ test("agent_start and agent_end drive the run lifecycle and refresh from the hos
 });
 
 test("a late agent_end after the reconcile finish must not trigger completion twice", async (t) => {
-  // Mocks must be enabled before mounting so every production timer goes through them.
   t.mock.timers.enable({ apis: ["setTimeout", "setInterval"] });
   const onAgentEnd = [];
   const { h } = await mountedSession(t, {
@@ -422,8 +433,6 @@ test("a reconcile response for a superseded run is dropped entirely", async (t) 
   });
   await h.flush();
   assert.equal(onAgentEnd.length, 0, "the slow poll has not finished anything yet");
-
-  // Run A ends and a new run B supersedes it while the poll is still in flight.
   h.emit({ type: "agent_end" });
   await h.flush();
   await h.act(async () => {
@@ -436,4 +445,27 @@ test("a reconcile response for a superseded run is dropped entirely", async (t) 
   await h.flush();
   assert.equal(h.state.agentRunning, true, "the stale poll answer for run A cannot finish run B");
   assert.equal(onAgentEnd.length, 1, "only run A's agent_end notified; the stale poll leaked nothing");
+});
+
+test("a primary stream gap reconciles a missed agent_end immediately without waiting for a poll", async (t) => {
+  const completed = [];
+  const { h, primaryHost } = await mountedSession(t, {
+    primary: true,
+    hostOverrides: { agentState: async () => ({ running: false, state: {} }) },
+    hookOptions: { onAgentEnd: () => completed.push("ended") },
+  });
+  await h.act(() => primaryHost.emit("agent.events", "s-1", { type: "agent_start" }));
+  await h.flush();
+  assert.equal(h.state.agentRunning, true);
+  await h.act(() => {
+    primaryHost.publish(1, false);
+    primaryHost.publish(2);
+  });
+  await h.flush();
+  await h.flush();
+  assert.equal(h.state.agentRunning, false, "the gap must reconcile the missing end event immediately");
+  assert.equal(h.state.streamState.isStreaming, false);
+  assert.deepEqual(completed, ["ended"]);
+  assert.ok(primaryHost.requests.some((entry) => entry.generation === 2 && entry.method === "agent.state"));
+  assert.ok(primaryHost.requests.some((entry) => entry.generation === 2 && entry.method === "sessions.get"));
 });

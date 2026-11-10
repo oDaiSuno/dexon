@@ -2,6 +2,7 @@ import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { performance } from "node:perf_hooks";
 import path from "node:path";
 import test from "node:test";
 import { clearImmediate } from "node:timers";
@@ -25,11 +26,13 @@ const { SessionIndex, sessionIndex, listAllSessions, invalidateAllowedRootsCache
     },
   });
 const cachePath = path.join(fixtureRoot, "desktop", "session-index-cache.json");
+const journalPath = path.join(path.dirname(cachePath), "session-index.v2.jsonl");
 
 test.beforeEach(() => {
   rmSync(sessionsRoot, { recursive: true, force: true });
   mkdirSync(path.join(sessionsRoot, "project"), { recursive: true });
   rmSync(cachePath, { force: true });
+  rmSync(journalPath, { force: true });
   setAllowedRootsWatcherHealthy(false);
   invalidateAllowedRootsCache();
 });
@@ -168,7 +171,7 @@ test("a file appended during parsing is retried before its info is committed", a
   assert.equal(index.getMetrics().invalidFiles, 0);
 });
 
-test("skill session previews match in the index and when the index is unavailable", async (t) => {
+test("skill session previews match in the index and session listing", async () => {
   const expanded = '<skill name="fast-context" location="/x/SKILL.md">\nSkill body\n</skill>\n\n帮我梳理架构';
   writeSession("skill-preview", { message: expanded });
   const index = new SessionIndex();
@@ -178,15 +181,79 @@ test("skill session previews match in the index and when the index is unavailabl
     "/skill:fast-context 帮我梳理架构",
   );
 
-  t.mock.method(SessionIndex.prototype, "refreshAll", async () => {
-    throw new Error("Index unavailable");
-  });
-  t.mock.method(console, "error", () => {});
-  const fallback = await listAllSessions();
+  const sessions = await listAllSessions();
   assert.equal(
-    fallback.find((session) => session.id === "skill-preview").firstMessage,
+    sessions.find((session) => session.id === "skill-preview").firstMessage,
     "/skill:fast-context 帮我梳理架构",
   );
+});
+
+test("one changed session among 3463 cached records appends one journal line within its latency budget", async (t) => {
+  const filePath = writeSession("incremental");
+  const { statSync } = await import("node:fs");
+  const stat = statSync(filePath);
+  const records = {};
+  for (let index = 0; index < 3463; index += 1) {
+    const currentPath = index === 0 ? filePath : path.join(sessionsRoot, "project", `synthetic-${index}.jsonl`);
+    records[currentPath] = {
+      filePath: currentPath,
+      fingerprint: { size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino },
+      info: {
+        path: currentPath,
+        id: index === 0 ? "incremental" : `synthetic-${index}`,
+        cwd: projectRoot,
+        created: "2026-08-06T00:00:00.000Z",
+        modified: "2026-08-06T00:00:00.000Z",
+        messageCount: 1,
+        firstMessage: "cached",
+      },
+      valid: true,
+    };
+  }
+  mkdirSync(path.dirname(cachePath), { recursive: true });
+  const legacy = JSON.stringify({ version: 1, records });
+  writeFileSync(cachePath, legacy);
+  const index = new SessionIndex();
+  await index.refreshPath(filePath);
+  assert.equal(index.getById("synthetic-3462").firstMessage, "cached");
+  const stringify = JSON.stringify;
+  let serializationMs = 0;
+  let serializedRecords = 0;
+  t.mock.method(JSON, "stringify", (value, ...args) => {
+    const started = performance.now();
+    const result = stringify(value, ...args);
+    if (value?.op === "put") {
+      serializationMs += performance.now() - started;
+      serializedRecords += 1;
+    }
+    return result;
+  });
+  const samples = [];
+  for (let sample = 0; sample < 5; sample += 1) {
+    const before = readFileSync(journalPath, "utf8");
+    const name = `changed-${sample}`;
+    appendFileSync(
+      filePath,
+      `${JSON.stringify({ type: "session_info", id: name, parentId: "incremental-user", timestamp: "2026-08-07T00:00:00.000Z", name })}\n`,
+    );
+    serializationMs = 0;
+    serializedRecords = 0;
+    const started = performance.now();
+    assert.equal((await index.refreshPath(filePath)).name, name);
+    const elapsed = performance.now() - started;
+    const after = readFileSync(journalPath, "utf8");
+    assert.ok(after.startsWith(before));
+    const appended = after.slice(before.length).trim().split("\n").map(JSON.parse);
+    assert.equal(appended.length, 1);
+    assert.equal(appended[0].op, "put");
+    assert.equal(appended[0].r.info.name, name);
+    assert.equal(serializedRecords, 1);
+    assert.ok(serializationMs < 25, `single-record serialization took ${serializationMs} ms`);
+    assert.ok(elapsed < 200, `single-file refresh took ${elapsed} ms`);
+    samples.push({ elapsed, serializationMs });
+  }
+  t.diagnostic(JSON.stringify(samples));
+  assert.equal(readFileSync(cachePath, "utf8"), legacy);
 });
 
 test("a restarted index reuses persisted summaries and removes externally deleted sessions from its cache", async () => {
@@ -203,42 +270,32 @@ test("a restarted index reuses persisted summaries and removes externally delete
   await restored.refreshAll();
   assert.equal(restored.getMetrics().filesParsed, 0, "unchanged histories are not parsed after restart");
   assert.equal(restored.getMetrics().filesReused, 2, "both persisted fingerprints are reused");
+  const rows = await restored.getAll();
   assert.deepEqual(
-    (await restored.getAll()).map(({ id, path, cwd, firstMessage, messageCount, parentSessionId, projectRoot }) => ({
-      id,
-      path,
-      cwd,
-      firstMessage,
-      messageCount,
-      parentSessionId,
-      projectRoot,
-    })),
+    rows.map(({ id, path, parentSessionId }) => [id, path, parentSessionId]),
     [
-      {
-        id: "cached-child",
-        path: childPath,
-        cwd: projectRoot,
-        firstMessage: "cached-child",
-        messageCount: 1,
-        parentSessionId: "cached-parent",
-        projectRoot,
-      },
-      {
-        id: "cached-parent",
-        path: parentPath,
-        cwd: projectRoot,
-        firstMessage: "cached-parent",
-        messageCount: 1,
-        parentSessionId: undefined,
-        projectRoot,
-      },
+      ["cached-child", childPath, "cached-parent"],
+      ["cached-parent", parentPath, undefined],
     ],
   );
-  const persisted = JSON.parse(readFileSync(cachePath, "utf8"));
-  assert.equal(persisted.version, 1);
-  assert.deepEqual(Object.keys(persisted.records).sort(), [parentPath, childPath].sort());
-  assert.equal(Object.hasOwn(persisted.records[childPath].info, "parentSessionId"), false);
-  assert.equal(Object.hasOwn(persisted.records[childPath].info, "projectRoot"), false);
+  for (const row of rows) {
+    assert.equal(row.cwd, projectRoot);
+    assert.equal(row.projectRoot, projectRoot);
+    assert.equal(row.messageCount, 1);
+    assert.equal(row.firstMessage, row.id);
+  }
+  const persisted = readFileSync(journalPath, "utf8").trim().split("\n").map(JSON.parse);
+  assert.equal(persisted[0].v, 2);
+  assert.deepEqual(
+    persisted
+      .slice(1)
+      .map(({ r }) => r.filePath)
+      .sort(),
+    [parentPath, childPath].sort(),
+  );
+  const child = persisted.find(({ r }) => r?.filePath === childPath).r;
+  assert.equal(Object.hasOwn(child.info, "parentSessionId"), false);
+  assert.equal(Object.hasOwn(child.info, "projectRoot"), false);
 
   unlinkSync(parentPath);
   await restored.refreshAll();
@@ -249,7 +306,10 @@ test("a restarted index reuses persisted summaries and removes externally delete
     ["cached-child"],
   );
   assert.equal(remaining[0].parentSessionId, undefined);
-  assert.deepEqual(Object.keys(JSON.parse(readFileSync(cachePath, "utf8")).records), [childPath]);
+  assert.deepEqual(JSON.parse(readFileSync(journalPath, "utf8").trim().split("\n").at(-1)), {
+    op: "del",
+    p: parentPath,
+  });
 });
 
 test("cold and cached history scans let queued event-loop callbacks run before the scan finishes", async () => {
@@ -274,8 +334,8 @@ test("cold and cached history scans let queued event-loop callbacks run before t
     assert.ok(progress.length >= 2, "queued callbacks run during both cold and cached scans");
     if (cold) {
       assert.ok(
-        progress.some((count) => count > 0 && count < 40),
-        "a callback observes a partially indexed history before scanning completes",
+        progress.every((count) => count === 0 || count === 40),
+        "only complete snapshots are published",
       );
     } else {
       assert.equal(index.getMetrics().filesParsed, 0);
@@ -325,4 +385,112 @@ test("a healthy watcher lets session listing reuse a recent scan until roots or 
   assert.equal(withoutWatcher.find((session) => session.id === "recent").name, "updated without a watcher");
   assert.equal(sessionIndex.getMetrics().filesParsed, 1);
   assert.equal(sessionIndex.getMetrics().filesReused, 1);
+});
+
+test("a cold synchronous removal returns the persisted session and survives restart", async () => {
+  const filePath = writeSession("cold-remove");
+  const original = new SessionIndex();
+  await original.refreshAll();
+  const restarted = new SessionIndex();
+  unlinkSync(filePath);
+  assert.equal(restarted.removePath(filePath)?.id, "cold-remove");
+  await restarted.flush();
+  const restored = new SessionIndex();
+  await restored.refreshAll();
+  assert.equal(restored.getById("cold-remove"), null);
+});
+
+test("an unreadable reconcile serves the last complete snapshot but a cold failure propagates", async (t) => {
+  writeSession("retained");
+  const index = new SessionIndex();
+  await index.refreshAll();
+  const snapshot = await index.getAll();
+  const fs = (await import("node:fs/promises")).default;
+  t.mock.method(fs, "readdir", async () => {
+    throw Object.assign(new Error("denied"), { code: "EACCES" });
+  });
+  const errors = [];
+  t.mock.method(console, "error", (...args) => errors.push(args));
+  await index.refreshAll();
+  assert.deepEqual(await index.getAll(), snapshot);
+  assert.ok(errors.length > 0);
+  rmSync(journalPath);
+  await assert.rejects(new SessionIndex().refreshAll(), { code: "EACCES" });
+});
+
+test("restart repairs a torn trailing journal line before appending the next mutation", async () => {
+  const filePath = writeSession("torn");
+  const original = new SessionIndex();
+  await original.refreshAll();
+  appendFileSync(journalPath, '{"op":"put","r":');
+  const restored = new SessionIndex();
+  await restored.refreshAll();
+  assert.equal(restored.getById("torn").messageCount, 1);
+  unlinkSync(filePath);
+  assert.equal(restored.removePath(filePath).id, "torn");
+  await restored.flush();
+  const lines = readFileSync(journalPath, "utf8").trim().split("\n").map(JSON.parse);
+  assert.deepEqual(lines.at(-1), { op: "del", p: filePath });
+  assert.deepEqual(await new SessionIndex().getAll(), []);
+});
+
+test("journal compaction runs only beyond twice the live records plus 1024 and preserves every summary", async () => {
+  for (let index = 0; index < 260; index += 1) writeSession(`compact-${index}`);
+  const original = new SessionIndex();
+  await original.refreshAll();
+  const [header, ...records] = readFileSync(journalPath, "utf8").trim().split("\n");
+  const threshold = [...records, ...Array.from({ length: 1284 }, () => records[0])];
+  writeFileSync(journalPath, `${[header, ...threshold].join("\n")}\n`);
+  const boundary = new SessionIndex();
+  await boundary.refreshAll();
+  await boundary.flush();
+  assert.equal(readFileSync(journalPath, "utf8").trim().split("\n").length, 1545);
+  appendFileSync(journalPath, `${records[0]}\n`);
+  const compacted = new SessionIndex();
+  await compacted.refreshAll();
+  await compacted.flush();
+  assert.equal(readFileSync(journalPath, "utf8").trim().split("\n").length, 261);
+  assert.deepEqual(await new SessionIndex().getAll(), await compacted.getAll());
+});
+
+test("a deletion during an asynchronous journal append cannot publish a resurrected session", async (t) => {
+  const filePath = writeSession("concurrent-delete");
+  const index = new SessionIndex();
+  await index.refreshAll();
+  appendFileSync(
+    filePath,
+    `${JSON.stringify({ type: "session_info", id: "updated", parentId: "concurrent-delete-user", timestamp: "2026-08-07T00:00:00.000Z", name: "updated" })}\n`,
+  );
+  const fs = (await import("node:fs/promises")).default;
+  const append = fs.appendFile.bind(fs);
+  const entered = Promise.withResolvers();
+  const release = Promise.withResolvers();
+  t.after(() => release.resolve());
+  t.mock.method(fs, "appendFile", async (...args) => {
+    if (args[0] === journalPath) {
+      entered.resolve();
+      await release.promise;
+    }
+    return append(...args);
+  });
+  const refreshing = index.apply([{ kind: "file", path: filePath }]);
+  await entered.promise;
+  unlinkSync(filePath);
+  assert.equal(index.removePath(filePath).id, "concurrent-delete");
+  release.resolve();
+  const delta = await refreshing;
+  assert.equal(delta.changes[0].before.id, "concurrent-delete");
+  assert.equal(delta.changes[0].after, null);
+  await index.flush();
+  assert.deepEqual(await new SessionIndex().getAll(), []);
+});
+
+test("a single cold path is not mistaken for a complete history snapshot", async (t) => {
+  const index = new SessionIndex();
+  await index.refreshPath(writeSession("partial"));
+  const fs = (await import("node:fs/promises")).default;
+  t.mock.method(fs, "readdir", async () => {
+    throw Object.assign(new Error("denied"), { code: "EACCES" });
+  });
+  await assert.rejects(index.getAll(), { code: "EACCES" });
 });

@@ -18,6 +18,19 @@ test("heartbeat remains healthy while ticks and acknowledgements are current", (
   );
 });
 
+test("heartbeat times out at the 25 second boundary when the local timer kept running", () => {
+  assert.deepEqual(
+    evaluateHeartbeatTick({
+      now: 25_000,
+      lastTickAt: 15_000,
+      lastAcknowledgedAt: 0,
+      intervalMs,
+      timeoutMs,
+    }),
+    { timedOut: true, clockDiscontinuity: false },
+  );
+});
+
 test("heartbeat times out only when the local timer kept running", () => {
   assert.deepEqual(
     evaluateHeartbeatTick({

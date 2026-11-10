@@ -1,23 +1,22 @@
 import { statSync } from "fs";
-import {
-  ModelRuntime,
-  createAgentSessionServices,
-  getAgentDir,
-  type SettingsManager,
-} from "@earendil-works/pi-coding-agent";
-import { clampThinkingLevel, getSupportedThinkingLevels } from "@earendil-works/pi-ai";
+import { getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
+import { clampThinkingLevel, getSupportedThinkingLevels, type Api, type Model } from "@earendil-works/pi-ai";
 import type { RpcServer } from "../../contract/rpc";
 import {
   RpcError,
   type DefaultThinkingLevel,
   type ModelCatalogStatus,
-  type ModelCatalogWarning,
   type ModelDefaultsResult,
   type ModelInfo,
   type ModelPreferencesResult,
   type ModelsListResult,
 } from "../../contract/types";
-import { modelCatalogRefreshCoordinator } from "../model-runtime";
+import {
+  ModelCatalogService,
+  resolveCatalogModels,
+  type CatalogRuntime,
+  type CatalogSnapshot,
+} from "../model-catalog/index";
 import { disabledProviderIds } from "../provider-channels";
 import { filterByExactEnabledModels, stripThinkingSuffix } from "../session-model";
 
@@ -81,8 +80,6 @@ function resolveModelsCwd(params: { cwd?: string } | void): string {
   return cwd;
 }
 
-type AvailableModel = Awaited<ReturnType<ModelRuntime["getAvailable"]>>[number];
-
 function projectModelDefaults(
   available: readonly { id: string; provider: string }[],
   settings: SettingsManager,
@@ -135,54 +132,13 @@ function normalizeModelDefaultsInput(
   return { ...(model ? { model } : {}), ...(thinkingLevel ? { thinkingLevel } : {}) };
 }
 
-async function resolveAvailableModels(
-  modelRuntime: ModelRuntime,
-  signal?: AbortSignal,
-): Promise<{ models: AvailableModel[]; warnings: ModelCatalogWarning[] }> {
-  const snapshot = [...modelRuntime.getAvailableSnapshot()];
-  const snapshotByProvider = new Map<string, AvailableModel[]>();
-  for (const model of snapshot) {
-    const models = snapshotByProvider.get(model.provider) ?? [];
-    models.push(model);
-    snapshotByProvider.set(model.provider, models);
-  }
-
-  const results = await Promise.all(
-    [...modelRuntime.getProviders()]
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map(async (provider) => {
-        try {
-          const models = [...(await modelRuntime.getAvailable(provider.id, { signal }))];
-          return { models, warning: undefined };
-        } catch (error) {
-          if (signal?.aborted) throw signal.reason ?? error;
-          return {
-            models: snapshotByProvider.get(provider.id) ?? [],
-            warning: {
-              provider: provider.id,
-              code: "PROVIDER_AVAILABILITY_FAILED" as const,
-              message: `Unable to check ${provider.id} model availability; the last known state remains available.`,
-            },
-          };
-        }
-      }),
-  );
-  signal?.throwIfAborted();
-  return {
-    models: results.flatMap((result) => result.models),
-    warnings: results.flatMap((result) => (result.warning ? [result.warning] : [])),
-  };
-}
-
 export async function projectModelsList(
-  modelRuntime: ModelRuntime,
+  source: CatalogSnapshot | CatalogRuntime,
   settings: SettingsManager,
-  catalog: ModelCatalogStatus,
-  options: { signal?: AbortSignal; cachedOnly?: boolean } = {},
+  catalog?: ModelCatalogStatus,
 ): Promise<ModelsListResult> {
-  const availability = options.cachedOnly
-    ? { models: [...modelRuntime.getAvailableSnapshot()], warnings: [] }
-    : await resolveAvailableModels(modelRuntime, options.signal);
+  const availability = "models" in source ? source : await resolveCatalogModels(source);
+  const status = catalog ?? ("status" in source ? source.status : localCatalogStatus());
   const disabled = disabledProviderIds();
   const available = availability.models.filter((model) => !disabled.has(model.provider));
   const enabledModels = settings.getEnabledModels();
@@ -204,9 +160,9 @@ export async function projectModelsList(
   for (const model of visible) {
     const key = `${model.provider}:${model.id}`;
     nameMap[key] = model.name;
-    thinkingLevels[key] = getSupportedThinkingLevels(model);
+    thinkingLevels[key] = getSupportedThinkingLevels(model as Model<Api>);
     effectiveThinkingLevels[key] = clampThinkingLevel(
-      model,
+      model as Model<Api>,
       settings.getModelThinkingLevel?.(model.provider, model.id) ?? sharedThinkingLevel,
     );
     if (model.thinkingLevelMap) thinkingLevelMaps[key] = model.thinkingLevelMap;
@@ -227,23 +183,34 @@ export async function projectModelsList(
     effectiveThinkingLevels,
     nameMap,
     catalog: availability.warnings.length
-      ? { ...catalog, warnings: [...catalog.warnings, ...availability.warnings] }
-      : catalog,
+      ? { ...status, warnings: [...status.warnings, ...availability.warnings] }
+      : status,
   };
 }
 
+function localCatalogStatus(): ModelCatalogStatus {
+  return {
+    source: process.env.PI_OFFLINE === undefined ? "cache" : "offline",
+    refreshed: false,
+    aborted: false,
+    warnings: [],
+  };
+}
+
+async function flushSettings(settings: SettingsManager): Promise<void> {
+  await settings.flush();
+  const errors = settings.drainErrors();
+  if (errors.length > 0) throw new RpcError({ code: "INTERNAL", message: errors[0].error.message });
+}
+
 export function registerModelHandlers(server: RpcServer): () => Promise<void> {
+  const catalog = new ModelCatalogService();
+  const settingsFor = (cwd: string) => SettingsManager.create(cwd, getAgentDir());
   server.handle({
     "models.list": async (params) => {
       const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const agentDir = getAgentDir();
-      const services = await createAgentSessionServices({ cwd, agentDir });
-      return projectModelsList(services.modelRuntime, services.settingsManager, {
-        source: process.env.PI_OFFLINE === undefined ? "cache" : "offline",
-        refreshed: false,
-        aborted: false,
-        warnings: [],
-      });
+      const snapshot = await catalog.get(cwd);
+      return projectModelsList(snapshot, settingsFor(cwd), localCatalogStatus());
     },
 
     "models.refresh": async (params) => {
@@ -252,71 +219,51 @@ export function registerModelHandlers(server: RpcServer): () => Promise<void> {
         throw new RpcError({ code: "BAD_REQUEST", message: "Invalid model refresh request id" });
       }
       const cwd = resolveModelsCwd(params);
-      const agentDir = getAgentDir();
-      return modelCatalogRefreshCoordinator.refresh(
-        cwd,
-        requestId,
-        (signal) => createAgentSessionServices({ cwd, agentDir, modelRuntimeSignal: signal }),
-        ({ services, catalog }, signal) =>
-          projectModelsList(services.modelRuntime, services.settingsManager, catalog, {
-            signal,
-            cachedOnly: catalog.aborted,
-          }),
-      );
+      return projectModelsList(await catalog.refresh(cwd, requestId), settingsFor(cwd));
     },
 
     "models.refreshCancel": (params) => {
       const { requestId } = params as { requestId: string };
-      return { ok: true as const, cancelled: modelCatalogRefreshCoordinator.cancel(requestId) };
+      return { ok: true as const, cancelled: catalog.cancelRefresh(requestId) };
     },
 
     "models.preferences.get": async (params) => {
       const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
-      const { models: available } = await resolveAvailableModels(services.modelRuntime);
-      return projectModelPreferences(available, services.settingsManager.getEnabledModels());
+      const { models } = await catalog.get(cwd);
+      return projectModelPreferences(models, settingsFor(cwd).getEnabledModels());
     },
 
     "models.preferences.set": async (params) => {
       const body = params as { cwd?: string; enabledModels?: unknown };
       const cwd = resolveModelsCwd(body);
       const enabledModels = normalizeEnabledModelsInput(body.enabledModels);
-      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
-      const { models: available } = await resolveAvailableModels(services.modelRuntime);
-      if (enabledModels && !hasMatchingEnabledModel(available, enabledModels)) {
+      const { models } = await catalog.get(cwd, { fresh: true });
+      if (enabledModels && !hasMatchingEnabledModel(models, enabledModels)) {
         throw new RpcError({ code: "BAD_REQUEST", message: "At least one available model must remain enabled" });
       }
-      services.settingsManager.setEnabledModels(enabledModels);
-      return projectModelPreferences(available, enabledModels);
+      const settings = settingsFor(cwd);
+      settings.setEnabledModels(enabledModels);
+      await flushSettings(settings);
+      return projectModelPreferences(models, enabledModels);
     },
 
     "models.defaults.get": async (params) => {
       const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
-      const { models: available } = await resolveAvailableModels(services.modelRuntime);
-      return projectModelDefaults(available, services.settingsManager);
+      const { models } = await catalog.get(cwd);
+      return projectModelDefaults(models, settingsFor(cwd));
     },
 
     "models.defaults.set": async (params) => {
       const body = params as { cwd?: string; model?: unknown; thinkingLevel?: unknown };
       const cwd = resolveModelsCwd(body);
-      const services = await createAgentSessionServices({ cwd, agentDir: getAgentDir() });
-      const { models: available } = await resolveAvailableModels(services.modelRuntime);
-      const defaults = normalizeModelDefaultsInput(body, available);
-      if (defaults.model) {
-        services.settingsManager.setDefaultModelAndProvider(defaults.model.provider, defaults.model.modelId);
-      }
-      if (defaults.thinkingLevel) services.settingsManager.setDefaultThinkingLevel(defaults.thinkingLevel);
-      await services.settingsManager.flush();
-      const errors = services.settingsManager.drainErrors();
-      if (errors.length > 0) {
-        throw new RpcError({ code: "INTERNAL", message: errors[0].error.message });
-      }
-      return projectModelDefaults(available, services.settingsManager);
+      const { models } = await catalog.get(cwd, { fresh: true });
+      const defaults = normalizeModelDefaultsInput(body, models);
+      const settings = settingsFor(cwd);
+      if (defaults.model) settings.setDefaultModelAndProvider(defaults.model.provider, defaults.model.modelId);
+      if (defaults.thinkingLevel) settings.setDefaultThinkingLevel(defaults.thinkingLevel);
+      await flushSettings(settings);
+      return projectModelDefaults(models, settings);
     },
   });
-
-  return async () => {
-    modelCatalogRefreshCoordinator.cancelAll();
-  };
+  return () => catalog.dispose();
 }
