@@ -1,5 +1,10 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+
+export function managedProcessSupportedHere() {
+  return process.platform !== "win32" || (process.arch === "x64" && !/windows server/iu.test(os.version()));
+}
 
 export function preparePackagedStartupRun(isolatedRoot, environmentPatch = {}) {
   const userData = path.join(isolatedRoot, "user-data");

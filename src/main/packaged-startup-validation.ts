@@ -8,7 +8,7 @@ import { hostSelfCheckFailures, type HostSelfCheckReport } from "../shared/host-
 import { appendMainLog } from "./logger";
 
 const STARTUP_TIMEOUT_MS = 45_000;
-const SELF_CHECK_RPC_TIMEOUT_MS = 55_000;
+const SELF_CHECK_RPC_TIMEOUT_MS = 100_000;
 const SELF_CHECK_TIMER_MS = SELF_CHECK_RPC_TIMEOUT_MS + 5_000;
 
 export class PackagedStartupValidation {
@@ -22,6 +22,7 @@ export class PackagedStartupValidation {
     expectedPiVersion?: string;
     getHostManager: () => HostManager | null;
     getUpdateManager: () => UpdateManager | null;
+    managedProcessSupported: () => boolean;
     setQuitting: (value: boolean) => void;
   };
 
@@ -60,7 +61,10 @@ export class PackagedStartupValidation {
     this.timer = setTimeout(() => this.complete("Host self-check timed out"), SELF_CHECK_TIMER_MS);
     void host.call<HostSelfCheckReport>("host.selfCheck", undefined, SELF_CHECK_RPC_TIMEOUT_MS).then(
       (selfCheck) => {
-        const failures = hostSelfCheckFailures(selfCheck, { offline: false });
+        const failures = hostSelfCheckFailures(selfCheck, {
+          offline: false,
+          managedProcessSupported: this.options.managedProcessSupported(),
+        });
         this.complete(failures.length ? failures.join("; ") : undefined, selfCheck);
       },
       (cause) => this.complete(cause instanceof Error ? cause.message : String(cause)),

@@ -56,6 +56,20 @@ async function withCleanup<T, U>(run: () => Promise<T>, cleanup: () => Promise<U
   return [outcome.value, cleaned];
 }
 
+const UNSUPPORTED_PLATFORM_CODES = new Set([
+  "PROCESS_PLATFORM_UNSUPPORTED",
+  "PLATFORM_UNSUPPORTED",
+  "ARCH_UNSUPPORTED",
+]);
+
+function platformUnsupported(error: unknown): boolean {
+  const value = error as { code?: unknown; details?: { subcode?: unknown } } | null;
+  return (
+    UNSUPPORTED_PLATFORM_CODES.has(String(value?.code)) ||
+    UNSUPPORTED_PLATFORM_CODES.has(String(value?.details?.subcode))
+  );
+}
+
 async function probe<T>(
   run: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
@@ -73,6 +87,7 @@ async function probe<T>(
         signal.aborted && Date.now() >= deadline
           ? `Host self-check overall deadline reached: ${diagnostic(error)}`
           : diagnostic(error),
+      ...(platformUnsupported(error) ? { platformUnsupported: true as const } : {}),
     };
   }
 }
@@ -82,8 +97,8 @@ export async function runHostSelfCheck(
   options: { timeoutMs?: number } = {},
 ): Promise<HostSelfCheckReport> {
   const workspace = await realpath(await mkdtemp(path.join(resolveSafeProcessCwd(os.tmpdir()), "dexon-self-check-")));
-  const deadline = Date.now() + 45_000;
-  const timeoutMs = options.timeoutMs ?? 20_000;
+  const deadline = Date.now() + 90_000;
+  const timeoutMs = options.timeoutMs ?? 40_000;
   let report: HostSelfCheckReport = {
     models: { ok: false, error: "Models probe did not complete" },
     pluginWorker: { ok: false, error: "Plugin probe did not complete" },

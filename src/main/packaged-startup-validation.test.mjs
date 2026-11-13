@@ -42,7 +42,7 @@ async function validationFixture(t, selfCheck) {
     async call(method, params, timeout) {
       assert.equal(method, "host.selfCheck");
       assert.equal(params, undefined);
-      assert.equal(timeout, 55000);
+      assert.equal(timeout, 100000);
       calls++;
       return selfCheck;
     },
@@ -53,6 +53,7 @@ async function validationFixture(t, selfCheck) {
     expectedPiVersion: "1.4.0",
     getHostManager: () => host,
     getUpdateManager: () => null,
+    managedProcessSupported: () => true,
     setQuitting() {},
   });
   validation.rendererReady = true;

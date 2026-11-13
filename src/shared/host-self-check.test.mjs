@@ -53,3 +53,19 @@ test("workspace cleanup failure does not erase the model probe cause", () => {
   assert.ok(failures.some((failure) => failure.includes("ENOTDIR")));
   assert.ok(failures.some((failure) => failure.includes("cleanup: EACCES")));
 });
+
+test("a platform that refuses background tasks passes only when the caller independently expects it", () => {
+  const refused = {
+    ...report,
+    managedProcess: { ok: false, error: "Managed process containment is not ready", platformUnsupported: true },
+  };
+  assert.deepEqual(hostSelfCheckFailures(refused, { offline: true, managedProcessSupported: false }), []);
+  assert.ok(hostSelfCheckFailures(refused, { offline: true }).length > 0);
+  assert.ok(
+    hostSelfCheckFailures(
+      { ...report, managedProcess: { ok: false, error: "spawn ENOENT" } },
+      { offline: true, managedProcessSupported: false },
+    ).length > 0,
+  );
+  assert.ok(hostSelfCheckFailures(report, { offline: true, managedProcessSupported: false }).length > 0);
+});

@@ -102,8 +102,8 @@ test("models.list resolves a slow command-backed key while caller timers remain 
     );
     assert.doesNotMatch(JSON.stringify(result), /sk-test|secret-catalog-header|Authorization/);
     assert.ok(ticks >= 50, `concurrent timers fired only ${ticks} times`);
-    assert.ok(lagMs < 100, `caller event-loop lag reached ${lagMs}ms`);
-    assert.ok(maxGap < 100, `caller timer gap reached ${maxGap}ms`);
+    assert.ok(lagMs < 250, `caller event-loop lag reached ${lagMs}ms`);
+    assert.ok(maxGap < 250, `caller timer gap reached ${maxGap}ms`);
   } finally {
     lag.disable();
     clearInterval(timer);

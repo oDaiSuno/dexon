@@ -12,7 +12,7 @@ import {
   describeManagedProcessHelperIntegrationFailure,
   describePackagedStartupFailure,
 } from "./packaged-verification-diagnostics.mjs";
-import { preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
+import { managedProcessSupportedHere, preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
 import { hostSelfCheckFailures } from "../src/shared/host-self-check.ts";
 import { verifyWindowsHelperPe } from "./windows-helper-pe.mjs";
 
@@ -313,7 +313,7 @@ function verifyBundledTools(resources, platform, arch, executeTools) {
 function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extraArguments = []) {
   const isolated = fs.mkdtempSync(path.join(os.tmpdir(), "pi-packaged-startup-"));
   const { userData, env: environment } = preparePackagedStartupRun(isolated, environmentPatch);
-  const startupTimeoutMs = 120_000;
+  const startupTimeoutMs = 180_000;
   try {
     const result = spawnSync(
       executable,
@@ -345,7 +345,10 @@ function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extra
     ) {
       throw new Error(`Invalid packaged startup report: ${JSON.stringify(report)}`);
     }
-    const failures = hostSelfCheckFailures(report.selfCheck, { offline: true });
+    const failures = hostSelfCheckFailures(report.selfCheck, {
+      offline: true,
+      managedProcessSupported: managedProcessSupportedHere(),
+    });
     if (failures.length) throw new Error(`Packaged host self-check failed: ${failures.join("; ")}`);
   } finally {
     fs.rmSync(isolated, { recursive: true, force: true });

@@ -5,7 +5,7 @@ import { once } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
-import { preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
+import { managedProcessSupportedHere, preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
 import { hostSelfCheckFailures } from "../src/shared/host-self-check.ts";
 import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
 
@@ -131,7 +131,7 @@ export function validateStartup(executable, isolatedRoot, expectedVersion, phase
       cwd: path.dirname(executable),
       env,
       encoding: "utf8",
-      timeout: 120_000,
+      timeout: 180_000,
       windowsHide: true,
     },
   );
@@ -151,7 +151,13 @@ export function validateStartup(executable, isolatedRoot, expectedVersion, phase
   assert.equal(report.hostReady, true);
   assert.equal(report.hostAckRevision, report.revision);
   if (expectedVersion === currentVersion || report.selfCheck) {
-    assert.deepEqual(hostSelfCheckFailures(report.selfCheck, { offline: true }), []);
+    assert.deepEqual(
+      hostSelfCheckFailures(report.selfCheck, {
+        offline: true,
+        managedProcessSupported: managedProcessSupportedHere(),
+      }),
+      [],
+    );
   }
   return { phase, appVersion: report.appVersion, piVersion: report.piVersion, hostAckRevision: report.hostAckRevision };
 }

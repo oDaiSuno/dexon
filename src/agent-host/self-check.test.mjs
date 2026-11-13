@@ -124,3 +124,17 @@ test("process stop has its own deadline and readiness failures retain redacted s
     clearTimeout(keepAlive);
   }
 });
+
+test("a background task refused by platform policy is reported as unsupported rather than a crash", async () => {
+  const { deps } = services();
+  deps.managedProcesses.startForAgent = async () => {
+    throw Object.assign(new Error("Managed process containment is not ready"), {
+      code: "PROCESS_FEATURE_DISABLED",
+      details: { subcode: "PLATFORM_UNSUPPORTED" },
+    });
+  };
+  const report = await runHostSelfCheck(deps);
+  assert.equal(report.managedProcess.ok, false);
+  assert.equal(report.managedProcess.platformUnsupported, true);
+  assert.deepEqual(hostSelfCheckFailures(report, { offline: true, managedProcessSupported: false }), []);
+});
