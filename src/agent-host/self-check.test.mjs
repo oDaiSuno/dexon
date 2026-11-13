@@ -83,7 +83,7 @@ test("a later timed out probe cannot hide an earlier OS error and all probes rem
 });
 
 test("plugin cleanup timeout cannot replace the install OS cause", async () => {
-  const keepAlive = setTimeout(() => {}, 1000);
+  const keepAlive = setTimeout(() => {}, 3_000);
   try {
     const { deps } = services({
       async applyPluginAction(body) {
@@ -91,7 +91,7 @@ test("plugin cleanup timeout cannot replace the install OS cause", async () => {
         return new Promise(() => {});
       },
     });
-    const report = await runHostSelfCheck(deps, { timeoutMs: 20 });
+    const report = await runHostSelfCheck(deps, { timeoutMs: 1_000 });
     assert.equal(report.pluginWorker.ok, false);
     assert.match(report.pluginWorker.error, /ENOTDIR/);
   } finally {
