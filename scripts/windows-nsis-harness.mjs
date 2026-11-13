@@ -5,6 +5,8 @@ import { once } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { isDeepStrictEqual } from "node:util";
+import { managedProcessSupportedHere, preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
+import { hostSelfCheckFailures } from "../src/shared/host-self-check.ts";
 import { waitForUninstallerCopy } from "./windows-nsis-uninstaller.mjs";
 
 export function regularFile(value) {
@@ -120,24 +122,16 @@ export function validateStartup(executable, isolatedRoot, expectedVersion, phase
   )) {
     fs.rmSync(previousReport);
   }
-  const userData = path.join(isolatedRoot, "user-data");
+  const { userData, env } = preparePackagedStartupRun(isolatedRoot);
+  const currentVersion = JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
   const result = spawnSync(
     executable,
     [`--user-data-dir=${userData}`, "--validate-packaged-startup", "--disable-gpu"],
     {
       cwd: path.dirname(executable),
-      env: {
-        ...process.env,
-        HOME: isolatedRoot,
-        USERPROFILE: isolatedRoot,
-        APPDATA: path.join(isolatedRoot, "AppData", "Roaming"),
-        LOCALAPPDATA: path.join(isolatedRoot, "AppData", "Local"),
-        TMP: isolatedRoot,
-        TEMP: isolatedRoot,
-        ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
-      },
+      env,
       encoding: "utf8",
-      timeout: 60_000,
+      timeout: 180_000,
       windowsHide: true,
     },
   );
@@ -156,6 +150,15 @@ export function validateStartup(executable, isolatedRoot, expectedVersion, phase
   assert.equal(report.rendererReady, true);
   assert.equal(report.hostReady, true);
   assert.equal(report.hostAckRevision, report.revision);
+  if (expectedVersion === currentVersion || report.selfCheck) {
+    assert.deepEqual(
+      hostSelfCheckFailures(report.selfCheck, {
+        offline: true,
+        managedProcessSupported: managedProcessSupportedHere(),
+      }),
+      [],
+    );
+  }
   return { phase, appVersion: report.appVersion, piVersion: report.piVersion, hostAckRevision: report.hostAckRevision };
 }
 

@@ -231,3 +231,12 @@ test("missing POSIX runtime tools block with an unsupported diagnosis rather tha
     "unsupported",
   );
 });
+
+test("local SSH OS spawn failures are blocked and preserve their original diagnostic", () => {
+  for (const code of ["ENOENT", "ENOTDIR", "EACCES"]) {
+    const result = diagnoseSshFailure(`spawn ssh ${code} token=private`, target, code);
+    assert.equal(result.kind, "blocked", code);
+    assert.ok(result.diagnosis.detail.includes(code));
+    assert.ok(!result.diagnosis.detail.includes("private"));
+  }
+});

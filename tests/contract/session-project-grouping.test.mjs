@@ -228,15 +228,19 @@ const appendedText = new Map();
 
 async function boot() {
   boots += 1;
-  const loaded = await importTestBundle(`session-project-grouping-${boots}`, {
-    packages: "external",
-    stdin: {
-      contents:
-        'export { registerHandlers } from "./src/agent-host/handlers.ts";\nexport { startSessionWatcher } from "./src/agent-host/session-watcher.ts";',
-      resolveDir: repositoryRoot,
-      loader: "ts",
+  const loaded = await importTestBundle(
+    `session-project-grouping-${boots}`,
+    {
+      packages: "external",
+      stdin: {
+        contents:
+          'export { registerHandlers } from "./src/agent-host/handlers.ts";\nexport { startSessionWatcher } from "./src/agent-host/session-watcher.ts";',
+        resolveDir: repositoryRoot,
+        loader: "ts",
+      },
     },
-  });
+    { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+  );
   const server = createRpcServer();
   const { port1, port2 } = new MessageChannel();
   server.attachPort(port1);

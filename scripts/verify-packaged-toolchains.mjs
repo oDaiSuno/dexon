@@ -12,6 +12,8 @@ import {
   describeManagedProcessHelperIntegrationFailure,
   describePackagedStartupFailure,
 } from "./packaged-verification-diagnostics.mjs";
+import { managedProcessSupportedHere, preparePackagedStartupRun } from "./packaged-startup-fixture.mjs";
+import { hostSelfCheckFailures } from "../src/shared/host-self-check.ts";
 import { verifyWindowsHelperPe } from "./windows-helper-pe.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -310,21 +312,8 @@ function verifyBundledTools(resources, platform, arch, executeTools) {
 
 function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extraArguments = []) {
   const isolated = fs.mkdtempSync(path.join(os.tmpdir(), "pi-packaged-startup-"));
-  const userData = path.join(isolated, "user-data");
-  const environment = {
-    ...process.env,
-    HOME: isolated,
-    USERPROFILE: isolated,
-    APPDATA: path.join(isolated, "AppData", "Roaming"),
-    LOCALAPPDATA: path.join(isolated, "AppData", "Local"),
-    TMPDIR: isolated,
-    XDG_CONFIG_HOME: path.join(isolated, ".config"),
-    XDG_CACHE_HOME: path.join(isolated, ".cache"),
-    XDG_DATA_HOME: path.join(isolated, ".local", "share"),
-    ELECTRON_DISABLE_SECURITY_WARNINGS: "1",
-    ...environmentPatch,
-  };
-  const startupTimeoutMs = 60_000;
+  const { userData, env: environment } = preparePackagedStartupRun(isolated, environmentPatch);
+  const startupTimeoutMs = 180_000;
   try {
     const result = spawnSync(
       executable,
@@ -356,6 +345,11 @@ function runPackagedStartup(executable, toolTarget, environmentPatch = {}, extra
     ) {
       throw new Error(`Invalid packaged startup report: ${JSON.stringify(report)}`);
     }
+    const failures = hostSelfCheckFailures(report.selfCheck, {
+      offline: true,
+      managedProcessSupported: managedProcessSupportedHere(),
+    });
+    if (failures.length) throw new Error(`Packaged host self-check failed: ${failures.join("; ")}`);
   } finally {
     fs.rmSync(isolated, { recursive: true, force: true });
   }

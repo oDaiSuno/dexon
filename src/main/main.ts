@@ -69,6 +69,7 @@ const startupValidation = new PackagedStartupValidation({
   expectedPiVersion,
   getHostManager: () => hostManager,
   getUpdateManager: () => updateManager,
+  managedProcessSupported: () => getManagedProcessCapability().supported,
   setQuitting: (value) => {
     isQuitting = value;
   },

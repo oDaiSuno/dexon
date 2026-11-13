@@ -55,6 +55,7 @@ import { PosixManagedProcessBackend } from "./posix-backend.ts";
 import { WindowsJobProcessBackend } from "./windows-helper-client.ts";
 import type { WindowsManagedProcessHelperDescriptor } from "../../shared/windows-managed-process-helper.ts";
 import { getManagedProcessOwnerIdentity } from "./owner-identity.ts";
+import { osErrorFacts, redactDiagnostic } from "../subprocess-cwd.ts";
 
 const OUTPUT_NOTIFY_MS = 100;
 const START_RATE_WINDOW_MS = 60_000;
@@ -187,7 +188,12 @@ function toolchainError(error: unknown): ManagedProcessError {
   }
   if (error instanceof ManagedProcessPolicyError) return new ManagedProcessError(error.code, error.message);
   if (error instanceof ManagedProcessError) return error;
-  return new ManagedProcessError("PROCESS_CONTAINMENT_UNAVAILABLE", "Could not start the managed process safely");
+  const detail = error instanceof Error ? redactDiagnostic(error.message) : "";
+  return new ManagedProcessError(
+    "PROCESS_CONTAINMENT_UNAVAILABLE",
+    `Could not start the managed process safely${detail ? `: ${detail}` : ""}`,
+    { osCode: osErrorFacts(error)?.code },
+  );
 }
 
 function boundedSystemMessage(value: string): string {
@@ -844,8 +850,13 @@ export class ManagedProcessService {
     } catch (error) {
       throw new ManagedProcessError(
         "PROCESS_CONTAINMENT_UNAVAILABLE",
-        "POSIX managed process worker could not prepare containment",
-        { subcode: boundedSystemMessage(error instanceof Error ? error.message : "WORKER_START_FAILED") },
+        `POSIX managed process worker could not prepare containment: ${redactDiagnostic(error instanceof Error ? error.message : "WORKER_START_FAILED")}`,
+        {
+          subcode: boundedSystemMessage(
+            redactDiagnostic(error instanceof Error ? error.message : "WORKER_START_FAILED"),
+          ),
+          osCode: osErrorFacts(error)?.code,
+        },
       );
     }
     record.reaper = prepared.reaper;

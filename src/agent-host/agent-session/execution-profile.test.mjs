@@ -33,10 +33,12 @@ test.after(() => {
   rmSync(base, { recursive: true, force: true });
 });
 
-const runtime = await importTestBundle("automation-execution-profile", {
-  packages: "external",
-  stdin: {
-    contents: `export { AgentSessionWrapper, startRpcSession, getRpcSession } from "./src/agent-host/rpc-manager";
+const runtime = await importTestBundle(
+  "automation-execution-profile",
+  {
+    packages: "external",
+    stdin: {
+      contents: `export { AgentSessionWrapper, startRpcSession, getRpcSession } from "./src/agent-host/rpc-manager";
       export * from "./src/agent-host/agent-session/execution-profile";
       export * from "./src/agent-host/agent-session/automation-result-tool";
       export { HeadlessInteractionError } from "./src/agent-host/agent-session/extension-ui";
@@ -47,10 +49,12 @@ const runtime = await importTestBundle("automation-execution-profile", {
       export { SessionOrchestrationService } from "./src/agent-host/session-orchestration/service";
       export { setStandaloneMainRequestHandler } from "./src/agent-host/parent-rpc";
       export { initializeSessionLauncher, launchAutomationSession } from "./src/agent-host/session-launcher";`,
-    resolveDir: process.cwd(),
-    loader: "ts",
+      resolveDir: process.cwd(),
+      loader: "ts",
+    },
   },
-});
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 const { AgentSessionWrapper, createAutomationResultSink, createAutomationResultTool, executionProfileExtension } =
   runtime;
 const step = { taskId: "task", runId: "run", stepId: "summarize", attemptNo: 1 };

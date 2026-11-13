@@ -209,3 +209,17 @@ test("an integration that fails before reporting any progress says so and keeps 
   assert.ok(message.includes("helper exited early"), message);
   assert.match(message, /exited 1/u);
 });
+
+test("packaged failure diagnostics include each grandchild probe outcome", () => {
+  withIsolatedRoot((isolatedRoot) => {
+    const selfCheck = {
+      models: { ok: false, error: "ENOTDIR spawn" },
+      pluginWorker: { ok: true, installed: true, removed: true },
+    };
+    writeLines(path.join(isolatedRoot, "packaged-startup-check.json"), [
+      JSON.stringify({ ok: false, error: "models failed", selfCheck }),
+    ]);
+    const diagnostic = describePackagedStartupFailure({ result: { status: 1 }, isolatedRoot });
+    assert.ok(diagnostic.includes(JSON.stringify(selfCheck)));
+  });
+});

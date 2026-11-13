@@ -161,3 +161,18 @@ test("timeout terminates the Plugin worker process tree before rejecting", async
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+test("plugin crash causes retain OS diagnostics and redact all common credential forms", async (t) => {
+  const directory = mkdtempSync(path.join(os.tmpdir(), "pi-plugin-diagnostic-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const entryPath = path.join(directory, "worker.mjs");
+  writeFileSync(
+    entryPath,
+    'process.stdin.resume(); process.stderr.write("ENOTDIR Bearer plugin-private sk-123456789 ghp_private api_key=hidden"); process.exitCode = 1;',
+  );
+  await assert.rejects(
+    runPluginWorker({ body: { action: "update", cwd: directory } }, context(), { entryPath }),
+    (error) =>
+      error.message.includes("ENOTDIR") && !/plugin-private|sk-123456789|ghp_private|hidden/.test(error.message),
+  );
+});

@@ -8,15 +8,21 @@ import { preparePersonalDirectory } from "../personal-directory";
 import { getRunningRpcSessionIds } from "../rpc-manager";
 import { peekActiveEnvironmentDescriptor } from "../parent-rpc";
 import { toolchainRuntime } from "../toolchain-runtime";
+import { runHostSelfCheck, type HostSelfCheckDeps } from "../self-check";
 
 export interface HostHandlerDeps {
   getHome?: () => string;
+  selfCheck?: HostSelfCheckDeps;
 }
 
 export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = {}): void {
   const getHome = deps.getHome ?? homedir;
 
   server.handle({
+    "host.selfCheck": () => {
+      if (!deps.selfCheck) throw new Error("Host self-check services are unavailable");
+      return runHostSelfCheck(deps.selfCheck);
+    },
     "host.ping": () => {
       const descriptor = peekActiveEnvironmentDescriptor();
       return descriptor ? { ok: true as const, ts: Date.now(), descriptor } : { ok: true as const, ts: Date.now() };

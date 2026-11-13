@@ -174,3 +174,68 @@ test(
     assert.equal(exit.reason, "exit");
   },
 );
+
+test("POSIX worker cwd is physical and independent of the business workspace", async () => {
+  const worker = new FakeWorker();
+  let cwd;
+  const backend = new PosixManagedProcessBackend({
+    platform: "darwin",
+    workerEntryPath: "/worker.mjs",
+    hostInstanceId: "cwd",
+    spawnProcess: (_exe, _args, options) => {
+      cwd = options.cwd;
+      return worker;
+    },
+    fingerprint: async () => "identity",
+    terminateProcessGroup: async () => true,
+  });
+  await backend.prepare(launchInput());
+  assert.notEqual(cwd, "/workspace");
+  assert.equal(worker.sent[0].cwd, "/workspace");
+  worker.close();
+  await backend.waitForExit();
+});
+
+test("POSIX sync and async spawn failures preserve OS causes", async () => {
+  for (const asynchronous of [false, true]) {
+    const cause = Object.assign(new Error("worker ENOTDIR token=secret-value"), { code: "ENOTDIR", syscall: "spawn" });
+    const backend = new PosixManagedProcessBackend({
+      platform: "linux",
+      workerEntryPath: "/worker.mjs",
+      hostInstanceId: "error",
+      spawnProcess: () => {
+        if (!asynchronous) throw cause;
+        const worker = new FakeWorker();
+        worker.send = () => true;
+        setImmediate(() => worker.emit("error", cause));
+        return worker;
+      },
+      fingerprint: async () => "identity",
+    });
+    await assert.rejects(
+      backend.prepare(launchInput()),
+      (error) => error.cause === cause && error.message.includes("ENOTDIR") && !error.message.includes("secret-value"),
+    );
+  }
+});
+
+test("a worker that never receives a PID still reports the OS cause of its failed start", async () => {
+  const cause = Object.assign(new Error("spawn ENOTDIR"), { code: "ENOTDIR", syscall: "spawn" });
+  const backend = new PosixManagedProcessBackend({
+    platform: "linux",
+    workerEntryPath: "/worker.mjs",
+    hostInstanceId: "no-pid",
+    spawnProcess: () => {
+      const worker = new FakeWorker();
+      worker.pid = undefined;
+      worker.send = () => true;
+      setImmediate(() => worker.emit("error", cause));
+      return worker;
+    },
+    fingerprint: async () => "identity",
+  });
+  await assert.rejects(
+    backend.prepare(launchInput()),
+    (error) => error.cause === cause && error.message.includes("ENOTDIR"),
+  );
+});

@@ -175,16 +175,20 @@ export async function startSessionOrchestrationHost({
   const requested = { registerHandlers: "./src/agent-host/handlers.ts", ...modules };
 
   async function boot(label) {
-    const loaded = await importTestBundle(label, {
-      packages: "external",
-      stdin: {
-        contents: Object.entries(requested)
-          .map(([exported, modulePath]) => `export { ${exported} } from ${JSON.stringify(modulePath)};`)
-          .join("\n"),
-        resolveDir: projectRoot,
-        loader: "ts",
+    const loaded = await importTestBundle(
+      label,
+      {
+        packages: "external",
+        stdin: {
+          contents: Object.entries(requested)
+            .map(([exported, modulePath]) => `export { ${exported} } from ${JSON.stringify(modulePath)};`)
+            .join("\n"),
+          resolveDir: projectRoot,
+          loader: "ts",
+        },
       },
-    });
+      { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+    );
     const rpcServer = createRpcServer();
     const { port1, port2 } = new MessageChannel();
     rpcServer.attachPort(port1);

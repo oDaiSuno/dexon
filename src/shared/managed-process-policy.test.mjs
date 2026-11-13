@@ -87,3 +87,17 @@ test("label removes control characters and is bounded", () => {
   assert.equal(label.includes("\u0000"), false);
   assert.equal([...label].length, 80);
 });
+
+test("managed business cwd refuses archive paths and symlinks into archives", async (t) => {
+  const { rm } = await import("node:fs/promises");
+  const root = await mkdtemp(path.join(tmpdir(), "managed-archive-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await mkdir(path.join(root, "app.asar"));
+  await symlink(
+    path.join(root, "app.asar"),
+    path.join(root, "alias"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
+  for (const candidate of ["app.asar", "alias"])
+    await assert.rejects(resolveManagedProcessCwd(root, candidate), (error) => error.code === "PROCESS_CWD_DENIED");
+});

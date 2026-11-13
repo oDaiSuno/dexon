@@ -367,7 +367,7 @@ test("a synchronous POSIX worker spawn failure leaves no containment uncertainty
       runtime: runtimeFixture(),
       spawnProcess: () => {
         attempts++;
-        if (attempts === 1) throw new Error("spawn failed");
+        if (attempts === 1) throw Object.assign(new Error("spawn ENOTDIR token=private-value"), { code: "ENOTDIR" });
         return new FakeWorker();
       },
       terminateProcessGroup: async () => true,
@@ -384,7 +384,11 @@ test("a synchronous POSIX worker spawn failure leaves no containment uncertainty
   const startedAt = Date.now();
   await assert.rejects(
     service.startForAgent("session-a", cwd, true, { command: "npm run dev" }),
-    (error) => error.code === "PROCESS_CONTAINMENT_UNAVAILABLE",
+    (error) =>
+      error.code === "PROCESS_CONTAINMENT_UNAVAILABLE" &&
+      error.details?.osCode === "ENOTDIR" &&
+      error.message.includes("ENOTDIR") &&
+      !error.message.includes("private-value"),
   );
   assert.ok(Date.now() - startedAt < 500, "spawn failure cleanup waited for a nonexistent worker");
   const started = await service.startForAgent("session-a", cwd, true, { command: "npm run dev" });

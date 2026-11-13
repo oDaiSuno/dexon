@@ -9,6 +9,14 @@ import { createProjectBuildTemp } from "./process-utils.mjs";
 // stripping. Use this bundle path only for JSX, path aliases, virtual mocks, or
 // module graphs whose extension resolution requires esbuild.
 
+const bundleCleanups = new Set();
+function cleanupBundles() {
+  for (const cleanup of bundleCleanups) cleanup();
+  bundleCleanups.clear();
+}
+if (process.env.NODE_TEST_CONTEXT) after(cleanupBundles);
+else process.once("exit", cleanupBundles);
+
 function safeBundleName(name) {
   const normalized = name.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
   if (!normalized) throw new Error("Test bundle name must contain a safe character");
@@ -38,8 +46,23 @@ export async function importTestBundle(name, buildOptions, runtimeOptions = {}) 
       ...buildOptions,
       outfile: outputFile,
     });
+    for (const [fileName, entry] of Object.entries(runtimeOptions.companions ?? {})) {
+      if (path.basename(fileName) !== fileName) throw new Error("Companion must be a sibling file");
+      await build({
+        bundle: true,
+        format: "esm",
+        platform: "node",
+        packages: "external",
+        sourcemap: false,
+        logLevel: "silent",
+        entryPoints: [path.resolve(projectRoot, entry)],
+        outfile: path.join(directory, fileName),
+      });
+    }
     const module = await import(`${pathToFileURL(outputFile).href}?bundle=${Date.now()}`);
-    (runtimeOptions.registerCleanup ?? after)(() => rmSync(directory, { recursive: true, force: true }));
+    (runtimeOptions.registerCleanup ?? ((cleanup) => bundleCleanups.add(cleanup)))(() =>
+      rmSync(directory, { recursive: true, force: true }),
+    );
     return module;
   } catch (error) {
     rmSync(directory, { recursive: true, force: true });

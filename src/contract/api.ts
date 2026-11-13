@@ -1,3 +1,4 @@
+import type { HostSelfCheckReport } from "../shared/host-self-check";
 import type { FolderListing } from "./folder-browse";
 import type { TaskSpec } from "../shared/automation/spec";
 import type {
@@ -99,6 +100,7 @@ export interface Api {
   "automation.listInbox": { params: void; result: { items: readonly InboxItem[] } };
   "automation.resolveInbox": { params: ResolveInboxRequest; result: ResolveInboxResult };
   "automation.emitSignal": { params: SignalEmit & { taskId: string }; result: { woke: number } };
+  "host.selfCheck": { params: void; result: HostSelfCheckReport };
   "host.ping": { params: void; result: { ok: true; ts: number; descriptor?: EnvironmentDescriptor } };
   "host.toolchain": {
     params: { cwd: string };

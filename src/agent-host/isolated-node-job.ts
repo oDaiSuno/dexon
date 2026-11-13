@@ -1,5 +1,7 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import os from "node:os";
 import { terminateProcessTree } from "./process-tree.ts";
+import { resolveSafeProcessCwd, osErrorFacts, formatOsErrorFacts, redactDiagnostic } from "./subprocess-cwd.ts";
 
 const OUTPUT_TAIL_LIMIT = 2 * 1024 * 1024;
 
@@ -25,11 +27,19 @@ export type IsolatedJobErrorKind = "spawn" | "timeout" | "aborted" | "crashed" |
 
 export class IsolatedJobError extends Error {
   readonly kind: IsolatedJobErrorKind;
+  readonly code?: string;
+  readonly syscall?: string;
 
   constructor(kind: IsolatedJobErrorKind, message: string, options?: ErrorOptions) {
-    super(message, options);
+    const facts = osErrorFacts(options?.cause);
+    super(
+      facts && !message.includes(formatOsErrorFacts(facts)) ? `${message} (${formatOsErrorFacts(facts)})` : message,
+      options,
+    );
     this.name = "IsolatedJobError";
     this.kind = kind;
+    this.code = facts?.code;
+    this.syscall = facts?.syscall;
   }
 }
 
@@ -64,9 +74,10 @@ export async function runIsolatedNodeJob(options: IsolatedNodeJobOptions): Promi
   return new Promise<unknown>((resolve, reject) => {
     let child: ChildProcess;
     try {
+      const cwd = resolveSafeProcessCwd(options.cwd ?? os.tmpdir());
       child = (options.spawnProcess ?? spawn)(options.execPath ?? process.execPath, [options.entryPath], {
         env: options.env,
-        ...(options.cwd ? { cwd: options.cwd } : {}),
+        cwd,
         shell: false,
         detached: process.platform !== "win32",
         windowsHide: true,
@@ -122,7 +133,7 @@ export async function runIsolatedNodeJob(options: IsolatedNodeJobOptions): Promi
           return;
         }
         const stderr = stderrTail.toString("utf8").trim();
-        const detail = options.sanitizeStderr ? options.sanitizeStderr(stderr) : stderr;
+        const detail = (options.sanitizeStderr ?? redactDiagnostic)(stderr);
         reject(
           new IsolatedJobError(
             exitCode === 0 ? "no-result" : "crashed",

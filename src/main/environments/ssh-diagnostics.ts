@@ -1,3 +1,4 @@
+import { redactDiagnostic } from "../../agent-host/subprocess-cwd.ts";
 import type { SshEnvironmentTarget } from "../../contract/environment.ts";
 import type { ConnectionFailure } from "../../contract/environment-status.ts";
 export function diagnoseSshFailure(
@@ -5,9 +6,12 @@ export function diagnoseSshFailure(
   target: SshEnvironmentTarget,
   code?: string | number | null,
 ): ConnectionFailure {
-  const detail = stderr.trim().slice(-4096) || "Remote SSH command failed";
-  if (code === "ENOENT")
-    return { kind: "blocked", diagnosis: { reason: "ssh-unavailable", detail: "SSH executable is unavailable" } };
+  const detail = redactDiagnostic(stderr.trim(), 4096) || "Remote SSH command failed";
+  if (code === "ENOENT" || code === "ENOTDIR" || code === "EACCES")
+    return {
+      kind: "blocked",
+      diagnosis: { reason: "ssh-unavailable", detail: `SSH executable is unavailable (${code}): ${detail}` },
+    };
   if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/iu.test(detail)) {
     const hostname = target.hostname ?? target.sshAlias;
     const knownHost =

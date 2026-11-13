@@ -1,8 +1,9 @@
+import { osErrorFacts } from "../../agent-host/subprocess-cwd.ts";
 import path from "node:path";
 import type { RemoteRuntimeMeta, RemoveOutcome } from "../../contract/environment-commands.ts";
 import { RemotePayloadCatalog } from "./remote-payload.ts";
 import { RemoteProvisioner, type StageReporter } from "./remote-provisioner.ts";
-import { runSsh, sshArguments, sshFailure, runLocalSshTool } from "./ssh-command.ts";
+import { localSshSpawnOptions, runSsh, sshArguments, sshFailure, runLocalSshTool } from "./ssh-command.ts";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer } from "node:net";
 import type { EnvironmentDescriptor, SshEnvironmentTarget } from "../../contract/environment.ts";
@@ -212,7 +213,10 @@ export class SshEnvironmentManager {
           `127.0.0.1:${reservation.port}:127.0.0.1:${launch.port}`,
           target.sshAlias,
         ],
-        { stdio: ["ignore", "ignore", "pipe"], windowsHide: true },
+        {
+          ...localSshSpawnOptions(),
+          stdio: ["ignore", "ignore", "pipe"],
+        },
       );
       let diagnostic = "";
       let forwardReady = false;
@@ -231,7 +235,9 @@ export class SshEnvironmentManager {
         let descriptor: EnvironmentDescriptor | undefined;
         while (!descriptor) {
           if (spawnError || child.exitCode !== null || child.signalCode !== null)
-            throw spawnError ?? sshFailure(diagnostic.trim() || "SSH forward exited", target);
+            throw spawnError
+              ? sshFailure(diagnostic.trim() || (spawnError as Error).message, target, osErrorFacts(spawnError)?.code)
+              : sshFailure(diagnostic.trim() || "SSH forward exited", target);
           if (!forwardReady) {
             if (cancellation.aborted || Date.now() >= deadline)
               throw new EnvironmentConnectionError("transient", "timeout", "SSH forward setup timed out");
@@ -252,7 +258,9 @@ export class SshEnvironmentManager {
             await new Promise((resolve) => setTimeout(resolve, 100));
           }
         }
-        if (cancellation.aborted || this.disposed || spawnError || child.exitCode !== null || child.signalCode !== null)
+        if (spawnError)
+          throw sshFailure(diagnostic.trim() || (spawnError as Error).message, target, osErrorFacts(spawnError)?.code);
+        if (cancellation.aborted || this.disposed || child.exitCode !== null || child.signalCode !== null)
           throw new Error("SSH forward closed during preparation");
         const entry: SshTunnelEntry = {
           key,

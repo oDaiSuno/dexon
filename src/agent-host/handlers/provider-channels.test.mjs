@@ -64,11 +64,15 @@ test.after(async () => {
 });
 
 async function loadHandlers(name) {
-  const bundle = await importTestBundle(`src/agent-host/handlers/${name}`, {
-    packages: "external",
-    absWorkingDir: root,
-    entryPoints: ["src/agent-host/handlers.ts"],
-  });
+  const bundle = await importTestBundle(
+    `src/agent-host/handlers/${name}`,
+    {
+      packages: "external",
+      absWorkingDir: root,
+      entryPoints: ["src/agent-host/handlers.ts"],
+    },
+    { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+  );
   const handlers = {};
   bundle.registerHandlers({
     handle(next) {
