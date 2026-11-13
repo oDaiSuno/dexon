@@ -156,8 +156,8 @@ export async function runHostSelfCheck(
       async (signal) => {
         const owner = `host-self-check-${randomUUID()}`;
         const [started, finalState] = await withCleanup(
-          () =>
-            bounded(
+          async () => {
+            const started = await bounded(
               deps.managedProcesses.startForAgent(
                 owner,
                 workspace,
@@ -172,7 +172,16 @@ export async function runHostSelfCheck(
                 signal,
               ),
               signal,
-            ),
+            );
+            if (
+              started.readiness.state !== "ready" ||
+              !started.output.records.some((record) => record.text.includes("dexon-self-check-ready"))
+            )
+              throw new Error(
+                `Managed process readiness was ${started.readiness.state}: ${redactDiagnostic(started.output.records.map((record) => record.text).join(""))}`,
+              );
+            return started;
+          },
           async () => {
             let finalState: ManagedProcessState = "failed";
             const failures: string[] = [];
@@ -197,16 +206,9 @@ export async function runHostSelfCheck(
             return finalState;
           },
         );
-        const readyLineSeen =
-          started.readiness.state === "ready" &&
-          started.output.records.some((record) => record.text.includes("dexon-self-check-ready"));
-        if (!readyLineSeen)
-          throw new Error(
-            `Managed process readiness was ${started.readiness.state}: ${redactDiagnostic(started.output.records.map((record) => record.text).join(""))}`,
-          );
         if (!isCleanManagedStopState(finalState))
           throw new Error(`Managed process probe did not stop cleanly (${finalState})`);
-        return { readyLineSeen, finalState };
+        return { readyLineSeen: started.readiness.state === "ready", finalState };
       },
       timeoutMs,
       deadline,

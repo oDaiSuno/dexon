@@ -218,3 +218,24 @@ test("POSIX sync and async spawn failures preserve OS causes", async () => {
     );
   }
 });
+
+test("a worker that never receives a PID still reports the OS cause of its failed start", async () => {
+  const cause = Object.assign(new Error("spawn ENOTDIR"), { code: "ENOTDIR", syscall: "spawn" });
+  const backend = new PosixManagedProcessBackend({
+    platform: "linux",
+    workerEntryPath: "/worker.mjs",
+    hostInstanceId: "no-pid",
+    spawnProcess: () => {
+      const worker = new FakeWorker();
+      worker.pid = undefined;
+      worker.send = () => true;
+      setImmediate(() => worker.emit("error", cause));
+      return worker;
+    },
+    fingerprint: async () => "identity",
+  });
+  await assert.rejects(
+    backend.prepare(launchInput()),
+    (error) => error.cause === cause && error.message.includes("ENOTDIR"),
+  );
+});

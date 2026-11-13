@@ -138,3 +138,20 @@ test("a background task refused by platform policy is reported as unsupported ra
   assert.equal(report.managedProcess.platformUnsupported, true);
   assert.deepEqual(hostSelfCheckFailures(report, { offline: true, managedProcessSupported: false }), []);
 });
+
+test("a background task that never became ready keeps that reason even when stopping it also fails", async () => {
+  const { deps } = services();
+  const start = deps.managedProcesses.startForAgent;
+  deps.managedProcesses.startForAgent = async (...args) => ({
+    ...(await start(...args)),
+    readiness: { state: "timed-out" },
+    output: { records: [{ text: "bash ENOTDIR" }] },
+  });
+  deps.managedProcesses.stop = async () => {
+    throw new Error("stop refused EACCES");
+  };
+  const report = await runHostSelfCheck(deps);
+  assert.equal(report.managedProcess.ok, false);
+  assert.match(report.managedProcess.error, /readiness was timed-out/);
+  assert.match(report.managedProcess.error, /stop refused EACCES/);
+});

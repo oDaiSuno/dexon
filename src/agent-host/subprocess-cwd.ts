@@ -92,11 +92,11 @@ export function formatOsErrorFacts(facts: OsErrorFacts): string {
 export function redactDiagnostic(text: string, limit = 1024): string {
   return text
     .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+@/gi, "$1[redacted]@")
-    .replace(/\bBearer\s+[^\s,;"']+/gi, "Bearer [redacted]")
     .replace(
       /(["']?(?:token|api[_-]?key|password|secret|authorization|credential|NODE_AUTH_TOKEN)["']?\s*[:=]\s*)(?:(?:Bearer|Basic)\s+)?(?:"(?:\\.|[^"\\\r\n])*"|'(?:\\.|[^'\\\r\n])*'|[^\s,;}]+)/gi,
       "$1[redacted]",
     )
+    .replace(/\bBearer\s+[^\s,;"']+/gi, "Bearer [redacted]")
     .replace(/\b(?:npm_[A-Za-z0-9]+|gh[pousr]_[A-Za-z0-9_]+|sk-[A-Za-z0-9_-]{8,})\b/g, "[redacted]")
     .slice(-Math.max(1, limit));
 }

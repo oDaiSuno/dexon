@@ -155,7 +155,10 @@ export class PosixManagedProcessBackend implements ManagedProcessBackend {
       shell: input.shell,
     };
     const identifyAndStartWorker = async () => {
-      if (!worker.pid) throw new Error("Managed process worker has no PID");
+      if (!worker.pid) {
+        await this.started.promise;
+        throw new Error("Managed process worker has no PID");
+      }
       const fingerprint = await (this.options.fingerprint ?? getProcessStartFingerprint)(worker.pid);
       if (!fingerprint) {
         await terminateProcessTree(worker, 500);

@@ -94,3 +94,10 @@ test("diagnostic redaction consumes escaped JSON secrets and Basic authorization
   assert.ok(!redacted.includes("private-tail"), redacted);
   assert.ok(!redacted.includes("confidential-value"), redacted);
 });
+
+test("a Bearer value whose JSON string contains an escaped quote is hidden entirely", () => {
+  const leaked = JSON.stringify({ password: 'Bearer abc" private-tail' });
+  const redacted = boundary.redactDiagnostic(leaked);
+  assert.ok(!redacted.includes("private-tail"), redacted);
+  assert.ok(!redacted.includes("abc"), redacted);
+});
