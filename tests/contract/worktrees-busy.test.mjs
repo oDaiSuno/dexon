@@ -24,20 +24,24 @@ const model = await startHeldModelServer();
 model.configure(agent);
 
 const root = path.resolve(import.meta.dirname, "../..");
-const { registerHandlers, getManagedProcessService, hostDirectory } = await importTestBundle("worktree-busy-contract", {
-  packages: "external",
-  absWorkingDir: root,
-  stdin: {
-    contents: [
-      'import { fileURLToPath } from "node:url";',
-      'export { registerHandlers } from "./src/agent-host/handlers.ts";',
-      'export { getManagedProcessService } from "./src/agent-host/managed-process/runtime.ts";',
-      'export const hostDirectory = fileURLToPath(new URL(".", import.meta.url));',
-    ].join("\n"),
-    resolveDir: root,
-    loader: "ts",
+const { registerHandlers, getManagedProcessService, hostDirectory } = await importTestBundle(
+  "worktree-busy-contract",
+  {
+    packages: "external",
+    absWorkingDir: root,
+    stdin: {
+      contents: [
+        'import { fileURLToPath } from "node:url";',
+        'export { registerHandlers } from "./src/agent-host/handlers.ts";',
+        'export { getManagedProcessService } from "./src/agent-host/managed-process/runtime.ts";',
+        'export const hostDirectory = fileURLToPath(new URL(".", import.meta.url));',
+      ].join("\n"),
+      resolveDir: root,
+      loader: "ts",
+    },
   },
-});
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 
 if (process.platform !== "win32")
   buildSync({

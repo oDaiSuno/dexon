@@ -29,11 +29,15 @@ model.configure(agent, {
   settings: { defaultModel: "naming-model" },
 });
 
-const { registerHandlers } = await importTestBundle("host-title-regenerate", {
-  packages: "external",
-  absWorkingDir: path.resolve(import.meta.dirname, "../.."),
-  entryPoints: ["src/agent-host/handlers.ts"],
-});
+const { registerHandlers } = await importTestBundle(
+  "host-title-regenerate",
+  {
+    packages: "external",
+    absWorkingDir: path.resolve(import.meta.dirname, "../.."),
+    entryPoints: ["src/agent-host/handlers.ts"],
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 const server = createRpcServer();
 const { port1, port2 } = new MessageChannel();
 server.attachPort(port1);

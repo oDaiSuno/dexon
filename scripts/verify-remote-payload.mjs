@@ -12,6 +12,7 @@ import {
   computeSshStateKey,
 } from "../src/main/environments/ssh-scripts.ts";
 import { fetchUnauthenticatedDescriptor, openRemoteConnection } from "../src/main/environments/remote-endpoint.ts";
+import { hostSelfCheckFailures } from "../src/shared/host-self-check.ts";
 const execute = promisify(execFile);
 const root = path.resolve(import.meta.dirname, "..");
 const catalog = new RemotePayloadCatalog(path.join(root, "out", "remote-payload"));
@@ -77,6 +78,8 @@ try {
   assert.equal(listing.ok, true);
   const sessions = await connection.rpc.call("sessions.list");
   assert.deepEqual(sessions.runningSessionIds, []);
+  const selfCheck = await connection.rpc.call("host.selfCheck");
+  assert.deepEqual(hostSelfCheckFailures(selfCheck, { offline: true }), []);
   connection.close();
   connection = undefined;
   shutdown = (await execute("sh", ["-c", buildRemoteStopScript(scriptOptions)], { env, timeout: 10000 })).stdout.trim();
@@ -89,6 +92,7 @@ try {
     ownership: launch.ownership,
     descriptor,
     rpcPing: true,
+    selfCheck,
     folderBrowse: true,
     runningSessions: 0,
     shutdown,

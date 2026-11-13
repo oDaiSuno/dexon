@@ -232,6 +232,14 @@ test("public SSH probe, daemon launch and tunnel send the same manual options to
     );
     for (const { executable, args, spawnOptions } of commands) {
       assert.equal(executable, "ssh");
+      assert.ok(path.isAbsolute(spawnOptions.cwd));
+      assert.ok(!spawnOptions.cwd.split(/[\\/]+/).some((segment) => segment.endsWith(".asar")));
+      const toolPath = Object.entries(spawnOptions.env).find(([key]) => key.toLowerCase() === "path")?.[1];
+      assert.ok(
+        toolPath.includes(
+          process.platform === "darwin" ? "/opt/homebrew/bin" : process.platform === "win32" ? "System32" : "/usr/bin",
+        ),
+      );
       assertOptionArguments(args, options);
       assert.ok(spawnOptions.shell === undefined || spawnOptions.shell === false);
       assert.equal(args.at(-1).includes(options.identityFile), false);

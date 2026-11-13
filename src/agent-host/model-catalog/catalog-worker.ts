@@ -1,4 +1,5 @@
 import { createAgentSessionServices } from "@earendil-works/pi-coding-agent";
+import { osErrorFacts, formatOsErrorFacts, redactDiagnostic } from "../subprocess-cwd.ts";
 import {
   CATALOG_RESULT_MARKER,
   parseCatalogJob,
@@ -61,8 +62,13 @@ async function main(): Promise<void> {
       chunks.push(buffer);
     }
     result = { ok: true, snapshot: await buildCatalog(JSON.parse(Buffer.concat(chunks).toString("utf8"))) };
-  } catch {
-    result = { ok: false };
+  } catch (error) {
+    const facts = osErrorFacts(error);
+    const detail = redactDiagnostic(
+      `${error instanceof Error ? error.message : String(error)}${facts ? ` (${formatOsErrorFacts(facts)})` : ""}`,
+    );
+    process.stderr.write(`${detail}\n`, () => process.exit(1));
+    return;
   }
   const encoded = Buffer.from(JSON.stringify(result)).toString("base64");
   process.stdout.write(`\n${CATALOG_RESULT_MARKER}${encoded}\n`, () => process.exit(0));

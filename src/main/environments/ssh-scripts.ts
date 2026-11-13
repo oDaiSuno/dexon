@@ -98,6 +98,7 @@ const http = require("node:http");
 const crypto = require("node:crypto");
 const net = require("node:net");
 const path = require("node:path");
+const os = require("node:os");
 const { spawn } = require("node:child_process");
 const [ledger, preferred, stateDir, daemonEntry, stateKey] = process.argv.slice(2);
 const legacy = path.join(process.env.HOME, ".dexon", "ssh-launch", stateKey);
@@ -185,12 +186,27 @@ const acquireLaunchLock = async () => {
     if (port > lastPort) throw new Error("No free remote loopback port");
     if (!fs.existsSync(daemonEntry) || !fs.statSync(daemonEntry).isFile()) throw new Error("Invalid remote daemon entry");
     fs.mkdirSync(stateDir, { recursive: true, mode: 0o700 });
+    const hasArchive = value => value.split(/[\\/]+/).some(segment => segment.toLowerCase().endsWith(".asar"));
+    let daemonCwd;
+    let cwdError;
+    for (const getCandidate of [() => stateDir, () => os.homedir(), () => os.tmpdir(), () => "/"]) {
+      try {
+        const candidate = getCandidate();
+        if (!path.isAbsolute(candidate) || hasArchive(candidate)) continue;
+        const real = (fs.realpathSync.native ?? fs.realpathSync)(candidate);
+        if (!hasArchive(real) && fs.statSync(real).isDirectory()) { daemonCwd = real; break; }
+      } catch (error) { cwdError = error; }
+    }
+    if (!daemonCwd) throw new Error("No physical working directory is available for the remote daemon", cwdError ? { cause: cwdError } : undefined);
     const quote = value => "'" + value.replace(/'/g, "'\"'\"'") + "'";
     const args = [process.execPath, daemonEntry, "--listen", "127.0.0.1:" + port, "--state-dir", stateDir];
     write("run-dexon.sh", "exec " + args.map(quote).join(" ") + "\n");
     const log = fs.openSync(file("daemon.log"), "a", 0o600);
-    const child = spawn("nohup", ["sh", file("run-dexon.sh")], { detached: true, stdio: ["ignore", log, log] });
-    try { await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); }); } finally { fs.closeSync(log); }
+    let child;
+    try {
+      child = spawn("nohup", ["sh", file("run-dexon.sh")], { cwd: daemonCwd, detached: true, stdio: ["ignore", log, log] });
+      await new Promise((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
+    } finally { fs.closeSync(log); }
     child.unref();
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {

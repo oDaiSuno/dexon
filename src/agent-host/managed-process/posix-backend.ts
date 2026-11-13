@@ -12,6 +12,8 @@ import type {
 } from "./backend.ts";
 import type { ManagedProcessWorkerEvent, ManagedProcessWorkerRequest } from "./protocol.ts";
 
+import { resolveSafeProcessCwd, osErrorFacts, formatOsErrorFacts, redactDiagnostic } from "../subprocess-cwd.ts";
+
 const WORKER_START_TIMEOUT_MS = 10_000;
 
 type Deferred = { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void };
@@ -100,7 +102,7 @@ export class PosixManagedProcessBackend implements ManagedProcessBackend {
     let worker: ChildProcess;
     try {
       worker = spawnProcess(process.execPath, [...(this.options.workerExecArgv ?? []), this.options.workerEntryPath], {
-        cwd: input.cwd,
+        cwd: resolveSafeProcessCwd(),
         env: cleanEnvironment(input.context, input.processId, input.runId),
         shell: false,
         detached: true,
@@ -108,7 +110,11 @@ export class PosixManagedProcessBackend implements ManagedProcessBackend {
         stdio: ["ignore", "pipe", "pipe", "ipc"],
       });
     } catch (error) {
-      throw new Error("Could not start the managed process worker", { cause: error });
+      const facts = osErrorFacts(error);
+      throw new Error(
+        `Could not start the managed process worker${facts ? ` (${formatOsErrorFacts(facts)})` : ""}: ${redactDiagnostic(error instanceof Error ? error.message : String(error))}`,
+        { cause: error },
+      );
     }
     this.process = worker;
     worker.stdout?.on("data", (chunk: Buffer | string) =>
@@ -125,11 +131,17 @@ export class PosixManagedProcessBackend implements ManagedProcessBackend {
     );
     worker.on("message", (message: ManagedProcessWorkerEvent) => this.handleWorkerEvent(message));
     worker.once("error", (error) => {
-      this.started.reject(new Error("Managed process worker failed to start"));
+      const facts = osErrorFacts(error);
+      this.started.reject(
+        new Error(
+          `Managed process worker failed to start${facts ? ` (${formatOsErrorFacts(facts)})` : ""}: ${redactDiagnostic(error.message)}`,
+          { cause: error },
+        ),
+      );
       this.events.emit("event", {
         type: "error",
         subcode: "WORKER_START_FAILED",
-        message: error.message,
+        message: redactDiagnostic(error.message),
       } satisfies ManagedProcessBackendEvent);
     });
     worker.once("close", (code, closeSignal) => void this.handleWorkerClose(code, closeSignal));

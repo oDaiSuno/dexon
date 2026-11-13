@@ -63,7 +63,7 @@ function describeStartupReport(isolatedRoot) {
   if (report.ok) return `${location} says ok: true, so startup reached readiness and the app failed afterwards`;
   const recordedError =
     typeof report.error === "string" ? shorten(report.error, REPORT_ERROR_CHARACTERS) : "no error field";
-  return `${location} says ok: false (error: ${recordedError})`;
+  return `${location} says ok: false (error: ${recordedError})${report.selfCheck ? `\nselfCheck: ${JSON.stringify(report.selfCheck)}` : ""}`;
 }
 
 function describeMainLog(isolatedRoot) {

@@ -11,7 +11,8 @@ import { registerAuthHandlers } from "./handlers/auth";
 import { registerChannelHandlers } from "./handlers/channels";
 import { registerFileHandlers } from "./handlers/files";
 import { registerHostHandlers } from "./handlers/host";
-import { registerModelHandlers } from "./handlers/models";
+import { registerModelHandlers, listModels } from "./handlers/models";
+import { applyPluginAction } from "./plugins-service";
 import { registerModelsConfigHandlers } from "./handlers/models-config";
 import { registerProcessHandlers } from "./handlers/processes";
 import { registerProjectHandlers } from "./handlers/project";
@@ -77,7 +78,7 @@ export function registerHandlers(server: RpcServer, options: HostHandlerOptions 
         .map((session) => session.cwd),
   });
   registerResourceHandlers(server);
-  registerHostHandlers(server);
+  registerHostHandlers(server, { selfCheck: { listModels, applyPluginAction, managedProcesses } });
   return async () => {
     await automationStarted;
     await automationRuntime.stop();

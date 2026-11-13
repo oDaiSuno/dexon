@@ -24,11 +24,15 @@ const restoreMainProcess = installMainProcessPort();
 const model = await startHeldModelServer();
 model.configure(agent);
 
-const { registerHandlers } = await importTestBundle("host-unsaved-session", {
-  packages: "external",
-  absWorkingDir: path.resolve(import.meta.dirname, "../.."),
-  entryPoints: ["src/agent-host/handlers.ts"],
-});
+const { registerHandlers } = await importTestBundle(
+  "host-unsaved-session",
+  {
+    packages: "external",
+    absWorkingDir: path.resolve(import.meta.dirname, "../.."),
+    entryPoints: ["src/agent-host/handlers.ts"],
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 const server = createRpcServer();
 const { port1, port2 } = new MessageChannel();
 server.attachPort(port1);

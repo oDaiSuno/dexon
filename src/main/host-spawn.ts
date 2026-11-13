@@ -1,3 +1,4 @@
+import { resolveSafeProcessCwd } from "../agent-host/subprocess-cwd";
 import { app, utilityProcess, type UtilityProcess } from "electron";
 import fs from "fs";
 import os from "os";
@@ -25,7 +26,7 @@ export function spawnHost(hostEntry: string): HostSpawnResult<UtilityProcess> {
       serviceName: "pi-agent-host",
       stdio: "pipe",
       env: asUtilityProcessEnv(),
-      cwd: os.homedir(),
+      cwd: resolveSafeProcessCwd(os.homedir()),
     }),
   );
 }

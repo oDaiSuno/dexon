@@ -203,14 +203,33 @@ async function flushSettings(settings: SettingsManager): Promise<void> {
   if (errors.length > 0) throw new RpcError({ code: "INTERNAL", message: errors[0].error.message });
 }
 
+async function listModelsWithCatalog(catalog: ModelCatalogService, cwd: string): Promise<ModelsListResult> {
+  const snapshot = await catalog.get(cwd);
+  return projectModelsList(snapshot, SettingsManager.create(cwd, getAgentDir()), localCatalogStatus());
+}
+
+export async function listModels(cwd: string, signal?: AbortSignal): Promise<ModelsListResult> {
+  const catalog = new ModelCatalogService();
+  const abort = () => {
+    void catalog.dispose();
+  };
+  signal?.throwIfAborted();
+  signal?.addEventListener("abort", abort, { once: true });
+  try {
+    return await listModelsWithCatalog(catalog, cwd);
+  } finally {
+    signal?.removeEventListener("abort", abort);
+    await catalog.dispose();
+  }
+}
+
 export function registerModelHandlers(server: RpcServer): () => Promise<void> {
   const catalog = new ModelCatalogService();
   const settingsFor = (cwd: string) => SettingsManager.create(cwd, getAgentDir());
   server.handle({
     "models.list": async (params) => {
       const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const snapshot = await catalog.get(cwd);
-      return projectModelsList(snapshot, settingsFor(cwd), localCatalogStatus());
+      return listModelsWithCatalog(catalog, cwd);
     },
 
     "models.refresh": async (params) => {

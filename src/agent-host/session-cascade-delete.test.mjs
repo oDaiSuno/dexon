@@ -60,11 +60,15 @@ writeFileSync(
 );
 
 async function captureHandlers() {
-  const { registerHandlers } = await importTestBundle("src/agent-host/cascade-delete-handlers", {
-    packages: "external",
-    absWorkingDir: root,
-    entryPoints: ["src/agent-host/handlers.ts"],
-  });
+  const { registerHandlers } = await importTestBundle(
+    "src/agent-host/cascade-delete-handlers",
+    {
+      packages: "external",
+      absWorkingDir: root,
+      entryPoints: ["src/agent-host/handlers.ts"],
+    },
+    { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+  );
   const handlers = {};
   const events = [];
   registerHandlers({

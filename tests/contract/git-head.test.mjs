@@ -19,11 +19,15 @@ after(() => {
   rmSync(base, { recursive: true, force: true });
 });
 
-const { registerHandlers } = await importTestBundle("git-head-contract", {
-  packages: "external",
-  absWorkingDir: path.resolve(import.meta.dirname, "../.."),
-  entryPoints: ["src/agent-host/handlers.ts"],
-});
+const { registerHandlers } = await importTestBundle(
+  "git-head-contract",
+  {
+    packages: "external",
+    absWorkingDir: path.resolve(import.meta.dirname, "../.."),
+    entryPoints: ["src/agent-host/handlers.ts"],
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 const handlers = {};
 registerHandlers({
   handle(next) {

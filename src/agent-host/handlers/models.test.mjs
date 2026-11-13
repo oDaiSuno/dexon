@@ -17,11 +17,15 @@ test.after(() => {
   rmSync(otherProject, { recursive: true, force: true });
 });
 
-const { registerModelHandlers } = await importTestBundle("src/agent-host/handlers/models-defaults-test", {
-  packages: "external",
-  absWorkingDir: root,
-  entryPoints: ["src/agent-host/handlers/models.ts"],
-});
+const { registerModelHandlers } = await importTestBundle(
+  "src/agent-host/handlers/models-defaults-test",
+  {
+    packages: "external",
+    absWorkingDir: root,
+    entryPoints: ["src/agent-host/handlers/models.ts"],
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 
 function captureModelHandlers() {
   const handlers = {};

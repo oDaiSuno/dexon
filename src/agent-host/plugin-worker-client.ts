@@ -11,10 +11,12 @@ import {
   type PluginWorkerResponse,
 } from "./plugin-worker-protocol.ts";
 import { extractIsolatedNodeJobResult, IsolatedJobError, runIsolatedNodeJob } from "./isolated-node-job.ts";
+import { redactDiagnostic } from "./subprocess-cwd.ts";
 
 const PLUGIN_WORKER_TIMEOUT_MS = 3 * 60_000;
 
 export interface PluginWorkerClientOptions {
+  signal?: AbortSignal;
   entryPath?: string;
   execPath?: string;
   timeoutMs?: number;
@@ -33,13 +35,6 @@ function spawnEnvironment(context: ToolExecutionContext): NodeJS.ProcessEnv {
   return env;
 }
 
-function safeWorkerMessage(message: string): string {
-  return message
-    .replace(/([a-z][a-z0-9+.-]*:\/\/)[^\s/@:]+:[^\s/@]+@/gi, "$1[redacted]@")
-    .replace(/(?:npm_|NODE_AUTH_TOKEN|token)[=:]\s*[^\s]+/gi, "token=[redacted]")
-    .slice(0, 1_000);
-}
-
 export function extractPluginWorkerResponse(output: string): PluginWorkerResponse | undefined {
   return extractIsolatedNodeJobResult(output, PLUGIN_WORKER_RESULT_MARKER) as PluginWorkerResponse | undefined;
 }
@@ -48,7 +43,7 @@ function responseError(response: Extract<PluginWorkerResponse, { ok: false }>): 
   const code = (TOOLCHAIN_ERROR_CODES as readonly string[]).includes(response.error.code)
     ? response.error.code
     : "TOOLCHAIN_INTERNAL";
-  const message = safeWorkerMessage(response.error.message);
+  const message = redactDiagnostic(response.error.message);
   if (/\b(?:spawn|run)\s+(?:npm|node)\b.*(?:ENOENT|not found)/i.test(message)) {
     return new ToolchainError({ code: "TOOLCHAIN_NODE_REQUIRED", capability: "js.npm", message });
   }
@@ -67,6 +62,7 @@ export async function runPluginWorker(
   try {
     const response = (await runIsolatedNodeJob({
       entryPath,
+      signal: options.signal,
       input: request,
       marker: PLUGIN_WORKER_RESULT_MARKER,
       timeoutMs: options.timeoutMs ?? PLUGIN_WORKER_TIMEOUT_MS,
@@ -77,7 +73,7 @@ export async function runPluginWorker(
       spawnProcess: options.spawnProcess,
       label: "Plugin worker",
       parseResult: (output) => extractPluginWorkerResponse(output) || undefined,
-      sanitizeStderr: safeWorkerMessage,
+      sanitizeStderr: redactDiagnostic,
     })) as PluginWorkerResponse;
     if (response.ok) return response.result;
     throw responseError(response);

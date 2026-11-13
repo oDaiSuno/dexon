@@ -1,3 +1,11 @@
+import os from "node:os";
+import {
+  resolveSafeProcessCwd,
+  withSystemToolPath,
+  osErrorFacts,
+  formatOsErrorFacts,
+  redactDiagnostic,
+} from "../../agent-host/subprocess-cwd.ts";
 import { execFile, spawn } from "node:child_process";
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
@@ -44,6 +52,18 @@ export function sshFailure(
     ? new EnvironmentConnectionError("blocked", failure.diagnosis.reason, failure.diagnosis.detail, failure.diagnosis)
     : new EnvironmentConnectionError("transient", failure.failure.reason, failure.failure.detail);
 }
+export function localSshSpawnOptions(): {
+  readonly cwd: string;
+  readonly env: NodeJS.ProcessEnv;
+  readonly windowsHide: true;
+} {
+  return {
+    cwd: resolveSafeProcessCwd(os.homedir()),
+    env: withSystemToolPath(process.env),
+    windowsHide: true,
+  };
+}
+
 export async function runSsh(
   target: SshEnvironmentTarget,
   script: string,
@@ -62,8 +82,8 @@ export async function runSsh(
   ]);
   signal.throwIfAborted();
   const child = spawn("ssh", [...sshArguments(target), target.sshAlias, `sh -c ${shellQuote(script)}`], {
+    ...localSshSpawnOptions(),
     stdio: ["pipe", "pipe", "pipe"],
-    windowsHide: true,
   });
   let stdout = "",
     stderr = "",
@@ -120,13 +140,21 @@ export function runLocalSshTool(
     execFile(
       executable,
       args,
-      { timeout: 15_000, maxBuffer: 262_144, windowsHide: true, signal },
+      {
+        ...localSshSpawnOptions(),
+        timeout: 15_000,
+        maxBuffer: 262_144,
+        signal,
+      },
       (error, stdout, stderr) => {
-        if (error)
+        if (error) {
+          const facts = osErrorFacts(error);
+          const detail = redactDiagnostic(stderr.trim() || error.message);
+          const message = facts?.code === "ENOENT" ? `SSH executable is unavailable: ${detail}` : detail;
           reject(
-            new Error(stderr.trim() || (error.code === "ENOENT" ? "SSH executable is unavailable" : error.message)),
+            new Error(`${message}${facts ? ` (${executable}: ${formatOsErrorFacts(facts)})` : ""}`, { cause: error }),
           );
-        else resolve(stdout);
+        } else resolve(stdout);
       },
     );
   });

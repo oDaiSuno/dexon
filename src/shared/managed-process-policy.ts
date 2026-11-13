@@ -1,5 +1,5 @@
 import path from "node:path";
-import { realpath } from "node:fs/promises";
+import { realpath, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import type { ManagedLoopbackEndpoint, ManagedProcessLogStream } from "../contract/processes.ts";
 
@@ -138,6 +138,10 @@ function canonicalComparison(value: string): string {
   return process.platform === "win32" ? normalized.toLocaleLowerCase("en-US") : normalized;
 }
 
+export function hasArchiveSegment(candidate: string): boolean {
+  return candidate.split(/[\\/]+/).some((segment) => segment.toLowerCase().endsWith(".asar"));
+}
+
 export async function resolveManagedProcessCwd(ownerCwd: string, requestedCwd?: string): Promise<string> {
   if (!path.isAbsolute(ownerCwd)) {
     throw new ManagedProcessPolicyError("PROCESS_CWD_DENIED", "owner workspace is not an absolute path");
@@ -149,7 +153,14 @@ export async function resolveManagedProcessCwd(ownerCwd: string, requestedCwd?: 
       : path.resolve(ownerCwd, requestedCwd)
     : ownerCwd;
   const targetReal = await realpath(targetInput).catch(() => null);
-  if (!ownerReal || !targetReal) {
+  if (
+    [ownerCwd, targetInput, ownerReal, targetReal].some((candidate) =>
+      Boolean(candidate && hasArchiveSegment(candidate)),
+    )
+  ) {
+    throw new ManagedProcessPolicyError("PROCESS_CWD_DENIED", "managed process cwd must be outside archives");
+  }
+  if (!ownerReal || !targetReal || !(await stat(targetReal).catch(() => null))?.isDirectory()) {
     throw new ManagedProcessPolicyError("PROCESS_CWD_DENIED", "managed process cwd does not exist");
   }
   const relative = path.relative(canonicalComparison(ownerReal), canonicalComparison(targetReal));

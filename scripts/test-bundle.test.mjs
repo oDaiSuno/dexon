@@ -53,3 +53,43 @@ test("repository policy reports every legacy bundle owner", () => {
       error.message.includes("src/artifact.test.mjs: repository test-modules output"),
   );
 });
+
+test("companion entries are executable siblings of the imported bundle", async () => {
+  const module = await importTestBundle(
+    "companion-contract",
+    {
+      stdin: { contents: "export const url = import.meta.url;", loader: "js" },
+    },
+    { companions: { "cwd-boundary.mjs": "src/agent-host/subprocess-cwd.ts" } },
+  );
+  const companion = await import(new URL("cwd-boundary.mjs", module.url).href).catch(() => null);
+  assert.equal(typeof companion?.resolveSafeProcessCwd, "function");
+  assert.ok(path.isAbsolute(companion.resolveSafeProcessCwd()));
+});
+
+test("a companion remains available when a shared bundle outlives the test that first loaded it", async (t) => {
+  let url;
+  await t.test("first caller loads the shared bundle", async () => {
+    ({ url } = await importTestBundle(
+      "shared-companion-lifetime",
+      {
+        stdin: { contents: "export const url = import.meta.url;", loader: "js" },
+      },
+      { companions: { "cwd-boundary.mjs": "src/agent-host/subprocess-cwd.ts" } },
+    ));
+  });
+  const companion = await import(new URL("cwd-boundary.mjs", url).href).catch(() => null);
+  assert.equal(typeof companion?.resolveSafeProcessCwd, "function");
+});
+
+test("importing bundle utilities from verification scripts does not start an empty test run", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  const output = execFileSync(
+    process.execPath,
+    ["--input-type=module", "-e", 'await import("./scripts/test-bundle.mjs"); console.log("loaded");'],
+    { env, encoding: "utf8" },
+  );
+  assert.equal(output, "loaded\n");
+});

@@ -12,16 +12,20 @@ process.env.PI_CODING_AGENT_SESSION_DIR = path.join(agentDirectory, "sessions");
 process.env.PI_OFFLINE = "1";
 test.after(() => rmSync(agentDirectory, { recursive: true, force: true }));
 
-const bundle = await importTestBundle("plugin-origin", {
-  packages: "external",
-  absWorkingDir: root,
-  stdin: {
-    contents:
-      'export { registerHandlers } from "./src/agent-host/handlers.ts"; export { readPlugins, notePluginUpdates } from "./src/agent-host/plugins-service.ts";',
-    resolveDir: root,
-    loader: "ts",
+const bundle = await importTestBundle(
+  "plugin-origin",
+  {
+    packages: "external",
+    absWorkingDir: root,
+    stdin: {
+      contents:
+        'export { registerHandlers } from "./src/agent-host/handlers.ts"; export { readPlugins, notePluginUpdates } from "./src/agent-host/plugins-service.ts";',
+      resolveDir: root,
+      loader: "ts",
+    },
   },
-});
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 
 function handlers() {
   const registered = {};

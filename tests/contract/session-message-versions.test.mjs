@@ -32,7 +32,9 @@ const bundleOptions = {
   entryPoints: ["src/agent-host/handlers.ts"],
 };
 
-const firstHost = await importTestBundle("session-message-versions", bundleOptions);
+const firstHost = await importTestBundle("session-message-versions", bundleOptions, {
+  companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" },
+});
 const server = createRpcServer();
 const { port1, port2 } = new MessageChannel();
 server.attachPort(port1);
@@ -49,7 +51,9 @@ async function closeFirstHost() {
 }
 
 async function startSecondHost(name) {
-  const bundle = await importTestBundle(name, bundleOptions);
+  const bundle = await importTestBundle(name, bundleOptions, {
+    companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" },
+  });
   const secondServer = createRpcServer();
   const channel = new MessageChannel();
   secondServer.attachPort(channel.port1);

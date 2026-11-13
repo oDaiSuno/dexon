@@ -51,14 +51,10 @@ type ActiveRefresh = {
 
 function workerEntryPath(): string {
   const directory = path.dirname(fileURLToPath(import.meta.url));
-  for (const file of [
-    path.join(directory, "model-catalog-worker.mjs"),
-    path.join(directory, "catalog-worker.ts"),
-    path.resolve("src/agent-host/model-catalog/catalog-worker.ts"),
-  ]) {
+  for (const file of [path.join(directory, "model-catalog-worker.mjs"), path.join(directory, "catalog-worker.ts")]) {
     if (existsSync(file)) return file;
   }
-  throw new Error("Model catalog worker is unavailable");
+  throw new Error(`Model catalog worker is unavailable in ${directory}`);
 }
 
 function asPlainNodeEnv(job: CatalogJob): NodeJS.ProcessEnv {
@@ -82,7 +78,6 @@ async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: nu
       ipcLifeline: true,
       signal,
       label: "Model catalog worker",
-      sanitizeStderr: () => "Model catalog worker failed",
     }),
   );
   if (!result.ok || result.snapshot.cwd !== job.cwd) throw new Error("Unable to build model catalog");

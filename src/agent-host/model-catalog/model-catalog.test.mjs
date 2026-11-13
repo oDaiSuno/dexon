@@ -5,6 +5,7 @@ import path from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import test from "node:test";
 import { clearInterval, setInterval } from "node:timers";
+import { fileURLToPath } from "node:url";
 import { importTestBundle } from "#test-bundle";
 
 const root = path.resolve(import.meta.dirname, "../../..");
@@ -16,11 +17,15 @@ mkdirSync(path.join(project, ".pi", "extensions"), { recursive: true });
 process.env.PI_CODING_AGENT_DIR = agentDir;
 process.env.PI_CODING_AGENT_SESSION_DIR = path.join(agentDir, "sessions");
 process.env.PI_OFFLINE = "1";
-const { registerModelHandlers } = await importTestBundle("model-catalog-handlers", {
-  absWorkingDir: root,
-  entryPoints: ["src/agent-host/handlers/models.ts"],
-  packages: "external",
-});
+const { registerModelHandlers } = await importTestBundle(
+  "model-catalog-handlers",
+  {
+    absWorkingDir: root,
+    entryPoints: ["src/agent-host/handlers/models.ts"],
+    packages: "external",
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 const handlers = {};
 const dispose = registerModelHandlers({
   handle(next) {
@@ -97,8 +102,8 @@ test("models.list resolves a slow command-backed key while caller timers remain 
     );
     assert.doesNotMatch(JSON.stringify(result), /sk-test|secret-catalog-header|Authorization/);
     assert.ok(ticks >= 50, `concurrent timers fired only ${ticks} times`);
-    assert.ok(lagMs < 250, `caller event-loop lag reached ${lagMs}ms`);
-    assert.ok(maxGap < 250, `caller timer gap reached ${maxGap}ms`);
+    assert.ok(lagMs < 100, `caller event-loop lag reached ${lagMs}ms`);
+    assert.ok(maxGap < 100, `caller timer gap reached ${maxGap}ms`);
   } finally {
     lag.disable();
     clearInterval(timer);
@@ -114,11 +119,15 @@ test("a second models.list for the same cwd and epoch returns from memory in und
   assert.ok(cachedMs < 25, `cached model list took ${cachedMs}ms`);
 });
 
-const { ModelCatalogService } = await importTestBundle("model-catalog-service", {
-  absWorkingDir: root,
-  entryPoints: ["src/agent-host/model-catalog/index.ts"],
-  packages: "external",
-});
+const { ModelCatalogService } = await importTestBundle(
+  "model-catalog-service",
+  {
+    absWorkingDir: root,
+    entryPoints: ["src/agent-host/model-catalog/index.ts"],
+    packages: "external",
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 
 function deferred() {
   let resolve;
@@ -457,4 +466,37 @@ test("cancelling a cold refresh reports cancellation when no complete catalog is
   assert.equal(service.cancelRefresh("cold"), true);
   await pending;
   assert.equal(service.cancelRefresh("cold"), false);
+});
+
+test("a catalog bundle never executes a worker found through the caller's current directory", async (t) => {
+  const { ModelCatalogService: UnaccompaniedCatalog } = await importTestBundle("catalog-without-worker", {
+    absWorkingDir: root,
+    entryPoints: ["src/agent-host/model-catalog/index.ts"],
+    packages: "external",
+  });
+  const catalog = new UnaccompaniedCatalog({ agentDir: () => agentDir, offline: () => true });
+  t.after(() => catalog.dispose());
+  await assert.rejects(catalog.get(project), /Model catalog worker is unavailable in /);
+});
+
+test("catalog worker crashes preserve the real diagnostic rather than a fixed failure", async () => {
+  const { runIsolatedNodeJob } = await import("../isolated-node-job.ts");
+  const { url } = await importTestBundle(
+    "catalog-crash",
+    {
+      stdin: { contents: "export const url = import.meta.url;", loader: "js" },
+    },
+    { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+  );
+  await assert.rejects(
+    runIsolatedNodeJob({
+      entryPath: fileURLToPath(new URL("model-catalog-worker.mjs", url)),
+      input: {},
+      marker: "PI_DESKTOP_MODEL_CATALOG_RESULT:",
+      timeoutMs: 10000,
+      maxInputBytes: 1024,
+      env: { ...process.env, ELECTRON_RUN_AS_NODE: "1" },
+    }),
+    /Invalid model catalog job/,
+  );
 });

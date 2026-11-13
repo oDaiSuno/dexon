@@ -384,7 +384,8 @@ export async function attachSkillPlugins<
   });
 }
 
-export async function applyPluginAction(body: PluginActionBody): Promise<PluginsResponse> {
+export async function applyPluginAction(body: PluginActionBody, signal?: AbortSignal): Promise<PluginsResponse> {
+  signal?.throwIfAborted();
   validatePluginActionBody(body);
   if (body.action === "disable" || body.action === "enable") {
     return applyPluginActionInProcess(body);
@@ -404,9 +405,9 @@ export async function applyPluginAction(body: PluginActionBody): Promise<Plugins
   const npmCommand = npm ? [npm.executable, ...npm.argvPrefix] : undefined;
   if (body.action === "update") {
     const before = await readPlugins(body.cwd);
-    return notePluginUpdates(body.cwd, before, await runPluginWorker({ body, npmCommand }, context));
+    return notePluginUpdates(body.cwd, before, await runPluginWorker({ body, npmCommand }, context, { signal }));
   }
-  return runPluginWorker({ body, npmCommand }, context);
+  return runPluginWorker({ body, npmCommand }, context, { signal });
 }
 
 function validatePluginActionBody(body: PluginActionBody): void {

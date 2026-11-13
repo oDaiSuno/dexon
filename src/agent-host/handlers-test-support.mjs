@@ -17,11 +17,15 @@ test.afterEach(async () => {
 export async function loadHandlersModule() {
   if (modulePromise) return modulePromise;
   modulePromise = (async () => {
-    return importTestBundle("src/agent-host/handlers", {
-      packages: "external",
-      absWorkingDir: root,
-      entryPoints: ["src/agent-host/handlers.ts"],
-    });
+    return importTestBundle(
+      "src/agent-host/handlers",
+      {
+        packages: "external",
+        absWorkingDir: root,
+        entryPoints: ["src/agent-host/handlers.ts"],
+      },
+      { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+    );
   })();
   return modulePromise;
 }

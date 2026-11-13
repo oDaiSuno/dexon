@@ -14,11 +14,15 @@ process.env.PI_CODING_AGENT_DIR = agentDirectory;
 process.env.PI_CODING_AGENT_SESSION_DIR = sessionDirectory;
 process.env.PI_OFFLINE = "1";
 
-const { registerHandlers } = await importTestBundle("session-turn-outline", {
-  packages: "external",
-  absWorkingDir: path.resolve(import.meta.dirname, "../.."),
-  entryPoints: ["src/agent-host/handlers.ts"],
-});
+const { registerHandlers } = await importTestBundle(
+  "session-turn-outline",
+  {
+    packages: "external",
+    absWorkingDir: path.resolve(import.meta.dirname, "../.."),
+    entryPoints: ["src/agent-host/handlers.ts"],
+  },
+  { companions: { "model-catalog-worker.mjs": "src/agent-host/model-catalog/catalog-worker.ts" } },
+);
 
 const handlers = {};
 const cleanupHandlers = registerHandlers({

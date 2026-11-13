@@ -18,6 +18,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "build": "node scripts/build.mjs",
+    "verify:remote-payload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/verify-remote-payload.mjs",
     "build:remote-payload": "node scripts/build-remote-payload.mjs",
     "build:main": "node scripts/build-main.mjs",
     "build:renderer": "vite build",
