@@ -30,6 +30,7 @@ import {
   StaleHistoryCursorError,
 } from "../session-history";
 import { invalidateSessionContent } from "../session-content-cache";
+import { withSessionNameLock } from "../session-naming";
 import {
   describeSessionSource,
   findUnsavedSession,
@@ -443,19 +444,22 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     "sessions.rename": async (params) => {
       const { id, name } = params as { id: string; name: string };
       SessionAccess.authorizeMutation(sessionOriginStore, id, "rename");
-      if (!name?.trim()) {
+      const normalized = name?.trim();
+      if (!normalized) {
         throw new RpcError({ code: "BAD_REQUEST", message: "name is required" });
       }
-      const existing = getRpcSession(id);
-      if (existing?.isAlive()) {
-        await existing.send({ type: "set_session_name", name: name.trim() });
-      } else {
-        const filePath = await resolveSessionPath(id);
-        if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
-        const sm = await readSessionManager(filePath);
-        await appendSessionName(filePath, sm, name.trim());
-        invalidateSessionContent(filePath);
-      }
+      await withSessionNameLock(id, async () => {
+        const existing = getRpcSession(id);
+        if (existing?.isAlive()) {
+          await existing.send({ type: "set_session_name", name: normalized });
+        } else {
+          const filePath = await resolveSessionPath(id);
+          if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
+          const sm = await readSessionManager(filePath);
+          await appendSessionName(filePath, sm, normalized);
+          invalidateSessionContent(filePath);
+        }
+      });
       await emitIndexedSessionChange(server, id, null);
       return { ok: true as const };
     },

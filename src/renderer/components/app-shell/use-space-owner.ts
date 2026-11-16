@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 
 import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
 import { workspaceStore } from "@/lib/workspace-store";
 import type { ProjectSpaceRef } from "@shared/project-space-state";
+import { worktreePathsEqual } from "@shared/worktree-path";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
@@ -46,7 +47,8 @@ export function useSpaceOwner(props: {
     ? frozenSpaceCwd
     : workspaceLocation?.environmentId === environment.id
       ? workspaceLocation.path
-      : focusedSpace?.path === coordinatedCwd || snapshot.focus.spaceKey === null
+      : (focusedSpace?.path && coordinatedCwd && worktreePathsEqual(focusedSpace.path, coordinatedCwd)) ||
+          snapshot.focus.spaceKey === null
         ? coordinatedCwd
         : null;
   const generation = environment.status.phase === "connected" ? environment.status.generation : null;
