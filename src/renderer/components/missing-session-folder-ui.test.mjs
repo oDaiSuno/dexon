@@ -266,14 +266,23 @@ for (const [environmentId, fallback] of [
     assert.ok(byRole(view.container, "button", "Send"));
     await type("continue in the chosen folder");
     await click(byRole(view.container, "button", "Send"));
-    await waitFor(() =>
+    await waitFor(() => {
       assert.ok(
         requests.some(
           (request) =>
             request.owner === environmentId && request.method === "agent.new" && request.params.cwd === chosen,
         ),
-      ),
-    );
+      );
+      assert.ok(
+        requests.some(
+          (request) =>
+            request.owner === environmentId &&
+            request.method === "agent.command" &&
+            request.params.command.type === "prompt",
+        ),
+      );
+      assert.equal(api.workspaceStore.getSnapshot().focus.sessionId, "new-writable");
+    });
     await openHistory();
     const previousFocus = api.workspaceStore.getSnapshot().focus;
     defaultSpaceFails = true;
@@ -292,13 +301,22 @@ for (const [environmentId, fallback] of [
     );
     await type("new writable conversation");
     await click(byRole(view.container, "button", "Send"));
-    await waitFor(() =>
+    await waitFor(() => {
       assert.ok(
         requests.some(
           (request) => request.owner === "primary" && request.method === "agent.new" && request.params.cwd === personal,
         ),
-      ),
-    );
+      );
+      assert.ok(
+        requests.some(
+          (request) =>
+            request.owner === "primary" &&
+            request.method === "agent.command" &&
+            request.params.command.type === "prompt",
+        ),
+      );
+      assert.equal(api.workspaceStore.getSnapshot().focus.sessionId, "new-writable");
+    });
     assert.equal(
       requests.some((request) => request.method === "agent.new" && request.params.cwd === missing),
       false,
