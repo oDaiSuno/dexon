@@ -20,6 +20,7 @@ const errors = (element) => element.querySelectorAll(".katex-error");
 
 function reply(text, isStreaming) {
   return {
+    environmentId: "primary",
     message: { role: "assistant", content: [{ type: "text", text }], provider: "fixture", timestamp: 2 },
     isStreaming,
   };

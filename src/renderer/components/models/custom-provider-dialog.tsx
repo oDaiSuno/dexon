@@ -136,6 +136,7 @@ export function CustomProviderDialog({
       </ModelDialogShell>
       {modelTarget && editingModel && (
         <ModelDialog
+          environmentId={editor.environmentId}
           providerName={name.trim() || initial.name}
           provider={entry}
           model={editingModel}

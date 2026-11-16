@@ -85,6 +85,7 @@ function makeId(): string {
 
 export type RpcClientOptions = {
   callTimeoutMs?: number;
+  onClosed?: () => void;
 };
 
 const DEFAULT_CALL_TIMEOUT_MS = 120_000;
@@ -148,6 +149,7 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
   const onClose = () => {
     rejectPending({ code: "CLOSED", message: "RPC port closed" });
     subs.clear();
+    options.onClosed?.();
   };
 
   port.addEventListener("message", onMessage);
@@ -248,6 +250,22 @@ export interface RpcServer {
   emit<T extends StreamTopic>(topic: T, key: string, data: Streams[T]): void;
   attachPort(port: AnyMessagePort): void;
   detachPort(port: AnyMessagePort): void;
+  inFlightRequests(): number;
+}
+
+const requestActivityListeners = new Set<() => void>();
+
+export function subscribeRpcRequestActivity(listener: () => void): () => void {
+  requestActivityListeners.add(listener);
+  return () => requestActivityListeners.delete(listener);
+}
+
+function notifyRequestActivity(): void {
+  for (const listener of requestActivityListeners) {
+    try {
+      listener();
+    } catch {}
+  }
 }
 
 export function createRpcServer(): RpcServer {
@@ -257,6 +275,7 @@ export function createRpcServer(): RpcServer {
   const portUnlisten = new Map<AnyMessagePort, () => void>();
   const portCloseUnlisten = new Map<AnyMessagePort, () => void>();
   const portLeases = new Map<AnyMessagePort, Map<string, () => void>>();
+  let inFlight = 0;
 
   function forgetPort(port: AnyMessagePort): void {
     ports.delete(port);
@@ -327,6 +346,17 @@ export function createRpcServer(): RpcServer {
     }
     if (msg.kind !== "request") return;
 
+    inFlight += 1;
+    if (inFlight === 1) notifyRequestActivity();
+    try {
+      await respond(port, msg);
+    } finally {
+      inFlight -= 1;
+      if (inFlight === 0) notifyRequestActivity();
+    }
+  }
+
+  async function respond(port: AnyMessagePort, msg: WireRequest) {
     const handler = handlers.get(msg.method);
 
     let response: WireResponse;
@@ -449,6 +479,10 @@ export function createRpcServer(): RpcServer {
       } catch {
         return;
       }
+    },
+
+    inFlightRequests() {
+      return inFlight;
     },
   };
 }

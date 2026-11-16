@@ -37,6 +37,7 @@ function deleteRequests(view) {
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     name: "Base session",
     firstMessage: "",

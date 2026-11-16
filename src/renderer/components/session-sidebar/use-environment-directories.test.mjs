@@ -4,6 +4,7 @@ import { api, mountProjectProbe } from "../app-shell/project-spaces-test-harness
 import { remoteServer } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
 
 const session = (id, cwd, extra = {}) => ({
+  environmentId: "primary",
   id,
   cwd,
   path: `/sessions/${id}.jsonl`,

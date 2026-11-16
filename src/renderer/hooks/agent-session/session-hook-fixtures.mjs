@@ -115,6 +115,7 @@ export function createSessionDetail(id, options = {}) {
     },
   ];
   const info = {
+    environmentId: "primary",
     id,
     path: `/fixture/${id}.jsonl`,
     cwd: options.cwd ?? "/fixture",

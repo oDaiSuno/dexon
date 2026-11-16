@@ -1,3 +1,4 @@
+import type { SessionInfo } from "./types";
 import type { PiBridge } from "@contract/desktop";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import {
@@ -26,6 +27,20 @@ export interface WorkspaceSnapshot {
   readonly spaces: readonly MountedSpace[];
   readonly seeded: readonly EnvironmentId[];
   readonly focus: WorkspaceFocus;
+}
+export function resolveWorkspaceLocation(
+  snapshot: WorkspaceSnapshot,
+  session: Pick<SessionInfo, "id" | "environmentId" | "cwd"> | null,
+  spaces: readonly MountedSpace[] = snapshot.spaces,
+): ProjectSpaceRef | null {
+  const { focus } = snapshot;
+  if (focus.sessionId) {
+    return session?.id === focus.sessionId && session.environmentId === focus.environmentId && session.cwd
+      ? { environmentId: session.environmentId, path: session.cwd }
+      : null;
+  }
+  const space = spaces.find((space) => space.key === focus.spaceKey && space.environmentId === focus.environmentId);
+  return space ? { environmentId: space.environmentId, path: space.path } : null;
 }
 type WorkspaceChange = (snapshot: WorkspaceSnapshot) => Partial<WorkspaceSnapshot>;
 interface WorkspaceOperation {
@@ -109,8 +124,8 @@ export class WorkspaceStore {
       }
     }
   }
-  focusSession(session: { id: string; environmentId?: EnvironmentId; cwd?: string; projectRoot?: string }): void {
-    const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+  focusSession(session: { id: string; environmentId: EnvironmentId; cwd?: string; projectRoot?: string }): void {
+    const environmentId = session.environmentId;
     const path = session.projectRoot ?? session.cwd;
     this.commit({
       focus: { environmentId, spaceKey: path ? projectKeyOf({ environmentId, path }) : null, sessionId: session.id },

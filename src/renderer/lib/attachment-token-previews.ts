@@ -1,5 +1,4 @@
 import { PRIMARY_ENVIRONMENT_ID, qualifyProjectKey, type EnvironmentId } from "@contract/environment";
-import { getActiveEnvironmentId } from "./environment-registry";
 import { readFilePayload } from "./file-blob";
 
 const MAX_CACHE_ENTRIES = 128;
@@ -27,8 +26,8 @@ export function registerStagedPreviewUrl(
 
 export function loadAttachmentPreview(
   path: string,
-  sessionId?: string,
-  environmentId: EnvironmentId = getActiveEnvironmentId(),
+  sessionId: string | undefined,
+  environmentId: EnvironmentId,
 ): Promise<string | null> {
   const key = qualifyProjectKey(environmentId, path);
   const cached = cache.get(key);

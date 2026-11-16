@@ -64,7 +64,7 @@ export async function stopAllManagedProcessesFromTray(options: {
   window: BrowserWindow | null;
 }): Promise<void> {
   const { count, hostManager, window } = options;
-  if (count <= 0 || hostManager?.getStatus() !== "ready") return;
+  if (count <= 0 || !hostManager?.isServing()) return;
   const copy = managedProcessDialogCopy();
   const confirmation = {
     type: "warning" as const,

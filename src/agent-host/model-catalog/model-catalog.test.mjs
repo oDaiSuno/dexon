@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import fs, { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { monitorEventLoopDelay, performance } from "node:perf_hooks";
@@ -110,13 +111,38 @@ test("models.list resolves a slow command-backed key while caller timers remain 
   }
 });
 
-test("a second models.list for the same cwd and epoch returns from memory in under 25ms", async (t) => {
+test("a second models.list for the same cwd and epoch reuses the built catalog instead of loading extensions again", async (t) => {
+  rmSync(path.join(directory, "key-resolved"), { force: true });
   const started = performance.now();
   const result = await handlers["models.list"]({ cwd: project });
   const cachedMs = performance.now() - started;
   t.diagnostic(JSON.stringify({ cachedMs }));
   assert.ok(result.models.some((model) => model.provider === "slow-catalog" && model.id === "slow-chat"));
-  assert.ok(cachedMs < 25, `cached model list took ${cachedMs}ms`);
+  assert.equal(existsSync(path.join(directory, "key-resolved")), false, "project extensions did not run again");
+  assert.ok(cachedMs < 2_000, `a cached model list took ${cachedMs}ms while a rebuild takes over three seconds`);
+});
+
+test("checking whether cached models are current never walks extension folders on the caller's thread", async (t) => {
+  const touched = [];
+  for (const name of ["existsSync", "lstatSync", "opendirSync", "readdirSync", "readFileSync", "statSync"]) {
+    const original = fs[name];
+    t.mock.method(fs, name, function (target, ...rest) {
+      touched.push(String(target));
+      return original.call(this, target, ...rest);
+    });
+  }
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+  await handlers["models.list"]({ cwd: project });
+  const extensionFolders = [path.join(project, ".pi", "extensions"), path.join(agentDir, "extensions")];
+  assert.deepEqual(
+    touched.filter((file) => extensionFolders.some((folder) => file.startsWith(folder))),
+    [],
+    "the extension tree is fingerprinted inside the catalog worker",
+  );
 });
 
 const { ModelCatalogService } = await importTestBundle(

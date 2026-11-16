@@ -32,12 +32,12 @@ function dockProps(patch = {}) {
     settingsOpen: false,
     browserAuthorizationOpen: false,
     isMobile: false,
-    explorerCwd: null,
+    environmentId: "primary",
+    location: null,
     explorerRefreshKey: 0,
     onRefreshExplorer: noop,
     onOpenFile: noop,
     onAtMention: noop,
-    activeCwd: null,
     ...patch,
   };
 }

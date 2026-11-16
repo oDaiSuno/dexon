@@ -91,6 +91,20 @@ export default tseslint.config(
       "react-hooks": reactHooks,
     },
     rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            "@/lib/use-file-environment",
+            "./use-file-environment",
+            "@/lib/api-event-source",
+            "./api-event-source",
+            "@/lib/agent-client",
+            "./agent-client",
+          ],
+          patterns: ["**/use-file-environment", "**/api-event-source", "**/agent-client"],
+        },
+      ],
       "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "error",
     },

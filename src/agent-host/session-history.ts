@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
+import type { SessionContentFingerprint } from "./session-content-cache";
 import type { HistoryWindow, PagedContextInfo, TurnOutlineItem } from "../contract/types";
 import type { ImageContent, SessionEntry, TextContent, ThinkingContent, ToolCallContent } from "../shared/types";
 import { turnTitleOf } from "../shared/turn-title";
@@ -39,8 +39,7 @@ export class StaleHistoryCursorError extends Error {
   }
 }
 
-export function buildHistoryRevision(filePath: string, sessionId: string): string {
-  const stat = statSync(filePath);
+export function buildHistoryRevision(stat: SessionContentFingerprint, sessionId: string): string {
   const identity = `${sessionId}:${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
   return createHash("sha256").update(identity).digest("base64url").slice(0, 18);
 }

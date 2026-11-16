@@ -1,12 +1,15 @@
+import { environmentAffordances } from "@/lib/environment-affordances";
+import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
-import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { useEnvironments } from "@/lib/environment-registry";
 import { Button } from "../form-controls";
 import { skillOriginText } from "../resources/overview-model";
 import { requestErrorMessage, shortenPath, sourceLabel, type Skill } from "./skill-shared";
 import { SkillToggle } from "./skill-toggle";
 
 export function SkillDetail({
+  environmentId,
   skill,
   cwd,
   onToggle,
@@ -15,6 +18,7 @@ export function SkillDetail({
   showName = false,
 }: {
   skill: Skill;
+  environmentId: EnvironmentId;
   cwd: string;
   onToggle: (skill: Skill) => void;
   toggling: boolean;
@@ -22,8 +26,7 @@ export function SkillDetail({
   showName?: boolean;
 }) {
   const { t } = useI18n();
-  const environmentId = useActiveEnvironment().id;
-  const affordances = useActiveEnvironmentAffordances();
+  const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const label = sourceLabel(skill);
   const enabled = !skill.disableModelInvocation;
   const [content, setContent] = useState("");

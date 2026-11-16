@@ -1,5 +1,5 @@
+import { isRpcError } from "@contract/types";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
-import { sendAgentCommand } from "@/lib/agent-client";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
@@ -23,6 +23,8 @@ import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
   | "environmentId"
+  | "sessionFolderMissing"
+  | "setMissingSessionKey"
   | "agentRunning"
   | "promptRunIdRef"
   | "optimisticUserMessageKeyRef"
@@ -68,6 +70,8 @@ function reportedThinkingLevel(reply: ModelCommandReply | null | undefined): Thi
 export function useSessionActions(context: Dependencies) {
   const {
     environmentId,
+    sessionFolderMissing,
+    setMissingSessionKey,
     agentRunning,
     promptRunIdRef,
     updateHistory,
@@ -111,7 +115,7 @@ export function useSessionActions(context: Dependencies) {
   const handleSend = useCallback(
     async (message: string) => {
       const trimmedMessage = message.trim();
-      if (!trimmedMessage || agentRunning || agentRunningRef.current) return { ok: false };
+      if (!trimmedMessage || sessionFolderMissing || agentRunning || agentRunningRef.current) return { ok: false };
       if (!canSendToEnvironment(environmentId) || (!session && !(isNew && newSessionCwd))) return { ok: false };
       const client = getEnvironmentApiClient(environmentId);
       const intent = readPromptIntent(message);
@@ -190,6 +194,8 @@ export function useSessionActions(context: Dependencies) {
         }
         return { ok: true };
       } catch (e) {
+        if (session && isRpcError(e) && e.code === "MISSING_SESSION_CWD")
+          setMissingSessionKey(`${environmentId}\0${session.id}`);
         console.error("Failed to send message:", e);
         const optimisticKey = optimisticUserMessageKeyRef.current;
         if (optimisticKey) {
@@ -215,6 +221,8 @@ export function useSessionActions(context: Dependencies) {
     },
     [
       environmentId,
+      sessionFolderMissing,
+      setMissingSessionKey,
       agentRunning,
       promptRunIdRef,
       updateHistory,
@@ -248,11 +256,11 @@ export function useSessionActions(context: Dependencies) {
     const sid = sessionIdRef.current;
     if (!sid) return;
     try {
-      await sendAgentCommand(sid, { type: "abort" });
+      await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "abort" });
     } catch (e) {
       console.error("Failed to abort:", e);
     }
-  }, [sessionIdRef]);
+  }, [environmentId, sessionIdRef]);
 
   const handleFork = useCallback(
     async (entryId: string) => {
@@ -260,11 +268,11 @@ export function useSessionActions(context: Dependencies) {
       if (!sid) return;
       setForkingEntryId(entryId);
       try {
-        const result = await sendAgentCommand<{ cancelled?: boolean; newSessionId?: string }>(sid, {
+        const result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
           type: "fork",
           entryId,
           position: "at",
-        });
+        })) as { cancelled?: boolean; newSessionId?: string };
         const { cancelled, newSessionId } = result ?? {};
         if (!cancelled && newSessionId) {
           onSessionForked?.(newSessionId);
@@ -275,7 +283,7 @@ export function useSessionActions(context: Dependencies) {
         setForkingEntryId(null);
       }
     },
-    [onSessionForked, sessionIdRef, setForkingEntryId],
+    [environmentId, onSessionForked, sessionIdRef, setForkingEntryId],
   );
 
   const handleLeafChange = useCallback(
@@ -286,7 +294,10 @@ export function useSessionActions(context: Dependencies) {
       let actualLeafId = leafId;
       if (leafId) {
         try {
-          const result = await sendAgentCommand<NavigateTreeResult>(sid, { type: "navigate_tree", targetId: leafId });
+          const result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+            type: "navigate_tree",
+            targetId: leafId,
+          })) as NavigateTreeResult;
           if (result?.cancelled) return;
           if (result?.leafId !== undefined) actualLeafId = result.leafId;
         } catch (e) {
@@ -300,7 +311,7 @@ export function useSessionActions(context: Dependencies) {
       await loadContext(sid, actualLeafId);
       await refreshContextUsage(sid);
     },
-    [contextGenRef, loadContext, refreshContextUsage, sessionIdRef, setActiveLeafId],
+    [environmentId, contextGenRef, loadContext, refreshContextUsage, sessionIdRef, setActiveLeafId],
   );
 
   const handleLeafChangeFromUi = useCallback(
@@ -320,7 +331,11 @@ export function useSessionActions(context: Dependencies) {
           await modelChoice.choose({ model, thinkingLevel: null }, async () => {
             const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
             if (!sid) return {};
-            const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+            const reply = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+              type: "set_model",
+              provider,
+              modelId,
+            })) as ModelCommandReply;
             return { thinkingLevel: reportedThinkingLevel(reply) };
           });
         } catch (e) {
@@ -332,7 +347,11 @@ export function useSessionActions(context: Dependencies) {
       if (!sid) return;
       try {
         await modelChoice.choose({ model }, async () => {
-          const reply = await sendAgentCommand<ModelCommandReply>(sid, { type: "set_model", provider, modelId });
+          const reply = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+            type: "set_model",
+            provider,
+            modelId,
+          })) as ModelCommandReply;
           return { thinkingLevel: reportedThinkingLevel(reply) };
         });
         await refreshContextUsage(sid);
@@ -340,7 +359,16 @@ export function useSessionActions(context: Dependencies) {
         console.error("Failed to set model:", e);
       }
     },
-    [ensuringNewSessionRef, isNew, modelChoice, refreshContextUsage, sessionIdRef, setNewSessionModel, setPendingModel],
+    [
+      environmentId,
+      ensuringNewSessionRef,
+      isNew,
+      modelChoice,
+      refreshContextUsage,
+      sessionIdRef,
+      setNewSessionModel,
+      setPendingModel,
+    ],
   );
 
   const handleCompact = useCallback(async () => {
@@ -350,16 +378,18 @@ export function useSessionActions(context: Dependencies) {
     setCompactError(null);
     setCompactResult(null);
     try {
-      const result = await sendAgentCommand<CompactCommandResult>(sid, { type: "compact" });
+      const result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+        type: "compact",
+      })) as CompactCommandResult;
       setCompactResult(readCompactResult(result, "manual"));
       await loadSession(sid, true, true);
     } catch (e) {
-      setCompactError(e instanceof Error ? e.message : String(e));
+      setCompactError(sessionClientErrorMessage(e, t, t("commandFailed", "Command failed")));
       setCompactResult(null);
     } finally {
       setIsCompacting(false);
     }
-  }, [isCompacting, loadSession, sessionIdRef, setCompactError, setCompactResult, setIsCompacting]);
+  }, [environmentId, isCompacting, loadSession, sessionIdRef, setCompactError, setCompactResult, setIsCompacting, t]);
   return {
     handleLeafChangeFromUi,
     handleSend,

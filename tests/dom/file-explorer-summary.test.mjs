@@ -49,9 +49,11 @@ const file = (name) => ({ name, path: name, type: "file", isDir: false, size: 1,
 
 function explorerHost(t, { git = DIRTY, entries = [file("README.md")], pending = false } = {}) {
   const watchers = [];
+  const opens = [];
   const host = installRendererApi(dom.window, api, () => ({
     call(method) {
-      if (method === "files.watchStart" || method === "files.watchStop") return { ok: true };
+      if (method === "files.watchStart") return new Promise((resolve) => opens.push(resolve));
+      if (method === "files.watchStop") return { ok: true };
       if (pending && (method === "git.status" || method === "files.list")) return new Promise(() => {});
       if (method === "git.status") return git;
       if (method === "files.list") return { entries };
@@ -70,6 +72,7 @@ function explorerHost(t, { git = DIRTY, entries = [file("README.md")], pending =
     async watcher(event) {
       await waitFor(() => assert.ok(watchers.length > 0, "the explorer watches the project folder"));
       await act(async () => {
+        if (event === "connected") for (const resolve of opens.splice(0)) resolve({ ok: true });
         for (const watcher of watchers) watcher.listener({ event, path: watcher.key });
       });
     },
@@ -79,6 +82,7 @@ function explorerHost(t, { git = DIRTY, entries = [file("README.md")], pending =
 async function explorer(t, props = {}, hostOptions = {}) {
   const host = explorerHost(t, hostOptions);
   const view = await mount(t, api.FileExplorer, {
+    environmentId: "primary",
     cwd: PROJECT,
     homeDir: HOME,
     personalCwd: PERSONAL,
@@ -194,12 +198,12 @@ function dock(patch = {}) {
     settingsOpen: false,
     browserAuthorizationOpen: false,
     isMobile: false,
-    explorerCwd: PROJECT,
+    environmentId: "primary",
+    location: { environmentId: "primary", path: PROJECT },
     explorerRefreshKey: 0,
     onRefreshExplorer: noop,
     onOpenFile: noop,
     onAtMention: noop,
-    activeCwd: PROJECT,
     personalCwd: PERSONAL,
     homeDir: HOME,
     ...patch,

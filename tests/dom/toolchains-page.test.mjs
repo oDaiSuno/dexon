@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
-import { dom, byRole, button, click, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
+import { dom, act, byRole, button, click, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
 import { precedes } from "../support/dom-queries.mjs";
 import { installRendererApi } from "../support/renderer-api.mjs";
 
@@ -237,4 +237,46 @@ test("收起 Node.js 再展开 Bun 时，Bun 的来源列表同样以“自定�
   const bun = byRole(view.container, "region", "Bun · 工具解析");
   assert.ok(bun, "Bun expands");
   assert.ok(button(bun, "自定义路径…"), "every expanded tool can pick a custom path");
+});
+
+test("remote toolchains stay local-only and switching back restores local scanning", async (t) => {
+  const calls = [];
+  let changed;
+  const state = toolchainState();
+  const host = installRendererApi(dom.window, api, () => ({ call: () => ({}) }), {
+    bridge: {
+      onToolchainState: (listener) => {
+        calls.push(["subscribe"]);
+        changed = listener;
+        return () => calls.push(["unsubscribe"]);
+      },
+      getToolchainState: async (cwd) => {
+        calls.push(["get", cwd]);
+        return state;
+      },
+      rescanToolchains: async (cwd) => {
+        calls.push(["rescan", cwd]);
+        return state;
+      },
+    },
+  });
+  const view = await mount(
+    t,
+    api.ToolchainsConfig,
+    { environmentId: "gpu", cwd: "/remote/app" },
+    { release: host.close },
+  );
+  assert.match(view.container.textContent, /开发工具链扫描仅限本机环境。/);
+  assert.deepEqual(calls, []);
+  await view.update({ environmentId: "primary", cwd: "/local/app" });
+  await waitFor(() => assert.ok(byRole(view.container, "list", "开发工具列表")));
+  await act(async () => changed(state));
+  await waitFor(() => assert.ok(calls.some(([method, cwd]) => method === "get" && cwd === "/local/app")));
+  assert.ok(calls.some(([method, cwd]) => method === "rescan" && cwd === "/local/app"));
+  await view.update({ environmentId: "gpu", cwd: "/remote/app" });
+  assert.match(view.container.textContent, /开发工具链扫描仅限本机环境。/);
+  assert.equal(
+    calls.some(([, cwd]) => cwd === "/remote/app"),
+    false,
+  );
 });

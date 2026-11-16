@@ -1,7 +1,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { ManagedProcessLogStream, ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
-import { call } from "@/lib/api-client";
+import type { EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { copyText } from "@/lib/clipboard";
 import { useI18n } from "@/i18n";
 import { ProcessEmpty, ProcessList, ProcessListMessage, ProcessSummary } from "./processes/process-list";
@@ -12,6 +13,7 @@ import { TriangleAlertGlyph } from "./processes/process-icons";
 import { useProcessPanelState } from "./processes/use-process-panel-state";
 
 type Props = {
+  environmentId: EnvironmentId;
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 };
@@ -32,7 +34,7 @@ function DangerBanner({ children }: { children: ReactNode }) {
   );
 }
 
-export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
+export function ProcessPanel({ environmentId, onActiveCountChange, onOpenBrowser }: Props) {
   const { t } = useI18n();
   const {
     processes,
@@ -50,7 +52,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
     readMore,
     invoke,
     openEndpoint,
-  } = useProcessPanelState({ onActiveCountChange, onOpenBrowser });
+  } = useProcessPanelState({ environmentId, onActiveCountChange, onOpenBrowser });
   const [search, setSearch] = useState("");
   const [streams, setStreams] = useState<Set<ManagedProcessLogStream>>(() => new Set(LOG_STREAMS));
   const lost = processes.some((process) => process.state === "lost");
@@ -65,9 +67,24 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
   const detailActions = (process: ManagedProcessPublicInfo): ProcessDetailActions => ({
     openEndpoint: (url) => void openEndpoint(process, url),
     stop: (mode) =>
-      void invoke(() => call("processes.stop", { processId: process.processId, runId: process.runId, mode })),
-    restart: () => void invoke(() => call("processes.restart", { processId: process.processId, runId: process.runId })),
-    dismiss: () => void invoke(() => call("processes.dismiss", { processId: process.processId })),
+      void invoke(() =>
+        getEnvironmentApiClient(environmentId).call("processes.stop", {
+          processId: process.processId,
+          runId: process.runId,
+          mode,
+        }),
+      ),
+    restart: () =>
+      void invoke(() =>
+        getEnvironmentApiClient(environmentId).call("processes.restart", {
+          processId: process.processId,
+          runId: process.runId,
+        }),
+      ),
+    dismiss: () =>
+      void invoke(() =>
+        getEnvironmentApiClient(environmentId).call("processes.dismiss", { processId: process.processId }),
+      ),
     exportDiagnostics,
   });
 
@@ -92,9 +109,13 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
         <ProcessSummary
           processes={processes}
           busy={busy}
-          onStopAll={(mode) => void invoke(() => call("processes.stopAll", { mode }))}
+          onStopAll={(mode) =>
+            void invoke(() => getEnvironmentApiClient(environmentId).call("processes.stopAll", { mode }))
+          }
           onExportDiagnostics={exportDiagnostics}
-          onClearFinished={() => void invoke(() => call("processes.clearFinished"))}
+          onClearFinished={() =>
+            void invoke(() => getEnvironmentApiClient(environmentId).call("processes.clearFinished"))
+          }
         />
       )}
       {error && (
@@ -157,7 +178,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
               }
               onExport={() =>
                 void invoke(() =>
-                  call("processes.export", {
+                  getEnvironmentApiClient(environmentId).call("processes.export", {
                     processId: selected.processId,
                     runId: selected.runId,
                     streams: [...streams],
@@ -178,7 +199,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 onSend={async (text) => {
                   let sent = false;
                   await invoke(async () => {
-                    await call("processes.write", {
+                    await getEnvironmentApiClient(environmentId).call("processes.write", {
                       processId: selected.processId,
                       runId: selected.runId,
                       text,
@@ -191,7 +212,7 @@ export function ProcessPanel({ onActiveCountChange, onOpenBrowser }: Props) {
                 onClose={() =>
                   window.confirm(t("closeStdinConfirm", "Close stdin for this process?")) &&
                   void invoke(() =>
-                    call("processes.write", {
+                    getEnvironmentApiClient(environmentId).call("processes.write", {
                       processId: selected.processId,
                       runId: selected.runId,
                       text: "",

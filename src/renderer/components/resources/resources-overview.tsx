@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useState } from "react";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
@@ -22,6 +23,7 @@ import { SkillDrawer } from "./skill-drawer";
 import { SkillGrid } from "./skill-grid";
 
 export function ResourcesOverview({
+  environmentId,
   cwd,
   library,
   directory,
@@ -34,6 +36,7 @@ export function ResourcesOverview({
   onOpenPackage,
   onManageSources,
 }: {
+  environmentId: EnvironmentId;
   cwd: string;
   library: PluginLibrary;
   directory: SkillDirectory;
@@ -105,6 +108,7 @@ export function ResourcesOverview({
       >
         {attentionTried && library.capabilityIssue && library.hasPendingCapabilityOperation && (
           <CapabilityRequired
+            environmentId={environmentId}
             issue={library.capabilityIssue}
             cwd={cwd}
             onContinue={library.retryCapabilityOperation}
@@ -128,6 +132,7 @@ export function ResourcesOverview({
       <SourcesBar packageCount={packages.length} onOpen={onManageSources} />
       {openSkill && (
         <SkillDrawer
+          environmentId={environmentId}
           skill={openSkill}
           cwd={cwd}
           toggling={directory.toggling.has(openSkill.filePath)}

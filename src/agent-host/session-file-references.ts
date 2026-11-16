@@ -7,7 +7,7 @@ export async function isFilePathReferencedBySession(filePath: string, sessionId:
   try {
     const sessionPath = await resolveSessionPath(sessionId);
     if (!sessionPath) return false;
-    return isFilePathReferencedByEntries(filePath, getSessionEntries(sessionPath));
+    return isFilePathReferencedByEntries(filePath, await getSessionEntries(sessionPath));
   } catch {
     return false;
   }

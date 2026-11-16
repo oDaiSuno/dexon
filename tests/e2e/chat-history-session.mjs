@@ -114,6 +114,7 @@ export function buildHistory() {
     sessionId: SESSION_ID,
     filePath: `/fixture/${SESSION_ID}.jsonl`,
     info: {
+      environmentId: "primary",
       id: SESSION_ID,
       path: `/fixture/${SESSION_ID}.jsonl`,
       cwd: "/fixture",

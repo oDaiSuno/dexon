@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ChannelBinding, ChannelsSnapshot } from "@shared/channel-types";
-import { call, listSessions } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { formatRelativeDateTime } from "@/lib/locale-format";
 import { getSessionDisplayTitle } from "@/lib/session-list";
@@ -64,7 +65,8 @@ export function QuickChannelBinding({
   useEffect(() => {
     if (!elsewhereIds) return;
     let cancelled = false;
-    listSessions()
+    getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID)
+      .listSessions()
       .then(({ sessions }) => {
         if (cancelled) return;
         setSessionTitles(new Map(sessions.map((session) => [session.id, getSessionDisplayTitle(session, 40)])));
@@ -120,13 +122,13 @@ export function QuickChannelBinding({
   };
   const updateBinding = (binding: ChannelBinding, bind: boolean) =>
     run(binding.id, () =>
-      call("channels.bindingUpsert", {
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.bindingUpsert", {
         binding: { ...binding, sessionId: bind ? sessionId : undefined, lastUsedAt: new Date().toISOString() },
       }),
     );
   const reconnect = (accountId: string) =>
     run(accountId, async () => {
-      await call("channels.restart", { accountId });
+      await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.restart", { accountId });
     });
 
   const onSearchKey = (event: React.KeyboardEvent<HTMLInputElement>) => {

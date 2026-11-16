@@ -28,6 +28,7 @@ let mounted = null;
 
 async function renderMessage(content) {
   const element = createElement(UserMessageView, {
+    environmentId: "primary",
     message: { role: "user", content, timestamp: Date.now() },
     cwd: "/workspace/project",
   });

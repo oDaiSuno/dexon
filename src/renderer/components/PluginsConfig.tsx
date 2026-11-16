@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import type { CSSProperties } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
@@ -22,6 +23,7 @@ const dialogFrame: CSSProperties = {
 };
 
 interface PluginsConfigProps {
+  environmentId: EnvironmentId;
   cwd: string;
   sessionId: string | null;
   onClose: () => void;
@@ -30,11 +32,17 @@ interface PluginsConfigProps {
 }
 
 export function PluginsConfig({ onReloaded, ...props }: PluginsConfigProps) {
-  const library = usePluginLibrary({ cwd: props.cwd, sessionId: props.sessionId, onReloaded });
+  const library = usePluginLibrary({
+    environmentId: props.environmentId,
+    cwd: props.cwd,
+    sessionId: props.sessionId,
+    onReloaded,
+  });
   return <PluginsManager {...props} library={library} />;
 }
 
 export function PluginsManager({
+  environmentId,
   cwd,
   sessionId,
   onClose,
@@ -153,6 +161,7 @@ export function PluginsManager({
             {capabilityIssue && hasPendingCapabilityOperation && (
               <div style={{ marginBottom: 16 }}>
                 <CapabilityRequired
+                  environmentId={environmentId}
                   issue={capabilityIssue}
                   cwd={cwd}
                   onContinue={retryCapabilityOperation}

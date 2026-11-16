@@ -69,6 +69,7 @@ async function explorer(t, git, props = {}) {
     t,
     api.FileExplorer,
     {
+      environmentId: "primary",
       cwd: PROJECT,
       homeDir: "/Users/demo",
       personalCwd: null,

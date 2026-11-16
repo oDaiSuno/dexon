@@ -1,4 +1,3 @@
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useCallback, useState } from "react";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -17,14 +16,8 @@ function formatDuration(seconds: number): string {
   return `${mins}:${String(secs).padStart(2, "0")}`;
 }
 
-export function AudioViewer({
-  filePath,
-  cwd,
-  sourceSessionId,
-  environmentId: requestedEnvironmentId,
-}: FileViewerProps) {
+export function AudioViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
   const { language, t } = useI18n();
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const [bust, setBust] = useState(0);
   const [duration, setDuration] = useState<number | null>(null);
   const { src, size, error, setError, setSize } = useBlobSrc(environmentId, filePath, sourceSessionId, bust);

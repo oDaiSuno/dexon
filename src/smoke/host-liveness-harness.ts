@@ -177,6 +177,42 @@ async function hungHost(root: string): Promise<Verdict> {
   };
 }
 
+async function restartWhileUnresponsive(root: string): Promise<Verdict> {
+  const name = "unresponsive-host-restarts-on-request";
+  const place = scene(root, name);
+  const reaper = new ManagedProcessReaper(place.journal, { platform: "linux", groupExists: () => false });
+  await reaper.initialize();
+  const { host, records } = startHost(place, reaper, {
+    counter: true,
+    readyDelayMs: 0,
+    answerPings: false,
+    ignorePingsLaunches: 1,
+  });
+  host.start();
+  if (!(await waitUntil(() => records.some((entry) => entry.status === "unresponsive"), 20_000))) {
+    return { pass: false, detail: `never unresponsive: order=${order(records)}` };
+  }
+  const readyAt = records.find((entry) => entry.status === "ready")?.at ?? 0;
+  const flaggedAfterReadyMs = (records.find((entry) => entry.status === "unresponsive")?.at ?? 0) - readyAt;
+  const index = records.length;
+  await Promise.all([host.restartHost(), host.restartHost()]);
+  await waitUntil(() => records.slice(index).some((entry) => entry.status === "ready"), 15_000);
+  const recoveredAt = records.slice(index).find((entry) => entry.status === "ready")?.at;
+  const recoveredAfterReadyMs = recoveredAt === undefined ? null : recoveredAt - readyAt;
+  const launches = launchCount(place.counter);
+  const crashed = records.some((entry) => entry.status === "crashed");
+  return {
+    pass:
+      flaggedAfterReadyMs >= 9_000 &&
+      flaggedAfterReadyMs <= 16_000 &&
+      recoveredAfterReadyMs !== null &&
+      recoveredAfterReadyMs < 25_000 &&
+      launches === 2 &&
+      !crashed,
+    detail: `order=${order(records)} unresponsiveAfterReadyMs=${flaggedAfterReadyMs} recoveredAfterReadyMs=${recoveredAfterReadyMs ?? "none"} launches=${String(launches)} crashed=${crashed}`,
+  };
+}
+
 async function windowsCrashRecovery(root: string): Promise<Verdict> {
   const name = "windows-crash-without-cleanup-helper-recovers";
   const place = scene(root, name);
@@ -218,7 +254,7 @@ async function leftoverBlocksRetry(root: string): Promise<Verdict> {
   const before = launchCount(place.counter);
   let rejection = "";
   try {
-    await host.restartAfterCrash();
+    await host.restartHost();
   } catch (error) {
     rejection = message(error);
   }
@@ -270,9 +306,9 @@ async function retryRestartsCrashedHost(root: string): Promise<Verdict> {
   }
   const index = records.length;
   try {
-    await host.restartAfterCrash();
+    await host.restartHost();
   } catch (error) {
-    return { pass: false, detail: `restartAfterCrash rejected: ${message(error)}` };
+    return { pass: false, detail: `restartHost rejected: ${message(error)}` };
   }
   await waitUntil(() => records.slice(index).filter((entry) => entry.status === "ready").length >= 2, 15_000);
   const after = records.slice(index).map((entry) => entry.status);
@@ -296,6 +332,7 @@ async function run(): Promise<void> {
     settle("slow-start-11s-stays-ready", () => slowStart(root, "slow-start-11s-stays-ready", 11_000)),
     settle("slow-start-20s-stays-ready", () => slowStart(root, "slow-start-20s-stays-ready", 20_000)),
     settle("hung-host-is-restarted-within-30s", () => hungHost(root)),
+    settle("unresponsive-host-restarts-on-request", () => restartWhileUnresponsive(root)),
     settle("windows-crash-without-cleanup-helper-recovers", () => windowsCrashRecovery(root)),
     settle("leftover-record-blocks-restart-and-retry", () => leftoverBlocksRetry(root)),
     settle("damaged-journal-blocks-restart", () => damagedJournal(root)),

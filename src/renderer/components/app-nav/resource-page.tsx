@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useCallback, useEffect, useRef } from "react";
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo } from "@/lib/api-types";
@@ -15,6 +16,7 @@ export type ResourceTab = "plugins" | "skills";
 export type ResourceView = "overview" | "manage";
 
 interface ResourcePageProps {
+  environmentId: EnvironmentId;
   cwd: string;
   sessionId?: string | null;
   view: ResourceView;
@@ -27,10 +29,11 @@ interface ResourcePageProps {
 }
 
 export function ResourcePage(props: ResourcePageProps) {
-  return <ResourceWorkspace key={props.cwd} {...props} />;
+  return <ResourceWorkspace key={`${props.environmentId}\0${props.cwd}`} {...props} />;
 }
 
 function ResourceWorkspace({
+  environmentId,
   cwd,
   sessionId = null,
   view,
@@ -41,8 +44,8 @@ function ResourceWorkspace({
   channelSnapshot,
   onOpenRemote,
 }: ResourcePageProps) {
-  const library = usePluginLibrary({ cwd, sessionId, onReloaded: onPluginsReloaded });
-  const directory = useSkillDirectory(cwd);
+  const library = usePluginLibrary({ environmentId, cwd, sessionId, onReloaded: onPluginsReloaded });
+  const directory = useSkillDirectory(environmentId, cwd);
   const skillsAddRef = useRef(false);
   const { loadPlugins } = library;
   const { loadSkills } = directory;
@@ -76,6 +79,7 @@ function ResourceWorkspace({
       {view === "overview" ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-[24px] py-[32px]">
           <ResourcesOverview
+            environmentId={environmentId}
             cwd={cwd}
             library={library}
             directory={directory}
@@ -108,6 +112,7 @@ function ResourceWorkspace({
           <div role="tabpanel" style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex" }}>
             {activeTab === "plugins" ? (
               <PluginsManager
+                environmentId={environmentId}
                 cwd={cwd}
                 sessionId={sessionId}
                 embedded
@@ -117,6 +122,7 @@ function ResourceWorkspace({
               />
             ) : (
               <SkillsManager
+                environmentId={environmentId}
                 cwd={cwd}
                 embedded
                 initialAddMode={skillsAddRef.current}

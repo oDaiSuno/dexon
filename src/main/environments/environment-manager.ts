@@ -81,12 +81,11 @@ export class EnvironmentManager {
       enabled: true,
       target: { kind: "primary" },
       descriptor: this.primaryDescriptor,
-      status:
-        host.getStatus() === "ready"
-          ? { phase: "connected", generation: host.getGeneration(), since: host.getReadySince()! }
-          : host.getStatus() === "starting"
-            ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
-            : { phase: "offline", lastFailure: null },
+      status: host.isServing()
+        ? { phase: "connected", generation: host.getGeneration(), since: host.getReadySince()! }
+        : host.getStatus() === "starting"
+          ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
+          : { phase: "offline", lastFailure: null },
     };
     return structuredClone([primary, ...[...this.environments.values()].map((entry) => this.view(entry))]);
   }

@@ -19,6 +19,7 @@ after(() => {
   rmSync(base, { recursive: true, force: true });
 });
 const {
+  createPathAccess,
   getAllowedFileRoots,
   invalidateAllowedRootsCache,
   isFilePathAllowed,
@@ -28,7 +29,7 @@ const {
   packages: "external",
   stdin: {
     contents:
-      'export {getAllowedFileRoots, invalidateAllowedRootsCache, isFilePathAllowed, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
+      'export {getAllowedFileRoots, invalidateAllowedRootsCache, isFilePathAllowed, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {createPathAccess} from "./file-access-core.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
     resolveDir: import.meta.dirname,
     loader: "ts",
   },
@@ -74,13 +75,12 @@ test("a directory change during a real session scan cannot publish stale allowed
   writeSession(fresh);
   invalidateAllowedRootsCache();
   releaseGit.resolve();
-  const roots = await scanning;
-  assert.equal(isFilePathAllowed(path.join(fresh, "notes.txt"), roots), true);
-  assert.equal(isFilePathAllowed(path.join(stale, "notes.txt"), roots), false);
-  const following = await getAllowedFileRoots();
-  assert.equal(isFilePathAllowed(path.join(fresh, "notes.txt"), following), true);
+  const scanned = await createPathAccess().prepare(await scanning);
+  assert.equal(await scanned.allows(path.join(fresh, "notes.txt")), true);
+  assert.equal(await scanned.allows(path.join(stale, "notes.txt")), false);
+  assert.equal(await isFilePathAllowed(path.join(fresh, "notes.txt")), true);
   assert.equal(
-    isFilePathAllowed(path.join(stale, "notes.txt"), following),
+    await isFilePathAllowed(path.join(stale, "notes.txt")),
     false,
     "the next caller cannot read a cached stale directory",
   );

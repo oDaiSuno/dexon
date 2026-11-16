@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChannelAccountConfig, ChannelLoginEvent, ChannelsSnapshot, FeishuDomain } from "@shared/channel-types";
 import type { SessionInfo } from "@contract/types";
-import { call, listSessions, subscribe } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { FEISHU_BASE_URLS, TELEGRAM_BASE_URL } from "./constants";
 
@@ -24,7 +25,10 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
 
   const refresh = useCallback(async () => {
     try {
-      const [channels, sessionResult] = await Promise.all([call("channels.list"), listSessions()]);
+      const [channels, sessionResult] = await Promise.all([
+        getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.list"),
+        getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).listSessions(),
+      ]);
       setSnapshot(channels);
       onSnapshotChange?.(channels);
       setSessions(sessionResult.sessions);
@@ -40,11 +44,11 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
     void refresh();
     const unsubs: Array<() => void> = [];
     void Promise.all([
-      subscribe("channels.status", "*", () => void refresh()),
-      subscribe("channels.pairing", "*", () => void refresh()),
-      subscribe("channels.binding", "*", () => void refresh()),
-      subscribe("channels.activity", "*", () => void refresh()),
-      subscribe("channels.login", "*", (event) => setLogin(event)),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe("channels.status", "*", () => void refresh()),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe("channels.pairing", "*", () => void refresh()),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe("channels.binding", "*", () => void refresh()),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe("channels.activity", "*", () => void refresh()),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe("channels.login", "*", (event) => setLogin(event)),
     ]).then((items) => unsubs.push(...items));
     return () => unsubs.forEach((unsubscribe) => unsubscribe());
   }, [refresh]);
@@ -59,7 +63,8 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
     let cancelled = false;
     const delay = Math.min(10_000, Math.max(500, login.pollAfterMs ?? 600));
     const timer = setTimeout(() => {
-      void call("channels.loginWait", { channel: login.channel, sessionKey: login.sessionKey })
+      void getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID)
+        .call("channels.loginWait", { channel: login.channel, sessionKey: login.sessionKey })
         .then((event) => {
           if (!cancelled) {
             setLogin(event);
@@ -100,7 +105,10 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
 
   const beginLogin = () =>
     run(async () => {
-      const event = await call("channels.loginStart", { channel: "weixin", force: true });
+      const event = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.loginStart", {
+        channel: "weixin",
+        force: true,
+      });
       setLogin(event);
     });
 
@@ -109,7 +117,11 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
     setFeishuError("");
     setFeishuScanDomain(domain);
     try {
-      const event = await call("channels.loginStart", { channel: "feishu", domain, force: true });
+      const event = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.loginStart", {
+        channel: "feishu",
+        domain,
+        force: true,
+      });
       setFeishuDialogOpen(false);
       setLogin(event);
     } catch (cause) {
@@ -151,7 +163,7 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
         accountId,
         credential: { token, providerAccountId: accountId, baseUrl: TELEGRAM_BASE_URL },
       });
-      const next = await call("channels.accountConnect", { account });
+      const next = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountConnect", { account });
       setSnapshot(next);
       onSnapshotChange?.(next);
       setTelegramDialogOpen(false);
@@ -201,7 +213,7 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
           baseUrl: FEISHU_BASE_URLS[domain],
         },
       });
-      const next = await call("channels.accountConnect", { account });
+      const next = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountConnect", { account });
       setSnapshot(next);
       onSnapshotChange?.(next);
       setFeishuDialogOpen(false);
@@ -214,7 +226,10 @@ export function useChannelsState(onSnapshotChange?: (snapshot: ChannelsSnapshot)
 
   const closeLogin = () => {
     if (login && !["confirmed", "already_connected", "expired", "error", "cancelled"].includes(login.phase)) {
-      void call("channels.loginCancel", { channel: login.channel, sessionKey: login.sessionKey });
+      void getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.loginCancel", {
+        channel: login.channel,
+        sessionKey: login.sessionKey,
+      });
     }
     setLogin(null);
     setVerificationCode("");

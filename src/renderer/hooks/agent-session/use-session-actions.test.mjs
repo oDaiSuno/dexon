@@ -1,5 +1,7 @@
+import { environmentSession } from "./environment-session-test-support.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { RpcError } from "../../../contract/types.ts";
 import { act } from "react-test-renderer";
 
 import { createSessionDetail, createSessionHookHarness, createSessionTestHost } from "./session-hook-harness.mjs";
@@ -400,4 +402,93 @@ test("manual compaction reports success and failure without getting stuck", asyn
   assert.equal(h.state.compactError, "compaction exploded");
   assert.equal(h.state.compactResult, null, "stale success replaced by the failure");
   assert.equal(h.state.isCompacting, false);
+});
+
+test("a known missing historical folder refuses sending before contacting the host", async (t) => {
+  const setup = await existingSessionHarness(t, {}, { sessionFolderMissing: true });
+  await setup.mountVisible();
+  let result;
+  await setup.h.act(async () => {
+    result = await setup.h.state.handleSend("do not recreate");
+  });
+  assert.deepEqual(result, { ok: false });
+  assert.equal(setup.host.sendCommands.length, 0);
+  assert.equal(setup.h.state.messages.length, 2);
+});
+
+test("a missing-folder rejection protects later sends without losing history", async (t) => {
+  let attempts = 0;
+  const setup = await existingSessionHarness(t, {
+    sendAgentCommand: async (_sid, command) => {
+      if (command.type === "prompt") {
+        attempts += 1;
+        throw new RpcError({ code: "MISSING_SESSION_CWD", message: "folder was deleted" });
+      }
+      return {};
+    },
+  });
+  await setup.mountVisible();
+  await setup.h.act(async () => {
+    await assert.rejects(setup.h.state.handleSend("first"));
+  });
+  await setup.h.flush();
+  assert.equal(setup.h.state.sessionFolderMissing, true);
+  await setup.h.act(() => setup.h.state.handleSend("second"));
+  assert.equal(attempts, 1);
+  assert.equal(setup.h.state.messages.length, 2);
+});
+
+for (const code of ["CLOSED", "DISCONNECTED"]) {
+  test(`${code} during compaction and slash commands produces a reconnection message instead of transport text`, async (t) => {
+    const setup = await existingSessionHarness(t, {
+      sendAgentCommand: async () => {
+        throw new RpcError({ code, message: "RPC port closed" });
+      },
+    });
+    const { h } = setup;
+    await setup.mountVisible();
+    await h.act(() => h.state.handleCompact());
+    assert.equal(h.state.compactError, "Reconnecting to background service…");
+    assert.equal(h.state.isCompacting, false);
+    for (const command of ["/compact", "/reload", "/name Renamed", "/session", "/copy"]) {
+      let result;
+      await h.act(async () => {
+        result = await h.state.handleBuiltinSlashCommand(command);
+      });
+      assert.equal(result.error, "Reconnecting to background service…");
+      assert.equal(h.state.isCompacting, false);
+    }
+    assert.equal(h.state.notices.filter((notice) => notice.type === "error").length, 5);
+    assert.equal(
+      h.state.notices.some((notice) => notice.message === "RPC port closed"),
+      false,
+    );
+  });
+}
+
+test("abort, fork, tree navigation, compaction and interactive answers stay on the session owner despite another focus", async (t) => {
+  const h = await environmentSession(t);
+  await h.act(async () => {
+    await h.state.handleAbort();
+    await h.state.handleFork("entry");
+    h.navigate("leaf");
+    await h.flush();
+    await h.state.handleCompact();
+  });
+  await h.act(async () => {
+    h.state.interactiveTools.reconcile({
+      runtimeId: "runtime",
+      revision: 1,
+      completed: [],
+      requests: [{ id: "confirm", runtimeId: "runtime", method: "confirm", title: "Continue?", createdAt: 1 }],
+    });
+    await h.state.interactiveTools.respond("confirm", { confirmed: true });
+  });
+  const commands = h.requests.filter((request) => request.method === "agent.command");
+  assert.deepEqual(
+    commands.map((request) => request.params.command.type),
+    ["abort", "fork", "navigate_tree", "compact", "extension_ui_response"],
+  );
+  assert.ok(h.requests.every((request) => request.environmentId === "gpu"));
+  assert.ok(commands.every((request) => request.params.sessionId === "same-id"));
 });

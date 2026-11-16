@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import fs from "node:fs/promises";
 import type { SessionInfo } from "../shared/types";
 
 export interface Fingerprint {
@@ -16,14 +16,14 @@ export interface PersistedIndexRecord {
   valid: boolean;
 }
 
-export function fingerprint(filePath: string): Fingerprint {
-  const stat = statSync(filePath);
+export async function fingerprint(filePath: string): Promise<Fingerprint> {
+  const stat = await fs.stat(filePath);
   return { size: stat.size, mtimeMs: stat.mtimeMs, ctimeMs: stat.ctimeMs, ino: stat.ino };
 }
 
-export function readFingerprintOrNull(filePath: string): Fingerprint | null {
+export async function readFingerprintOrNull(filePath: string): Promise<Fingerprint | null> {
   try {
-    return fingerprint(filePath);
+    return await fingerprint(filePath);
   } catch (error) {
     if (isMissingFile(error)) return null;
     throw error;

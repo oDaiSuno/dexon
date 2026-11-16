@@ -26,7 +26,10 @@ function alertOf(view) {
 }
 
 test("when automatic retries run out, the failure card says retry failed and shows 3/3", async (t) => {
-  const view = await mount(t, api.MessageView, { message: failure({ retry: { attempt: 3, maxAttempts: 3 } }) });
+  const view = await mount(t, api.MessageView, {
+    environmentId: "primary",
+    message: failure({ retry: { attempt: 3, maxAttempts: 3 } }),
+  });
   const card = alertOf(view);
   assert.ok(card);
   assert.match(card.textContent, /重试失败/);
@@ -35,7 +38,7 @@ test("when automatic retries run out, the failure card says retry failed and sho
 });
 
 test("a failure that was never retried shows no attempt count", async (t) => {
-  const view = await mount(t, api.MessageView, { message: failure() });
+  const view = await mount(t, api.MessageView, { environmentId: "primary", message: failure() });
   const card = alertOf(view);
   assert.match(card.textContent, /请求失败/);
   assert.doesNotMatch(card.textContent, /\d+\/\d+/);

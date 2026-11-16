@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { access } from "node:fs/promises";
 import type { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../contract/rpc";
 import type { SessionEntry, SessionInfo } from "../shared/types";
@@ -22,24 +22,31 @@ function hasUserMessage(entries: SessionEntry[]): boolean {
   );
 }
 
-function readUnsaved(session: AgentSessionWrapper | undefined): SessionSource | null {
+async function readUnsaved(session: AgentSessionWrapper | undefined): Promise<SessionSource | null> {
   if (!session?.isAlive()) return null;
-  if (session.sessionFile && existsSync(session.sessionFile)) return null;
+  if (
+    session.sessionFile &&
+    (await access(session.sessionFile).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return null;
   const manager = session.inner.sessionManager;
   const entries = manager.getEntries() as unknown as SessionEntry[];
   if (!hasUserMessage(entries) && !getSessionOrigin(session.sessionId)) return null;
   return { filePath: "", manager, entries, historyRevision: buildUnsavedHistoryRevision(session.sessionId) };
 }
 
-export function findUnsavedSession(sessionId: string): SessionSource | null {
+export function findUnsavedSession(sessionId: string): Promise<SessionSource | null> {
   return readUnsaved(getRpcSession(sessionId));
 }
 
 export async function openSessionSource(sessionId: string): Promise<SessionSource | null> {
   const filePath = await resolveSessionPath(sessionId);
   if (!filePath) return findUnsavedSession(sessionId);
-  const { manager, entries } = getSessionContentSnapshot(filePath);
-  return { filePath, manager, entries, historyRevision: buildHistoryRevision(filePath, sessionId) };
+  const { manager, entries, fingerprint } = await getSessionContentSnapshot(filePath);
+  return { filePath, manager, entries, historyRevision: buildHistoryRevision(fingerprint, sessionId) };
 }
 
 export async function describeSessionSource(source: SessionSource): Promise<SessionInfo | null> {
@@ -56,7 +63,7 @@ export async function listHistorySessions(): Promise<SessionInfo[]> {
   const unsaved: SessionInfo[] = [];
   for (const session of listRpcSessions()) {
     if (savedIds.has(session.sessionId)) continue;
-    const source = readUnsaved(session);
+    const source = await readUnsaved(session);
     const info = source ? await describeSessionSource(source) : null;
     if (info && !savedIds.has(info.id)) unsaved.push(info);
   }
@@ -72,11 +79,11 @@ export function announceSessionOnFirstMessage(server: RpcServer, session: AgentS
     announced = true;
     setImmediate(() => {
       off();
-      const source = readUnsaved(session);
-      if (!source) return;
-      void describeSessionSource(source).then((info) => {
-        if (info) server.emit("sessions.changed", info.id, { cwd: info.cwd, sessionId: info.id, session: info });
-      });
+      void readUnsaved(session)
+        .then((source) => (source ? describeSessionSource(source) : null))
+        .then((info) => {
+          if (info) server.emit("sessions.changed", info.id, { cwd: info.cwd, sessionId: info.id, session: info });
+        });
     });
   });
 }

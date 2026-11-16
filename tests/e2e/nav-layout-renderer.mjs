@@ -4,7 +4,7 @@ import { flushSync } from "react-dom";
 import { NavSidebar } from "../../src/renderer/components/app-nav/nav-sidebar.tsx";
 import { setAppLanguage } from "../../src/renderer/i18n.ts";
 import { qualifySessionKey } from "../../src/contract/environment.ts";
-import { call, resetRpc } from "../../src/renderer/lib/api-client.ts";
+import { getEnvironmentApiClient, resetRpc } from "../../src/renderer/lib/api-client.ts";
 import { installApiShims } from "../../src/renderer/lib/api-fetch.ts";
 import { installApiHostBridge } from "../support/api-host.mjs";
 import {
@@ -71,7 +71,7 @@ function NavigationScene({
   const [expandedSessions, setExpandedSessions] = useState(
     () => new Set(expandedSessionIds.map((id) => qualifySessionKey("primary", id))),
   );
-  const refresh = async () => setSessions((await call("sessions.list")).sessions);
+  const refresh = async () => setSessions((await getEnvironmentApiClient("primary").call("sessions.list")).sessions);
   const toggleExpand = (sessionId) =>
     setExpandedSessions((current) => {
       const next = new Set(current);
@@ -151,7 +151,7 @@ window.navLayout = {
     sessions = sessionLists[scene].map((item) => ({ ...item }));
     setAppLanguage(language);
     document.documentElement.classList.toggle("dark", theme === "dark");
-    const listed = await call("sessions.list");
+    const listed = await getEnvironmentApiClient("primary").call("sessions.list");
     const treeScene = scene === "tree";
     flushSync(() =>
       root.render(

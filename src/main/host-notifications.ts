@@ -35,7 +35,7 @@ export function installHostNotifications(options: {
       if (status === "crashed") options.startupValidation.finish(detail ?? "Agent Host crashed");
       else options.startupValidation.finish();
     }
-    if (status !== "ready") {
+    if (!hostManager.isServing()) {
       options.onAgentCount(0);
       options.onManagedCount(0);
       setTrayRunningCount(0, options.getMainWindow);

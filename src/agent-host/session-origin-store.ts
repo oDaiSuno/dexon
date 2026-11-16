@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { atomicWrite, desktopUserDataPath } from "./desktop-state-file";
+import { atomicWriteAsync, desktopUserDataPath } from "./desktop-state-file";
 import { SESSION_RELATIONS, type SessionRelation } from "../shared/session-orchestration";
 import type { SessionInfo } from "../shared/types";
 import type { AutomationStepRef } from "./agent-session/execution-profile";
@@ -89,6 +89,9 @@ function normalizeState(value: unknown): SessionOriginStateFile {
 
 export class SessionOriginStore {
   private state: SessionOriginStateFile | undefined;
+  private dirty = false;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private pending: Promise<void> | undefined;
 
   constructor(private readonly filePath: string) {}
 
@@ -107,8 +110,8 @@ export class SessionOriginStore {
     const sessions = { ...state.sessions };
     delete sessions[normalizedId];
     const next = { ...state, sessions };
-    atomicWrite(this.filePath, next);
     this.state = next;
+    this.scheduleFlush();
   }
 
   set(sessionId: string, record: SessionOriginRecord): void {
@@ -117,8 +120,46 @@ export class SessionOriginStore {
     if (!normalizedId || !normalizedRecord) throw new Error("Invalid session origin record");
     const state = this.load();
     const next = { ...state, sessions: { ...state.sessions, [normalizedId]: normalizedRecord } };
-    atomicWrite(this.filePath, next);
     this.state = next;
+    this.scheduleFlush();
+  }
+
+  private scheduleFlush(): void {
+    this.dirty = true;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      void this.flush().catch((error) => {
+        console.error("[agent-host] failed to save session origins:", error);
+        const code = (error as NodeJS.ErrnoException).code;
+        if (this.dirty && this.timer === undefined && (code === "EBUSY" || code === "EACCES")) this.scheduleFlush();
+      });
+    }, 500);
+    this.timer.unref?.();
+  }
+
+  async flush(): Promise<void> {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    if (this.pending) return this.pending;
+    if (!this.dirty) return;
+    this.pending = this.writePending();
+    return this.pending;
+  }
+
+  private async writePending(): Promise<void> {
+    try {
+      while (this.dirty) {
+        this.dirty = false;
+        await atomicWriteAsync(this.filePath, this.load());
+      }
+    } catch (error) {
+      this.dirty = true;
+      throw error;
+    } finally {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      this.pending = undefined;
+    }
   }
 
   private load(): SessionOriginStateFile {
@@ -133,11 +174,16 @@ export class SessionOriginStore {
   }
 }
 
-let defaultStore: SessionOriginStore | undefined;
+const defaultStores = new Map<string, SessionOriginStore>();
 
 function getDefaultStore(): SessionOriginStore {
-  defaultStore ??= new SessionOriginStore(path.join(desktopUserDataPath(), "session-origins.json"));
-  return defaultStore;
+  const filePath = path.resolve(desktopUserDataPath(), "session-origins.json");
+  let store = defaultStores.get(filePath);
+  if (!store) {
+    store = new SessionOriginStore(filePath);
+    defaultStores.set(filePath, store);
+  }
+  return store;
 }
 
 export function getSessionOrigin(sessionId: string): SessionOriginRecord | undefined {
@@ -152,6 +198,24 @@ export function setSessionOrigin(sessionId: string, record: SetSessionOriginInpu
   getDefaultStore().set(sessionId, { ...record, createdAt: new Date().toISOString() });
 }
 
+export async function persistSessionOrigin(sessionId: string, record: SetSessionOriginInput): Promise<void> {
+  const store = getDefaultStore();
+  store.set(sessionId, { ...record, createdAt: new Date().toISOString() });
+  await store.flush();
+}
+
+export async function flushSessionOrigins(): Promise<void> {
+  await Promise.all(
+    [...defaultStores.values()].map(async (store) => {
+      try {
+        await store.flush();
+      } catch (error) {
+        console.error("[agent-host] failed to save session origins:", error);
+      }
+    }),
+  );
+}
+
 export const sessionOriginStore = {
   get: getSessionOrigin,
   set(sessionId: string, record: SessionOriginRecord): void {
@@ -159,6 +223,7 @@ export const sessionOriginStore = {
   },
   setOrigin: setSessionOrigin,
   delete: deleteSessionOrigin,
+  flush: flushSessionOrigins,
 };
 
 const READ_ONLY_AGENT_COMMANDS = new Set([

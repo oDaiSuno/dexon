@@ -102,6 +102,7 @@ test("Browser settings are reachable by vertical keyboard navigation and use the
   setAppLanguage("zh-CN");
   t.after(() => setAppLanguage("en-US"));
   const view = await mount(t, SettingsConfig, {
+    environmentId: "primary",
     cwd: "/workspace",
     sessionId: "session-one",
     initialTab: "browser",

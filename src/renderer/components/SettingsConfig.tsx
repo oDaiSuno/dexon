@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "@/hooks/useTheme";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -14,6 +15,7 @@ import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 export type SettingsTab = "general" | "browser" | "models" | "tools" | "servers" | "about";
 
 interface SettingsConfigProps {
+  environmentId: EnvironmentId;
   cwd: string | null;
   sessionId: string | null;
   initialTab?: SettingsTab;
@@ -26,6 +28,7 @@ interface SettingsConfigProps {
 }
 
 export function SettingsConfig({
+  environmentId,
   cwd,
   sessionId,
   initialTab = "general",
@@ -213,6 +216,7 @@ export function SettingsConfig({
         >
           {activeTab === "general" && (
             <GeneralSettings
+              environmentId={environmentId}
               language={language}
               onLanguageChange={setLanguage}
               isDark={isDark}
@@ -226,9 +230,16 @@ export function SettingsConfig({
           )}
           {activeTab === "browser" && <BrowserSettings sessionId={sessionId} />}
           {activeTab === "models" && (
-            <ModelsConfig embedded cwd={cwd} onClose={() => undefined} onChanged={onModelsChanged} />
+            <ModelsConfig
+              key={environmentId}
+              environmentId={environmentId}
+              embedded
+              cwd={cwd}
+              onClose={() => undefined}
+              onChanged={onModelsChanged}
+            />
           )}
-          {activeTab === "tools" && <ToolchainsConfig cwd={cwd} />}
+          {activeTab === "tools" && <ToolchainsConfig environmentId={environmentId} cwd={cwd} />}
           {activeTab === "servers" && <ServersSettings />}
           {activeTab === "about" && <AboutSettings onClose={close} />}
         </div>

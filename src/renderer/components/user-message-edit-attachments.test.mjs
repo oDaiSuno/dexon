@@ -32,6 +32,7 @@ const OLD_IMAGE = { type: "image", data: PNG_DATA, mimeType: "image/png" };
 function MessageFixture({ message, onSend, initialDraft = null, ...props }) {
   const [editDraft, setEditDraft] = useState(initialDraft);
   return createElement(UserMessageView, {
+    environmentId: "primary",
     message,
     entryId: "attachment-entry",
     sessionId: "attachment-session",

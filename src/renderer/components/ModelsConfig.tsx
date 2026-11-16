@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
@@ -11,11 +12,13 @@ import type { DialogTarget } from "./models/types";
 import { useModelsConfig } from "./models/use-models-config";
 
 export function ModelsConfig({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   onClose,
   onChanged,
   embedded = false,
   cwd = null,
 }: {
+  environmentId?: EnvironmentId;
   onClose: () => void;
   onChanged?: () => void;
   embedded?: boolean;
@@ -23,7 +26,7 @@ export function ModelsConfig({
 }) {
   const isMobile = useIsMobile();
   const { t } = useI18n();
-  const editor = useModelsConfig({ cwd, onChanged });
+  const editor = useModelsConfig({ environmentId, cwd, onChanged });
   const [target, setTarget] = useState<DialogTarget | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -129,7 +132,12 @@ export function ModelsConfig({
             }}
           >
             <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
-              <DefaultModelGroup preferences={editor.modelPreferences} cwd={cwd} onChanged={onChanged} />
+              <DefaultModelGroup
+                environmentId={environmentId}
+                preferences={editor.modelPreferences}
+                cwd={cwd}
+                onChanged={onChanged}
+              />
               <SessionNamingGroup preferences={editor.modelPreferences} />
               <ProviderTree
                 loading={editor.loading}

@@ -3,6 +3,7 @@ import test from "node:test";
 import { applySessionChangedEvent } from "./session-sidebar-state.ts";
 
 const session = (id, modified, parentSessionId) => ({
+  environmentId: "primary",
   id,
   path: `/${id}`,
   cwd: "/project",

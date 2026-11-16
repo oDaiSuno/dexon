@@ -101,7 +101,7 @@ let activeProbeDisposers = null;
 export function createProbe() {
   const state = { value: undefined };
   function Probe({ options }) {
-    state.value = usePluginLibrary(options);
+    state.value = usePluginLibrary({ environmentId: "primary", ...options });
     return null;
   }
   return { state, Probe };

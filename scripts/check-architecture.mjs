@@ -138,7 +138,39 @@ const boundaryFiles = ["src", "scripts", "tests"].flatMap((dir) =>
     path.relative(root, file).split(path.sep).join("/"),
   ),
 );
+const rendererBoundaryFiles = boundaryFiles.filter((file) => file.startsWith("src/renderer/"));
 const PATTERN_BANS = [
+  {
+    name: "通信客户端公开边界",
+    files: ["src/renderer/lib/api-client.ts"],
+    forbidden: /\bexport\b(?!\s+function\s+(?:getEnvironmentApiClient|ensureRpc|resetRpc)\s*\()/,
+    message: "通信客户端只能公开明确环境的客户端入口及主机连接生命周期入口",
+  },
+  {
+    name: "显式环境通信入口",
+    files: rendererBoundaryFiles,
+    forbidden:
+      /(?:from\s*|import\s*(?:\(\s*)?|require\s*\()\s*["'](?:[^"']*\/)?(?:use-file-environment|api-event-source|agent-client)(?:\.[cm]?[jt]sx?)?["']/,
+    message: "旧的隐式环境模块已删除，必须传入明确的环境标识",
+  },
+  {
+    name: "禁止焦点推断连接",
+    files: rendererBoundaryFiles,
+    forbidden: /\bgetActiveEnvironmentConnection\b/,
+    message: "通信连接必须由明确的环境标识取得，不得从当前焦点推断",
+  },
+  {
+    name: "禁止隐式事件通道",
+    files: rendererBoundaryFiles,
+    forbidden: /new\s+EventSource\s*\(/,
+    message: "事件订阅必须使用明确环境的通信客户端",
+  },
+  {
+    name: "文件之外禁止 HTTP 兼容入口",
+    files: rendererBoundaryFiles,
+    forbidden: /fetch\s*\(\s*["'`]\/api\/(?!files\b)/,
+    message: "除明确携带环境的文件入口外，必须直接使用明确环境的通信客户端",
+  },
   {
     name: "自动化公开入口",
     files: boundaryFiles.filter((file) => !file.startsWith("src/agent-host/automation/")),

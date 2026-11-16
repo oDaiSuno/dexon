@@ -41,6 +41,8 @@ function hostPort(environmentId, host) {
     if (!closed) for (const listener of listeners.get("message") ?? []) listener({ data });
   };
   return {
+    environmentId,
+    emit,
     addEventListener(type, listener) {
       const group = listeners.get(type) ?? new Set();
       group.add(listener);
@@ -50,18 +52,25 @@ function hostPort(environmentId, host) {
       listeners.get(type)?.delete(listener);
     },
     postMessage(request) {
-      if (request.kind !== "request") return;
+      if (closed || request.kind !== "request") return;
       Promise.resolve()
         .then(() => host(environmentId, request.method, request.params))
         .then(
           (result) => emit({ kind: "response", id: request.id, ok: true, result }),
           (error) =>
-            emit({ kind: "response", id: request.id, ok: false, error: { code: "INTERNAL", message: error.message } }),
+            emit({
+              kind: "response",
+              id: request.id,
+              ok: false,
+              error: { code: error.code ?? "INTERNAL", message: error.message },
+            }),
         );
     },
     start() {},
     close() {
+      if (closed) return;
       closed = true;
+      for (const listener of [...(listeners.get("close") ?? [])]) listener();
       listeners.clear();
     },
   };
@@ -104,6 +113,9 @@ export async function createFolderBrowserHost(
       commands.push(command);
       return views.find((view) => view.id === command.environmentId);
     },
+    requestHostPort() {
+      bridge.requestEnvironmentPort("primary");
+    },
     requestEnvironmentPort(environmentId) {
       const view = views.find((server) => server.id === environmentId);
       const port = hostPort(environmentId, (id, method, params) => {
@@ -144,6 +156,32 @@ export async function createFolderBrowserHost(
     commands,
     setReply(next) {
       respond = next;
+    },
+    emit(environmentId, topic, key, data) {
+      for (const port of ports) {
+        if (port.environmentId === environmentId) port.emit({ kind: "event", topic, key, data });
+      }
+    },
+    async disconnect(environmentId) {
+      await act(async () => {
+        for (const port of ports) {
+          if (port.environmentId === environmentId) port.close();
+        }
+        views = views.map((view) => (view.id === environmentId ? { ...view, status: { phase: "offline" } } : view));
+        revision += 1;
+        changed?.(snapshot());
+      });
+    },
+    async reconnect(environmentId, nextGeneration) {
+      await act(async () => {
+        views = views.map((view) =>
+          view.id === environmentId
+            ? { ...view, status: { phase: "connected", generation: nextGeneration, since: 0 } }
+            : view,
+        );
+        revision += 1;
+        changed?.(snapshot());
+      });
     },
     async changeServers(next) {
       await act(async () => {

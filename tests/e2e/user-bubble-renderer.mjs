@@ -223,6 +223,7 @@ subscribeOpenSessionRequests((sessionId) => openRequests.push(sessionId));
 const sessionCwd = "/workspace/project";
 const catalog = [
   {
+    environmentId: "primary",
     id: "bulb-root",
     name: "重构登录模块",
     cwd: sessionCwd,
@@ -232,6 +233,7 @@ const catalog = [
     messageCount: 1,
   },
   {
+    environmentId: "primary",
     id: "bulb-mid",
     name: "迁移旧接口",
     cwd: sessionCwd,
@@ -242,6 +244,7 @@ const catalog = [
     parentSessionId: "bulb-root",
   },
   {
+    environmentId: "primary",
     id: "bulb-leaf",
     name: "补接口测试",
     cwd: sessionCwd,
@@ -252,6 +255,7 @@ const catalog = [
     parentSessionId: "bulb-mid",
   },
   {
+    environmentId: "primary",
     id: "bubble-source",
     name: "委派会话",
     cwd: sessionCwd,
@@ -309,7 +313,10 @@ function render({
             processDetailsExpansionStore,
             onSessionCreated() {},
             onAgentEnd() {},
-            onOpenFile() {},
+            onOpenFile(filePath, environmentId) {
+              if (environmentId !== "primary") throw new Error("File opened in the wrong environment");
+              revealed.push(filePath);
+            },
           }),
         ),
       ),

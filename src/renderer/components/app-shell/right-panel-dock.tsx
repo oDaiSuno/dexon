@@ -3,7 +3,8 @@ import type { UnavailableReason } from "@/lib/environment-affordances";
 import { DisabledReason } from "../disabled-reason";
 import { useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
-import { useFileEnvironment } from "@/lib/use-file-environment";
+import type { EnvironmentId } from "@contract/environment";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
 import type { FileTab } from "@/lib/file-tab-state";
 import { RemoteWorkspaceActions } from "../file-explorer/remote-workspace-actions";
 import { formatNumber } from "@/lib/locale-format";
@@ -50,12 +51,12 @@ export function RightPanelDock({
   settingsOpen,
   browserAuthorizationOpen,
   isMobile,
-  explorerCwd,
+  environmentId,
+  location,
   explorerRefreshKey,
   onRefreshExplorer,
   onOpenFile,
   onAtMention,
-  activeCwd,
   personalCwd,
   homeDir,
   headerAction,
@@ -79,19 +80,24 @@ export function RightPanelDock({
   settingsOpen: boolean;
   browserAuthorizationOpen: boolean;
   isMobile: boolean;
-  explorerCwd: string | null;
+  environmentId: EnvironmentId;
+  location: ProjectSpaceRef | null;
   explorerRefreshKey: number;
   onRefreshExplorer: () => void;
-  onOpenFile: (filePath: string, fileName: string, sourceSessionId?: string | null) => void;
+  onOpenFile: (
+    filePath: string,
+    fileName: string,
+    sourceSessionId?: string | null,
+    environmentId?: EnvironmentId,
+  ) => void;
   onAtMention: (relativePath: string, isDir: boolean) => void;
-  activeCwd: string | null;
   personalCwd: string | null;
   homeDir: string;
   headerAction?: ReactNode;
   suspended?: boolean;
 }) {
   const { language, t } = useI18n();
-  const environmentId = useFileEnvironment();
+  const explorerCwd = location?.environmentId === environmentId ? location.path : null;
   const { embeddedBrowser, isPrimary, unavailable } = environmentAffordances(
     useEnvironments().find((view) => view.id === environmentId),
   );
@@ -118,7 +124,9 @@ export function RightPanelDock({
     () =>
       new Set(
         fileTabs
-          .filter((tab) => explorerCwd && isPathChanged(changed, getRelativeFilePath(tab.filePath, explorerCwd)))
+          .filter(
+            (tab) => explorerCwd && isPathChanged(changed.changedPaths, getRelativeFilePath(tab.filePath, explorerCwd)),
+          )
           .map((tab) => tab.id),
       ),
     [fileTabs, changed, explorerCwd],
@@ -211,6 +219,7 @@ export function RightPanelDock({
           />
         ) : activeFileTabId === PROCESSES_TAB_ID ? (
           <ProcessPanel
+            environmentId={environmentId}
             key={environmentId}
             onActiveCountChange={onManagedProcessCountChange}
             onOpenBrowser={
@@ -239,7 +248,7 @@ export function RightPanelDock({
                 personalCwd={personalCwd}
                 homeDir={homeDir}
                 activeFilePath={explorerFilePath}
-                onOpenFile={onOpenFile}
+                onOpenFile={(path, name) => onOpenFile(path, name, null, environmentId)}
                 refreshKey={explorerRefreshKey}
                 onAtMention={onAtMention}
               />
@@ -254,7 +263,7 @@ export function RightPanelDock({
             key={activeFileTab.id}
             environmentId={activeFileTab.environmentId}
             filePath={activeFileTab.filePath}
-            cwd={activeCwd ?? undefined}
+            cwd={explorerCwd ?? undefined}
             sourceSessionId={activeFileTab.sourceSessionId}
           />
         ) : (

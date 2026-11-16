@@ -28,6 +28,7 @@ const { resetRpc, environmentRegistry, useEnvironmentDirectories } = await impor
 
 export function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     path: `/fixture/${id}.jsonl`,
     created: "2026-07-15T12:00:00.000Z",

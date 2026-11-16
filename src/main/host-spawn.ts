@@ -14,6 +14,7 @@ function asUtilityProcessEnv(): Record<string, string> {
     if (typeof value === "string") env[key] = value;
   }
   delete env.ELECTRON_RUN_AS_NODE;
+  env.UV_THREADPOOL_SIZE ??= "16";
   env.PI_AGENT_HOST = "1";
   env.PI_DESKTOP_USER_DATA = app.getPath("userData");
   env.PI_DESKTOP_VERSION = app.getVersion();

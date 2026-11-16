@@ -1,12 +1,12 @@
-import { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
-import { getRpcSession, startRpcSession } from "../rpc-manager";
+import { getRpcSession } from "../rpc-manager";
 import { ensureSessionEvents } from "../session-event-binding";
-import { resolveSessionPath } from "../session-reader";
-import { launchDesktopSession } from "../session-launcher";
+import { assertSessionCwdExists, launchDesktopSession, resumeStoredSession } from "../session-launcher";
 import { nameSession, parseNamingRequest } from "../session-naming";
 import { isReadOnlyAgentCommand, SessionAccess, sessionOriginStore } from "../session-origin-store";
+
+const CWD_INDEPENDENT_COMMANDS = new Set(["get_messages", "abort", "abort_compaction", "clear_queue"]);
 
 export function registerAgentHandlers(server: RpcServer): void {
   server.handle({
@@ -46,14 +46,13 @@ export function registerAgentHandlers(server: RpcServer): void {
       }
       const existing = getRpcSession(sessionId);
       if (existing?.isAlive()) {
+        if (!isReadOnlyAgentCommand(command.type) && !CWD_INDEPENDENT_COMMANDS.has(String(command.type)))
+          await assertSessionCwdExists(existing.cwd);
         ensureSessionEvents(server, existing, sessionId);
         return existing.send(command);
       }
-      const filePath = await resolveSessionPath(sessionId);
-      if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
-      const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();
-      const { session } = await startRpcSession(sessionId, filePath, cwd);
-      ensureSessionEvents(server, session, sessionId);
+      const session = await resumeStoredSession(sessionId);
+      if (!session) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
       return session.send(command);
     },
 

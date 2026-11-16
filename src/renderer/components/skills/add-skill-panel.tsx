@@ -1,3 +1,5 @@
+import type { EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { SkillSearchResult } from "@/lib/api-types";
@@ -5,7 +7,15 @@ import { CapabilityRequired, parseCapabilityIssue, type CapabilityIssue } from "
 import { formatCompactNumber } from "@/lib/locale-format";
 import { requestErrorMessage, safeInstallError, shortenPath, sourceLabelText } from "./skill-shared";
 
-export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: () => void }) {
+export function AddSkillPanel({
+  environmentId,
+  cwd,
+  onInstalled,
+}: {
+  environmentId: EnvironmentId;
+  cwd: string;
+  onInstalled: () => void;
+}) {
   const { language, t } = useI18n();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SkillSearchResult[]>([]);
@@ -30,20 +40,8 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
       setSearchError(null);
       setResults([]);
       try {
-        const res = await fetch("/api/skills/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: q.trim() }),
-        });
-        const d = (await res.json()) as {
-          results?: SkillSearchResult[];
-          error?: string;
-        };
-        if (d.error) {
-          setSearchError(d.error);
-          return;
-        }
-        setResults(d.results ?? []);
+        const d = await getEnvironmentApiClient(environmentId).call("skills.search", { query: q.trim() });
+        setResults((d.results ?? []) as SkillSearchResult[]);
         if ((d.results ?? []).length === 0) setSearchError(t("noSkillsFound", "No skills found"));
       } catch (e) {
         setSearchError(requestErrorMessage(e, t("skillSearchFailed", "Skill search failed.")));
@@ -51,7 +49,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
         setSearching(false);
       }
     },
-    [t],
+    [environmentId, t],
   );
 
   const install = useCallback(
@@ -60,37 +58,17 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
       setInstallError(null);
       setCapabilityIssue(null);
       try {
-        const res = await fetch("/api/skills/install", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ package: pkg, scope, cwd }),
-        });
-        const d = (await res.json()) as {
-          success?: boolean;
-          error?: string;
-          code?: string;
-          capability?: string;
-        };
-        if (!res.ok || d.error) {
-          const issue = parseCapabilityIssue(d);
-          if (issue) {
-            setPendingInstallPackage(pkg);
-            setCapabilityIssue(issue);
-          } else {
-            setInstallError(
-              safeInstallError(
-                d.error,
-                t("httpErrorStatus", "HTTP {status}").replace("{status}", String(res.status)),
-                t,
-              ),
-            );
-          }
-          return;
-        }
+        await getEnvironmentApiClient(environmentId).call("skills.install", { package: pkg, scope, cwd });
         setPendingInstallPackage(null);
         setInstalledPkgs((prev) => new Set(prev).add(pkg));
         onInstalled();
       } catch (e) {
+        const issue = parseCapabilityIssue(e);
+        if (issue) {
+          setPendingInstallPackage(pkg);
+          setCapabilityIssue(issue);
+          return;
+        }
         setInstallError(
           safeInstallError(
             e instanceof Error ? e.message : String(e),
@@ -102,7 +80,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
         setInstalling(null);
       }
     },
-    [onInstalled, scope, cwd, t],
+    [environmentId, onInstalled, scope, cwd, t],
   );
 
   const installPath = scope === "global" ? "~/.pi/agent/skills/" : `${shortenPath(cwd)}/.pi/agent/skills/`;
@@ -217,6 +195,7 @@ export function AddSkillPanel({ cwd, onInstalled }: { cwd: string; onInstalled: 
         )}
         {capabilityIssue && pendingInstallPackage && (
           <CapabilityRequired
+            environmentId={environmentId}
             issue={capabilityIssue}
             cwd={cwd}
             onContinue={() => install(pendingInstallPackage)}

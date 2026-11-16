@@ -1,4 +1,5 @@
-import { sendAgentCommand } from "@/lib/agent-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import { useCallback } from "react";
 import {
@@ -14,6 +15,7 @@ import type { SessionModels } from "./use-session-models";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
   | "sessionIdRef"
   | "t"
   | "isCompacting"
@@ -30,6 +32,7 @@ type Dependencies = Pick<
   Pick<SessionModels, "loadModels">;
 export function useSessionCommands(context: Dependencies) {
   const {
+    environmentId,
     sessionIdRef,
     ensureNewSession,
     addNotice,
@@ -78,10 +81,10 @@ export function useSessionCommands(context: Dependencies) {
             setIsCompacting(true);
             setCompactError(null);
             setCompactResult(null);
-            const result = await sendAgentCommand<CompactCommandResult>(sid, {
+            const result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
               type: "compact",
               ...(args ? { customInstructions: args } : {}),
-            });
+            })) as CompactCommandResult;
             setCompactResult(readCompactResult(result, "manual"));
             if (await loadSession(sid, true, true)) promoteNewSession();
             return complete({ handled: true, message: t("contextCompacted", "Compacted context") });
@@ -91,7 +94,7 @@ export function useSessionCommands(context: Dependencies) {
             if (!sid) {
               return complete({ handled: true, error: t("noActiveSessionToReload", "No active session to reload") });
             }
-            await sendAgentCommand(sid, { type: "reload" });
+            await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "reload" });
             await Promise.all([loadSession(sid, false, true), loadSlashCommands(), loadModels()]);
             return complete({
               handled: true,
@@ -104,7 +107,7 @@ export function useSessionCommands(context: Dependencies) {
               return complete({ handled: true, error: t("noActiveSessionToName", "No active session to name") });
             }
             if (!args) return complete({ handled: true, error: t("nameCommandUsage", "Usage: /name <name>") });
-            await sendAgentCommand(sid, { type: "set_session_name", name: args });
+            await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "set_session_name", name: args });
             if (await loadSession(sid)) promoteNewSession();
             return complete({
               handled: true,
@@ -114,7 +117,9 @@ export function useSessionCommands(context: Dependencies) {
 
           case "session": {
             if (!sid) return complete({ handled: true, error: t("noActiveSession", "No active session") });
-            const stats = await sendAgentCommand<SessionStatsInfo>(sid, { type: "get_session_stats" });
+            const stats = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+              type: "get_session_stats",
+            })) as SessionStatsInfo;
             if (stats) {
               setSessionStatsOverride(stats);
               // Keep the chip and top bar on the same source of truth.
@@ -126,7 +131,9 @@ export function useSessionCommands(context: Dependencies) {
 
           case "copy": {
             if (!sid) return complete({ handled: true, error: t("noActiveSession", "No active session") });
-            const data = await sendAgentCommand<LastAssistantTextResponse>(sid, { type: "get_last_assistant_text" });
+            const data = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+              type: "get_last_assistant_text",
+            })) as LastAssistantTextResponse;
             const textToCopy = data?.text ?? "";
             if (!textToCopy) {
               return complete({
@@ -145,12 +152,16 @@ export function useSessionCommands(context: Dependencies) {
             return { handled: false };
         }
       } catch (e) {
-        return complete({ handled: true, error: e instanceof Error ? e.message : String(e) });
+        return complete({
+          handled: true,
+          error: sessionClientErrorMessage(e, t, t("commandFailed", "Command failed")),
+        });
       } finally {
         if (commandName === "compact") setIsCompacting(false);
       }
     },
     [
+      environmentId,
       sessionIdRef,
       ensureNewSession,
       addNotice,

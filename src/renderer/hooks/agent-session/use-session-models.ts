@@ -1,8 +1,11 @@
+import { lastKnownGoodModels, rememberGoodModels } from "@/lib/last-known-good-models";
+import { sessionClientErrorMessage } from "@/lib/session-error-message";
+export { clearLastKnownGoodModels } from "@/lib/last-known-good-models";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { environmentRegistry } from "@/lib/environment-registry";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { isRpcError, type ModelsListResult } from "@contract/types";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useRef, useSyncExternalStore } from "react";
 import { ModelEntry } from "./shared";
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionState } from "./use-session-state";
@@ -16,6 +19,10 @@ type Dependencies = Pick<
   | "modelListSizeRef"
   | "setModelList"
   | "setModelCatalog"
+  | "setModelCatalogScope"
+  | "setModelLoading"
+  | "setModelReconnecting"
+  | "setModelLoadError"
   | "isNew"
   | "setNewSessionDefaultModel"
   | "modelListRequestGateRef"
@@ -36,6 +43,10 @@ export function useSessionModels(context: Dependencies) {
     modelListSizeRef,
     setModelList,
     setModelCatalog,
+    setModelCatalogScope,
+    setModelLoading,
+    setModelReconnecting,
+    setModelLoadError,
     isNew,
     setNewSessionDefaultModel,
     modelListRequestGateRef,
@@ -48,8 +59,8 @@ export function useSessionModels(context: Dependencies) {
   } = context;
 
   const getConnectionGeneration = useCallback(() => {
-    if (environmentId === PRIMARY_ENVIRONMENT_ID) return 0;
     const view = environmentRegistry.getEnvironments().find((environment) => environment.id === environmentId);
+    if (environmentId === PRIMARY_ENVIRONMENT_ID && view?.status.phase === "available") return 0;
     return view?.enabled && view.status.phase === "connected" ? view.status.generation : null;
   }, [environmentId]);
   const connectionGeneration = useSyncExternalStore(
@@ -62,8 +73,11 @@ export function useSessionModels(context: Dependencies) {
     [connectionGeneration, getConnectionGeneration],
   );
 
+  const locationKey = `${environmentId}\0${newSessionCwd ?? session?.cwd ?? ""}`;
+  const loadedLocationRef = useRef<string | null>(null);
+
   const applyModelsResult = useCallback(
-    (d: ModelsListResult) => {
+    (d: ModelsListResult, { fromCache = false } = {}) => {
       const nextList: ModelEntry[] = d.models ?? [];
       const nameMap = d.nameMap ?? {};
       setModelNames(
@@ -77,7 +91,13 @@ export function useSessionModels(context: Dependencies) {
       modelListSizeRef.current = nextList.length;
       setModelList(nextList);
       setModelCatalog(d.catalog);
-      if (isNew) {
+      setModelCatalogScope(d.scope ?? null);
+      if (!fromCache) {
+        rememberGoodModels(locationKey, d);
+        setModelLoadError(null);
+        setModelReconnecting(false);
+      }
+      if (isNew && !fromCache) {
         const match = d.defaultModel
           ? nextList.find((m) => m.id === d.defaultModel?.modelId && m.provider === d.defaultModel?.provider)
           : undefined;
@@ -87,6 +107,10 @@ export function useSessionModels(context: Dependencies) {
     },
     [
       isNew,
+      locationKey,
+      setModelCatalogScope,
+      setModelLoadError,
+      setModelReconnecting,
       modelListSizeRef,
       setModelCatalog,
       setModelList,
@@ -111,24 +135,70 @@ export function useSessionModels(context: Dependencies) {
             .catch(() => {});
       }
       const modelCwd = newSessionCwd ?? session?.cwd ?? "";
-      if (signal?.aborted || !isCurrentConnection()) return;
+      if (signal?.aborted) return;
+      const cached = lastKnownGoodModels(locationKey);
+      if (loadedLocationRef.current !== locationKey) {
+        loadedLocationRef.current = locationKey;
+        modelListSizeRef.current = 0;
+        if (!cached)
+          applyModelsResult(
+            {
+              models: [],
+              defaultModel: null,
+              thinkingLevels: {},
+              thinkingLevelMaps: {},
+              effectiveThinkingLevels: {},
+              nameMap: {},
+              catalog: { source: "cache", refreshed: false, aborted: false, warnings: [] },
+            },
+            { fromCache: true },
+          );
+        setNewSessionDefaultModel(null);
+        setModelLoadError(null);
+      }
+      if (modelListSizeRef.current === 0 && cached) applyModelsResult(cached, { fromCache: true });
+      setModelReconnecting(!isCurrentConnection());
+      if (!isCurrentConnection()) {
+        setModelLoading(false);
+        return;
+      }
+      setModelLoading(true);
       try {
         const d = await getEnvironmentApiClient(environmentId).listModels(modelCwd || undefined);
         if (signal?.aborted || !isCurrentConnection() || !modelListRequestGateRef.current.isCurrent(generation)) return;
         applyModelsResult(d);
       } catch (error) {
-        if (
-          signal?.aborted ||
-          !isCurrentConnection() ||
-          !modelListRequestGateRef.current.isCurrent(generation) ||
-          (isRpcError(error) && error.code === "CLOSED")
-        )
+        if (signal?.aborted || !isCurrentConnection() || !modelListRequestGateRef.current.isCurrent(generation)) return;
+        if (isRpcError(error) && (error.code === "CLOSED" || error.code === "DISCONNECTED")) {
+          setModelReconnecting(true);
+          setModelRefreshing(false);
           return;
+        }
+        setModelReconnecting(false);
+        setModelLoadError(
+          sessionClientErrorMessage(
+            error,
+            t,
+            t(
+              "modelDirectoryLoadFailed",
+              "Unable to load the model directory. Retry from the model picker or check the Agent Host connection.",
+            ),
+          ),
+        );
         throw error;
+      } finally {
+        if (!signal?.aborted && modelListRequestGateRef.current.isCurrent(generation)) setModelLoading(false);
       }
     },
     [
       applyModelsResult,
+      locationKey,
+      modelListSizeRef,
+      setNewSessionDefaultModel,
+      setModelLoadError,
+      setModelLoading,
+      setModelReconnecting,
+      t,
       environmentId,
       isCurrentConnection,
       modelListRequestGateRef,
@@ -145,14 +215,25 @@ export function useSessionModels(context: Dependencies) {
     modelRefreshRequestRef.current = null;
     modelListRequestGateRef.current.invalidate();
     setModelRefreshing(false);
+    setModelLoading(false);
     if (isCurrentConnection())
       void getEnvironmentApiClient(environmentId)
         .cancelModelsRefresh(requestId)
         .catch(() => {});
-  }, [environmentId, isCurrentConnection, modelListRequestGateRef, modelRefreshRequestRef, setModelRefreshing]);
+  }, [
+    environmentId,
+    isCurrentConnection,
+    modelListRequestGateRef,
+    modelRefreshRequestRef,
+    setModelRefreshing,
+    setModelLoading,
+  ]);
 
   const refreshModels = useCallback(async () => {
-    if (!isCurrentConnection()) return;
+    if (!isCurrentConnection()) {
+      setModelReconnecting(true);
+      return;
+    }
     const previousRequestId = modelRefreshRequestRef.current;
     if (previousRequestId)
       void getEnvironmentApiClient(environmentId)
@@ -162,6 +243,7 @@ export function useSessionModels(context: Dependencies) {
     const generation = modelListRequestGateRef.current.begin();
     modelRefreshRequestRef.current = requestId;
     setModelRefreshing(true);
+    setModelLoading(false);
     const modelCwd = newSessionCwd ?? session?.cwd ?? "";
     try {
       const result = await getEnvironmentApiClient(environmentId).refreshModels(modelCwd || undefined, requestId);
@@ -174,12 +256,24 @@ export function useSessionModels(context: Dependencies) {
       applyModelsResult(result);
     } catch (error) {
       if (
-        (isRpcError(error) && error.code === "CLOSED") ||
         !isCurrentConnection() ||
         modelRefreshRequestRef.current !== requestId ||
         !modelListRequestGateRef.current.isCurrent(generation)
       )
         return;
+      if (isRpcError(error) && (error.code === "CLOSED" || error.code === "DISCONNECTED")) {
+        setModelReconnecting(true);
+        return;
+      }
+      setModelReconnecting(false);
+      setModelLoadError(
+        sessionClientErrorMessage(
+          error,
+          t,
+          t("modelDirectoryRefreshFailed", "Unable to refresh the model directory. Cached models remain available."),
+        ),
+      );
+      console.error("Failed to refresh model directory:", error);
       addNotice({
         type: "error",
         message: t(
@@ -203,6 +297,9 @@ export function useSessionModels(context: Dependencies) {
     newSessionCwd,
     session?.cwd,
     setModelRefreshing,
+    setModelLoading,
+    setModelLoadError,
+    setModelReconnecting,
     t,
   ]);
   return { loadModels, cancelModelRefresh, refreshModels };

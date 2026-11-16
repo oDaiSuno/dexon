@@ -1,4 +1,5 @@
-import { existsSync } from "node:fs";
+import { stat } from "node:fs/promises";
+import { readSessionHeader } from "./session-jsonl";
 import { createAutomationResultSink } from "./agent-session/automation-result-tool";
 import type {
   AgentWorkspaceTool,
@@ -10,12 +11,12 @@ import type { EffectObservation } from "./effect-observation";
 import type { SetSessionOriginInput } from "./session-origin-store";
 import type { ToolIntent } from "./agent-session/tool-intent";
 import type { RpcServer } from "../contract/rpc";
-import { RpcError } from "../contract/types";
+import { MissingSessionCwdError, RpcError } from "../contract/types";
 import type { SessionSourceRef } from "../shared/session-orchestration";
 import { allowFileRoot } from "./file-access";
 import { startRpcSession, type AgentSessionWrapper, type OrchestratedTurnOutcome } from "./rpc-manager";
 import { createAgentNewLockKey, ensureSessionEvents } from "./session-event-binding";
-import { emitIndexedSessionChange } from "./session-reader";
+import { emitIndexedSessionChange, resolveSessionPath } from "./session-reader";
 import { announceSessionOnFirstMessage } from "./session-source";
 
 export interface DesktopSessionLaunch {
@@ -49,10 +50,28 @@ export function sessionLauncherServer(): RpcServer {
   return rpcServer;
 }
 
+export async function assertSessionCwdExists(cwd: string): Promise<void> {
+  const isDirectory = await stat(cwd).then(
+    (info) => info.isDirectory(),
+    () => false,
+  );
+  if (!isDirectory) throw new MissingSessionCwdError(cwd);
+}
+
+export async function resumeStoredSession(sessionId: string): Promise<AgentSessionWrapper | null> {
+  const filePath = await resolveSessionPath(sessionId);
+  if (!filePath) return null;
+  const cwd = (await readSessionHeader(filePath))?.cwd ?? process.cwd();
+  await assertSessionCwdExists(cwd);
+  const { session } = await startRpcSession(sessionId, filePath, cwd);
+  ensureSessionEvents(sessionLauncherServer(), session, sessionId);
+  return session;
+}
+
 export async function launchDesktopSession(launch: DesktopSessionLaunch): Promise<LaunchedDesktopSession> {
   const { cwd } = launch;
   if (!cwd || typeof cwd !== "string") throw new RpcError({ code: "BAD_REQUEST", message: "cwd is required" });
-  if (!existsSync(cwd)) throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
+  await assertSessionCwdExists(cwd);
 
   const server = sessionLauncherServer();
   const initialModel =
@@ -118,7 +137,13 @@ export interface AutomationSessionHandle<T = unknown> {
 export async function launchAutomationSession<T = unknown>(
   launch: AutomationSessionLaunch<T>,
 ): Promise<AutomationSessionHandle<T>> {
-  if (!launch.cwd || !existsSync(launch.cwd))
+  if (
+    !launch.cwd ||
+    !(await stat(launch.cwd).then(
+      (info) => info.isDirectory(),
+      () => false,
+    ))
+  )
     throw new RpcError({ code: "BAD_REQUEST", message: "Automation cwd must be an existing directory" });
   const result =
     "result" in launch

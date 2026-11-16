@@ -1,3 +1,4 @@
+import { isRpcError } from "../../contract/types.ts";
 import { readSessionModelRef } from "../../shared/session-orchestration.ts";
 import type { SessionModelRef } from "../../shared/session-orchestration.ts";
 
@@ -21,7 +22,19 @@ export function unavailableModelOf(error: unknown): SessionModelRef | null {
   return readSessionModelRef(candidate.detail);
 }
 
+export function isSessionTransportClosed(error: unknown): boolean {
+  return isRpcError(error)
+    ? error.code === "CLOSED" || error.code === "DISCONNECTED"
+    : error instanceof Error && error.message === "RPC port closed";
+}
+
 export function sessionClientErrorMessage(error: unknown, t: Translate, fallback: string): string {
+  if (isSessionTransportClosed(error)) return t("primaryHostReconnecting", "Reconnecting to background service…");
+  if (isRpcError(error) && error.code === "MISSING_SESSION_CWD")
+    return t(
+      "missingSessionFolderSend",
+      "The original project folder no longer exists. You cannot send from that folder.",
+    );
   const unavailable = unavailableModelOf(error);
   if (unavailable) {
     return t("modelUnavailableSend", "Model {model} is unavailable. Switch to another model and send again.").replace(

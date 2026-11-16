@@ -12,6 +12,7 @@ after(restoreGlobals);
 const LONG_NAME = "Generate the sidebar Framer components and align every spacing value with the design file";
 
 const SESSION = {
+  environmentId: "primary",
   id: "session-top",
   path: "/workspace/dexon/top.jsonl",
   cwd: "/workspace/dexon",

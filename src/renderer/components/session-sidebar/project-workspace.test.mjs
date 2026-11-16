@@ -28,6 +28,7 @@ const { resetRpc, installApiShims, useProjectWorkspace } = await importTestBundl
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     name: "",
     firstMessage: "",
@@ -198,11 +199,11 @@ test("notifies the parent once per distinct cwd across data refreshes", async ()
         refreshKey: 0,
       });
       await act(async () => {
-        state.value.setSelectedCwd("/a");
+        state.value.setSelectedCwd("/a", "primary");
       });
       assert.deepEqual(notifications, [["/a", "/a"]]);
       await act(async () => {
-        state.value.setSelectedCwd("/a");
+        state.value.setSelectedCwd("/a", "primary");
       });
       assert.equal(notifications.length, 1);
       await mounted.update({
@@ -264,21 +265,21 @@ test("supports the native directory picker with validation outcomes", async () =
     env.callHarness.pickedDirectory = "/picked";
     let picked;
     await act(async () => {
-      picked = await state.value.selectDirectoryFromPicker();
+      picked = await state.value.selectDirectoryFromPicker(undefined, "primary");
     });
     assert.deepEqual(picked, { status: "selected" });
     assert.equal(state.value.selectedCwd, "/picked");
     env.callHarness.pickedDirectory = null;
     let cancelled;
     await act(async () => {
-      cancelled = await state.value.selectDirectoryFromPicker();
+      cancelled = await state.value.selectDirectoryFromPicker(undefined, "primary");
     });
     assert.deepEqual(cancelled, { status: "cancelled" });
     assert.equal(state.value.selectedCwd, "/picked");
     env.callHarness.pickedDirectory = "/rejected";
     let rejected;
     await act(async () => {
-      rejected = await state.value.selectDirectoryFromPicker();
+      rejected = await state.value.selectDirectoryFromPicker(undefined, "primary");
     });
     assert.deepEqual(rejected, { status: "invalid", error: "Permission denied" });
     assert.equal(state.value.selectedCwd, "/picked");

@@ -1,3 +1,6 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { useEnvironments } from "@/lib/environment-registry";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import { type AtQueryMatch, type FileIndexEntry } from "@/lib/file-fuzzy";
 import {
@@ -11,6 +14,7 @@ import { triggerKey, type ComposerTrigger } from "./composer-trigger";
 import type { AtSuggestionState } from "./AtMenu";
 
 interface Options {
+  environmentId: EnvironmentId;
   cwd?: string | null;
   atTrigger: Extract<ComposerTrigger, { kind: "at" }> | null;
   editableRef: MutableRefObject<ComposerEditableHandle | null>;
@@ -18,9 +22,15 @@ interface Options {
   onEscape?: () => void;
 }
 
-export function useAtSuggestions({ cwd, atTrigger, editableRef, onDismiss, onEscape }: Options) {
+export function useAtSuggestions({ environmentId, cwd, atTrigger, editableRef, onDismiss, onEscape }: Options) {
+  const environment = useEnvironments().find((view) => view.id === environmentId);
+  const platform =
+    environment?.descriptor?.platform.os ??
+    (environmentId === PRIMARY_ENVIRONMENT_ID ? (window.piBridge?.platform ?? "linux") : "linux");
   const [atActiveIndex, setAtActiveIndex] = useState(0);
-  const [atSuggestionState, setAtSuggestionState] = useState<AtSuggestionState | null>(null);
+  const [atSuggestionState, setAtSuggestionState] = useState<
+    (AtSuggestionState & { environmentId: EnvironmentId }) | null
+  >(null);
   const atItemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const fileSuggestionCacheRef = useRef(new FileSuggestionLruCache());
   const fileSuggestionRequestRef = useRef(new LatestAbortableRequest());
@@ -43,27 +53,30 @@ export function useAtSuggestions({ cwd, atTrigger, editableRef, onDismiss, onEsc
     const fetchCwd = cwd;
     const query = atQueryText;
     const tokenKey = atTokenKey;
-    const cacheKey = fileSuggestionCacheKey(fetchCwd, query, window.piBridge?.platform ?? "linux");
+    const cacheKey = fileSuggestionCacheKey(environmentId, fetchCwd, query, platform);
     const cached = fileSuggestionCacheRef.current.get(cacheKey);
     if (cached) {
-      setAtSuggestionState({ cwd: fetchCwd, tokenKey, query, ...cached, status: "ready" });
+      setAtSuggestionState({ environmentId, cwd: fetchCwd, tokenKey, query, ...cached, status: "ready" });
       return;
     }
 
-    setAtSuggestionState({ cwd: fetchCwd, tokenKey, query, matches: [], truncated: false, status: "loading" });
+    setAtSuggestionState({
+      environmentId,
+      cwd: fetchCwd,
+      tokenKey,
+      query,
+      matches: [],
+      truncated: false,
+      status: "loading",
+    });
     const requests = fileSuggestionRequestRef.current;
     let generation: number | null = null;
     const timer = setTimeout(
       () => {
         const request = requests.begin();
         generation = request.generation;
-        fetch(`/api/file-index?cwd=${encodeURIComponent(fetchCwd)}&q=${encodeURIComponent(query)}`, {
-          signal: request.signal,
-        })
-          .then((response) => {
-            if (!response.ok) throw new Error(`file suggestions failed: ${response.status}`);
-            return response.json() as Promise<unknown>;
-          })
+        void getEnvironmentApiClient(environmentId)
+          .fileIndex(fetchCwd, query)
           .then((data) => {
             if (!requests.isCurrent(request.generation)) return;
             const snapshot = projectFileSuggestionResponse(data, query);
@@ -72,11 +85,12 @@ export function useAtSuggestions({ cwd, atTrigger, editableRef, onDismiss, onEsc
               snapshot,
               query === "" || query.endsWith("/") ? 2_000 : 1_000,
             );
-            setAtSuggestionState({ cwd: fetchCwd, tokenKey, query, ...snapshot, status: "ready" });
+            setAtSuggestionState({ environmentId, cwd: fetchCwd, tokenKey, query, ...snapshot, status: "ready" });
           })
           .catch((error) => {
             if (!requests.isCurrent(request.generation) || (error as { name?: string })?.name === "AbortError") return;
             setAtSuggestionState({
+              environmentId,
               cwd: fetchCwd,
               tokenKey,
               query,
@@ -93,10 +107,13 @@ export function useAtSuggestions({ cwd, atTrigger, editableRef, onDismiss, onEsc
       clearTimeout(timer);
       if (generation !== null) requests.cancel(generation);
     };
-  }, [atTokenKey, atQueryText, cwd]);
+  }, [environmentId, platform, atTokenKey, atQueryText, cwd]);
 
   const activeSuggestionState =
-    atSuggestionState !== null && atSuggestionState.cwd === cwd && atSuggestionState.tokenKey === atTokenKey
+    atSuggestionState !== null &&
+    atSuggestionState.environmentId === environmentId &&
+    atSuggestionState.cwd === cwd &&
+    atSuggestionState.tokenKey === atTokenKey
       ? atSuggestionState
       : null;
   const atMatches = useMemo(() => activeSuggestionState?.matches ?? [], [activeSuggestionState]);

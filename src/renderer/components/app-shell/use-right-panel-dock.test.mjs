@@ -152,7 +152,7 @@ async function mountDock(env, { isMobile = false, sidebarOpen = true } = {}) {
   };
   const state = { value: undefined };
   function Probe() {
-    state.value = useRightPanelDock({ isMobile, sidebarOpen, onCollapseSidebar });
+    state.value = useRightPanelDock({ environmentId: "primary", isMobile, sidebarOpen, onCollapseSidebar });
     return null;
   }
   let renderer;

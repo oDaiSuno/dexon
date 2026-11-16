@@ -1,4 +1,4 @@
-import { PRIMARY_ENVIRONMENT_ID, qualifySessionKey, type EnvironmentView } from "@contract/environment";
+import { qualifySessionKey, type EnvironmentView } from "@contract/environment";
 import { projectKeyOf, type ProjectKey } from "@shared/project-space-state";
 import type { MountedSpace, WorkspaceFocus } from "@/lib/workspace-store";
 import type { SessionInfo } from "@/lib/types";
@@ -56,10 +56,9 @@ export function buildProjectSpaceRows({
       const path = session.projectRoot ?? session.cwd;
       if (!path) continue;
       const key = projectKeyOf({ environmentId, path });
-      const scoped = environmentId === PRIMARY_ENVIRONMENT_ID ? session : { ...session, environmentId };
       const members = byProject.get(key);
-      if (members) members.push(scoped);
-      else byProject.set(key, [scoped]);
+      if (members) members.push(session);
+      else byProject.set(key, [session]);
     }
   }
   return spaces.flatMap((space) => {

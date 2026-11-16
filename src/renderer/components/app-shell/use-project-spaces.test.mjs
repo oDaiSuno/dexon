@@ -211,3 +211,15 @@ for (const reason of ["denied", "io-error"]) {
     assert.equal(host.get().isMissing("/work/app"), false);
   });
 }
+
+test("the default space stays visible in memory without being persisted as a mounted project", async (t) => {
+  const host = await mountProjectProbe(t, (props) => api.useProjectSpaces(props), {
+    servers: [primaryServer(1)],
+    props: { ...spaceProps, defaultSpace: "/home/dev/.dexon" },
+  });
+  assert.ok(host.get().spaces.some((space) => space.path === "/home/dev/.dexon"));
+  assert.deepEqual(api.workspaceStore.getSnapshot().spaces, []);
+  assert.ok(
+    host.writes.every((patch) => !patch.projectSpaces?.spaces.some((space) => space.path === "/home/dev/.dexon")),
+  );
+});

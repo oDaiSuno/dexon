@@ -1,5 +1,3 @@
-import { existsSync } from "node:fs";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
 import {
   SESSION_ORCHESTRATION_LIMITS,
   type SessionLaunchReport,
@@ -7,22 +5,15 @@ import {
   type SessionModelRef,
   type SessionSourceRef,
 } from "../../shared/session-orchestration";
+import { getRpcSession, listRpcSessions, type AgentSessionWrapper, type OrchestratedTurnOutcome } from "../rpc-manager";
 import {
-  getRpcSession,
-  listRpcSessions,
-  startRpcSession,
-  type AgentSessionWrapper,
-  type OrchestratedTurnOutcome,
-} from "../rpc-manager";
-import { ensureSessionEvents } from "../session-event-binding";
-import {
+  assertSessionCwdExists,
   launchDesktopSession,
-  sessionLauncherServer,
+  resumeStoredSession,
   type DesktopSessionLaunch,
   type LaunchedDesktopSession,
 } from "../session-launcher";
 import { getSessionOrigin, SessionAccess, sessionOriginStore } from "../session-origin-store";
-import { resolveSessionPath } from "../session-reader";
 import {
   CALLER_ONLY_REFUSAL,
   CROSS_PROJECT_REFUSAL,
@@ -96,9 +87,7 @@ export class SessionOrchestrationService {
     if (!caller?.isAlive()) throw new SessionOrchestrationError("The calling session is no longer available");
 
     const cwd = input.cwd ?? caller.cwd;
-    if (!cwd || !existsSync(cwd)) {
-      throw new SessionOrchestrationError(`Directory does not exist: ${input.cwd ?? caller.cwd}`);
-    }
+    await assertSessionCwdExists(cwd);
     const [callerProjectRoot, targetProjectRoot] = await Promise.all([projectRootOf(caller.cwd), projectRootOf(cwd)]);
     if (!callerProjectRoot || !targetProjectRoot || !sameProjectRoot(callerProjectRoot, targetProjectRoot)) {
       throw new SessionOrchestrationError(CROSS_PROJECT_REFUSAL);
@@ -153,12 +142,16 @@ export class SessionOrchestrationService {
     SessionAccess.authorizeMutation(sessionOriginStore, input.sessionId, "session_prompt");
     await this.assertSameProject(callerId, input.sessionId);
     const settings = getSessionOrchestrationSettings();
+    const callerOrigin = getSessionOrigin(callerId);
     const origin = getSessionOrigin(input.sessionId);
-    if (!settings.allowUserSessions && !origin?.createdBySessionId) {
+    if (callerOrigin?.relation === "delegate" || Boolean(origin?.createdBySessionId)) {
+      this.requireOwnedSession(callerId, input.sessionId, "prompted");
+    } else if (!settings.allowUserSessions) {
       throw new SessionOrchestrationError(OWNER_DISABLED_REFUSAL);
     }
 
     const target = await this.requireLiveSession(input.sessionId);
+    await assertSessionCwdExists(target.cwd);
     const wakingIdleAgentSession = !target.isRunning() && origin?.relation === "delegate";
     if (wakingIdleAgentSession && this.agentSessionLoad() >= settings.maxRunning) {
       throw new SessionOrchestrationError(runningLimitRefusal(settings.maxRunning));
@@ -344,11 +337,8 @@ export class SessionOrchestrationService {
   private async requireLiveSession(sessionId: string): Promise<AgentSessionWrapper> {
     const existing = getRpcSession(sessionId);
     if (existing?.isAlive()) return existing;
-    const filePath = await resolveSessionPath(sessionId);
-    if (!filePath) throw new SessionOrchestrationError(`Session ${sessionId} was not found`);
-    const cwd = SessionManager.open(filePath).getHeader()?.cwd ?? process.cwd();
-    const { session } = await startRpcSession(sessionId, filePath, cwd);
-    ensureSessionEvents(sessionLauncherServer(), session, sessionId);
+    const session = await resumeStoredSession(sessionId);
+    if (!session) throw new SessionOrchestrationError(`Session ${sessionId} was not found`);
     return session;
   }
 }

@@ -85,6 +85,7 @@ test(
     expectToolRefusal(
       (await results.next())[0],
       "prompting a session the user created must be refused while user sessions are excluded",
+      /Prompting sessions the user created is turned off in Session collaboration settings/,
     );
     assert.equal(
       (await host.detail(userSession)).context.messages.length,

@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { Fragment } from "react";
 import type { ProcessFlowItem } from "@/lib/process-flow";
 import type { AssistantMessage } from "@/lib/types";
@@ -9,6 +10,7 @@ import { ThinkingBlock } from "./messages/ThinkingBlock";
 import { ToolCallBlock } from "./messages/ToolCallBlock";
 
 export function ProcessFlow({
+  environmentId,
   items,
   cwd,
   onOpenFile,
@@ -17,9 +19,10 @@ export function ProcessFlow({
   unanswered,
   speedHint,
 }: {
+  environmentId: EnvironmentId;
   items: ProcessFlowItem[];
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   thinkingExpansionStore?: ThinkingExpansionStore;
   unanswered?: boolean;
@@ -62,9 +65,10 @@ export function ProcessFlow({
           case "custom": {
             const view =
               item.message.customType === "compaction" ? (
-                <CompactionMessageView message={item.message} />
+                <CompactionMessageView environmentId={environmentId} message={item.message} />
               ) : (
                 <CustomMessageView
+                  environmentId={environmentId}
                   message={item.message}
                   cwd={cwd}
                   onOpenFile={onOpenFile}

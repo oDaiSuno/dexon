@@ -69,8 +69,11 @@ async function click(role, name, text) {
   if (role) await waitFor(() => exists(role, name), `${name} ready for native input`);
   const point = await settledPoint({ role, name, text });
   window.webContents.sendInputEvent({ type: "mouseMove", ...point });
+  await nextFrames();
   window.webContents.sendInputEvent({ type: "mouseDown", button: "left", clickCount: 1, ...point });
+  await new Promise((resolve) => setTimeout(resolve, 16));
   window.webContents.sendInputEvent({ type: "mouseUp", button: "left", clickCount: 1, ...point });
+  await nextFrames();
 }
 
 const nextFrames = () => js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
@@ -185,6 +188,22 @@ const loadedWindow = new Promise((resolve, reject) => {
   });
 });
 
+async function openManageSources({ expectPluginResource = false } = {}) {
+  await click("button", "Plugins & Skills");
+  await waitFor(() => exists("heading", "Plugins & Skills"), "Resources as the main page");
+  await waitFor(async () => {
+    const content = await page("text");
+    return (
+      (!expectPluginResource || content.includes("From production-navigation-plugin")) &&
+      content.includes("1 installed packages") &&
+      !content.includes("Loading…") &&
+      (await attribute("button", "Refresh", "disabled")) === null
+    );
+  }, "loaded resource overview before opening Manage sources");
+  await click("button", "Manage sources");
+  await waitFor(() => exists("tab", "Plugins"), "the resource management tabs");
+}
+
 async function run() {
   await loadedWindow;
   await scene("01-production-startup", async () => {
@@ -221,11 +240,9 @@ async function run() {
   });
   await scene("02-expanded-resources", async () => {
     await waitFor(() => exists("navigation", "Main navigation"), "the official Main navigation");
-    await click("button", "Plugins & Skills");
-    await waitFor(() => exists("heading", "Plugins & Skills"), "Resources as the main page");
-    await click("button", "Manage sources");
+    await openManageSources({ expectPluginResource: true });
     await waitFor(
-      async () => (await page("text")).includes("production-navigation-plugin"),
+      async () => (await page("text")).includes("production-navigation-plugin") && exists("switch", "Disable package"),
       "the real locally configured plugin",
     );
     assert.equal(await exists("region", "Settings"), false);
@@ -235,8 +252,7 @@ async function run() {
     await click("switch", "Disable package");
     await waitFor(() => exists("switch", "Enable package"), "the disabled plugin");
     await reloadPage();
-    await click("button", "Plugins & Skills");
-    await click("button", "Manage sources");
+    await openManageSources();
     await waitFor(() => exists("switch", "Enable package"), "the disabled plugin after a real renderer reload");
     assert.equal(await attribute("switch", "Enable package", "aria-checked"), "false");
     return { persistedDisabled: true, readBackAfterRendererReload: true };
@@ -254,8 +270,7 @@ async function run() {
     await click("switch", "Disable skill in model prompt");
     await waitFor(() => exists("switch", "Enable skill in model prompt"), "the hidden skill");
     await reloadPage();
-    await click("button", "Plugins & Skills");
-    await click("button", "Manage sources");
+    await openManageSources();
     await waitFor(() => exists("tab", "Skills"), "resource tabs after a real renderer reload");
     await click("tab", "Skills");
     await waitFor(async () => (await page("text")).includes("production-checklist"), "the reopened skill list");

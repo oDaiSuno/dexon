@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { access } from "node:fs/promises";
 import type { SessionInfo } from "../shared/types";
 import { inferMissingProject, resolveProject, type ProjectInfo } from "../shared/worktree";
 import { getSessionProject, rememberSessionProject, type SessionProjectRecord } from "./session-project-store";
@@ -29,9 +29,19 @@ function toLocated(project: ProjectInfo): LocatedProject {
 
 export async function locateSessionProject(info: Pick<SessionInfo, "id" | "cwd">): Promise<LocatedProject | null> {
   if (!info.cwd) return null;
-  if (existsSync(info.cwd)) {
+  if (
+    await access(info.cwd).then(
+      () => true,
+      () => false,
+    )
+  ) {
     const project = await resolveProjectOnce(info.cwd);
-    if (existsSync(info.cwd)) {
+    if (
+      await access(info.cwd).then(
+        () => true,
+        () => false,
+      )
+    ) {
       const located = toLocated(project);
       rememberSessionProject(info.id, located);
       return located;

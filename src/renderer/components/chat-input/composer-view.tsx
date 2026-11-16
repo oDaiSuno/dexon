@@ -1,3 +1,5 @@
+import type { EnvironmentId } from "@contract/environment";
+import type { ModelPickerStatus } from "./model-picker-state";
 import type { MutableRefObject, RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession";
@@ -14,6 +16,7 @@ import type {
   ComposerWorkspace,
 } from "./types";
 import { AtMenu, type AtSuggestionState } from "./AtMenu";
+import { MissingSessionFolderBar } from "./missing-session-folder-bar";
 import { ModelPicker } from "./ModelPicker";
 import type { ModelGroup } from "./model-catalog";
 import { PlusMenuLayer } from "./plus-menu-layer";
@@ -32,8 +35,11 @@ import { PlusIcon } from "./icons";
 import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
-export interface ComposerViewProps {
+export interface ComposerViewProps extends ModelPickerStatus {
+  environmentId: EnvironmentId;
   sendGate: SendGate;
+  sessionFolderMissing?: ChatInputProps["sessionFolderMissing"];
+  missingFolderRecovery?: ChatInputProps["missingFolderRecovery"];
   rootRef: RefObject<HTMLDivElement | null>;
   visible: boolean;
   isMobile: boolean;
@@ -201,6 +207,10 @@ export function ComposerView(props: ComposerViewProps) {
     modelOptionsByProvider,
     currentModelName,
     modelCatalog,
+    modelCatalogScope,
+    modelLoading,
+    modelReconnecting,
+    modelLoadError,
     modelRefreshing,
     modelDropdownOpen,
     onToggleModelDropdown,
@@ -257,6 +267,7 @@ export function ComposerView(props: ComposerViewProps) {
         }}
       />
       <div className="chat-content-column">
+        {props.sessionFolderMissing && <MissingSessionFolderBar recovery={props.missingFolderRecovery} />}
         {imageAttachNotice && (
           <ComposerBanner
             tone="error"
@@ -280,7 +291,11 @@ export function ComposerView(props: ComposerViewProps) {
         {compactResult && <CompactResultBanner result={compactResult} onDismiss={onDismissCompactResult} />}
 
         {queuedMessages && queuedMessages.steering.length + queuedMessages.followUp.length > 0 && (
-          <QueuedMessagesPanel queuedMessages={queuedMessages} onRecallQueue={onRecallQueue} />
+          <QueuedMessagesPanel
+            environmentId={props.environmentId}
+            queuedMessages={queuedMessages}
+            onRecallQueue={onRecallQueue}
+          />
         )}
 
         <ComposerEnvironmentStrip />
@@ -410,7 +425,7 @@ export function ComposerView(props: ComposerViewProps) {
           </div>
         </div>
 
-        {!sendGate.allowed && (
+        {!sendGate.allowed && !props.sessionFolderMissing && (
           <p className="composer-send-hint type-meta-default" role="status">
             {sendGate.hint}
           </p>
@@ -445,6 +460,10 @@ export function ComposerView(props: ComposerViewProps) {
               panelRef={modelPanelRef}
               dropdownRect={modelDropdownRect}
               modelCatalog={modelCatalog}
+              modelCatalogScope={modelCatalogScope}
+              modelLoading={modelLoading}
+              modelReconnecting={modelReconnecting}
+              modelLoadError={modelLoadError}
               modelRefreshing={modelRefreshing}
               onModelChange={onModelChange}
               onModelsRefresh={onModelsRefresh}

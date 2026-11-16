@@ -1,0 +1,380 @@
+[
+  {
+    "file": "src/agent-host/agent-session/questionnaire-adapter.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "首次加载问卷适配器时读取外部包元数据，保留同步加载接口。"
+  },
+  {
+    "file": "src/agent-host/automation/runtime.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "自动化运行时启动和同步状态查询需要就绪的数据库目录。"
+  },
+  {
+    "file": "src/agent-host/automation/runtime.ts",
+    "symbol": "existsSync",
+    "count": 2,
+    "reason": "自动化运行时启动和同步状态查询需要就绪的数据库目录。"
+  },
+  {
+    "file": "src/agent-host/automation/spec/grant.ts",
+    "symbol": "realpathSync",
+    "count": 2,
+    "reason": "用户授权确认时同步计算目录身份和文件摘要，保持一次授权快照。"
+  },
+  {
+    "file": "src/agent-host/automation/spec/grant.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "用户授权确认时同步计算目录身份和文件摘要，保持一次授权快照。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "writeFileSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "renameSync",
+    "count": 2,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "chmodSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "unlinkSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/config-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "渠道设置的同步读取与提交接口尚未迁移，限额锁定现有原子写入和坏文件隔离。"
+  },
+  {
+    "file": "src/agent-host/channels/pi-session-bridge.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "绑定渠道时建立工作目录，属于启动会话前的低频准备。"
+  },
+  {
+    "file": "src/agent-host/channels/state-store.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "渠道状态的同步首读和坏文件隔离，保留现有存储接口。"
+  },
+  {
+    "file": "src/agent-host/channels/state-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "渠道状态的同步首读和坏文件隔离，保留现有存储接口。"
+  },
+  {
+    "file": "src/agent-host/channels/state-store.ts",
+    "symbol": "renameSync",
+    "count": 1,
+    "reason": "渠道状态的同步首读和坏文件隔离，保留现有存储接口。"
+  },
+  {
+    "file": "src/agent-host/desktop-state-file.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "叶节点、工具选择和导出文本仍使用同步写入接口；异步状态存储另有独立入口。"
+  },
+  {
+    "file": "src/agent-host/desktop-state-file.ts",
+    "symbol": "writeFileSync",
+    "count": 1,
+    "reason": "叶节点、工具选择和导出文本仍使用同步写入接口；异步状态存储另有独立入口。"
+  },
+  {
+    "file": "src/agent-host/desktop-state-file.ts",
+    "symbol": "renameSync",
+    "count": 1,
+    "reason": "叶节点、工具选择和导出文本仍使用同步写入接口；异步状态存储另有独立入口。"
+  },
+  {
+    "file": "src/agent-host/desktop-state-file.ts",
+    "symbol": "chmodSync",
+    "count": 1,
+    "reason": "叶节点、工具选择和导出文本仍使用同步写入接口；异步状态存储另有独立入口。"
+  },
+  {
+    "file": "src/agent-host/desktop-state-file.ts",
+    "symbol": "unlinkSync",
+    "count": 1,
+    "reason": "叶节点、工具选择和导出文本仍使用同步写入接口；异步状态存储另有独立入口。"
+  },
+  {
+    "file": "src/agent-host/file-watch.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "文件监视的同步回调按事件顺序读取状态，异步化需要单独调整去抖顺序。"
+  },
+  {
+    "file": "src/agent-host/file-watch.ts",
+    "symbol": "statSync",
+    "count": 2,
+    "reason": "文件监视的同步回调按事件顺序读取状态，异步化需要单独调整去抖顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "writeFileSync",
+    "count": 3,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "renameSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "unlinkSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/models-config.ts",
+    "symbol": "rmSync",
+    "count": 1,
+    "reason": "用户手动修改模型配置时执行版本校验、备份和提交，保留现有同步事务顺序。"
+  },
+  {
+    "file": "src/agent-host/handlers/project.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "用户显式查询工作树时选择仍存在的仓库根目录，尚未迁移的低频入口。"
+  },
+  {
+    "file": "src/agent-host/managed-process/owner-identity.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "后台进程启动时固定所属程序的真实路径。"
+  },
+  {
+    "file": "src/agent-host/managed-process/service.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "进程管理的同步路径身份比较接口，限额保留已有路径解析引用。"
+  },
+  {
+    "file": "src/agent-host/model-catalog/catalog-epoch.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "目录扫描在模型目录工作进程执行，不阻塞后台主线程。"
+  },
+  {
+    "file": "src/agent-host/model-catalog/catalog-epoch.ts",
+    "symbol": "statSync",
+    "count": 1,
+    "reason": "目录扫描在模型目录工作进程执行，不阻塞后台主线程。"
+  },
+  {
+    "file": "src/agent-host/model-catalog/catalog-epoch.ts",
+    "symbol": "readdirSync",
+    "count": 1,
+    "reason": "目录扫描在模型目录工作进程执行，不阻塞后台主线程。"
+  },
+  {
+    "file": "src/agent-host/model-catalog/catalog-service.ts",
+    "symbol": "existsSync",
+    "count": 1,
+    "reason": "首次启动模型目录工作进程时定位入口文件。"
+  },
+  {
+    "file": "src/agent-host/personal-directory.ts",
+    "symbol": "statSync",
+    "count": 1,
+    "reason": "个人目录准备的同步公开接口，保持冲突检测与创建结果立即可用。"
+  },
+  {
+    "file": "src/agent-host/personal-directory.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "个人目录准备的同步公开接口，保持冲突检测与创建结果立即可用。"
+  },
+  {
+    "file": "src/agent-host/personal-directory.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "个人目录准备的同步公开接口，保持冲突检测与创建结果立即可用。"
+  },
+  {
+    "file": "src/agent-host/platform-services.ts",
+    "symbol": "mkdirSync",
+    "count": 2,
+    "reason": "启动锁和进程身份需要同步建立，平台状态回调保持原有同步约定。"
+  },
+  {
+    "file": "src/agent-host/platform-services.ts",
+    "symbol": "readFileSync",
+    "count": 2,
+    "reason": "启动锁和进程身份需要同步建立，平台状态回调保持原有同步约定。"
+  },
+  {
+    "file": "src/agent-host/platform-services.ts",
+    "symbol": "writeFileSync",
+    "count": 2,
+    "reason": "启动锁和进程身份需要同步建立，平台状态回调保持原有同步约定。"
+  },
+  {
+    "file": "src/agent-host/platform-services.ts",
+    "symbol": "rmSync",
+    "count": 3,
+    "reason": "启动锁和进程身份需要同步建立，平台状态回调保持原有同步约定。"
+  },
+  {
+    "file": "src/agent-host/platform-services.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "启动锁和进程身份需要同步建立，平台状态回调保持原有同步约定。"
+  },
+  {
+    "file": "src/agent-host/plugins-service.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "插件启停及更新标记仍使用同步配置事务，包元数据批量读取已改为异步。"
+  },
+  {
+    "file": "src/agent-host/plugins-service.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "插件启停及更新标记仍使用同步配置事务，包元数据批量读取已改为异步。"
+  },
+  {
+    "file": "src/agent-host/plugins-service.ts",
+    "symbol": "writeFileSync",
+    "count": 1,
+    "reason": "插件启停及更新标记仍使用同步配置事务，包元数据批量读取已改为异步。"
+  },
+  {
+    "file": "src/agent-host/plugins-service.ts",
+    "symbol": "renameSync",
+    "count": 1,
+    "reason": "插件启停及更新标记仍使用同步配置事务，包元数据批量读取已改为异步。"
+  },
+  {
+    "file": "src/agent-host/plugins-service.ts",
+    "symbol": "unlinkSync",
+    "count": 1,
+    "reason": "插件启停及更新标记仍使用同步配置事务，包元数据批量读取已改为异步。"
+  },
+  {
+    "file": "src/agent-host/provider-channels.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "同步模型设置查询首次读取渠道配置，保持现有配置接口。"
+  },
+  {
+    "file": "src/agent-host/runtime-version.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "启动时从包元数据读取运行版本。"
+  },
+  {
+    "file": "src/agent-host/session-leaf-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "叶节点选择的同步存储接口只在首次查询时读取文件。"
+  },
+  {
+    "file": "src/agent-host/session-orchestration/project-scope.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "会话编排的同步项目身份比较，保留现有权限检查接口。"
+  },
+  {
+    "file": "src/agent-host/session-orchestration/transcript.ts",
+    "symbol": "rmSync",
+    "count": 1,
+    "reason": "用户删除会话时同步清理派生文本，保留已有删除接口。"
+  },
+  {
+    "file": "src/agent-host/session-origin-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "同步归属查询的首次读取；写入和退出刷新已异步化。"
+  },
+  {
+    "file": "src/agent-host/session-project-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "同步项目归属查询的首次读取；写入和退出刷新已异步化。"
+  },
+  {
+    "file": "src/agent-host/session-tool-store.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "同步工具选择查询首次读取持久化配置。"
+  },
+  {
+    "file": "src/agent-host/session-watch-policy.ts",
+    "symbol": "statSync",
+    "count": 1,
+    "reason": "同步文件监视回调分类目录事件，避免改变事件去抖顺序。"
+  },
+  {
+    "file": "src/agent-host/session-watcher.ts",
+    "symbol": "mkdirSync",
+    "count": 1,
+    "reason": "启动监视器时一次性创建会话根目录。"
+  },
+  {
+    "file": "src/agent-host/standalone-secrets.ts",
+    "symbol": "readFileSync",
+    "count": 1,
+    "reason": "独立后台启动时同步载入凭据。"
+  },
+  {
+    "file": "src/agent-host/subprocess-cwd.ts",
+    "symbol": "realpathSync",
+    "count": 1,
+    "reason": "同步子进程启动边界必须立即返回存在的真实目录。"
+  },
+  {
+    "file": "src/agent-host/subprocess-cwd.ts",
+    "symbol": "statSync",
+    "count": 1,
+    "reason": "同步子进程启动边界必须立即返回存在的真实目录。"
+  }
+]

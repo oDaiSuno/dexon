@@ -1,6 +1,4 @@
 import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
-import { useFileEnvironment } from "@/lib/use-file-environment";
-import { getSessionEnvironmentId } from "@/lib/environment-registry";
 import { useEffect, useMemo, useState } from "react";
 import { MarkdownBody, type InlineChips } from "../MarkdownBody";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
@@ -22,7 +20,7 @@ function imageSourceOf(block: ImageContent): string {
 }
 
 export function UserMessageBubble({
-  environmentId: requestedEnvironmentId,
+  environmentId,
   message,
   sessionId,
   cwd,
@@ -33,20 +31,17 @@ export function UserMessageBubble({
   leadingSkillName,
   imageBlocks,
 }: {
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
   message: UserMessage;
   sessionId?: string | null;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   bubbleStyle: { background: string; foreground: string };
   prose: string;
   leadingSkillName: string | null;
   imageBlocks: ImageContent[];
 }) {
-  const environmentId = useFileEnvironment(
-    requestedEnvironmentId ?? (sessionId ? getSessionEnvironmentId(sessionId) : undefined),
-  );
   const tokenImagePaths = useMemo(
     () =>
       findAttachmentTokens(prose)
@@ -85,13 +80,14 @@ export function UserMessageBubble({
         <AttachmentChip
           environmentId={environmentId}
           path={path}
+          onOpenFile={onOpenFile}
           cwd={cwd}
           previewUrl={tokenPreviews.get(qualifyProjectKey(environmentId, path)) ?? null}
         />
       ),
       skill: (name) => <SkillChip name={name} />,
     }),
-    [environmentId, cwd, leadingSkillName, tokenPreviews],
+    [environmentId, cwd, leadingSkillName, tokenPreviews, onOpenFile],
   );
 
   return (

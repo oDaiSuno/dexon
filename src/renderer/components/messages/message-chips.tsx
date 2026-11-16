@@ -2,23 +2,23 @@ import { attachmentTokenName, resolveAttachmentRevealPath } from "@shared/attach
 import { attachmentGlyphSvg, SKILL_CHIP_SVG } from "../chat-input/chip-glyphs";
 import { useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import type { EnvironmentId } from "@contract/environment";
 
 export function AttachmentChip({
   path,
   cwd,
   previewUrl,
-  environmentId: requestedEnvironmentId,
+  onOpenFile,
+  environmentId,
 }: {
   path: string;
   cwd?: string;
   previewUrl: string | null;
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
 }) {
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
-  const target = affordances.revealInFileManager ? resolveAttachmentRevealPath(path, cwd) : null;
+  const target = resolveAttachmentRevealPath(path, cwd);
   const content = (
     <>
       {previewUrl ? (
@@ -29,7 +29,7 @@ export function AttachmentChip({
       <span className="token-chip-name">{attachmentTokenName(path)}</span>
     </>
   );
-  if (!target) {
+  if (!target || (!affordances.revealInFileManager && !onOpenFile)) {
     return (
       <span className="token-chip token-chip-static type-mono-label" title={path}>
         {content}
@@ -41,7 +41,10 @@ export function AttachmentChip({
       type="button"
       className="token-chip type-mono-label"
       title={path}
-      onClick={() => void window.piBridge?.showItemInFolder?.(target)}
+      onClick={() => {
+        if (onOpenFile) onOpenFile(target, environmentId);
+        else void window.piBridge?.showItemInFolder?.(target);
+      }}
     >
       {content}
     </button>

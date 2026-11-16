@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import { mkdirSync, readFileSync, truncateSync } from "node:fs";
 import path from "node:path";
 import {
   isMissingFile,
@@ -94,51 +93,6 @@ export class SessionIndexJournal {
     await fs.mkdir(this.directory, { recursive: true, mode: 0o700 });
     await this.writeSnapshot(records);
     this.lines = records.length;
-    this.hasSnapshot = legacyValid;
-    return records;
-  }
-
-  loadSync(): PersistedIndexRecord[] {
-    const read = (filePath: string) => {
-      try {
-        return readFileSync(filePath, "utf8");
-      } catch (error) {
-        if (isMissingFile(error)) return null;
-        throw error;
-      }
-    };
-    const text = read(this.filePath);
-    if (text !== null) {
-      try {
-        const replay = this.replay(text);
-        let step = replay.next();
-        while (!step.done) step = replay.next();
-        if (!text.endsWith("\n")) truncateSync(this.filePath, this.completeBytes(text));
-        return step.value;
-      } catch (error) {
-        console.error("[agent-host] session index journal is unreadable; rebuilding:", error);
-        this.hasSnapshot = false;
-        this.lines = 0;
-        void this.enqueue(() => this.writeSnapshot([])).catch(() => undefined);
-        return [];
-      }
-    }
-    const legacy = read(path.join(this.directory, LEGACY_CACHE_FILE));
-    let records: PersistedIndexRecord[] = [];
-    let legacyValid = false;
-    if (legacy !== null) {
-      try {
-        records = parseLegacyCache(legacy);
-        legacyValid = true;
-      } catch (error) {
-        console.error("[agent-host] legacy session index cache is invalid; ignoring:", error);
-      }
-    }
-    mkdirSync(this.directory, { recursive: true, mode: 0o700 });
-    void this.enqueue(async () => {
-      await this.writeSnapshot(records);
-      this.lines = records.length;
-    }).catch(() => undefined);
     this.hasSnapshot = legacyValid;
     return records;
   }

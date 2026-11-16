@@ -1,11 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { SessionManager, createAgentSessionServices, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { createAgentSessionServices, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../contract/rpc";
 import { RpcError } from "../contract/types";
 import { readPromptIntent, titleSourceOf, type TitleSource } from "../shared/prompt-intent";
 import type { SessionModelRef } from "../shared/session-orchestration";
 import { validateExistingDirectory } from "./file-access-core";
 import { getRpcSession } from "./rpc-manager";
+import { readSessionManager, readSessionHeader, appendSessionName } from "./session-jsonl";
 import { invalidateSessionContent } from "./session-content-cache";
 import { reachableModels, type AvailableModel } from "./session-model";
 import { chosenModelView } from "./session-orchestration/model-view";
@@ -107,7 +108,7 @@ async function hasSessionName(sessionId: string): Promise<boolean> {
   }
   const filePath = await resolveSessionPath(sessionId);
   if (!filePath) return false;
-  const name = SessionManager.open(filePath, undefined).getSessionName();
+  const name = (await readSessionManager(filePath)).getSessionName();
   return typeof name === "string" && name.trim().length > 0;
 }
 
@@ -126,29 +127,45 @@ function applyLiveSessionNameIfEmpty(sessionId: string, name: string): boolean |
   return setLiveSessionName(sessionId, name);
 }
 
+const sessionNameLocks = new Map<string, Promise<unknown>>();
+
+export async function withSessionNameLock<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = sessionNameLocks.get(sessionId) ?? Promise.resolve();
+  const next = previous.catch(() => undefined).then(operation);
+  const tail = next.catch(() => undefined);
+  sessionNameLocks.set(sessionId, tail);
+  try {
+    return await next;
+  } finally {
+    if (sessionNameLocks.get(sessionId) === tail) sessionNameLocks.delete(sessionId);
+  }
+}
+
 async function writeSessionName(sessionId: string, name: string, options: { onlyIfEmpty: boolean }): Promise<boolean> {
   const normalized = name.trim();
   if (!normalized) return false;
 
-  const writeIfLive = () =>
-    options.onlyIfEmpty
-      ? applyLiveSessionNameIfEmpty(sessionId, normalized)
-      : setLiveSessionName(sessionId, normalized);
+  return withSessionNameLock(sessionId, async () => {
+    const writeIfLive = () =>
+      options.onlyIfEmpty
+        ? applyLiveSessionNameIfEmpty(sessionId, normalized)
+        : setLiveSessionName(sessionId, normalized);
 
-  const liveBeforePathLookup = writeIfLive();
-  if (liveBeforePathLookup !== null) return liveBeforePathLookup;
+    const liveBeforePathLookup = writeIfLive();
+    if (liveBeforePathLookup !== null) return liveBeforePathLookup;
 
-  const filePath = await resolveSessionPath(sessionId);
-  if (!filePath) return false;
+    const filePath = await resolveSessionPath(sessionId);
+    if (!filePath) return false;
 
-  const liveAfterPathLookup = writeIfLive();
-  if (liveAfterPathLookup !== null) return liveAfterPathLookup;
+    const liveAfterPathLookup = writeIfLive();
+    if (liveAfterPathLookup !== null) return liveAfterPathLookup;
 
-  const manager = SessionManager.open(filePath, undefined);
-  if (options.onlyIfEmpty && Boolean(manager.getSessionName()?.trim())) return false;
-  manager.appendSessionInfo(normalized);
-  invalidateSessionContent(filePath);
-  return true;
+    const manager = await readSessionManager(filePath);
+    if (options.onlyIfEmpty && Boolean(manager.getSessionName()?.trim())) return false;
+    await appendSessionName(filePath, manager, normalized);
+    invalidateSessionContent(filePath);
+    return true;
+  });
 }
 
 export async function applySessionName(sessionId: string, name: string): Promise<boolean> {
@@ -162,7 +179,7 @@ export async function applySessionNameIfEmpty(sessionId: string, name: string): 
 async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessionTarget | null> {
   const existing = getRpcSession(sessionId);
   if (existing?.isAlive()) {
-    const dir = validateExistingDirectory(existing.cwd);
+    const dir = await validateExistingDirectory(existing.cwd);
     if (!dir.ok) return null;
     return {
       cwd: dir.path,
@@ -174,8 +191,8 @@ async function resolveTitleSessionTarget(sessionId: string): Promise<TitleSessio
   }
   const filePath = await resolveSessionPath(sessionId);
   if (!filePath) return null;
-  const cwd = SessionManager.open(filePath, undefined).getHeader()?.cwd;
-  const dir = validateExistingDirectory(cwd);
+  const cwd = (await readSessionHeader(filePath))?.cwd;
+  const dir = await validateExistingDirectory(cwd);
   return dir.ok ? { cwd: dir.path } : null;
 }
 

@@ -7,7 +7,6 @@ export function useInitialSessionRestore({
   initialSessionId,
   loading,
   error,
-  setSelectedCwd,
   onSelectSession,
   onInitialRestoreDone,
 }: {
@@ -15,7 +14,6 @@ export function useInitialSessionRestore({
   initialSessionId: string | null | undefined;
   loading: boolean;
   error: string | null;
-  setSelectedCwd: (cwd: string) => void;
   onSelectSession: (session: SessionInfo, isRestore?: boolean) => void;
   onInitialRestoreDone?: () => void;
 }) {
@@ -31,7 +29,6 @@ export function useInitialSessionRestore({
     if (restore.status === "wait") return;
     if (restore.status === "restore") {
       restoredRef.current = true;
-      setSelectedCwd(restore.session.cwd);
       onSelectSession(restore.session, true);
       return;
     }
@@ -39,6 +36,6 @@ export function useInitialSessionRestore({
       restoredRef.current = true;
       onInitialRestoreDone?.();
     }
-  }, [sessions, error, initialSessionId, loading, onInitialRestoreDone, onSelectSession, setSelectedCwd]);
+  }, [sessions, error, initialSessionId, loading, onInitialRestoreDone, onSelectSession]);
   return restoredRef;
 }

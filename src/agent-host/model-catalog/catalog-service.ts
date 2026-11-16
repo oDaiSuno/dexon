@@ -6,12 +6,15 @@ import { getAgentDir } from "@earendil-works/pi-coding-agent";
 import { RpcError } from "../../contract/types.ts";
 import { runIsolatedNodeJob } from "../isolated-node-job.ts";
 import { MODEL_CATALOG_REFRESH_TIMEOUT_MS, ModelCatalogRefreshAbortedError } from "../model-runtime.ts";
-import { catalogEpoch, type CatalogEpoch } from "./catalog-epoch.ts";
+import { resolveSafeProcessCwd } from "../subprocess-cwd.ts";
 import {
   CATALOG_RESULT_MARKER,
+  parseCatalogEpochResult,
   parseCatalogJobResult,
+  type CatalogEpoch,
   type CatalogJob,
   type CatalogSnapshot,
+  type CatalogWorkerJob,
 } from "./catalog-protocol.ts";
 
 export interface ModelCatalogOptions {
@@ -57,29 +60,30 @@ function workerEntryPath(): string {
   throw new Error(`Model catalog worker is unavailable in ${directory}`);
 }
 
-function asPlainNodeEnv(job: CatalogJob): NodeJS.ProcessEnv {
+function asPlainNodeEnv(job: CatalogWorkerJob): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ELECTRON_RUN_AS_NODE: "1", PI_CODING_AGENT_DIR: job.agentDir };
   if (job.offline) env.PI_OFFLINE = "1";
   else delete env.PI_OFFLINE;
   return env;
 }
 
+function runCatalogWorker(job: CatalogWorkerJob, signal: AbortSignal, timeoutMs: number): Promise<unknown> {
+  return runIsolatedNodeJob({
+    entryPath: workerEntryPath(),
+    input: job,
+    marker: CATALOG_RESULT_MARKER,
+    timeoutMs,
+    maxInputBytes: 64 * 1024,
+    env: asPlainNodeEnv(job),
+    cwd: resolveSafeProcessCwd(os.tmpdir()),
+    ipcLifeline: true,
+    signal,
+    label: "Model catalog worker",
+  });
+}
+
 async function runCatalogJob(job: CatalogJob, signal: AbortSignal, timeoutMs: number): Promise<CatalogSnapshot> {
-  const entryPath = workerEntryPath();
-  const result = parseCatalogJobResult(
-    await runIsolatedNodeJob({
-      entryPath,
-      input: job,
-      marker: CATALOG_RESULT_MARKER,
-      timeoutMs,
-      maxInputBytes: 64 * 1024,
-      env: asPlainNodeEnv(job),
-      cwd: os.tmpdir(),
-      ipcLifeline: true,
-      signal,
-      label: "Model catalog worker",
-    }),
-  );
+  const result = parseCatalogJobResult(await runCatalogWorker(job, signal, timeoutMs));
   if (!result.ok || result.snapshot.cwd !== job.cwd) throw new Error("Unable to build model catalog");
   return result.snapshot;
 }
@@ -92,7 +96,8 @@ export class ModelCatalogService {
   private readonly options: ModelCatalogOptions;
   private readonly entries = new Map<string, CatalogEntry>();
   private readonly controllers = new Set<AbortController>();
-  private readonly jobs = new Set<Promise<CatalogSnapshot>>();
+  private readonly jobs = new Set<Promise<unknown>>();
+  private readonly epochProbes = new Map<string, Promise<CatalogEpoch>>();
   private readonly refreshes = new Map<string, ActiveRefresh>();
   private readonly refreshByCwd = new Map<string, ActiveRefresh>();
   private disposed = false;
@@ -245,7 +250,26 @@ export class ModelCatalogService {
   }
 
   private epoch(job: CatalogJob): CatalogEpoch | Promise<CatalogEpoch> {
-    return (this.options.epochOf ?? catalogEpoch)(job.cwd, job.agentDir, job.offline);
+    if (this.options.epochOf) return this.options.epochOf(job.cwd, job.agentDir, job.offline);
+    const probeKey = JSON.stringify([job.cwd, job.agentDir, job.offline]);
+    const existing = this.epochProbes.get(probeKey);
+    if (existing) return existing;
+    const controller = new AbortController();
+    this.controllers.add(controller);
+    const probe = runCatalogWorker({ ...job, kind: "epoch" }, controller.signal, this.options.buildTimeoutMs ?? 30_000)
+      .then(parseCatalogEpochResult)
+      .catch((error: unknown) => {
+        if (this.disposed) throw this.disposedError();
+        throw error;
+      })
+      .finally(() => {
+        this.controllers.delete(controller);
+        this.jobs.delete(probe);
+        if (this.epochProbes.get(probeKey) === probe) this.epochProbes.delete(probeKey);
+      });
+    this.epochProbes.set(probeKey, probe);
+    this.jobs.add(probe);
+    return probe;
   }
 
   private cacheKey(cwd: string, epoch: CatalogEpoch): string {

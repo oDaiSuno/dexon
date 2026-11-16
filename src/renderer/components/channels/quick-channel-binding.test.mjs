@@ -85,6 +85,7 @@ const EMPTY = { accounts: [], statuses: [], pairings: [], bindings: [], activiti
 function sessionInfo(id, name) {
   const now = new Date().toISOString();
   return {
+    environmentId: "primary",
     path: `/sessions/${id}.jsonl`,
     id,
     cwd: "/work/dexon",

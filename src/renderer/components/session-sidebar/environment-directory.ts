@@ -83,9 +83,7 @@ export function createEnvironmentDirectory(
       .listSessions()
       .then(async (data) => {
         if (disposed || started !== revision) return;
-        sessions = data.sessions.map((session) =>
-          environmentId === PRIMARY_ENVIRONMENT_ID ? session : { ...session, environmentId },
-        );
+        sessions = data.sessions.map((session) => ({ ...session, environmentId }));
         ledger = activityReducer(ledger, { type: "listed", sessions });
         ledger = activityReducer(ledger, {
           type: "frame",
@@ -146,10 +144,7 @@ export function createEnvironmentDirectory(
         revision += 1;
         if (event.fullRefresh || (!event.session && !(event.deleted && event.sessionId))) void refresh();
         else {
-          const changed =
-            event.session && environmentId !== PRIMARY_ENVIRONMENT_ID
-              ? { ...event, session: { ...event.session, environmentId } }
-              : event;
+          const changed = { ...event, session: event.session ? { ...event.session, environmentId } : undefined };
           sessions = applySessionChangedEvent(sessions, changed) ?? sessions;
           if (changed.session && !changed.deleted) {
             ledger = activityReducer(ledger, { type: "upserted", session: changed.session });

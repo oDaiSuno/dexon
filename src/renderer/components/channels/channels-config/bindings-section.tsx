@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { ChannelBinding, ChannelsSnapshot } from "@shared/channel-types";
 import type { SessionInfo } from "@contract/types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { bindingMatches } from "./binding-presentation";
 import { BindingRow } from "./binding-row";
@@ -28,7 +29,7 @@ export function BindingsSection({
 
   const attach = (binding: ChannelBinding, sessionId: string | undefined) =>
     void run(() =>
-      call("channels.bindingUpsert", {
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.bindingUpsert", {
         binding: { ...binding, sessionId, lastUsedAt: new Date().toISOString() },
       }),
     );
@@ -70,7 +71,13 @@ export function BindingsSection({
                 divider={index > 0}
                 busy={busy}
                 onAttach={(sessionId) => attach(binding, sessionId)}
-                onDisconnect={() => void run(() => call("channels.bindingDelete", { bindingId: binding.id }))}
+                onDisconnect={() =>
+                  void run(() =>
+                    getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.bindingDelete", {
+                      bindingId: binding.id,
+                    }),
+                  )
+                }
               />
             ))}
           </ul>

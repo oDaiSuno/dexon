@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { useI18n } from "@/i18n";
 import { useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { DisabledReason, useRevealInFileManagerLabel } from "../disabled-reason";
 import { CLEAR, HOVER, paint } from "./menu-chrome";
 import type { ComposerWorkspaceReadOnly } from "./types";
@@ -32,7 +31,7 @@ export function WorkspaceReadOnlyCard({
   onFocusTrigger: () => void;
 }) {
   const { t } = useI18n();
-  const environmentId = useFileEnvironment();
+  const { environmentId } = workspace;
   const { isPrimary, unavailable } = environmentAffordances(
     useEnvironments().find((view) => view.id === environmentId),
   );

@@ -42,6 +42,8 @@ function supportsReasoning(levels?: string[]): boolean {
 export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function ChatInput(
   {
     environmentId: providedEnvironmentId,
+    sessionFolderMissing = false,
+    missingFolderRecovery,
     onSend,
     onAbort,
     onSteer,
@@ -53,6 +55,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     modelList,
     modelThinkingLevels,
     modelCatalog,
+    modelCatalogScope,
+    modelLoading,
+    modelReconnecting,
+    modelLoadError,
     modelRefreshing,
     onModelChange,
     onModelsRefresh,
@@ -93,7 +99,14 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const environments = useEnvironments();
   const environmentId = providedEnvironmentId ?? activeEnvironment.id;
   const affordances = environmentAffordances(environments.find((view) => view.id === environmentId));
-  const sendGate = useSendGate();
+  const environmentSendGate = useSendGate();
+  const missingFolderHint = t(
+    "missingSessionFolderReadOnly",
+    "The original project folder no longer exists. This historical conversation is protected as read-only.",
+  );
+  const sendGate = sessionFolderMissing
+    ? { allowed: false, label: missingFolderHint, hint: missingFolderHint }
+    : environmentSendGate;
   const editableRef = useRef<ComposerEditableHandle | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRootRef = useRef<HTMLDivElement>(null);
@@ -105,7 +118,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     onImageNotice: setImageAttachNotice,
   });
   const { commit, returnToDraft } = draft;
-  const skillCatalog = useSkillCatalog({ cwd, visible });
+  const skillCatalog = useSkillCatalog({ environmentId, cwd, visible });
   const skills = useComposerSkills({ skillCatalog, visible, editableRef });
   const { closePlusMenu, closeTransientMenus } = skills;
   const attachments = useComposerAttachments({
@@ -182,6 +195,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   }, [draft, visible, onAudioUnlock, onFollowUp, onPromptWithStreamingBehavior, sendGate.allowed, t]);
 
   const suggestions = useComposerSuggestions({
+    environmentId,
     skillCatalog,
     cwd,
     isStreaming,
@@ -366,7 +380,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   return (
     <ComposerView
+      environmentId={environmentId}
       sendGate={sendGate}
+      sessionFolderMissing={sessionFolderMissing}
+      missingFolderRecovery={missingFolderRecovery}
       rootRef={inputRootRef}
       visible={visible}
       isMobile={isMobile}
@@ -436,6 +453,10 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       modelOptionsByProvider={modelOptionsByProvider}
       currentModelName={currentModelName}
       modelCatalog={modelCatalog}
+      modelCatalogScope={modelCatalogScope}
+      modelLoading={modelLoading}
+      modelReconnecting={modelReconnecting}
+      modelLoadError={modelLoadError}
       modelRefreshing={modelRefreshing}
       modelDropdownOpen={modelDropdownOpen}
       onToggleModelDropdown={toggleModelDropdown}

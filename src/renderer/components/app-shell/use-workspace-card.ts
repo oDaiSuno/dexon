@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
-import { call } from "@/lib/api-client";
+import type { EnvironmentId } from "@contract/environment";
+import { useEnvironments } from "@/lib/environment-registry";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { isPersonalSpace, spaceDisplayName } from "@/lib/space-identity";
 import { worktreePathsEqual } from "@shared/worktree-path";
-import type { WorktreeBranchesResult, WorktreeSwitchBranchResult } from "@shared/api-types";
+import type { WorktreeBranchesResult } from "@shared/api-types";
 import type {
   ComposerCardBlocked,
   ComposerCardPane,
@@ -24,6 +26,7 @@ interface Listing {
   forFolder: string;
   result: WorktreeBranchesResult | null;
   loading: boolean;
+  error?: string;
 }
 
 interface ProjectFacts {
@@ -34,6 +37,7 @@ interface ProjectFacts {
 export type FolderOutcome = { ok: boolean; error?: string };
 
 export function useWorkspaceCard({
+  environmentId,
   workspace,
   open,
   projects,
@@ -46,6 +50,7 @@ export function useWorkspaceCard({
   onReturnToPersonalSpace,
   onSwitched,
 }: {
+  environmentId: EnvironmentId;
   workspace: ProjectWorkspaceState;
   open: boolean;
   projects: string[] | null;
@@ -59,13 +64,17 @@ export function useWorkspaceCard({
   onSwitched: () => void;
 }): ComposerWorkspaceCard {
   const { language, t } = useI18n();
+  const environment = useEnvironments().find((view) => view.id === environmentId);
+  const generation = environment?.status.phase === "connected" ? environment.status.generation : null;
+  const connectionKey = JSON.stringify([environmentId, generation]);
   const worktreeEntries = workspace.worktreeState?.worktrees;
   const checkouts: ComposerCheckout[] = useMemo(
     () => (workspace.showWorktreeSwitcher ? (worktreeEntries ?? []) : []),
     [worktreeEntries, workspace.showWorktreeSwitcher],
   );
   const anchorProject = currentProject?.path ?? currentFolder;
-  const [browsed, setBrowsed] = useState<string | null>(anchorProject);
+  const [browsedSelection, setBrowsed] = useState({ environmentId, path: anchorProject });
+  const browsed = browsedSelection.environmentId === environmentId ? browsedSelection.path : anchorProject;
   const [openToken, setOpenToken] = useState(0);
   const [filter, setFilter] = useState("");
   const [blocked, setBlocked] = useState<BlockedSwitch | null>(null);
@@ -81,26 +90,46 @@ export function useWorkspaceCard({
   useEffect(() => {
     if (!open) return;
     setOpenToken((token) => token + 1);
-    setBrowsed(currentProject?.path ?? currentFolder ?? null);
+    setBrowsed({ environmentId, path: currentProject?.path ?? currentFolder ?? null });
     setFilter("");
     setBlocked(null);
     setFailure(null);
-  }, [open, currentProject?.path, currentFolder]);
+  }, [open, currentProject?.path, currentFolder, environmentId]);
 
-  const loadBranches = useCallback((folder: string) => {
-    const request = ++requestRef.current;
-    setListing({ forFolder: folder, result: null, loading: true });
-    void call("worktrees.branches", { cwd: folder }).then(
-      (result) => {
-        if (requestRef.current !== request) return;
-        setListing({ forFolder: folder, result: result as WorktreeBranchesResult, loading: false });
-      },
-      () => {
-        if (requestRef.current !== request) return;
-        setListing({ forFolder: folder, result: null, loading: false });
-      },
-    );
-  }, []);
+  const loadBranches = useCallback(
+    (folder: string) => {
+      const request = ++requestRef.current;
+      setListing({ forFolder: JSON.stringify([connectionKey, folder]), result: null, loading: true });
+      void getEnvironmentApiClient(environmentId)
+        .call("worktrees.branches", { cwd: folder })
+        .then(
+          (result) => {
+            if (requestRef.current !== request) return;
+            setListing({
+              forFolder: JSON.stringify([connectionKey, folder]),
+              result,
+              loading: false,
+            });
+          },
+          (error: unknown) => {
+            if (requestRef.current !== request) return;
+            setListing({
+              forFolder: JSON.stringify([connectionKey, folder]),
+              result: null,
+              loading: false,
+              error: String(error),
+            });
+          },
+        );
+    },
+    [environmentId, connectionKey],
+  );
+
+  useEffect(() => {
+    return () => {
+      requestRef.current += 1;
+    };
+  }, [connectionKey]);
 
   useEffect(() => {
     if (!open || !queryFolder || projects === null) return;
@@ -110,23 +139,33 @@ export function useWorkspaceCard({
   useEffect(() => {
     if (!open || !projects) return;
     let cancelled = false;
+    setFacts({});
     for (const folder of projects) {
       if (isMissing(folder)) continue;
-      void call("git.branch", { path: folder }).then(
-        (result) => {
-          if (cancelled) return;
-          setFacts((prev) => ({ ...prev, [folder]: { isGit: result.isGit, branch: result.branch ?? null } }));
-        },
-        () => {
-          if (cancelled) return;
-          setFacts((prev) => ({ ...prev, [folder]: { isGit: false, branch: null } }));
-        },
-      );
+      void getEnvironmentApiClient(environmentId)
+        .call("git.branch", { path: folder })
+        .then(
+          (result) => {
+            if (cancelled) return;
+            setFacts((prev) => ({
+              ...prev,
+              [JSON.stringify([connectionKey, folder])]: { isGit: result.isGit, branch: result.branch ?? null },
+            }));
+          },
+          () => {
+            if (cancelled) return;
+            setFacts((prev) => {
+              const next = { ...prev };
+              delete next[JSON.stringify([connectionKey, folder])];
+              return next;
+            });
+          },
+        );
     }
     return () => {
       cancelled = true;
     };
-  }, [open, projects, isMissing, workspace.wtRefreshKey]);
+  }, [open, projects, isMissing, workspace.wtRefreshKey, environmentId, connectionKey]);
 
   const pane: ComposerCardPane = useMemo(() => {
     if (projects === null) {
@@ -141,7 +180,8 @@ export function useWorkspaceCard({
       return { state: "ready", count, sections };
     }
     if (!queryFolder) return { state: "loading" };
-    if (listing.loading || listing.forFolder !== queryFolder || !listing.result) return { state: "loading" };
+    if (listing.loading || listing.forFolder !== JSON.stringify([connectionKey, queryFolder]) || !listing.result)
+      return { state: "loading" };
     if (!listing.result.isGit || !listing.result.isTopLevel) return { state: "not-repo" };
     const { sections, count } = branchSections({
       listing: listing.result,
@@ -152,7 +192,18 @@ export function useWorkspaceCard({
       homeDir,
     });
     return { state: "ready", count, sections };
-  }, [blocked, checkouts, filter, homeDir, language, listing, projects, queryFolder, workspace.selectedCwd]);
+  }, [
+    blocked,
+    checkouts,
+    filter,
+    homeDir,
+    language,
+    listing,
+    projects,
+    queryFolder,
+    workspace.selectedCwd,
+    connectionKey,
+  ]);
 
   const personalLabel = t("personalSpace", "Default space");
   const displayName = useCallback(
@@ -167,7 +218,7 @@ export function useWorkspaceCard({
         currentProject && worktreePathsEqual(currentProject.path, folder) ? currentProject.name : displayName(folder);
       const missing = isMissing(folder);
       const personal = isPersonalSpace(folder, personalCwd, homeDir);
-      const fact = facts[folder];
+      const fact = facts[JSON.stringify([connectionKey, folder])];
       const isGit = Boolean(fact?.isGit);
       const current = Boolean(currentRoot && worktreePathsEqual(currentRoot, folder));
       return {
@@ -190,7 +241,19 @@ export function useWorkspaceCard({
         missing,
       };
     });
-  }, [browsed, currentProject, currentRoot, displayName, facts, homeDir, isMissing, personalCwd, projects, t]);
+  }, [
+    browsed,
+    currentProject,
+    currentRoot,
+    displayName,
+    facts,
+    homeDir,
+    isMissing,
+    personalCwd,
+    projects,
+    t,
+    connectionKey,
+  ]);
 
   const browsedName = projectRows.find((project) => project.browsed)?.name ?? (browsed ? displayName(browsed) : "");
   const closeCard = workspace.resetWorktreeDropdownForOutsideClick;
@@ -228,9 +291,9 @@ export function useWorkspaceCard({
       setFilter("");
       setBlocked(null);
       setFailure(null);
-      setBrowsed(path);
+      setBrowsed({ environmentId, path });
     },
-    [isMissing],
+    [isMissing, environmentId],
   );
 
   const switchIn = useCallback(
@@ -238,7 +301,10 @@ export function useWorkspaceCard({
       setSwitching(true);
       setFailure(null);
       try {
-        const result = (await call("worktrees.switchBranch", { cwd, branch })) as WorktreeSwitchBranchResult;
+        const result = await getEnvironmentApiClient(environmentId).call("worktrees.switchBranch", {
+          cwd,
+          branch,
+        });
         if (result.ok) {
           onSwitched();
           if (other) await goTo(cwd);
@@ -262,7 +328,7 @@ export function useWorkspaceCard({
         setSwitching(false);
       }
     },
-    [closeCard, goTo, loadBranches, onSwitched],
+    [closeCard, goTo, loadBranches, onSwitched, environmentId],
   );
 
   const activateBranch = useCallback(
@@ -353,7 +419,7 @@ export function useWorkspaceCard({
     confirmRemovePath: workspace.wtConfirmRemove,
     cancelRemove: workspace.cancelWorktreeRemove,
     busy: workspace.wtBusy || switching,
-    error: failure ?? workspace.wtError,
+    error: failure ?? listing.error ?? workspace.wtError,
     activateProject,
     browseProject,
     activateBranch,

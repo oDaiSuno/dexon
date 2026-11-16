@@ -40,9 +40,12 @@ const standalonePlatform = standaloneOptions
   : null;
 let daemon: DaemonServer | undefined;
 
-const hostActivity = new HostActivity({ post: (message) => process.parentPort?.postMessage(message) });
-const stopActivity = subscribeActivity((activity) => hostActivity.observe(activity));
 const server = createRpcServer();
+const hostActivity = new HostActivity({
+  post: (message) => process.parentPort?.postMessage(message),
+  inFlightRequests: () => server.inFlightRequests(),
+});
+const stopActivity = subscribeActivity((activity) => hostActivity.observe(activity));
 const restoreGitRunner = installToolchainGitRunner();
 const stopHandlers = registerHandlers(server);
 const stopWatcher = startSessionWatcher(server);

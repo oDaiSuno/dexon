@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, statSync } from "fs";
+import fs from "node:fs/promises";
 import path from "path";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
@@ -89,10 +89,15 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
     "files.list": async (params) => {
       const { path: dirPath } = params as { path: string };
       await assertPathAllowed(dirPath);
-      if (!existsSync(dirPath) || !statSync(dirPath).isDirectory()) {
+      if (
+        !(await fs.stat(dirPath).then(
+          (info) => info.isDirectory(),
+          () => false,
+        ))
+      ) {
         throw new RpcError({ code: "NOT_FOUND", message: "Directory not found" });
       }
-      const names = readdirSync(dirPath);
+      const children = await fs.readdir(dirPath, { withFileTypes: true });
       const entries: Array<{
         name: string;
         isDir: boolean;
@@ -101,12 +106,13 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         path: string;
         type: "file" | "directory";
       }> = [];
-      for (const name of names) {
+      for (const child of children) {
+        const { name } = child;
         if (IGNORED_NAMES.has(name)) continue;
         const full = path.join(dirPath, name);
         try {
-          const st = statSync(full);
-          const isDir = st.isDirectory();
+          const st = await fs.stat(full);
+          const isDir = child.isSymbolicLink() ? st.isDirectory() : child.isDirectory();
           entries.push({
             name,
             path: full,
@@ -132,7 +138,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         sourceSessionId?: string;
       };
       await assertPathAllowed(filePath, sourceSessionId);
-      const st = statSync(filePath);
+      const st = await fs.stat(filePath);
       if (!st.isFile()) {
         throw new RpcError({ code: "BAD_REQUEST", message: "Not a file" });
       }
@@ -156,7 +162,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
           };
         }
         return {
-          content: readFileSync(filePath).toString("base64"),
+          content: (await fs.readFile(filePath)).toString("base64"),
           encoding: "base64" as const,
           mime: binaryMime,
           language: getLanguage(filePath),
@@ -166,11 +172,11 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
       }
 
       // Text: only read up to limit
-      const fd = await import("fs").then((fs) => fs.openSync(filePath, "r"));
+      const handle = await fs.open(filePath, "r");
       try {
         const max = Math.min(st.size, TEXT_PREVIEW_MAX_BYTES);
         const buf = Buffer.alloc(max);
-        const n = (await import("fs")).readSync(fd, buf, 0, max, 0);
+        const { bytesRead: n } = await handle.read(buf, 0, max, 0);
         return {
           content: buf.slice(0, n).toString("utf8"),
           encoding: "utf8" as const,
@@ -179,7 +185,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
           truncated: st.size > TEXT_PREVIEW_MAX_BYTES,
         };
       } finally {
-        (await import("fs")).closeSync(fd);
+        await handle.close();
       }
     },
 
@@ -189,7 +195,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         sourceSessionId?: string;
       };
       await assertPathAllowed(filePath, sourceSessionId);
-      const st = statSync(filePath);
+      const st = await fs.stat(filePath);
       if (!st.isFile()) {
         throw new RpcError({ code: "BAD_REQUEST", message: "Not a file" });
       }
@@ -201,7 +207,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         });
       }
       return {
-        base64: readFileSync(filePath).toString("base64"),
+        base64: (await fs.readFile(filePath)).toString("base64"),
         size: st.size,
         mime:
           getImageMime(filePath) || getAudioMime(filePath) || getDocumentMime(filePath) || "application/octet-stream",
@@ -214,7 +220,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         sourceSessionId?: string;
       };
       await assertPathAllowed(filePath, sourceSessionId);
-      const st = statSync(filePath);
+      const st = await fs.stat(filePath);
       const imageMime = getImageMime(filePath);
       const audioMime = getAudioMime(filePath);
       const documentMime = getDocumentMime(filePath);
@@ -233,7 +239,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         sourceSessionId?: string;
       };
       await assertPathAllowed(filePath, sourceSessionId);
-      const st = statSync(filePath);
+      const st = await fs.stat(filePath);
       const imgMime = getImageMime(filePath);
       if (imgMime) {
         if (st.size > IMAGE_PREVIEW_MAX_BYTES) {
@@ -242,7 +248,7 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         return {
           kind: "image",
           mime: imgMime,
-          base64: readFileSync(filePath).toString("base64"),
+          base64: (await fs.readFile(filePath)).toString("base64"),
         };
       }
       const docKind = documentPreviewKind(filePath);
@@ -253,22 +259,22 @@ export function registerFileHandlers(server: RpcServer): () => Promise<void> {
         return {
           kind: "docx",
           mime: getDocumentMime(filePath) ?? undefined,
-          base64: readFileSync(filePath).toString("base64"),
+          base64: (await fs.readFile(filePath)).toString("base64"),
         };
       }
-      if (st.size > TEXT_PREVIEW_MAX_BYTES) {
+      const handle = await fs.open(filePath, "r");
+      try {
+        const buffer = Buffer.alloc(TEXT_PREVIEW_MAX_BYTES + 1);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
         return {
           kind: "text",
-          content: readFileSync(filePath, "utf8").slice(0, TEXT_PREVIEW_MAX_BYTES),
+          content: buffer.subarray(0, Math.min(bytesRead, TEXT_PREVIEW_MAX_BYTES)).toString("utf8"),
           language: getLanguage(filePath),
-          truncated: true,
+          ...(bytesRead > TEXT_PREVIEW_MAX_BYTES ? { truncated: true } : {}),
         };
+      } finally {
+        await handle.close();
       }
-      return {
-        kind: "text",
-        content: readFileSync(filePath, "utf8"),
-        language: getLanguage(filePath),
-      };
     },
 
     "files.index": async (params) => {

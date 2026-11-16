@@ -1,5 +1,4 @@
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useState, type MouseEvent } from "react";
 import type { TextFileData } from "@/lib/file-viewer-load-state";
 import { useI18n } from "@/i18n";
@@ -19,14 +18,8 @@ const PLACEHOLDER_STYLE = {
   justifyContent: "center",
 } as const;
 
-export function TextFileViewer({
-  filePath,
-  cwd,
-  sourceSessionId,
-  environmentId: requestedEnvironmentId,
-}: FileViewerProps) {
+export function TextFileViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
   const { t } = useI18n();
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const {
     loadState,
     hasDiff,

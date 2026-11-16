@@ -79,3 +79,19 @@ test("a late old connection cannot overwrite or close its replacement", async ()
   assert.equal(newClosed, 1);
   assert.equal(target.current, null);
 });
+
+test("non-transport subscription errors retain their cause for the caller", async () => {
+  const manager = new EventStreamConnectionManager({ current: null });
+  const denied = new Error("Session access denied");
+  await assert.rejects(
+    connectTimedEventStream({
+      manager,
+      subscribe: async () => {
+        throw denied;
+      },
+      onEvent() {},
+      timeoutMs: 1_000,
+    }),
+    (cause) => cause === denied,
+  );
+});

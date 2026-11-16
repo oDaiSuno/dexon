@@ -74,7 +74,9 @@ async function mountPanel() {
   const installed = { count: 0 };
   const managed = createManagedDomRoot();
   activeManaged = managed;
-  await managed.render(createElement(AddSkillPanel, { cwd: "/repo", onInstalled: () => (installed.count += 1) }));
+  await managed.render(
+    createElement(AddSkillPanel, { environmentId: "primary", cwd: "/repo", onInstalled: () => (installed.count += 1) }),
+  );
   return {
     installed,
     rootEl: () => managed.container,

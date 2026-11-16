@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { call } from "@/lib/api-client";
-import { sendAgentCommand } from "@/lib/agent-client";
+import type { EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo, PluginsResponse } from "@/lib/api-types";
 import { parseCapabilityIssue, type CapabilityIssue } from "@/components/CapabilityRequired";
@@ -45,10 +45,12 @@ export interface PluginLibrary {
 }
 
 export function usePluginLibrary({
+  environmentId,
   cwd,
   sessionId,
   onReloaded,
 }: {
+  environmentId: EnvironmentId;
   cwd: string;
   sessionId: string | null;
   onReloaded?: () => void;
@@ -80,11 +82,7 @@ export function usePluginLibrary({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/plugins?cwd=${encodeURIComponent(cwd)}`);
-      const next = (await res.json()) as PluginsResponse & { error?: string };
-      if (!res.ok || next.error) {
-        throw new Error(next.error ?? t("httpErrorStatus", "HTTP {status}").replace("{status}", String(res.status)));
-      }
+      const next = await getEnvironmentApiClient(environmentId).call("plugins.list", { cwd });
       setData(next);
       setAddMode((current) => next.packages.length === 0 || current);
       setSelected((current) => {
@@ -96,7 +94,7 @@ export function usePluginLibrary({
     } finally {
       setLoading(false);
     }
-  }, [cwd, t]);
+  }, [environmentId, cwd, t]);
 
   useEffect(() => {
     void loadPlugins();
@@ -110,31 +108,12 @@ export function usePluginLibrary({
       setActionMessage(null);
       setCapabilityIssue(null);
       try {
-        const res = await fetch("/api/plugins", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, source: pkg.source, scope: pkg.scope, cwd }),
+        const next = await getEnvironmentApiClient(environmentId).call("plugins.set", {
+          action,
+          source: pkg.source,
+          scope: pkg.scope,
+          cwd,
         });
-        const next = (await res.json()) as PluginsResponse & {
-          error?: string;
-          code?: string;
-          capability?: string;
-        };
-        if (!res.ok || next.error) {
-          const issue = parseCapabilityIssue(next);
-          if (issue) {
-            setCapabilityIssue(issue);
-            setPendingCapabilityOperation({ kind: "action", action, pkg });
-            return;
-          }
-          throw new Error(
-            safePluginError(
-              next.error,
-              t("httpErrorStatus", "HTTP {status}").replace("{status}", String(res.status)),
-              t,
-            ),
-          );
-        }
         setPendingCapabilityOperation(null);
         setData(next);
         if (action === "remove") {
@@ -149,6 +128,12 @@ export function usePluginLibrary({
           } else setActionMessage(t("pluginPackageEnabled", "Package enabled."));
         }
       } catch (err) {
+        const issue = parseCapabilityIssue(err);
+        if (issue) {
+          setCapabilityIssue(issue);
+          setPendingCapabilityOperation({ kind: "action", action, pkg });
+          return;
+        }
         setActionError(
           safePluginError(
             err instanceof Error ? err.message : undefined,
@@ -160,7 +145,7 @@ export function usePluginLibrary({
         setBusyKey(null);
       }
     },
-    [cwd, t],
+    [environmentId, cwd, t],
   );
 
   const installPluginSource = useCallback(
@@ -171,31 +156,12 @@ export function usePluginLibrary({
       setActionMessage(null);
       setCapabilityIssue(null);
       try {
-        const res = await fetch("/api/plugins", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "install", source, scope, cwd }),
+        const next = await getEnvironmentApiClient(environmentId).call("plugins.set", {
+          action: "install",
+          source,
+          scope,
+          cwd,
         });
-        const next = (await res.json()) as PluginsResponse & {
-          error?: string;
-          code?: string;
-          capability?: string;
-        };
-        if (!res.ok || next.error) {
-          const issue = parseCapabilityIssue(next);
-          if (issue) {
-            setCapabilityIssue(issue);
-            setPendingCapabilityOperation({ kind: "install", source, scope });
-            return;
-          }
-          throw new Error(
-            safePluginError(
-              next.error,
-              t("httpErrorStatus", "HTTP {status}").replace("{status}", String(res.status)),
-              t,
-            ),
-          );
-        }
         setPendingCapabilityOperation(null);
         setData(next);
         const installed = findInstalledPackage(next.packages, source, scope);
@@ -204,6 +170,12 @@ export function usePluginLibrary({
         setInstallSource("");
         setActionMessage(t("pluginPackageInstalled", "Package installed."));
       } catch (err) {
+        const issue = parseCapabilityIssue(err);
+        if (issue) {
+          setCapabilityIssue(issue);
+          setPendingCapabilityOperation({ kind: "install", source, scope });
+          return;
+        }
         setActionError(
           safePluginError(
             err instanceof Error ? err.message : undefined,
@@ -215,7 +187,7 @@ export function usePluginLibrary({
         setBusyKey(null);
       }
     },
-    [cwd, t],
+    [environmentId, cwd, t],
   );
 
   const installPlugin = useCallback(async () => {
@@ -238,16 +210,16 @@ export function usePluginLibrary({
     setActionError(null);
     setActionMessage(null);
     try {
-      await sendAgentCommand(sessionId, { type: "reload" });
+      await getEnvironmentApiClient(environmentId).agentCommand(sessionId, { type: "reload" });
       onReloaded?.();
-      setData(await call("plugins.markReloaded", { cwd }));
+      setData(await getEnvironmentApiClient(environmentId).call("plugins.markReloaded", { cwd }));
       setActionMessage(t("pluginSessionReloaded", "Session reloaded."));
     } catch (err) {
       setActionError(pluginRequestError(err, t("pluginSessionReloadFailed", "Failed to reload session.")));
     } finally {
       setBusyKey(null);
     }
-  }, [cwd, onReloaded, sessionId, t]);
+  }, [environmentId, cwd, onReloaded, sessionId, t]);
 
   const selectPackage = useCallback((key: string | null) => {
     setSelected(key);

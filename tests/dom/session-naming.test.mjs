@@ -32,6 +32,7 @@ const FIRST_MESSAGE = "Add a right-click menu to the sidebar sessions";
 
 function session(overrides = {}) {
   return {
+    environmentId: "primary",
     id: "s1",
     name: "Base session",
     firstMessage: FIRST_MESSAGE,
@@ -157,6 +158,7 @@ test("automatic naming forwards the naming preference without replacing the conv
   }));
   t.after(boundary.close);
   const title = await api.requestAutoSessionTitle({
+    environmentId: "primary",
     sessionId: "fresh-1",
     prompt: "Fix the login page styling",
   });
@@ -185,6 +187,7 @@ test("without a naming preference, automatic naming leaves model selection to th
   }));
   t.after(boundary.close);
   await api.requestAutoSessionTitle({
+    environmentId: "primary",
     sessionId: "fresh-2",
     prompt: "Fix the login page",
   });

@@ -1,3 +1,4 @@
+import type { ModelPickerStatus } from "./model-picker-state";
 import type {
   BuiltinSlashCommandResult,
   CompactResultInfo,
@@ -18,8 +19,10 @@ export type { RecallablePrompt } from "./prompt-history";
 export type SubmissionOutcome = void | { ok: boolean };
 export type SubmissionHandler = (message: string) => SubmissionOutcome | Promise<SubmissionOutcome>;
 
-export interface ChatInputProps {
+export interface ChatInputProps extends ModelPickerStatus {
   environmentId?: EnvironmentId;
+  sessionFolderMissing?: boolean;
+  missingFolderRecovery?: MissingFolderRecovery;
   onSend: SubmissionHandler;
   onAbort: () => void;
   onSteer?: SubmissionHandler;
@@ -157,6 +160,7 @@ export interface ComposerWorkspaceCard {
 }
 
 export interface ComposerWorkspaceBase {
+  environmentId: EnvironmentId;
   project: ComposerProject;
   branch: string | null;
   isWorktree: boolean;
@@ -187,6 +191,13 @@ export interface ComposerRemote {
   sessionId: string;
   snapshot: ChannelsSnapshot;
   onSnapshotChange: (snapshot: ChannelsSnapshot) => void;
+}
+
+export interface MissingFolderRecovery {
+  chooseExistingFolder: () => void;
+  newDefaultChat: () => void;
+  pending?: boolean;
+  error?: string | null;
 }
 
 export interface ComposerNavigation {

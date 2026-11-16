@@ -1,5 +1,5 @@
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { readPromptIntent } from "@shared/prompt-intent";
-import { sendAgentCommand } from "@/lib/agent-client";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { appendLocalHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage } from "@/lib/types";
@@ -20,6 +20,8 @@ interface SwitchVersionResult {
 
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
+  | "sessionFolderMissing"
   | "agentRunning"
   | "agentRunningRef"
   | "setAgentRunning"
@@ -42,6 +44,8 @@ type Dependencies = Pick<
 
 export function useSessionVersions(context: Dependencies) {
   const {
+    environmentId,
+    sessionFolderMissing,
     agentRunning,
     agentRunningRef,
     setAgentRunning,
@@ -67,6 +71,14 @@ export function useSessionVersions(context: Dependencies) {
 
   const handleEditMessage = useCallback(
     async (entryId: string, message: string, images: OutgoingImage[] = []) => {
+      if (sessionFolderMissing) {
+        const reason = t(
+          "missingSessionFolderSend",
+          "The original project folder no longer exists. You cannot send from that folder.",
+        );
+        addNotice({ type: "error", message: reason });
+        throw new Error(reason);
+      }
       const trimmedMessage = message.trim();
       if (agentRunning) throw new Error("Wait for the current response to finish before editing a message.");
       const sid = sessionIdRef.current;
@@ -107,7 +119,7 @@ export function useSessionVersions(context: Dependencies) {
 
       try {
         await ensureEventsConnected(sid);
-        await sendAgentCommand(sid, {
+        await getEnvironmentApiClient(environmentId).agentCommand(sid, {
           type: "edit_message",
           entryId,
           message: trimmedMessage,
@@ -131,7 +143,9 @@ export function useSessionVersions(context: Dependencies) {
       }
     },
     [
+      environmentId,
       addNotice,
+      sessionFolderMissing,
       agentRunning,
       agentRunningRef,
       completionScrollAllowedRef,
@@ -158,7 +172,10 @@ export function useSessionVersions(context: Dependencies) {
       const gen = ++contextGenRef.current;
       let result: SwitchVersionResult | undefined;
       try {
-        result = await sendAgentCommand<SwitchVersionResult>(sid, { type: "switch_version", entryId });
+        result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+          type: "switch_version",
+          entryId,
+        })) as SwitchVersionResult;
       } catch (e) {
         console.error("switch_version failed:", e);
         return;
@@ -177,7 +194,17 @@ export function useSessionVersions(context: Dependencies) {
         });
       }
     },
-    [addNotice, agentRunning, contextGenRef, loadContext, refreshContextUsage, sessionIdRef, setActiveLeafId, t],
+    [
+      environmentId,
+      addNotice,
+      agentRunning,
+      contextGenRef,
+      loadContext,
+      refreshContextUsage,
+      sessionIdRef,
+      setActiveLeafId,
+      t,
+    ],
   );
 
   return { handleEditMessage, handleSwitchVersion };

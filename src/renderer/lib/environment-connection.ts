@@ -37,13 +37,13 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
   private recoveryNeeded = false;
   private status: EnvironmentStatus = { phase: "available" };
   readonly environmentId: EnvironmentId;
-  private readonly onSessionsLoaded?: (sessions: SessionInfo[]) => void;
+  private readonly onSessionsLoaded?: (sessions: readonly Pick<SessionInfo, "id">[]) => void;
   private readonly onSessionCreated?: (sessionId: string) => void;
   generation = -1;
 
   constructor(
     environmentId: EnvironmentId,
-    onSessionsLoaded?: (sessions: SessionInfo[]) => void,
+    onSessionsLoaded?: (sessions: readonly Pick<SessionInfo, "id">[]) => void,
     onSessionCreated?: (sessionId: string) => void,
   ) {
     this.environmentId = environmentId;
@@ -124,7 +124,7 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
     if (typeof bridge.getHostStatus !== "function") return;
     const status = await bridge.getHostStatus();
     if (signal.aborted) throw new RpcError({ code: "DISCONNECTED", message: "Environment connection was cancelled" });
-    if (status === "ready") return;
+    if (status === "ready" || status === "unresponsive") return;
     if (status === "crashed")
       throw new RpcError({ code: "DISCONNECTED", message: "Agent Host crashed before UI connected" });
     await new Promise<void>((resolve, reject) => {
@@ -139,9 +139,9 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
         reject(new RpcError({ code: "DISCONNECTED", message: "Environment connection was cancelled" }));
       };
       const accept = (next: string, detail?: string) => {
-        if (next !== "ready" && next !== "crashed") return;
+        if (next !== "ready" && next !== "unresponsive" && next !== "crashed") return;
         cleanup();
-        if (next === "ready") resolve();
+        if (next === "ready" || next === "unresponsive") resolve();
         else reject(new RpcError({ code: "DISCONNECTED", message: detail || "Agent Host crashed" }));
       };
       const timer = setTimeout(() => {
@@ -163,7 +163,11 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
   replacePort(port: RpcClientPort, generation: number = this.generation + 1): PiRpc {
     this.reset();
     this.generation = generation;
-    const client = createRpcClient(port);
+    const client = createRpcClient(port, {
+      onClosed: () => {
+        if (this.rpc === client) this.reset();
+      },
+    });
     this.rpc = client;
     for (const entry of this.subscriptions.values()) {
       entry.unsubscribeCurrent = client.subscribe(entry.topic, entry.key, entry.listener);
@@ -197,8 +201,9 @@ export class EnvironmentConnection implements EnvironmentApiTransport {
       entry.unsubscribeCurrent?.();
       entry.unsubscribeCurrent = undefined;
     }
-    this.rpc?.close();
+    const client = this.rpc;
     this.rpc = null;
+    client?.close();
   }
 
   close(): void {

@@ -1,4 +1,3 @@
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useCallback, useState } from "react";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -9,14 +8,8 @@ import { useBlobSrc } from "./use-blob-src";
 import { useFileWatch } from "./use-file-watch";
 import { WatchIndicator } from "./watch-indicator";
 
-export function ImageViewer({
-  filePath,
-  cwd,
-  sourceSessionId,
-  environmentId: requestedEnvironmentId,
-}: FileViewerProps) {
+export function ImageViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
   const { language, t } = useI18n();
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const [bust, setBust] = useState(0);
   const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
   const { src, size, error, setError, setSize } = useBlobSrc(environmentId, filePath, sourceSessionId, bust);

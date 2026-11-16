@@ -5,7 +5,7 @@ import { createBoundedTextDiff } from "@/lib/text-diff";
 import { useI18n } from "@/i18n";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { collapseDiff } from "./diff-segments";
-import { getFileApiUrl } from "./file-api-url";
+import { subscribeFileWatch } from "@/lib/file-watch-subscription";
 
 export type TextViewMode = "source" | "diff";
 
@@ -35,7 +35,6 @@ export function useTextFile(environmentId: EnvironmentId, filePath: string, sour
   const [viewMode, setViewMode] = useState<TextViewMode>("source");
   const [wrapLines, setWrapLines] = useState(false);
   const [watching, setWatching] = useState(false);
-  const esRef = useRef<EventSource | null>(null);
 
   const loadGen = useRef(0);
 
@@ -101,41 +100,32 @@ export function useTextFile(environmentId: EnvironmentId, filePath: string, sour
     setWrapLines(false);
     setWatching(false);
 
-    if (esRef.current) {
-      esRef.current.close();
-      esRef.current = null;
-    }
-
     void fetchContent(filePath).then((data) => {
       if (!disposed && data?.language === "markdown") setPreviewMode(true);
     });
     void fetchHead();
 
-    const es = new EventSource(getFileApiUrl(environmentId, filePath, "watch", sourceSessionId));
-    esRef.current = es;
-
-    es.addEventListener("connected", () => {
-      setWatching(true);
-    });
-
-    es.addEventListener("change", () => {
+    const refresh = () => {
       void fetchContent(filePath);
       void fetchHead();
-    });
-
-    es.addEventListener("error", () => {
-      setWatching(false);
-    });
-
-    es.onerror = () => {
-      setWatching(false);
     };
+    const unsubscribe = subscribeFileWatch({
+      environmentId,
+      path: filePath,
+      sourceSessionId: sourceSessionId ?? undefined,
+      onOpen: () => setWatching(true),
+      onGap: refresh,
+      onEvent: (event) => {
+        if (event.event === "connected") setWatching(true);
+        if (event.event === "change") refresh();
+      },
+      onError: () => setWatching(false),
+    });
 
     return () => {
       disposed = true;
       loadGen.current += 1;
-      es.close();
-      esRef.current = null;
+      unsubscribe();
     };
   }, [environmentId, filePath, fetchContent, fetchHead, sourceSessionId, identity]);
 

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { createDeferred } from "#test-timing";
 import { act, dom, byRole, click, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
+import { control } from "../support/app-navigation.mjs";
 import { installRendererApi } from "../support/renderer-api.mjs";
 import { navigationBoundary } from "../fixtures/app-navigation-host.mjs";
+import { navigationPaths as P, startedConversation } from "../fixtures/app-navigation-data.mjs";
 
 const api = await loadRenderer("host-retry-app", 'export {App} from "./src/renderer/App.tsx";');
 after(restoreGlobals);
@@ -89,4 +91,50 @@ test("when the Agent Host restarts, the mounted app stays in place while RPC rec
   await waitFor(() => assert.ok(filePanelButton() === originalButton, "reconnection keeps the same app DOM"), {
     timeout: BOOT_TIMEOUT,
   });
+});
+
+test("when the Agent Host crashes after boot, the conversation, draft and localized restart banner stay mounted", async (t) => {
+  dom.window.localStorage.clear();
+  dom.window.history.replaceState(null, "", "/?session=crash-session");
+  api.setAppLanguage("zh-CN");
+  const primary = navigationBoundary({ history: false, lastSpaceCwd: P.project, openProjects: [P.project] });
+  primary.addConversation(startedConversation("crash-session", P.project, "Conversation before crash marker"));
+  const statusListeners = new Set();
+  const crashListeners = new Set();
+  let hostStatus = "ready";
+  const boundary = installRendererApi(dom.window, api, () => primary.host, {
+    bridge: {
+      ...primary.bridge,
+      getHostStatus: async () => hostStatus,
+      onHostStatus(listener) {
+        statusListeners.add(listener);
+        return () => statusListeners.delete(listener);
+      },
+      onHostCrashed(listener) {
+        crashListeners.add(listener);
+        return () => crashListeners.delete(listener);
+      },
+      restartHost: async () => {},
+    },
+  });
+  t.after(() => primary.releaseHolds());
+  const view = await mount(t, api.App, {}, { release: boundary.close });
+  await waitFor(() => assert.match(view.container.textContent, /Conversation before crash marker/), {
+    timeout: BOOT_TIMEOUT,
+  });
+  const editor = await waitFor(() => control(control(view.container, "group", "消息输入"), "textbox"));
+  await act(async () => {
+    editor.textContent = "unsent draft before crash";
+    editor.dispatchEvent(new dom.window.InputEvent("input", { bubbles: true }));
+  });
+  hostStatus = "crashed";
+  const detail = "Host exited (code 1) and restart budget exhausted";
+  await act(async () => {
+    for (const listener of [...statusListeners]) listener({ status: "crashed", detail });
+    for (const listener of [...crashListeners]) listener({ detail });
+  });
+  assert.match(view.container.textContent, /Conversation before crash marker/);
+  assert.ok(view.container.textContent.includes("unsent draft before crash"));
+  assert.ok(view.container.textContent.includes("立即重启"));
+  assert.equal(byRole(view.container, "heading", CARD), undefined);
 });

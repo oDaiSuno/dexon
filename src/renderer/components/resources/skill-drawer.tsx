@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useI18n } from "@/i18n";
 import { Button } from "../form-controls";
@@ -9,6 +10,7 @@ const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function SkillDrawer({
+  environmentId,
   skill,
   cwd,
   toggling,
@@ -17,6 +19,7 @@ export function SkillDrawer({
   onClose,
 }: {
   skill: Skill;
+  environmentId: EnvironmentId;
   cwd: string;
   toggling: boolean;
   saveError: string | null;
@@ -101,7 +104,14 @@ export function SkillDrawer({
           </Button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto px-[20px] pb-[20px]">
-          <SkillDetail skill={skill} cwd={cwd} toggling={toggling} saveError={saveError} onToggle={onToggle} />
+          <SkillDetail
+            environmentId={environmentId}
+            skill={skill}
+            cwd={cwd}
+            toggling={toggling}
+            saveError={saveError}
+            onToggle={onToggle}
+          />
         </div>
       </div>
     </div>

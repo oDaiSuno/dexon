@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useCallback, useState, type KeyboardEvent, type MutableRefObject } from "react";
 import type { SessionCommandInfo } from "@/hooks/useAgentSession";
 import { useSlashPalette } from "./use-slash-palette";
@@ -7,6 +8,7 @@ import type { ComposerChange, ComposerEditableHandle } from "./types";
 import { initialTriggerGate, nextTriggerGate, openTrigger, type ComposerTrigger } from "./composer-trigger";
 
 interface Options {
+  environmentId: EnvironmentId;
   cwd?: string | null;
   skillCatalog: SkillCatalog;
   isStreaming: boolean;
@@ -19,6 +21,7 @@ interface Options {
 }
 
 export function useComposerSuggestions({
+  environmentId,
   cwd,
   skillCatalog,
   isStreaming,
@@ -53,7 +56,7 @@ export function useComposerSuggestions({
     editableRef,
     onDismiss: dismiss,
   });
-  const at = useAtSuggestions({ cwd, atTrigger, editableRef, onDismiss: dismiss, onEscape: onAtEscape });
+  const at = useAtSuggestions({ environmentId, cwd, atTrigger, editableRef, onDismiss: dismiss, onEscape: onAtEscape });
   const handleMenuKey = useCallback(
     (event: KeyboardEvent<HTMLDivElement>): boolean => slash.handleKey(event) || at.handleMenuKey(event),
     [at, slash],

@@ -87,6 +87,7 @@ function recordReveals(t) {
 
 function openMessage(t, content) {
   return mount(t, api.MessageView, {
+    environmentId: "primary",
     message: { role: "user", content, timestamp: 1 },
     cwd: CWD,
   });
@@ -260,7 +261,11 @@ test("a focused chip keeps keyboard focus when an image preview finishes loading
   const view = await mount(
     t,
     api.MessageView,
-    { message: { role: "user", content: "看 @/tmp/focus-preview.png 和 @src/main.ts", timestamp: 1 }, cwd: CWD },
+    {
+      environmentId: "primary",
+      message: { role: "user", content: "看 @/tmp/focus-preview.png 和 @src/main.ts", timestamp: 1 },
+      cwd: CWD,
+    },
     { release: host.close },
   );
   const focused = control(view.container, "main.ts");

@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEffect, useId, useState } from "react";
 import { useI18n, type AppLanguage } from "@/i18n";
 import type { ChatAppearancePreferences, ChatFontSize, ChatLayout } from "@shared/chat-appearance";
@@ -7,6 +8,7 @@ import { SessionOrchestrationSettings } from "./session-orchestration-settings";
 import { NativeSelect, Toggle } from "../form-controls";
 
 export function GeneralSettings({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   language,
   onLanguageChange,
   isDark,
@@ -15,6 +17,7 @@ export function GeneralSettings({
   chatAppearanceSaving,
   onChatAppearanceChange,
 }: {
+  environmentId?: EnvironmentId;
   language: AppLanguage;
   onLanguageChange: (language: AppLanguage) => void;
   isDark: boolean;
@@ -206,7 +209,7 @@ export function GeneralSettings({
           </SettingRow>
         </SettingGroup>
 
-        <SessionOrchestrationSettings />
+        <SessionOrchestrationSettings environmentId={environmentId} />
 
         <SettingGroup
           title={t("backgroundMode", "Background mode")}

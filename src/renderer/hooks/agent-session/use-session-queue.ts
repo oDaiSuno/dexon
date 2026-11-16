@@ -1,4 +1,3 @@
-import { sendAgentCommand } from "@/lib/agent-client";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { useCallback } from "react";
@@ -110,17 +109,20 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
     const sid = sessionIdRef.current;
     if (!sid) return;
     try {
-      await sendAgentCommand(sid, { type: "abort_compaction" });
+      await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "abort_compaction" });
     } catch (e) {
       console.error("Failed to abort compaction:", e);
     }
-  }, [sessionIdRef]);
+  }, [environmentId, sessionIdRef]);
 
   const handleRecallQueue = useCallback(async () => {
     const sid = sessionIdRef.current;
     if (!sid) return;
     try {
-      const result = await sendAgentCommand<{ steering?: string[]; followUp?: string[] }>(sid, { type: "clear_queue" });
+      const result = (await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "clear_queue" })) as {
+        steering?: string[];
+        followUp?: string[];
+      };
       setQueuedMessages({ steering: [], followUp: [] });
       const texts = [...(result?.steering ?? []), ...(result?.followUp ?? [])];
       if (texts.length > 0) {
@@ -130,21 +132,22 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
       console.error("Failed to recall queued messages:", e);
       addNotice({ type: "error", message: t("queuedMessagesRecallFailed", "Failed to recall queued messages") });
     }
-  }, [sessionIdRef, setQueuedMessages, opts.chatInputRef, addNotice, t]);
+  }, [environmentId, sessionIdRef, setQueuedMessages, opts.chatInputRef, addNotice, t]);
 
   const handleThinkingLevelChange = useCallback(
     async (level: ThinkingLevelOption) => {
       try {
         await modelChoice.choose({ thinkingLevel: level }, async () => {
           const sid = sessionIdRef.current ?? (await ensuringNewSessionRef.current);
-          if (sid) await sendAgentCommand(sid, { type: "set_thinking_level", level });
+          if (sid)
+            await getEnvironmentApiClient(environmentId).agentCommand(sid, { type: "set_thinking_level", level });
           return {};
         });
       } catch (e) {
         console.error("Failed to set thinking level:", e);
       }
     },
-    [ensuringNewSessionRef, modelChoice, sessionIdRef],
+    [environmentId, ensuringNewSessionRef, modelChoice, sessionIdRef],
   );
   return {
     handleSteer,

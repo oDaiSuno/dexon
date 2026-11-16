@@ -111,7 +111,7 @@ test("refreshPath updates only one changed file and removePath deletes it", asyn
   assert.equal(index.getMetrics().filesDiscovered, 1);
   assert.equal(index.getMetrics().filesParsed, 1);
   unlinkSync(parentPath);
-  assert.equal(index.removePath(parentPath).id, "parent");
+  assert.equal((await index.removePath(parentPath)).id, "parent");
   assert.equal(await index.resolvePath("parent"), null);
 });
 
@@ -387,13 +387,13 @@ test("a healthy watcher lets session listing reuse a recent scan until roots or 
   assert.equal(sessionIndex.getMetrics().filesReused, 1);
 });
 
-test("a cold synchronous removal returns the persisted session and survives restart", async () => {
+test("a cold asynchronous removal returns the persisted session and survives restart", async () => {
   const filePath = writeSession("cold-remove");
   const original = new SessionIndex();
   await original.refreshAll();
   const restarted = new SessionIndex();
   unlinkSync(filePath);
-  assert.equal(restarted.removePath(filePath)?.id, "cold-remove");
+  assert.equal((await restarted.removePath(filePath))?.id, "cold-remove");
   await restarted.flush();
   const restored = new SessionIndex();
   await restored.refreshAll();
@@ -427,7 +427,7 @@ test("restart repairs a torn trailing journal line before appending the next mut
   await restored.refreshAll();
   assert.equal(restored.getById("torn").messageCount, 1);
   unlinkSync(filePath);
-  assert.equal(restored.removePath(filePath).id, "torn");
+  assert.equal((await restored.removePath(filePath)).id, "torn");
   await restored.flush();
   const lines = readFileSync(journalPath, "utf8").trim().split("\n").map(JSON.parse);
   assert.deepEqual(lines.at(-1), { op: "del", p: filePath });
@@ -476,7 +476,7 @@ test("a deletion during an asynchronous journal append cannot publish a resurrec
   const refreshing = index.apply([{ kind: "file", path: filePath }]);
   await entered.promise;
   unlinkSync(filePath);
-  assert.equal(index.removePath(filePath).id, "concurrent-delete");
+  assert.equal((await index.removePath(filePath)).id, "concurrent-delete");
   release.resolve();
   const delta = await refreshing;
   assert.equal(delta.changes[0].before.id, "concurrent-delete");
@@ -493,4 +493,52 @@ test("a single cold path is not mistaken for a complete history snapshot", async
     throw Object.assign(new Error("denied"), { code: "EACCES" });
   });
   await assert.rejects(index.getAll(), { code: "EACCES" });
+});
+
+test("flush waits for another removal queued while an earlier removal is still writing", async (t) => {
+  const firstPath = writeSession("first-removal");
+  const secondPath = writeSession("second-removal");
+  const index = new SessionIndex();
+  await index.refreshAll();
+  const fs = (await import("node:fs/promises")).default;
+  const append = fs.appendFile.bind(fs);
+  const entered = [Promise.withResolvers(), Promise.withResolvers()];
+  const release = [Promise.withResolvers(), Promise.withResolvers()];
+  t.mock.method(fs, "appendFile", async (...args) => {
+    const step = [firstPath, secondPath].findIndex(
+      (filePath) => args[0] === journalPath && String(args[1]).includes(JSON.stringify(filePath)),
+    );
+    if (step >= 0) {
+      entered[step].resolve();
+      await release[step].promise;
+    }
+    return append(...args);
+  });
+  unlinkSync(firstPath);
+  index.removePath(firstPath);
+  await entered[0].promise;
+  let flushed = false;
+  const flushing = index.flush().then(() => {
+    flushed = true;
+  });
+  try {
+    await new Promise((resolve) => setImmediate(resolve));
+    unlinkSync(secondPath);
+    index.removePath(secondPath);
+    release[0].resolve();
+    await entered[1].promise;
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(flushed, false, "the second queued deletion is included in the pending flush");
+  } finally {
+    for (const pending of release) pending.resolve();
+    await flushing;
+    await index.flush();
+  }
+  const removals = readFileSync(journalPath, "utf8")
+    .trim()
+    .split("\n")
+    .map(JSON.parse)
+    .filter((entry) => entry.op === "del")
+    .map((entry) => entry.p);
+  assert.deepEqual(removals, [firstPath, secondPath]);
 });

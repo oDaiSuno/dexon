@@ -13,6 +13,7 @@ import {
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     name: "",
     firstMessage: "",

@@ -19,18 +19,26 @@ const baseMessage = {
 };
 
 test("compact messages omit the per-message usage and copy action", async (t) => {
-  const view = await mount(t, AssistantMessageView, { message: baseMessage, compact: true });
+  const view = await mount(t, AssistantMessageView, { environmentId: "primary", message: baseMessage, compact: true });
   assert.doesNotMatch(view.container.textContent, /1,234 in/);
   assert.doesNotMatch(view.container.textContent, /0\.0042/);
   assert.equal(view.container.querySelector('button[title="Copy message"]'), null);
 });
 
 test("streaming messages do not display completed usage", async (t) => {
-  const view = await mount(t, AssistantMessageView, { message: baseMessage, isStreaming: true });
+  const view = await mount(t, AssistantMessageView, {
+    environmentId: "primary",
+    message: baseMessage,
+    isStreaming: true,
+  });
   assert.doesNotMatch(view.container.textContent, /1,234 in/);
 });
 
 test("streaming messages show a live token estimate", async (t) => {
-  const view = await mount(t, AssistantMessageView, { message: baseMessage, isStreaming: true });
+  const view = await mount(t, AssistantMessageView, {
+    environmentId: "primary",
+    message: baseMessage,
+    isStreaming: true,
+  });
   assert.match(view.container.textContent, /\d[\d,]*\s+tok/);
 });

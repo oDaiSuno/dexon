@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { useI18n } from "@/i18n";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
-import { useFileEnvironment } from "@/lib/use-file-environment";
 
 export function HtmlPreview({
   content,
-  environmentId: requestedEnvironmentId,
+  environmentId,
   filePath,
   sourceSessionId,
 }: {
@@ -15,7 +14,6 @@ export function HtmlPreview({
   sourceSessionId?: string | null;
 }) {
   const { t } = useI18n();
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
 

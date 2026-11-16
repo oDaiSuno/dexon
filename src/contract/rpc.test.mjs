@@ -183,6 +183,56 @@ test("client calls time out and remote close settles pending calls", async () =>
   }
 });
 
+test("a remote port close tells the client owner once while a local close stays silent", async () => {
+  const closures = [];
+  {
+    const { port1, port2 } = new MessageChannel();
+    const server = createRpcServer();
+    server.handle({ "host.ping": () => new Promise(() => {}) });
+    server.attachPort(port1);
+    const client = createRpcClient(port2, { onClosed: () => closures.push("remote") });
+    const pending = client.call("host.ping");
+    await nextTurn();
+    port1.close();
+
+    await assert.rejects(pending, (error) => error instanceof RpcError && error.code === "CLOSED");
+    assert.deepEqual(closures, ["remote"], "the owner learns the transport died as soon as the port closes");
+    client.close();
+  }
+  {
+    const { port1, port2 } = new MessageChannel();
+    const client = createRpcClient(port2, { onClosed: () => closures.push("local") });
+    client.close();
+    port1.close();
+    await nextTurn();
+    assert.deepEqual(closures, ["remote"], "closing the client on purpose is not reported as a lost connection");
+  }
+});
+
+test("the server counts each request as in flight until its response is sent", async (t) => {
+  const { client, server } = createPair(t);
+  let release;
+  const held = new Promise((resolve) => {
+    release = resolve;
+  });
+  server.handle({
+    "host.ping": () => held,
+    "sessions.list": () => {
+      throw new Error("listing failed");
+    },
+  });
+  assert.equal(server.inFlightRequests(), 0);
+
+  const pending = [client.call("host.ping"), client.call("host.ping")];
+  while (server.inFlightRequests() < 2) await nextTurn();
+  assert.equal(server.inFlightRequests(), 2);
+
+  release({ ok: true, ts: 1 });
+  await Promise.all(pending);
+  await assert.rejects(client.call("sessions.list"), /listing failed/);
+  assert.equal(server.inFlightRequests(), 0, "answered and failed requests both stop counting");
+});
+
 test("postMessage failure rejects and removes a pending call", async () => {
   const listeners = new Set();
   const port = {

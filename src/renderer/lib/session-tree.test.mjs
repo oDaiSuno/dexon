@@ -5,6 +5,7 @@ import { buildSessionTree, sessionAncestorIds } from "./session-tree.ts";
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     name: "",
     firstMessage: "",

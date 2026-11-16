@@ -1,6 +1,7 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEffect, useId, useState } from "react";
 import { useI18n } from "@/i18n";
-import { listModels } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { thinkingLevelLabel } from "@/lib/thinking-level-label";
 import {
   DEFAULT_SESSION_ORCHESTRATION_SETTINGS,
@@ -23,7 +24,11 @@ function modelValue(model: ModelOption): string {
   return `${model.provider}:${model.id}`;
 }
 
-export function SessionOrchestrationSettings() {
+export function SessionOrchestrationSettings({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
+}: {
+  environmentId?: EnvironmentId;
+}) {
   const { t } = useI18n();
   const [settings, setSettings] = useState<Settings>({ ...DEFAULT_SESSION_ORCHESTRATION_SETTINGS });
   const [loading, setLoading] = useState(true);
@@ -53,7 +58,8 @@ export function SessionOrchestrationSettings() {
       .finally(() => {
         if (!disposed) setLoading(false);
       });
-    void listModels()
+    void getEnvironmentApiClient(environmentId)
+      .listModels()
       .then((catalogue) => {
         if (disposed) return;
         setModels(
@@ -68,7 +74,7 @@ export function SessionOrchestrationSettings() {
     return () => {
       disposed = true;
     };
-  }, []);
+  }, [environmentId]);
 
   const save = (next: Settings): void => {
     const previous = settings;

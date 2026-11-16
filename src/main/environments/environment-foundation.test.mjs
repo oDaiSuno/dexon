@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { parseSshConfigHosts, parseSshConfig, parseSshG } from "./ssh-config-parse.ts";
 import { buildRemoteProbeScript, parseRemoteProbe, runtimeDiagnosis } from "./remote-probe.ts";
 import { diagnoseSshFailure } from "./ssh-diagnostics.ts";
@@ -13,6 +13,7 @@ import { initialSupervisorState, reduceSupervisor } from "./supervisor-policy.ts
 import { closeModeFor, removeWithChoice } from "./environment-lifecycle.ts";
 import { EnvironmentStore } from "./environment-store.ts";
 import { sshArguments } from "./ssh-command.ts";
+import { buildRemoteLaunchScript } from "./ssh-scripts.ts";
 const target = { kind: "ssh", sshAlias: "gpu" };
 const fixtureProbe = (patch = {}) => ({
   home: "/home/dev",
@@ -93,6 +94,36 @@ test("the real shell probe resolves a quoted custom state directory without inst
   assert.equal(probe.writable, true);
   assert.ok(probe.node?.path.startsWith("/"));
   assert.equal(probe.daemon.running, false);
+});
+
+test("the remote launcher starts its daemon with sixteen file-system worker threads unless the server chose its own", (t) => {
+  if (process.platform === "win32") return t.skip("The remote shell runs on POSIX hosts");
+  const directory = mkdtempSync(path.join(tmpdir(), "dexon-remote-threads-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const daemon = path.join(directory, "daemon.mjs");
+  const report = path.join(directory, "threads.txt");
+  writeFileSync(
+    daemon,
+    `import { writeFileSync } from "node:fs";\nwriteFileSync(${JSON.stringify(report)}, process.env.UV_THREADPOOL_SIZE ?? "unset");\n`,
+  );
+  const launchWith = (threads) => {
+    rmSync(report, { force: true });
+    const env = { ...process.env, HOME: directory };
+    if (threads === undefined) delete env.UV_THREADPOOL_SIZE;
+    else env.UV_THREADPOOL_SIZE = threads;
+    const script = buildRemoteLaunchScript({
+      stateKey: "0123456789abcdef",
+      preferredPort: 40_000 + Math.floor(Math.random() * 10_000),
+      remoteStateDir: path.join(directory, "state"),
+      daemonScriptPath: daemon,
+      nodePath: process.execPath,
+    });
+    const launched = spawnSync("sh", ["-c", script], { env, encoding: "utf8", timeout: 20_000 });
+    assert.match(launched.stderr, /Remote daemon exited during startup/, "the stand-in daemon exits after reporting");
+    return readFileSync(report, "utf8");
+  };
+  assert.equal(launchWith(undefined), "16");
+  assert.equal(launchWith("24"), "24", "an operator's explicit thread count is kept");
 });
 
 test("SSH authentication, changed host keys, permissions and missing executables have distinct actionable diagnoses", () => {

@@ -21,6 +21,7 @@ const { TopBar, SessionControls, resetRpc, setAppLanguage } = await loadRenderer
 after(restoreGlobals);
 
 const SESSION = {
+  environmentId: "primary",
   id: "s1",
   path: "/Users/demo/.pi/sessions/dexon/s1.jsonl",
   cwd: "/Users/demo/dexon",

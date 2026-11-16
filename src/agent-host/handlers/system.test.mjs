@@ -17,9 +17,8 @@ const { getAllowedFileRoots, getAllowedRootsGeneration, isFilePathAllowed, norma
     stdin: {
       contents: `
         export { registerHostHandlers } from "./host.ts";
-        export { getAllowedFileRoots } from "../file-access.ts";
+        export { getAllowedFileRoots, isFilePathAllowed } from "../file-access.ts";
         export { getAllowedRootsGeneration, normalizeSlashes } from "../../shared/allowed-roots.ts";
-        export { isFilePathAllowed } from "../file-access-core.ts";
       `,
       resolveDir: import.meta.dirname,
       sourcefile: "host-handlers-test-entry.ts",
@@ -62,10 +61,9 @@ test("defaultCwd prepares .dexon inside the injected home and authorizes exactly
   const result = await handlers["system.defaultCwd"]();
   assert.deepEqual(result, { cwd: path.join(home, ".dexon") });
 
-  const roots = await getAllowedFileRoots();
-  assert.equal(isFilePathAllowed(path.join(result.cwd, "notes", "deep", "plan.txt"), roots), true);
-  assert.equal(isFilePathAllowed(path.join(home, "sibling.txt"), roots), false);
-  assert.equal(isFilePathAllowed(path.join(outside, "elsewhere.txt"), roots), false);
+  assert.equal(await isFilePathAllowed(path.join(result.cwd, "notes", "deep", "plan.txt")), true);
+  assert.equal(await isFilePathAllowed(path.join(home, "sibling.txt")), false);
+  assert.equal(await isFilePathAllowed(path.join(outside, "elsewhere.txt")), false);
 });
 
 test("repeated defaultCwd calls keep one authorized root and a stable generation", async (t) => {

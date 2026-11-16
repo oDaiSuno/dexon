@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { atomicWrite, desktopUserDataPath } from "./desktop-state-file";
+import { atomicWriteAsync, desktopUserDataPath } from "./desktop-state-file";
 
 export interface SessionProjectRecord {
   projectRoot: string;
@@ -42,6 +42,8 @@ function normalizeState(value: unknown): SessionProjectStateFile {
 export class SessionProjectStore {
   private state: SessionProjectStateFile | undefined;
   private dirty = false;
+  private timer: ReturnType<typeof setTimeout> | undefined;
+  private pending: Promise<void> | undefined;
 
   constructor(private readonly filePath: string) {}
 
@@ -63,13 +65,45 @@ export class SessionProjectStore {
       existing.projectRoot !== normalizedRecord.projectRoot ||
       existing.worktreeBranch !== normalizedRecord.worktreeBranch;
     state.sessions[normalizedId] = normalizedRecord;
-    if (changed) this.dirty = true;
+    if (changed) this.scheduleFlush();
   }
 
-  flush(): void {
+  private scheduleFlush(): void {
+    this.dirty = true;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      void this.flush().catch((error) => {
+        console.error("[agent-host] failed to save session projects:", error);
+        const code = (error as NodeJS.ErrnoException).code;
+        if (this.dirty && this.timer === undefined && (code === "EBUSY" || code === "EACCES")) this.scheduleFlush();
+      });
+    }, 500);
+    this.timer.unref?.();
+  }
+
+  async flush(): Promise<void> {
+    clearTimeout(this.timer);
+    this.timer = undefined;
+    if (this.pending) return this.pending;
     if (!this.dirty) return;
-    atomicWrite(this.filePath, this.load());
-    this.dirty = false;
+    this.pending = this.writePending();
+    return this.pending;
+  }
+
+  private async writePending(): Promise<void> {
+    try {
+      while (this.dirty) {
+        this.dirty = false;
+        await atomicWriteAsync(this.filePath, this.load());
+      }
+    } catch (error) {
+      this.dirty = true;
+      throw error;
+    } finally {
+      clearTimeout(this.timer);
+      this.timer = undefined;
+      this.pending = undefined;
+    }
   }
 
   private load(): SessionProjectStateFile {
@@ -84,11 +118,16 @@ export class SessionProjectStore {
   }
 }
 
-let defaultStore: SessionProjectStore | undefined;
+const defaultStores = new Map<string, SessionProjectStore>();
 
 function getDefaultStore(): SessionProjectStore {
-  defaultStore ??= new SessionProjectStore(path.join(desktopUserDataPath(), "session-projects.json"));
-  return defaultStore;
+  const filePath = path.resolve(desktopUserDataPath(), "session-projects.json");
+  let store = defaultStores.get(filePath);
+  if (!store) {
+    store = new SessionProjectStore(filePath);
+    defaultStores.set(filePath, store);
+  }
+  return store;
 }
 
 export function getSessionProject(sessionId: string): SessionProjectRecord | undefined {
@@ -99,10 +138,14 @@ export function rememberSessionProject(sessionId: string, record: SessionProject
   getDefaultStore().remember(sessionId, record);
 }
 
-export function flushSessionProjects(): void {
-  try {
-    getDefaultStore().flush();
-  } catch (error) {
-    console.error("[agent-host] failed to save session projects:", error);
-  }
+export async function flushSessionProjects(): Promise<void> {
+  await Promise.all(
+    [...defaultStores.values()].map(async (store) => {
+      try {
+        await store.flush();
+      } catch (error) {
+        console.error("[agent-host] failed to save session projects:", error);
+      }
+    }),
+  );
 }

@@ -1,3 +1,4 @@
+import { environmentSession } from "./environment-session-test-support.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react-test-renderer";
@@ -468,4 +469,74 @@ test("a primary stream gap reconciles a missed agent_end immediately without wai
   assert.deepEqual(completed, ["ended"]);
   assert.ok(primaryHost.requests.some((entry) => entry.generation === 2 && entry.method === "agent.state"));
   assert.ok(primaryHost.requests.some((entry) => entry.generation === 2 && entry.method === "sessions.get"));
+});
+
+test("an idle open session reconciles history and runtime after a gap without a fake completion", async (t) => {
+  const h = await environmentSession(t);
+  assert.equal(h.state.agentRunning, false);
+  await h.disconnect("gpu");
+  h.setDetail(
+    createSessionDetail("same-id", {
+      messages: [{ role: "user", content: "While disconnected", timestamp: 30 }],
+      entryIds: ["missed"],
+    }),
+  );
+  h.setRuntime({
+    running: false,
+    state: { systemPrompt: "reconnected prompt", queuedMessages: { steering: ["pending"], followUp: [] } },
+  });
+  await h.reconnect("gpu", 2);
+  await h.flush();
+  assert.equal(h.state.systemPrompt, "reconnected prompt");
+  assert.deepEqual(h.state.queuedMessages, { steering: ["pending"], followUp: [] });
+  assert.equal(h.state.messages.at(-1).content, "While disconnected");
+  assert.equal(h.state.agentRunning, false);
+  assert.ok(h.requests.filter((request) => request.method === "agent.state").length >= 1);
+  assert.ok(h.requests.every((request) => request.environmentId === "gpu"));
+});
+
+test("host restart notifications reconcile an idle primary session", async (t) => {
+  const { h, primaryHost, detail } = await mountedSession(t, {
+    primary: true,
+    hostOverrides: { agentState: async () => ({ running: false, state: {} }) },
+  });
+  let restarted;
+  globalThis.window.piBridge.onHostRestarted = (listener) => {
+    restarted = listener;
+    return () => {
+      restarted = null;
+    };
+  };
+  await h.remount({ session: detail.info, newSessionCwd: null });
+  await h.flush();
+  const before = primaryHost.requests.filter((request) => request.method === "sessions.get").length;
+  assert.equal(h.state.agentRunning, false);
+  assert.equal(typeof restarted, "function");
+  await h.act(async () => restarted());
+  await h.flush();
+  await h.flush();
+  await h.flush();
+  assert.ok(primaryHost.requests.filter((request) => request.method === "sessions.get").length > before);
+  assert.equal(h.state.agentRunning, false);
+});
+
+test("a run started while disconnected becomes visible when an idle session reconnects", async (t) => {
+  const h = await environmentSession(t);
+  await h.disconnect("gpu");
+  h.setRuntime({
+    running: true,
+    state: {
+      isStreaming: true,
+      streamingMessage: {
+        role: "assistant",
+        timestamp: 42,
+        content: [{ type: "text", text: "Still working" }],
+      },
+    },
+  });
+  await h.reconnect("gpu", 2);
+  await h.flush();
+  assert.equal(h.state.agentRunning, true);
+  assert.equal(h.state.streamState.isStreaming, true);
+  assert.equal(h.state.streamState.streamingMessage.content[0].text, "Still working");
 });

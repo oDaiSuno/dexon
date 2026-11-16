@@ -37,6 +37,7 @@ function iso(offsetHours) {
 
 function sessionFixture(id, overrides = {}) {
   return {
+    environmentId: "primary",
     path: `/sessions/${id}.json`,
     id,
     name: "",

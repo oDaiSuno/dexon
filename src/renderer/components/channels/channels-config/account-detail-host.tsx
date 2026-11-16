@@ -1,5 +1,6 @@
 import type { ChannelAccountView, ChannelsSnapshot } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { AccountDetail } from "./account-detail";
 import { updateFeishuCredential, updateTelegramToken } from "./account-credentials";
@@ -29,14 +30,24 @@ export function AccountDetailHost({
       onClose={onClose}
       onSave={(next) =>
         void run(async () => {
-          await call("channels.accountUpsert", { account: next });
+          await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountUpsert", { account: next });
           onClose();
         })
       }
-      onStart={() => void run(() => call("channels.start", { accountId: account.id }))}
-      onStop={() => void run(() => call("channels.stop", { accountId: account.id }))}
-      onRestart={() => void run(() => call("channels.restart", { accountId: account.id }))}
-      onProbe={() => call("channels.probe", { accountId: account.id })}
+      onStart={() =>
+        void run(() =>
+          getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.start", { accountId: account.id }),
+        )
+      }
+      onStop={() =>
+        void run(() => getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.stop", { accountId: account.id }))
+      }
+      onRestart={() =>
+        void run(() =>
+          getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.restart", { accountId: account.id }),
+        )
+      }
+      onProbe={() => getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.probe", { accountId: account.id })}
       onUpdateToken={(token) => updateTelegramToken(account, token)}
       onUpdateFeishuCredential={async (nextAccount, appSecret) => {
         const probe = await updateFeishuCredential(account, nextAccount, appSecret, t);
@@ -44,12 +55,20 @@ export function AccountDetailHost({
         return probe;
       }}
       onTestSend={(peerId, message) =>
-        void run(() => call("channels.testSend", { accountId: account.id, peerId, message }))
+        void run(() =>
+          getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.testSend", {
+            accountId: account.id,
+            peerId,
+            message,
+          }),
+        )
       }
       onDelete={() => {
         if (window.confirm(t("deleteChannelConfirm", "Delete this messaging account and its bindings?"))) {
           onClose();
-          void run(() => call("channels.accountDelete", { accountId: account.id }));
+          void run(() =>
+            getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountDelete", { accountId: account.id }),
+          );
         }
       }}
     />

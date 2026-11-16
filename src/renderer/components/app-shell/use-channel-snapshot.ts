@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { call, subscribe } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import type { ChannelsSnapshot } from "@shared/channel-types";
 
 // Split from AppShell.tsx in Phase 2: the channel binding snapshot owner.
@@ -11,7 +12,7 @@ export function useChannelSnapshot() {
 
   const refreshChannelSnapshot = useCallback(async () => {
     try {
-      setChannelSnapshot(await call("channels.list"));
+      setChannelSnapshot(await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.list"));
     } catch {
       // Channels are optional; the rest of the desktop remains usable if Host is still starting.
     }
@@ -22,8 +23,16 @@ export function useChannelSnapshot() {
     const unsubs: Array<() => void> = [];
     void refreshChannelSnapshot();
     void Promise.all([
-      subscribe("channels.binding", "*", () => void refreshChannelSnapshot()),
-      subscribe("channels.status", "*", () => void refreshChannelSnapshot()),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe(
+        "channels.binding",
+        "*",
+        () => void refreshChannelSnapshot(),
+      ),
+      getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).subscribe(
+        "channels.status",
+        "*",
+        () => void refreshChannelSnapshot(),
+      ),
     ])
       .then((items) => {
         if (disposed) items.forEach((unsubscribe) => unsubscribe());

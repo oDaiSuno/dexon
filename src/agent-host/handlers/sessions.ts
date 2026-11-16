@@ -1,8 +1,9 @@
-import { readFileSync, realpathSync, statSync, unlinkSync } from "fs";
+import fs from "node:fs/promises";
 import path from "path";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { readSessionManager, appendSessionName } from "../session-jsonl";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError, type HistoryWindow, type SessionDetail, type SessionRuntimeState } from "../../contract/types";
+import { filterSessionsByCwd } from "../session-cwd";
 import type { SessionTreeNode } from "../../shared/types";
 import { callMain } from "../parent-rpc";
 import type { ManagedProcessService } from "../managed-process/service";
@@ -29,6 +30,7 @@ import {
   StaleHistoryCursorError,
 } from "../session-history";
 import { invalidateSessionContent } from "../session-content-cache";
+import { withSessionNameLock } from "../session-naming";
 import {
   describeSessionSource,
   findUnsavedSession,
@@ -52,25 +54,15 @@ import {
   sessionPerformanceBytesEnabled,
 } from "../session-performance";
 
-function canonicalPathForComparison(candidate: string): string {
-  const resolved = path.resolve(candidate);
-  let canonical = resolved;
-  try {
-    const realpath = realpathSync.native ?? realpathSync;
-    canonical = realpath(resolved);
-  } catch {}
-  return process.platform === "win32" ? canonical.toLowerCase() : canonical;
-}
-
 async function requireSessionSource(id: string): Promise<SessionSource> {
   const source = await openSessionSource(id);
   if (!source) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
   return source;
 }
 
-function removeSessionFile(filePath: string) {
+async function removeSessionFile(filePath: string) {
   try {
-    unlinkSync(filePath);
+    await fs.unlink(filePath);
   } catch (e) {
     throw new RpcError({
       code: "INTERNAL",
@@ -134,7 +126,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       activeAutomationSessionIds: activeAutomationSessionIds(),
     });
     const savedPath = await resolveSessionPath(id);
-    const unsaved = savedPath ? null : findUnsavedSession(id);
+    const unsaved = savedPath ? null : await findUnsavedSession(id);
     if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
     const existing = getRpcSession(id);
     const activeProcesses = managedProcesses.activeForSession(id);
@@ -161,7 +153,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       clearSessionEventBinding(existing.sessionId || id);
     }
     const filePath = savedPath ?? (await resolveSessionPath(id));
-    const deletedSession = filePath ? removeSessionFile(filePath) : null;
+    const deletedSession = filePath ? await removeSessionFile(filePath) : null;
     deleteSessionOrigin(id);
     deleteSessionLeafChoice(id);
     removeSessionTranscript(id);
@@ -183,11 +175,9 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
         if (requestedCwd !== undefined && (typeof requestedCwd !== "string" || !path.isAbsolute(requestedCwd))) {
           throw new RpcError({ code: "BAD_REQUEST", message: "absolute cwd required" });
         }
-        const canonicalCwd = typeof requestedCwd === "string" ? canonicalPathForComparison(requestedCwd) : undefined;
         const allSessions = await listHistorySessions();
-        const sessions = canonicalCwd
-          ? allSessions.filter((session) => canonicalPathForComparison(session.cwd) === canonicalCwd)
-          : allSessions;
+        const sessions =
+          typeof requestedCwd === "string" ? await filterSessionsByCwd(allSessions, requestedCwd) : allSessions;
         const indexMetrics = getSessionIndexMetrics();
         logSessionPerformance("sessions.list", {
           traceId,
@@ -306,7 +296,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
           stateMs: roundSessionMilliseconds(stateMs),
           entryCount: entries.length,
           messageCount: context.messages.length,
-          fileBytes: filePath ? statSync(filePath).size : 0,
+          fileBytes: filePath ? (await fs.stat(filePath)).size : 0,
           ...(responseBytes === undefined ? {} : { responseBytes }),
         });
         return detail;
@@ -384,12 +374,12 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       const { id, format = "md" } = params as { id: string; format?: "md" | "json" };
       const filePath = await resolveSessionPath(id);
       if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
-      const raw = readFileSync(filePath, "utf8");
       if (format === "json") {
+        const raw = await fs.readFile(filePath, "utf8");
         return { content: raw, suggestedName: `session-${id}.json` };
       }
-      const sm = SessionManager.open(filePath);
-      const context = buildSessionContext(sm.getEntries() as never);
+      const { entries } = await requireSessionSource(id);
+      const context = buildSessionContext(entries);
       const lines: string[] = [`# Session ${id}`, ""];
       for (const msg of context.messages as Array<{ role: string; content: unknown }>) {
         lines.push(`## ${msg.role}`, "");
@@ -407,7 +397,7 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     "sessions.delete": async (params) => {
       const { id, force } = params as { id: string; force?: boolean };
       const savedPath = await resolveSessionPath(id);
-      const unsaved = savedPath ? null : findUnsavedSession(id);
+      const unsaved = savedPath ? null : await findUnsavedSession(id);
       if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
       const descendants = await collectDescendantIds(id);
       const activeIds = activeAutomationSessionIds();
@@ -438,13 +428,14 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
       }
       for (const descendant of [...descendants].reverse()) await deleteOneSession(descendant, Boolean(force));
       await deleteOneSession(id, Boolean(force));
+      await sessionOriginStore.flush();
       return { ok: true as const };
     },
 
     "sessions.descendants": async (params) => {
       const { id } = params as { id: string };
       const savedPath = await resolveSessionPath(id);
-      const unsaved = savedPath ? null : findUnsavedSession(id);
+      const unsaved = savedPath ? null : await findUnsavedSession(id);
       if (!savedPath && !unsaved) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
       const sessionIds = await collectDescendantIds(id);
       return { sessionIds, runningSessionIds: sessionIds.filter(sessionIsRunning) };
@@ -453,19 +444,22 @@ export function registerSessionHandlers(server: RpcServer, deps: SessionHandlerD
     "sessions.rename": async (params) => {
       const { id, name } = params as { id: string; name: string };
       SessionAccess.authorizeMutation(sessionOriginStore, id, "rename");
-      if (!name?.trim()) {
+      const normalized = name?.trim();
+      if (!normalized) {
         throw new RpcError({ code: "BAD_REQUEST", message: "name is required" });
       }
-      const existing = getRpcSession(id);
-      if (existing?.isAlive()) {
-        await existing.send({ type: "set_session_name", name: name.trim() });
-      } else {
-        const filePath = await resolveSessionPath(id);
-        if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
-        const sm = SessionManager.open(filePath);
-        sm.appendSessionInfo(name.trim());
-        invalidateSessionContent(filePath);
-      }
+      await withSessionNameLock(id, async () => {
+        const existing = getRpcSession(id);
+        if (existing?.isAlive()) {
+          await existing.send({ type: "set_session_name", name: normalized });
+        } else {
+          const filePath = await resolveSessionPath(id);
+          if (!filePath) throw new RpcError({ code: "NOT_FOUND", message: "Session not found" });
+          const sm = await readSessionManager(filePath);
+          await appendSessionName(filePath, sm, normalized);
+          invalidateSessionContent(filePath);
+        }
+      });
       await emitIndexedSessionChange(server, id, null);
       return { ok: true as const };
     },

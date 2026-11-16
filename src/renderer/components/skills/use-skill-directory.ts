@@ -1,3 +1,5 @@
+import type { EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import { LatestAbortableRequest } from "@/lib/latest-abortable-request";
@@ -15,7 +17,7 @@ export interface SkillDirectory {
   toggle: (skill: Skill) => Promise<void>;
 }
 
-export function useSkillDirectory(cwd: string): SkillDirectory {
+export function useSkillDirectory(environmentId: EnvironmentId, cwd: string): SkillDirectory {
   const { t } = useI18n();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,15 +32,9 @@ export function useSkillDirectory(cwd: string): SkillDirectory {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`/api/skills?cwd=${encodeURIComponent(cwd)}`, { signal: request.signal });
-      const result = (await response.json()) as { skills?: Skill[]; error?: string };
+      const result = await getEnvironmentApiClient(environmentId).call("skills.list", { cwd });
       if (!skillsRequestRef.current.isCurrent(request.generation)) return;
-      if (!response.ok || result.error) {
-        throw new Error(
-          result.error ?? t("httpErrorStatus", "HTTP {status}").replace("{status}", String(response.status)),
-        );
-      }
-      const list = result.skills ?? [];
+      const list = result.skills;
       setSkills(list);
       setSelected((current) =>
         current && list.some((skill) => skill.filePath === current) ? current : (list[0]?.filePath ?? null),
@@ -49,7 +45,7 @@ export function useSkillDirectory(cwd: string): SkillDirectory {
     } finally {
       if (skillsRequestRef.current.finish(request.generation)) setLoading(false);
     }
-  }, [cwd, t]);
+  }, [environmentId, cwd, t]);
 
   useEffect(() => {
     const requests = skillsRequestRef.current;
@@ -67,20 +63,11 @@ export function useSkillDirectory(cwd: string): SkillDirectory {
       setToggling((s) => new Set(s).add(skill.filePath));
       setSaveError(null);
       try {
-        const res = await fetch("/api/skills", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cwd,
-            filePath: skill.filePath,
-            disableModelInvocation: next,
-          }),
+        await getEnvironmentApiClient(environmentId).call("skills.set", {
+          cwd,
+          filePath: skill.filePath,
+          disableModelInvocation: next,
         });
-        const d = (await res.json()) as { success?: boolean; error?: string };
-        if (!res.ok || d.error) {
-          setSaveError(d.error ?? t("httpErrorStatus", "HTTP {status}").replace("{status}", String(res.status)));
-          return;
-        }
         setSkills((prev) =>
           prev.map((s) => (s.filePath === skill.filePath ? { ...s, disableModelInvocation: next } : s)),
         );
@@ -94,7 +81,7 @@ export function useSkillDirectory(cwd: string): SkillDirectory {
         });
       }
     },
-    [cwd, t],
+    [environmentId, cwd, t],
   );
 
   return {

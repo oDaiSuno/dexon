@@ -6,7 +6,7 @@ import { installHostBridge } from "../support/host-bridge.mjs";
 import { installApiHostBridge } from "../support/api-host.mjs";
 const api = await loadRenderer(
   "renderer-host-boundary",
-  'export {call, subscribe} from "./src/renderer/lib/api-client.ts";',
+  'import {getEnvironmentApiClient} from "./src/renderer/lib/api-client.ts"; export const call = (...args) => getEnvironmentApiClient("primary").call(...args); export const subscribe = (...args) => getEnvironmentApiClient("primary").subscribe(...args);',
 );
 after(restoreGlobals);
 

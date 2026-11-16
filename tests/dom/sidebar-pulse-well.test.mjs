@@ -8,6 +8,7 @@ const api = await loadRenderer(
 );
 after(restoreGlobals);
 const session = (id) => ({
+  environmentId: "primary",
   id,
   name: `Task ${id}`,
   cwd: "/work/alpha",

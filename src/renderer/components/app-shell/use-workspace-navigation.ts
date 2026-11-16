@@ -1,7 +1,7 @@
-import { workspaceStore, type WorkspaceFocus } from "@/lib/workspace-store";
+import { resolveWorkspaceLocation, workspaceStore, type WorkspaceFocus } from "@/lib/workspace-store";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
+import { parseQualifiedProjectKey, type EnvironmentId } from "@contract/environment";
 import {
   getActiveEnvironmentId,
   getSessionEnvironmentId,
@@ -32,25 +32,19 @@ export function useWorkspaceNavigation({
 }) {
   const router = routerCompat;
   const catalog = useSyncExternalStore(subscribeSessionCatalog, getSessionCatalog, getSessionCatalog);
-  const { focus } = useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     workspaceStore.subscribe,
     workspaceStore.getSnapshot,
     workspaceStore.getSnapshot,
   );
+  const { focus } = snapshot;
   const [openedSession, setOpenedSession] = useState<SessionInfo | null>(null);
   const selectedSession = useMemo(
     () =>
-      openedSession &&
-      (openedSession.environmentId ?? PRIMARY_ENVIRONMENT_ID) === focus.environmentId &&
-      focus.sessionId === openedSession.id
-        ? ((openedSession &&
-            catalog.find(
-              (session) =>
-                session.id === openedSession.id &&
-                (session.environmentId ?? PRIMARY_ENVIRONMENT_ID) ===
-                  (openedSession.environmentId ?? PRIMARY_ENVIRONMENT_ID),
-            )) ??
-          openedSession)
+      openedSession && openedSession.environmentId === focus.environmentId && focus.sessionId === openedSession.id
+        ? (catalog.find(
+            (session) => session.id === openedSession.id && session.environmentId === openedSession.environmentId,
+          ) ?? openedSession)
         : null,
     [catalog, openedSession, focus.environmentId, focus.sessionId],
   );
@@ -58,17 +52,14 @@ export function useWorkspaceNavigation({
   const [newSession, setNewSession] = useState<{ scope: string; cwd: string } | null>(null);
   const scope = JSON.stringify([focus.environmentId, focus.spaceKey]);
   const newSessionCwd = newSession?.scope === scope ? newSession.cwd : null;
-  const setNewSessionCwd = useCallback((value: string | null | ((current: string | null) => string | null)) => {
+  const setNewSessionCwd = useCallback((cwd: string | null) => {
     const focus = workspaceStore.getSnapshot().focus;
     const scope = JSON.stringify([focus.environmentId, focus.spaceKey]);
-    setNewSession((current) => {
-      const cwd = typeof value === "function" ? value(current?.scope === scope ? current.cwd : null) : value;
-      return cwd === null ? null : { scope, cwd };
-    });
+    setNewSession(cwd === null ? null : { scope, cwd });
   }, []);
   const [refreshKey, setRefreshKey] = useState(0);
   const [sessionKey, setSessionKey] = useState(0);
-  const [activeCwd, setActiveCwd] = useState<string | null>(null);
+  const location = resolveWorkspaceLocation(snapshot, selectedSession);
   const [initialSessionId] = useState<string | null>(() => readSessionIdFromSearch(window.location.search));
 
   const [initialSessionRestored, setInitialSessionRestored] = useState<boolean>(() => !initialSessionId);
@@ -88,11 +79,12 @@ export function useWorkspaceNavigation({
           if (!initial.loaded && window.piBridge) await workspaceStore.initialize(window.piBridge);
           if (request !== openRequest.current) return;
           origin = workspaceStore.getSnapshot().focus;
-          const guessedEnvironmentId = getSessionEnvironmentId(sessionId);
+          const registeredEnvironmentId = getSessionEnvironmentId(sessionId);
           const listed =
-            getSessionCatalog(guessedEnvironmentId).find((session) => session.id === sessionId) ??
-            getSessionCatalog().find((session) => session.id === sessionId);
-          const environmentId = listed ? (listed.environmentId ?? PRIMARY_ENVIRONMENT_ID) : guessedEnvironmentId;
+            (registeredEnvironmentId
+              ? getSessionCatalog(registeredEnvironmentId).find((session) => session.id === sessionId)
+              : undefined) ?? getSessionCatalog().find((session) => session.id === sessionId);
+          const environmentId = listed?.environmentId ?? registeredEnvironmentId ?? origin.environmentId;
           const found =
             listed ??
             (await getEnvironmentApiClient(environmentId).listSessions()).sessions.find(
@@ -105,7 +97,7 @@ export function useWorkspaceNavigation({
           }
           setPendingOpen(null);
           workspaceStore.focusSession({ ...found, environmentId });
-          const scoped = environmentId === PRIMARY_ENVIRONMENT_ID ? found : { ...found, environmentId };
+          const scoped = { ...found, environmentId };
           onShowChat?.();
           setNewSessionCwd(null);
           setOpenedSession(scoped);
@@ -138,15 +130,24 @@ export function useWorkspaceNavigation({
   useEffect(() => {
     const offDeep = window.piBridge?.onDeepLinkSession?.((sessionId) => openSessionById(sessionId));
     const offNew = window.piBridge?.onMenu?.("new-session", () => {
-      if (!activeCwd) return;
+      const currentSnapshot = workspaceStore.getSnapshot();
+      const currentFocus = currentSnapshot.focus;
+      const matchedSession =
+        selectedSession?.id === currentFocus.sessionId && selectedSession?.environmentId === currentFocus.environmentId
+          ? selectedSession
+          : null;
+      const currentLocation = resolveWorkspaceLocation(currentSnapshot, matchedSession);
+      const scopedNewSessionCwd =
+        scope === JSON.stringify([currentFocus.environmentId, currentFocus.spaceKey]) ? newSessionCwd : null;
+      const cwd = matchedSession?.cwd ?? scopedNewSessionCwd ?? currentLocation?.path ?? null;
+      if (!cwd) return;
       openRequest.current += 1;
       setPendingOpen(null);
-      const currentFocus = workspaceStore.getSnapshot().focus;
       const root = currentFocus.spaceKey ? parseQualifiedProjectKey(currentFocus.spaceKey)?.path : null;
-      workspaceStore.openSpace({ environmentId: getActiveEnvironmentId(), path: root ?? activeCwd });
+      workspaceStore.openSpace({ environmentId: currentFocus.environmentId, path: root ?? cwd });
       onShowChat?.();
       setOpenedSession(null);
-      setNewSessionCwd(activeCwd);
+      setNewSessionCwd(cwd);
       setSessionKey((k) => k + 1);
       router.replace("/", { scroll: false });
     });
@@ -161,38 +162,45 @@ export function useWorkspaceNavigation({
       offNew?.();
       offSwitch?.();
     };
-  }, [activeCwd, router, onSwitchSessionRequested, onShowChat, openSessionById, setNewSessionCwd]);
+  }, [
+    selectedSession,
+    newSessionCwd,
+    scope,
+    router,
+    onSwitchSessionRequested,
+    onShowChat,
+    openSessionById,
+    setNewSessionCwd,
+  ]);
 
   const handleCwdChange = useCallback(
     (cwd: string | null, projectRoot?: string | null) => {
-      setActiveCwd(cwd);
-
       if (!cwd) return;
       if (suppressCwdBumpRef.current) {
         suppressCwdBumpRef.current = false;
         return;
       }
-
       const newProject = projectRoot ?? cwd;
       if (selectedSession && worktreePathsEqual(selectedSession.projectRoot ?? selectedSession.cwd, newProject)) {
         return;
       }
 
-      if (selectedSession)
-        workspaceStore.openSpace({
-          environmentId: selectedSession.environmentId ?? PRIMARY_ENVIRONMENT_ID,
-          path: newProject,
-        });
+      const ref = { environmentId: workspaceStore.getSnapshot().focus.environmentId, path: newProject };
+      workspaceStore.openSpace(ref);
       setOpenedSession(null);
-      setNewSessionCwd((prev) => {
-        if (prev && prev !== cwd) return null;
-        return prev;
+      const nextScope = JSON.stringify([
+        workspaceStore.getSnapshot().focus.environmentId,
+        workspaceStore.getSnapshot().focus.spaceKey,
+      ]);
+      setNewSession((previous) => {
+        if (newProject && !worktreePathsEqual(cwd, newProject)) return { scope: nextScope, cwd };
+        return previous?.scope === nextScope && previous.cwd === cwd ? previous : null;
       });
       setSessionKey((k) => k + 1);
       onTopPanelDismiss();
       router.replace("/", { scroll: false });
     },
-    [router, selectedSession, onTopPanelDismiss, setNewSessionCwd],
+    [router, selectedSession, onTopPanelDismiss],
   );
 
   const handleSelectSession = useCallback(
@@ -201,20 +209,18 @@ export function useWorkspaceNavigation({
         openRequest.current += 1;
         setPendingOpen(null);
       }
-      const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+      const environmentId = session.environmentId;
       const currentFocus = workspaceStore.getSnapshot().focus;
       const keptSpace =
         keepSpace && currentFocus.environmentId === environmentId
-          ? ((currentFocus.spaceKey ? parseQualifiedProjectKey(currentFocus.spaceKey)?.path : null) ?? activeCwd)
+          ? ((currentFocus.spaceKey ? parseQualifiedProjectKey(currentFocus.spaceKey)?.path : null) ??
+            location?.path ??
+            null)
           : null;
       workspaceStore.focusSession({ ...session, environmentId, projectRoot: keptSpace ?? session.projectRoot });
       setSpaceFrozenSessionId(keepSpace ? session.id : null);
       if (!isRestore) onShowChat?.();
-      if (
-        !isRestore &&
-        selectedSession?.id === session.id &&
-        (selectedSession.environmentId ?? PRIMARY_ENVIRONMENT_ID) === environmentId
-      ) {
+      if (!isRestore && selectedSession?.id === session.id && selectedSession.environmentId === environmentId) {
         if (isMobile) onMobileSidebarClose();
         return;
       }
@@ -225,15 +231,12 @@ export function useWorkspaceNavigation({
       setInitialSessionRestored(true);
 
       if (isMobile && !isRestore) onMobileSidebarClose();
-      if (isRestore) {
-        suppressCwdBumpRef.current = true;
-      }
-
+      if (isRestore) suppressCwdBumpRef.current = true;
       if (!isRestore) {
         router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
       }
     },
-    [router, isMobile, onMobileSidebarClose, onShowChat, selectedSession, activeCwd, setNewSessionCwd],
+    [router, isMobile, onMobileSidebarClose, onShowChat, selectedSession, location, setNewSessionCwd],
   );
 
   const handleNewSession = useCallback(
@@ -242,8 +245,8 @@ export function useWorkspaceNavigation({
       setPendingOpen(null);
       const currentFocus = workspaceStore.getSnapshot().focus;
       const root = currentFocus.spaceKey ? parseQualifiedProjectKey(currentFocus.spaceKey)?.path : null;
-      workspaceStore.openSpace({ environmentId: getActiveEnvironmentId(), path: root ?? cwd });
-      setActiveCwd(cwd);
+      const ref = { environmentId: currentFocus.environmentId, path: root ?? cwd };
+      workspaceStore.openSpace(ref);
       onShowChat?.();
       setOpenedSession(null);
       setNewSessionCwd(cwd);
@@ -255,21 +258,15 @@ export function useWorkspaceNavigation({
     [router, isMobile, onTopPanelDismiss, onMobileSidebarClose, onShowChat, setNewSessionCwd],
   );
 
-  const hydrateSelectedSession = useCallback((sessionId: string) => {
-    const environmentId = getSessionEnvironmentId(sessionId);
+  const hydrateSelectedSession = useCallback((sessionId: string, environmentId: EnvironmentId) => {
     void getEnvironmentApiClient(environmentId)
       .listSessions()
       .then((d) => {
         const full = d.sessions.find((s) => s.id === sessionId);
         if (!full) return;
         setOpenedSession((prev) =>
-          prev &&
-          prev.id === sessionId &&
-          (prev.environmentId ?? PRIMARY_ENVIRONMENT_ID) === environmentId &&
-          !prev.projectRoot
-            ? environmentId === PRIMARY_ENVIRONMENT_ID
-              ? full
-              : { ...full, environmentId }
+          prev && prev.id === sessionId && prev.environmentId === environmentId && !prev.projectRoot
+            ? { ...full, environmentId }
             : prev,
         );
       })
@@ -278,13 +275,13 @@ export function useWorkspaceNavigation({
 
   const handleSessionCreated = useCallback(
     (session: SessionInfo) => {
-      const environmentId = session.environmentId ?? getActiveEnvironmentId();
+      const environmentId = session.environmentId;
       registerEnvironmentSession(environmentId, session.id);
       workspaceStore.focusSession({ ...session, environmentId });
       setNewSessionCwd(null);
-      setOpenedSession(environmentId === PRIMARY_ENVIRONMENT_ID ? session : { ...session, environmentId });
+      setOpenedSession(session);
       setRefreshKey((k) => k + 1);
-      hydrateSelectedSession(session.id);
+      hydrateSelectedSession(session.id, environmentId);
       router.replace(`?session=${encodeURIComponent(session.id)}`, { scroll: false });
     },
     [router, hydrateSelectedSession, setNewSessionCwd],
@@ -292,7 +289,7 @@ export function useWorkspaceNavigation({
 
   const handleSessionForked = useCallback(
     (newSessionId: string) => {
-      const environmentId = getActiveEnvironmentId();
+      const environmentId = selectedSession?.environmentId ?? getActiveEnvironmentId();
       registerEnvironmentSession(environmentId, newSessionId);
       workspaceStore.focusSession({
         id: newSessionId,
@@ -306,8 +303,9 @@ export function useWorkspaceNavigation({
       setOpenedSession((prev) => ({
         ...(prev ?? { path: "", cwd: "", created: "", modified: "", messageCount: 0, firstMessage: "" }),
         id: newSessionId,
+        environmentId,
       }));
-      hydrateSelectedSession(newSessionId);
+      hydrateSelectedSession(newSessionId, environmentId);
       router.replace(`?session=${encodeURIComponent(newSessionId)}`, { scroll: false });
     },
     [router, hydrateSelectedSession, selectedSession, setNewSessionCwd],
@@ -319,11 +317,10 @@ export function useWorkspaceNavigation({
       setRefreshKey((k) => k + 1);
       if (selectedSession?.id === sessionId) {
         const cwd = selectedSession.cwd;
-        if (cwd)
-          workspaceStore.openSpace({
-            environmentId: selectedSession.environmentId ?? PRIMARY_ENVIRONMENT_ID,
-            path: selectedSession.projectRoot ?? cwd,
-          });
+        if (cwd) {
+          const ref = { environmentId: selectedSession.environmentId, path: selectedSession.projectRoot ?? cwd };
+          workspaceStore.openSpace(ref);
+        }
         setOpenedSession(null);
         setNewSessionCwd(cwd ?? null);
         setSessionKey((k) => k + 1);
@@ -338,11 +335,6 @@ export function useWorkspaceNavigation({
     setInitialSessionRestored(true);
   }, []);
 
-  const noteCoordinatorCwd = useCallback((cwd: string | null) => {
-    if (!cwd) return;
-    setActiveCwd(cwd);
-  }, []);
-
   const bumpSessionKey = useCallback(() => {
     setSessionKey((k) => k + 1);
   }, []);
@@ -353,10 +345,11 @@ export function useWorkspaceNavigation({
 
   return {
     environmentId: focus.environmentId,
+    workspaceSnapshot: snapshot,
     selectedSession,
     spaceFrozenSessionId,
     newSessionCwd,
-    activeCwd,
+    location,
     sessionKey,
     refreshKey,
     initialSessionId,
@@ -370,6 +363,5 @@ export function useWorkspaceNavigation({
     handleInitialRestoreDone,
     bumpSessionKey,
     bumpRefresh,
-    noteCoordinatorCwd,
   };
 }

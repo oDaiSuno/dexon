@@ -1,4 +1,5 @@
-import { readFileSync, realpathSync, writeFileSync, renameSync, unlinkSync } from "fs";
+import fs from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { DefaultResourceLoader, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
@@ -13,28 +14,42 @@ async function resolveLoadedSkill(cwd: string, filePath: string) {
   }
   const loader = new DefaultResourceLoader({ cwd, agentDir: getAgentDir() });
   await loader.reload();
-  const requested = realpathSync(filePath);
-  const skill = loader.getSkills().skills.find((candidate) => {
-    try {
-      return realpathSync(candidate.filePath) === requested;
-    } catch {
-      return false;
-    }
-  });
+  const requested = await fs.realpath(filePath);
+  const candidates = await Promise.all(
+    loader.getSkills().skills.map(async (candidate) => ({
+      candidate,
+      realPath: await fs.realpath(candidate.filePath).catch(() => null),
+    })),
+  );
+  const skill = candidates.find(({ realPath }) => realPath === requested)?.candidate;
   if (!skill) {
     throw new RpcError({ code: "FORBIDDEN", message: "Skill is not loaded for this project" });
   }
   return skill;
 }
 
-function writeTextAtomically(filePath: string, content: string): void {
-  const tmp = `${filePath}.${process.pid}.tmp`;
-  writeFileSync(tmp, content, "utf8");
+async function renameWithRetry(source: string, target: string): Promise<void> {
+  const delays = [10, 25, 50, 100];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.rename(source, target);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (attempt >= delays.length || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}
+
+async function writeTextAtomically(filePath: string, content: string): Promise<void> {
+  const tmp = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
+  await fs.writeFile(tmp, content, "utf8");
   try {
-    renameSync(tmp, filePath);
+    await renameWithRetry(tmp, filePath);
   } catch (error) {
     try {
-      unlinkSync(tmp);
+      await fs.unlink(tmp);
     } catch {
       /* ignore cleanup failure */
     }
@@ -87,7 +102,7 @@ export function registerResourceHandlers(server: RpcServer): void {
       };
       const skill = await resolveLoadedSkill(body.cwd, body.filePath);
       const { filePath } = skill;
-      const content = body.content ?? readFileSync(filePath, "utf8");
+      const content = body.content ?? (await fs.readFile(filePath, "utf8"));
       if (content.length > 2 * 1024 * 1024) {
         throw new RpcError({ code: "BAD_REQUEST", message: "Skill file is too large" });
       }
@@ -95,14 +110,14 @@ export function registerResourceHandlers(server: RpcServer): void {
         body.disableModelInvocation === undefined
           ? content
           : updateSkillModelInvocation(content, body.disableModelInvocation);
-      writeTextAtomically(filePath, updated);
+      await writeTextAtomically(filePath, updated);
       return { ok: true as const };
     },
 
     "skills.getContent": async (params) => {
       const body = params as { cwd: string; filePath: string };
       const skill = await resolveLoadedSkill(body.cwd, body.filePath);
-      return { content: readFileSync(skill.filePath, "utf8") };
+      return { content: await fs.readFile(skill.filePath, "utf8") };
     },
 
     "plugins.list": async (params) => {

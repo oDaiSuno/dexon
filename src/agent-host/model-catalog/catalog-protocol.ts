@@ -4,12 +4,20 @@ import type { ModelCatalogStatus, ModelCatalogWarning } from "../../contract/typ
 
 export const CATALOG_RESULT_MARKER = "DEXON_MODEL_CATALOG_RESULT:";
 
+export interface CatalogEpoch {
+  readonly key: string;
+  readonly credentials: string;
+}
+
 export interface CatalogJob {
   readonly kind: "available" | "refresh";
   readonly cwd: string;
   readonly agentDir: string;
   readonly offline: boolean;
 }
+
+export type CatalogEpochJob = Omit<CatalogJob, "kind"> & { readonly kind: "epoch" };
+export type CatalogWorkerJob = CatalogJob | CatalogEpochJob;
 
 export type CatalogModel = Pick<Model<Api>, "id" | "name" | "provider" | "reasoning" | "thinkingLevelMap"> & {
   readonly input?: Model<Api>["input"];
@@ -76,10 +84,10 @@ function record(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-export function parseCatalogJob(value: unknown): CatalogJob {
+export function parseCatalogJob(value: unknown): CatalogWorkerJob {
   const raw = record(value);
   if (
-    (raw.kind !== "available" && raw.kind !== "refresh") ||
+    (raw.kind !== "available" && raw.kind !== "refresh" && raw.kind !== "epoch") ||
     typeof raw.cwd !== "string" ||
     typeof raw.agentDir !== "string" ||
     typeof raw.offline !== "boolean"
@@ -87,6 +95,15 @@ export function parseCatalogJob(value: unknown): CatalogJob {
     throw new Error("Invalid model catalog job");
   }
   return { kind: raw.kind, cwd: raw.cwd, agentDir: raw.agentDir, offline: raw.offline };
+}
+
+export function parseCatalogEpochResult(value: unknown): CatalogEpoch {
+  const result = record(value);
+  const epoch = record(result.epoch);
+  if (result.ok !== true || typeof epoch.key !== "string" || typeof epoch.credentials !== "string") {
+    throw new Error("Invalid model catalog epoch");
+  }
+  return { key: epoch.key, credentials: epoch.credentials };
 }
 
 function parseWarning(value: unknown): ModelCatalogWarning {

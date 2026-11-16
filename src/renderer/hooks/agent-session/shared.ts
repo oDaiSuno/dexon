@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { type EventStreamConnectionStatus } from "@/lib/event-stream-connection";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantContentBlock, SessionInfo, SessionTreeNode } from "@/lib/types";
@@ -95,7 +96,9 @@ export function isSessionCommand(command: SlashCommandInfo): command is SessionC
 export type BuiltinSlashCommandResult =
   { handled: false } | { handled: true; message?: string; error?: string; action?: "openSessionStats" };
 export interface UseAgentSessionOptions {
+  environmentId?: EnvironmentId;
   session: SessionInfo | null;
+  sessionFolderMissing?: boolean;
   newSessionCwd: string | null;
   onAgentEnd?: () => void;
   onSessionCreated?: (session: SessionInfo) => void;

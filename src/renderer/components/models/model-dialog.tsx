@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useState } from "react";
 import { useI18n } from "@/i18n";
 import type { ModelEntry, ProviderEntry } from "@/lib/models-config-state";
@@ -24,6 +25,7 @@ export function useModelMeta() {
 }
 
 export function ModelDialog({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   providerName,
   provider,
   model,
@@ -32,6 +34,7 @@ export function ModelDialog({
   onDelete,
   onClose,
 }: {
+  environmentId?: EnvironmentId;
   providerName: string;
   provider: ProviderEntry;
   model: ModelEntry;
@@ -42,7 +45,7 @@ export function ModelDialog({
 }) {
   const { t } = useI18n();
   const [draft, setDraft] = useState<ModelEntry>(model);
-  const test = useModelConnectionTest({ providerName, provider, model: draft });
+  const test = useModelConnectionTest({ environmentId, providerName, provider, model: draft });
   const dirty = JSON.stringify(draft) !== JSON.stringify(model);
 
   return (

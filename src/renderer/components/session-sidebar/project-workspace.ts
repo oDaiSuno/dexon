@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
-import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { projectKeyOf } from "@shared/project-space-state";
 import { worktreePathsEqual } from "@shared/worktree-path";
-import { getActiveEnvironmentId } from "@/lib/environment-registry";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { workspaceStore } from "@/lib/workspace-store";
 import { useActiveEnvironment } from "@/lib/environment-registry";
@@ -42,12 +41,18 @@ export function useProjectWorkspace({
 }) {
   const { t } = useI18n();
   const environment = useActiveEnvironment();
-  const [selection, setSelection] = useState<{ environmentId: string; cwd: string | null } | null>(null);
-  const selectedCwd = selection?.environmentId === environment.id ? selection.cwd : (selectedCwdProp ?? null);
-  const setSelectedCwd = useCallback(
-    (cwd: string | null) => setSelection({ environmentId: getActiveEnvironmentId(), cwd }),
-    [],
+  const { focus } = useSyncExternalStore(
+    workspaceStore.subscribe,
+    workspaceStore.getSnapshot,
+    workspaceStore.getSnapshot,
   );
+  const scope = JSON.stringify(focus);
+  const [selection, setSelection] = useState<{ scope: string; cwd: string | null } | null>(null);
+  const selectedCwd = selection?.scope === scope ? selection.cwd : (selectedCwdProp ?? null);
+  const setSelectedCwd = useCallback((cwd: string | null, environmentId: EnvironmentId) => {
+    const focus = workspaceStore.getSnapshot().focus;
+    if (focus.environmentId === environmentId) setSelection({ scope: JSON.stringify(focus), cwd });
+  }, []);
   const generation = environment.status.phase === "connected" ? environment.status.generation : null;
   const operationScope = JSON.stringify([environment.id, generation, selectedCwd]);
   const currentScope = useRef(operationScope);
@@ -84,11 +89,10 @@ export function useProjectWorkspace({
     if (lastNotifiedCwdRef.current === key) return;
     lastNotifiedCwdRef.current = key;
     const fromCoordinator =
-      selection?.environmentId !== environment.id ||
-      (pendingSyncEchoRef.current !== null && pendingSyncEchoRef.current === key);
+      selection?.scope !== scope || (pendingSyncEchoRef.current !== null && pendingSyncEchoRef.current === key);
     pendingSyncEchoRef.current = null;
     onCwdChange?.(selectedCwd, projectRootFor(selectedCwd), fromCoordinator ? "coordinator" : "user");
-  }, [selectedCwd, selection?.environmentId, environment.id, onCwdChange, projectRootFor]);
+  }, [selectedCwd, selection?.scope, scope, environment.id, onCwdChange, projectRootFor]);
 
   const lastSyncedCwdPropRef = useRef<string | null>(null);
   useEffect(() => {
@@ -96,7 +100,7 @@ export function useProjectWorkspace({
     if (selectedCwdProp && key !== lastSyncedCwdPropRef.current) {
       lastSyncedCwdPropRef.current = key;
       pendingSyncEchoRef.current = key;
-      setSelectedCwd(selectedCwdProp);
+      setSelectedCwd(selectedCwdProp, environment.id);
     }
   }, [selectedCwdProp, environment.id, setSelectedCwd]);
 
@@ -140,7 +144,7 @@ export function useProjectWorkspace({
   }, [selectedCwd, wtRefreshKey, refreshKey, environment.id, generation]);
 
   const openDirectory = useCallback(
-    async (dir: string, environmentId = getActiveEnvironmentId()): Promise<WorkspaceSelectResult> => {
+    async (dir: string, environmentId: EnvironmentId): Promise<WorkspaceSelectResult> => {
       const origin = workspaceStore.getSnapshot().focus;
       try {
         const data = await getEnvironmentApiClient(environmentId).validateCwd(dir);
@@ -149,24 +153,27 @@ export function useProjectWorkspace({
           return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
         }
         const path = data.path ?? dir;
-        if (origin.environmentId === environmentId && origin.sessionId) {
-          workspaceStore.focusSession({ id: origin.sessionId, environmentId, cwd: path });
-        } else {
-          workspaceStore.openSpace({ environmentId, path });
+        const root = projectRootFor(path) ?? path;
+        if (environmentId !== origin.environmentId || selectedCwd === path) {
+          if (origin.environmentId === environmentId && origin.sessionId) {
+            workspaceStore.focusSession({ id: origin.sessionId, environmentId, cwd: path, projectRoot: root });
+          } else {
+            workspaceStore.openSpace({ environmentId, path: root });
+          }
         }
-        setSelectedCwd(path);
+        setSelectedCwd(path, environmentId);
         return { status: "selected" };
       } catch (e) {
         return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
       }
     },
-    [t, setSelectedCwd],
+    [t, setSelectedCwd, projectRootFor, selectedCwd],
   );
 
   const selectDirectoryFromPicker = useCallback(
     async (
-      onSelected?: (folder: string) => void,
-      environmentId = getActiveEnvironmentId(),
+      onSelected: ((folder: string) => void) | undefined,
+      environmentId: EnvironmentId,
     ): Promise<WorkspaceSelectResult> => {
       let dir: string | null | undefined;
       try {
@@ -213,7 +220,7 @@ export function useProjectWorkspace({
             worktrees: sameProject && prev ? [...prev.worktrees, entry] : [entry],
           };
         });
-        setSelectedCwd(worktree.path);
+        setSelectedCwd(worktree.path, environmentId);
         setWtRefreshKey((k) => k + 1);
         setWtNewOpen(false);
         setWtNewBranch("");
@@ -252,7 +259,7 @@ export function useProjectWorkspace({
         setWtRefreshKey((k) => k + 1);
         if (workspaceStore.getSnapshot().focus !== origin) return;
         setWtConfirmRemove(null);
-        if (selectedCwd === path) setSelectedCwd(cwd);
+        if (selectedCwd === path) setSelectedCwd(cwd, environmentId);
       } catch (e) {
         if (workspaceStore.getSnapshot().focus !== origin || currentScope.current !== operationScope) return;
         if (!force && (e as { detail?: { dirty?: boolean } }).detail?.dirty) {
@@ -271,9 +278,9 @@ export function useProjectWorkspace({
     (path: string) => {
       setWtDropdownOpen(false);
       setWtError(null);
-      setSelectedCwd(path);
+      setSelectedCwd(path, environment.id);
     },
-    [setSelectedCwd],
+    [setSelectedCwd, environment.id],
   );
 
   const resetWorktreeDropdownForOutsideClick = useCallback(() => {

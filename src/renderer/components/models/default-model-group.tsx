@@ -1,7 +1,8 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEffect, useId, useMemo, useState } from "react";
 import type { DefaultThinkingLevel, ModelDefaultsResult, ModelInfo, ModelPreferencesResult } from "@contract/types";
 import { useI18n } from "@/i18n";
-import { getModelDefaults, setModelDefaults } from "../../lib/api-client";
+import { getEnvironmentApiClient } from "../../lib/api-client";
 import { enabledModelList, modelRef } from "../../lib/model-selection";
 import { thinkingLevelLabel } from "../../lib/thinking-level-label";
 import { providerDisplayName } from "../chat-input/model-catalog";
@@ -80,10 +81,12 @@ export function DefaultModelFields({
 }
 
 export function DefaultModelGroup({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   preferences,
   cwd,
   onChanged,
 }: {
+  environmentId?: EnvironmentId;
   preferences: ModelPreferencesResult | null;
   cwd: string | null;
   onChanged?: () => void;
@@ -100,7 +103,7 @@ export function DefaultModelGroup({
     setError(null);
     void (async () => {
       try {
-        const result = await getModelDefaults(cwd ?? undefined);
+        const result = await getEnvironmentApiClient(environmentId).getModelDefaults(cwd ?? undefined);
         if (!cancelled) setDefaults(result);
       } catch (caught) {
         if (cancelled) return;
@@ -111,7 +114,7 @@ export function DefaultModelGroup({
     return () => {
       cancelled = true;
     };
-  }, [cwd, t]);
+  }, [environmentId, cwd, t]);
 
   const save = async (change: {
     model?: { provider: string; modelId: string };
@@ -120,7 +123,7 @@ export function DefaultModelGroup({
     setSaving(true);
     setError(null);
     try {
-      const result = await setModelDefaults(cwd ?? undefined, change);
+      const result = await getEnvironmentApiClient(environmentId).setModelDefaults(cwd ?? undefined, change);
       setDefaults(result);
       onChanged?.();
     } catch (caught) {

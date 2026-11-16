@@ -187,6 +187,11 @@ test("saved live messages use memory and are tagged live-append, while an extern
     if (flags === "r" && fs.realpathSync(candidate) === fs.realpathSync(filePath)) historyReads += 1;
     return openSync(candidate, flags, ...args);
   });
+  const open = fs.promises.open.bind(fs.promises);
+  t.mock.method(fs.promises, "open", async (candidate, flags, ...args) => {
+    if (flags === "r" && fs.realpathSync(candidate) === fs.realpathSync(filePath)) historyReads += 1;
+    return open(candidate, flags, ...args);
+  });
   syncBuiltinESMExports();
   t.after(() => {
     t.mock.restoreAll();

@@ -123,6 +123,7 @@ function chatCanvas() {
       { style: { width: "100%", maxWidth: 760, display: "flex", flexDirection: "column", gap: 10 } },
       data.chatMessages.map((message, index) =>
         createElement(MessageView, {
+          environmentId: "primary",
           key: index,
           sessionId: null,
           message,

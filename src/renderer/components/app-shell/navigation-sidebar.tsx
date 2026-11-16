@@ -94,7 +94,6 @@ export function NavigationSidebar({
   const directory = directories.find((item) => item.environment.id === PRIMARY_ENVIRONMENT_ID)!;
   const {
     selectedCwd,
-    setSelectedCwd,
     selectedProject,
     resetWorktreeDropdownForOutsideClick,
     selectDirectoryFromPicker,
@@ -107,7 +106,6 @@ export function NavigationSidebar({
     initialSessionId,
     loading: restoreDirectory ? restoreDirectory.loading : directories.some((item) => item.loading),
     error: restoreDirectory ? restoreDirectory.error : directory.error,
-    setSelectedCwd,
     onSelectSession,
     onInitialRestoreDone,
   });
@@ -145,7 +143,7 @@ export function NavigationSidebar({
   );
   const revealSession = useCallback(
     (session: SessionInfo, introducedAncestorIds?: readonly string[]) => {
-      const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+      const environmentId = session.environmentId;
       const root = session.projectRoot ?? session.cwd;
       if (root && introducedAncestorIds === undefined)
         setExpandedProjects((current) => new Map(current).set(projectKeyOf({ environmentId, path: root }), true));
@@ -174,13 +172,12 @@ export function NavigationSidebar({
   const selectSession = useCallback(
     (session: SessionInfo) => {
       revealSession(session);
-      const environmentId = session.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+      const environmentId = session.environmentId;
       const root = session.projectRoot ?? session.cwd;
       const readableOnly = openProjects.isMissing(root, environmentId);
-      if (session.cwd && !readableOnly) setSelectedCwd(session.cwd);
       onSelectSession(session, false, readableOnly);
     },
-    [revealSession, openProjects, setSelectedCwd, onSelectSession],
+    [revealSession, openProjects, onSelectSession],
   );
   const createSession = useCallback(() => {
     if (

@@ -48,7 +48,7 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
 
     "system.validateCwd": async (params) => {
       const { path: dir } = params as { path: string };
-      const validation = validateExistingDirectory(dir);
+      const validation = await validateExistingDirectory(dir);
       if (!validation.ok) return validation;
       allowFileRoot(validation.canonicalPath);
       return { ok: true as const, path: validation.path };
@@ -68,7 +68,7 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
 
     "system.allowRoot": async (params) => {
       const { path: dir } = params as { path: string };
-      const validation = validateExistingDirectory(dir);
+      const validation = await validateExistingDirectory(dir);
       if (!validation.ok) throw new RpcError({ code: "BAD_REQUEST", message: validation.error });
       allowFileRoot(validation.canonicalPath);
       return { ok: true as const };

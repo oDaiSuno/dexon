@@ -5,6 +5,7 @@ import type { ToolchainSnapshot } from "./toolchains/types";
 export interface HostActivitySnapshot {
   readonly running: readonly string[];
   readonly starting: readonly string[];
+  readonly inFlightRequests?: number;
 }
 
 export const EMPTY_ACTIVITY: HostActivitySnapshot = { running: [], starting: [] };
@@ -72,9 +73,10 @@ function isStrings(value: unknown): value is string[] {
 function parseActivity(value: unknown): HostActivitySnapshot | null {
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
-  return isStrings(raw.running) && isStrings(raw.starting)
-    ? { running: [...raw.running], starting: [...raw.starting] }
-    : null;
+  if (!isStrings(raw.running) || !isStrings(raw.starting)) return null;
+  const sessions = { running: [...raw.running], starting: [...raw.starting] };
+  if (raw.inFlightRequests === undefined) return sessions;
+  return isNonnegativeInteger(raw.inFlightRequests) ? { ...sessions, inFlightRequests: raw.inFlightRequests } : null;
 }
 
 const HOST_TO_MAIN_PARSERS = {

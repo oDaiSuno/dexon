@@ -12,6 +12,7 @@ after(restoreGlobals);
 const LOAD_HINT = "Send a message or run /session to load session info";
 
 const SELECTED_SESSION = {
+  environmentId: "primary",
   id: "session-one",
   path: "/workspace/notes.jsonl",
   cwd: "/workspace",
