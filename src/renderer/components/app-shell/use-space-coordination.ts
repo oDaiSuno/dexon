@@ -220,12 +220,11 @@ export function useSpaceCoordination({
   }, [preparePersonal, restoreStored]);
 
   const returnToPersonalSpace = useCallback(() => {
-    workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: personalCwd ?? "/" });
     return preparePersonal().then((cwd) => {
       if (cwd) workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: cwd });
       return cwd;
     });
-  }, [preparePersonal, personalCwd]);
+  }, [preparePersonal]);
 
   const openCurrentFolder = useCallback(async () => {
     const current = phaseRef.current;

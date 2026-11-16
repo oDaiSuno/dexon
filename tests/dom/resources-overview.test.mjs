@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import {
   dom,
+  act,
   byRole,
   button,
   click,
@@ -11,12 +12,16 @@ import {
   mount,
   restoreGlobals,
 } from "../support/renderer.mjs";
+import {
+  createFolderBrowserHost,
+  remoteServer,
+} from "../../src/renderer/components/remote-folder-picker/folder-browser-test-helpers.mjs";
 import { installRendererApi } from "../support/renderer-api.mjs";
 import { allByRole, getByRole } from "../support/dom-queries.mjs";
 
 const api = await loadRenderer(
   "resources-overview",
-  'export {ResourcePage} from "./src/renderer/components/app-nav/resource-page.tsx";',
+  'export {ResourcePage} from "./src/renderer/components/app-nav/resource-page.tsx"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
 );
 api.setAppLanguage("zh-CN");
 after(restoreGlobals);
@@ -138,6 +143,7 @@ function scene(t, { sessionId = "session-1", bridge = {} } = {}) {
   );
   const views = [];
   const props = {
+    environmentId: "primary",
     cwd: CWD,
     sessionId,
     view: "overview",
@@ -273,4 +279,55 @@ test("Manage sources still reaches package management and its refresh is the sam
   await click(button(view.container, "刷新"));
   await waitFor(() => assert.equal(env.count("skills.list"), before.skills + 1));
   assert.equal(env.count("plugins.list"), before.plugins + 1);
+});
+
+test("same-path resource pages remount with catalogs owned by the explicitly selected machine", async (t) => {
+  const host = await createFolderBrowserHost(api, {
+    target: dom.window,
+    servers: [remoteServer("primary"), remoteServer("gpu")],
+    reply(environmentId, method) {
+      if (method === "plugins.list")
+        return {
+          packages: [plugin(`npm:${environmentId}-plugin`)],
+          totals: { extensions: 0, skills: 1, prompts: 0, themes: 0 },
+          diagnostics: [],
+        };
+      if (method === "skills.list")
+        return { skills: [skill(`${environmentId}-skill`, `/skills/${environmentId}/SKILL.md`)] };
+      throw new Error(`unexpected ${method}`);
+    },
+  });
+  t.after(async () => act(async () => host.close()));
+  api.environmentRegistry.initialize();
+  const props = {
+    environmentId: "primary",
+    cwd: "/work/app",
+    sessionId: null,
+    view: "overview",
+    onViewChange() {},
+    activeTab: "plugins",
+    onTabChange() {},
+    onOpenRemote() {},
+    channelSnapshot: { accounts: [], statuses: [], pairings: [], bindings: [], activities: [] },
+  };
+  const view = await mount(t, api.ResourcePage, props);
+  await waitFor(() => assert.ok(button(view.container, "primary-skill")));
+  await view.update({ ...props, environmentId: "gpu" });
+  await waitFor(() => assert.ok(button(view.container, "gpu-skill")));
+  assert.doesNotMatch(view.container.textContent, /primary-skill|primary-plugin/);
+  await view.update(props);
+  await waitFor(() => assert.ok(button(view.container, "primary-skill")));
+  assert.doesNotMatch(view.container.textContent, /gpu-skill|gpu-plugin/);
+  assert.deepEqual(
+    host.requests.map(({ environmentId, method }) => [environmentId, method]),
+    [
+      ["primary", "plugins.list"],
+      ["primary", "skills.list"],
+      ["gpu", "plugins.list"],
+      ["gpu", "skills.list"],
+      ["primary", "plugins.list"],
+      ["primary", "skills.list"],
+    ],
+  );
+  assert.ok(host.requests.every((request) => request.params.cwd === "/work/app"));
 });

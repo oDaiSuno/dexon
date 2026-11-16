@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { MarkdownBody } from "../MarkdownBody";
 import {
   getAssistantFailureDetail,
@@ -24,6 +25,8 @@ import type {
 } from "@/lib/types";
 
 export function AssistantMessageView({
+  environmentId,
+  sourceSessionId,
   message,
   isStreaming,
   toolResults,
@@ -37,12 +40,14 @@ export function AssistantMessageView({
   compact,
   retried,
 }: {
+  environmentId: EnvironmentId;
+  sourceSessionId?: string | null;
   message: AssistantMessage;
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   toolCallDurations?: ReadonlyMap<string, number>;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   prevTimestamp?: number;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
@@ -75,6 +80,8 @@ export function AssistantMessageView({
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {blockItems.map(({ block, originalIndex }) => (
           <BlockView
+            environmentId={environmentId}
+            sourceSessionId={sourceSessionId}
             key={originalIndex}
             block={block}
             toolResults={toolResults}
@@ -102,6 +109,8 @@ export function AssistantMessageView({
 }
 
 function BlockView({
+  environmentId,
+  sourceSessionId,
   block,
   toolResults,
   isStreaming,
@@ -114,6 +123,8 @@ function BlockView({
   blockStateKey,
   thinkingExpansionStore,
 }: {
+  environmentId: EnvironmentId;
+  sourceSessionId?: string | null;
   block: AssistantContentBlock;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   isStreaming?: boolean;
@@ -121,13 +132,22 @@ function BlockView({
   toolCallDurations?: ReadonlyMap<string, number>;
   toolStartedAt?: number;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   blockStateKey: string;
   thinkingExpansionStore?: ThinkingExpansionStore;
 }) {
   if (block.type === "text") {
-    return <TextBlock block={block as TextContent} isStreaming={isStreaming} cwd={cwd} onOpenFile={onOpenFile} />;
+    return (
+      <TextBlock
+        environmentId={environmentId}
+        sourceSessionId={sourceSessionId}
+        block={block as TextContent}
+        isStreaming={isStreaming}
+        cwd={cwd}
+        onOpenFile={onOpenFile}
+      />
+    );
   }
   if (block.type === "thinking") {
     return (
@@ -166,21 +186,25 @@ function BlockView({
 }
 
 function TextBlock({
+  environmentId,
+  sourceSessionId,
   block,
   isStreaming,
   cwd,
   onOpenFile,
 }: {
+  environmentId: EnvironmentId;
+  sourceSessionId?: string | null;
   block: TextContent;
   isStreaming?: boolean;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
 }) {
   const text = block.text ?? "";
   if (!isStreaming) {
     return (
       <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
-        <MarkdownBody cwd={cwd} onOpenFile={onOpenFile}>
+        <MarkdownBody environmentId={environmentId} sourceSessionId={sourceSessionId} cwd={cwd} onOpenFile={onOpenFile}>
           {text}
         </MarkdownBody>
       </div>
@@ -198,7 +222,13 @@ function TextBlock({
   return (
     <div className="chat-reading type-chat-body" style={{ minWidth: 0 }}>
       {settled && (
-        <MarkdownBody isStreaming cwd={cwd} onOpenFile={onOpenFile}>
+        <MarkdownBody
+          environmentId={environmentId}
+          sourceSessionId={sourceSessionId}
+          isStreaming
+          cwd={cwd}
+          onOpenFile={onOpenFile}
+        >
           {settled}
         </MarkdownBody>
       )}

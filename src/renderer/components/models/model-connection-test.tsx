@@ -1,3 +1,5 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../form-controls";
 import { useI18n } from "@/i18n";
@@ -23,10 +25,12 @@ const SUMMARY_TONE = {
 } as const;
 
 export function useModelConnectionTest({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   providerName,
   provider,
   model,
 }: {
+  environmentId?: EnvironmentId;
   providerName: string;
   provider: ProviderEntry;
   model: ModelEntry;
@@ -39,7 +43,9 @@ export function useModelConnectionTest({
     if (state.phase === "testing") return t("modelTestingConnection", "Testing model connection…");
     const meta = [
       state.latencyMs !== undefined ? `${state.latencyMs}ms` : null,
-      state.status !== undefined ? `HTTP ${state.status}` : null,
+      state.status !== undefined
+        ? t("httpErrorStatus", "HTTP {status}").replace("{status}", String(state.status))
+        : null,
     ].filter(Boolean);
     if (state.phase === "success") {
       return [t("modelConnectionConnected", "Connected"), ...meta, state.responseText || null]
@@ -51,43 +57,36 @@ export function useModelConnectionTest({
 
   useEffect(() => {
     setState({ phase: "idle" });
-  }, [providerName, provider.baseUrl, provider.api, provider.apiKey, model.id, model.api]);
+  }, [environmentId, providerName, provider.baseUrl, provider.api, provider.apiKey, model.id, model.api]);
 
   const run = useCallback(async () => {
     if (!model.id.trim() || state.phase === "testing") return;
     setState({ phase: "testing" });
     try {
-      const res = await fetch("/api/models-config/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ providerName, provider, model }),
+      const d = await getEnvironmentApiClient(environmentId).call("modelsConfig.test", {
+        providerName,
+        provider,
+        model,
       });
-      const d = (await res.json()) as {
-        ok?: boolean;
-        error?: string;
-        latencyMs?: number;
-        status?: number;
-        responseText?: string;
-      };
-      if (!res.ok || !d.ok) {
+      if (!d.ok) {
         setState({
           phase: "error",
-          message: d.error ?? `HTTP ${res.status}`,
-          latencyMs: d.latencyMs,
-          status: d.status,
+          message: d.error ?? t("modelConnectionFailed", "Failed"),
+          latencyMs: typeof d.latencyMs === "number" ? d.latencyMs : undefined,
+          status: typeof d.status === "number" ? d.status : undefined,
         });
         return;
       }
       setState({
         phase: "success",
-        latencyMs: d.latencyMs,
-        status: d.status,
-        responseText: d.responseText,
+        latencyMs: typeof d.latencyMs === "number" ? d.latencyMs : undefined,
+        status: typeof d.status === "number" ? d.status : undefined,
+        responseText: typeof d.responseText === "string" ? d.responseText : undefined,
       });
     } catch (e) {
       setState({ phase: "error", message: e instanceof Error ? e.message : String(e) });
     }
-  }, [model, provider, providerName, state.phase]);
+  }, [environmentId, model, provider, providerName, state.phase, t]);
 
   return { state, summary, disabled: !model.id.trim() || state.phase === "testing", run };
 }

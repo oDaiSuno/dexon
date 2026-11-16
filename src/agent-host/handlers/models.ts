@@ -1,10 +1,12 @@
-import { statSync } from "fs";
+import { stat } from "fs/promises";
+import path from "path";
 import { getAgentDir, SettingsManager } from "@earendil-works/pi-coding-agent";
 import { clampThinkingLevel, getSupportedThinkingLevels, type Api, type Model } from "@earendil-works/pi-ai";
 import type { RpcServer } from "../../contract/rpc";
 import {
   RpcError,
   type DefaultThinkingLevel,
+  type ModelCatalogScope,
   type ModelCatalogStatus,
   type ModelDefaultsResult,
   type ModelInfo,
@@ -69,15 +71,35 @@ function hasMatchingEnabledModel<T extends { id: string; provider: string }>(
   return available.some((model) => refs.has(`${model.provider}/${model.id}`) || refs.has(model.id));
 }
 
-function resolveModelsCwd(params: { cwd?: string } | void): string {
-  const cwd = params?.cwd || process.cwd();
+interface ModelsLocation {
+  readonly catalogCwd: string;
+  readonly scope: ModelCatalogScope;
+  readonly settings: () => SettingsManager;
+}
+
+async function isDirectory(candidate: string): Promise<boolean> {
   try {
-    const st = statSync(cwd);
-    if (!st.isDirectory()) throw new Error("not-directory");
+    return (await stat(candidate)).isDirectory();
   } catch {
-    throw new RpcError({ code: "BAD_REQUEST", message: `Directory does not exist: ${cwd}` });
+    return false;
   }
-  return cwd;
+}
+
+async function resolveModelsLocation(params: { cwd?: string } | void): Promise<ModelsLocation> {
+  const folderPath = params?.cwd || process.cwd();
+  if (await isDirectory(folderPath)) {
+    return {
+      catalogCwd: folderPath,
+      scope: { kind: "project", folderPath },
+      settings: () => SettingsManager.create(folderPath, getAgentDir()),
+    };
+  }
+  const agentDir = path.resolve(getAgentDir());
+  return {
+    catalogCwd: agentDir,
+    scope: { kind: "global-fallback", missingFolderPath: folderPath },
+    settings: () => SettingsManager.create(agentDir, agentDir, { projectTrusted: false }),
+  };
 }
 
 function projectModelDefaults(
@@ -203,9 +225,15 @@ async function flushSettings(settings: SettingsManager): Promise<void> {
   if (errors.length > 0) throw new RpcError({ code: "INTERNAL", message: errors[0].error.message });
 }
 
-async function listModelsWithCatalog(catalog: ModelCatalogService, cwd: string): Promise<ModelsListResult> {
-  const snapshot = await catalog.get(cwd);
-  return projectModelsList(snapshot, SettingsManager.create(cwd, getAgentDir()), localCatalogStatus());
+async function listModelsWithCatalog(
+  catalog: ModelCatalogService,
+  location: ModelsLocation,
+): Promise<ModelsListResult> {
+  const snapshot = await catalog.get(location.catalogCwd);
+  return {
+    ...(await projectModelsList(snapshot, location.settings(), localCatalogStatus())),
+    scope: location.scope,
+  };
 }
 
 export async function listModels(cwd: string, signal?: AbortSignal): Promise<ModelsListResult> {
@@ -216,7 +244,7 @@ export async function listModels(cwd: string, signal?: AbortSignal): Promise<Mod
   signal?.throwIfAborted();
   signal?.addEventListener("abort", abort, { once: true });
   try {
-    return await listModelsWithCatalog(catalog, cwd);
+    return await listModelsWithCatalog(catalog, await resolveModelsLocation({ cwd }));
   } finally {
     signal?.removeEventListener("abort", abort);
     await catalog.dispose();
@@ -225,20 +253,19 @@ export async function listModels(cwd: string, signal?: AbortSignal): Promise<Mod
 
 export function registerModelHandlers(server: RpcServer): () => Promise<void> {
   const catalog = new ModelCatalogService();
-  const settingsFor = (cwd: string) => SettingsManager.create(cwd, getAgentDir());
   server.handle({
-    "models.list": async (params) => {
-      const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      return listModelsWithCatalog(catalog, cwd);
-    },
+    "models.list": async (params) => listModelsWithCatalog(catalog, await resolveModelsLocation(params)),
 
     "models.refresh": async (params) => {
       const { requestId } = params as { cwd?: string; requestId: string };
       if (!/^[A-Za-z0-9_-]{1,100}$/.test(requestId)) {
         throw new RpcError({ code: "BAD_REQUEST", message: "Invalid model refresh request id" });
       }
-      const cwd = resolveModelsCwd(params);
-      return projectModelsList(await catalog.refresh(cwd, requestId), settingsFor(cwd));
+      const location = await resolveModelsLocation(params);
+      return {
+        ...(await projectModelsList(await catalog.refresh(location.catalogCwd, requestId), location.settings())),
+        scope: location.scope,
+      };
     },
 
     "models.refreshCancel": (params) => {
@@ -247,37 +274,37 @@ export function registerModelHandlers(server: RpcServer): () => Promise<void> {
     },
 
     "models.preferences.get": async (params) => {
-      const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const { models } = await catalog.get(cwd);
-      return projectModelPreferences(models, settingsFor(cwd).getEnabledModels());
+      const location = await resolveModelsLocation(params);
+      const { models } = await catalog.get(location.catalogCwd);
+      return projectModelPreferences(models, location.settings().getEnabledModels());
     },
 
     "models.preferences.set": async (params) => {
       const body = params as { cwd?: string; enabledModels?: unknown };
-      const cwd = resolveModelsCwd(body);
+      const location = await resolveModelsLocation(body);
       const enabledModels = normalizeEnabledModelsInput(body.enabledModels);
-      const { models } = await catalog.get(cwd, { fresh: true });
+      const { models } = await catalog.get(location.catalogCwd, { fresh: true });
       if (enabledModels && !hasMatchingEnabledModel(models, enabledModels)) {
         throw new RpcError({ code: "BAD_REQUEST", message: "At least one available model must remain enabled" });
       }
-      const settings = settingsFor(cwd);
+      const settings = location.settings();
       settings.setEnabledModels(enabledModels);
       await flushSettings(settings);
       return projectModelPreferences(models, enabledModels);
     },
 
     "models.defaults.get": async (params) => {
-      const cwd = resolveModelsCwd(params as { cwd?: string } | void);
-      const { models } = await catalog.get(cwd);
-      return projectModelDefaults(models, settingsFor(cwd));
+      const location = await resolveModelsLocation(params);
+      const { models } = await catalog.get(location.catalogCwd);
+      return projectModelDefaults(models, location.settings());
     },
 
     "models.defaults.set": async (params) => {
       const body = params as { cwd?: string; model?: unknown; thinkingLevel?: unknown };
-      const cwd = resolveModelsCwd(body);
-      const { models } = await catalog.get(cwd, { fresh: true });
+      const location = await resolveModelsLocation(body);
+      const { models } = await catalog.get(location.catalogCwd, { fresh: true });
       const defaults = normalizeModelDefaultsInput(body, models);
-      const settings = settingsFor(cwd);
+      const settings = location.settings();
       if (defaults.model) settings.setDefaultModelAndProvider(defaults.model.provider, defaults.model.modelId);
       if (defaults.thinkingLevel) settings.setDefaultThinkingLevel(defaults.thinkingLevel);
       await flushSettings(settings);

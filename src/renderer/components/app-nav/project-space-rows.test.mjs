@@ -18,6 +18,7 @@ const environment = (id, status = { phase: "connected", generation: 1, since: 10
   descriptor: null,
 });
 const session = (id, cwd, extra = {}) => ({
+  environmentId: "primary",
   id,
   cwd,
   path: `/sessions/${id}`,
@@ -47,10 +48,13 @@ test("rows follow mounted order, scope identical paths and ids, group worktrees 
       directory("primary", [session("same", "/work/app")]),
       directory(
         "gpu",
-        [session("same", "/work/app-review", { projectRoot: "/work/app" }), session("hidden", "/unmounted")],
+        [
+          session("same", "/work/app-review", { environmentId: "gpu", projectRoot: "/work/app" }),
+          session("hidden", "/unmounted", { environmentId: "gpu" }),
+        ],
         "running",
       ),
-      directory("staging", [session("same", "/work/app")], "awaiting_input"),
+      directory("staging", [session("same", "/work/app", { environmentId: "staging" })], "awaiting_input"),
     ],
   });
   assert.deepEqual(
@@ -87,7 +91,7 @@ for (const [phase, status, tone] of [
     const space = mountSpace({ environmentId: "gpu", path: "/work/app" });
     const [row] = buildProjectSpaceRows({
       spaces: [space],
-      directories: [directory("gpu", [session("same", "/work/app")], "unread", status)],
+      directories: [directory("gpu", [session("same", "/work/app", { environmentId: "gpu" })], "unread", status)],
       focus,
       now: 2000,
     });

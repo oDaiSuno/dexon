@@ -1,10 +1,10 @@
-import { createAgentSessionServices } from "@earendil-works/pi-coding-agent";
 import { osErrorFacts, formatOsErrorFacts, redactDiagnostic } from "../subprocess-cwd.ts";
+import { catalogEpoch } from "./catalog-epoch.ts";
 import {
   CATALOG_RESULT_MARKER,
   parseCatalogJob,
   resolveCatalogModels,
-  type CatalogJobResult,
+  type CatalogJob,
   type CatalogSnapshot,
 } from "./catalog-protocol.ts";
 
@@ -12,11 +12,11 @@ if (process.connected) {
   process.on("disconnect", () => process.exit(1));
 }
 
-async function buildCatalog(input: unknown): Promise<CatalogSnapshot> {
-  const job = parseCatalogJob(input);
+async function buildCatalog(job: CatalogJob): Promise<CatalogSnapshot> {
   process.env.PI_CODING_AGENT_DIR = job.agentDir;
   if (job.offline) process.env.PI_OFFLINE = "1";
   else delete process.env.PI_OFFLINE;
+  const { createAgentSessionServices } = await import("@earendil-works/pi-coding-agent");
   const { modelRuntime } = await createAgentSessionServices({ cwd: job.cwd, agentDir: job.agentDir });
   let status: CatalogSnapshot["status"] = {
     source: job.offline ? "offline" : "cache",
@@ -50,8 +50,15 @@ async function buildCatalog(input: unknown): Promise<CatalogSnapshot> {
   };
 }
 
+async function runJob(input: unknown): Promise<unknown> {
+  const job = parseCatalogJob(input);
+  return job.kind === "epoch"
+    ? { ok: true, epoch: catalogEpoch(job.cwd, job.agentDir, job.offline) }
+    : { ok: true, snapshot: await buildCatalog(job) };
+}
+
 async function main(): Promise<void> {
-  let result: CatalogJobResult;
+  let result: unknown;
   try {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -61,7 +68,7 @@ async function main(): Promise<void> {
       if (size > 64 * 1024) throw new Error("Model catalog job is too large");
       chunks.push(buffer);
     }
-    result = { ok: true, snapshot: await buildCatalog(JSON.parse(Buffer.concat(chunks).toString("utf8"))) };
+    result = await runJob(JSON.parse(Buffer.concat(chunks).toString("utf8")));
   } catch (error) {
     const facts = osErrorFacts(error);
     const detail = redactDiagnostic(

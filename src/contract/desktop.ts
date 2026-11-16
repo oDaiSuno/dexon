@@ -40,7 +40,7 @@ export type {
   ToolchainProfileId,
 } from "../shared/toolchains/types";
 
-export type HostStatus = "starting" | "ready" | "crashed" | "stopped";
+export type HostStatus = "starting" | "ready" | "unresponsive" | "crashed" | "stopped";
 
 export type DesktopMenuEvent =
   | "new-session"

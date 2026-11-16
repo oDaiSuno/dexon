@@ -43,7 +43,7 @@ test("new transcript content preserves text selected in an unchanged historical 
     return createElement(
       "section",
       null,
-      createElement(MessageView, { message }),
+      createElement(MessageView, { environmentId: "primary", message }),
       createElement("p", { "aria-label": "New content" }, `New content ${revision}`),
     );
   }

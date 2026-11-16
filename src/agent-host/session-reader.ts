@@ -1,5 +1,6 @@
-import { SessionManager, getAgentDir, parseSessionEntries } from "@earendil-works/pi-coding-agent";
-import { existsSync, readFileSync } from "node:fs";
+import { SessionManager, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { access } from "node:fs/promises";
+import { readSessionFileEntries } from "./session-jsonl";
 import type { RpcServer } from "../contract/rpc";
 import {
   isChannelAttachmentContextType,
@@ -22,7 +23,6 @@ import { promptIntentText, readPromptIntent } from "../shared/prompt-intent";
 import { versionsByEntryId } from "./session-versions";
 import { branchAt, type SessionBranch } from "./session-branch";
 import { locateSessionProject, type LocatedProject } from "./session-project";
-import { flushSessionProjects } from "./session-project-store";
 import { RECENT_INDEX_REFRESH_TTL_MS, sessionIndex } from "./session-index";
 import { isAllowedRootsWatcherHealthy } from "../shared/allowed-roots";
 import { withSessionOrigin } from "./session-origin-store";
@@ -43,7 +43,14 @@ function getPathCache(): Map<string, string> {
 
 export async function resolveSessionPath(sessionId: string): Promise<string | null> {
   const cached = getPathCache().get(sessionId);
-  if (cached && existsSync(cached)) return cached;
+  if (
+    cached &&
+    (await access(cached).then(
+      () => true,
+      () => false,
+    ))
+  )
+    return cached;
   if (cached) invalidateSessionPathCache(sessionId);
 
   const indexed = await sessionIndex.resolvePath(sessionId);
@@ -137,7 +144,6 @@ export async function buildSessionInfoFromManager(
   let located: LocatedProject | null = null;
   if (header.cwd && options.resolveProjectInfo !== false) {
     located = await locateSessionProject({ id: header.id, cwd: header.cwd });
-    flushSessionProjects();
   }
   const parentSessionId = header.parentSession ? findCachedSessionId(header.parentSession) : undefined;
 
@@ -156,8 +162,8 @@ export async function buildSessionInfoFromManager(
   });
 }
 
-export function getSessionEntries(filePath: string): SessionEntry[] {
-  const parsed = parseSessionEntries(readFileSync(filePath, "utf8")).filter(Boolean);
+export async function getSessionEntries(filePath: string): Promise<SessionEntry[]> {
+  const parsed = await readSessionFileEntries(filePath);
   const entries = SessionManager.inMemory(undefined, undefined, parsed).getEntries();
   return entries as unknown as SessionEntry[];
 }

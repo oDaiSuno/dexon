@@ -1,5 +1,6 @@
 import type { ChannelAccountConfig, ChannelAccountView, ChannelProbeResult } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { channelLabel, type Translate } from "./channel-labels";
 import { FEISHU_BASE_URLS, TELEGRAM_BASE_URL } from "./constants";
 
@@ -14,7 +15,7 @@ export async function updateTelegramToken(account: ChannelAccountView, token: st
       baseUrl: account.baseUrl || TELEGRAM_BASE_URL,
     },
   });
-  const probe = await call("channels.probe", { accountId: account.id });
+  const probe = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.probe", { accountId: account.id });
   if (!probe.ok || !probe.providerAccountId) throw new Error(probe.message);
   await window.piBridge.setChannelCredential({
     channel: account.channel,
@@ -26,7 +27,7 @@ export async function updateTelegramToken(account: ChannelAccountView, token: st
       baseUrl: account.baseUrl || TELEGRAM_BASE_URL,
     },
   });
-  await call("channels.accountUpsert", {
+  await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountUpsert", {
     account: {
       ...account,
       enabled: true,
@@ -57,7 +58,7 @@ export async function updateFeishuCredential(
       baseUrl: FEISHU_BASE_URLS[domain],
     },
   });
-  await call("channels.accountUpsert", {
+  await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountUpsert", {
     account: {
       ...nextAccount,
       appId,
@@ -67,7 +68,7 @@ export async function updateFeishuCredential(
       updatedAt: new Date().toISOString(),
     },
   });
-  const probe = await call("channels.probe", { accountId: account.id });
+  const probe = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.probe", { accountId: account.id });
   if (!probe.ok || !probe.providerAccountId) throw new Error(probe.message);
   await window.piBridge.setChannelCredential({
     channel: "feishu",
@@ -78,7 +79,7 @@ export async function updateFeishuCredential(
       baseUrl: FEISHU_BASE_URLS[domain],
     },
   });
-  await call("channels.accountUpsert", {
+  await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.accountUpsert", {
     account: {
       ...nextAccount,
       appId,

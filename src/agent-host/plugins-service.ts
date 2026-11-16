@@ -1,7 +1,8 @@
 /**
  * Plugin package management for the desktop Agent Host.
  */
-import { existsSync, mkdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from "fs";
+import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
+import fs from "node:fs/promises";
 import { dirname, join, relative } from "path";
 import {
   DefaultPackageManager,
@@ -199,19 +200,18 @@ function getRelativePath(resource: ResolvedResource): string {
   return rel && !rel.startsWith("..") ? rel : resource.path;
 }
 
-function readPackageMetadata(installedPath?: string): {
+async function readPackageMetadata(installedPath?: string): Promise<{
   packageName?: string;
   displayName?: string;
   version?: string;
-} {
+}> {
   if (!installedPath) return {};
   try {
-    const stats = statSync(installedPath);
+    const stats = await fs.stat(installedPath);
     const packageJsonPath = stats.isDirectory()
       ? join(installedPath, "package.json")
       : join(dirname(installedPath), "package.json");
-    if (!existsSync(packageJsonPath)) return {};
-    const parsed = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+    const parsed = JSON.parse(await fs.readFile(packageJsonPath, "utf8")) as {
       name?: unknown;
       displayName?: unknown;
       version?: unknown;
@@ -296,36 +296,38 @@ export async function readPlugins(cwd: string, npmCommand?: string[]): Promise<P
     });
   }
 
-  const packages = packageManager.listConfiguredPackages().map((pkg) => {
-    const scope = toPluginScope(pkg.scope);
-    const key = keyFor(pkg.source, scope);
-    const disabled = disabledByPackage.get(key) ?? false;
-    const counts = countsByPackage.get(key) ?? emptyCounts();
-    const resources = resourcesByPackage.get(key) ?? [];
-    const resourceCount = counts.extensions + counts.skills + counts.prompts + counts.themes;
-    const packageMetadata = readPackageMetadata(pkg.installedPath);
-    if (!pkg.installedPath) {
-      diagnostics.push({
-        type: "warning",
+  const packages = await Promise.all(
+    packageManager.listConfiguredPackages().map(async (pkg) => {
+      const scope = toPluginScope(pkg.scope);
+      const key = keyFor(pkg.source, scope);
+      const disabled = disabledByPackage.get(key) ?? false;
+      const counts = countsByPackage.get(key) ?? emptyCounts();
+      const resources = resourcesByPackage.get(key) ?? [];
+      const resourceCount = counts.extensions + counts.skills + counts.prompts + counts.themes;
+      const packageMetadata = await readPackageMetadata(pkg.installedPath);
+      if (!pkg.installedPath) {
+        diagnostics.push({
+          type: "warning",
+          source: pkg.source,
+          message: "Configured package path was not found.",
+        });
+      }
+      return {
         source: pkg.source,
-        message: "Configured package path was not found.",
-      });
-    }
-    return {
-      source: pkg.source,
-      scope,
-      filtered: pkg.filtered,
-      disabled,
-      installedPath: pkg.installedPath,
-      packageName: packageMetadata.packageName,
-      displayName: packageMetadata.displayName,
-      version: packageMetadata.version,
-      configuredVersion: getConfiguredPluginVersion(pkg.source),
-      counts,
-      resources,
-      status: disabled ? "disabled" : resourceCount > 0 ? "loaded" : pkg.installedPath ? "installed" : "missing",
-    } satisfies PluginPackageInfo;
-  });
+        scope,
+        filtered: pkg.filtered,
+        disabled,
+        installedPath: pkg.installedPath,
+        packageName: packageMetadata.packageName,
+        displayName: packageMetadata.displayName,
+        version: packageMetadata.version,
+        configuredVersion: getConfiguredPluginVersion(pkg.source),
+        counts,
+        resources,
+        status: disabled ? "disabled" : resourceCount > 0 ? "loaded" : pkg.installedPath ? "installed" : "missing",
+      } satisfies PluginPackageInfo;
+    }),
+  );
 
   return { packages: withPendingReload(packages, readPendingReload()), totals, diagnostics };
 }

@@ -16,7 +16,6 @@ import {
   getCurrentTools,
 } from "@earendil-works/pi-ai";
 import { importTestBundle } from "#test-bundle";
-
 const base = mkdtempSync(path.join(tmpdir(), "dexon-automation-profile-"));
 const previous = [
   ["PI_CODING_AGENT_DIR", process.env.PI_CODING_AGENT_DIR],
@@ -32,7 +31,6 @@ test.after(() => {
     else process.env[key] = value;
   rmSync(base, { recursive: true, force: true });
 });
-
 const runtime = await importTestBundle(
   "automation-execution-profile",
   {
@@ -333,7 +331,7 @@ for (const ending of ["timeout", "aborted", "agent_no_result"]) {
   }
 }
 
-test("persisted automation stays sealed with isolated metadata and origin-aware mutation permissions", () => {
+test("persisted automation stays sealed with isolated metadata and origin-aware mutation permissions", async () => {
   const file = path.join(base, "origins.json");
   const store = new runtime.SessionOriginStore(file);
   const originalStep = { ...step };
@@ -346,6 +344,7 @@ test("persisted automation stays sealed with isolated metadata and origin-aware 
     sourceType: 17,
     automationStep: { ...step, attemptNo: 0 },
   });
+  await store.flush();
   const reopened = new runtime.SessionOriginStore(file);
   assert.deepEqual(reopened.get("historical").automationStep, step);
   reopened.get("historical").automationStep.taskId = "changed";

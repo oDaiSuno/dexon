@@ -23,6 +23,9 @@ import { getRpcSessionStatuses, listRpcSessions, subscribeRunningSessions } from
 import { initializeSessionLauncher, launchAutomationSession } from "./session-launcher";
 import { initializeSessionOrchestrationService } from "./session-orchestration/service";
 import { initializeSessionOrchestrationSettings } from "./session-orchestration/settings";
+import { sessionIndex } from "./session-index";
+import { flushSessionProjects } from "./session-project-store";
+import { flushSessionOrigins } from "./session-origin-store";
 export { applySessionNameIfEmpty } from "./session-naming";
 export { credentialMutationFailure } from "./handlers/auth";
 export { initializeChannels } from "./handlers/channels";
@@ -89,5 +92,12 @@ export function registerHandlers(server: RpcServer, options: HostHandlerOptions 
     await filesCleanup();
     await sessionsCleanup();
     unsubscribeRunning();
+    for (const flush of [() => sessionIndex.flush(), flushSessionProjects, flushSessionOrigins]) {
+      try {
+        await flush();
+      } catch (error) {
+        console.error("[agent-host] failed to flush session state during shutdown:", error);
+      }
+    }
   };
 }

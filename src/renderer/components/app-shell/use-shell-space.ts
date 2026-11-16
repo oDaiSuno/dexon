@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { defaultSpaceFolder } from "@/lib/space-identity";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
 import type { SessionInfo } from "@/lib/types";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
-import { useActiveEnvironment } from "@/lib/environment-registry";
+import { useActiveEnvironment, useEnvironments } from "@/lib/environment-registry";
 import { useComposerWorkspace } from "./composer-workspace";
 import { useProjectSpaces } from "./use-project-spaces";
 import type { SpaceCoordination } from "./use-space-coordination";
@@ -14,22 +15,27 @@ export function useShellSpace(props: {
   refreshKey: number;
   coordination: SpaceCoordination;
   selectedSession: SessionInfo | null;
+  spaceFrozenSessionId: string | null;
   chatInputRef: RefObject<{ takeDraft: () => string; prependText: (text: string) => void } | null>;
   onCwdCommitted: (cwd: string | null, projectRoot?: string | null) => void;
-  onCoordinatorCwd: (cwd: string | null) => void;
+  location: ProjectSpaceRef | null;
   onBranchSwitched: () => void;
 }) {
   const {
     refreshKey,
     coordination,
     selectedSession,
+    spaceFrozenSessionId,
     chatInputRef,
     onCwdCommitted,
-    onCoordinatorCwd,
+    location,
     onBranchSwitched,
   } = props;
+  const spaceFrozen = selectedSession !== null && selectedSession.id === spaceFrozenSessionId;
 
   const environment = useActiveEnvironment();
+  const primary = useEnvironments().find((view) => view.id === PRIMARY_ENVIRONMENT_ID);
+  const primaryGeneration = primary?.status.phase === "connected" ? primary.status.generation : null;
   const isPrimary = environment.id === PRIMARY_ENVIRONMENT_ID;
   const [localHomeDir, setLocalHomeDir] = useState("");
   useEffect(() => {
@@ -43,14 +49,20 @@ export function useShellSpace(props: {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [primaryGeneration]);
   const space = useSpaceOwner({
     refreshKey,
     coordination,
     onCwdCommitted,
-    onCoordinatorCwd,
+    location,
+    spaceFrozen,
     sessionLocation: selectedSession
-      ? { cwd: selectedSession.cwd, projectPath: selectedSession.projectRoot ?? selectedSession.cwd }
+      ? {
+          environmentId: selectedSession.environmentId,
+          path: selectedSession.cwd,
+          cwd: selectedSession.cwd,
+          projectPath: selectedSession.projectRoot ?? selectedSession.cwd,
+        }
       : null,
     draftCarrier: {
       enabled: selectedSession === null,
@@ -62,7 +74,7 @@ export function useShellSpace(props: {
   const openProjects = useProjectSpaces({
     defaultSpace: coordination.personalCwd ?? defaultSpaceFolder(null, isPrimary ? space.homeDir : localHomeDir),
     currentProject: isPrimary
-      ? ((selectedSession
+      ? ((selectedSession && !spaceFrozen
           ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd))
           : null) ??
         space.workspace.selectedProject ??
@@ -82,6 +94,7 @@ export function useShellSpace(props: {
     [environment.id, spaceMissing],
   );
   const card = useWorkspaceCard({
+    environmentId: environment.id,
     workspace: space.workspace,
     open: space.workspace.wtDropdownOpen,
     projects: cardProjects,
@@ -96,6 +109,7 @@ export function useShellSpace(props: {
   });
 
   const composerWorkspace = useComposerWorkspace({
+    environmentId: environment.id,
     workspace: space.workspace,
     project: space.project,
     onSwitchProject: space.workspace.resetWorktreeDropdownForOutsideClick,

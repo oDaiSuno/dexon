@@ -1,3 +1,4 @@
+import { isTransportFailure } from "../../contract/rpc.ts";
 export type EventStreamConnectionStatus = "connected" | "timeout" | "closed";
 
 export interface EventStreamConnectionResult {
@@ -67,7 +68,8 @@ export async function connectTimedEventStream<Event>(options: {
     })
     .then(
       (unsubscribe) => ({ status: "subscribed" as const, unsubscribe }),
-      () => ({ status: "closed" as const }),
+      (error: unknown) =>
+        isTransportFailure(error) ? { status: "closed" as const } : { status: "failed" as const, error },
     );
   let timeout: ReturnType<typeof setTimeout> | undefined;
   const outcome = await Promise.race([
@@ -84,6 +86,10 @@ export async function connectTimedEventStream<Event>(options: {
       if (late.status === "subscribed") late.unsubscribe();
     });
     return { status: "timeout", unsubscribe: () => {} };
+  }
+  if (outcome.status === "failed") {
+    options.manager.invalidate(generation);
+    throw outcome.error;
   }
   if (outcome.status === "closed") {
     options.manager.invalidate(generation);

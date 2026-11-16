@@ -8,7 +8,12 @@ import {
   immutableExecutionProfile,
   type SessionExecutionProfile,
 } from "./agent-session/execution-profile";
-import { getSessionOrigin, setSessionOrigin, type SetSessionOriginInput } from "./session-origin-store";
+import {
+  getSessionOrigin,
+  setSessionOrigin,
+  persistSessionOrigin,
+  type SetSessionOriginInput,
+} from "./session-origin-store";
 import { createQuestionnaireOverride } from "./agent-session/questionnaire-adapter";
 import {
   createAgentSessionFromServices,
@@ -188,7 +193,10 @@ export async function startRpcSession(
         ? { relation: "automation" as const, sourceType: "automation", automationStep: options.profile.step }
         : options.origin;
     const priorOrigin = getSessionOrigin(managerSessionId);
-    if (origin && priorOrigin?.relation !== "automation") setSessionOrigin(managerSessionId, origin);
+    if (origin && priorOrigin?.relation !== "automation") {
+      if (origin.relation === "automation") await persistSessionOrigin(managerSessionId, origin);
+      else setSessionOrigin(managerSessionId, origin);
+    }
     const intent = adoptBirthToolIntent(desktopToolIntents, managerSessionId, {
       requested: tools ?? (options.profile?.kind === "interactive" ? options.profile.toolNames : undefined),
       legacy: getLegacySessionToolNames(sessionManager),

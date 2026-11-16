@@ -1,3 +1,4 @@
+import type { ModelPickerStatus } from "./model-picker-state";
 import type { CSSProperties, RefObject } from "react";
 import { createPortal } from "react-dom";
 import { useI18n } from "@/i18n";
@@ -20,13 +21,17 @@ export function ModelPicker({
   panelRef,
   dropdownRect,
   modelCatalog,
+  modelCatalogScope,
+  modelLoading,
+  modelReconnecting,
+  modelLoadError,
   modelRefreshing,
   onModelChange,
   onModelsRefresh,
   onModelPick,
   onClose,
   onManageModels,
-}: {
+}: ModelPickerStatus & {
   model: { provider: string; modelId: string } | null | undefined;
   modelsByProvider: ModelGroup[];
   currentName: string | null;
@@ -108,6 +113,10 @@ export function ModelPicker({
             model={model}
             groups={modelsByProvider}
             modelCatalog={modelCatalog}
+            modelCatalogScope={modelCatalogScope}
+            modelLoading={modelLoading}
+            modelReconnecting={modelReconnecting}
+            modelLoadError={modelLoadError}
             modelRefreshing={modelRefreshing}
             onModelsRefresh={onModelsRefresh}
             onManageModels={onManageModels}

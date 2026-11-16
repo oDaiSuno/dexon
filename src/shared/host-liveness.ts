@@ -1,29 +1,39 @@
 import { evaluateHeartbeatTick } from "./heartbeat-liveness.ts";
+import { stakeOf, type HostActivitySnapshot } from "./host-protocol.ts";
 
 export interface HostLivenessPolicy {
   readonly intervalMs: number;
-  readonly timeoutMs: number;
-  readonly graceWithWorkMs: number;
+  readonly unresponsiveMs: number;
+  readonly idleKillMs: number;
+  readonly busyKillMs: number;
+  readonly sessionKillMs: number;
 }
 
 export const PRIMARY_HOST_LIVENESS: HostLivenessPolicy = {
-  intervalMs: 15_000,
-  timeoutMs: 10_000,
-  graceWithWorkMs: 120_000,
+  intervalMs: 5_000,
+  unresponsiveMs: 10_000,
+  idleKillMs: 25_000,
+  busyKillMs: 45_000,
+  sessionKillMs: 145_000,
 };
 
 export interface HostLivenessInput {
   readonly now: number;
   readonly lastTickAt: number;
   readonly lastPongAt: number;
-  readonly atStake: number;
+  readonly activity: HostActivitySnapshot;
 }
 
 export type HostLivenessVerdict =
   | { readonly kind: "responsive" }
   | { readonly kind: "clock-jump" }
-  | { readonly kind: "stalled"; readonly silentMs: number; readonly killAt: number }
+  | { readonly kind: "unresponsive"; readonly silentMs: number; readonly killAt: number }
   | { readonly kind: "hung"; readonly silentMs: number };
+
+function killLimitMs(activity: HostActivitySnapshot, policy: HostLivenessPolicy): number {
+  if (stakeOf(activity) > 0) return policy.sessionKillMs;
+  return (activity.inFlightRequests ?? 0) > 0 ? policy.busyKillMs : policy.idleKillMs;
+}
 
 export function assessHostLiveness(
   input: HostLivenessInput,
@@ -34,11 +44,11 @@ export function assessHostLiveness(
     lastTickAt: input.lastTickAt,
     lastAcknowledgedAt: input.lastPongAt,
     intervalMs: policy.intervalMs,
-    timeoutMs: policy.timeoutMs,
+    timeoutMs: policy.unresponsiveMs - policy.intervalMs,
   });
   if (heartbeat.clockDiscontinuity) return { kind: "clock-jump" };
   if (!heartbeat.timedOut) return { kind: "responsive" };
   const silentMs = input.now - input.lastPongAt;
-  const killAt = input.lastPongAt + policy.intervalMs + policy.timeoutMs + policy.graceWithWorkMs;
-  return input.atStake > 0 && input.now < killAt ? { kind: "stalled", silentMs, killAt } : { kind: "hung", silentMs };
+  const killAt = input.lastPongAt + killLimitMs(input.activity, policy);
+  return input.now < killAt ? { kind: "unresponsive", silentMs, killAt } : { kind: "hung", silentMs };
 }

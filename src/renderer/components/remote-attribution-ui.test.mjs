@@ -171,6 +171,7 @@ test("the blocked diagnosis action opens the actual Servers settings through the
       createElement(f.api.ReconnectBanner),
       settings.settingsOpen &&
         createElement(f.api.SettingsConfig, {
+          environmentId: "remote-a",
           cwd: null,
           sessionId: null,
           initialTab: settings.settingsInitialTab,

@@ -4,7 +4,7 @@ import path from "node:path";
 import type { FileIndexEntry } from "../shared/file-fuzzy";
 import { filterFileEntries } from "../shared/file-fuzzy";
 import { ToolchainError } from "../shared/toolchains/errors";
-import { canonicalPath, isFilePathAllowed, isWindowsAbsolutePath } from "./file-access-core";
+import { canonicalPath, isWindowsAbsolutePath, pathAccess, type AllowedRoots } from "./file-access-core";
 import { toolchainRuntime } from "./toolchain-runtime";
 
 export const FILE_SUGGESTION_DIRECT_LIMIT = 300;
@@ -100,11 +100,12 @@ export function fileSuggestionPathKey(value: string, platform: NodeJS.Platform):
   return comparablePath(value.replace(/\\/g, "/"), platform);
 }
 
-function samePath(left: string, right: string, platform: NodeJS.Platform): boolean {
-  return (
-    comparablePath(canonicalPath(left, platform === "win32"), platform) ===
-    comparablePath(canonicalPath(right, platform === "win32"), platform)
-  );
+async function samePath(left: string, right: string, platform: NodeJS.Platform): Promise<boolean> {
+  const [leftCanonical, rightCanonical] = await Promise.all([
+    canonicalPath(left, platform === "win32"),
+    canonicalPath(right, platform === "win32"),
+  ]);
+  return comparablePath(leftCanonical, platform) === comparablePath(rightCanonical, platform);
 }
 
 function toPosixRelative(root: string, candidate: string, platform: NodeJS.Platform): string | null {
@@ -214,6 +215,7 @@ async function entryDirectoryState(candidate: string): Promise<boolean | null> {
 
 async function resolveScope(
   root: string,
+  allowed: AllowedRoots,
   rawQuery: string | undefined,
   platform: NodeJS.Platform,
   homeDirectory: string,
@@ -225,7 +227,7 @@ async function resolveScope(
   const homeSystemName = platform === "win32" ? "appdata" : platform === "darwin" ? "Library" : "";
   const firstSegment = segments[0] ?? "";
   const explicitHomeSystemDirectory =
-    samePath(root, homeDirectory, platform) &&
+    (await samePath(root, homeDirectory, platform)) &&
     Boolean(homeSystemName) &&
     (platform === "win32"
       ? firstSegment.toLocaleLowerCase("en-US") === homeSystemName
@@ -248,7 +250,7 @@ async function resolveScope(
   const scopePart = trailingSlash ? query.slice(0, -1) : lastSlash >= 0 ? query.slice(0, lastSlash) : "";
   if (scopePart) {
     const candidateScope = resolver.resolve(root, ...scopePart.split("/"));
-    if (!isFilePathAllowed(candidateScope, new Set([root]))) {
+    if (!(await allowed.allows(candidateScope))) {
       throw new FileSuggestionRequestError("File suggestion scope is outside the allowed root");
     }
     if (await isDirectory(candidateScope)) {
@@ -296,6 +298,7 @@ function isIgnoredName(name: string, platform: NodeJS.Platform): boolean {
 
 async function listDirectEntries(
   root: string,
+  allowed: AllowedRoots,
   resolved: ResolvedScope,
   platform: NodeJS.Platform,
   homeDirectory: string,
@@ -312,13 +315,14 @@ async function listDirectEntries(
   );
 
   const entries: FileIndexEntry[] = [];
-  const homeRootScope = samePath(resolved.scope, root, platform) && samePath(root, homeDirectory, platform);
+  const homeRootScope =
+    (await samePath(resolved.scope, root, platform)) && (await samePath(root, homeDirectory, platform));
   for (const entry of directoryEntries) {
     if (shouldHideName(entry.name, platform, resolved, homeRootScope)) continue;
     const absolutePath = pathModule(platform).join(resolved.scope, entry.name);
     let directory = entry.isDirectory();
     if (entry.isSymbolicLink()) {
-      if (!isFilePathAllowed(absolutePath, new Set([root]))) continue;
+      if (!(await allowed.allows(absolutePath))) continue;
       const symlinkDirectory = await entryDirectoryState(absolutePath);
       if (symlinkDirectory === null) continue;
       directory = symlinkDirectory;
@@ -333,6 +337,7 @@ async function listDirectEntries(
 
 async function listDirectSearchEntries(
   root: string,
+  allowed: AllowedRoots,
   resolved: ResolvedScope,
   platform: NodeJS.Platform,
   homeDirectory: string,
@@ -346,7 +351,8 @@ async function listDirectSearchEntries(
 
   const resolver = pathModule(platform);
   const candidates: FileIndexEntry[] = [];
-  const homeRootScope = samePath(resolved.scope, root, platform) && samePath(root, homeDirectory, platform);
+  const homeRootScope =
+    (await samePath(resolved.scope, root, platform)) && (await samePath(root, homeDirectory, platform));
   for (const entry of directoryEntries) {
     if (shouldHideName(entry.name, platform, resolved, homeRootScope)) continue;
     const relativePath = toPosixRelative(root, resolver.join(resolved.scope, entry.name), platform);
@@ -357,7 +363,7 @@ async function listDirectSearchEntries(
   const entries: FileIndexEntry[] = [];
   for (const candidate of ranked.slice(0, FILE_SUGGESTION_DIRECT_LIMIT)) {
     const absolutePath = resolver.join(root, ...candidate.path.split("/"));
-    if (!isFilePathAllowed(absolutePath, new Set([root]))) continue;
+    if (!(await allowed.allows(absolutePath))) continue;
     const directory = await entryDirectoryState(absolutePath);
     if (directory === null) continue;
     entries.push({ path: candidate.path, isDir: directory });
@@ -367,6 +373,7 @@ async function listDirectSearchEntries(
 
 async function entriesFromSearchResults(
   root: string,
+  allowed: AllowedRoots,
   absolutePaths: string[],
   platform: NodeJS.Platform,
   resolved: ResolvedScope,
@@ -377,8 +384,8 @@ async function entriesFromSearchResults(
     const batch = absolutePaths.slice(offset, offset + 16);
     const mapped = await Promise.all(
       batch.map(async (absolutePath) => {
-        if (!isFilePathAllowed(absolutePath, new Set([root]))) return null;
-        const canonicalCandidate = canonicalPath(absolutePath, platform === "win32");
+        if (!(await allowed.allows(absolutePath))) return null;
+        const canonicalCandidate = await canonicalPath(absolutePath, platform === "win32");
         const relativePath = toPosixRelative(root, canonicalCandidate, platform);
         const relativeKey = relativePath ? fileSuggestionPathKey(relativePath, platform) : "";
         if (!relativePath || seen.has(relativeKey)) return null;
@@ -450,10 +457,11 @@ export function createFileSuggestionService(options: FileSuggestionServiceOption
     async suggest(rootInput: string, rawQuery?: string): Promise<FileSuggestionResult> {
       const startedAt = Date.now();
       const resolver = pathModule(platform);
-      const root = canonicalPath(resolver.resolve(rootInput), platform === "win32");
+      const root = await canonicalPath(resolver.resolve(rootInput), platform === "win32");
       if (!(await isDirectory(root))) throw new FileSuggestionRequestError("File suggestion root is not a directory");
-      const resolved = await resolveScope(root, rawQuery, platform, homeDirectory);
-      const direct = await listDirectEntries(root, resolved, platform, homeDirectory);
+      const allowed = await pathAccess.prepare([root]);
+      const resolved = await resolveScope(root, allowed, rawQuery, platform, homeDirectory);
+      const direct = await listDirectEntries(root, allowed, resolved, platform, homeDirectory);
 
       if (resolved.browse) {
         const result = projectResult(direct.entries, "", direct.truncated);
@@ -462,14 +470,14 @@ export function createFileSuggestionService(options: FileSuggestionServiceOption
       }
 
       const directSearch = direct.truncated
-        ? await listDirectSearchEntries(root, resolved, platform, homeDirectory)
+        ? await listDirectSearchEntries(root, allowed, resolved, platform, homeDirectory)
         : direct;
       const fallback = () => projectResult(directSearch.entries, resolved.query, directSearch.truncated);
       let searchPaths = [resolved.scope];
       let searchRootsTruncated = false;
       if (
-        samePath(resolved.scope, root, platform) &&
-        samePath(root, homeDirectory, platform) &&
+        (await samePath(resolved.scope, root, platform)) &&
+        (await samePath(root, homeDirectory, platform)) &&
         !resolved.explicitHomeSystemDirectory
       ) {
         const rootDirectories = direct.entries
@@ -488,6 +496,7 @@ export function createFileSuggestionService(options: FileSuggestionServiceOption
         });
         const searched = await entriesFromSearchResults(
           root,
+          allowed,
           absolutePaths.slice(0, FILE_SUGGESTION_SEARCH_LIMIT),
           platform,
           resolved,

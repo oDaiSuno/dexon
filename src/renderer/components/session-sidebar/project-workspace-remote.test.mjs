@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from "react";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { api, mountProjectProbe } from "../app-shell/project-spaces-test-harness.mjs";
@@ -38,13 +39,21 @@ test("switching servers at the same folder never exposes the previous server's w
 });
 
 test("read-only session location follows its server even when the folder string is unchanged", async (t) => {
-  const host = await mountProjectProbe(t, () => api.useSessionLocation("/work/app"), {
-    servers: [remoteServer("gpu"), remoteServer("staging")],
-    reply: (id, method) =>
-      method === "git.branch"
-        ? { isGit: true, branch: id }
-        : { ...listing(id), worktrees: [{ path: "/work/app", branch: id, isMain: false }] },
-  });
+  const host = await mountProjectProbe(
+    t,
+    () =>
+      api.useSessionLocation(
+        useSyncExternalStore(api.workspaceStore.subscribe, api.workspaceStore.getSnapshot).focus.environmentId,
+        "/work/app",
+      ),
+    {
+      servers: [remoteServer("gpu"), remoteServer("staging")],
+      reply: (id, method) =>
+        method === "git.branch"
+          ? { isGit: true, branch: id }
+          : { ...listing(id), worktrees: [{ path: "/work/app", branch: id, isMain: false }] },
+    },
+  );
   await host.run(({ workspaceStore }) => workspaceStore.openSpace({ environmentId: "gpu", path: "/work/app" }));
   assert.equal(host.get()?.branch, "gpu");
   await host.run(({ workspaceStore }) => workspaceStore.openSpace({ environmentId: "staging", path: "/work/app" }));

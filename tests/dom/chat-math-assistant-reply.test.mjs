@@ -21,6 +21,7 @@ const headings = (element) => element.querySelectorAll("h1,h2,h3,h4,h5,h6");
 
 async function openReply(t, text) {
   const view = await mount(t, MessageView, {
+    environmentId: "primary",
     message: { role: "assistant", content: [{ type: "text", text }], provider: "fixture", timestamp: 2 },
   });
   return view.container;

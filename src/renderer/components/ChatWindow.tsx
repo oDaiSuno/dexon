@@ -38,6 +38,7 @@ export function ChatWindow(props: Props) {
   const {
     loading,
     error,
+    sessionLoadReconnecting,
     handleDragEnter,
     handleDragOver,
     handleDragLeave,
@@ -67,6 +68,7 @@ export function ChatWindow(props: Props) {
     streamState,
     session,
     modelNames,
+    environmentId,
     messageCwd,
     onOpenFile,
     isNew,
@@ -95,7 +97,7 @@ export function ChatWindow(props: Props) {
   } = useChatWindow(props);
   const jumpPending = turnJump.jumpTarget !== null;
 
-  if (loading && sendGate.allowed) {
+  if (loading && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-text-secondary)" }}>
@@ -105,7 +107,7 @@ export function ChatWindow(props: Props) {
     );
   }
 
-  if (error && sendGate.allowed) {
+  if (error && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-status-danger-text)" }}>
@@ -131,7 +133,12 @@ export function ChatWindow(props: Props) {
     >
       <DragOverlay isDragOver={isDragOver} />
       <ReconnectBanner />
-      {error && (
+      {sessionLoadReconnecting && sendGate.allowed && (
+        <div role="status" className="reconnect-banner type-label-default">
+          {t("primaryHostReconnecting", "Reconnecting to background service…")}
+        </div>
+      )}
+      {error && !sessionLoadReconnecting && (
         <div role="alert" className="remote-session-unavailable type-label-default">
           {t("remoteAttributionHistoryUnavailable", "Session history is unavailable until reconnecting.")} {error}
         </div>
@@ -198,6 +205,7 @@ export function ChatWindow(props: Props) {
 
                   <ReaderActionProvider onReaderAction={disengageAutoFollow}>
                     <ChatMessages
+                      environmentId={environmentId}
                       messages={messages}
                       messageRefs={messageRefs}
                       lastUserMsgRef={lastUserMsgRef}

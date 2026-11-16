@@ -3,6 +3,7 @@ import { app, BrowserWindow, crashReporter, dialog, safeStorage } from "electron
 import fs from "node:fs";
 import path from "path";
 import { HostManager, resolveHostEntry } from "../main/host-manager";
+import { EnvironmentManager } from "../main/environments/environment-manager";
 import { installDesktopIpc } from "../main/ipc";
 import { appendMainLog } from "../main/logger";
 import { handleAppProtocol, registerAppProtocol, rendererRootPath } from "../main/protocol";
@@ -34,11 +35,12 @@ crashReporter.start({
 });
 const runtimeMainDirectory = path.join(process.cwd(), "out", "main");
 let hostManager: HostManager | null = null;
+let environmentManager: EnvironmentManager | null = null;
 let smokeWindow: BrowserWindow | null = null;
 let updateManager: UpdateManager | null = null;
 let checksStarted = false;
 app.on("window-all-closed", () => {});
-function finish(exitCode: number, error?: unknown): void {
+async function finish(exitCode: number, error?: unknown): Promise<void> {
   if (exitCode === 0) {
     try {
       fs.writeFileSync(
@@ -53,7 +55,9 @@ function finish(exitCode: number, error?: unknown): void {
   if (error) {
     appendMainLog(`smoke: checks failed — ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
   }
-  void hostManager?.stop();
+  await environmentManager?.dispose();
+  environmentManager = null;
+  await hostManager?.stop();
   hostManager = null;
   updateManager?.dispose();
   updateManager = null;
@@ -136,7 +140,7 @@ void app.whenReady().then(async () => {
       savedCredential?.token !== "smoke-app-secret" ||
       savedCredential.providerAccountId !== "ou_smoke_bot"
     ) {
-      finish(1, new Error("Credential vault reload failed"));
+      await finish(1, new Error("Credential vault reload failed"));
       return;
     }
     credentialVault.setAutomationSecret("smoke.api", "smoke-automation-secret");
@@ -145,7 +149,7 @@ void app.whenReady().then(async () => {
       credentialVault.listAutomationSecretNames().join() !== "smoke.api" ||
       fs.readFileSync(smokeVaultPath, "utf8").includes("smoke-automation-secret")
     ) {
-      finish(1, new Error("Automation secret vault reload failed"));
+      await finish(1, new Error("Automation secret vault reload failed"));
       return;
     }
     credentialVault.deleteAutomationSecret("smoke.api");
@@ -154,7 +158,16 @@ void app.whenReady().then(async () => {
       fs.unlinkSync(smokeVaultPath);
     } catch {}
   }
+  environmentManager = new EnvironmentManager({
+    hostManager,
+    userDataDir: app.getPath("userData"),
+    onChanged: (environments) => {
+      for (const window of BrowserWindow.getAllWindows())
+        if (!window.isDestroyed()) window.webContents.send("environments:changed", environments);
+    },
+  });
   installDesktopIpc({
+    environmentManager,
     getHostManager: () => hostManager,
     getMainWindow: () => smokeWindow,
     getUnreadBadge: () => 0,
@@ -179,6 +192,7 @@ void app.whenReady().then(async () => {
     updateManager,
   });
   hostManager.setStatusListener((status, detail) => {
+    environmentManager?.notifyPrimaryStatus();
     appendMainLog(`smoke: host status=${status} ${detail ?? ""}`);
     const manager = hostManager;
     if (status === "ready" && manager && !checksStarted) {
@@ -199,7 +213,7 @@ void app.whenReady().then(async () => {
         (error) => finish(1, error),
       );
     } else if (status === "crashed") {
-      finish(1, new Error(`Agent Host crashed: ${detail ?? "unknown error"}`));
+      void finish(1, new Error(`Agent Host crashed: ${detail ?? "unknown error"}`));
     }
   });
   hostManager.start();

@@ -1,5 +1,5 @@
 import { readPromptIntent, titleSourceOf } from "@shared/prompt-intent";
-import { call, getEnvironmentApiClient } from "./api-client";
+import { getEnvironmentApiClient } from "./api-client";
 import type { EnvironmentId } from "@contract/environment";
 import { trackSessionNaming } from "./session-naming-store";
 
@@ -70,13 +70,13 @@ export function shouldAutoTitleMessage(message: string): boolean {
 export interface AutoSessionTitleOptions {
   sessionId: string;
   prompt: string;
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
 }
 
 export async function requestAutoSessionTitle(options: AutoSessionTitleOptions): Promise<string | null> {
   try {
     const namingModel = getSessionNamingModel();
-    const send = options.environmentId ? getEnvironmentApiClient(options.environmentId).call : call;
+    const send = getEnvironmentApiClient(options.environmentId).call;
     const result = await send("agent.generateTitle", {
       sessionId: options.sessionId,
       trigger: "first-prompt",
@@ -89,11 +89,11 @@ export async function requestAutoSessionTitle(options: AutoSessionTitleOptions):
   }
 }
 
-export async function regenerateSessionTitle(sessionId: string): Promise<string | null> {
+export async function regenerateSessionTitle(environmentId: EnvironmentId, sessionId: string): Promise<string | null> {
   const namingModel = getSessionNamingModel();
   return trackSessionNaming(sessionId, async () => {
     try {
-      const result = await call("agent.generateTitle", {
+      const result = await getEnvironmentApiClient(environmentId).call("agent.generateTitle", {
         sessionId,
         trigger: "regenerate",
         ...(namingModel ? { namingModel } : {}),

@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useEnvironmentFileTabs } from "./use-environment-file-tabs";
-import { useFileEnvironment } from "@/lib/use-file-environment";
+import type { EnvironmentId } from "@contract/environment";
 import {
   RIGHT_PANEL_DEFAULT_WIDTH,
   RIGHT_PANEL_MIN_WIDTH,
@@ -54,17 +54,18 @@ function loadBrowserPanelPreferredWidth(): number {
 }
 
 export function useRightPanelDock({
+  environmentId,
   isMobile,
   sidebarOpen,
   onCollapseSidebar,
   suspended = false,
 }: {
+  environmentId: EnvironmentId;
   isMobile: boolean;
   sidebarOpen: boolean;
   onCollapseSidebar: () => void;
   suspended?: boolean;
 }) {
-  const environmentId = useFileEnvironment();
   const { embeddedBrowser } = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const suspendedRef = useRef(suspended);
   suspendedRef.current = suspended;

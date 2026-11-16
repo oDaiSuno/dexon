@@ -1,5 +1,6 @@
 import type { ChannelPairingRequest, ChannelsSnapshot } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { Button } from "../../form-controls";
 import { ChannelBrandMark } from "../channel-brand-mark";
@@ -88,14 +89,22 @@ function PairingRow({
       <Button
         variant="ghost"
         disabled={busy}
-        onClick={() => void run(() => call("channels.pairingReject", { pairingId: pairing.id }))}
+        onClick={() =>
+          void run(() =>
+            getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.pairingReject", { pairingId: pairing.id }),
+          )
+        }
       >
         {t("reject", "Reject")}
       </Button>
       <Button
         variant="primary"
         disabled={busy}
-        onClick={() => void run(() => call("channels.pairingApprove", { pairingId: pairing.id }))}
+        onClick={() =>
+          void run(() =>
+            getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.pairingApprove", { pairingId: pairing.id }),
+          )
+        }
       >
         {t("approve", "Allow")}
       </Button>

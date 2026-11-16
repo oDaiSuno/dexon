@@ -1,4 +1,3 @@
-import { sendAgentCommand } from "@/lib/agent-client";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { connectTimedEventStream, type EventStreamConnectionResult } from "@/lib/event-stream-connection";
@@ -129,7 +128,9 @@ export function useSessionConnection(context: Dependencies) {
     }
     setSlashCommandsLoading(true);
     try {
-      const data = await sendAgentCommand<SlashCommandsResponse>(sid, { type: "get_commands" });
+      const data = (await getEnvironmentApiClient(environmentId).agentCommand(sid, {
+        type: "get_commands",
+      })) as SlashCommandsResponse;
       const commands = (data?.commands ?? []).filter(isSessionCommand);
       setSlashCommands(commands);
       return commands;
@@ -140,7 +141,7 @@ export function useSessionConnection(context: Dependencies) {
     } finally {
       setSlashCommandsLoading(false);
     }
-  }, [ensureNewSession, sessionIdRef, setSlashCommands, setSlashCommandsLoading]);
+  }, [environmentId, ensureNewSession, sessionIdRef, setSlashCommands, setSlashCommandsLoading]);
 
   const connectEvents = useCallback(
     async (sid: string): Promise<EventStreamConnectionResult> => {

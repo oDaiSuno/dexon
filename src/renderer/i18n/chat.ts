@@ -1,4 +1,20 @@
 export const enUS: Record<string, string> = {
+  modelPickerLoading: "Loading models…",
+  modelPickerEmptyCatalog: "No available models configured.",
+  modelPickerGlobalFallback: "The original project folder no longer exists. Using global model configuration.",
+  missingSessionFolderSend: "The original project folder no longer exists. You cannot send from that folder.",
+  missingSessionFolderReadOnly:
+    "The original project folder no longer exists. This historical conversation is protected as read-only.",
+  missingSessionFolderChoose: "Choose existing folder for new chat",
+  missingSessionFolderDefault: "New chat in default space",
+  primaryHostReconnecting: "Reconnecting to background service…",
+  primaryHostRestartFailed: "Could not restart the background service.",
+  primaryHostRestartNow: "Restart now",
+  primaryHostSendHint: "You can send after the background service recovers",
+  primaryHostUnresponsive: "Background service is not responding…",
+  primaryHostUnresponsiveDetail:
+    "The background service has not responded for 10 seconds. A slow directory or heavy work may be delaying it.",
+  primaryHostUnresponsiveHint: "Wait for the background service or click Restart now above",
   chatWindow: "Chat",
   chatConversation: "Conversation",
   messageComposer: "Message input",
@@ -225,6 +241,20 @@ export const enUS: Record<string, string> = {
 };
 
 export const zhCN: Record<string, string> = {
+  modelPickerLoading: "正在加载模型…",
+  modelPickerEmptyCatalog: "尚未配置可用模型",
+  modelPickerGlobalFallback: "原项目文件夹已不存在，当前使用全局模型配置。",
+  missingSessionFolderSend: "原项目文件夹已不存在，无法在原目录继续发送消息。",
+  missingSessionFolderReadOnly: "原项目文件夹已不存在，该历史对话已进入只读保护。",
+  missingSessionFolderChoose: "重新选择现有文件夹继续新对话",
+  missingSessionFolderDefault: "前往默认空间新建会话",
+  primaryHostReconnecting: "正在重新连接后台服务…",
+  primaryHostRestartFailed: "无法重启后台服务。",
+  primaryHostRestartNow: "立即重启",
+  primaryHostSendHint: "后台服务恢复后即可发送",
+  primaryHostUnresponsive: "后台服务暂未响应…",
+  primaryHostUnresponsiveDetail: "后台服务已超过 10 秒未响应，可能正在等待较慢的目录或处理繁重任务。",
+  primaryHostUnresponsiveHint: "等待后台响应或点击上方立即重启",
   chatWindow: "聊天",
   chatConversation: "对话内容",
   messageComposer: "消息输入",

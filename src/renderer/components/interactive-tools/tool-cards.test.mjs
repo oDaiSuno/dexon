@@ -13,9 +13,9 @@ import {
 } from "../../../../tests/support/renderer.mjs";
 import { installHostBridge } from "../../../../tests/support/host-bridge.mjs";
 
-const { ToolCardDock, InteractiveToolStore, sendAgentCommand, resetRpc, setAppLanguage } = await loadRenderer(
+const { ToolCardDock, InteractiveToolStore, getEnvironmentApiClient, resetRpc, setAppLanguage } = await loadRenderer(
   "tool-cards-dom",
-  'export {ToolCardDock} from "./src/renderer/components/interactive-tools/tool-card-dock.tsx"; export {InteractiveToolStore} from "./src/renderer/lib/interactive-tool-store.ts"; export {sendAgentCommand} from "./src/renderer/lib/agent-client.ts";',
+  'export {ToolCardDock} from "./src/renderer/components/interactive-tools/tool-card-dock.tsx"; export {InteractiveToolStore} from "./src/renderer/lib/interactive-tool-store.ts"; export {getEnvironmentApiClient} from "./src/renderer/lib/api-client.ts";',
 );
 setAppLanguage("en-US");
 after(restoreGlobals);
@@ -75,7 +75,11 @@ async function harness(t, req = request(), reply, visible = true) {
       dom.window.sessionStorage.clear();
     }
   });
-  const store = new InteractiveToolStore("session", sendAgentCommand, dom.window.sessionStorage);
+  const store = new InteractiveToolStore(
+    "session",
+    (sid, cmd) => getEnvironmentApiClient("primary").agentCommand(sid, cmd),
+    dom.window.sessionStorage,
+  );
   store.reconcile({ runtimeId: "runtime", revision: 1, requests: [req], completed: [] });
   const render = async () => {
     view = await mount(t, ToolCardDock, { store, visible });

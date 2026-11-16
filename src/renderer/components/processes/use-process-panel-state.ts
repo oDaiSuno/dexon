@@ -1,21 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ManagedProcessLogRecord, ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
-import { call, subscribe } from "@/lib/api-client";
-import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import type { EnvironmentId } from "@contract/environment";
+import { environmentAffordances } from "@/lib/environment-affordances";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { useEnvironments } from "@/lib/environment-registry";
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
 export function useProcessPanelState({
+  environmentId,
   onActiveCountChange,
   onOpenBrowser,
 }: {
+  environmentId: EnvironmentId;
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 }) {
-  const { embeddedBrowser } = useActiveEnvironmentAffordances();
+  const { embeddedBrowser } = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const [processes, setProcesses] = useState<ManagedProcessPublicInfo[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [records, setRecords] = useState<ManagedProcessLogRecord[]>([]);
@@ -39,7 +43,7 @@ export function useProcessPanelState({
 
   const refresh = useCallback(async () => {
     try {
-      const snapshot = await call("processes.list", { includeExited: true });
+      const snapshot = await getEnvironmentApiClient(environmentId).call("processes.list", { includeExited: true });
       listRevisionRef.current = Math.max(listRevisionRef.current, snapshot.revision);
       setProcesses(snapshot.processes);
       onActiveCountChange?.(snapshot.processes.filter((process) => isManagedProcessActiveState(process.state)).length);
@@ -54,7 +58,7 @@ export function useProcessPanelState({
     } finally {
       setLoading(false);
     }
-  }, [onActiveCountChange]);
+  }, [environmentId, onActiveCountChange]);
 
   const scheduleRefresh = useCallback(() => {
     if (refreshTimerRef.current) return;
@@ -64,52 +68,65 @@ export function useProcessPanelState({
     }, 100);
   }, [refresh]);
 
-  const readMore = useCallback(async (processId: string, runId: string, fromCursor?: string, reset = false) => {
-    try {
-      const result = await call("processes.read", {
-        processId,
-        runId,
-        cursor: fromCursor,
-        maxBytes: 256 * 1024,
-        streams: ["stdout", "stderr", "system"],
-      });
-      if (selectedIdRef.current !== processId) return;
-      setRecords((current) => {
-        const next = reset ? result.records : [...current, ...result.records];
-        const deduped = new Map(next.map((record) => [`${record.runId}:${record.seq}`, record]));
-        return [...deduped.values()].slice(-2_000);
-      });
-      setCursor(result.nextCursor);
-      setHasMore(result.truncated);
-      setError(null);
-      requestAnimationFrame(() => {
-        const element = logRef.current;
-        if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 160) {
-          element.scrollTop = element.scrollHeight;
-        }
-      });
-    } catch (cause) {
-      setError(messageOf(cause));
-    }
-  }, []);
+  const readMore = useCallback(
+    async (processId: string, runId: string, fromCursor?: string, reset = false) => {
+      try {
+        const result = await getEnvironmentApiClient(environmentId).call("processes.read", {
+          processId,
+          runId,
+          cursor: fromCursor,
+          maxBytes: 256 * 1024,
+          streams: ["stdout", "stderr", "system"],
+        });
+        if (selectedIdRef.current !== processId) return;
+        setRecords((current) => {
+          const next = reset ? result.records : [...current, ...result.records];
+          const deduped = new Map(next.map((record) => [`${record.runId}:${record.seq}`, record]));
+          return [...deduped.values()].slice(-2_000);
+        });
+        setCursor(result.nextCursor);
+        setHasMore(result.truncated);
+        setError(null);
+        requestAnimationFrame(() => {
+          const element = logRef.current;
+          if (element && element.scrollHeight - element.scrollTop - element.clientHeight < 160) {
+            element.scrollTop = element.scrollHeight;
+          }
+        });
+      } catch (cause) {
+        setError(messageOf(cause));
+      }
+    },
+    [environmentId],
+  );
 
   useEffect(() => {
     void refresh();
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void subscribe("processes.changed", "*", (event) => {
-      if (event.revision <= listRevisionRef.current) return;
-      scheduleRefresh();
-    }).then((value) => {
-      if (disposed) value();
-      else unsubscribe = value;
-    });
+    void getEnvironmentApiClient(environmentId)
+      .subscribe(
+        "processes.changed",
+        "*",
+        (event) => {
+          if (event.revision <= listRevisionRef.current) return;
+          scheduleRefresh();
+        },
+        () => {
+          listRevisionRef.current = 0;
+          void refresh();
+        },
+      )
+      .then((value) => {
+        if (disposed) value();
+        else unsubscribe = value;
+      });
     return () => {
       disposed = true;
       unsubscribe?.();
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
     };
-  }, [refresh, scheduleRefresh]);
+  }, [environmentId, refresh, scheduleRefresh]);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1_000);
@@ -124,18 +141,27 @@ export function useProcessPanelState({
     void readMore(selectedProcessId, selectedRunId, undefined, true);
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
-    void subscribe("processes.output", selectedProcessId, (event) => {
-      if (event.runId !== selectedRunId) return;
-      void readMore(selectedProcessId, selectedRunId, cursorRef.current);
-    }).then((value) => {
-      if (disposed) value();
-      else unsubscribe = value;
-    });
+    void getEnvironmentApiClient(environmentId)
+      .subscribe(
+        "processes.output",
+        selectedProcessId,
+        (event) => {
+          if (event.runId !== selectedRunId) return;
+          void readMore(selectedProcessId, selectedRunId, cursorRef.current);
+        },
+        () => {
+          void readMore(selectedProcessId, selectedRunId, undefined, true);
+        },
+      )
+      .then((value) => {
+        if (disposed) value();
+        else unsubscribe = value;
+      });
     return () => {
       disposed = true;
       unsubscribe?.();
     };
-  }, [readMore, selectedProcessId, selectedRunId]);
+  }, [environmentId, readMore, selectedProcessId, selectedRunId]);
 
   const invoke = async (operation: () => Promise<unknown>) => {
     setBusy(true);

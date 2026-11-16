@@ -1,3 +1,4 @@
+import type { ProjectSpaceRef } from "@shared/project-space-state";
 import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { workspaceStore } from "@/lib/workspace-store";
@@ -12,12 +13,14 @@ import { FolderPickerIcon } from "./folder-picker-ui";
 export interface RemoteFolderPickerDialogProps {
   initialEnvironmentId?: string;
   onClose: () => void;
+  onSelected?: (ref: ProjectSpaceRef) => void;
   onOpenSettings: () => void;
 }
 
 export function RemoteFolderPickerDialog({
   initialEnvironmentId,
   onClose,
+  onSelected,
   onOpenSettings,
 }: RemoteFolderPickerDialogProps) {
   const { t } = useI18n();
@@ -34,8 +37,12 @@ export function RemoteFolderPickerDialog({
     setMounting(true);
     try {
       const result = await workspaceStore.mountAndOpen(current);
-      if (result === "opened") onClose();
-      else
+      if (result === "opened") {
+        const focus = workspaceStore.getSnapshot().focus;
+        const mounted = workspaceStore.getSnapshot().spaces.find((space) => space.key === focus.spaceKey);
+        if (mounted) onSelected?.(mounted);
+        onClose();
+      } else
         setMountError(
           t("remoteFolderMountInvalid", "This folder could not be mounted. It may have moved or become unavailable."),
         );

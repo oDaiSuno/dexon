@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { SessionManager } from "@earendil-works/pi-coding-agent";
+import type { SessionManager } from "@earendil-works/pi-coding-agent";
+import { readSessionManager } from "./session-jsonl";
 import type { SessionEntry, SessionInfo } from "../shared/types";
 import { buildSessionInfoFromManager } from "./session-reader";
 import {
@@ -61,13 +62,13 @@ export async function discoverSessionFiles(root: string): Promise<string[]> {
 
 export async function parseSessionFile(filePath: string, current: Fingerprint): Promise<PersistedIndexRecord> {
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const before = attempt === 0 ? current : fingerprint(filePath);
+    const before = attempt === 0 ? current : await fingerprint(filePath);
     try {
-      const manager = SessionManager.open(filePath);
+      const manager = await readSessionManager(filePath);
       const info = await buildSessionInfoFromManager(filePath, manager, manager.getEntries() as SessionEntry[], {
         resolveProjectInfo: false,
       });
-      const after = fingerprint(filePath);
+      const after = await fingerprint(filePath);
       if (!sameFingerprint(before, after)) {
         if (attempt === 0) continue;
         throw new Error("session changed during index parse");
@@ -82,7 +83,7 @@ export async function parseSessionFile(filePath: string, current: Fingerprint): 
     } catch (error) {
       const code = (error as NodeJS.ErrnoException).code;
       if (code && code !== "ENOENT" && code !== "ENOTDIR") throw error;
-      const after = readFingerprintOrNull(filePath);
+      const after = await readFingerprintOrNull(filePath);
       if (attempt === 0 && after && !sameFingerprint(before, after)) continue;
       return { filePath, fingerprint: before, info: null, valid: false };
     }
@@ -120,7 +121,7 @@ export async function planReconcile(
   let reusedSinceYield = 0;
   let lastYieldAt = performance.now();
   for (const filePath of files) {
-    const current = readFingerprintOrNull(filePath);
+    const current = await readFingerprintOrNull(filePath);
     if (!current) continue;
     const existing = known.entry(filePath);
     let parsed = false;

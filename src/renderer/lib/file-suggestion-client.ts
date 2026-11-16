@@ -1,3 +1,4 @@
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
 import { buildEntriesFromFiles, filterFileEntries, type FileIndexEntry } from "./file-fuzzy";
 
 export type FileSuggestionDegradedReason = "search-unavailable" | "search-timeout" | "search-failed";
@@ -61,11 +62,16 @@ export function projectFileSuggestionResponse(data: unknown, query: string): Fil
   };
 }
 
-export function fileSuggestionCacheKey(cwd: string, query: string, platform: NodeJS.Platform): string {
-  const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/, "");
+export function fileSuggestionCacheKey(
+  environmentId: EnvironmentId,
+  cwd: string,
+  query: string,
+  platform: NodeJS.Platform,
+): string {
+  const normalizedCwd = cwd.replace(/\\/g, "/").replace(/\/+$/, "") || "/";
   const comparableCwd = platform === "win32" ? normalizedCwd.toLocaleLowerCase("en-US") : normalizedCwd;
   const comparableQuery = platform === "win32" ? query.toLocaleLowerCase("en-US") : query;
-  return `${comparableCwd}\0${comparableQuery}`;
+  return `${qualifyProjectKey(environmentId, comparableCwd)}\0${comparableQuery}`;
 }
 
 export class FileSuggestionLruCache {

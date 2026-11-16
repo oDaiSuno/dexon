@@ -1,11 +1,9 @@
 import type { FileViewerProps } from "./types";
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { useState } from "react";
 import { getFileName } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
 
-export function DownloadLink({ environmentId: requestedEnvironmentId, filePath, sourceSessionId }: FileViewerProps) {
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
+export function DownloadLink({ environmentId, filePath, sourceSessionId }: FileViewerProps) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   return (

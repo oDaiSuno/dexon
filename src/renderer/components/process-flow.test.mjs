@@ -24,6 +24,7 @@ function toolItem(toolName = "bash", input = { command: "ls" }) {
 
 test("a thinking summary opens and closes its full text", async (t) => {
   const view = await mount(t, ProcessFlow, {
+    environmentId: "primary",
     items: [thinkingItem("t1", "first line\nsecond line with details")],
     thinkingExpansionStore: new ThinkingExpansionStore(),
   });
@@ -37,7 +38,7 @@ test("a thinking summary opens and closes its full text", async (t) => {
 });
 
 test("a tool summary opens its input details", async (t) => {
-  const view = await mount(t, ProcessFlow, { items: [toolItem()] });
+  const view = await mount(t, ProcessFlow, { environmentId: "primary", items: [toolItem()] });
   const toggle = button(view.container, /Run.*ls/);
   assert.equal(toggle.getAttribute("aria-expanded"), "false");
   assert.equal(view.container.querySelector("pre"), null);
@@ -48,6 +49,7 @@ test("a tool summary opens its input details", async (t) => {
 
 test("process items keep their supplied order and show a running indicator", async (t) => {
   const view = await mount(t, ProcessFlow, {
+    environmentId: "primary",
     items: [thinkingItem("t1", "thought"), toolItem("grep", { pattern: "x" }), toolItem("bash", { command: "ls" })],
     thinkingExpansionStore: new ThinkingExpansionStore(),
   });

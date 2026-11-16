@@ -18,6 +18,7 @@ const api = await importTestBundle("sidebar-activity", {
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     path: `/sessions/${id}.jsonl`,
     name: id,

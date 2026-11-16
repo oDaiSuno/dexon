@@ -21,9 +21,7 @@ const { MessageView } = await importTestBundle("src/renderer/components/message-
 
 test("keeps the user copy action without timestamp or branch actions", () => {
   const html = renderToStaticMarkup(
-    createElement(MessageView, {
-      message: { role: "user", content: "copy me" },
-    }),
+    createElement(MessageView, { environmentId: "primary", message: { role: "user", content: "copy me" } }),
   );
 
   assert.match(html, /title="Copy message"/);
@@ -32,6 +30,7 @@ test("keeps the user copy action without timestamp or branch actions", () => {
 test("channel attachment placeholders expose meaningful copy text", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
+      environmentId: "primary",
       message: {
         role: "user",
         channelSource: "telegram",
@@ -48,6 +47,7 @@ test("channel attachment placeholders expose meaningful copy text", () => {
 test("legacy attachment placeholders without metadata disable copy", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
+      environmentId: "primary",
       message: { role: "user", channelSource: "weixin", content: "\uFFFC" },
     }),
   );
@@ -69,6 +69,7 @@ function assistant(overrides = {}) {
 test("a failed upstream request shows the provider's own words with no added heading", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
+      environmentId: "primary",
       message: assistant({ stopReason: "error", errorMessage: "401: invalid API key" }),
     }),
   );
@@ -81,9 +82,7 @@ test("a failed upstream request shows the provider's own words with no added hea
 
 test("a failure without provider detail states that plainly instead of guessing a cause", () => {
   const html = renderToStaticMarkup(
-    createElement(MessageView, {
-      message: assistant({ stopReason: "error" }),
-    }),
+    createElement(MessageView, { environmentId: "primary", message: assistant({ stopReason: "error" }) }),
   );
 
   assert.match(html, /The upstream service returned no error message/);
@@ -91,12 +90,16 @@ test("a failure without provider detail states that plainly instead of guessing 
 });
 
 test("continues to hide a completed empty non-error assistant message", () => {
-  assert.equal(renderToStaticMarkup(createElement(MessageView, { message: assistant() })), "");
+  assert.equal(
+    renderToStaticMarkup(createElement(MessageView, { environmentId: "primary", message: assistant() })),
+    "",
+  );
 });
 
 test("renders compaction summaries collapsed by default", () => {
   const html = renderToStaticMarkup(
     createElement(MessageView, {
+      environmentId: "primary",
       message: {
         role: "custom",
         customType: "compaction",

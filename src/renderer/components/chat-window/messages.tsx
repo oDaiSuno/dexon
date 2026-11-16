@@ -17,6 +17,7 @@ import {
 } from "./turn-layout";
 import type { ChatWindowState } from "./use-chat-window";
 export function ChatMessages({
+  environmentId,
   messages,
   messageRefs,
   lastUserMsgRef,
@@ -42,6 +43,7 @@ export function ChatMessages({
   disengageAutoFollow,
 }: Pick<
   ChatWindowState,
+  | "environmentId"
   | "messages"
   | "messageRefs"
   | "lastUserMsgRef"
@@ -124,6 +126,7 @@ export function ChatMessages({
       const view = (
         <SessionProfiler key={screenKey} id="MessageView">
           <MessageView
+            environmentId={environmentId}
             sessionId={session?.id}
             message={msg}
             toolResults={toolData?.results}
@@ -170,6 +173,7 @@ export function ChatMessages({
         >
           <SessionProfiler id="MessageView">
             <MessageView
+              environmentId={environmentId}
               sessionId={session?.id}
               message={piece.body}
               isStreaming={writing}
@@ -206,6 +210,7 @@ export function ChatMessages({
           onReaderAction={inProgress ? disengageAutoFollow : undefined}
         >
           <ProcessFlow
+            environmentId={environmentId}
             items={piece.flow.items}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
@@ -227,6 +232,7 @@ export function ChatMessages({
       >
         <SessionProfiler id="MessageView">
           <MessageView
+            environmentId={environmentId}
             sessionId={session?.id}
             message={piece.message}
             cwd={messageCwd}

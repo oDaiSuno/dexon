@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { memo } from "react";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import { UserMessageView } from "./messages/UserMessage";
@@ -8,6 +9,7 @@ import { DeferredContentActions } from "./messages/shared";
 import type { AgentMessage, AssistantMessage, CustomMessage, ToolResultMessage, UserMessage } from "@/lib/types";
 
 interface Props {
+  environmentId: EnvironmentId;
   /** Active session id — authorizes files.read for referenced attachment paths. */
   sessionId?: string | null;
   message: AgentMessage;
@@ -17,7 +19,7 @@ interface Props {
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
   toolCallDurations?: ReadonlyMap<string, number>;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   entryId?: string;
   editDraft?: EditDraft | null;
   editHandlers?: EditDraftHandlers;
@@ -31,6 +33,7 @@ interface Props {
 }
 
 export const MessageView = memo(function MessageView({
+  environmentId,
   sessionId,
   message,
   afterAssistant,
@@ -53,6 +56,7 @@ export const MessageView = memo(function MessageView({
   if (message.role === "user") {
     return (
       <UserMessageView
+        environmentId={environmentId}
         message={message as UserMessage}
         sessionId={sessionId}
         afterAssistant={afterAssistant}
@@ -70,6 +74,8 @@ export const MessageView = memo(function MessageView({
   if (message.role === "assistant") {
     return (
       <AssistantMessageView
+        environmentId={environmentId}
+        sourceSessionId={sessionId}
         message={message as AssistantMessage}
         isStreaming={isStreaming}
         toolResults={toolResults}
@@ -93,13 +99,14 @@ export const MessageView = memo(function MessageView({
     if ((message as CustomMessage).customType === "compaction") {
       return (
         <>
-          <CompactionMessageView message={message as CustomMessage} />
+          <CompactionMessageView environmentId={environmentId} message={message as CustomMessage} />
           <DeferredContentActions content={message.content} onLoad={onLoadDeferredContent} />
         </>
       );
     }
     return (
       <CustomMessageView
+        environmentId={environmentId}
         message={message as CustomMessage}
         cwd={cwd}
         onOpenFile={onOpenFile}

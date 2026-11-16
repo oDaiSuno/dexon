@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
 import { workspaceStore } from "@/lib/workspace-store";
+import type { ProjectSpaceRef } from "@shared/project-space-state";
 import { useI18n } from "@/i18n";
 import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
@@ -18,25 +19,37 @@ export function useSpaceOwner(props: {
   refreshKey: number;
   coordination: SpaceCoordination;
   onCwdCommitted: (cwd: string | null, projectRoot?: string | null) => void;
-  onCoordinatorCwd: (cwd: string | null) => void;
-  sessionLocation: { cwd: string; projectPath: string } | null;
+  location: ProjectSpaceRef | null;
+  spaceFrozen: boolean;
+  sessionLocation: (ProjectSpaceRef & { cwd: string; projectPath: string }) | null;
   draftCarrier: { enabled: boolean; take: () => string; restore: (text: string) => void };
 }) {
-  const { refreshKey, coordination, onCwdCommitted, onCoordinatorCwd } = props;
-  const { sessionLocation, draftCarrier } = props;
+  const { refreshKey, coordination, onCwdCommitted, location: workspaceLocation } = props;
+  const { sessionLocation, draftCarrier, spaceFrozen } = props;
   const { t } = useI18n();
   const environment = useActiveEnvironment();
   const affordances = useActiveEnvironmentAffordances();
-  const { focus } = useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     workspaceStore.subscribe,
     workspaceStore.getSnapshot,
     workspaceStore.getSnapshot,
   );
-  const focusedSpace = focus.spaceKey ? parseQualifiedProjectKey(focus.spaceKey) : null;
-  const activeSpaceCwd =
+  const focusedSpace = snapshot.focus.spaceKey ? parseQualifiedProjectKey(snapshot.focus.spaceKey) : null;
+  const coordinatedCwd = environment.id === PRIMARY_ENVIRONMENT_ID ? coordination.spaceCwd : null;
+  const frozenSpaceCwd =
     environment.id === PRIMARY_ENVIRONMENT_ID
-      ? coordination.spaceCwd
-      : (sessionLocation?.cwd ?? focusedSpace?.path ?? null);
+      ? coordinatedCwd
+      : (snapshot.spaces.find(
+          (space) => space.key === snapshot.focus.spaceKey && space.environmentId === environment.id,
+        )?.path ?? null);
+  const activeSpaceCwd = spaceFrozen
+    ? frozenSpaceCwd
+    : workspaceLocation?.environmentId === environment.id
+      ? workspaceLocation.path
+      : focusedSpace?.path === coordinatedCwd || snapshot.focus.spaceKey === null
+        ? coordinatedCwd
+        : null;
+  const generation = environment.status.phase === "connected" ? environment.status.generation : null;
   const [homeDir, setHomeDir] = useState("");
   useEffect(() => {
     let disposed = false;
@@ -50,7 +63,7 @@ export function useSpaceOwner(props: {
     return () => {
       disposed = true;
     };
-  }, [environment.id, environment.descriptor?.platform.home]);
+  }, [environment.id, environment.descriptor?.platform.home, generation]);
 
   const draftCarry = useDraftCarry({
     enabled: draftCarrier.enabled,
@@ -61,10 +74,7 @@ export function useSpaceOwner(props: {
 
   const commitFolder = useCallback(
     (cwd: string | null, projectRoot?: string | null, origin?: "user" | "coordinator") => {
-      if (origin === "coordinator") {
-        onCoordinatorCwd(cwd);
-        return;
-      }
+      if (origin === "coordinator") return;
       const rollback = draftCarry.carry(cwd);
       try {
         onCwdCommitted(cwd, projectRoot);
@@ -74,7 +84,7 @@ export function useSpaceOwner(props: {
         throw error;
       }
     },
-    [coordination, draftCarry, onCwdCommitted, onCoordinatorCwd],
+    [coordination, draftCarry, onCwdCommitted],
   );
 
   const sessionRoots = useSessionProjectRoots();
@@ -106,9 +116,9 @@ export function useSpaceOwner(props: {
     [composerProjectPath, coordination.personalCwd, homeDir, personalLabel],
   );
 
-  const location = useSessionLocation(sessionLocation?.cwd ?? null);
-  const readOnlyBranch = location?.branch ?? null;
-  const readOnlyWorktree = location?.isWorktree ?? false;
+  const location = useSessionLocation(sessionLocation?.environmentId ?? environment.id, sessionLocation?.cwd ?? null);
+  const readOnlyBranch = location?.status === "ready" ? location.branch : null;
+  const readOnlyWorktree = location?.status === "ready" ? location.isWorktree : false;
   const readOnlyPath = sessionLocation?.cwd ?? null;
   const readOnly = useMemo(
     () => (readOnlyPath ? { branch: readOnlyBranch, isWorktree: readOnlyWorktree, path: readOnlyPath } : null),
@@ -117,12 +127,12 @@ export function useSpaceOwner(props: {
 
   const goToFolder = useCallback(
     async (folder: string): Promise<FolderOutcome> => {
-      const result = await workspace.openDirectory(folder);
+      const result = await workspace.openDirectory(folder, environment.id);
       if (result.status === "selected") return { ok: true };
       if (result.status === "invalid") return { ok: false, error: result.error };
       return { ok: false };
     },
-    [workspace],
+    [workspace, environment.id],
   );
 
   const openInFinder = useCallback(

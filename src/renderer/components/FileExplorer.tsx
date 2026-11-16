@@ -1,8 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEnvironments } from "@/lib/environment-registry";
-import { useFileEnvironment } from "@/lib/use-file-environment";
-import { getFileApiUrl } from "./file-viewer/file-api-url";
+import { subscribeFileWatch } from "@/lib/file-watch-subscription";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import type { GitStatusResult } from "@shared/api-types";
 import { useI18n } from "@/i18n";
@@ -13,7 +12,7 @@ import { ChangesList, useChangesOnlyPreference } from "./file-explorer/changes-l
 import { fetchEntries, TreeNode, type FileNode, type TreeShared } from "./file-explorer/tree-node";
 
 interface Props {
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
   cwd: string;
   personalCwd: string | null;
   homeDir: string;
@@ -24,7 +23,7 @@ interface Props {
 }
 
 export function FileExplorer(props: Props) {
-  const environmentId = useFileEnvironment(props.environmentId);
+  const { environmentId } = props;
   return (
     <EnvironmentFileExplorer
       key={JSON.stringify([environmentId, props.cwd])}
@@ -53,6 +52,7 @@ function EnvironmentFileExplorer({
   const [error, setError] = useState<string | null>(null);
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
   const [gitStatus, setGitStatus] = useState<GitStatusResult | null>(null);
+  const [gitError, setGitError] = useState<string | null>(null);
   const [quickBranch, setQuickBranch] = useState<{ cwd: string; branch: string } | null>(null);
   const [watch, setWatch] = useState<WatchState>("connecting");
   const [liveRefreshKey, setLiveRefreshKey] = useState(0);
@@ -73,7 +73,7 @@ function EnvironmentFileExplorer({
 
   const marks = useMemo(() => gitTreeMarks(gitStatus), [gitStatus]);
   const changeGroups = useMemo(() => gitChangeGroups(gitStatus), [gitStatus]);
-  const isGit = !error && gitStatus?.isGit === true;
+  const isGit = !error && !gitError && gitStatus?.isGit === true;
   const showingChanges = changesOnly && isGit;
 
   const loadProject = useCallback(
@@ -96,11 +96,15 @@ function EnvironmentFileExplorer({
           fetchEntries(environmentId, cwd, t),
           getEnvironmentApiClient(environmentId)
             .call("git.status", { path: cwd })
-            .catch(() => null),
+            .then(
+              (value) => ({ status: "ready" as const, value }),
+              (error: unknown) => ({ status: "unavailable" as const, error }),
+            ),
         ]);
         if (generation !== loadGenerationRef.current) return;
         setRoots(entries);
-        setGitStatus(status);
+        setGitStatus(status.status === "ready" ? status.value : null);
+        setGitError(status.status === "unavailable" ? String(status.error) : null);
       } catch (error) {
         if (generation === loadGenerationRef.current) {
           setError(error instanceof Error ? error.message : String(error));
@@ -126,21 +130,31 @@ function EnvironmentFileExplorer({
 
   useEffect(() => {
     setWatch("connecting");
-    const events = new EventSource(getFileApiUrl(environmentId, cwd, "watch"));
     let timer: ReturnType<typeof setTimeout> | null = null;
-    events.addEventListener("connected", () => setWatch("live"));
-    events.addEventListener("change", () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        setLiveRefreshKey((key) => key + 1);
-        void loadProject(false);
-      }, 200);
+    const refresh = () => {
+      setLiveRefreshKey((key) => key + 1);
+      void loadProject(false);
+    };
+    const unsubscribe = subscribeFileWatch({
+      environmentId,
+      path: cwd,
+      onOpen: () => setWatch("live"),
+      onGap: refresh,
+      onEvent: (event) => {
+        if (event.event === "connected") setWatch("live");
+        if (event.event !== "change") return;
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(refresh, 200);
+      },
+      onError: (error) => {
+        setWatch("static");
+        setGitStatus(null);
+        setGitError(String(error));
+      },
     });
-    events.addEventListener("error", () => setWatch("static"));
-    events.onerror = () => setWatch("static");
     return () => {
       if (timer) clearTimeout(timer);
-      events.close();
+      unsubscribe();
     };
   }, [environmentId, cwd, loadProject]);
 
@@ -182,6 +196,11 @@ function EnvironmentFileExplorer({
         loading={loading}
         loadingBranch={quickBranch?.cwd === cwd ? quickBranch.branch : null}
       />
+      {gitError && (
+        <div role="status" className="type-meta-default text-[var(--fx-text-secondary)]">
+          {gitError}
+        </div>
+      )}
       <div className="flex flex-col gap-[4px]">
         <FilesSectionHeader
           remote={environmentId !== PRIMARY_ENVIRONMENT_ID}

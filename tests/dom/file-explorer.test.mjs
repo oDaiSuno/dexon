@@ -33,7 +33,7 @@ test("a changed collapsed folder reloads when reopened and reveals the new files
       return { entries };
     },
   }));
-  const props = { cwd: "/workspace", refreshKey: 0, onOpenFile() {} };
+  const props = { environmentId: "primary", cwd: "/workspace", refreshKey: 0, onOpenFile() {} };
   const view = await mount(t, api.FileExplorer, props, { release: host.close });
   await click(button(view.container, "Expand folder src"));
   assert.match(view.container.textContent, /old\.txt/);

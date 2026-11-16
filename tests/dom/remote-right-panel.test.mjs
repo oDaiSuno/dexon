@@ -5,7 +5,7 @@ import { createFolderBrowserHost } from "../../src/renderer/components/remote-fo
 
 const api = await loadRenderer(
   "remote-right-panel",
-  'export {useRightPanelDock} from "./src/renderer/components/app-shell/use-right-panel-dock.ts"; export {RightPanelDock} from "./src/renderer/components/app-shell/right-panel-dock.tsx"; export {WorkspaceCard} from "./src/renderer/components/chat-input/workspace-card.tsx"; export {WorkspaceReadOnlyCard} from "./src/renderer/components/chat-input/workspace-read-only-card.tsx"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
+  'export {useRightPanelDock} from "./src/renderer/components/app-shell/use-right-panel-dock.ts"; export {RightPanelDock} from "./src/renderer/components/app-shell/right-panel-dock.tsx"; export {WorkspaceCard} from "./src/renderer/components/chat-input/workspace-card.tsx"; export {WorkspaceReadOnlyCard} from "./src/renderer/components/chat-input/workspace-read-only-card.tsx"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {useSyncExternalStore} from "react"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
 );
 api.setAppLanguage("en-US");
 after(restoreGlobals);
@@ -51,12 +51,12 @@ const dockProps = (patch = {}) => ({
   settingsOpen: false,
   browserAuthorizationOpen: false,
   isMobile: false,
-  explorerCwd: null,
+  environmentId: "gpu",
+  location: null,
   explorerRefreshKey: 0,
   onRefreshExplorer: noop,
   onOpenFile: noop,
   onAtMention: noop,
-  activeCwd: null,
   personalCwd: null,
   homeDir: "/home/dev",
   ...patch,
@@ -66,7 +66,13 @@ test("file tabs keep their opening environment and never show another server's i
   await remote(t);
   let dock;
   function Probe() {
-    dock = api.useRightPanelDock({ isMobile: false, sidebarOpen: false, onCollapseSidebar: noop });
+    dock = api.useRightPanelDock({
+      environmentId: api.useSyncExternalStore(api.workspaceStore.subscribe, api.workspaceStore.getSnapshot).focus
+        .environmentId,
+      isMobile: false,
+      sidebarOpen: false,
+      onCollapseSidebar: noop,
+    });
     return null;
   }
   await mount(t, Probe);
@@ -99,6 +105,7 @@ for (const mode of ["read-only", "switchable"]) {
     let copied = 0;
     const workspace = {
       mode,
+      environmentId: "gpu",
       project: { name: "project", path: "/same/project" },
       branch: null,
       isWorktree: false,
@@ -152,7 +159,11 @@ test("the remote explorer exposes disabled local reveal and an effective copy re
     if (original) Object.defineProperty(dom.window.navigator, "clipboard", original);
     else delete dom.window.navigator.clipboard;
   });
-  const view = await mount(t, api.RightPanelDock, dockProps({ explorerCwd: "/same/project" }));
+  const view = await mount(
+    t,
+    api.RightPanelDock,
+    dockProps({ location: { environmentId: "gpu", path: "/same/project" } }),
+  );
   const reveal = button(view.container, "Show in Finder");
   assert.ok(reveal);
   assert.equal(reveal.getAttribute("aria-disabled"), "true");

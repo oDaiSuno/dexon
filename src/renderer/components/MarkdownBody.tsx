@@ -28,8 +28,7 @@ import { SessionProfiler } from "./SessionProfiler";
 import { useI18n } from "@/i18n";
 import { useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
-import { useFileEnvironment } from "@/lib/use-file-environment";
-import type { EnvironmentId } from "@contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { CodeBlock, MermaidBlock, type CodeBlockVariant } from "./markdown/code-block";
 
 interface MarkdownBodyProps {
@@ -40,7 +39,7 @@ interface MarkdownBodyProps {
   cwd?: string;
   imageBasePath?: string;
   sourceSessionId?: string | null;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   inlineChips?: InlineChips;
   codeBlockVariant?: CodeBlockVariant;
   mathMode?: MathMode;
@@ -93,8 +92,7 @@ function MarkdownPre({ children }: MarkdownComponentProps<"pre">) {
 }
 
 function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownComponentProps<"a">) {
-  const { cwd, onOpenFile, environmentId: requestedEnvironmentId } = useContext(MarkdownRenderContext);
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
+  const { cwd, onOpenFile, environmentId = PRIMARY_ENVIRONMENT_ID } = useContext(MarkdownRenderContext);
   const { language, t } = useI18n();
   const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const [menuError, setMenuError] = useState(false);
@@ -124,7 +122,7 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
       void window.piBridge.showItemInFolder(filePath);
       return;
     }
-    onOpenFile(filePath);
+    onOpenFile(filePath, environmentId);
   };
 
   const handleContextMenu = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -203,7 +201,7 @@ const fileAwareUrlTransform: UrlTransform = (url, key, node) => {
 };
 
 export function MarkdownBody({
-  environmentId: requestedEnvironmentId,
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   children,
   className,
   isStreaming,
@@ -215,7 +213,6 @@ export function MarkdownBody({
   codeBlockVariant,
   mathMode = "chat",
 }: MarkdownBodyProps) {
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const normalizedMarkdown = useMemo(() => normalizeDisplayMath(children), [children]);
   const renderContext = useMemo(
     () => ({ environmentId, isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
@@ -254,7 +251,7 @@ export function MarkdownBody({
 }
 
 function MarkdownImage({
-  environmentId: requestedEnvironmentId,
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   src,
   alt,
   cwd,
@@ -267,7 +264,6 @@ function MarkdownImage({
   relativeBase?: string;
   sourceSessionId?: string | null;
 }) {
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const identity = JSON.stringify([environmentId, src, cwd, relativeBase, sourceSessionId]);
   const [loadedIdentity, setLoadedIdentity] = useState(identity);
   const localPath = useMemo(

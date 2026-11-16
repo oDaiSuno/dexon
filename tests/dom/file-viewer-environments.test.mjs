@@ -1,7 +1,8 @@
+import { useState } from "react";
 import assert from "node:assert/strict";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { act, dom, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
+import { act, click, createElement, dom, loadRenderer, mount, restoreGlobals, waitFor } from "../support/renderer.mjs";
 import {
   createFolderBrowserHost,
   deferred,
@@ -9,7 +10,7 @@ import {
 
 const api = await loadRenderer(
   "file-viewer-environments",
-  'export {UserMessageBubble} from "./src/renderer/components/messages/user-message-bubble.tsx"; export {FileExplorer} from "./src/renderer/components/FileExplorer.tsx"; export {HtmlPreview} from "./src/renderer/components/file-viewer/html-preview.tsx"; export {FileViewer} from "./src/renderer/components/FileViewer.tsx"; export {MarkdownBody} from "./src/renderer/components/MarkdownBody.tsx"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
+  'export {MessageView} from "./src/renderer/components/MessageView.tsx"; export {UserMessageBubble} from "./src/renderer/components/messages/user-message-bubble.tsx"; export {FileExplorer} from "./src/renderer/components/FileExplorer.tsx"; export {HtmlPreview} from "./src/renderer/components/file-viewer/html-preview.tsx"; export {FileViewer} from "./src/renderer/components/FileViewer.tsx"; export {MarkdownBody} from "./src/renderer/components/MarkdownBody.tsx"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
   { alias: { mammoth: fileURLToPath(new URL("../../node_modules/mammoth/mammoth.browser.js", import.meta.url)) } },
 );
 after(restoreGlobals);
@@ -196,5 +197,104 @@ test("DOCX conversion requests the explicit server and displays only its returne
   await waitFor(() => assert.ok(view.container.querySelector("iframe"), view.container.textContent));
   const html = await (await globalThis.fetch(view.container.querySelector("iframe").src)).text();
   assert.match(html, /Remote DOCX on gpu/);
+  assert.ok(host.requests.every((request) => request.environmentId === "gpu"));
+});
+
+for (const [kind, message] of [
+  ["user link", { role: "user", content: "[selected](selected.txt)", timestamp: 1 }],
+  ["user attachment", { role: "user", content: "@selected.txt", timestamp: 1 }],
+  [
+    "assistant link",
+    { role: "assistant", content: [{ type: "text", text: "[selected](selected.txt)" }], timestamp: 1 },
+  ],
+  [
+    "custom link",
+    { role: "custom", customType: "note", content: "[selected](selected.txt)", display: true, timestamp: 1 },
+  ],
+]) {
+  test(`a ${kind} opens a viewer on the message's server while workspace focus belongs elsewhere`, async (t) => {
+    const host = await setup(t, (id, method, params) => {
+      if (method === "files.read") return text(`${id} linked content ${params.path}`);
+      if (method === "git.headContent") return { comparable: false, content: "" };
+      return { ok: true };
+    });
+    function Scene() {
+      const [opened, setOpened] = useState(null);
+      return createElement(
+        "div",
+        null,
+        createElement(api.MessageView, {
+          environmentId: "gpu",
+          sessionId: "origin-session",
+          cwd: "/same",
+          message,
+          onOpenFile: (path, environmentId) => setOpened({ path, environmentId }),
+        }),
+        opened &&
+          createElement(api.FileViewer, {
+            environmentId: opened.environmentId,
+            filePath: opened.path,
+            sourceSessionId: "origin-session",
+          }),
+      );
+    }
+    const view = await mount(t, Scene);
+    const link = view.container.querySelector(kind === "user attachment" ? ".token-chip" : "a");
+    assert.ok(link);
+    await click(link);
+    await waitFor(() => assert.match(view.container.textContent, /gpu linked content \/same\/selected.txt/));
+    const reads = host.requests.filter((request) => request.method === "files.read");
+    assert.deepEqual(
+      reads.map((request) => request.environmentId),
+      ["gpu"],
+    );
+    assert.equal(reads[0].params.sourceSessionId, "origin-session");
+    assert.ok(host.requests.every((request) => request.environmentId === "gpu"));
+  });
+}
+
+for (const [extension, selector, method] of [
+  ["png", "img", "files.read"],
+  ["mp3", "audio", "files.read"],
+  ["pdf", "iframe", "files.read"],
+  ["docx", "iframe", "files.preview"],
+]) {
+  test(`an open ${extension} preview reloads after its host reconnects without waiting for a change event`, async (t) => {
+    const host = await setup(t, (_id, request) => {
+      if (request === "files.preview") return { kind: "docx", base64: DOCX };
+      if (request === "files.read") return { content: "AP8B", encoding: "base64", size: 3 };
+      return { ok: true };
+    });
+    const view = await mount(t, api.FileViewer, { environmentId: "gpu", filePath: `/same/reconnect.${extension}` });
+    await waitFor(() => assert.ok(view.container.querySelector(selector)));
+    const first = view.container.querySelector(selector).src;
+    await host.disconnect("gpu");
+    await host.reconnect("gpu", 2);
+    await waitFor(() => {
+      assert.ok(view.container.querySelector(selector));
+      assert.notEqual(view.container.querySelector(selector).src, first);
+    });
+    assert.ok(view.container.querySelector(selector).src);
+    assert.equal(host.requests.filter((request) => request.method === method).length, 2);
+    assert.equal(host.requests.filter((request) => request.method === "files.watchStart").length, 2);
+    assert.ok(host.requests.every((request) => request.environmentId === "gpu"));
+  });
+}
+
+test("an open HTML source reloads text and Git comparison after its host reconnects", async (t) => {
+  let recovered = false;
+  const host = await setup(t, (_id, method) => {
+    if (method === "files.read")
+      return { ...text(recovered ? "<h1>after reconnect</h1>" : "<h1>before reconnect</h1>"), language: "html" };
+    if (method === "git.headContent") return { comparable: true, content: "<h1>HEAD</h1>" };
+    return { ok: true };
+  });
+  const view = await mount(t, api.FileViewer, { environmentId: "gpu", filePath: "/same/reconnect.html" });
+  await waitFor(() => assert.match(view.container.textContent, /before reconnect/));
+  await host.disconnect("gpu");
+  recovered = true;
+  await host.reconnect("gpu", 2);
+  await waitFor(() => assert.match(view.container.textContent, /after reconnect/));
+  assert.equal(host.requests.filter((request) => request.method === "git.headContent").length, 2);
   assert.ok(host.requests.every((request) => request.environmentId === "gpu"));
 });

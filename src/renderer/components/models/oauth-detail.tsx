@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEffect, useState } from "react";
 import { Button } from "../form-controls";
 import { useI18n } from "@/i18n";
@@ -8,11 +9,13 @@ import type { ModelSelectionControl, OAuthProvider } from "./types";
 import { useOAuthLogin } from "./use-oauth-login";
 
 export function OAuthDetail({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   provider,
   autoStart = false,
   onRefresh,
   modelSelection,
 }: {
+  environmentId?: EnvironmentId;
   provider: OAuthProvider;
   autoStart?: boolean;
   onRefresh: () => void;
@@ -30,7 +33,7 @@ export function OAuthDetail({
     submitCode,
     submitSelection,
     isWorking,
-  } = useOAuthLogin(provider, onRefresh);
+  } = useOAuthLogin(environmentId, provider, onRefresh);
   const [autoStartPending, setAutoStartPending] = useState(autoStart);
   useEffect(() => {
     if (!autoStartPending) return;

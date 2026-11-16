@@ -106,7 +106,13 @@ test("the repair prompt disappears once a later successful install clears the pe
     const managed = createManagedDomRoot();
     activeManaged = managed;
     await managed.render(
-      createElement(PluginsConfig, { cwd: "/repo", sessionId: null, onClose: () => {}, onReloaded: () => {} }),
+      createElement(PluginsConfig, {
+        environmentId: "primary",
+        cwd: "/repo",
+        sessionId: null,
+        onClose: () => {},
+        onReloaded: () => {},
+      }),
     );
 
     // 1. Load an existing package and click Update; leave the request pending.

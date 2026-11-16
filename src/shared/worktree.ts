@@ -1,4 +1,6 @@
-import { existsSync, mkdirSync, realpathSync } from "fs";
+import { access, mkdir, realpath } from "node:fs/promises";
+import { realpath as realpathCallback } from "node:fs";
+import { promisify } from "node:util";
 import { basename, dirname, join, resolve } from "path";
 import { allowFileRoot } from "./allowed-roots.ts";
 import type { GitBranchResult, GitHeadContentResult, GitStatusResult } from "./api-types";
@@ -38,6 +40,13 @@ export interface WorktreeInfo {
   branch: string | null;
   isMain: boolean;
 }
+
+const portableRealpath = promisify(realpathCallback);
+const exists = (filePath: string) =>
+  access(filePath).then(
+    () => true,
+    () => false,
+  );
 
 const PROJECT_CACHE_TTL_MS = 60_000;
 const projectCache = new Map<string, { info: ProjectInfo; expiresAt: number }>();
@@ -138,11 +147,11 @@ export function isDirtyWorktreeError(error: unknown): boolean {
  * under the main repo instead of letting them dangle as a phantom project.
  * The dir name is the sanitized branch name — close enough for display.
  */
-function inferRemovedWorktree(cwd: string): ProjectInfo | null {
+async function inferRemovedWorktree(cwd: string): Promise<ProjectInfo | null> {
   const parent = dirname(cwd);
   if (!parent.endsWith("-worktrees")) return null;
   const repoRoot = parent.slice(0, -"-worktrees".length);
-  if (!repoRoot || !existsSync(join(repoRoot, ".git"))) return null;
+  if (!repoRoot || !(await exists(join(repoRoot, ".git")))) return null;
   return { projectRoot: repoRoot, branch: basename(cwd), isWorktree: true, isTopLevel: true };
 }
 
@@ -154,8 +163,13 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
   let info: ProjectInfo;
   let cacheable = true;
   try {
-    if (!existsSync(cwd)) {
-      info = inferRemovedWorktree(cwd) ?? { projectRoot: cwd, branch: null, isWorktree: false, isTopLevel: false };
+    if (!(await exists(cwd))) {
+      info = (await inferRemovedWorktree(cwd)) ?? {
+        projectRoot: cwd,
+        branch: null,
+        isWorktree: false,
+        isTopLevel: false,
+      };
       cache.set(cwd, { info, expiresAt: Date.now() + PROJECT_CACHE_TTL_MS });
       return info;
     }
@@ -171,9 +185,9 @@ export async function resolveProject(cwd: string): Promise<ProjectInfo> {
     const [commonDir, gitDir, toplevel, ref] = out.split("\n").map((l) => l.trim());
     // git prints resolved (symlink-free) paths; normalize cwd the same way
     const realCwds = [cwd];
-    for (const resolveReal of [realpathSync, realpathSync.native]) {
+    for (const resolveReal of [portableRealpath, realpath]) {
       try {
-        realCwds.push(resolveReal(cwd));
+        realCwds.push(await resolveReal(cwd));
       } catch {
         /* keep as-is */
       }
@@ -242,10 +256,10 @@ function commonDirRoot(directory: string): Promise<string | null> {
 }
 
 export async function inferMissingProject(cwd: string): Promise<ProjectInfo | null> {
-  const removed = inferRemovedWorktree(cwd);
+  const removed = await inferRemovedWorktree(cwd);
   if (removed) return removed;
   let directory = dirname(cwd);
-  while (!existsSync(directory)) {
+  while (!(await exists(directory))) {
     const parent = dirname(directory);
     if (parent === directory) return null;
     directory = parent;
@@ -292,10 +306,10 @@ export async function addWorktree(cwd: string, branch: string): Promise<{ path: 
   const repoRoot = await getRepoRoot(cwd);
   const baseDir = `${resolve(repoRoot)}-worktrees`;
   const worktreePath = join(baseDir, dirName);
-  if (existsSync(worktreePath)) {
+  if (await exists(worktreePath)) {
     throw new Error(`Directory already exists: ${worktreePath}`);
   }
-  mkdirSync(baseDir, { recursive: true });
+  await mkdir(baseDir, { recursive: true });
 
   // Reuse the branch if it already exists, otherwise create it at HEAD.
   let branchExists = false;

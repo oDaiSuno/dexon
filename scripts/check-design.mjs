@@ -13,6 +13,7 @@ import { readRendererCssSources, readStylePartial, rendererCssImportOrder } from
 import { APP_MONO_FONT_FAMILY, APP_SANS_FONT_FAMILY } from "../src/shared/font-stack.ts";
 import { parseColor, readFramerTokens } from "./framer-tokens.mjs";
 import { staleFramerOutputs } from "./sync-framer-tokens.mjs";
+import { checkSyncIo } from "./design-debt/sync-io.mjs";
 import { checkColorLedger } from "./design-debt/color-ledger.mjs";
 import { checkDesignDebt, readDebtLedgers, remainingDebt } from "./design-debt/ledger.mjs";
 
@@ -234,6 +235,7 @@ function main() {
   checkNavMotion();
   checkDuplicateCustomProperties();
   checkThemeBootOrder();
+  failures.push(...checkSyncIo());
 
   if (failures.length > 0) {
     for (const failure of failures) console.error(`FAIL: ${failure}`);
@@ -242,7 +244,7 @@ function main() {
     return;
   }
   console.log(
-    "Design constraints OK: 9 组设计契约满足（写死颜色/Framer 生成物/旧名字与直写字体只减不增/对比度/字体栈/动效降级/令牌不重名/启动顺序）",
+    "Design constraints OK: 10 组设计契约满足（写死颜色/Framer 生成物/旧名字与直写字体只减不增/对比度/字体栈/动效降级/令牌不重名/启动顺序/后台同步文件读写只减不增）",
   );
   const remaining = remainingDebt();
   if (remaining.length > 0) {

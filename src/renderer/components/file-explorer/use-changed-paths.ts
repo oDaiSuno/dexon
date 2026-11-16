@@ -1,38 +1,47 @@
 import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
-import { useEffect, useRef, useState } from "react";
-import type { GitStatusResult } from "@shared/api-types";
+import { useEffect, useState } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
+import { useEnvironments } from "@/lib/environment-registry";
+
+export type ChangedPathsState =
+  { status: "unavailable"; changedPaths: null } | { status: "ready"; changedPaths: ReadonlySet<string> | null };
 
 export function useChangedPaths(
   environmentId: EnvironmentId,
   cwd: string | null,
   refreshKey: number,
-): ReadonlySet<string> | null {
-  const [result, setResult] = useState<{ key: string; paths: ReadonlySet<string> | null } | null>(null);
-  const key = cwd ? qualifyProjectKey(environmentId, cwd) : null;
-  const generation = useRef(0);
+): ChangedPathsState {
+  const environment = useEnvironments().find((view) => view.id === environmentId);
+  const generation = environment?.status.phase === "connected" ? environment.status.generation : null;
+  const key = JSON.stringify([cwd ? qualifyProjectKey(environmentId, cwd) : null, generation, refreshKey]);
+  const [result, setResult] = useState<{ key: string; value: ChangedPathsState } | null>(null);
 
   useEffect(() => {
-    const current = ++generation.current;
-    if (!cwd || !key) {
-      setResult(null);
-      return;
-    }
+    if (!cwd) return;
+    let cancelled = false;
     void getEnvironmentApiClient(environmentId)
       .call("git.status", { path: cwd })
-      .then((status: GitStatusResult) => {
-        if (current !== generation.current) return;
-        setResult({ key, paths: status.isGit ? new Set(status.entries.map((entry) => entry.path)) : null });
-      })
-      .catch(() => {
-        if (current === generation.current) setResult(null);
-      });
+      .then(
+        (status) => {
+          if (cancelled) return;
+          setResult({
+            key,
+            value: {
+              status: "ready",
+              changedPaths: status.isGit ? new Set(status.entries.map((entry) => entry.path)) : null,
+            },
+          });
+        },
+        () => {
+          if (!cancelled) setResult({ key, value: { status: "unavailable", changedPaths: null } });
+        },
+      );
     return () => {
-      generation.current += 1;
+      cancelled = true;
     };
-  }, [environmentId, cwd, refreshKey, key]);
+  }, [environmentId, cwd, key]);
 
-  return result?.key === key ? result.paths : null;
+  return result?.key === key ? result.value : { status: "unavailable", changedPaths: null };
 }
 
 export function isPathChanged(changed: ReadonlySet<string> | null, relativePath: string): boolean {

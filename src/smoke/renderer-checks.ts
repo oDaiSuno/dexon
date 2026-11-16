@@ -152,7 +152,31 @@ export async function runRendererSmokeChecks(window: BrowserWindow): Promise<voi
                 if (!activityLog || activityLog.getClientRects().length === 0) {
                   throw new Error("Recent channel activity log is not shown");
                 }
-                const status = await fetch(${JSON.stringify(`/api/git-status?cwd=${encodeURIComponent(process.cwd())}`)}).then((response) => response.json());
+                const status = await new Promise((resolveStatus, rejectStatus) => {
+                  let port;
+                  const finish = (error, result) => {
+                    clearTimeout(timer);
+                    window.removeEventListener("message", onPort);
+                    port?.close();
+                    if (error) rejectStatus(error);
+                    else resolveStatus(result);
+                  };
+                  const onPort = (event) => {
+                    if (event.source !== window || event.data?.channel !== "dexon-host-port" || event.data.environmentId !== "primary" || !event.ports[0]) return;
+                    window.removeEventListener("message", onPort);
+                    port = event.ports[0];
+                    port.onmessage = ({ data }) => {
+                      if (data.kind !== "response" || data.id !== "smoke-git-status") return;
+                      if (data.ok) finish(null, data.result);
+                      else finish(new Error(data.error?.message ?? "Git status request failed"));
+                    };
+                    port.start();
+                    port.postMessage({ kind: "request", id: "smoke-git-status", method: "git.status", params: { path: ${JSON.stringify(process.cwd())} } });
+                  };
+                  const timer = setTimeout(() => finish(new Error("Git status request timed out")), 3000);
+                  window.addEventListener("message", onPort);
+                  window.piBridge.requestEnvironmentPort("primary");
+                });
                 const token = "pi-html-preview-smoke-" + Math.random().toString(36).slice(2);
                 const previewUrl = await window.piBridge.createHtmlPreview(
                   "<!doctype html><img id='asset' src='./icon.png'><script>addEventListener('load',()=>{if(asset.naturalWidth)parent.postMessage(" + JSON.stringify(token) + ",'*')})<\\/script>",

@@ -13,6 +13,7 @@ const scenes = [
   "slow-start-11s-stays-ready",
   "slow-start-20s-stays-ready",
   "hung-host-is-restarted-within-30s",
+  "unresponsive-host-restarts-on-request",
   "windows-crash-without-cleanup-helper-recovers",
   "leftover-record-blocks-restart-and-retry",
   "damaged-journal-blocks-restart",

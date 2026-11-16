@@ -22,7 +22,6 @@ import { ExpandChevronGlyph } from "./session-relation-glyphs";
 import { SessionItemActionsMenu, SessionItemDeleteConfirm } from "./session-item-actions";
 import { useSessionDelete } from "./use-session-delete";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 
 export function SessionItem({
   session,
@@ -140,7 +139,7 @@ export function SessionItem({
     setRenaming(false);
     if (name === (session.name ?? "")) return;
     try {
-      await getEnvironmentApiClient(session.environmentId ?? PRIMARY_ENVIRONMENT_ID).renameSession(session.id, name);
+      await getEnvironmentApiClient(session.environmentId).renameSession(session.id, name);
       onRenamed?.();
     } catch (e) {
       console.error("rename failed", e);
@@ -151,11 +150,11 @@ export function SessionItem({
     (event: React.MouseEvent) => {
       event.stopPropagation();
       closeActionsMenu(true);
-      void regenerateSessionTitle(session.id).then((name) => {
+      void regenerateSessionTitle(session.environmentId, session.id).then((name) => {
         if (name) onRenamed?.();
       });
     },
-    [closeActionsMenu, onRenamed, session.id],
+    [closeActionsMenu, onRenamed, session.id, session.environmentId],
   );
 
   const ITEM_HEIGHT = 30;

@@ -4,7 +4,7 @@ import { useSpaceAttribution } from "@/lib/space-attribution";
 export function RemoteDaemonCapsule() {
   const { t } = useI18n();
   const attribution = useSpaceAttribution();
-  if (attribution.kind === "local" || !attribution.presentation.canSend) return null;
+  if (attribution.kind !== "remote" || !attribution.presentation.canSend) return null;
   const [beforeServer, afterServer] = t("remoteAttributionConnected", "Remote environment {server} connected").split(
     "{server}",
   );

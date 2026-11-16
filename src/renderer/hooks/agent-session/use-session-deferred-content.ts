@@ -1,4 +1,4 @@
-import { getSessionEntryContent } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { DeferredContentQueue } from "@/lib/deferred-content-queue";
 import type { AgentMessage } from "@/lib/types";
 import { useCallback, useRef } from "react";
@@ -8,6 +8,7 @@ import type { SessionState } from "./use-session-state";
 
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
   | "sessionIdRef"
   | "historyGenerationRef"
   | "deferredContentCacheRef"
@@ -19,6 +20,7 @@ type Dependencies = Pick<
 
 export function useSessionDeferredContent(context: Dependencies) {
   const {
+    environmentId,
     sessionIdRef,
     historyGenerationRef,
     deferredContentCacheRef,
@@ -42,7 +44,8 @@ export function useSessionDeferredContent(context: Dependencies) {
         if (!request) {
           request = queueRef.current.run(async () => {
             if (generation !== historyGenerationRef.current || sid !== sessionIdRef.current) return undefined;
-            return (await getSessionEntryContent(sid, entryId, blockIndex)).content;
+            return (await getEnvironmentApiClient(environmentId).getSessionEntryContent(sid, entryId, blockIndex))
+              .content;
           });
           deferredContentRequestRef.current.set(cacheKey, request);
         }
@@ -69,6 +72,7 @@ export function useSessionDeferredContent(context: Dependencies) {
       commitHistory(nextMessages, loadedEntryIdsRef.current);
     },
     [
+      environmentId,
       commitHistory,
       deferredContentCacheRef,
       deferredContentRequestRef,

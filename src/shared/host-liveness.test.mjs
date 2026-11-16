@@ -3,35 +3,64 @@ import test from "node:test";
 import { assessHostLiveness, PRIMARY_HOST_LIVENESS } from "./host-liveness.ts";
 import { parseHostToMain, stakeOf } from "./host-protocol.ts";
 
-function assess(silentMs, atStake) {
+const IDLE = { running: [], starting: [] };
+const BUSY_READS = { running: [], starting: [], inFlightRequests: 2 };
+const SESSION = { running: ["a"], starting: [] };
+
+function assess(silentMs, activity) {
   return assessHostLiveness({
     now: 1_000 + silentMs,
-    lastTickAt: 1_000 + silentMs - 15_000,
+    lastTickAt: 1_000 + silentMs - PRIMARY_HOST_LIVENESS.intervalMs,
     lastPongAt: 1_000,
-    atStake,
+    activity,
   });
 }
 
-test("the primary watchdog uses a 25 second idle limit and 120 seconds of additional work grace", () => {
-  assert.deepEqual(PRIMARY_HOST_LIVENESS, { intervalMs: 15_000, timeoutMs: 10_000, graceWithWorkMs: 120_000 });
-  assert.deepEqual(assess(24_999, 0), { kind: "responsive" });
-  assert.deepEqual(assess(25_000, 0), { kind: "hung", silentMs: 25_000 });
+test("the primary watchdog checks every five seconds and escalates at 10, 25, 45 and 145 seconds of silence", () => {
+  assert.deepEqual(PRIMARY_HOST_LIVENESS, {
+    intervalMs: 5_000,
+    unresponsiveMs: 10_000,
+    idleKillMs: 25_000,
+    busyKillMs: 45_000,
+    sessionKillMs: 145_000,
+  });
 });
 
-test("work at stake stalls from 25 seconds through 144 seconds and becomes hung at 145 seconds", () => {
-  for (const silentMs of [25_000, 30_000, 144_000, 144_999]) {
-    assert.deepEqual(assess(silentMs, 1), { kind: "stalled", silentMs, killAt: 146_000 });
+test("a quiet host is responsive under ten seconds and unresponsive, but alive, from ten seconds", () => {
+  assert.deepEqual(assess(9_999, IDLE), { kind: "responsive" });
+  for (const silentMs of [10_000, 24_999]) {
+    assert.deepEqual(assess(silentMs, IDLE), { kind: "unresponsive", silentMs, killAt: 26_000 });
   }
-  assert.deepEqual(assess(145_000, 1), { kind: "hung", silentMs: 145_000 });
-  assert.deepEqual(assess(145_001, 2), { kind: "hung", silentMs: 145_001 });
+});
+
+test("an idle host with no requests in flight is restarted at 25 seconds of silence", () => {
+  assert.deepEqual(assess(25_000, IDLE), { kind: "hung", silentMs: 25_000 });
+});
+
+test("requests in flight extend the limit to a fixed 45 seconds after the last heartbeat", () => {
+  assert.deepEqual(assess(25_000, BUSY_READS), { kind: "unresponsive", silentMs: 25_000, killAt: 46_000 });
+  assert.deepEqual(assess(44_999, BUSY_READS), { kind: "unresponsive", silentMs: 44_999, killAt: 46_000 });
+  assert.deepEqual(assess(45_000, BUSY_READS), { kind: "hung", silentMs: 45_000 });
+  assert.deepEqual(
+    assess(30_000, { ...BUSY_READS, inFlightRequests: 50 }),
+    { kind: "unresponsive", silentMs: 30_000, killAt: 46_000 },
+    "more requests never push the deadline later",
+  );
+});
+
+test("running or starting sessions keep the host alive until 145 seconds of silence", () => {
+  for (const activity of [SESSION, { running: [], starting: ["b"] }, { ...SESSION, inFlightRequests: 4 }]) {
+    assert.deepEqual(assess(144_999, activity), { kind: "unresponsive", silentMs: 144_999, killAt: 146_000 });
+    assert.deepEqual(assess(145_000, activity), { kind: "hung", silentMs: 145_000 });
+  }
 });
 
 test("sleep and wall-clock rollback rearm the watchdog regardless of work at stake", () => {
-  for (const atStake of [0, 1]) {
-    assert.deepEqual(assessHostLiveness({ now: 300_000, lastTickAt: 15_000, lastPongAt: 0, atStake }), {
+  for (const activity of [IDLE, BUSY_READS, SESSION]) {
+    assert.deepEqual(assessHostLiveness({ now: 300_000, lastTickAt: 15_000, lastPongAt: 0, activity }), {
       kind: "clock-jump",
     });
-    assert.deepEqual(assessHostLiveness({ now: 1_000, lastTickAt: 2_000, lastPongAt: 2_000, atStake }), {
+    assert.deepEqual(assessHostLiveness({ now: 1_000, lastTickAt: 2_000, lastPongAt: 2_000, activity }), {
       kind: "clock-jump",
     });
   }
@@ -62,6 +91,26 @@ test("existing utility-process hosts remain usable while messages normalize into
     { type: "host-rpc", id: "1", method: "browser.status", params: {} },
   ])
     assert.deepEqual(parseHostToMain(message), message);
+});
+
+test("heartbeats carry the in-flight request count without turning requests into sessions at stake", () => {
+  const activity = { running: [], starting: [], inFlightRequests: 3 };
+  assert.deepEqual(parseHostToMain({ type: "pong", seq: 4, ts: 1000, lagMaxMs: 0, activity }), {
+    type: "pong",
+    seq: 4,
+    ts: 1000,
+    lagMaxMs: 0,
+    activity,
+  });
+  assert.equal(stakeOf(activity), 0, "slow reads alone never earn the long session protection");
+  assert.equal(stakeOf({ running: ["a"], starting: [], inFlightRequests: 9 }), 1);
+  for (const inFlightRequests of [-1, 1.5, "2", Number.NaN, null]) {
+    assert.equal(
+      parseHostToMain({ type: "pong", seq: 4, ts: 1000, lagMaxMs: 0, activity: { ...activity, inFlightRequests } }),
+      null,
+      `in-flight count ${String(inFlightRequests)} is rejected at the process boundary`,
+    );
+  }
 });
 
 test("host messages accept typed activity and reject malformed telemetry at the process boundary", () => {

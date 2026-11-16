@@ -252,10 +252,7 @@ export function RecessedPulseWell({
             key={row.key}
             row={row}
             now={now}
-            selected={
-              row.target.id === selectedSessionId &&
-              (row.target.environmentId ?? PRIMARY_ENVIRONMENT_ID) === selectedEnvironmentId
-            }
+            selected={row.target.id === selectedSessionId && row.target.environmentId === selectedEnvironmentId}
             onOpen={onOpenSession}
           />
         ))}

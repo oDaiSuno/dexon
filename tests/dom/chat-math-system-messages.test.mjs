@@ -22,6 +22,7 @@ const headings = (element) => element.querySelectorAll("h1,h2,h3,h4,h5,h6");
 
 test("when a compaction summary is expanded, its \\(…\\) and \\[…\\] formulas are laid out", async (t) => {
   const view = await mount(t, MessageView, {
+    environmentId: "primary",
     message: {
       role: "custom",
       customType: "compaction",
@@ -43,6 +44,7 @@ test("when a compaction summary is expanded, its \\(…\\) and \\[…\\] formula
 
 test("when an extension message shows \\(…\\) and \\[…\\], both are laid out as formulas", async (t) => {
   const view = await mount(t, MessageView, {
+    environmentId: "primary",
     message: {
       role: "custom",
       customType: "extension",

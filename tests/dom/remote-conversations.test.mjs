@@ -63,6 +63,7 @@ function binding(id, peerKind, peerId, sessionId, cwd, lastUsedAt) {
 function session(id, name, cwd) {
   const now = new Date().toISOString();
   return {
+    environmentId: "primary",
     path: `/sessions/${id}.jsonl`,
     id,
     cwd,

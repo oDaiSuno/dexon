@@ -19,7 +19,10 @@ import { useOlderHistory } from "./use-older-history";
 import { useReadingPosition } from "./use-reading-position";
 
 export function useChatWindow({
+  environmentId: explicitEnvironmentId,
   session,
+  sessionFolderMissing: knownMissingFolder,
+  missingFolderRecovery,
   newSessionCwd,
   onAgentEnd,
   onSessionCreated,
@@ -46,7 +49,8 @@ export function useChatWindow({
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
   const isMobile = useIsMobile(visible);
   const { t } = useI18n();
-  const [newSessionEnvironmentId] = useState(getActiveEnvironmentId);
+  const [mountCapturedEnvironmentId] = useState(getActiveEnvironmentId);
+  const environmentId = session?.environmentId ?? explicitEnvironmentId ?? mountCapturedEnvironmentId;
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -74,6 +78,8 @@ export function useChatWindow({
   const {
     loading,
     error,
+    sessionLoadReconnecting,
+    sessionFolderMissing,
     messages,
     entryIds,
     streamState,
@@ -81,6 +87,10 @@ export function useChatWindow({
     modelNames,
     modelList,
     modelCatalog,
+    modelCatalogScope,
+    modelLoading,
+    modelReconnecting,
+    modelLoadError,
     modelRefreshing,
     modelThinkingLevels,
     modelThinkingLevelMaps,
@@ -138,7 +148,9 @@ export function useChatWindow({
     isFollowingSuspended,
     settleAtLatest,
   } = useAgentSession({
+    environmentId,
     session,
+    sessionFolderMissing: knownMissingFolder,
     newSessionCwd,
     onAgentEnd: wrappedOnAgentEnd,
     onSessionCreated,
@@ -244,7 +256,7 @@ export function useChatWindow({
 
   const { editDraft, editHandlers, dropEditFiles } = useMessageEdit({
     sessionId: session?.id,
-    environmentId: session?.environmentId ?? newSessionEnvironmentId,
+    environmentId,
     supportsImages: modelSupportsImages(
       displayModelValue ? { provider: displayModelValue.provider, id: displayModelValue.modelId } : null,
       modelList,
@@ -337,7 +349,9 @@ export function useChatWindow({
 
   const chatInputElement = (
     <ChatInput
-      environmentId={session?.environmentId ?? newSessionEnvironmentId}
+      environmentId={environmentId}
+      sessionFolderMissing={sessionFolderMissing}
+      missingFolderRecovery={missingFolderRecovery}
       ref={chatInputRef}
       promptHistory={promptHistory}
       onSend={handleSend}
@@ -352,6 +366,10 @@ export function useChatWindow({
       modelList={modelList}
       modelThinkingLevels={modelThinkingLevels}
       modelCatalog={modelCatalog}
+      modelCatalogScope={modelCatalogScope}
+      modelLoading={modelLoading}
+      modelReconnecting={modelReconnecting}
+      modelLoadError={modelLoadError}
       modelRefreshing={modelRefreshing}
       onModelChange={handleModelChange}
       onModelsRefresh={refreshModels}
@@ -375,7 +393,7 @@ export function useChatWindow({
       soundEnabled={soundEnabled}
       onSoundToggle={onSoundToggle}
       onAudioUnlock={unlockAudio}
-      draftKey={session?.id ?? (newSessionCwd ? newSessionDraftKey(newSessionCwd, newSessionEnvironmentId) : undefined)}
+      draftKey={session?.id ?? (newSessionCwd ? newSessionDraftKey(newSessionCwd, environmentId) : undefined)}
       cwd={session?.cwd ?? newSessionCwd}
       visible={visible}
       remote={remote}
@@ -390,6 +408,7 @@ export function useChatWindow({
   return {
     loading,
     error,
+    sessionLoadReconnecting,
     handleDragEnter,
     handleDragOver,
     handleDragLeave,
@@ -420,6 +439,7 @@ export function useChatWindow({
     session,
     modelNames,
     messageCwd,
+    environmentId,
     onOpenFile,
     isNew,
     handleFork,

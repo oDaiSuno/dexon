@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
@@ -37,7 +38,15 @@ function FollowUpIcon({ size = 13 }: { size?: number }) {
   );
 }
 
-function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: string }) {
+function QueuedMessageRow({
+  environmentId,
+  kind,
+  text,
+}: {
+  environmentId: EnvironmentId;
+  kind: "steer" | "follow-up";
+  text: string;
+}) {
   const { t } = useI18n();
   const isSteer = kind === "steer";
   return (
@@ -56,7 +65,7 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
               {segment.text}
             </span>
           ) : (
-            <AttachmentChip key={index} path={segment.token.path} previewUrl={null} />
+            <AttachmentChip environmentId={environmentId} key={index} path={segment.token.path} previewUrl={null} />
           ),
         )}
       </div>
@@ -68,9 +77,11 @@ function QueuedMessageRow({ kind, text }: { kind: "steer" | "follow-up"; text: s
 }
 
 export function QueuedMessagesPanel({
+  environmentId,
   queuedMessages,
   onRecallQueue,
 }: {
+  environmentId: EnvironmentId;
   queuedMessages: QueuedMessages;
   onRecallQueue?: () => void;
 }) {
@@ -107,10 +118,10 @@ export function QueuedMessagesPanel({
       </div>
       <div className="queue-tray-list">
         {queuedMessages.steering.map((text, i) => (
-          <QueuedMessageRow key={`steer-${i}`} kind="steer" text={text} />
+          <QueuedMessageRow environmentId={environmentId} key={`steer-${i}`} kind="steer" text={text} />
         ))}
         {queuedMessages.followUp.map((text, i) => (
-          <QueuedMessageRow key={`followup-${i}`} kind="follow-up" text={text} />
+          <QueuedMessageRow environmentId={environmentId} key={`followup-${i}`} kind="follow-up" text={text} />
         ))}
       </div>
     </div>

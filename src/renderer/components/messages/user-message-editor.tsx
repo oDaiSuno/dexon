@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EnvironmentId } from "@contract/environment";
-import { useFileEnvironment } from "@/lib/use-file-environment";
-import { getSessionEnvironmentId } from "@/lib/environment-registry";
 import { useComposerAttachments } from "../chat-input/use-composer-attachments";
 import { useAtSuggestions } from "../chat-input/use-at-suggestions";
 import { initialTriggerGate, nextTriggerGate, openTrigger } from "../chat-input/composer-trigger";
@@ -27,7 +25,7 @@ export interface EditDraft {
 }
 
 export interface EditDraftHandlers {
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
   supportsImages?: boolean | null;
   registerFiles?(processFiles: (files: File[]) => Promise<void>): () => void;
   start(entryId: string, text: string, imageBlocks: ImageContent[]): void;
@@ -131,7 +129,7 @@ const NO_SKILLS = new Map<string, { readonly description: string }>();
 const ignoreReveal = () => undefined;
 
 export function UserMessageEditor({
-  environmentId: requestedEnvironmentId,
+  environmentId,
   sessionId,
   cwd,
   registerFiles,
@@ -144,7 +142,7 @@ export function UserMessageEditor({
   onCancel,
   onSend,
 }: {
-  environmentId?: EnvironmentId;
+  environmentId: EnvironmentId;
   sessionId?: string | null;
   cwd?: string;
   registerFiles?: EditDraftHandlers["registerFiles"];
@@ -158,9 +156,6 @@ export function UserMessageEditor({
   onSend: () => void | Promise<void>;
 }) {
   const { t } = useI18n();
-  const environmentId = useFileEnvironment(
-    requestedEnvironmentId ?? (sessionId ? getSessionEnvironmentId(sessionId) : undefined),
-  );
   const handleRef = useRef<ComposerEditableHandle | null>(null);
   const compositionRef = useRef<CompositionState>({ composing: false, endedAt: 0 });
   const [isPending, setIsPending] = useState(false);
@@ -179,6 +174,7 @@ export function UserMessageEditor({
   const [gate, setGate] = useState(initialTriggerGate);
   const trigger = openTrigger(gate, true);
   const suggestions = useAtSuggestions({
+    environmentId,
     cwd,
     atTrigger: trigger?.kind === "at" ? trigger : null,
     editableRef: handleRef,

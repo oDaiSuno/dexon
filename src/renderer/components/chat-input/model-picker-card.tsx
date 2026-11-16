@@ -5,6 +5,7 @@ import { ArrowRightIcon, RefreshCwIcon, SearchIcon } from "./icons";
 import { CLEAR, HOVER, paint, QUICK } from "./menu-chrome";
 import { filterModelGroups, providerDisplayName, type ModelGroup } from "./model-catalog";
 import { ModelGroupList, RecentModelGroup } from "./model-picker-list";
+import { deriveModelPickerBodyState, type ModelPickerStatus } from "./model-picker-state";
 import { readRecentModels, rememberRecentModel } from "./recent-models";
 
 const FOOTER_BUTTON: CSSProperties = {
@@ -25,12 +26,16 @@ export function ModelPickerCard({
   model,
   groups,
   modelCatalog,
+  modelCatalogScope,
+  modelLoading,
+  modelReconnecting,
+  modelLoadError,
   modelRefreshing,
   onModelsRefresh,
   onManageModels,
   onModelPick,
   onClose,
-}: {
+}: ModelPickerStatus & {
   panelRef: RefObject<HTMLDivElement | null>;
   buttonRef: RefObject<HTMLButtonElement | null>;
   style: CSSProperties;
@@ -77,7 +82,81 @@ export function ModelPickerCard({
   );
   const notices = (warnings ?? []).filter((warning) => !groupProviders.has(warning.provider));
   const offline = modelCatalog?.source === "offline";
-  const showEmpty = query.trim().length > 0 && visible.length === 0;
+  const body = deriveModelPickerBodyState({
+    groups,
+    visible,
+    query,
+    modelLoading,
+    modelRefreshing,
+    modelReconnecting,
+    modelLoadError,
+  });
+  const statusStyle: CSSProperties = { padding: "12px 10px", color: "var(--fx-text-secondary)" };
+  const retry = (
+    <button
+      type="button"
+      className="type-label-default"
+      style={{ ...FOOTER_BUTTON, color: "var(--fx-accent-blue-text)" }}
+      onClick={() => void onModelsRefresh?.()}
+    >
+      {t("retry", "Retry")}
+    </button>
+  );
+  const renderGroups = (shown: readonly ModelGroup[]) => (
+    <>
+      {query.trim().length === 0 && recentOptions.length > 0 && (
+        <RecentModelGroup options={recentOptions} model={model} onModelPick={pick} />
+      )}
+      <ModelGroupList groups={shown} model={model} failedProviders={failedProviders} onModelPick={pick} />
+    </>
+  );
+  const renderBody = () => {
+    switch (body.kind) {
+      case "loading":
+        return (
+          <div role="status" className="type-body-default" style={statusStyle}>
+            {t("modelPickerLoading", "Loading models…")}
+          </div>
+        );
+      case "reconnecting":
+        return (
+          <>
+            <div role="status" className="type-body-default" style={statusStyle}>
+              {t("primaryHostReconnecting", "Reconnecting to background service…")}
+            </div>
+            {body.hasCachedList &&
+              (body.cachedGroups.length > 0 ? (
+                renderGroups(body.cachedGroups)
+              ) : (
+                <div className="type-body-default" style={statusStyle}>
+                  {t("modelNoMatchingModels", "No matching models.")}
+                </div>
+              ))}
+          </>
+        );
+      case "failed":
+        return (
+          <div role="alert" className="type-body-default" style={statusStyle}>
+            <span>{body.message}</span>
+            {retry}
+          </div>
+        );
+      case "empty-catalog":
+        return (
+          <div role="status" className="type-body-default" style={statusStyle}>
+            {t("modelPickerEmptyCatalog", "No available models configured.")}
+          </div>
+        );
+      case "no-match":
+        return (
+          <div className="type-body-default" style={statusStyle}>
+            {t("modelNoMatchingModels", "No matching models.")}
+          </div>
+        );
+      case "list":
+        return renderGroups(body.groups);
+    }
+  };
 
   const pickFirstMatch = (event: KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
@@ -155,6 +234,28 @@ export function ModelPickerCard({
           }}
         />
       </div>
+      {modelCatalogScope?.kind === "global-fallback" && (
+        <div
+          role="status"
+          className="type-meta-default"
+          style={{ padding: "8px 14px", color: "var(--fx-text-secondary)" }}
+        >
+          {t(
+            "modelPickerGlobalFallback",
+            "The original project folder no longer exists. Using global model configuration.",
+          )}
+        </div>
+      )}
+      {groups.length > 0 && modelLoadError && (
+        <div
+          role="alert"
+          className="type-meta-default"
+          style={{ padding: "8px 14px", color: "var(--fx-text-secondary)" }}
+        >
+          <span>{modelLoadError}</span>
+          {retry}
+        </div>
+      )}
       {(offline || notices.length > 0) && (
         <div style={{ display: "flex", flexDirection: "column", gap: 2, flexShrink: 0, padding: "8px 14px 0" }}>
           {offline && (
@@ -193,15 +294,7 @@ export function ModelPickerCard({
           boxSizing: "border-box",
         }}
       >
-        {query.trim().length === 0 && recentOptions.length > 0 && (
-          <RecentModelGroup options={recentOptions} model={model} onModelPick={pick} />
-        )}
-        <ModelGroupList groups={visible} model={model} failedProviders={failedProviders} onModelPick={pick} />
-        {showEmpty && (
-          <div className="type-body-default" style={{ padding: "12px 10px", color: "var(--fx-text-tertiary)" }}>
-            {t("modelNoMatchingModels", "No matching models.")}
-          </div>
-        )}
+        {renderBody()}
       </div>
       {(onModelsRefresh || onManageModels) && (
         <div

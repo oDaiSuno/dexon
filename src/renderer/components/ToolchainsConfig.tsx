@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useEffect, useState } from "react";
 import type {
   PublicToolchainState,
@@ -13,7 +14,13 @@ import { ReadySection } from "./toolchains/ready-list";
 import { StorageSection } from "./toolchains/storage-section";
 import { actionKey, friendlyToolchainError, issueCapabilities, type ToolAction } from "./toolchains/shared";
 
-export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
+export function ToolchainsConfig({
+  cwd,
+  environmentId = PRIMARY_ENVIRONMENT_ID,
+}: {
+  cwd?: string | null;
+  environmentId?: EnvironmentId;
+}) {
   const { t } = useI18n();
   const [state, setState] = useState<PublicToolchainState | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -21,6 +28,7 @@ export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
+    if (environmentId !== PRIMARY_ENVIRONMENT_ID) return;
     let disposed = false;
     const unsubscribe = window.piBridge.onToolchainState((nextState) => {
       if (disposed) return;
@@ -53,7 +61,7 @@ export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
       disposed = true;
       unsubscribe();
     };
-  }, [cwd]);
+  }, [cwd, environmentId]);
 
   const performAction = async (request: ToolchainActionRequest): Promise<void> => {
     setPendingAction(actionKey(request));
@@ -81,6 +89,14 @@ export function ToolchainsConfig({ cwd }: { cwd?: string | null }) {
       setActionError(t("toolOpenManagedFolderFailed", "Couldn't open the managed tools folder."));
     }
   };
+
+  if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
+    return (
+      <div role="status" className="type-body-default p-[24px] text-[var(--fx-text-secondary)]">
+        {t("toolchainsLocalOnly", "Developer toolchain inspection is only available for the local environment.")}
+      </div>
+    );
+  }
 
   return (
     <ToolchainStateView

@@ -81,6 +81,7 @@ test("context usage survives session switches without a live runtime", async (pa
       sessionId: id,
       filePath: `/fixture/${id}.jsonl`,
       info: {
+        environmentId: "primary",
         id,
         path: `/fixture/${id}.jsonl`,
         cwd: "/fixture",

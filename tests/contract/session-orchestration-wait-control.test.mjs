@@ -82,28 +82,25 @@ test(
 );
 
 test("a session cannot wait on a session that is already waiting on it", { timeout: 90_000 }, async () => {
-  const parent = await host.createUserSession({ cwd: host.workspace("cycle-parent") });
-  const childMessage = "Child asks the parent first";
-  let childId;
-  host.model.script(childMessage, [
+  const cwd = host.workspace("cycle-peers");
+  const peerA = await host.createUserSession({ cwd });
+  const peerB = await host.createUserSession({ cwd });
+  host.model.script("Peer A asks peer B first", [
     toolCall("session_prompt", () => ({
-      sessionId: parent,
-      message: "Child asks for an answer",
+      sessionId: peerB,
+      message: "Peer A asks for an answer",
       wait: true,
       timeoutSeconds: 20,
     })),
     { text: "Child got its answer" },
   ]);
-  host.model.script("Start a child that waits for you", [
-    toolCall("session_new", { message: childMessage, wait: false }),
-    { text: "Child started" },
-    { toolCall: { name: "session_wait", input: () => ({ sessionId: childId, timeoutSeconds: 20 }) } },
+  host.model.script("Peer A asks for an answer", [
+    toolCall("session_wait", { sessionId: peerA, timeoutSeconds: 20 }),
     { text: "Refused to wait in a circle" },
   ]);
   const results = resultReader(host);
 
-  await host.prompt(parent, "Start a child that waits for you");
-  childId = expectToolPayload((await results.next())[0], "the child must be created").sessionId;
+  await host.prompt(peerA, "Peer A asks peer B first");
 
   const refusal = expectToolRefusal(
     (await results.next())[0],
@@ -114,9 +111,9 @@ test("a session cannot wait on a session that is already waiting on it", { timeo
 
   await waitUntil(
     async () => {
-      const replies = await assistantTexts(childId);
+      const replies = await assistantTexts(peerA);
       return replies.includes("Child got its answer");
     },
-    { timeoutMs: 30_000, label: "the child to get the answer of the turn it asked for" },
+    { timeoutMs: 30_000, label: "peer A to get the answer of the turn it asked for" },
   );
 });

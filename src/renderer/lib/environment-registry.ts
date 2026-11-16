@@ -1,3 +1,4 @@
+import { clearLastKnownGoodModels } from "./last-known-good-models";
 import { useSyncExternalStore } from "react";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId, type EnvironmentView } from "@contract/environment";
 import {
@@ -35,6 +36,7 @@ export class EnvironmentRegistry {
   initialize = (): void => {
     const bridge = typeof window === "undefined" ? undefined : window.piBridge;
     if (this.bridge === bridge) return;
+    clearLastKnownGoodModels();
     this.offChanges?.();
     this.offChanges = undefined;
     this.bridge = bridge;
@@ -117,10 +119,10 @@ export class EnvironmentRegistry {
     this.sessionOwners.set(sessionId, owners);
   }
 
-  getSessionEnvironmentId(sessionId: string): EnvironmentId {
+  getSessionEnvironmentId(sessionId: string): EnvironmentId | null {
     const owners = this.sessionOwners.get(sessionId);
     if (owners?.has(this.getActiveEnvironmentId())) return this.getActiveEnvironmentId();
-    return owners?.values().next().value ?? this.getActiveEnvironmentId();
+    return owners?.values().next().value ?? null;
   }
 
   async runCommand<C extends EnvironmentCommand>(command: C): Promise<EnvironmentCommandResult<C>> {
@@ -167,7 +169,6 @@ export class EnvironmentRegistry {
 export const environmentRegistry = new EnvironmentRegistry();
 export const getEnvironmentConnection = (id: EnvironmentId) => environmentRegistry.getConnection(id);
 export const getActiveEnvironmentId = () => environmentRegistry.getActiveEnvironmentId();
-export const getActiveEnvironmentConnection = () => getEnvironmentConnection(getActiveEnvironmentId());
 export const getSessionEnvironmentId = (sessionId: string) => environmentRegistry.getSessionEnvironmentId(sessionId);
 export const registerEnvironmentSession = (id: EnvironmentId, sessionId: string) =>
   environmentRegistry.registerSession(id, sessionId);

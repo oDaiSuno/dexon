@@ -86,7 +86,7 @@ function skillsResponse(skillsList) {
 function createProbe() {
   const state = { value: undefined };
   function Probe({ cwd }) {
-    state.value = useSkillDirectory(cwd);
+    state.value = useSkillDirectory("primary", cwd);
     return null;
   }
   return { state, Probe };

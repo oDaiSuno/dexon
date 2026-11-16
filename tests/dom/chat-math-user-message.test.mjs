@@ -20,7 +20,11 @@ const formulas = (element) => element.querySelectorAll(".katex");
 const displayFormulas = (element) => element.querySelectorAll(".katex-display");
 
 async function openSentMessage(t, content) {
-  const view = await mount(t, MessageView, { message: { role: "user", content, timestamp: 1 }, cwd: CWD });
+  const view = await mount(t, MessageView, {
+    environmentId: "primary",
+    message: { role: "user", content, timestamp: 1 },
+    cwd: CWD,
+  });
   const sentences = [...view.container.querySelectorAll("p")];
   assert.ok(sentences.length > 0, "the sent message shows its text");
   return { container: view.container, sentences };

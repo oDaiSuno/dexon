@@ -1,0 +1,9 @@
+[
+  "primaryHostReconnecting",
+  "primaryHostRestartFailed",
+  "primaryHostRestartNow",
+  "primaryHostSendHint",
+  "primaryHostUnresponsive",
+  "primaryHostUnresponsiveDetail",
+  "primaryHostUnresponsiveHint"
+]

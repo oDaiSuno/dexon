@@ -1,3 +1,4 @@
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { setProviderBaseUrl } from "@/lib/models-config-state";
@@ -11,19 +12,6 @@ import { DialogLogoTile, HeaderStatus } from "./provider-dialog-parts";
 import { useProviderLabels } from "./provider-tree";
 import type { ApiKeyProvider, OAuthProvider } from "./types";
 import { modelSelectionOf, type ModelsConfigEditor } from "./use-models-config";
-
-type CredentialResponse = {
-  ok?: boolean;
-  warning?: { code: "MODEL_SYNC_FAILED"; message: string };
-  error?: string;
-};
-
-async function sendApiKey(providerId: string, init: RequestInit): Promise<CredentialResponse> {
-  const res = await fetch(`/api/auth/api-key/${encodeURIComponent(providerId)}`, init);
-  const d = (await res.json()) as CredentialResponse;
-  if (!res.ok || d.error) throw new Error(d.error ?? `HTTP ${res.status}`);
-  return d;
-}
 
 export function ApiKeyProviderDialog({
   editor,
@@ -67,10 +55,9 @@ export function ApiKeyProviderDialog({
     setKeySaving(true);
     setNotice(null);
     try {
-      const d = await sendApiKey(provider.id, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey: apiKey.trim() }),
+      const d = await getEnvironmentApiClient(editor.environmentId).call("auth.setApiKey", {
+        provider: provider.id,
+        key: apiKey.trim(),
       });
       setApiKey("");
       editor.refreshApiKeyProviders();
@@ -87,7 +74,9 @@ export function ApiKeyProviderDialog({
     setRemoving(true);
     setNotice(null);
     try {
-      const d = await sendApiKey(provider.id, { method: "DELETE" });
+      const d = await getEnvironmentApiClient(editor.environmentId).call("auth.deleteApiKey", {
+        provider: provider.id,
+      });
       editor.refreshApiKeyProviders();
       if (d.warning) setNotice({ tone: "warning", text: d.warning.message });
       else onClose();
@@ -204,6 +193,7 @@ export function OAuthProviderDialog({
     >
       <div style={{ padding: "20px 20px 8px" }}>
         <OAuthDetail
+          environmentId={editor.environmentId}
           provider={provider}
           autoStart={startLogin}
           onRefresh={editor.refreshOAuthProviders}

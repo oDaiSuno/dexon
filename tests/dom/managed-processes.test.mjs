@@ -93,7 +93,7 @@ async function panel(t, processes = [processInfo()]) {
       else delete dom.window.piBridge;
     }
   });
-  view = await mount(t, ProcessPanel);
+  view = await mount(t, ProcessPanel, { environmentId: "primary" });
   const processButton = (label) =>
     [...view.container.querySelectorAll("button")].find((control) => control.textContent.includes(label));
   return {

@@ -1,3 +1,4 @@
+import { environmentSession } from "./environment-session-test-support.mjs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { act } from "react-test-renderer";
@@ -169,4 +170,20 @@ test("mount-load mirrors the host runtime state into the hook", async (t) => {
   assert.equal(h.state.thinkingLevel, "low");
   assert.deepEqual(h.state.extensionStatuses, [{ key: "k", text: "status" }]);
   assert.deepEqual(h.state.queuedMessages, { steering: ["st"], followUp: ["fu"] });
+});
+
+test("non-transport history failures are visible and a later reconnect clears the failure", async (t) => {
+  const h = await environmentSession(t);
+  h.failSession(new Error("Session history access denied"));
+  await h.disconnect("gpu");
+  await h.reconnect("gpu", 2);
+  await h.flush();
+  assert.equal(h.state.error, "Session history access denied");
+  assert.equal(h.state.loading, false);
+  h.failSession(null);
+  await h.disconnect("gpu");
+  await h.reconnect("gpu", 3);
+  await h.flush();
+  assert.equal(h.state.error, null);
+  assert.equal(h.state.messages.length, 2);
 });

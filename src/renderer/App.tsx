@@ -48,17 +48,19 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
   const cancelledRef = useRef(false);
+  const readyRef = useRef(false);
 
   const connect = useCallback(() => {
     ensureRpc()
       .then(() => {
         if (!cancelledRef.current) {
+          readyRef.current = true;
           setReady(true);
           setError(null);
         }
       })
       .catch((err) => {
-        if (!cancelledRef.current) {
+        if (!cancelledRef.current && !readyRef.current) {
           setError(err instanceof Error ? err.message : String(err));
           setReady(false);
         }
@@ -72,6 +74,7 @@ export function App() {
     connect();
 
     const offCrash = window.piBridge?.onHostCrashed?.((payload) => {
+      if (readyRef.current) return;
       setReady(false);
       setError(payload.detail || "Agent Host crashed and could not recover");
     });

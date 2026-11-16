@@ -48,10 +48,13 @@ test("falls back to the legacy files projection when matches is absent", () => {
 
 test("normalizes Windows cache keys case-insensitively", () => {
   assert.equal(
-    fileSuggestionCacheKey("C:\\Users\\Me\\Project\\", "Src/Main", "win32"),
-    fileSuggestionCacheKey("c:/users/me/project", "src/main", "win32"),
+    fileSuggestionCacheKey("primary", "C:\\Users\\Me\\Project\\", "Src/Main", "win32"),
+    fileSuggestionCacheKey("primary", "c:/users/me/project", "src/main", "win32"),
   );
-  assert.notEqual(fileSuggestionCacheKey("/Work", "Main", "darwin"), fileSuggestionCacheKey("/work", "main", "darwin"));
+  assert.notEqual(
+    fileSuggestionCacheKey("primary", "/Work", "Main", "darwin"),
+    fileSuggestionCacheKey("primary", "/work", "main", "darwin"),
+  );
 });
 
 test("bounds entries with LRU eviction and expires stale values", () => {

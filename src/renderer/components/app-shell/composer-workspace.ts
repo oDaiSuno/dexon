@@ -1,3 +1,4 @@
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useMemo } from "react";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { ComposerCheckout, ComposerProject, ComposerWorkspace, ComposerWorkspaceCard } from "../chat-input/types";
@@ -5,6 +6,7 @@ import { checkoutSections } from "../chat-input/workspace-card-rows";
 import type { ProjectWorkspaceState } from "../session-sidebar/project-workspace";
 
 export function useComposerWorkspace(props: {
+  environmentId?: EnvironmentId;
   workspace: ProjectWorkspaceState;
   project: ComposerProject | null;
   onSwitchProject: () => void;
@@ -13,7 +15,16 @@ export function useComposerWorkspace(props: {
   card?: ComposerWorkspaceCard | null;
   readOnly?: { branch: string | null; isWorktree: boolean; path: string } | null;
 }): ComposerWorkspace | null {
-  const { workspace, project, onSwitchProject, onOpenInFinder, onCopyPath, card, readOnly } = props;
+  const {
+    environmentId = PRIMARY_ENVIRONMENT_ID,
+    workspace,
+    project,
+    onSwitchProject,
+    onOpenInFinder,
+    onCopyPath,
+    card,
+    readOnly,
+  } = props;
   const {
     showWorktreeSwitcher,
     worktreeState,
@@ -105,6 +116,7 @@ export function useComposerWorkspace(props: {
           checkouts.find((entry) => entry.isMain) ??
           null);
     const base = {
+      environmentId,
       project,
       menuOpen: wtDropdownOpen,
       toggleMenu: toggleWorktreeDropdown,
@@ -138,6 +150,7 @@ export function useComposerWorkspace(props: {
       card: card ?? fallbackCard ?? EMPTY_CARD,
     };
   }, [
+    environmentId,
     project,
     checkouts,
     selectedCwd,

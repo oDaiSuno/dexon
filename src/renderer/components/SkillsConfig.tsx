@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useCallback, useState, type CSSProperties } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
@@ -19,6 +20,7 @@ const dialogFrame: CSSProperties = {
 };
 
 interface SkillsConfigProps {
+  environmentId: EnvironmentId;
   cwd: string;
   onClose: () => void;
   embedded?: boolean;
@@ -26,11 +28,12 @@ interface SkillsConfigProps {
 }
 
 export function SkillsConfig(props: SkillsConfigProps) {
-  const directory = useSkillDirectory(props.cwd);
+  const directory = useSkillDirectory(props.environmentId, props.cwd);
   return <SkillsManager {...props} directory={directory} />;
 }
 
 export function SkillsManager({
+  environmentId,
   cwd,
   onClose,
   embedded = false,
@@ -134,6 +137,7 @@ export function SkillsManager({
           <div style={{ flex: 1, overflowY: "auto", padding: 20 }}>
             {addMode ? (
               <AddSkillPanel
+                environmentId={environmentId}
                 cwd={cwd}
                 onInstalled={() => {
                   void loadSkills();
@@ -141,6 +145,7 @@ export function SkillsManager({
               />
             ) : loading ? null : selectedSkill ? (
               <SkillDetail
+                environmentId={environmentId}
                 key={selectedSkill.filePath}
                 skill={selectedSkill}
                 cwd={cwd}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ChannelsSnapshot } from "@shared/channel-types";
-import { call } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { AccountDetailHost } from "./channels-config/account-detail-host";
 import { AccountsOverview } from "./channels-config/accounts-overview";
 import { ActivitySection } from "./channels-config/activity-section";
@@ -94,7 +95,9 @@ export function ChannelsConfig({
           loading={loading}
           busy={busy}
           onOpenAccount={setOpenAccountId}
-          onReconnect={(accountId) => void run(() => call("channels.restart", { accountId }))}
+          onReconnect={(accountId) =>
+            void run(() => getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.restart", { accountId }))
+          }
           onConnectWeixin={() => void beginLogin()}
           onConnectTelegram={() => {
             setTelegramError("");
@@ -132,7 +135,7 @@ export function ChannelsConfig({
           setCode={setVerificationCode}
           onSubmitCode={() =>
             run(async () => {
-              await call("channels.loginSubmitCode", {
+              await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).call("channels.loginSubmitCode", {
                 channel: login.channel,
                 sessionKey: login.sessionKey,
                 code: verificationCode,

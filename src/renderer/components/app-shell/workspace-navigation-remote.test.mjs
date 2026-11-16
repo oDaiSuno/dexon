@@ -76,6 +76,7 @@ test("a created session keeps its captured server after focus moves elsewhere an
 
 test("an external remote session request waits for the first directory instead of being lost while its server connects", async (t) => {
   const session = {
+    environmentId: "primary",
     id: "late-remote",
     cwd: "/work/app",
     path: "/sessions/late",
@@ -112,6 +113,7 @@ test("an external session request survives the workspace's initial preferences l
   const listing = deferred();
   const primary = { ...remoteServer("primary"), target: { kind: "primary" }, status: { phase: "available" } };
   const session = {
+    environmentId: "primary",
     id: "cold-start",
     cwd: "/work/app",
     path: "/sessions/cold",
@@ -176,7 +178,98 @@ test("an empty conversation's chosen folder is scoped to its mounted space inste
   await host.run(() => host.get().handleNewSession("draft", "/work/old"));
   assert.equal(host.get().newSessionCwd, "/work/old");
   await host.run(({ workspaceStore }) => workspaceStore.openSpace({ environmentId: "staging", path: "/work/new" }));
-  await host.run(() => host.get().noteCoordinatorCwd("/work/new"));
   assert.equal(host.get().newSessionCwd, null);
-  assert.equal(host.get().activeCwd, "/work/new");
+  assert.equal(host.get().location, null);
+});
+
+test("workspace locations follow the selected session and become empty when its environment has no owned target", async (t) => {
+  const host = await mountProjectProbe(t, () => api.useWorkspaceNavigation(navProps), {
+    servers: [remoteServer("gpu"), remoteServer("empty")],
+    target: target(),
+  });
+  const session = {
+    id: "same-id",
+    environmentId: "gpu",
+    cwd: "/home/dev/app/worktree",
+    projectRoot: "/home/dev/app",
+    path: "/sessions/a",
+    firstMessage: "",
+    created: "2026-01-01",
+    modified: "2026-01-01",
+    messageCount: 1,
+  };
+  await host.run(() => host.get().handleSelectSession(session));
+  assert.deepEqual(host.get().location, { environmentId: "gpu", path: "/home/dev/app/worktree" });
+  await host.run(() =>
+    host
+      .get()
+      .handleSelectSession({ ...session, environmentId: "primary", cwd: "/Users/dev/app", projectRoot: undefined }),
+  );
+  assert.deepEqual(host.get().location, { environmentId: "primary", path: "/Users/dev/app" });
+  await host.run(({ workspaceStore }) => workspaceStore.openSpace({ environmentId: "empty", path: "/unmounted" }));
+  assert.equal(host.get().selectedSession, null);
+  assert.equal(host.get().location, null);
+  assert.equal(host.get().newSessionCwd, null);
+  await host.run(({ workspaceStore }) => {
+    workspaceStore.noteCurrentProject({ environmentId: "empty", path: "/home/other/project" }, null);
+    workspaceStore.openSpace({ environmentId: "empty", path: "/home/other/project" });
+  });
+  assert.deepEqual(host.get().location, { environmentId: "empty", path: "/home/other/project" });
+});
+
+test("opening a directory on another server clears the old session URL and panel without leaking its cwd back", async (t) => {
+  const targetWindow = target();
+  const routes = [];
+  let dismissals = 0;
+  targetWindow.history.replaceState = (_state, _title, url) => routes.push(url);
+  const host = await mountProjectProbe(
+    t,
+    () => {
+      const navigation = api.useWorkspaceNavigation({
+        ...navProps,
+        onTopPanelDismiss: () => {
+          dismissals += 1;
+        },
+      });
+      const workspace = api.useProjectWorkspace({
+        sessions: [],
+        selectedCwdProp: navigation.location?.path ?? null,
+        onCwdChange: (cwd, root, origin) => {
+          if (origin !== "coordinator") navigation.handleCwdChange(cwd, root);
+        },
+      });
+      return { navigation, workspace };
+    },
+    {
+      servers: [remoteServer("gpu"), remoteServer("staging")],
+      target: targetWindow,
+      reply: (_id, method, params) =>
+        method === "system.validateCwd"
+          ? { ok: true, path: params.path }
+          : { projectRoot: params.cwd, isGit: false, isTopLevel: false, worktrees: [] },
+    },
+  );
+  await host.run(() =>
+    host.get().navigation.handleSelectSession({
+      id: "old-gpu-session",
+      environmentId: "gpu",
+      cwd: "/work/gpu",
+      path: "/sessions/old",
+      firstMessage: "",
+      created: "2026-01-01",
+      modified: "2026-01-01",
+      messageCount: 1,
+    }),
+  );
+  await host.run(async () =>
+    assert.equal((await host.get().workspace.openDirectory("/work/staging", "staging")).status, "selected"),
+  );
+  assert.equal(host.get().navigation.selectedSession, null);
+  assert.equal(api.workspaceStore.getSnapshot().focus.environmentId, "staging");
+  assert.equal(api.workspaceStore.getSnapshot().focus.spaceKey, '["staging","/work/staging"]');
+  assert.equal(routes.at(-1), "/");
+  assert.equal(dismissals, 1);
+  assert.equal(host.get().workspace.selectedCwd, "/work/staging");
+  await host.run(({ workspaceStore }) => workspaceStore.openSpace({ environmentId: "gpu", path: "/unmounted" }));
+  assert.equal(host.get().workspace.selectedCwd, null);
 });

@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useMemo, useState } from "react";
 import { MarkdownBody } from "../MarkdownBody";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
@@ -5,7 +6,13 @@ import { parseCompactionSummary } from "@/lib/compaction-summary";
 import { DeferredContentActions, formatTime, getMessageImages, getMessageText, imageSource, safeJson } from "./shared";
 import type { CustomMessage } from "@/lib/types";
 
-export function CompactionMessageView({ message }: { message: CustomMessage }) {
+export function CompactionMessageView({
+  environmentId,
+  message,
+}: {
+  environmentId: EnvironmentId;
+  message: CustomMessage;
+}) {
   const summary = getMessageText(message.content);
   const parsedSummary = useMemo(() => parseCompactionSummary(summary), [summary]);
   const [expanded, setExpanded] = useState(false);
@@ -66,7 +73,9 @@ export function CompactionMessageView({ message }: { message: CustomMessage }) {
               The conversation history before this point was compacted into the following summary:
             </div>
             {parsedSummary.body ? (
-              <MarkdownBody className="markdown-compaction-message">{parsedSummary.body}</MarkdownBody>
+              <MarkdownBody environmentId={environmentId} className="markdown-compaction-message">
+                {parsedSummary.body}
+              </MarkdownBody>
             ) : (
               <span style={{ color: "var(--fx-text-tertiary)", fontSize: 12 }}>(no summary)</span>
             )}
@@ -109,14 +118,16 @@ function CompactionFileList({ title, files }: { title: string; files: string[] }
 }
 
 export function CustomMessageView({
+  environmentId,
   message,
   cwd,
   onOpenFile,
   onLoadDeferredContent,
 }: {
+  environmentId: EnvironmentId;
   message: CustomMessage;
   cwd?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
 }) {
   const isHiddenDisplay = message.display === false;
@@ -197,7 +208,12 @@ export function CustomMessageView({
               </div>
             )}
             {text ? (
-              <MarkdownBody className="markdown-custom-message" cwd={cwd} onOpenFile={onOpenFile}>
+              <MarkdownBody
+                environmentId={environmentId}
+                className="markdown-custom-message"
+                cwd={cwd}
+                onOpenFile={onOpenFile}
+              >
                 {text}
               </MarkdownBody>
             ) : (

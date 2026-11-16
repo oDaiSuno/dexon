@@ -1,5 +1,5 @@
-import { agentState, getSession, getSessionContext, getSessionContextPage } from "@/lib/api-client";
-import { sessionClientErrorMessage } from "@/lib/session-error-message";
+import { getEnvironmentApiClient } from "@/lib/api-client";
+import { isSessionTransportClosed, sessionClientErrorMessage } from "@/lib/session-error-message";
 import { captureReadingAnchor } from "@/lib/reading-anchor";
 import { normalizeSessionHistory, type SessionHistoryValue } from "@/lib/session-history-update";
 import { mergeHistoryTail, outlineBeyondWindow, prependHistoryPage } from "@/lib/session-pagination";
@@ -24,6 +24,7 @@ import type { SessionState } from "./use-session-state";
 import { useSessionHistoryVisuals } from "./use-session-history-visuals";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
   | "interactiveTools"
   | "loadedMessagesRef"
   | "loadedEntryIdsRef"
@@ -41,6 +42,7 @@ type Dependencies = Pick<
   | "setData"
   | "setActiveLeafId"
   | "setError"
+  | "setSessionLoadReconnecting"
   | "sessionIdRef"
   | "pendingSessionLoadTraceRef"
   | "deferredContentCacheRef"
@@ -60,13 +62,8 @@ type Dependencies = Pick<
 >;
 export type OlderHistoryOutcome = "unavailable" | "loaded" | "stalled" | "discarded" | "reset" | "failed";
 export type OlderHistoryPurpose = "reading" | "jump";
-
 export function useSessionHistory(context: Dependencies, readingVisible = true) {
-  const {
-    readingVisibleRef,
-    scheduleVisualFrame: scheduleTrackedVisualFrame,
-    queueHistoryAnchor,
-  } = useSessionHistoryVisuals({
+  const { readingVisibleRef, scheduleVisualFrame, queueHistoryAnchor } = useSessionHistoryVisuals({
     readingVisible,
     historyGenerationRef: context.historyGenerationRef,
     sessionIdRef: context.sessionIdRef,
@@ -74,8 +71,8 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     scrollContainerRef: context.scrollContainerRef,
     userScrollIntentUntilRef: context.userScrollIntentUntilRef,
   });
-
   const {
+    environmentId,
     interactiveTools,
     loadedMessagesRef,
     loadedEntryIdsRef,
@@ -93,6 +90,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     setData,
     setActiveLeafId,
     setError,
+    setSessionLoadReconnecting,
     sessionIdRef,
     pendingSessionLoadTraceRef,
     deferredContentCacheRef,
@@ -109,7 +107,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     messages,
     scrollContainerRef,
   } = context;
-
   const commitHistory = useCallback(
     (nextMessages: AgentMessage[], nextEntryIds: string[]) => {
       const normalized = normalizeSessionHistory(nextMessages, nextEntryIds);
@@ -120,7 +117,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     },
     [loadedEntryIdsRef, loadedMessagesRef, setEntryIds, setMessages],
   );
-
   const updateHistory = useCallback(
     (update: (current: SessionHistoryValue) => SessionHistoryValue) => {
       const next = update({ messages: loadedMessagesRef.current, entryIds: loadedEntryIdsRef.current });
@@ -128,7 +124,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     },
     [commitHistory, loadedEntryIdsRef, loadedMessagesRef],
   );
-
   const updatePagingState = useCallback(
     (revision: string, cursor?: string) => {
       historyRevisionRef.current = revision;
@@ -138,7 +133,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
     },
     [historyRevisionRef, previousCursorRef, setHistoryRevision, setPreviousCursor],
   );
-
   const loadSession = useCallback(
     async (sid: string, showLoading = false, includeState = false, resetHistory = false) => {
       const trace = consumeSessionLoadTrace(sid, showLoading ? "initial" : "refresh");
@@ -159,7 +153,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           markSessionLoadPhase(trace, "rpc-start");
           result = await modelChoice.observe(
             () =>
-              getSession(sid, includeState, trace.id, {
+              getEnvironmentApiClient(environmentId).getSession(sid, includeState, trace.id, {
                 maxTurns: INITIAL_HISTORY_TURNS,
                 maxBytes: HISTORY_PAGE_MAX_BYTES,
               }),
@@ -178,6 +172,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
               setData(null);
               setActiveLeafId(null);
               commitHistory([], []);
+              setSessionLoadReconnecting(false);
               setError(null);
             }
             return null;
@@ -190,7 +185,6 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           traceFailed = true;
           return null;
         }
-
         const history = snapshotOrder.admitHistory(ticket);
         if (history.admitted) {
           setData(d);
@@ -215,6 +209,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
           commitHistory(mergedHistory.messages, mergedHistory.entryIds);
           updatePagingState(mergedHistory.revision!, mergedHistory.previousCursor ?? undefined);
           setOlderOutline(outlineBeyondWindow(d.context.outline, mergedHistory.entryIds));
+          setSessionLoadReconnecting(false);
           setError(null);
         } else {
           failSessionLoadTrace(trace);
@@ -241,6 +236,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         return d.agentState;
       } catch (e) {
         if (!traceFailed) failSessionLoadTrace(trace);
+        setSessionLoadReconnecting(isSessionTransportClosed(e));
         setError(sessionClientErrorMessage(e, t, t("sessionLoadFailed", "Failed to load session.")));
         return null;
       } finally {
@@ -248,6 +244,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       }
     },
     [
+      environmentId,
       commitHistory,
       deferredContentCacheRef,
       deferredContentRequestRef,
@@ -265,6 +262,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       setContextUsage,
       setData,
       setError,
+      setSessionLoadReconnecting,
       setExtensionStatuses,
       setExtensionWidgets,
       setLoading,
@@ -277,21 +275,19 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       updatePagingState,
     ],
   );
-
   const refreshContextUsage = useCallback(
     async (sid: string | null = sessionIdRef.current) => {
       if (!sid) return;
       try {
-        const d = await agentState(sid);
+        const d = await getEnvironmentApiClient(environmentId).agentState(sid);
         const state = d.state as AgentStateResponse | undefined;
         if (state?.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
       } catch {
         return;
       }
     },
-    [sessionIdRef, setContextUsage],
+    [environmentId, sessionIdRef, setContextUsage],
   );
-
   useEffect(() => {
     const trace = pendingSessionLoadTraceRef.current;
     if (!trace) return;
@@ -308,12 +304,11 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       return;
     }
     const scheduleSecondFrame = () => {
-      if (!readingVisibleRef.current || scheduleTrackedVisualFrame(finish) === null) finish();
+      if (!readingVisibleRef.current || scheduleVisualFrame(finish) === null) finish();
     };
-    if (scheduleTrackedVisualFrame(scheduleSecondFrame) === null) finish();
+    if (scheduleVisualFrame(scheduleSecondFrame) === null) finish();
     return finish;
-  }, [messages, pendingSessionLoadTraceRef, readingVisible, readingVisibleRef, scheduleTrackedVisualFrame]);
-
+  }, [messages, pendingSessionLoadTraceRef, readingVisible, readingVisibleRef, scheduleVisualFrame]);
   useEffect(
     () => () => {
       const trace = pendingSessionLoadTraceRef.current;
@@ -334,7 +329,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       try {
         const d = await modelChoice.observe(
           () =>
-            getSessionContext(sid, leafId ?? undefined, {
+            getEnvironmentApiClient(environmentId).getSessionContext(sid, leafId ?? undefined, {
               maxTurns: INITIAL_HISTORY_TURNS,
               maxBytes: HISTORY_PAGE_MAX_BYTES,
             }),
@@ -351,6 +346,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       }
     },
     [
+      environmentId,
       commitHistory,
       historyGenerationRef,
       modelChoice,
@@ -387,7 +383,12 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       olderRequestRef.current = cursor;
       setLoadingOlder(true);
       try {
-        const page = await getSessionContextPage(sid, cursor, INITIAL_HISTORY_TURNS, HISTORY_PAGE_MAX_BYTES);
+        const page = await getEnvironmentApiClient(environmentId).getSessionContextPage(
+          sid,
+          cursor,
+          INITIAL_HISTORY_TURNS,
+          HISTORY_PAGE_MAX_BYTES,
+        );
         if (
           generation !== historyGenerationRef.current ||
           sid !== sessionIdRef.current ||
@@ -464,6 +465,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       return result;
     },
     [
+      environmentId,
       commitHistory,
       completionScrollAllowedRef,
       historyGenerationRef,

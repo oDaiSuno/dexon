@@ -197,6 +197,10 @@ export interface ModelCatalogStatus {
   warnings: ModelCatalogWarning[];
 }
 
+export type ModelCatalogScope =
+  | { readonly kind: "project"; readonly folderPath: string }
+  | { readonly kind: "global-fallback"; readonly missingFolderPath: string };
+
 export interface ModelsListResult {
   models: ModelInfo[];
   defaultModel: { provider: string; modelId: string } | null;
@@ -205,6 +209,7 @@ export interface ModelsListResult {
   effectiveThinkingLevels: Record<string, string>;
   nameMap: Record<string, string>;
   catalog: ModelCatalogStatus;
+  scope?: ModelCatalogScope;
 }
 
 export interface ModelPreferencesResult {
@@ -351,5 +356,16 @@ export class ModelUnavailableError extends RpcError {
       detail: { provider: ref.provider, modelId: ref.modelId },
     });
     this.name = "ModelUnavailableError";
+  }
+}
+
+export class MissingSessionCwdError extends RpcError {
+  constructor(cwd: string) {
+    super({
+      code: "MISSING_SESSION_CWD",
+      message: `Directory does not exist: ${cwd}`,
+      detail: { cwd },
+    });
+    this.name = "MissingSessionCwdError";
   }
 }

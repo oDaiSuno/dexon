@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { type AgentPhase } from "@/hooks/useAgentSession";
 import { isAssistantFailure, isAssistantLengthTruncated, isAssistantTurnResolution } from "@/lib/message-display";
 import type { SessionStatsInfo } from "@/lib/pi-types";
@@ -7,11 +8,14 @@ import type { AgentMessage, AssistantMessage, SessionInfo, SessionTreeNode } fro
 import { type ChatInputHandle } from "../ChatInput";
 import type { ContextUsageInfo, TurnOutlineItem } from "@contract/types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
-import type { ComposerNavigation, ComposerWorkspace } from "../chat-input/types";
+import type { ComposerNavigation, ComposerWorkspace, MissingFolderRecovery } from "../chat-input/types";
 import type { UsageCompaction } from "../app-shell/use-session-info";
 import { turnTitleOf } from "@shared/turn-title";
 export interface Props {
+  environmentId?: EnvironmentId;
   session: SessionInfo | null;
+  sessionFolderMissing?: boolean;
+  missingFolderRecovery?: MissingFolderRecovery;
   newSessionCwd: string | null;
   onAgentEnd?: () => void;
   onSessionCreated?: (session: SessionInfo) => void;
@@ -29,7 +33,7 @@ export interface Props {
   onContextUsageChange?: (usage: ContextUsageInfo | null) => void;
   onCompactionChange?: (compaction: UsageCompaction | null) => void;
   onModelIdChange?: (modelId: string | null) => void;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   /** True while this chat surface is the page currently shown to the user. */
   visible?: boolean;
   readingPositions?: ReadingPositionRegistry;

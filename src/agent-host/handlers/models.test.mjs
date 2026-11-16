@@ -1,6 +1,6 @@
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -92,4 +92,43 @@ test("an unavailable model, an unknown thinking level, or an empty change is ref
     model: { provider: "openai", modelId: "gpt-4.1" },
     thinkingLevel: "medium",
   });
+});
+
+test("every model endpoint keeps working on a deleted project folder by using the global model settings", async () => {
+  const deleted = mkdtempSync(path.join(tmpdir(), "dexon-model-deleted-project-"));
+  mkdirSync(path.join(deleted, ".pi"), { recursive: true });
+  writeFileSync(path.join(deleted, ".pi", "settings.json"), JSON.stringify({ enabledModels: ["openai/gpt-4"] }));
+  rmSync(deleted, { recursive: true, force: true });
+  const fallback = { kind: "global-fallback", missingFolderPath: deleted };
+
+  const listed = await handlers["models.list"]({ cwd: deleted });
+  assert.deepEqual(listed.scope, fallback);
+  assert.ok(listed.models.some((model) => model.provider === "openai" && model.id === "gpt-4.1"));
+  const refreshed = await handlers["models.refresh"]({ cwd: deleted, requestId: "deleted-folder-refresh" });
+  assert.deepEqual(refreshed.scope, fallback);
+  assert.ok(refreshed.models.length > 0);
+
+  assert.deepEqual((await handlers["models.preferences.get"]({ cwd: deleted })).enabledModels, null);
+  const preferred = await handlers["models.preferences.set"]({ cwd: deleted, enabledModels: ["openai/gpt-4.1"] });
+  assert.deepEqual(preferred.enabledModels, ["openai/gpt-4.1"]);
+  const savedPreferences = JSON.parse(readFileSync(path.join(isolatedAgentDirectory, "settings.json"), "utf8"));
+  assert.deepEqual(savedPreferences.enabledModels, ["openai/gpt-4.1"], "the choice lands in the global settings");
+  assert.deepEqual((await handlers["models.preferences.get"]({ cwd: otherProject })).enabledModels, ["openai/gpt-4.1"]);
+
+  await handlers["models.defaults.set"]({ cwd: deleted, model: { provider: "openai", modelId: "gpt-4.1" } });
+  assert.deepEqual(await handlers["models.defaults.get"]({ cwd: deleted }), {
+    model: { provider: "openai", modelId: "gpt-4.1" },
+    thinkingLevel: "medium",
+  });
+  assert.deepEqual((await handlers["models.defaults.get"]({ cwd: otherProject })).model, {
+    provider: "openai",
+    modelId: "gpt-4.1",
+  });
+
+  assert.equal(existsSync(deleted), false, "no model endpoint recreates the deleted folder");
+  assert.deepEqual((await handlers["models.list"]({ cwd: otherProject })).scope, {
+    kind: "project",
+    folderPath: otherProject,
+  });
+  await handlers["models.preferences.set"]({ cwd: otherProject, enabledModels: null });
 });

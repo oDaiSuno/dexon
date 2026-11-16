@@ -1,3 +1,5 @@
+import { isRpcError } from "@contract/types";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useState } from "react";
 import type { ToolCapabilityId, ToolchainActionRequest } from "@shared/toolchains/types";
 import { isToolCapabilityId } from "@shared/toolchains/types";
@@ -10,6 +12,12 @@ export interface CapabilityIssue {
 }
 
 export function parseCapabilityIssue(value: unknown): CapabilityIssue | null {
+  if (isRpcError(value))
+    return parseCapabilityIssue({
+      ...(value.detail && typeof value.detail === "object" ? value.detail : {}),
+      code: value.code,
+      error: value.message,
+    });
   if (!value || typeof value !== "object") return null;
   const record = value as Record<string, unknown>;
   if (typeof record.code !== "string") return null;
@@ -24,11 +32,13 @@ export function parseCapabilityIssue(value: unknown): CapabilityIssue | null {
 }
 
 export function CapabilityRequired({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
   issue,
   cwd,
   onContinue,
   onCancel,
 }: {
+  environmentId?: EnvironmentId;
   issue: CapabilityIssue;
   cwd: string;
   onContinue: () => void | Promise<void>;
@@ -86,6 +96,14 @@ export function CapabilityRequired({
       setPending(null);
     }
   };
+
+  if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
+    return (
+      <div role="alert">
+        {t("toolchainsLocalOnly", "Developer toolchain inspection is only available for the local environment.")}
+      </div>
+    );
+  }
 
   return (
     <div

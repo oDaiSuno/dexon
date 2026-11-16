@@ -25,6 +25,7 @@ const SAMPLE_CWD = "/Users/demo/.dexon";
 
 function session(id, { now, offsetHours, name, firstMessage, parentId, cwd, branch }) {
   return {
+    environmentId: "primary",
     path: `/sessions/${id}.json`,
     id,
     name: name ?? "",

@@ -11,6 +11,7 @@ import { BrowserError } from "./browser/browser-error";
 import { createHostExitSignal, reserveHostRestart, type HostExitSignal } from "./host-restart-core";
 import { forwardHostOutput, spawnHost } from "./host-spawn";
 import { randomUUID } from "node:crypto";
+import type { HostStatus } from "../contract/desktop";
 import { assessHostLiveness, PRIMARY_HOST_LIVENESS } from "../shared/host-liveness";
 import {
   EMPTY_ACTIVITY,
@@ -27,7 +28,7 @@ const CRASH_WINDOW_MS = 30_000;
 const MAX_RESTARTS = 2;
 const HUNG_SHUTDOWN_GRACE_MS = 1500;
 
-export type HostStatus = "starting" | "ready" | "crashed" | "stopped";
+export type { HostStatus };
 
 export type HostMessage =
   | HostToMain
@@ -46,11 +47,9 @@ export class HostManager {
   private lastPingTick = 0;
   private activity: HostActivitySnapshot = EMPTY_ACTIVITY;
   private lastLagMs = 0;
-  private stallLogged = false;
   private pingSeq = 0;
   private onStatusChange: ((s: HostStatus, detail?: string) => void) | null = null;
   private onHostMessage: ((msg: HostMessage) => void) | null = null;
-  private pendingPorts: MessagePortMain[] = [];
   private wasReadyBeforeExit = false;
   private requestHandler: ((method: string, params: unknown) => Promise<unknown>) | null = null;
   private beforeRestartHandler: (() => Promise<void>) | null = null;
@@ -101,9 +100,13 @@ export class HostManager {
     return { hostInstanceId: this.hostInstanceId, ready: this.managedProcessOwnerReady };
   }
 
+  isServing(): boolean {
+    return this.status === "ready" || this.status === "unresponsive";
+  }
+
   setToolchainSnapshot(snapshot: ToolchainSnapshot): void {
     this.toolchainSnapshot = structuredClone(snapshot);
-    if (this.child && this.status === "ready") {
+    if (this.child && this.isServing()) {
       this.postToolchainSnapshot("toolchain:changed");
     }
   }
@@ -114,7 +117,7 @@ export class HostManager {
 
   setBrowserCapabilitySnapshot(snapshot: BrowserCapabilitySnapshot): void {
     this.browserCapabilitySnapshot = structuredClone(snapshot);
-    if (this.child && this.status === "ready") this.postBrowserSnapshot("browser:changed");
+    if (this.child && this.isServing()) this.postBrowserSnapshot("browser:changed");
   }
 
   getBrowserAckRevision(): number {
@@ -123,7 +126,7 @@ export class HostManager {
 
   setSessionOrchestrationSettings(settings: unknown): void {
     this.sessionOrchestrationSettings = normalizeSessionOrchestrationSettings(settings);
-    if (this.child && this.status === "ready") this.postSessionOrchestrationSettings();
+    if (this.child && this.isServing()) this.postSessionOrchestrationSettings();
   }
 
   start(): void {
@@ -140,7 +143,14 @@ export class HostManager {
     return exitPromise;
   }
 
-  async restartAfterCrash(): Promise<void> {
+  async restartHost(): Promise<void> {
+    if (this.status === "unresponsive" && this.child) {
+      appendMainLog("agent-host restart requested while unresponsive");
+      this.clearPing();
+      this.setStatus("starting", "Restarting an unresponsive Host on request");
+      this.shutdownChild(this.child, HUNG_SHUTDOWN_GRACE_MS);
+      return;
+    }
     if (this.status !== "crashed" || this.child) return;
     this.restartTimes = [];
     this.setStatus("starting", "Restarting Host on request");
@@ -157,20 +167,15 @@ export class HostManager {
   }
 
   attachRendererPort(port: MessagePortMain): void {
-    if (!this.child || this.status !== "ready") {
-      this.pendingPorts.push(port);
-      if (this.child) {
-        try {
-          this.child.postMessage({ type: "attach-port" }, [port]);
-          this.pendingPorts = this.pendingPorts.filter((p) => p !== port);
-        } catch {}
-      }
+    if (!this.child || !this.isServing()) {
+      port.close();
       return;
     }
     try {
       this.child.postMessage({ type: "attach-port" }, [port]);
     } catch (err) {
       appendMainLog(`attachRendererPort failed: ${err}`);
+      port.close();
     }
   }
 
@@ -181,7 +186,7 @@ export class HostManager {
   }
 
   call<T>(method: string, params?: unknown, timeoutMs = 10_000): Promise<T> {
-    if (this.status !== "ready") {
+    if (!this.isServing()) {
       return Promise.reject(new Error("Agent Host is not ready"));
     }
     const { port1 } = this.createRendererChannel();
@@ -216,7 +221,7 @@ export class HostManager {
   }
 
   private setStatus(s: HostStatus, detail?: string): void {
-    if (s !== "ready") this.readySince = null;
+    if (s !== "ready" && s !== "unresponsive") this.readySince = null;
     this.status = s;
     this.onStatusChange?.(s, detail);
   }
@@ -229,7 +234,6 @@ export class HostManager {
     this.managedProcessOwnerReady = false;
     this.activity = EMPTY_ACTIVITY;
     this.lastLagMs = 0;
-    this.stallLogged = false;
     this.setStatus("starting");
 
     const spawnResult = spawnHost(this.hostEntry);
@@ -247,13 +251,6 @@ export class HostManager {
 
     child.on("spawn", () => {
       appendMainLog("agent-host spawned");
-      for (const port of this.pendingPorts.splice(0)) {
-        try {
-          child.postMessage({ type: "attach-port" }, [port]);
-        } catch (err) {
-          appendMainLog(`flush pending port failed: ${err}`);
-        }
-      }
     });
 
     child.on("message", (msg: unknown) => {
@@ -272,7 +269,7 @@ export class HostManager {
         this.postBrowserSnapshot("browser:init");
         this.postSessionOrchestrationSettings();
         this.postManagedProcessOwnerIdentity();
-        if (this.status !== "ready") {
+        if (!this.isServing()) {
           this.generation += 1;
           this.readySince = Date.now();
         }
@@ -285,9 +282,9 @@ export class HostManager {
         this.lastPong = Date.now();
         this.activity = m.activity;
         this.lastLagMs = m.lagMaxMs;
-        this.stallLogged = false;
+        if (this.status === "unresponsive") this.setStatus("ready");
       } else if (m.type === "activity") {
-        this.activity = m.activity;
+        this.activity = { inFlightRequests: this.activity.inFlightRequests, ...m.activity };
       } else if (m.type === "log") {
         appendMainLog(`[host] ${m.message}`);
       } else if (m.type === "toolchain:ack") {
@@ -339,10 +336,9 @@ export class HostManager {
       this.clearPing();
       this.activity = EMPTY_ACTIVITY;
       this.lastLagMs = 0;
-      this.stallLogged = false;
       if (this.status === "stopped") return;
 
-      this.wasReadyBeforeExit = this.status === "ready" || this.status === "starting";
+      this.wasReadyBeforeExit = this.isServing() || this.status === "starting";
       this.setStatus("starting", `Host exited (code ${code}); cleaning managed processes`);
       void (async () => {
         try {
@@ -391,15 +387,15 @@ export class HostManager {
         now,
         lastTickAt: this.lastPingTick,
         lastPongAt: this.lastPong,
-        atStake: stakeOf(this.activity),
+        activity: this.activity,
       });
       this.lastPingTick = now;
       if (verdict.kind === "clock-jump") {
         this.lastPong = now;
-        this.stallLogged = false;
-      } else if (verdict.kind === "stalled" && !this.stallLogged) {
-        this.logWatchdog("stalled", verdict.silentMs);
-        this.stallLogged = true;
+        if (this.status === "unresponsive") this.setStatus("ready");
+      } else if (verdict.kind === "unresponsive" && this.status === "ready") {
+        this.logWatchdog("unresponsive", verdict.silentMs);
+        this.setStatus("unresponsive", `Agent Host has not answered for ${Math.round(verdict.silentMs / 1000)}s`);
       } else if (verdict.kind === "hung") {
         this.logWatchdog("ping-timeout", verdict.silentMs);
         this.clearPing();
@@ -467,12 +463,13 @@ export class HostManager {
     }, graceMs).unref();
   }
 
-  private logWatchdog(reason: "stalled" | "ping-timeout", silentMs: number): void {
+  private logWatchdog(reason: "unresponsive" | "ping-timeout", silentMs: number): void {
     appendMainLog(
       `agent-host watchdog ${JSON.stringify({
         reason,
         silentMs,
         atStake: stakeOf(this.activity),
+        inFlightRequests: this.activity.inFlightRequests ?? 0,
         running: this.activity.running,
         starting: this.activity.starting,
         lastLagMs: this.lastLagMs,

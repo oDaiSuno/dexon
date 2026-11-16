@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { qualifyProjectKey, type EnvironmentId } from "@contract/environment";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import type { SkillRecord } from "@/lib/api-types";
 import { toSkillName, type SkillName } from "./command-slot";
 
@@ -17,26 +19,35 @@ export interface SkillCatalog extends CatalogSnapshot {
 
 const EMPTY: CatalogSnapshot = { status: "idle", skills: [], byName: new Map() };
 
-export function useSkillCatalog({ cwd, visible }: { cwd?: string | null; visible: boolean }): SkillCatalog {
+export function useSkillCatalog({
+  environmentId,
+  cwd,
+  visible,
+}: {
+  environmentId: EnvironmentId;
+  cwd?: string | null;
+  visible: boolean;
+}): SkillCatalog {
   const [entries, setEntries] = useState<ReadonlyMap<string, CatalogSnapshot>>(() => new Map());
   const inFlightRef = useRef(new Map<string, Promise<void>>());
+  const key = cwd ? qualifyProjectKey(environmentId, cwd) : null;
   const refresh = useCallback(() => {
-    if (!visible || !cwd) return;
+    if (!visible || !cwd || !key) return;
     const requests = inFlightRef.current;
-    if (requests.has(cwd)) return;
+    if (requests.has(key)) return;
     setEntries((previous) => {
-      const snapshot = previous.get(cwd) ?? EMPTY;
-      return snapshot.status === "ready" ? previous : new Map(previous).set(cwd, { ...snapshot, status: "loading" });
+      const snapshot = previous.get(key) ?? EMPTY;
+      return snapshot.status === "ready" ? previous : new Map(previous).set(key, { ...snapshot, status: "loading" });
     });
-    const request = import("@/lib/api-client")
-      .then(({ call }) => call("skills.list", { cwd }))
+    const request = getEnvironmentApiClient(environmentId)
+      .call("skills.list", { cwd })
       .then(({ skills }) => {
         const valid = skills.flatMap((record): CatalogSkill[] => {
           const name = toSkillName(record.name);
           return name ? [{ ...record, name }] : [];
         });
         setEntries((previous) =>
-          new Map(previous).set(cwd, {
+          new Map(previous).set(key, {
             status: "ready",
             skills: valid,
             byName: new Map(valid.map((skill) => [skill.name, skill])),
@@ -45,18 +56,18 @@ export function useSkillCatalog({ cwd, visible }: { cwd?: string | null; visible
       })
       .catch(() => {
         setEntries((previous) => {
-          const snapshot = previous.get(cwd) ?? EMPTY;
-          return snapshot.status === "ready" ? previous : new Map(previous).set(cwd, { ...snapshot, status: "error" });
+          const snapshot = previous.get(key) ?? EMPTY;
+          return snapshot.status === "ready" ? previous : new Map(previous).set(key, { ...snapshot, status: "error" });
         });
       })
-      .finally(() => requests.delete(cwd));
-    requests.set(cwd, request);
-  }, [cwd, visible]);
+      .finally(() => requests.delete(key));
+    requests.set(key, request);
+  }, [environmentId, cwd, key, visible]);
 
   useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const snapshot = (cwd && entries.get(cwd)) || EMPTY;
+  const snapshot = (key && entries.get(key)) || EMPTY;
   return useMemo(() => ({ ...snapshot, refresh }), [refresh, snapshot]);
 }

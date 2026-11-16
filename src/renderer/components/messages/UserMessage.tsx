@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@contract/environment";
 import { useState } from "react";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
@@ -11,6 +12,7 @@ import { UserMessageFooter } from "./user-message-footer";
 import type { ImageContent, TextContent, UserMessage } from "@/lib/types";
 
 export function UserMessageView({
+  environmentId,
   message,
   cwd,
   sessionId,
@@ -23,12 +25,13 @@ export function UserMessageView({
   onLoadDeferredContent,
   afterAssistant,
 }: {
+  environmentId: EnvironmentId;
   message: UserMessage;
   /** Active session id — authorizes files.read for referenced attachment paths. */
   sessionId?: string | null;
   cwd?: string;
   entryId?: string;
-  onOpenFile?: (filePath: string) => void;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   editDraft?: EditDraft | null;
   editHandlers?: EditDraftHandlers;
   onSwitchVersion?: (entryId: string) => void;
@@ -102,7 +105,7 @@ export function UserMessageView({
         <UserMessageEditor
           key={`${sessionId ?? ""}:${entryId}`}
           registerFiles={editHandlers?.registerFiles}
-          environmentId={editHandlers?.environmentId}
+          environmentId={environmentId}
           supportsImages={editHandlers?.supportsImages}
           sessionId={sessionId}
           cwd={cwd}
@@ -117,6 +120,7 @@ export function UserMessageView({
       ) : (
         <>
           <UserMessageBubble
+            environmentId={environmentId}
             message={message}
             sessionId={sessionId}
             cwd={cwd}

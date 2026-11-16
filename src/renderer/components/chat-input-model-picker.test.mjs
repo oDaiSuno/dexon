@@ -201,3 +201,54 @@ test("when the user presses Enter in the search box the first matching model is 
   assert.equal(byRole(dom.window.document.body, "dialog", "模型"), undefined, "Escape closes the card");
   assert.strictEqual(dom.window.document.activeElement, chip, "focus returns to the model button");
 });
+
+for (const state of [
+  { name: "loading", props: { modelLoading: true }, copy: "正在加载模型…" },
+  { name: "reconnecting without cache", props: { modelReconnecting: true }, copy: "正在重新连接后台服务…" },
+  { name: "empty catalog", props: { modelCatalog: {} }, copy: "尚未配置可用模型" },
+]) {
+  test(`the model card has a visible body during ${state.name}`, async (t) => {
+    const { card } = await openPicker(t, { modelList: [], ...state.props });
+    assert.ok(text(card, state.copy));
+    if (state.name === "empty catalog") {
+      await input(byRole(card, "searchbox", "搜索模型…"), "anything");
+      assert.ok(text(card, state.copy));
+    }
+  });
+}
+
+test("a failed first catalog read shows its reason and a working retry", async (t) => {
+  const { card, calls } = await openPicker(t, { modelList: [], modelLoadError: "目录暂不可用" });
+  assert.ok(text(card, "目录暂不可用"));
+  await click(byRole(card, "button", "重试"));
+  assert.equal(calls.refreshed, 1);
+});
+
+test("an empty catalog offers working model management", async (t) => {
+  const { card, calls } = await openPicker(t, { modelList: [] });
+  assert.ok(text(card, "尚未配置可用模型"));
+  await click(byRole(card, "button", "管理模型"));
+  assert.equal(calls.settings, 1);
+});
+
+test("reconnecting preserves cached model choices under a calm status note", async (t) => {
+  const { card } = await openPicker(t, { modelReconnecting: true });
+  assert.ok(text(card, "正在重新连接后台服务…"));
+  assert.ok(rowNames(card).includes("Claude Opus 4.5"));
+});
+
+test("a failed refresh keeps choices visible and offers inline retry", async (t) => {
+  const { card, calls } = await openPicker(t, { modelLoadError: "刷新暂不可用" });
+  assert.ok(rowNames(card).includes("Claude Opus 4.5"));
+  assert.ok(text(card, "刷新暂不可用"));
+  await click(byRole(card, "button", "重试"));
+  assert.equal(calls.refreshed, 1);
+});
+
+test("global fallback models explain that the original folder is missing", async (t) => {
+  const { card } = await openPicker(t, {
+    modelCatalogScope: { kind: "global-fallback", missingFolderPath: "/deleted" },
+  });
+  assert.ok(text(card, "原项目文件夹已不存在，当前使用全局模型配置。"));
+  assert.ok(rowNames(card).includes("Claude Opus 4.5"));
+});

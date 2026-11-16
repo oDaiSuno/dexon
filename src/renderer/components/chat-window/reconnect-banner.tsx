@@ -1,6 +1,7 @@
+import { useRef, useState } from "react";
 import { useI18n } from "@/i18n";
 import { requestSettings } from "@/lib/settings-request";
-import { useSpaceAttribution, type RemoteSpaceAttribution } from "@/lib/space-attribution";
+import { useSpaceAttribution, type LocalSpaceAttribution, type RemoteSpaceAttribution } from "@/lib/space-attribution";
 import { useServerActions } from "../settings/servers/use-server-actions";
 
 function RemoteReconnectBanner({ attribution }: { attribution: RemoteSpaceAttribution }) {
@@ -76,8 +77,59 @@ function RemoteReconnectBanner({ attribution }: { attribution: RemoteSpaceAttrib
   );
 }
 
+function LocalReconnectBanner({ attribution }: { attribution: LocalSpaceAttribution }) {
+  const { t } = useI18n();
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const restarting = useRef(false);
+  const restart = async () => {
+    if (restarting.current) return;
+    restarting.current = true;
+    setPending(true);
+    setError(null);
+    try {
+      await window.piBridge?.restartHost?.();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      restarting.current = false;
+      setPending(false);
+    }
+  };
+  return (
+    <div className="reconnect-banner type-label-medium" role="status" data-tone="pending">
+      <span className="reconnect-banner-message">
+        {attribution.state === "unresponsive"
+          ? t(
+              "primaryHostUnresponsiveDetail",
+              "The background service has not responded for 10 seconds. A slow directory or heavy work may be delaying it.",
+            )
+          : t("primaryHostReconnecting", "Reconnecting to background service…")}
+      </span>
+      {(attribution.state === "unresponsive" || attribution.state === "offline") && (
+        <button
+          type="button"
+          className="reconnect-banner-action type-label-medium"
+          disabled={pending}
+          onClick={() => void restart()}
+        >
+          {t("primaryHostRestartNow", "Restart now")}
+        </button>
+      )}
+      {error && (
+        <span role="alert">
+          {t("primaryHostRestartFailed", "Could not restart the background service.")} {error}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ReconnectBanner() {
   const attribution = useSpaceAttribution();
-  if (attribution.kind === "local" || attribution.presentation.tone === "online") return null;
+  if (attribution.kind === "local") {
+    return attribution.state === "online" ? null : <LocalReconnectBanner attribution={attribution} />;
+  }
+  if (attribution.kind === "pending" || attribution.presentation.tone === "online") return null;
   return <RemoteReconnectBanner key={attribution.environmentId} attribution={attribution} />;
 }

@@ -308,6 +308,7 @@ for (const controlled of [false, true]) {
 
 test("selected old roots and Load more stay scoped to their project when environments share session IDs", async (t) => {
   const sessions = Array.from({ length: 7 }, (_, index) => ({
+    environmentId: "primary",
     id: `shared-${index + 1}`,
     name: `Shared task ${index + 1}`,
     path: `/sessions/shared-${index + 1}.json`,
@@ -323,7 +324,7 @@ test("selected old roots and Load more stay scoped to their project when environ
     name: "local trainer",
     sessions,
   });
-  const remote = remoteRow({ sessions });
+  const remote = remoteRow({ sessions: sessions.map((session) => ({ ...session, environmentId: "gpu-a100" })) });
   const view = await mount(
     t,
     NavSidebar,

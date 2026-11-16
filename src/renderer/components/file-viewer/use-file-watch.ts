@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@contract/environment";
 import { useEffect, useState } from "react";
-import { getFileApiUrl } from "./file-api-url";
+import { subscribeFileWatch } from "@/lib/file-watch-subscription";
 
 export function useFileWatch(
   environmentId: EnvironmentId,
@@ -11,19 +11,18 @@ export function useFileWatch(
   const [watching, setWatching] = useState(false);
   useEffect(() => {
     setWatching(false);
-    const es = new EventSource(getFileApiUrl(environmentId, filePath, "watch", sourceSessionId));
-    es.addEventListener("connected", () => setWatching(true));
-    es.addEventListener("change", (e) => {
-      try {
-        const d = JSON.parse((e as MessageEvent).data) as { size?: number };
-        onChange(typeof d.size === "number" ? d.size : undefined);
-      } catch {
-        onChange();
-      }
+    return subscribeFileWatch({
+      environmentId,
+      path: filePath,
+      sourceSessionId: sourceSessionId ?? undefined,
+      onOpen: () => setWatching(true),
+      onGap: () => onChange(),
+      onEvent: (event) => {
+        if (event.event === "connected") setWatching(true);
+        if (event.event === "change") onChange(event.size);
+      },
+      onError: () => setWatching(false),
     });
-    es.addEventListener("error", () => setWatching(false));
-    es.onerror = () => setWatching(false);
-    return () => es.close();
   }, [environmentId, filePath, sourceSessionId, onChange]);
   return watching;
 }

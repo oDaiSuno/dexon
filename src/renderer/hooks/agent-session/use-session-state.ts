@@ -1,5 +1,5 @@
 import { useI18n } from "@/i18n";
-import { sendAgentCommand } from "@/lib/agent-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { EventStreamConnectionManager } from "@/lib/event-stream-connection";
 import { InteractiveToolStore, toolDraftStorage } from "@/lib/interactive-tool-store";
 import { LatestRequestGate } from "@/lib/latest-request-gate";
@@ -18,7 +18,7 @@ import type {
   ImageContent,
   TextContent,
 } from "@/lib/types";
-import type { ContextUsageInfo, ModelCatalogStatus, TurnOutlineItem } from "@contract/types";
+import type { ContextUsageInfo, ModelCatalogScope, ModelCatalogStatus, TurnOutlineItem } from "@contract/types";
 import { useReducer, useRef, useState } from "react";
 import { ModelChoiceLedger, useModelChoice } from "./model-choice-ledger";
 import {
@@ -39,6 +39,7 @@ import {
 export function useSessionState(opts: UseAgentSessionOptions) {
   const { t } = useI18n();
   const {
+    environmentId: explicitEnvironmentId,
     session,
     newSessionCwd,
     onAgentEnd,
@@ -51,10 +52,13 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   } = opts;
 
   const isNew = session === null && newSessionCwd !== null;
-  const [environmentId] = useState(() => session?.environmentId ?? getActiveEnvironmentId());
+  const [mountCapturedEnvironmentId] = useState(getActiveEnvironmentId);
+  const environmentId = session?.environmentId ?? explicitEnvironmentId ?? mountCapturedEnvironmentId;
 
   const [data, setData] = useState<SessionData | null>(null);
   const [loading, setLoading] = useState(!isNew);
+  const [sessionLoadReconnecting, setSessionLoadReconnecting] = useState(false);
+  const [missingSessionKey, setMissingSessionKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeLeafId, setActiveLeafId] = useState<string | null>(null);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
@@ -73,6 +77,10 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     aborted: false,
     warnings: [],
   });
+  const [modelCatalogScope, setModelCatalogScope] = useState<ModelCatalogScope | null>(null);
+  const [modelLoading, setModelLoading] = useState(true);
+  const [modelReconnecting, setModelReconnecting] = useState(false);
+  const [modelLoadError, setModelLoadError] = useState<string | null>(null);
   const [modelRefreshing, setModelRefreshing] = useState(false);
   const [modelThinkingLevels, setModelThinkingLevels] = useState<Record<string, string[]>>({});
   const [modelThinkingLevelMaps, setModelThinkingLevelMaps] = useState<Record<string, Record<string, string | null>>>(
@@ -98,8 +106,15 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const [snapshotOrder] = useState(() => new SnapshotOrder<NonNullable<SessionData["agentState"]>>());
   const choice = useModelChoice(modelChoice);
   const thinkingLevel = choice.thinkingLevel;
+  const environmentIdRef = useRef(environmentId);
+  environmentIdRef.current = environmentId;
   const [interactiveTools] = useState(
-    () => new InteractiveToolStore(session?.id ?? null, sendAgentCommand, toolDraftStorage()),
+    () =>
+      new InteractiveToolStore(
+        session?.id ?? null,
+        (sid, command) => getEnvironmentApiClient(environmentIdRef.current).agentCommand(sid, command),
+        toolDraftStorage(),
+      ),
   );
   const [unsavedMessages] = useState(() => unsavedMessagesFor(session?.id ?? null, newSessionCwd, environmentId));
   const [extensionStatuses, setExtensionStatuses] = useState<ExtensionStatusItem[]>([]);
@@ -175,6 +190,14 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   })();
   return {
     environmentId,
+    sessionLoadReconnecting,
+    setSessionLoadReconnecting,
+    sessionFolderMissing:
+      session !== null &&
+      (opts.sessionFolderMissing === true ||
+        modelCatalogScope?.kind === "global-fallback" ||
+        missingSessionKey === `${environmentId}\0${session.id}`),
+    setMissingSessionKey,
     loadedMessagesRef,
     loadedEntryIdsRef,
     unsavedMessages,
@@ -284,6 +307,14 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     modelNames,
     modelList,
     modelCatalog,
+    modelCatalogScope,
+    setModelCatalogScope,
+    modelLoading,
+    setModelLoading,
+    modelReconnecting,
+    setModelReconnecting,
+    modelLoadError,
+    setModelLoadError,
     modelRefreshing,
     modelThinkingLevels,
     modelThinkingLevelMaps,

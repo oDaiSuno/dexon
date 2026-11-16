@@ -3,10 +3,10 @@ import { useI18n } from "@/i18n";
 // Split from AppShell.tsx in Phase 2: the chat area placeholder states shown
 // when no session is open. Pure presentation.
 
-export function ChatPlaceholder({ activeCwd }: { activeCwd: string | null }) {
+export function ChatPlaceholder({ cwd }: { cwd: string | null }) {
   const { t } = useI18n();
 
-  if (activeCwd) {
+  if (cwd) {
     return (
       <div
         style={{

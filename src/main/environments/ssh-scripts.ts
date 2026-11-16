@@ -79,6 +79,8 @@ export function computeSshStateKey(target: SshEnvironmentTarget): string {
   return createHash("sha256").update(targetConnectionKey(target)).digest("hex").slice(0, 16);
 }
 
+const REMOTE_THREADPOOL_EXPORT = 'export UV_THREADPOOL_SIZE="${UV_THREADPOOL_SIZE:-16}"\n';
+
 function ledgerPath(stateKey: string, stateDir?: string): string {
   if (!/^[a-f0-9]{16}$/u.test(stateKey)) throw new Error("Invalid SSH state key");
   return `${remotePath(stateDir, ".dexon")}/ssh-launch/${stateKey}`;
@@ -200,7 +202,7 @@ const acquireLaunchLock = async () => {
     if (!daemonCwd) throw new Error("No physical working directory is available for the remote daemon", cwdError ? { cause: cwdError } : undefined);
     const quote = value => "'" + value.replace(/'/g, "'\"'\"'") + "'";
     const args = [process.execPath, daemonEntry, "--listen", "127.0.0.1:" + port, "--state-dir", stateDir];
-    write("run-dexon.sh", "exec " + args.map(quote).join(" ") + "\n");
+    write("run-dexon.sh", ${JSON.stringify(REMOTE_THREADPOOL_EXPORT)} + "exec " + args.map(quote).join(" ") + "\n");
     const log = fs.openSync(file("daemon.log"), "a", 0o600);
     let child;
     try {

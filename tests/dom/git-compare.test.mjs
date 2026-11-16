@@ -69,7 +69,7 @@ test("a committed code file that differs from its last commit offers a Changes v
     if (method === "files.read") return readReply("a\nB\nc\nd\n");
     if (method === "git.headContent") return { comparable: true, content: "a\nb\nc\n" };
   });
-  const view = await mount(t, api.TextFileViewer, { filePath: FILE, cwd: PROJECT });
+  const view = await mount(t, api.TextFileViewer, { environmentId: "primary", filePath: FILE, cwd: PROJECT });
   await waitFor(() => assert.ok(modeButton(view.container, "改动"), "the Changes view is offered"));
   assert.match(modeButton(view.container, "改动").textContent, /\+2 −1/);
   await click(modeButton(view.container, "改动"));
@@ -83,7 +83,7 @@ test("a committed code file without changes still offers the Changes view, which
     if (method === "files.read") return readReply("same\n");
     if (method === "git.headContent") return { comparable: true, content: "same\n" };
   });
-  const view = await mount(t, api.TextFileViewer, { filePath: FILE, cwd: PROJECT });
+  const view = await mount(t, api.TextFileViewer, { environmentId: "primary", filePath: FILE, cwd: PROJECT });
   await waitFor(() => assert.ok(modeButton(view.container, "改动")));
   assert.doesNotMatch(modeButton(view.container, "改动").textContent, /\+|−/, "no counts when nothing changed");
   await click(modeButton(view.container, "改动"));
@@ -96,7 +96,7 @@ test("a file that cannot be compared with Git offers no Changes view, even after
     if (method === "files.read") return readReply(content);
     if (method === "git.headContent") return { comparable: false, content: "" };
   });
-  const view = await mount(t, api.TextFileViewer, { filePath: FILE, cwd: PROJECT });
+  const view = await mount(t, api.TextFileViewer, { environmentId: "primary", filePath: FILE, cwd: PROJECT });
   await waitFor(() => assert.ok(text(view.container, "first")));
   content = "second\n";
   await boundary.changed();
@@ -153,6 +153,7 @@ function explorerReplies({
 }
 
 const explorerProps = {
+  environmentId: "primary",
   cwd: PROJECT,
   homeDir: "/Users/demo",
   personalCwd: null,
@@ -212,12 +213,12 @@ function dock(fileTabs) {
     settingsOpen: false,
     browserAuthorizationOpen: false,
     isMobile: false,
-    explorerCwd: PROJECT,
+    environmentId: "primary",
+    location: { environmentId: "primary", path: PROJECT },
     explorerRefreshKey: 0,
     onRefreshExplorer: noop,
     onOpenFile: noop,
     onAtMention: noop,
-    activeCwd: PROJECT,
     personalCwd: null,
     homeDir: "/Users/demo",
   };

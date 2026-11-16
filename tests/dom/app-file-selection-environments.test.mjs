@@ -18,14 +18,24 @@ const api = await loadRenderer(
 );
 after(restoreGlobals);
 
-async function start(t, remoteCwd, { primaryCwd = P.project, projectRoot, initialNew = false } = {}) {
+async function start(
+  t,
+  remoteCwd,
+  { primaryCwd = P.project, projectRoot, initialNew = false, remoteMessage = "Remote file session marker" } = {},
+) {
+  const keyboardEvent = Object.getOwnPropertyDescriptor(globalThis, "KeyboardEvent");
+  Object.defineProperty(globalThis, "KeyboardEvent", { configurable: true, value: dom.window.KeyboardEvent });
+  t.after(() => {
+    if (keyboardEvent) Object.defineProperty(globalThis, "KeyboardEvent", keyboardEvent);
+    else delete globalThis.KeyboardEvent;
+  });
   dom.window.localStorage.clear();
   dom.window.history.replaceState(null, "", initialNew ? "/" : "/?session=primary-file-session");
   api.setAppLanguage("en-US");
   const primary = navigationBoundary({ history: false, lastSpaceCwd: primaryCwd, openProjects: [primaryCwd, P.other] });
   const remote = navigationBoundary({ history: false });
   const primarySession = startedConversation("primary-file-session", primaryCwd, "Primary file session marker");
-  const remoteSession = startedConversation("remote-file-session", remoteCwd, "Remote file session marker");
+  const remoteSession = startedConversation("remote-file-session", remoteCwd, remoteMessage);
   if (projectRoot) {
     primarySession.info.projectRoot = projectRoot;
     remoteSession.info.projectRoot = projectRoot;
@@ -34,12 +44,14 @@ async function start(t, remoteCwd, { primaryCwd = P.project, projectRoot, initia
   primary.addConversation(startedConversation("primary-other-session", P.other, "Other local session marker"));
   remote.addConversation(remoteSession);
   remote.addConversation(startedConversation("remote-other-session", P.other, "Other remote session marker"));
+  const fileReads = [];
   const filesHost = (external, environmentId) => ({
     ...external.host,
     call(method, params) {
       if (method === "projects.browse") return folderListing(params.path ?? primaryCwd);
       if (method === "files.list") return { entries: [{ name: "selected.txt", isDir: false, size: 1 }] };
       if (method === "files.read") {
+        fileReads.push({ environmentId, ...params });
         const content = `${environmentId} selected content at ${params.path}`;
         return { content, encoding: "utf8", language: "text", size: content.length };
       }
@@ -106,6 +118,7 @@ async function start(t, remoteCwd, { primaryCwd = P.project, projectRoot, initia
   assert.deepEqual(remote.unexpected, []);
   return {
     ...view,
+    fileReads,
     requests: (environmentId, method) => (environmentId === "primary" ? primary : remote).requests(method),
     async focus(sessionId, marker) {
       await act(async () => primary.deepLink(sessionId));
@@ -232,4 +245,19 @@ test("same-path worktree sessions adopt their cwd rather than the project root a
     assert.equal(control(scene.container, "button", "Open file selected.txt").title, `${P.other}/selected.txt`),
   );
   assert.equal(control(scene.container, "button", "selected.txt").getAttribute("aria-current"), null);
+});
+
+test("a message file link reaches the actual App file tab with its session environment", async (t) => {
+  const scene = await start(t, P.project, {
+    remoteMessage: "Remote file session marker [selected remote file](selected.txt)",
+  });
+  await scene.focus("remote-file-session", /Remote file session marker/);
+  const link = await waitFor(() =>
+    [...scene.container.querySelectorAll("a")].find((node) => node.textContent === "selected remote file"),
+  );
+  await click(link);
+  await scene.selected("gpu", P.project);
+  assert.deepEqual(scene.fileReads, [
+    { environmentId: "gpu", path: `${P.project}/selected.txt`, sourceSessionId: "remote-file-session" },
+  ]);
 });

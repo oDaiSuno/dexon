@@ -1,4 +1,3 @@
-import { useFileEnvironment } from "@/lib/use-file-environment";
 import { getFileExt } from "@/lib/file-types";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
@@ -8,14 +7,8 @@ import type { FileViewerProps } from "./types";
 import { useDocumentPreview } from "./use-document-preview";
 import { WatchIndicator } from "./watch-indicator";
 
-export function DocumentViewer({
-  filePath,
-  cwd,
-  sourceSessionId,
-  environmentId: requestedEnvironmentId,
-}: FileViewerProps) {
+export function DocumentViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
   const { language, t } = useI18n();
-  const environmentId = useFileEnvironment(requestedEnvironmentId);
   const ext = getFileExt(filePath);
   const isPdf = ext === "pdf";
   const { size, error, previewUrl, watching } = useDocumentPreview(environmentId, filePath, sourceSessionId, isPdf);

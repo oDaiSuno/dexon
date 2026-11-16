@@ -1,7 +1,7 @@
 import { existsSync } from "fs";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
-import { allowFileRoot, assertPathAllowed, getAllowedFileRoots, isFilePathAllowed } from "../file-access";
+import { allowFileRoot, assertPathAllowed } from "../file-access";
 import { browseFolders } from "../folder-browse";
 import type { ManagedProcessService } from "../managed-process/service";
 import { listBranches, switchBranch } from "../../shared/git-branches";
@@ -27,10 +27,7 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
   server.handle({
     "worktrees.list": async (params) => {
       const { projectRoot } = params as { projectRoot: string };
-      const allowed = await getAllowedFileRoots();
-      if (!isFilePathAllowed(projectRoot, allowed)) {
-        throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
-      }
+      await assertPathAllowed(projectRoot);
       const project = await resolveProject(projectRoot);
       let worktrees: Awaited<ReturnType<typeof listWorktrees>> = [];
       let isGit = true;
@@ -51,10 +48,7 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
     "worktrees.create": async (params) => {
       const body = params as { projectRoot: string; branch: string; cwd?: string };
       const cwd = body.cwd ?? body.projectRoot;
-      const allowed = await getAllowedFileRoots();
-      if (!isFilePathAllowed(cwd, allowed)) {
-        throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
-      }
+      await assertPathAllowed(cwd);
       const result = await addWorktree(cwd, body.branch);
       allowFileRoot(result.path);
       return { worktree: result };
@@ -63,10 +57,7 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
     "worktrees.remove": async (params) => {
       const body = params as { path: string; cwd?: string; force?: boolean };
       const cwd = body.cwd ?? body.path;
-      const allowed = await getAllowedFileRoots();
-      if (!isFilePathAllowed(cwd, allowed)) {
-        throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
-      }
+      await assertPathAllowed(cwd);
       const activeProcesses = managedProcesses.activeWithinCwd(body.path);
       if (activeProcesses.length > 0) {
         throw new RpcError({
@@ -97,10 +88,7 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
 
     "worktrees.switchBranch": async (params) => {
       const body = params as { cwd: string; branch: string };
-      const allowed = await getAllowedFileRoots();
-      if (!isFilePathAllowed(body.cwd, allowed)) {
-        throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
-      }
+      await assertPathAllowed(body.cwd);
       const project = await resolveProject(body.cwd);
       if (!project.isTopLevel) {
         throw new RpcError({ code: "BAD_REQUEST", message: "Only the root of a checkout can switch branches" });

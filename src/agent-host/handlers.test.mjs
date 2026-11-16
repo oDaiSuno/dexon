@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -101,6 +101,35 @@ test("conditional auto-title writes never replace a manual session name", async 
     handlers["sessions.rename"]({ id: concurrentSessionId, name: "Concurrent manual title" }),
   ]);
   assert.equal(SessionManager.open(concurrentPath).getSessionName(), "Concurrent manual title");
+});
+
+test("a history session whose folder was deleted is never started and its folder is never recreated", async (t) => {
+  const base = mkdtempSync(path.join(tmpdir(), "pi-handler-deleted-folder-"));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const deleted = path.join(base, "project");
+  mkdirSync(deleted);
+  const fixtureDirectory = path.join(process.env.PI_CODING_AGENT_SESSION_DIR, "deleted-folder-fixture");
+  mkdirSync(fixtureDirectory, { recursive: true });
+  t.after(() => rmSync(fixtureDirectory, { recursive: true, force: true }));
+  const sessionId = "deleted-folder-history";
+  writeFileSync(
+    path.join(fixtureDirectory, `2026-08-16T00-00-00-000Z_${sessionId}.jsonl`),
+    `${JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: "2026-08-16T00:00:00.000Z", cwd: deleted })}\n`,
+  );
+  rmSync(deleted, { recursive: true, force: true });
+  const { handlers } = await captureHandlers();
+  await handlers["sessions.list"]();
+  const missingFolder = (error) => error?.code === "MISSING_SESSION_CWD" && error.message.includes(deleted);
+
+  await assert.rejects(
+    handlers["agent.command"]({ sessionId, command: { type: "prompt", message: "Continue the old work" } }),
+    missingFolder,
+  );
+  await assert.rejects(handlers["agent.command"]({ sessionId, command: { type: "get_commands" } }), missingFolder);
+  await assert.rejects(handlers["agent.new"]({ cwd: deleted, type: "ensure_session" }), missingFolder);
+
+  assert.equal(existsSync(deleted), false, "the deleted folder stays deleted");
+  assert.deepEqual(await handlers["agent.state"]({ sessionId }), { running: false }, "no session engine was started");
 });
 
 test("channel initialization failure is reported without an unhandled rejection", async () => {
@@ -322,4 +351,21 @@ test("file, git, worktree, skill, plugin, and system handlers return contract-sh
 
   await handlers["files.watchStart"]({ path: project });
   assert.deepEqual(await handlers["files.watchStop"]({ path: project }), { ok: true });
+});
+
+test("previewing text larger than the string limit returns only the bounded prefix", async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), "pi-large-preview-"));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const file = path.join(directory, "large.jsonl");
+  const prefix = '{"type":"session"}\n';
+  writeFileSync(file, prefix);
+  truncateSync(file, 520 * 1024 * 1024);
+  const { handlers } = await captureHandlers();
+  await handlers["system.allowRoot"]({ path: directory });
+  const preview = await handlers["files.preview"]({ path: file });
+  assert.equal(preview.kind, "text");
+  assert.equal(preview.truncated, true);
+  assert.equal(preview.language, "json");
+  assert.equal(preview.content.length, 256 * 1024);
+  assert.equal(preview.content.slice(0, prefix.length), prefix);
 });

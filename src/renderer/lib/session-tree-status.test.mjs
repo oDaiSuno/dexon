@@ -20,6 +20,7 @@ const { buildSessionTree, descendantActivity } = statusApi;
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     path: `/sessions/${id}.jsonl`,
     name: id,

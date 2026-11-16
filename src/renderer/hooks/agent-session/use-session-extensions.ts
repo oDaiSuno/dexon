@@ -1,5 +1,5 @@
 import type { SessionRuntimeState } from "@contract/types";
-import { agentState } from "@/lib/api-client";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { NOTICE_VISIBLE_MS, type NoticeType } from "@/lib/notice-queue";
 import type { ExtensionUiRequest } from "@/lib/types";
 import { useCallback, useEffect } from "react";
@@ -7,10 +7,16 @@ import { UseAgentSessionOptions, createNoticeId } from "./shared";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
-  "sessionIdRef" | "interactiveTools" | "dispatchNotice" | "setExtensionStatuses" | "setExtensionWidgets"
+  | "environmentId"
+  | "sessionIdRef"
+  | "interactiveTools"
+  | "dispatchNotice"
+  | "setExtensionStatuses"
+  | "setExtensionWidgets"
 >;
 export function useSessionExtensions(context: Dependencies, opts: UseAgentSessionOptions) {
-  const { sessionIdRef, interactiveTools, dispatchNotice, setExtensionStatuses, setExtensionWidgets } = context;
+  const { environmentId, sessionIdRef, interactiveTools, dispatchNotice, setExtensionStatuses, setExtensionWidgets } =
+    context;
 
   useEffect(() => {
     let disposed = false;
@@ -19,7 +25,7 @@ export function useSessionExtensions(context: Dependencies, opts: UseAgentSessio
       if (!sid) return;
       const version = interactiveTools.getVersion();
       try {
-        const state = await agentState(sid);
+        const state = await getEnvironmentApiClient(environmentId).agentState(sid);
         if (!disposed && version === interactiveTools.getVersion())
           interactiveTools.reconcile((state.state as SessionRuntimeState | undefined)?.extensionUi ?? null);
       } catch {
@@ -38,7 +44,7 @@ export function useSessionExtensions(context: Dependencies, opts: UseAgentSessio
       window.removeEventListener("online", onVisible);
       document.removeEventListener("visibilitychange", onVisible);
     };
-  }, [interactiveTools, sessionIdRef]);
+  }, [environmentId, interactiveTools, sessionIdRef]);
 
   const addNotice = useCallback(
     (notice: { id?: string; message: string; type?: NoticeType }) => {

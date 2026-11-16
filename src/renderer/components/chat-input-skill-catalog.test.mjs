@@ -1,4 +1,5 @@
 import { restoreGlobals, harness, rootEl } from "./chat-input-file-reference.harness.mjs";
+import { createFolderBrowserHost } from "./remote-folder-picker/folder-browser-test-helpers.mjs";
 import { importTestBundle } from "#test-bundle";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -7,17 +8,20 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { click, waitFor } from "../../../tests/support/dom-events.mjs";
 
-const { useSkillCatalog, installApiShims, resetRpc } = await importTestBundle("chat-input-skill-catalog", {
-  stdin: {
-    contents:
-      'export {useSkillCatalog} from "./chat-input/use-skill-catalog.ts"; export {installApiShims} from "../lib/api-fetch.ts"; export {resetRpc} from "../lib/api-client.ts";',
-    resolveDir: import.meta.dirname,
-    sourcefile: "skill-catalog-entry.ts",
-    loader: "ts",
+const { useSkillCatalog, installApiShims, resetRpc, workspaceStore, environmentRegistry } = await importTestBundle(
+  "chat-input-skill-catalog",
+  {
+    stdin: {
+      contents:
+        'export {useSkillCatalog} from "./chat-input/use-skill-catalog.ts"; export {installApiShims} from "../lib/api-fetch.ts"; export {resetRpc} from "../lib/api-client.ts"; export {workspaceStore} from "../lib/workspace-store.ts"; export {environmentRegistry} from "../lib/environment-registry.ts";',
+      resolveDir: import.meta.dirname,
+      sourcefile: "skill-catalog-entry.ts",
+      loader: "ts",
+    },
+    tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
+    external: ["react", "react-dom", "react-dom/*"],
   },
-  tsconfig: path.join(import.meta.dirname, "../../../tsconfig.renderer.json"),
-  external: ["react", "react-dom", "react-dom/*"],
-});
+);
 
 const skill = (name, disableModelInvocation = false) => ({
   name,
@@ -49,10 +53,10 @@ function Probe(props) {
 }
 
 let mounted;
-async function render(cwd, visible = true) {
+async function render(cwd, visible = true, environmentId = "primary") {
   await act(async () => {
     mounted ??= createRoot(rootEl);
-    mounted.render(createElement(Probe, { cwd, visible }));
+    mounted.render(createElement(Probe, { cwd, visible, environmentId }));
   });
 }
 const snapshot = () => rootEl.querySelector("output").textContent;
@@ -131,4 +135,37 @@ test("a new composer instance reads its own catalog instead of inheriting anothe
   await render("/a");
   assert.equal(snapshot(), "ready:second");
   assert.deepEqual(requests, ["/a", "/a"]);
+});
+
+test("same-path skill catalogs and in-flight replies remain isolated by their explicit owner", async () => {
+  const pending = new Map();
+  const host = await createFolderBrowserHost(
+    { workspaceStore, environmentRegistry },
+    {
+      target: globalThis.window,
+      reply: (environmentId) => new Promise((resolve) => pending.set(environmentId, resolve)),
+    },
+  );
+  environmentRegistry.initialize();
+  try {
+    await render("/work/app", true, "gpu");
+    await render("/work/app", true, "staging");
+    assert.equal(snapshot(), "loading:");
+    assert.deepEqual(
+      host.requests.map((request) => request.environmentId),
+      ["gpu", "staging"],
+    );
+    await act(async () => pending.get("staging")({ skills: [skill("staging-skill")] }));
+    assert.equal(snapshot(), "ready:staging-skill");
+    await act(async () => pending.get("gpu")({ skills: [skill("gpu-skill")] }));
+    assert.equal(snapshot(), "ready:staging-skill");
+    await render("/work/app", true, "gpu");
+    assert.equal(snapshot(), "ready:gpu-skill");
+    assert.ok(host.requests.every((request) => request.method === "skills.list" && request.params.cwd === "/work/app"));
+  } finally {
+    await act(async () => mounted?.unmount());
+    mounted = null;
+    host.close();
+    resetRpc();
+  }
 });

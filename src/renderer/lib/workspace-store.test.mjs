@@ -2,19 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { MessageChannel } from "node:worker_threads";
 import { importTestBundle } from "#test-bundle";
-const { WorkspaceStore, projectKeyOf, getEnvironmentConnection, createRpcServer } = await importTestBundle(
-  "workspace-store-public",
-  {
+const { WorkspaceStore, resolveWorkspaceLocation, projectKeyOf, getEnvironmentConnection, createRpcServer } =
+  await importTestBundle("workspace-store-public", {
     stdin: {
       contents:
-        'export { WorkspaceStore } from "./src/renderer/lib/workspace-store.ts"; export { projectKeyOf } from "./src/shared/project-space-state.ts"; export { getEnvironmentConnection } from "./src/renderer/lib/environment-registry.ts"; export { createRpcServer } from "./src/contract/rpc.ts";',
+        'export { WorkspaceStore, resolveWorkspaceLocation } from "./src/renderer/lib/workspace-store.ts"; export { projectKeyOf } from "./src/shared/project-space-state.ts"; export { getEnvironmentConnection } from "./src/renderer/lib/environment-registry.ts"; export { createRpcServer } from "./src/contract/rpc.ts";',
       resolveDir: process.cwd(),
       loader: "ts",
     },
     tsconfig: "tsconfig.renderer.json",
     packages: "external",
-  },
-);
+  });
 const bridgeFor = (state, writes = []) => ({
   getUiState: async () => structuredClone(state),
   listEnvironments: async () => ({
@@ -318,4 +316,39 @@ test("a full sidebar rejects a new mount without changing the current workspace"
   assert.equal(await store.mountAndOpen({ environmentId: "gpu", path: "/code/new" }), "invalid");
   assert.deepEqual(store.getSnapshot(), before);
   assert.equal(writes.length, previousWrites);
+});
+
+test("workspace location rejects unmatched sessions and never interprets an unmounted key as an owned path", async () => {
+  const remote = { environmentId: "gpu", path: "/home/dev/project" };
+  const local = { environmentId: "primary", path: "/Users/dev/project" };
+  const store = new WorkspaceStore();
+  await store.initialize(bridgeFor({ projectSpaces: { version: 2, spaces: [remote, local], seeded: [] } }));
+  const session = { id: "same-id", environmentId: "gpu", cwd: "/home/dev/project/worktree", projectRoot: remote.path };
+  store.focusSession(session);
+  assert.deepEqual(resolveWorkspaceLocation(store.getSnapshot(), session), {
+    environmentId: "gpu",
+    path: "/home/dev/project/worktree",
+  });
+  assert.equal(resolveWorkspaceLocation(store.getSnapshot(), null), null);
+  assert.equal(resolveWorkspaceLocation(store.getSnapshot(), { ...session, environmentId: "primary" }), null);
+  assert.equal(resolveWorkspaceLocation(store.getSnapshot(), { ...session, id: "other" }), null);
+  store.openSpace(local);
+  assert.deepEqual(resolveWorkspaceLocation(store.getSnapshot(), session), local);
+  store.openSpace({ environmentId: "empty", path: remote.path });
+  assert.equal(resolveWorkspaceLocation(store.getSnapshot(), session), null);
+  store.unmountEnvironment("empty");
+  assert.equal(resolveWorkspaceLocation(store.getSnapshot(), session), null);
+});
+
+test("a focused session without a matching nonempty cwd cannot fall back to its mounted space", async () => {
+  const remote = { environmentId: "gpu", path: "/home/dev/project" };
+  const store = new WorkspaceStore();
+  await store.initialize(bridgeFor({ projectSpaces: { version: 2, spaces: [remote], seeded: [] } }));
+  const session = { id: "focused", environmentId: "gpu", cwd: remote.path };
+  store.focusSession(session);
+  const snapshot = store.getSnapshot();
+  assert.equal(resolveWorkspaceLocation(snapshot, null), null);
+  assert.equal(resolveWorkspaceLocation(snapshot, { ...session, id: "other" }), null);
+  assert.equal(resolveWorkspaceLocation(snapshot, { ...session, environmentId: "primary" }), null);
+  assert.equal(resolveWorkspaceLocation(snapshot, { ...session, cwd: "" }), null);
 });

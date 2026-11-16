@@ -23,7 +23,6 @@ import {
   type SavedSessionHint,
 } from "./session-index-scan";
 import { locateSessionProject } from "./session-project";
-import { flushSessionProjects } from "./session-project-store";
 
 const PROJECT_VIEW_TTL_MS = 60_000;
 export const RECENT_INDEX_REFRESH_TTL_MS = 2_000;
@@ -118,13 +117,19 @@ export class SessionIndex {
 
   recordSavedSession(filePath: string, source: LiveSessionSource): () => void {
     const resolved = path.resolve(filePath);
-    const current = readFingerprintOrNull(resolved);
     const sessionId = source.getHeader()?.id;
-    if (!current || !sessionId || !isUnderRoot(resolved, sessionsRoot())) return () => undefined;
-    const hint: SavedSessionHint = { path: resolved, fingerprint: current, sessionId, source };
-    this.savedHints.set(resolved, hint);
+    if (!sessionId || !isUnderRoot(resolved, sessionsRoot())) return () => undefined;
+    let cancelled = false;
+    let hint: SavedSessionHint | undefined;
+    void this.exclusive(async () => {
+      const current = await readFingerprintOrNull(resolved);
+      if (!current || cancelled || source.getHeader()?.id !== sessionId) return;
+      hint = { path: resolved, fingerprint: current, sessionId, source };
+      this.savedHints.set(resolved, hint);
+    }).catch(() => undefined);
     return () => {
-      if (this.savedHints.get(resolved) === hint) this.savedHints.delete(resolved);
+      cancelled = true;
+      if (hint && this.savedHints.get(resolved) === hint) this.savedHints.delete(resolved);
     };
   }
 
@@ -139,10 +144,10 @@ export class SessionIndex {
     const hint = this.savedHint(filePath, current);
     if (hint) {
       const record = await entryFromLiveSession(hint);
-      const after = readFingerprintOrNull(filePath);
+      const after = await readFingerprintOrNull(filePath);
       if (after && sameFingerprint(current, after) && this.savedHint(filePath, after) === hint) return record;
     }
-    return parseSessionFile(filePath, readFingerprintOrNull(filePath) ?? current);
+    return parseSessionFile(filePath, (await readFingerprintOrNull(filePath)) ?? current);
   }
 
   private cause(filePath: string, current: Fingerprint): EntryChange["cause"] {
@@ -157,7 +162,6 @@ export class SessionIndex {
       })),
     );
     for (const location of locations) this.state.locate(location.filePath, location.located);
-    flushSessionProjects();
   }
 
   private canSkip(maxAgeMs: number, files: readonly string[]): boolean {
@@ -205,7 +209,6 @@ export class SessionIndex {
     }
     for (const location of locations) this.state.locate(location.filePath, location.located);
     for (const change of changes) change.after = this.state.info(change.filePath);
-    flushSessionProjects();
     if (rootsChanged(changes)) invalidateAllowedRootsCache();
     if (root === sessionsRoot()) {
       this.snapshotReady = true;
@@ -263,10 +266,10 @@ export class SessionIndex {
     const resolved = path.resolve(filePath);
     if (!isUnderRoot(resolved, sessionsRoot()) || !resolved.endsWith(".jsonl")) return null;
     const before = this.state.info(resolved);
-    const current = readFingerprintOrNull(resolved);
+    const current = await readFingerprintOrNull(resolved);
     if (!current) {
       if (!this.state.entry(resolved)) return null;
-      this.removePath(resolved);
+      await this.removePath(resolved);
       return { filePath: resolved, before, after: null, cause: "external" };
     }
     const existing = this.state.entry(resolved);
@@ -282,8 +285,8 @@ export class SessionIndex {
         : record.info
           ? await locateSessionProject(record.info)
           : null;
-    if (!readFingerprintOrNull(resolved)) {
-      this.removePath(resolved);
+    if (!(await readFingerprintOrNull(resolved))) {
+      await this.removePath(resolved);
       return { filePath: resolved, before, after: null, cause: "external" };
     }
     this.state.upsert(record);
@@ -295,7 +298,6 @@ export class SessionIndex {
       cause: this.cause(resolved, record.fingerprint),
     };
     if (rootsChanged([change])) invalidateAllowedRootsCache();
-    flushSessionProjects();
     this.metrics = {
       filesDiscovered: 1,
       filesParsed: 1,
@@ -373,11 +375,8 @@ export class SessionIndex {
     );
   }
 
-  removePath(filePath: string): SessionInfo | null {
-    if (!this.hydrated && !this.hydrating) {
-      const journal = this.ensureJournal();
-      this.installRecords(journal.loadSync(), journal);
-    }
+  async removePath(filePath: string): Promise<SessionInfo | null> {
+    if (!this.hydrated && !this.hydrating) await this.exclusive(() => this.hydrate());
     const resolved = path.resolve(filePath);
     const previous = this.state.info(resolved);
     if (!this.hydrated) this.removedBeforeHydration.add(resolved);
@@ -437,8 +436,13 @@ export class SessionIndex {
   }
 
   async flush(): Promise<void> {
-    await this.tail;
-    await this.journal?.flush();
+    for (;;) {
+      const tail = this.tail;
+      const revision = this.state.revision;
+      await tail;
+      await this.journal?.flush();
+      if (tail === this.tail && revision === this.state.revision) return;
+    }
   }
 }
 

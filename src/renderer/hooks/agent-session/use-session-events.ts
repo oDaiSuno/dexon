@@ -1,4 +1,6 @@
-import { agentState } from "@/lib/api-client";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { isSessionTransportClosed, sessionClientErrorMessage } from "@/lib/session-error-message";
+import { getEnvironmentApiClient } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
 import {
   appendLocalHistoryMessage,
@@ -28,6 +30,8 @@ import type { SessionHistory } from "./use-session-history";
 import type { SessionState } from "./use-session-state";
 type Dependencies = Pick<
   SessionState,
+  | "environmentId"
+  | "setError"
   | "sessionIdRef"
   | "promptRunIdRef"
   | "optimisticUserMessageKeyRef"
@@ -60,6 +64,8 @@ type Dependencies = Pick<
   Pick<SessionExtensions, "addNotice" | "handleExtensionUiRequest">;
 export function useSessionEvents(context: Dependencies) {
   const {
+    environmentId,
+    setError,
     sessionIdRef,
     promptRunIdRef,
     loadSession,
@@ -133,7 +139,7 @@ export function useSessionEvents(context: Dependencies) {
       while (agentRunningRef.current && Date.now() - startedAt < PROMPT_SETTLE_MAX_MS) {
         if (runId !== undefined && promptRunIdRef.current !== runId) return;
         try {
-          const data = await agentState(sid);
+          const data = await getEnvironmentApiClient(environmentId).agentState(sid);
           const state = data.state as AgentStateResponse | undefined;
           if (!data.running || !state || (!state.isStreaming && !state.isPromptRunning)) {
             await finishPromptWithoutStream(sid, runId);
@@ -143,32 +149,59 @@ export function useSessionEvents(context: Dependencies) {
         await delay(PROMPT_SETTLE_POLL_MS);
       }
     },
-    [agentRunningRef, finishPromptWithoutStream, promptRunIdRef],
+    [environmentId, agentRunningRef, finishPromptWithoutStream, promptRunIdRef],
   );
   const reconcileAgentState = useCallback(
     async (sid: string) => {
-      if (!agentRunningRef.current) return;
       const runId = promptRunIdRef.current;
       try {
-        const data = await agentState(sid);
-        if (promptRunIdRef.current !== runId) return;
+        const data = await getEnvironmentApiClient(environmentId).agentState(sid);
+        if (promptRunIdRef.current !== runId || sessionIdRef.current !== sid) return;
         const state = (data.state ?? undefined) as AgentStateResponse | undefined;
         setIsCompacting(state?.isCompacting ?? false);
         setQueuedMessages(normalizeQueuedMessages(state?.queuedMessages));
         const busy = data.running && state && (state.isStreaming || state.isPromptRunning || state.isCompacting);
-        if (busy || !agentRunningRef.current) return;
         if (state) {
           if (state.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
           if (state.systemPrompt !== undefined) setSystemPrompt(state.systemPrompt ?? null);
           if (state.extensionStatuses !== undefined) setExtensionStatuses(state.extensionStatuses ?? []);
           if (state.extensionWidgets !== undefined) setExtensionWidgets(state.extensionWidgets ?? []);
         }
-        await finishPromptWithoutStream(sid, runId);
-      } catch {}
+        if (busy) {
+          const wasRunning = agentRunningRef.current;
+          agentRunningRef.current = true;
+          setAgentRunning(true);
+          setAgentPhase(state.isStreaming ? { kind: "waiting_model" } : { kind: "running_command" });
+          const partial = state.streamingMessage;
+          if (partial) {
+            dispatch({
+              type: "update",
+              message: normalizeToolCalls(partial),
+              entryId: unsavedMessages.resumeStreaming(partial.timestamp),
+            });
+          } else if (!wasRunning) dispatch({ type: "start" });
+          if (!wasRunning) await loadSession(sid, false, true);
+          return;
+        }
+        if (agentRunningRef.current) await finishPromptWithoutStream(sid, runId);
+        else await loadSession(sid, false, true);
+      } catch (cause) {
+        if (sessionIdRef.current === sid && !isSessionTransportClosed(cause))
+          setError(sessionClientErrorMessage(cause, t, t("sessionLoadFailed", "Failed to load session.")));
+      }
     },
     [
+      environmentId,
       agentRunningRef,
       finishPromptWithoutStream,
+      sessionIdRef,
+      dispatch,
+      setAgentPhase,
+      setAgentRunning,
+      unsavedMessages,
+      loadSession,
+      setError,
+      t,
       promptRunIdRef,
       setContextUsage,
       setExtensionStatuses,
@@ -180,7 +213,6 @@ export function useSessionEvents(context: Dependencies) {
   );
 
   useEffect(() => {
-    if (!agentRunning) return;
     const reconcile = () => {
       const sid = sessionIdRef.current;
       if (sid) void reconcileAgentState(sid);
@@ -188,30 +220,32 @@ export function useSessionEvents(context: Dependencies) {
     const onVisible = () => {
       if (document.visibilityState === "visible") reconcile();
     };
-    const offRestart = window.piBridge?.onHostRestarted?.(() => {
-      if (!agentRunningRef.current) return;
-      if (restartNoticeRunRef.current !== promptRunIdRef.current) {
-        restartNoticeRunRef.current = promptRunIdRef.current;
-        addNotice({
-          type: "warning",
-          message: t(
-            "hostRestartedTurnInterrupted",
-            "The background service restarted and interrupted the current reply.",
-          ),
-        });
-      }
-      reconcile();
-    });
-    const interval = setInterval(reconcile, AGENT_STATE_RECONCILE_MS);
+    const offRestart =
+      environmentId === PRIMARY_ENVIRONMENT_ID
+        ? window.piBridge?.onHostRestarted?.(() => {
+            if (agentRunningRef.current && restartNoticeRunRef.current !== promptRunIdRef.current) {
+              restartNoticeRunRef.current = promptRunIdRef.current;
+              addNotice({
+                type: "warning",
+                message: t(
+                  "hostRestartedTurnInterrupted",
+                  "The background service restarted and interrupted the current reply.",
+                ),
+              });
+            }
+            reconcile();
+          })
+        : undefined;
+    const interval = agentRunning ? setInterval(reconcile, AGENT_STATE_RECONCILE_MS) : undefined;
     document.addEventListener("visibilitychange", onVisible);
     window.addEventListener("online", reconcile);
     return () => {
       offRestart?.();
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisible);
       window.removeEventListener("online", reconcile);
     };
-  }, [addNotice, agentRunning, agentRunningRef, promptRunIdRef, reconcileAgentState, sessionIdRef, t]);
+  }, [environmentId, addNotice, agentRunning, agentRunningRef, promptRunIdRef, reconcileAgentState, sessionIdRef, t]);
 
   useEffect(() => {
     agentRunningRef.current = agentRunning;
@@ -257,7 +291,8 @@ export function useSessionEvents(context: Dependencies) {
           dispatch({ type: "end" });
           if (sessionIdRef.current) {
             void loadSession(sessionIdRef.current);
-            void agentState(sessionIdRef.current)
+            void getEnvironmentApiClient(environmentId)
+              .agentState(sessionIdRef.current)
               .then((d) => {
                 const state = d.state as AgentStateResponse | undefined;
                 if (state?.contextUsage !== undefined) setContextUsage(state.contextUsage ?? null);
@@ -421,6 +456,7 @@ export function useSessionEvents(context: Dependencies) {
       }
     },
     [
+      environmentId,
       addNotice,
       agentRunningRef,
       completionScrollAllowedRef,

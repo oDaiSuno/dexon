@@ -13,7 +13,7 @@ import type { ChatInputHandle } from "./ChatInput";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
 import { useWorkspaceNavigation } from "./app-shell/use-workspace-navigation";
 import { useSpaceCoordination } from "./app-shell/use-space-coordination";
-import { useRightPanelDock } from "./app-shell/use-right-panel-dock";
+import { EXPLORER_TAB_ID, useRightPanelDock } from "./app-shell/use-right-panel-dock";
 import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
 import { useSessionInfo } from "./app-shell/use-session-info";
@@ -26,9 +26,10 @@ import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
 import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
+import { useMissingFolderRecovery } from "./app-shell/use-missing-folder-recovery";
 import { useShellSpace } from "./app-shell/use-shell-space";
-import { useExplorerCwdSelection } from "./app-shell/use-explorer-cwd-selection";
-
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { resolveWorkspaceLocation, workspaceStore } from "@/lib/workspace-store";
 export function AppShell({
   chatAppearance,
   chatAppearanceSaving,
@@ -44,7 +45,6 @@ export function AppShell({
   const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
   const [resourceView, setResourceView] = useState<ResourceView>("overview");
   const [remoteOpen, setRemoteOpen] = useState(false);
-
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
@@ -52,14 +52,8 @@ export function AppShell({
   const thinkingExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
   const processDetailsExpansionRegistryRef = useRef(new ThinkingExpansionRegistry());
   const readingPositionRegistryRef = useRef(new ReadingPositionRegistry());
-
-  const collapseMobileSidebar = useCallback(() => {
-    setSidebarOpen(false);
-  }, []);
-  const openSidebarForSwitchSession = useCallback(() => {
-    setSidebarOpen(true);
-  }, []);
-
+  const collapseMobileSidebar = useCallback(() => setSidebarOpen(false), []);
+  const openSidebarForSwitchSession = useCallback(() => setSidebarOpen(true), []);
   const { settingsOpen, settingsInitialTab, settingsNavigationRequestId, openSettings, closeSettings } =
     useSettingsDialog();
   const showChatPage = useCallback(() => {
@@ -77,17 +71,14 @@ export function AppShell({
     if (isMobile) setSidebarOpen(false);
     setActiveTopPanel((cur) => (cur === "session" ? null : "session"));
   }, [isMobile]);
-
   const openSessionStatsPanel = useCallback(() => {
     if (isMobile) setSidebarOpen(false);
     setActiveTopPanel("session");
   }, [isMobile]);
-
   const handleSidebarToggle = useCallback(() => {
     if (isMobile) setActiveTopPanel(null);
     setSidebarOpen((open) => !open);
   }, [isMobile]);
-
   const navigation = useWorkspaceNavigation({
     isMobile,
     onMobileSidebarClose: collapseMobileSidebar,
@@ -102,10 +93,11 @@ export function AppShell({
   });
   const {
     environmentId,
+    workspaceSnapshot,
     selectedSession,
     spaceFrozenSessionId,
     newSessionCwd,
-    activeCwd,
+    location: navigationLocation,
     sessionKey,
     refreshKey,
     initialSessionId,
@@ -119,9 +111,7 @@ export function AppShell({
     handleInitialRestoreDone,
     bumpSessionKey,
     bumpRefresh,
-    noteCoordinatorCwd,
   } = navigation;
-
   const sessionSpaceCwd =
     selectedSession === null
       ? (newSessionCwd ?? null)
@@ -173,7 +163,6 @@ export function AppShell({
   const remoteShown = onResources && remoteOpen && !settingsOpen;
   const mainCovered = settingsOpen || remoteShown;
   const mainSuspended = onResources || settingsOpen;
-
   const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
   const handleExplorerRefresh = useCallback(() => {
     bumpRefresh();
@@ -183,61 +172,101 @@ export function AppShell({
     refreshKey,
     coordination,
     selectedSession,
+    spaceFrozenSessionId,
+    location: selectedSession === null && newSessionCwd ? { environmentId, path: newSessionCwd } : navigationLocation,
     chatInputRef,
     onCwdCommitted: handleCwdChange,
-    onCoordinatorCwd: noteCoordinatorCwd,
     onBranchSwitched: handleExplorerRefresh,
   });
-
+  const folderRecovery = useMissingFolderRecovery({
+    session: selectedSession,
+    workspace: space.workspace,
+    coordination,
+    onNewSession: handleNewSession,
+    onOpenSettings: () => handleOpenSettings("servers"),
+  });
+  const startupSpaceSyncedRef = useRef(false);
+  useEffect(() => {
+    if (startupSpaceSyncedRef.current || !workspaceSnapshot.loaded || coordination.spacePhase.phase !== "ready") return;
+    startupSpaceSyncedRef.current = true;
+    if (
+      workspaceSnapshot.focus.environmentId === PRIMARY_ENVIRONMENT_ID &&
+      workspaceSnapshot.focus.spaceKey === null &&
+      workspaceSnapshot.focus.sessionId === null &&
+      selectedSession === null
+    ) {
+      workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: coordination.spacePhase.cwd });
+    }
+  }, [workspaceSnapshot.loaded, workspaceSnapshot.focus, coordination.spacePhase, selectedSession]);
+  const location = resolveWorkspaceLocation(workspaceSnapshot, selectedSession, openProjects.spaces);
+  const draftLocation =
+    selectedSession === null && newSessionCwd
+      ? { environmentId, path: newSessionCwd }
+      : selectedSession === null
+        ? location
+        : null;
+  const activeLocation = draftLocation ?? location;
   const dock = useRightPanelDock({
+    environmentId,
     isMobile,
     sidebarOpen,
     onCollapseSidebar: collapseMobileSidebar,
     suspended: mainSuspended,
   });
-
   const panelToggle = useRightPanelToggleFocus(dock.handleRightPanelToggle);
-
   const authorization = useBrowserAuthorization({
     onResolved: useCallback(() => setAuthorizationSettingsSessionId(null), []),
   });
-
   const channels = useChannelSnapshot();
-
   const info = useSessionInfo();
-
   const handleAgentEnd = handleExplorerRefresh;
-
   const handleAtMention = useCallback((relativePath: string, isDir: boolean) => {
     chatInputRef.current?.insertText(buildAtMentionText(relativePath, isDir));
   }, []);
-
   const { dispatchFileTab, openRightPanel } = dock;
   const handleOpenFile = useCallback(
-    (filePath: string, fileName: string, sourceSessionId?: string | null) => {
+    (
+      filePath: string,
+      fileName: string,
+      sourceSessionId?: string | null,
+      sourceEnvironmentId: EnvironmentId = environmentId,
+    ) => {
       dispatchFileTab({
         type: "open",
-        tab: { id: `file:${filePath}`, label: fileName, filePath, sourceSessionId },
+        tab: { id: `file:${filePath}`, label: fileName, filePath, sourceSessionId, environmentId: sourceEnvironmentId },
       });
       openRightPanel();
     },
-    [dispatchFileTab, openRightPanel],
+    [dispatchFileTab, openRightPanel, environmentId],
   );
 
   const handleOpenLinkedFile = useCallback(
-    (filePath: string) => {
-      handleOpenFile(filePath, getFileName(filePath), selectedSession?.id ?? null);
+    (filePath: string, sourceEnvironmentId?: EnvironmentId) => {
+      handleOpenFile(
+        filePath,
+        getFileName(filePath),
+        selectedSession?.id ?? null,
+        sourceEnvironmentId ?? selectedSession?.environmentId ?? environmentId,
+      );
     },
-    [handleOpenFile, selectedSession?.id],
+    [handleOpenFile, selectedSession?.id, selectedSession?.environmentId, environmentId],
   );
 
-  const effectiveNewSessionCwd = newSessionCwd ?? (selectedSession === null && activeCwd ? activeCwd : null);
+  const effectiveNewSessionCwd = draftLocation?.path ?? null;
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
   const showPlaceholder = initialSessionRestored && !showChat;
 
-  const explorerCwd = activeCwd ?? selectedSession?.cwd ?? newSessionCwd;
+  const explorerCwd = activeLocation?.path ?? null;
 
-  useExplorerCwdSelection(activeCwd, isMobile, dispatchFileTab, selectedSession);
+  const previousExplorer = useRef({ environmentId, path: explorerCwd, isMobile });
+  useEffect(() => {
+    const before = previousExplorer.current;
+    previousExplorer.current = { environmentId, path: explorerCwd, isMobile };
+    if (explorerCwd && !isMobile && before.environmentId === environmentId) {
+      if (before.path !== explorerCwd || before.isMobile !== isMobile)
+        dispatchFileTab({ type: "select", tabId: EXPLORER_TAB_ID });
+    }
+  }, [environmentId, explorerCwd, isMobile, dispatchFileTab]);
 
   return (
     <>
@@ -298,7 +327,8 @@ export function AppShell({
           )}
           {settingsOpen && (
             <SettingsConfig
-              cwd={activeCwd ?? selectedSession?.cwd ?? newSessionCwd ?? null}
+              environmentId={activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId}
+              cwd={activeLocation?.path ?? null}
               sessionId={authorizationSettingsSessionId ?? selectedSession?.id ?? null}
               initialTab={settingsInitialTab}
               navigationRequestId={settingsNavigationRequestId}
@@ -353,7 +383,8 @@ export function AppShell({
             <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
               {onResources && (
                 <ResourcePage
-                  cwd={activeCwd ?? coordination.spaceCwd ?? ""}
+                  environmentId={activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId}
+                  cwd={activeLocation?.path ?? ""}
                   sessionId={selectedSession?.id ?? null}
                   view={resourceView}
                   onViewChange={setResourceView}
@@ -368,7 +399,13 @@ export function AppShell({
                 <SessionProfiler key={`${environmentId}:${sessionKey}`} id="ChatWindow">
                   <ChatWindow
                     visible={!mainSuspended}
+                    environmentId={environmentId}
                     session={selectedSession}
+                    sessionFolderMissing={
+                      selectedSession !== null &&
+                      openProjects.isMissing(selectedSession.cwd, selectedSession.environmentId)
+                    }
+                    missingFolderRecovery={folderRecovery.recovery}
                     readingPositions={readingPositionRegistryRef.current}
                     newSessionCwd={effectiveNewSessionCwd}
                     onAgentEnd={handleAgentEnd}
@@ -395,7 +432,7 @@ export function AppShell({
                   />
                 </SessionProfiler>
               ) : showPlaceholder && !onResources ? (
-                <ChatPlaceholder activeCwd={activeCwd} />
+                <ChatPlaceholder cwd={explorerCwd} />
               ) : null}
             </div>
           </div>
@@ -418,12 +455,12 @@ export function AppShell({
           settingsOpen={settingsOpen}
           browserAuthorizationOpen={Boolean(authorization.browserAuthorization)}
           isMobile={isMobile}
-          explorerCwd={explorerCwd}
+          environmentId={environmentId}
+          location={activeLocation}
           explorerRefreshKey={explorerRefreshKey}
           onRefreshExplorer={() => setExplorerRefreshKey((key) => key + 1)}
           onOpenFile={handleOpenFile}
           onAtMention={handleAtMention}
-          activeCwd={activeCwd}
           personalCwd={coordination.personalCwd}
           homeDir={space.homeDir}
           headerAction={
@@ -437,6 +474,7 @@ export function AppShell({
           suspended={mainSuspended}
         />
       </div>
+      {folderRecovery.picker}
       {(() => {
         const authorizationRequest = authorization.browserAuthorization;
         if (!authorizationRequest || settingsOpen) return null;

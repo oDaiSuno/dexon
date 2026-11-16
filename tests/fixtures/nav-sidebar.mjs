@@ -4,6 +4,7 @@ export const navigationSessions = [
   { id: "sess-child", name: "fork follow-up", parentSessionId: "sess-alpha", modified: "2026-09-06T10:30:00.000Z" },
   { id: "sess-beta", name: "beta unrelated", modified: "2026-08-20T10:00:00.000Z" },
 ].map((item) => ({
+  environmentId: "primary",
   path: `/sessions/${item.id}.json`,
   firstMessage: `First message of ${item.id}`,
   cwd: "/Users/tester/.dexon",
@@ -83,6 +84,7 @@ export function sessionTreeSessions(now = Date.now()) {
     { id: "sess-document", name: "Document migration", parentSessionId: "sess-fixtures", modified: minutes(0) },
   ];
   return rows.map((item) => ({
+    environmentId: "primary",
     path: `/sessions/${item.id}.json`,
     firstMessage: `First message of ${item.id}`,
     cwd: "/Users/tester/.dexon",

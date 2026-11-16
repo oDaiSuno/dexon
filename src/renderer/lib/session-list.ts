@@ -51,7 +51,10 @@ export function resolveInitialSessionRestore(
   return session ? { status: "restore", session } : { status: "not-found" };
 }
 
-export function getSessionDisplayTitle(session: SessionInfo, maxLength = 72): string {
+export function getSessionDisplayTitle(
+  session: Pick<SessionInfo, "id" | "name" | "firstMessage">,
+  maxLength = 72,
+): string {
   const source = session.name?.trim() || session.firstMessage?.trim() || session.id;
   const normalized = source.replace(/\s+/g, " ");
   if (normalized.length <= maxLength) return normalized;

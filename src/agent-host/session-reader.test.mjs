@@ -110,7 +110,7 @@ test("reading legacy entries normalizes them in memory without rewriting the tra
     .map((entry) => JSON.stringify(entry))
     .join("\n");
   writeFileSync(file, raw);
-  const entries = getSessionEntries(file);
+  const entries = await getSessionEntries(file);
   assert.equal(entries[0].message.role, "custom");
   assert.equal(entries[0].id, "old");
   assert.equal(readFileSync(file, "utf8"), raw);
@@ -129,7 +129,7 @@ test("reading entries skips null and malformed JSONL lines without losing future
   ];
   const raw = entries.map((entry) => JSON.stringify(entry)).join("\n") + "\nnull\n{unfinished";
   writeFileSync(file, raw);
-  const read = getSessionEntries(file);
+  const read = await getSessionEntries(file);
   assert.deepEqual(
     read.map((entry) => entry.id),
     ["user", "future"],

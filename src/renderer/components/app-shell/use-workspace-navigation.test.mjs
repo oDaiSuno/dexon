@@ -26,6 +26,7 @@ const { resetRpc, useWorkspaceNavigation, workspaceStore } = await importTestBun
 
 function session(id, overrides = {}) {
   return {
+    environmentId: "primary",
     id,
     name: "",
     firstMessage: "",
@@ -115,6 +116,7 @@ function installEnvironment({ search = "" } = {}) {
 async function withEnvironment(options, run) {
   const env = installEnvironment(options);
   try {
+    await workspaceStore.initialize(globalThis.window.piBridge);
     await run(env);
   } finally {
     await env.restore();
@@ -175,7 +177,7 @@ test("keeps the open session when the cwd moves within the same project", async 
     await act(async () => {
       mounted.state.value.handleCwdChange("/repo/wt-b", "/repo");
     });
-    assert.equal(mounted.state.value.activeCwd, "/repo/wt-b");
+    assert.deepEqual(mounted.state.value.location, { environmentId: "primary", path: "/repo/wt-a" });
     assert.equal(mounted.state.value.selectedSession.id, "s1");
     assert.equal(mounted.state.value.sessionKey, openSessionIdentity, "the open chat keeps its identity");
     assert.deepEqual(env.harness.routerReplaceCalls, [["/?session=s1"]]);
@@ -234,7 +236,7 @@ test("a restored session survives the initial cwd update but closes on a later p
     await act(async () => {
       mounted.state.value.handleCwdChange("/cross-project", "/cross-project");
     });
-    assert.equal(mounted.state.value.activeCwd, "/cross-project");
+    assert.deepEqual(mounted.state.value.location, { environmentId: "primary", path: "/repo" });
     assert.equal(mounted.state.value.selectedSession.id, "s1");
     assert.equal(mounted.state.value.sessionKey, restoredIdentity);
     await act(async () => {
@@ -404,9 +406,10 @@ test("desktop menu opens a new session in the active project and requests sessio
     });
     assert.equal(mounted.state.value.newSessionCwd, null);
     await act(async () => {
+      workspaceStore.noteCurrentProject({ environmentId: "primary", path: "/repo" }, null);
       mounted.state.value.handleCwdChange("/repo", "/repo");
     });
-    assert.equal(mounted.state.value.activeCwd, "/repo");
+    assert.deepEqual(mounted.state.value.location, { environmentId: "primary", path: "/repo" });
     const previousIdentity = mounted.state.value.sessionKey;
     await act(async () => {
       env.menu("new-session");
@@ -434,3 +437,30 @@ test("marks the initial restore as done for the not-found path", async () => {
     await mounted.unmount();
   });
 });
+
+for (const from of ["session", "draft"]) {
+  test(`desktop New Session keeps the active sub-worktree from a ${from}`, async () => {
+    await withEnvironment({}, async (env) => {
+      const mounted = await mountNavigation(env);
+      await act(async () => {
+        workspaceStore.noteCurrentProject({ environmentId: "primary", path: "/repo" }, null);
+        if (from === "session") {
+          mounted.state.value.handleSelectSession(
+            session("worktree-session", { cwd: "/repo/review", projectRoot: "/repo" }),
+          );
+        } else {
+          mounted.state.value.handleCwdChange("/repo/review", "/repo");
+        }
+      });
+      await act(async () => env.menu("new-session"));
+      assert.equal(mounted.state.value.selectedSession, null);
+      assert.equal(mounted.state.value.newSessionCwd, "/repo/review");
+      assert.equal(workspaceStore.getSnapshot().focus.spaceKey, '["primary","/repo"]');
+      assert.deepEqual(
+        workspaceStore.getSnapshot().spaces.map((space) => space.path),
+        ["/repo"],
+      );
+      await mounted.unmount();
+    });
+  });
+}

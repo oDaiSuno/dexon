@@ -57,6 +57,7 @@ function externalResources() {
 
 const noChannels = { accounts: [], statuses: [], pairings: [], bindings: [], activities: [] };
 const props = (activeTab = "plugins", onTabChange = () => {}, view = "manage", onViewChange = () => {}) => ({
+  environmentId: "primary",
   cwd: "/workspace",
   view,
   onViewChange,
