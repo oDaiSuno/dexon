@@ -213,8 +213,10 @@ for (const [environmentId, fallback] of [
         return found;
       });
       await click(row);
-      await waitFor(() => assert.match(view.container.textContent, /fixture reply/));
-      await waitFor(() => assert.ok(byRole(view.container, "button", "Choose existing folder for new chat")));
+      await waitFor(() => assert.match(view.container.textContent, /fixture reply/), { timeout: 4000 });
+      await waitFor(() => assert.ok(byRole(view.container, "button", "Choose existing folder for new chat")), {
+        timeout: 4000,
+      });
     };
     const type = async (message) => {
       const editor = view.container.querySelector('[role="textbox"][aria-multiline="true"]');

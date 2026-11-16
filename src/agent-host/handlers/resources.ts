@@ -28,11 +28,25 @@ async function resolveLoadedSkill(cwd: string, filePath: string) {
   return skill;
 }
 
+async function renameWithRetry(source: string, target: string): Promise<void> {
+  const delays = [10, 25, 50, 100];
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      await fs.rename(source, target);
+      return;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException | null)?.code;
+      if (attempt >= delays.length || (code !== "EPERM" && code !== "EBUSY" && code !== "EACCES")) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}
+
 async function writeTextAtomically(filePath: string, content: string): Promise<void> {
   const tmp = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
   await fs.writeFile(tmp, content, "utf8");
   try {
-    await fs.rename(tmp, filePath);
+    await renameWithRetry(tmp, filePath);
   } catch (error) {
     try {
       await fs.unlink(tmp);

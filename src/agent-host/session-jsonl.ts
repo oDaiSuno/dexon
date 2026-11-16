@@ -10,9 +10,9 @@ import {
 
 const defaultSessionManagerOpen = SessionManager.open;
 
-const READ_WINDOW_BYTES = 512 * 1024;
+const READ_WINDOW_BYTES = 256 * 1024;
 const HEADER_WINDOW_BYTES = 64 * 1024;
-const PARSE_SLICE_MS = 8;
+const PARSE_SLICE_MS = 4;
 
 export async function readSessionFileEntries(
   filePath: string,

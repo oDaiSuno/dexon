@@ -223,9 +223,18 @@ async function run() {
     await waitFor(() => exists("navigation", "Main navigation"), "the official Main navigation");
     await click("button", "Plugins & Skills");
     await waitFor(() => exists("heading", "Plugins & Skills"), "Resources as the main page");
+    await waitFor(async () => {
+      const content = await page("text");
+      return (
+        content.includes("From production-navigation-plugin") &&
+        content.includes("1 installed packages") &&
+        !content.includes("Loading…")
+      );
+    }, "loaded resource overview before opening Manage sources");
     await click("button", "Manage sources");
+    await waitFor(() => exists("tab", "Plugins"), "the resource management tabs");
     await waitFor(
-      async () => (await page("text")).includes("production-navigation-plugin"),
+      async () => (await page("text")).includes("production-navigation-plugin") && exists("switch", "Disable package"),
       "the real locally configured plugin",
     );
     assert.equal(await exists("region", "Settings"), false);
