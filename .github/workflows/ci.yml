@@ -157,6 +157,11 @@ jobs:
           Expand-Archive -LiteralPath $springZip -DestinationPath $env:RUNNER_TEMP
           $springRoot = Join-Path $env:RUNNER_TEMP "spring-boot-4.1.1-fixture"
           if (-not (Test-Path -LiteralPath (Join-Path $springRoot "mvnw.cmd"))) { throw "Spring wrapper is missing" }
+          $wrapperProps = Join-Path $springRoot ".mvn/wrapper/maven-wrapper.properties"
+          if (-not (Test-Path -LiteralPath $wrapperProps)) { throw "Maven wrapper properties are missing" }
+          $wrapperContent = (Get-Content -LiteralPath $wrapperProps -Raw) -replace '(?m)^distributionUrl=[^\r\n]*', 'distributionUrl=https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.16/apache-maven-3.9.16-bin.zip'
+          if ($wrapperContent -notmatch 'apache-maven-3\.9\.16-bin\.zip') { throw "Failed to pin Maven wrapper to 3.9.16" }
+          Set-Content -LiteralPath $wrapperProps -Value $wrapperContent -NoNewline
           "PI_FRAMEWORK_NODE_ROOT=$nodeRoot" >> $env:GITHUB_ENV
           "PI_SPRING_BOOT_FIXTURE=$springRoot" >> $env:GITHUB_ENV
           "PI_JAVA_EXECUTABLE=$((Get-Command java).Source)" >> $env:GITHUB_ENV
