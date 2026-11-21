@@ -367,12 +367,21 @@ async function run() {
     screens: await captureFinalVisuals({ window, js, click, exists, waitFor, screenshot }),
   }));
   await scene("12-session-info-card", async () => {
-    window.setContentSize(1280, 680);
-    await waitFor(async () => (await js("document.documentElement.clientHeight")) === 680, "the 680px height viewport");
+    const settleAnimations = () =>
+      js(
+        "Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))).then(() => undefined)",
+      );
+    window.setContentSize(1280, 640);
+    await waitFor(
+      async () =>
+        await js("document.documentElement.clientHeight <= 680 && document.documentElement.clientWidth >= 1200"),
+      "the 640px height viewport",
+    );
     await click("button", nativeHistoryTitle);
     await waitFor(() => exists("group", "Message input"), "the history conversation composer");
     await click("button", "View context and cost");
     await waitFor(() => exists("region", "Context and cost"), "the open session info card");
+    await settleAnimations();
     await click("button", "Details");
     await waitFor(() => exists("button", "Copy session ID"), "the expanded session identity copy buttons");
     const active = await page("usageCardCoverage");
@@ -402,10 +411,11 @@ async function run() {
     await waitFor(async () => !(await exists("region", "Context and cost")), "session info card closed by Escape");
 
     await click("button", "Show file panel");
-    window.setContentSize(900, 680);
-    await waitFor(async () => (await js("document.documentElement.clientWidth")) === 900, "the 900px narrow viewport");
+    window.setContentSize(900, 640);
+    await waitFor(async () => await js("document.documentElement.clientWidth <= 900"), "the 900px narrow viewport");
     await click("button", "View context and cost");
     await waitFor(() => exists("region", "Context and cost"), "session info card in narrow viewport with right panel");
+    await settleAnimations();
     const narrow = await page("usageCardCoverage");
     assert.ok(
       narrow.card && narrow.card.x >= 0 && narrow.card.right <= narrow.viewport.width,

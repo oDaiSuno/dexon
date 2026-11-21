@@ -1,6 +1,6 @@
 import { useI18n } from "@/i18n";
 import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
-import { useId, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import { createPortal } from "react-dom";
 import { ChevronDownIcon } from "../chat-input/icons";
 import { SessionIdentity } from "./session-identity";
@@ -94,6 +94,7 @@ export function UsageCard({
   const ctx = contextUsage ?? sessionStats?.contextUsage ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [position, setPosition] = useState<ReturnType<typeof getUsageCardPosition> | null>(null);
+  const focusedRef = useRef(false);
   const detailsId = useId();
   const lastCompactionAt = sessionStats?.lastCompactionAt ?? null;
 
@@ -121,11 +122,18 @@ export function UsageCard({
     };
   }, [anchorRef, layoutRef]);
 
+  useEffect(() => {
+    if (!position || focusedRef.current) return;
+    focusedRef.current = true;
+    cardRef.current?.focus({ preventScroll: true });
+  }, [position, cardRef]);
+
   if (!position || typeof document === "undefined") return null;
 
   return createPortal(
     <section
       ref={cardRef}
+      tabIndex={-1}
       aria-label={t("usageCardLabel", "Context and cost")}
       className="composer-pop-in"
       style={{
@@ -140,6 +148,7 @@ export function UsageCard({
         border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-dialog)",
         boxShadow: "var(--shadow-popover)",
+        outline: "none",
         transformOrigin: "top right",
       }}
     >
