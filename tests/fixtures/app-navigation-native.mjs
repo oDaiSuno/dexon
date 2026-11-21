@@ -13,6 +13,7 @@ export const nativeNavigationScenes = [
   "09-space-menu-keyboard",
   "10-minimum-window-width",
   "11-final-visuals",
+  "12-session-info-card",
 ];
 
 export const nativeHistoryTitle = "Production history before collapse";

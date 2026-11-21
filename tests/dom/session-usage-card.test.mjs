@@ -66,9 +66,9 @@ async function openCard(t, { language = "zh-CN", ...overrides } = {}) {
     resetRpc,
   );
   t.after(() => boundary.close());
-  const view = await mount(t, TopBar, cardProps(overrides));
+  await mount(t, TopBar, cardProps(overrides));
   const name = language === "zh-CN" ? "上下文与费用" : "Context and cost";
-  const card = byRole(view.container, "region", name);
+  const card = byRole(dom.window.document.body, "region", name);
   assert.ok(card, `the open usage card is a region named ${name}`);
   return card;
 }

@@ -366,6 +366,73 @@ async function run() {
   await scene("11-final-visuals", async () => ({
     screens: await captureFinalVisuals({ window, js, click, exists, waitFor, screenshot }),
   }));
+  await scene("12-session-info-card", async () => {
+    const settleAnimations = () =>
+      js(
+        "Promise.all(document.getAnimations().map((animation) => animation.finished.catch(() => undefined))).then(() => undefined)",
+      );
+    window.setContentSize(1280, 640);
+    await waitFor(
+      async () =>
+        await js("document.documentElement.clientHeight <= 680 && document.documentElement.clientWidth >= 1200"),
+      "the 640px height viewport",
+    );
+    await click("button", nativeHistoryTitle);
+    await waitFor(() => exists("group", "Message input"), "the history conversation composer");
+    await click("button", "View context and cost");
+    await waitFor(() => exists("region", "Context and cost"), "the open session info card");
+    await settleAnimations();
+    await click("button", "Details");
+    await waitFor(() => exists("button", "Copy session ID"), "the expanded session identity copy buttons");
+    const active = await page("usageCardCoverage");
+    assert.ok(active.card && active.composer, "both session info card and composer are rendered");
+    assert.ok(
+      active.card.bottom > active.composer.y,
+      `the expanded session info card reaches into the composer band (${active.card.bottom} vs ${active.composer.y})`,
+    );
+    assert.equal(
+      active.copyId?.hitInsideElement,
+      true,
+      `Copy session ID must not be covered by the composer (got ${JSON.stringify(active.copyId)})`,
+    );
+    assert.equal(
+      active.copyFile?.hitInsideElement,
+      true,
+      `Copy session file path must not be covered by the composer (got ${JSON.stringify(active.copyFile)})`,
+    );
+    await click("button", "Copy session ID");
+    await waitFor(() => exists("button", "Copied"), "copy feedback after clicking Copy session ID");
+    assert.equal(
+      await exists("region", "Context and cost"),
+      true,
+      "clicking Copy session ID keeps the session info card open",
+    );
+    await key("Escape");
+    await waitFor(async () => !(await exists("region", "Context and cost")), "session info card closed by Escape");
+
+    await click("button", "Show file panel");
+    window.setContentSize(900, 640);
+    await waitFor(async () => await js("document.documentElement.clientWidth <= 900"), "the 900px narrow viewport");
+    await click("button", "View context and cost");
+    await waitFor(() => exists("region", "Context and cost"), "session info card in narrow viewport with right panel");
+    await settleAnimations();
+    const narrow = await page("usageCardCoverage");
+    assert.ok(
+      narrow.card && narrow.card.x >= 0 && narrow.card.right <= narrow.viewport.width,
+      `session info card stays inside the viewport (${JSON.stringify(narrow.card)} in ${JSON.stringify(narrow.viewport)})`,
+    );
+    assert.equal(
+      narrow.leftEdgeHit?.hitInsideCard,
+      true,
+      `session info card left edge is not clipped (got ${JSON.stringify(narrow.leftEdgeHit)})`,
+    );
+    await key("Escape");
+    await waitFor(
+      async () => !(await exists("region", "Context and cost")),
+      "narrow session info card closed by Escape",
+    );
+    return { active, narrow };
+  });
   assert.deepEqual(consoleErrors, [], "production renderer emitted no errors");
 }
 

@@ -3,7 +3,13 @@
 // It never reads React state, controller refs or test-only product exports.
 export function productionPage(operation, args = {}) {
   const { document, getComputedStyle } = globalThis;
-  const implicit = { button: "button", textbox: "textarea", navigation: "nav", heading: "h1,h2,h3,h4,h5,h6" };
+  const implicit = {
+    button: "button",
+    textbox: "textarea",
+    navigation: "nav",
+    heading: "h1,h2,h3,h4,h5,h6",
+    region: "section[aria-label],section[aria-labelledby]",
+  };
   const nameOf = (element) => {
     const labelled = element
       .getAttribute("aria-labelledby")
@@ -109,6 +115,50 @@ export function productionPage(operation, args = {}) {
       focusVisible: element.matches(":focus-visible"),
       outlineWidth: parseFloat(style.outlineWidth),
       outlineStyle: style.outlineStyle,
+    };
+  }
+  if (operation === "usageCardCoverage") {
+    const card = find("region", "Context and cost");
+    const composer =
+      document.querySelector(".chat-input-transition-dock") ?? document.querySelector("[data-chat-input]");
+    const copyId = card ? find("button", "Copy session ID", card) : null;
+    const copyFile = card ? find("button", "Copy file path", card) : null;
+    if (card) card.scrollTop = card.scrollHeight;
+    const hitAt = (element) => {
+      if (!element) return null;
+      const rect = element.getBoundingClientRect();
+      const x = Math.round(rect.x + rect.width / 2);
+      const y = Math.round(rect.y + rect.height / 2);
+      const target = document.elementFromPoint(x, y);
+      return {
+        rect: rectOf(element),
+        point: { x, y },
+        hitInsideElement: Boolean(target && element.contains(target)),
+        hitInsideCard: Boolean(card && target && card.contains(target)),
+        hitTag: target?.tagName ?? null,
+        hitClass: typeof target?.className === "string" ? target.className : null,
+      };
+    };
+    const leftEdgeHit = (() => {
+      if (!card) return null;
+      const rect = card.getBoundingClientRect();
+      const x = Math.round(rect.x + 8);
+      const y = Math.round(rect.y + 8);
+      const target = document.elementFromPoint(x, y);
+      return {
+        point: { x, y },
+        hitInsideCard: Boolean(target && card.contains(target)),
+        hitTag: target?.tagName ?? null,
+        hitClass: typeof target?.className === "string" ? target.className : null,
+      };
+    })();
+    return {
+      viewport: { width: globalThis.innerWidth, height: globalThis.innerHeight },
+      card: rectOf(card),
+      composer: rectOf(composer),
+      copyId: hitAt(copyId),
+      copyFile: hitAt(copyFile),
+      leftEdgeHit,
     };
   }
   throw new Error(`Unknown public page observation ${operation}`);
