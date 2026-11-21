@@ -272,8 +272,10 @@ export function TopBar({
 }) {
   const { language, t } = useI18n();
   const attribution = useSpaceAttribution();
+  const topBarRef = useRef<HTMLDivElement | null>(null);
   const usageRef = useRef<HTMLDivElement | null>(null);
   const capsuleRef = useRef<HTMLButtonElement | null>(null);
+  const cardRef = useRef<HTMLElement | null>(null);
   const restoreFocusRef = useRef(false);
 
   useEffect(() => {
@@ -286,7 +288,8 @@ export function TopBar({
       onToggleTopPanel();
     };
     const onMouseDown = (event: MouseEvent) => {
-      if (usageRef.current?.contains(event.target as Node)) return;
+      const target = event.target as Node;
+      if (usageRef.current?.contains(target) || cardRef.current?.contains(target)) return;
       onToggleTopPanel();
     };
     document.addEventListener("keydown", onKeyDown, true);
@@ -339,6 +342,7 @@ export function TopBar({
 
   return (
     <div
+      ref={topBarRef}
       style={{
         display: "flex",
         alignItems: "center",
@@ -405,6 +409,9 @@ export function TopBar({
           />
           {activeTopPanel === "session" && (
             <UsageCard
+              anchorRef={capsuleRef}
+              cardRef={cardRef}
+              layoutRef={topBarRef}
               sessionStats={sessionStats}
               contextUsage={contextUsage}
               modelId={modelId}

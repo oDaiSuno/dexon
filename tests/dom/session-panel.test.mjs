@@ -57,8 +57,8 @@ function panelProps(overrides = {}) {
   };
 }
 
-function sessionPanel(view) {
-  const panel = byRole(view.container, "region", "Context and cost");
+function sessionPanel() {
+  const panel = byRole(dom.window.document.body, "region", "Context and cost");
   assert.ok(panel, "the open session panel is a region named Context and cost");
   return panel;
 }
@@ -75,8 +75,8 @@ async function mountPanel(t, overrides) {
 }
 
 test("when the session panel is open with whole-session counts, it shows those counts for the session", async (t) => {
-  const view = await mountPanel(t, { sessionStats: WHOLE_SESSION_STATS });
-  const panel = sessionPanel(view);
+  await mountPanel(t, { sessionStats: WHOLE_SESSION_STATS });
+  const panel = sessionPanel();
   await click(button(panel, "Details"));
   assert.ok(text(panel, "194 messages · 17 tool calls"), "the message and tool call totals are the whole session's");
   assert.ok(text(panel, "1.2k"), "the input size is the whole session's usage");
@@ -85,8 +85,8 @@ test("when the session panel is open with whole-session counts, it shows those c
 });
 
 test("when the counts are not available yet, the session panel still names the session it belongs to", async (t) => {
-  const view = await mountPanel(t, {});
-  const panel = sessionPanel(view);
+  await mountPanel(t, {});
+  const panel = sessionPanel();
   await click(button(panel, "Details"));
   assert.ok(panel.textContent.includes("session-one"), "the session ID is on screen");
   assert.ok(panel.textContent.includes("/workspace/notes.jsonl"), "the session file is on screen");
@@ -95,7 +95,7 @@ test("when the counts are not available yet, the session panel still names the s
 });
 
 test("when no session is selected, the session panel explains how to load session information", async (t) => {
-  const view = await mountPanel(t, { selectedSession: null });
-  const panel = sessionPanel(view);
+  await mountPanel(t, { selectedSession: null });
+  const panel = sessionPanel();
   assert.ok(panel.textContent.includes(LOAD_HINT), "the hint appears only when there is no session to describe");
 });

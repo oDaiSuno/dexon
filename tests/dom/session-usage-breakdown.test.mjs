@@ -91,7 +91,7 @@ function useBoundary(t) {
 async function openCard(t, overrides) {
   useBoundary(t);
   const view = await mount(t, TopBar, barProps(overrides));
-  const card = byRole(view.container, "region", "上下文与费用");
+  const card = byRole(dom.window.document.body, "region", "上下文与费用");
   assert.ok(card, "the usage card is open");
   return { view, card };
 }
@@ -201,7 +201,7 @@ test("pressing Escape closes the usage card and puts focus back on the usage cap
   let toggles = 0;
   const { view } = await openCard(t, { onToggleTopPanel: () => toggles++ });
   const capsule = button(view.container, "查看上下文与费用");
-  await keyDown(button(view.container, "详细信息"), "Escape");
+  await keyDown(button(dom.window.document.body, "详细信息"), "Escape");
   assert.equal(toggles, 1, "Escape asks to close the card");
   await view.update(barProps({ activeTopPanel: null, onToggleTopPanel: () => toggles++ }));
   assert.equal(dom.window.document.activeElement, capsule, "focus returns to the capsule");

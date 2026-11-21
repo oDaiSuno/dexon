@@ -122,7 +122,7 @@ export function productionPage(operation, args = {}) {
     const composer =
       document.querySelector(".chat-input-transition-dock") ?? document.querySelector("[data-chat-input]");
     const copyId = card ? find("button", "Copy session ID", card) : null;
-    const copyFile = card ? find("button", "Copy session file path", card) : null;
+    const copyFile = card ? find("button", "Copy file path", card) : null;
     if (card) card.scrollTop = card.scrollHeight;
     const hitAt = (element) => {
       if (!element) return null;

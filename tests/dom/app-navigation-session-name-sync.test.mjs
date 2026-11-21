@@ -115,7 +115,7 @@ test("when another window renames the open conversation, the Context and cost ca
   await renameElsewhere(scene);
   await waitFor(() => historyRow(scene, NEW_NAME));
   await click(control(scene.container, "button", "View context and cost"));
-  const card = await waitFor(() => control(scene.container, "region", "Context and cost"));
+  const card = await waitFor(() => control(dom.window.document.body, "region", "Context and cost"));
   await click(control(card, "button", "Details"));
   await waitFor(() => {
     assert.equal(card.textContent.includes(OLD_NAME), false, `the card still shows "${OLD_NAME}"`);
@@ -127,13 +127,13 @@ test("after /session has shown the usage card, a later rename still shows the ne
   const scene = await openConversation(t);
   await type(await waitFor(() => control(chat(scene), "textbox")), "/session");
   await click(control(chat(scene), "button", "Send"));
-  await waitFor(() => control(scene.container, "region", "Context and cost"));
+  await waitFor(() => control(dom.window.document.body, "region", "Context and cost"));
   await click(control(scene.container, "button", "View context and cost"));
-  await waitFor(() => assert.equal(scene.container.querySelector('[aria-label="Context and cost"]'), null));
+  await waitFor(() => assert.equal(dom.window.document.body.querySelector('[aria-label="Context and cost"]'), null));
   await renameElsewhere(scene);
   await waitFor(() => historyRow(scene, NEW_NAME));
   await click(control(scene.container, "button", "View context and cost"));
-  const card = await waitFor(() => control(scene.container, "region", "Context and cost"));
+  const card = await waitFor(() => control(dom.window.document.body, "region", "Context and cost"));
   await click(control(card, "button", "Details"));
   await waitFor(() => {
     assert.equal(card.textContent.includes(OLD_NAME), false, `the card still shows "${OLD_NAME}"`);

@@ -1,6 +1,7 @@
 import { useI18n } from "@/i18n";
 import { formatNumber, formatRelativeDateTime } from "@/lib/locale-format";
-import { useId, useState, type CSSProperties } from "react";
+import { useId, useLayoutEffect, useState, type CSSProperties, type RefObject } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDownIcon } from "../chat-input/icons";
 import { SessionIdentity } from "./session-identity";
 import { ContextSection, ROW, SWATCH } from "./usage-context-section";
@@ -53,7 +54,23 @@ const COST_SWATCH: Record<(typeof COST_SEGMENTS)[number], string> = {
   cacheWrite: "var(--fx-text-faint)",
 };
 
+function getUsageCardPosition(
+  anchorRect: Pick<DOMRect, "bottom" | "right" | "width" | "height"> | null,
+  viewport: { width: number; height: number },
+) {
+  const anchor = anchorRect && (anchorRect.width > 0 || anchorRect.height > 0) ? anchorRect : null;
+  const top = anchor ? Math.max(8, Math.round(anchor.bottom + 8)) : 56;
+  const width = Math.min(388, Math.max(240, viewport.width - 16));
+  const rightEdge = Math.max(8, viewport.width - width - 8);
+  const left = Math.max(8, Math.min(anchor ? anchor.right - width : rightEdge, rightEdge));
+  const maxHeight = Math.max(120, Math.floor(viewport.height - top - 12));
+  return { top, left, width, maxHeight };
+}
+
 export function UsageCard({
+  anchorRef,
+  cardRef,
+  layoutRef,
   sessionStats,
   contextUsage,
   modelId,
@@ -62,6 +79,9 @@ export function UsageCard({
   onCopyField,
   compaction,
 }: {
+  anchorRef: RefObject<HTMLElement | null>;
+  cardRef: RefObject<HTMLElement | null>;
+  layoutRef: RefObject<HTMLElement | null>;
   sessionStats: SessionStatsInfo | null;
   contextUsage: ContextUsageState | null;
   modelId: string | null;
@@ -73,29 +93,53 @@ export function UsageCard({
   const { language, t } = useI18n();
   const ctx = contextUsage ?? sessionStats?.contextUsage ?? null;
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const [position, setPosition] = useState<ReturnType<typeof getUsageCardPosition> | null>(null);
   const detailsId = useId();
   const lastCompactionAt = sessionStats?.lastCompactionAt ?? null;
 
-  return (
+  useLayoutEffect(() => {
+    if (typeof window === "undefined") return;
+    const visualViewport = window.visualViewport;
+    const updatePosition = () => {
+      setPosition(
+        getUsageCardPosition(anchorRef.current?.getBoundingClientRect() ?? null, {
+          width: visualViewport?.width ?? window.innerWidth,
+          height: visualViewport?.height ?? window.innerHeight,
+        }),
+      );
+    };
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    visualViewport?.addEventListener("resize", updatePosition);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updatePosition);
+    if (anchorRef.current) observer?.observe(anchorRef.current);
+    if (layoutRef.current) observer?.observe(layoutRef.current);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      visualViewport?.removeEventListener("resize", updatePosition);
+      observer?.disconnect();
+    };
+  }, [anchorRef, layoutRef]);
+
+  if (!position || typeof document === "undefined") return null;
+
+  return createPortal(
     <section
+      ref={cardRef}
       aria-label={t("usageCardLabel", "Context and cost")}
       className="composer-pop-in"
       style={{
-        position: "absolute",
-        top: "calc(100% + 8px)",
-        right: 0,
-        zIndex: 50,
+        position: "fixed",
+        ...position,
+        zIndex: 1000,
         display: "flex",
         flexDirection: "column",
-        width: 388,
-        maxWidth: "calc(100vw - 32px)",
-        maxHeight: "calc(100dvh - 72px)",
         overflowY: "auto",
         boxSizing: "border-box",
         background: "var(--fx-surface-raised)",
         border: "1px solid var(--fx-line-default)",
         borderRadius: "var(--radius-dialog)",
-        boxShadow: "var(--shadow-overlay)",
+        boxShadow: "var(--shadow-popover)",
         transformOrigin: "top right",
       }}
     >
@@ -145,7 +189,8 @@ export function UsageCard({
           {t("loadSessionInfoHint", "Send a message or run /session to load session info")}
         </div>
       )}
-    </section>
+    </section>,
+    document.body,
   );
 }
 
