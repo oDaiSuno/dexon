@@ -41,7 +41,10 @@ run("desktop security invariants", "node", ["scripts/check-desktop-security.mjs"
 run("desktop workflow invariants", "node", ["scripts/check-desktop-workflow.mjs"]);
 run("test infrastructure invariants", "node", ["scripts/check-test-infra.mjs"]);
 run("build", "npm", ["run", "build"]);
-if (process.platform !== "win32") run("remote payload grandchild probes", "npm", ["run", "verify:remote-payload"]);
+if (process.platform !== "win32") {
+  run("remote payload grandchild probes", "npm", ["run", "verify:remote-payload"]);
+  run("remote automation packaged daemon E2E", "npm", ["run", "test:remote-automation"]);
+}
 run("production artifact isolation", "node", ["scripts/check-production-artifacts.mjs"]);
 run("smoke electron", "npm", ["run", "smoke"]);
 run("Agent Host liveness Electron integration", "npm", ["run", "test:host-liveness-electron"]);
