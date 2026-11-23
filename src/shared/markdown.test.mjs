@@ -4,6 +4,8 @@ import test from "node:test";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
@@ -16,9 +18,16 @@ import {
   markdownRehypePlugins,
   userMessageRemarkPlugins,
 } from "./markdown.ts";
+import { remarkStandaloneDisplayMath } from "./standalone-display-math.ts";
 
 test("Markdown plugins preserve GFM/math and sanitize raw HTML", () => {
-  assert.deepEqual(filePreviewRemarkPlugins, [remarkGfm, remarkMath]);
+  assert.deepEqual(filePreviewRemarkPlugins, [
+    remarkGfm,
+    remarkCjkFriendly,
+    remarkCjkFriendlyGfmStrikethrough,
+    remarkMath,
+    remarkStandaloneDisplayMath,
+  ]);
   assert.equal(markdownRehypePlugins[0], rehypeRaw);
   assert.equal(markdownRehypePlugins[1][0], rehypeSanitize);
   assert.equal(markdownRehypePlugins[2][0], rehypeKatex);
@@ -132,17 +141,10 @@ for (const [pipeline, plugins] of pipelines) {
         displayValues.push(node.value);
       });
       assert.deepEqual(displayValues, expectedValues);
-      const rendered = await unified()
-        .use(remarkParse)
-        .use(plugins)
-        .use(remarkRehype)
-        .use(markdownRehypePlugins)
-        .use(function compileTree() {
-          this.compiler = (tree) => tree;
-        })
-        .process(markdown);
+      const htmlProcessor = unified().use(remarkParse).use(plugins).use(remarkRehype).use(markdownRehypePlugins);
+      const rendered = await htmlProcessor.run(htmlProcessor.parse(markdown), markdown);
       const elements = [];
-      visit(rendered.result, "element", (node) => {
+      visit(rendered, "element", (node) => {
         elements.push(node);
       });
       assert.equal(
