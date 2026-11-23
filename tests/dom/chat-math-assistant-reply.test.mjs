@@ -92,3 +92,67 @@ for (const [opener, text] of [
     assert.equal(formulas(reply).length, 0, "the unfinished block is not laid out as a formula");
   });
 }
+
+test("when a list formula precedes nested bullets, headings and a table, the reply preserves the whole document", async (t) => {
+  const reply = await openReply(
+    t,
+    String.raw`- 相机坐标变换：
+  $$\mathbf{Y}_{\text{cam}} = \mathbf{y}_{\text{deformed}} \mathbf{R}_{\text{w2c}}^{\top} + \mathbf{t}_{\text{w2c}}$$
+  - **保留子项**
+
+### 后续说明
+
+| 名称 | 数值 |
+| --- | --- |
+| 相机 | 1 |
+
+**保留结尾**`,
+  );
+  assert.equal(reply.querySelectorAll("li .katex-display").length, 1, "the display formula stays inside its list item");
+  assert.equal(formulas(reply).length, 1);
+  assert.equal(errors(reply).length, 0);
+  assert.equal(reply.querySelector("ul ul li strong")?.textContent, "保留子项");
+  assert.equal(reply.querySelector("h3")?.textContent, "后续说明");
+  assert.equal(reply.querySelector("tbody td")?.textContent, "相机");
+  assert.ok([...reply.querySelectorAll("strong")].some((node) => node.textContent === "保留结尾"));
+});
+
+for (const [shape, markdown, selector] of [
+  ["a nested bullet", "- 外层\n  - 内层\n    $$E=mc^2$$", "ul ul li .katex-display"],
+  ["an ordered list", "1. 变换\n   $$E=mc^2$$", "ol li .katex-display"],
+  ["a blockquote", "> 变换\n> $$E=mc^2$$", "blockquote .katex-display"],
+  ["a quoted bullet", "> - 变换\n>   $$E=mc^2$$", "blockquote li .katex-display"],
+]) {
+  test(`when a reply puts single-line display math inside ${shape}, the container is preserved`, async (t) => {
+    const reply = await openReply(t, markdown);
+    assert.equal(reply.querySelectorAll(selector).length, 1);
+    assert.equal(formulas(reply).length, 1);
+    assert.equal(errors(reply).length, 0);
+  });
+}
+
+for (const [shape, markdown, inlineCount, codeText] of [
+  ["indented code", "    $$E=mc^2$$", 0, "$$E=mc^2$$"],
+  ["fenced code", "```\n$$E=mc^2$$\n```", 0, "$$E=mc^2$$"],
+  ["inline double dollars", "公式 $$a$$ 结束", 1, null],
+  ["two formulas on one line", "$$a$$ and $$b$$", 2, null],
+  ["standalone single dollars", String.raw`$\tau$`, 1, null],
+]) {
+  test(`when a reply contains ${shape}, it does not invent display math`, async (t) => {
+    const reply = await openReply(t, markdown);
+    assert.equal(displayFormulas(reply).length, 0);
+    assert.equal(formulas(reply).length, inlineCount);
+    assert.equal(errors(reply).length, 0);
+    if (codeText) assert.ok(reply.querySelector("pre code")?.textContent.includes(codeText));
+  });
+}
+
+for (const [shape, markdown, selector, expected] of [
+  ["bold", "另一个常见备选方案是**“按病患收拢结构”**——把", "strong", "“按病患收拢结构”"],
+  ["strikethrough", "方案是~~“旧结构”~~——新结构", "del", "“旧结构”"],
+]) {
+  test(`when a reply has ${shape} next to CJK punctuation, the emphasis renders`, async (t) => {
+    const reply = await openReply(t, markdown);
+    assert.equal(reply.querySelector(selector)?.textContent, expected);
+  });
+}
