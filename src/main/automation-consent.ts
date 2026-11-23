@@ -37,12 +37,18 @@ export function automationDialog(snapshot: AutomationSnapshot): MessageBoxOption
       `定义摘要 ${singleLine(task.planHash)}`,
       `工作目录 ${singleLine(grant.cwd)}`,
       snapshot.kind === "resolve"
-        ? `处理方式 ${singleLine(snapshot.request.resolution.action)} · 运行 ${singleLine(snapshot.request.runId)} · 版本 ${snapshot.request.expectedVersion}`
+        ? `处理方式 ${singleLine(snapshot.request.resolution.action)} · 步骤 ${snapshot.request.stepIndex} · 运行 ${singleLine(snapshot.request.runId)} · 版本 ${snapshot.request.expectedVersion}`
         : "任务将在目标环境无人值守执行。以下权限仅授予这一修订。",
       grant.requiresTrustedLocalExecution
         ? "包含脚本或命令。它们能够访问目标环境的文件和网络，只应批准可信代码。"
         : "不包含脚本或命令。",
       `外部域名 ${grant.httpOrigins.map(singleLine).join(", ") || "无"}`,
+      ...(grant.channelTargets?.length
+        ? [
+            "消息渠道目标",
+            ...grant.channelTargets.map((item) => `${singleLine(item.accountId)} · ${singleLine(item.peerId)}`),
+          ]
+        : []),
       "脚本路径与 SHA-256 指纹",
       ...grant.scripts.map((script) => `${singleLine(script.path)} · ${singleLine(script.sha256)}`),
       `密钥名称 ${grant.secrets.map(singleLine).join(", ") || "无"}`,

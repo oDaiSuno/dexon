@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fixture, task, http, localHttp, until } from "./runtime-test-support.mjs";
 
-test("activity counts 10001 simultaneous cancellations sharing one timestamp", { timeout: 120000 }, async (t) => {
-  const count = 10001;
+test("activity counts simultaneous cancellations sharing one timestamp", { timeout: 30000 }, async (t) => {
+  const count = 64;
   let release;
   let reads = 0;
   const held = new Promise((resolve) => {

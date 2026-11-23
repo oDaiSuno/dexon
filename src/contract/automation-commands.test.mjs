@@ -88,7 +88,18 @@ test("attention commands validate resolution fields and return an independent cl
   }
   const cyclic = {};
   cyclic.self = cyclic;
-  for (const output of [NaN, Infinity, { value: undefined }, { value: () => {} }, cyclic, new Date(), new Map()]) {
+  let sharedDag = null;
+  for (let i = 0; i < 16; i += 1) sharedDag = [sharedDag, sharedDag];
+  for (const output of [
+    NaN,
+    Infinity,
+    { value: undefined },
+    { value: () => {} },
+    cyclic,
+    sharedDag,
+    new Date(),
+    new Map(),
+  ]) {
     assert.throws(
       () =>
         parseAutomationCommand({

@@ -14,6 +14,12 @@ export function automationSecurityChecks(read) {
   const rpc = read("src/contract/rpc.ts");
   const host = read("src/main/host-manager.ts");
   const stopAt = handlers.indexOf("await automationRuntime.stop()");
+  const enableConfirmAt = authority.indexOf('confirmAutomation({ kind: "enable"');
+  const enableCallAt = authority.indexOf('target.call("automation.enableTask"');
+  const resolveConfirmAt = authority.indexOf('confirmAutomation({ kind: "resolve"');
+  const resolveCallAt = authority.indexOf('target.call("automation.resolveAttention"');
+  const refusalAt = renderer.indexOf("gatekeeperRefusal({ id: message.id, method: message.method })");
+  const requestSetAt = renderer.indexOf("requests.set(id, message.id)");
   return [
     [
       main.includes("automation: createAutomationAuthority({") &&
@@ -30,10 +36,12 @@ export function automationSecurityChecks(read) {
     [
       authority.includes("task.requiredGrant.planHash !== planHash") &&
         authority.includes("assertCurrent(target)") &&
-        authority.indexOf('confirmAutomation({ kind: "enable"') <
-          authority.indexOf('target.call("automation.enableTask"') &&
-        authority.indexOf('confirmAutomation({ kind: "resolve"') <
-          authority.indexOf('target.call("automation.resolveAttention"') &&
+        enableConfirmAt >= 0 &&
+        enableCallAt >= 0 &&
+        enableConfirmAt < enableCallAt &&
+        resolveConfirmAt >= 0 &&
+        resolveCallAt >= 0 &&
+        resolveConfirmAt < resolveCallAt &&
         !automation.includes("body.unattendedWriteApproved") &&
         !automation.includes("body.trustedLocalExecApproved"),
       "AutomationAuthority must bind the displayed revision and connection and confirm before restricted RPC",
@@ -63,8 +71,9 @@ export function automationSecurityChecks(read) {
         ["enableTask", "resolveAttention", "setSecret", "deleteSecret", "listSecretNames"].every((method) =>
           gatekeeper.includes(`"automation.${method}": true`),
         ) &&
-        renderer.indexOf("gatekeeperRefusal({ id: message.id, method: message.method })") <
-          renderer.indexOf("requests.set(id, message.id)") &&
+        refusalAt >= 0 &&
+        requestSetAt >= 0 &&
+        refusalAt < requestSetAt &&
         rpc.includes("gatekeeperRefusal({ id: msg.id, method: msg.method })") &&
         host.includes('audience: "renderer"') &&
         host.includes('audience: "gatekeeper"'),

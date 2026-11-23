@@ -58,15 +58,19 @@ function integer(value: unknown, field: string, min: number): number {
   return value;
 }
 
-function json(value: unknown, ancestors = new Set<object>()): Json {
+function json(value: unknown, ancestors = new Set<object>(), budget = { remaining: 4096 }): Json {
+  if (--budget.remaining < 0) invalid("request.resolution.output");
   if (value === null || typeof value === "boolean" || typeof value === "string") return value;
   if (typeof value === "number" && Number.isFinite(value)) return value;
   if (typeof value !== "object" || !value || ancestors.has(value)) invalid("request.resolution.output");
   ancestors.add(value);
   try {
-    if (Array.isArray(value)) return Array.from(value, (entry) => json(entry, ancestors));
+    if (Array.isArray(value)) return Array.from(value, (entry) => json(entry, ancestors, budget));
     return Object.fromEntries(
-      Object.entries(object(value, "request.resolution.output")).map(([key, entry]) => [key, json(entry, ancestors)]),
+      Object.entries(object(value, "request.resolution.output")).map(([key, entry]) => [
+        key,
+        json(entry, ancestors, budget),
+      ]),
     );
   } finally {
     ancestors.delete(value);

@@ -28,8 +28,9 @@ export function protectObservation(
   policy: EffectPolicy,
   scope: SecretUseScope,
 ): EffectObservation<Json> {
+  const payload = observation.kind === "applied" ? observation.output : observation.error;
   let containsSecret = false;
-  const text = JSON.stringify(observation, (key, value: unknown) => {
+  const text = JSON.stringify(payload, (key, value: unknown) => {
     if (
       !containsSecret &&
       (scope.containsUsedSecret(key) || (typeof value === "string" && scope.containsUsedSecret(value)))
@@ -37,7 +38,7 @@ export function protectObservation(
       containsSecret = true;
     return value;
   });
-  if (!containsSecret && !scope.containsUsedSecret(text)) return observation;
+  if (!containsSecret && (!text || !scope.containsUsedSecret(text))) return observation;
   const error = { code: "invalid_input" as const, message: "Executor result contains an approved secret" };
   return policy.kind === "read" ? rejected(error.code, error.message) : interrupted(policy, error);
 }

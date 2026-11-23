@@ -478,7 +478,7 @@ test("runtime input and template substitutions never expand secret placeholders 
       }),
     ]),
   );
-  const run = await settled(f, f.start("task", { note: "{{secret:api}}" }).runId);
+  const run = await f.phase(f.start("task", { note: "{{secret:api}}" }).runId, "succeeded");
   assert.equal(run.phase, "succeeded");
   assert.equal(originA.requests[0].headers.authorization, secret);
   assert.equal(originB.requests[0].headers["x-note"], "note={{secret:api}}");
@@ -486,4 +486,15 @@ test("runtime input and template substitutions never expand secret placeholders 
     raw: "{{secret:api}}",
     templated: "val={{secret:api}}",
   });
+});
+
+test("secret echo guard ignores fixed observation metadata like applied", async (t) => {
+  const f = await fixture(t, { secrets: { api: "applied" } });
+  const endpoint = await localHttp(t, (_request, response) => {
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end('{"ok":true}');
+  });
+  await f.enable(task(f.cwd, [http("call", endpoint.origin, { secretHeaders: { Authorization: "api" } })]));
+  const run = await f.phase(f.start().runId, "succeeded");
+  assert.equal(run.phase, "succeeded");
 });

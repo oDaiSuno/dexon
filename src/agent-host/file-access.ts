@@ -36,12 +36,10 @@ async function resolveNormalizedPath(target: string): Promise<string> {
   }
 }
 
-async function isProtectedStateFile(target: string): Promise<boolean> {
-  const stateRoot = await resolveNormalizedPath(desktopUserDataPath());
-  const resolved = await resolveNormalizedPath(target);
+function matchesProtectedStateFile(stateRoot: string, candidate: string): boolean {
   const compare = (value: string) => (process.platform === "win32" ? value.toLowerCase() : value);
   const root = compare(stateRoot);
-  const file = compare(resolved);
+  const file = compare(candidate);
   const prefix = root.endsWith("/") ? root : `${root}/`;
   if (!file.startsWith(prefix)) return false;
   const relative = file.slice(prefix.length);
@@ -51,6 +49,19 @@ async function isProtectedStateFile(target: string): Promise<boolean> {
     if (relative.startsWith(`${name}.`) && relative.endsWith(".tmp")) return true;
   }
   return false;
+}
+
+async function isProtectedStateFile(target: string): Promise<boolean> {
+  const rawStateRoot = normalizeSlashes(path.resolve(desktopUserDataPath()));
+  const realStateRoot = await resolveNormalizedPath(desktopUserDataPath());
+  const rawTarget = normalizeSlashes(path.resolve(target));
+  const realTarget = await resolveNormalizedPath(target);
+  return (
+    matchesProtectedStateFile(rawStateRoot, rawTarget) ||
+    matchesProtectedStateFile(realStateRoot, rawTarget) ||
+    matchesProtectedStateFile(rawStateRoot, realTarget) ||
+    matchesProtectedStateFile(realStateRoot, realTarget)
+  );
 }
 
 let preparedRoots: { readonly key: string; readonly allowed: Promise<AllowedRoots> } | undefined;
