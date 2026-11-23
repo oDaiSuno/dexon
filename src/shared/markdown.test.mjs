@@ -4,9 +4,12 @@ import test from "node:test";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize from "rehype-sanitize";
+import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkParse from "remark-parse";
+import remarkRehype from "remark-rehype";
 import { unified } from "unified";
 import { visit } from "unist-util-visit";
 import {
@@ -15,9 +18,16 @@ import {
   markdownRehypePlugins,
   userMessageRemarkPlugins,
 } from "./markdown.ts";
+import { remarkStandaloneDisplayMath } from "./standalone-display-math.ts";
 
 test("Markdown plugins preserve GFM/math and sanitize raw HTML", () => {
-  assert.deepEqual(filePreviewRemarkPlugins, [remarkGfm, remarkMath]);
+  assert.deepEqual(filePreviewRemarkPlugins, [
+    remarkGfm,
+    remarkCjkFriendly,
+    remarkCjkFriendlyGfmStrikethrough,
+    remarkMath,
+    remarkStandaloneDisplayMath,
+  ]);
   assert.equal(markdownRehypePlugins[0], rehypeRaw);
   assert.equal(markdownRehypePlugins[1][0], rehypeSanitize);
   assert.equal(markdownRehypePlugins[2][0], rehypeKatex);
@@ -95,6 +105,104 @@ for (const [pipeline, plugins] of pipelines) {
       assert.deepEqual(
         links.map((node) => node.url),
         [expectedUrl],
+      );
+    });
+  }
+}
+
+const displayMathExamples = [
+  ["a standalone root formula", "$$E=mc^2$$", ["E=mc^2"]],
+  ["a bullet formula", "- 变换\n  $$E=mc^2$$", ["E=mc^2"]],
+  ["a nested bullet formula", "- 外层\n  - 内层\n    $$E=mc^2$$", ["E=mc^2"]],
+  ["an ordered-list formula", "1. 变换\n   $$E=mc^2$$", ["E=mc^2"]],
+  ["a blockquote formula", "> 变换\n> $$E=mc^2$$", ["E=mc^2"]],
+  ["a quoted-list formula", "> - 变换\n>   $$E=mc^2$$", ["E=mc^2"]],
+  ["consecutive formulas", "$$a=1$$\n$$b=2$$", ["a=1", "b=2"]],
+  ["three-dollar delimiters", "$$$a=1$$$", ["a=1"]],
+  ["soft line boundaries", "前文\n$$a=1$$\n后文", ["a=1"]],
+  ["hard line boundaries", "前文  \n$$a=1$$  \n后文", ["a=1"]],
+  ["spaced line boundaries", "前文\n \t$$a=1$$ \t\n后文", ["a=1"]],
+  ["CRLF line boundaries", "前文\r\n$$a=1$$\r\n后文", ["a=1"]],
+  ["indented code", "    $$E=mc^2$$", []],
+  ["fenced code", "```\n$$E=mc^2$$\n```", []],
+  ["inline double-dollar math", "公式 $$a$$ 结束", []],
+  ["two formulas on one line", "$$a$$ and $$b$$", []],
+  ["standalone single-dollar math", String.raw`$\tau$`, []],
+  ["empty math", "$$   $$", []],
+];
+
+for (const [pipeline, plugins] of pipelines) {
+  for (const [example, markdown, expectedValues] of displayMathExamples) {
+    test(`${pipeline} recognizes only standalone display math in ${example}`, async () => {
+      const processor = unified().use(remarkParse).use(plugins);
+      const tree = await processor.run(processor.parse(markdown), markdown);
+      const displayValues = [];
+      visit(tree, "math", (node) => {
+        displayValues.push(node.value);
+      });
+      assert.deepEqual(displayValues, expectedValues);
+      const htmlProcessor = unified().use(remarkParse).use(plugins).use(remarkRehype).use(markdownRehypePlugins);
+      const rendered = await htmlProcessor.run(htmlProcessor.parse(markdown), markdown);
+      const elements = [];
+      visit(rendered, "element", (node) => {
+        elements.push(node);
+      });
+      assert.equal(
+        elements.filter((node) => node.properties.className?.includes("katex-display")).length,
+        expectedValues.length,
+      );
+      assert.equal(elements.filter((node) => node.properties.className?.includes("katex-error")).length, 0);
+    });
+  }
+
+  for (const boundary of ["\n", "  \n", "\r\n", "\n \t"]) {
+    test(`${pipeline} splits surrounding prose cleanly at ${JSON.stringify(boundary)}`, async () => {
+      const markdown = `前文${boundary}$$a=1$$${boundary}$$b=2$$${boundary}后文`;
+      const processor = unified().use(remarkParse).use(plugins);
+      const tree = await processor.run(processor.parse(markdown), markdown);
+      assert.deepEqual(
+        tree.children.map((node) => node.type),
+        ["paragraph", "math", "math", "paragraph"],
+      );
+      assert.deepEqual(
+        tree.children
+          .filter((node) => node.type === "paragraph")
+          .map((node) => node.children.map(({ type, value }) => ({ type, value }))),
+        ["前文", "后文"].map((value) => [{ type: "text", value }]),
+      );
+    });
+  }
+
+  test(`${pipeline} safely keeps dollar math inline when run without the source file`, async () => {
+    const processor = unified().use(remarkParse).use(plugins);
+    const tree = await processor.run(processor.parse("$$a=1$$\n\n$\\tau$"));
+    const inlineValues = [];
+    visit(tree, "inlineMath", (node) => {
+      inlineValues.push(node.value);
+    });
+    assert.deepEqual(inlineValues, ["a=1", "\\tau"]);
+  });
+
+  for (const [style, markdown, type, expected] of [
+    ["bold", "另一个常见备选方案是**“按病患收拢结构”**——把", "strong", "“按病患收拢结构”"],
+    ["strikethrough", "方案是~~“旧结构”~~——新结构", "delete", "“旧结构”"],
+  ]) {
+    test(`${pipeline} renders ${style} next to CJK punctuation without losing GFM tables or autolinks`, async () => {
+      const document = `${markdown}\n\n| 名称 | 链接 |\n| --- | --- |\n| 方案 | https://example.com |`;
+      const processor = unified().use(remarkParse).use(plugins);
+      const tree = await processor.run(processor.parse(document), document);
+      const nodes = [];
+      visit(tree, (node) => {
+        nodes.push(node);
+      });
+      assert.deepEqual(
+        nodes.filter((node) => node.type === type).map((node) => node.children[0].value),
+        [expected],
+      );
+      assert.equal(nodes.filter((node) => node.type === "table").length, 1);
+      assert.deepEqual(
+        nodes.filter((node) => node.type === "link").map((node) => node.url),
+        ["https://example.com"],
       );
     });
   }

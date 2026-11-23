@@ -2,10 +2,13 @@ import type { Options as ReactMarkdownOptions } from "react-markdown";
 import rehypeKatex from "rehype-katex";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import remarkCjkFriendly from "remark-cjk-friendly";
+import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethrough";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { remarkChatMath, remarkHoldUnclosedMath } from "./chat-math.ts";
 import { remarkAttachmentTokens } from "./markdown-attachment-tokens.ts";
+import { remarkStandaloneDisplayMath } from "./standalone-display-math.ts";
 
 export const markdownSanitizeSchema = {
   ...defaultSchema,
@@ -22,11 +25,20 @@ export const markdownSanitizeSchema = {
 
 export const chatRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
   remarkGfm,
+  remarkCjkFriendly,
+  remarkCjkFriendlyGfmStrikethrough,
   remarkChatMath,
   remarkHoldUnclosedMath,
+  remarkStandaloneDisplayMath,
 ];
 
-export const filePreviewRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [remarkGfm, remarkMath];
+export const filePreviewRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
+  remarkGfm,
+  remarkCjkFriendly,
+  remarkCjkFriendlyGfmStrikethrough,
+  remarkMath,
+  remarkStandaloneDisplayMath,
+];
 
 export const markdownRehypePlugins: ReactMarkdownOptions["rehypePlugins"] = [
   rehypeRaw,
@@ -77,8 +89,11 @@ export function rehypeAttachmentChips() {
 
 export const userMessageRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkPlugins"]> = [
   remarkGfm,
+  remarkCjkFriendly,
+  remarkCjkFriendlyGfmStrikethrough,
   remarkChatMath,
   remarkHoldUnclosedMath,
+  remarkStandaloneDisplayMath,
   remarkAttachmentTokens,
 ];
 
