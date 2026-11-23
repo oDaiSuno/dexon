@@ -1,4 +1,12 @@
 import {
+  decodeComposerQuoteToken,
+  encodeComposerQuoteToken,
+  quoteSnippet,
+  segmentByComposerQuoteTokens,
+  type QuoteReference,
+} from "@shared/quote-tokens";
+import { QUOTE_CHIP_SVG } from "./quote-glyph";
+import {
   attachmentTokenName,
   attachmentTokenText,
   insertAttachmentToken,
@@ -7,20 +15,11 @@ import {
 import { attachmentGlyphSvg, SKILL_CHIP_SVG } from "./chip-glyphs";
 import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
 
-/**
- * Pure DOM helpers for the composer editable surface: chip construction. No
- * React — kept separate so ComposerEditable stays about wiring and event flow.
- *
- * Two chip kinds live on the same surface: attachment tokens
- * (`@path`, data-attachment-token) and skill commands (`/skill:name`,
- * data-skill-token — pi expands these at message start).
- */
-
 export const TOKEN_ATTR = "data-attachment-token";
 export const SKILL_ATTR = "data-skill-token";
+export const QUOTE_ATTR = "data-quote-token";
 
-/** Selector matching any atomic chip on the editable surface. */
-export const CHIP_SELECTOR = `[${TOKEN_ATTR}],[${SKILL_ATTR}]`;
+export const CHIP_SELECTOR = `[${TOKEN_ATTR}],[${SKILL_ATTR}],[${QUOTE_ATTR}]`;
 
 export function insertSerializedText(value: string, text: string): string {
   const glue = value.length > 0 && !/\s/.test(value[value.length - 1] ?? " ") ? " " : "";
@@ -31,19 +30,29 @@ export function insertSerializedAttachment(value: string, path: string): string 
   return insertAttachmentToken(value, null, path).value;
 }
 
+export function insertSerializedQuote(value: string, quote: QuoteReference): string {
+  return `${insertSerializedText(value, encodeComposerQuoteToken(quote))} `;
+}
+
 const CHIP_REMOVE_SVG = `<svg width="6" height="6" viewBox="0 0 8 8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><line x1="1" y1="1" x2="7" y2="7"/><line x1="7" y1="1" x2="1" y2="7"/></svg>`;
 
 export function chipText(el: HTMLElement): string {
+  if (el.hasAttribute(QUOTE_ATTR)) {
+    const quote = decodeComposerQuoteToken(el.dataset.quotePayload ?? "");
+    return quote ? encodeComposerQuoteToken(quote) : "";
+  }
   if (el.hasAttribute(SKILL_ATTR)) return skillCommandText(el.dataset.skillName ?? "");
   if (el.hasAttribute(TOKEN_ATTR)) return attachmentTokenText(el.dataset.path ?? "");
   return "";
 }
 
 export function isChipEl(node: Node | null): node is HTMLElement {
-  return node instanceof HTMLElement && (node.hasAttribute(TOKEN_ATTR) || node.hasAttribute(SKILL_ATTR));
+  return (
+    node instanceof HTMLElement &&
+    (node.hasAttribute(TOKEN_ATTR) || node.hasAttribute(SKILL_ATTR) || node.hasAttribute(QUOTE_ATTR))
+  );
 }
 
-/** Clamp the editor's visual height to its max-height (auto-grow). */
 export function syncEditorHeight(el: HTMLElement): void {
   el.style.height = "auto";
   el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
@@ -52,9 +61,14 @@ export function syncEditorHeight(el: HTMLElement): void {
 export interface ChipVisuals {
   attachment(path: string): PillVisual;
   skill(name: string): SkillChipVisual;
+  quote(quote: QuoteReference): QuoteChipVisual;
 }
 
 export function syncChipVisuals(el: HTMLElement, visuals: ChipVisuals): void {
+  for (const chip of el.querySelectorAll<HTMLElement>(`[${QUOTE_ATTR}]`)) {
+    const quote = decodeComposerQuoteToken(chip.dataset.quotePayload ?? "");
+    if (quote) syncQuoteChipVisual(chip, visuals.quote(quote));
+  }
   for (const chip of el.querySelectorAll<HTMLElement>(`[${TOKEN_ATTR}]`)) {
     const path = chip.dataset.path ?? "";
     const visual = visuals.attachment(path);
@@ -74,7 +88,6 @@ export interface PillVisual {
   removeLabel: string;
 }
 
-/** Build an atomic attachment chip element for the editable surface. */
 export function createTokenChip(path: string, visual: PillVisual): HTMLElement {
   const chip = document.createElement("span");
   chip.setAttribute(TOKEN_ATTR, "");
@@ -117,7 +130,6 @@ export interface SkillChipVisual {
   removeLabel: string;
 }
 
-/** Build an atomic `/skill:name` chip (accent-blue, per the reference design). */
 export function createSkillChip(name: string, visual: SkillChipVisual): HTMLElement {
   const chip = document.createElement("span");
   chip.setAttribute(SKILL_ATTR, "");
@@ -152,14 +164,48 @@ function syncSkillChipVisual(chip: HTMLElement, name: string, visual: SkillChipV
   }
 }
 
-export type ComposerSegment =
-  { type: "text"; text: string } | { type: "attachment"; path: string } | { type: "skill"; name: string };
+export interface QuoteChipVisual {
+  removeLabel: string;
+}
 
-/**
- * Unified segmenting for rebuild: attachment tokens anywhere, plus a leading
- * closed `/skill:name` (the only position pi expands). An open trailing
- * skill query stays plain text so the slash palette keeps working.
- */
+function syncQuoteChipVisual(chip: HTMLElement, visual: QuoteChipVisual): void {
+  const remove = chip.querySelector<HTMLElement>("[data-chip-remove]");
+  if (remove) {
+    remove.title = visual.removeLabel;
+    remove.setAttribute("aria-label", visual.removeLabel);
+  }
+}
+
+export function createQuoteChip(quote: QuoteReference, visual: QuoteChipVisual): HTMLElement {
+  const chip = document.createElement("span");
+  chip.setAttribute(QUOTE_ATTR, "");
+  chip.dataset.quotePayload = encodeComposerQuoteToken(quote);
+  chip.contentEditable = "false";
+  chip.setAttribute("role", "button");
+  chip.setAttribute("aria-label", quoteSnippet(quote.text));
+  chip.className = "quote-chip type-label-medium";
+  const icon = document.createElement("span");
+  icon.className = "quote-chip-glyph";
+  icon.innerHTML = QUOTE_CHIP_SVG;
+  const name = document.createElement("span");
+  name.className = "token-chip-name";
+  name.textContent = quoteSnippet(quote.text);
+  const remove = document.createElement("span");
+  remove.className = "token-chip-remove";
+  remove.setAttribute("data-chip-remove", "");
+  remove.setAttribute("role", "button");
+  remove.innerHTML = CHIP_REMOVE_SVG;
+  chip.append(icon, name, remove);
+  syncQuoteChipVisual(chip, visual);
+  return chip;
+}
+
+export type ComposerSegment =
+  | { type: "text"; text: string }
+  | { type: "attachment"; path: string }
+  | { type: "skill"; name: string }
+  | { type: "quote"; quote: QuoteReference };
+
 export function segmentComposerText(text: string): ComposerSegment[] {
   const out: ComposerSegment[] = [];
   let rest = text;
@@ -168,9 +214,13 @@ export function segmentComposerText(text: string): ComposerSegment[] {
     out.push({ type: "skill", name: skill.name });
     rest = text.slice(skill.end);
   }
-  for (const segment of segmentByAttachmentTokens(rest)) {
-    if (segment.type === "text") out.push({ type: "text", text: segment.text });
-    else out.push({ type: "attachment", path: segment.token.path });
+  for (const segment of segmentByComposerQuoteTokens(rest)) {
+    if (segment.type === "quote") out.push(segment);
+    else
+      for (const part of segmentByAttachmentTokens(segment.text)) {
+        if (part.type === "text") out.push(part);
+        else out.push({ type: "attachment", path: part.token.path });
+      }
   }
   return out;
 }

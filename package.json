@@ -60,6 +60,7 @@
     "test:chat-history-electron": "node scripts/test-chat-history-electron.mjs",
     "test:user-bubble-electron": "node scripts/test-user-bubble-electron.mjs",
     "test:composer-editing-electron": "node scripts/test-composer-editing-electron.mjs",
+    "test:quote-selection-electron": "node scripts/test-quote-selection-electron.mjs",
     "test:nav-layout-electron": "node scripts/test-nav-layout-electron.mjs",
     "test:sidebar-pulse-well-electron": "node scripts/test-sidebar-pulse-well-electron.mjs",
     "test:app-navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test tests/dom/app-navigation-*.test.mjs",

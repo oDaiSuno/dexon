@@ -41,6 +41,7 @@ export function ChatMessages({
   assistantBlockCache,
   processDetailsExpansionStore,
   disengageAutoFollow,
+  quoteInteraction,
 }: Pick<
   ChatWindowState,
   | "environmentId"
@@ -67,6 +68,7 @@ export function ChatMessages({
   | "assistantBlockCache"
   | "processDetailsExpansionStore"
   | "disengageAutoFollow"
+  | "quoteInteraction"
 >) {
   return (() => {
     const streaming = streamState.streamingMessage;
@@ -129,6 +131,7 @@ export function ChatMessages({
             environmentId={environmentId}
             sessionId={session?.id}
             message={msg}
+            {...quoteInteraction}
             toolResults={toolData?.results}
             toolCallDurations={toolData?.durations}
             cwd={messageCwd}
@@ -153,6 +156,9 @@ export function ChatMessages({
         <div
           key={screenKey}
           className="chat-history-item"
+          data-quote-entry-id={shownEntryIds[idx] ?? ""}
+          data-quote-role={msg.role}
+          data-quote-streaming={msg === streamingMessage ? "true" : undefined}
           style={editDraft && editDraft.entryId === entryIds[idx] ? { contentVisibility: "visible" } : undefined}
           ref={attachVisibleRef(idx, currentRefIdx)}
           {...readingAnchorAttributes(renderKey)}
@@ -168,6 +174,9 @@ export function ChatMessages({
         <div
           key={messageRenderKeys.screenKey(piece.key)}
           className="chat-history-item"
+          data-quote-entry-id={piece.entryId ?? ""}
+          data-quote-role="assistant"
+          data-quote-streaming={shownMessages[piece.index] === streamingMessage ? "true" : undefined}
           ref={refForPiece(piece.refIndex)}
           {...readingAnchorAttributes(piece.anchor)}
         >
@@ -195,6 +204,16 @@ export function ChatMessages({
       <div
         key={messageRenderKeys.screenKey(piece.key)}
         className="chat-history-item"
+        data-quote-entry-id={piece.flow.items.find((item) => item.kind !== "custom")?.entryId ?? ""}
+        data-quote-role="assistant"
+        data-quote-streaming={
+          streamingMessage &&
+          piece.flow.items.some(
+            (item) => item.kind !== "custom" && (item.entryId ?? "") === (streamState.streamingEntryId ?? ""),
+          )
+            ? "true"
+            : undefined
+        }
         ref={refForPiece(piece.refIndex)}
         {...readingAnchorAttributes(piece.anchor)}
       >
@@ -212,6 +231,7 @@ export function ChatMessages({
           <ProcessFlow
             environmentId={environmentId}
             items={piece.flow.items}
+            quoteStreamingEntryId={streamingMessage ? (streamState.streamingEntryId ?? "") : undefined}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             onLoadDeferredContent={loadDeferredContent}
@@ -227,6 +247,9 @@ export function ChatMessages({
       <div
         key={messageRenderKeys.screenKey(piece.key)}
         className="chat-history-item"
+        data-quote-entry-id={shownEntryIds[piece.index] ?? ""}
+        data-quote-role="assistant"
+        data-quote-streaming={shownMessages[piece.index] === streamingMessage ? "true" : undefined}
         ref={refForPiece(piece.refIndex)}
         {...readingAnchorAttributes(piece.anchor)}
       >

@@ -32,5 +32,7 @@ await runRendererElectronCheck({
     "wrapped-history-keeps-native-row-navigation",
     "arrow-up-recalls-history-without-opening-menus-or-losing-draft",
     "composition-enter-does-not-send",
+    "quote-chips-mix-with-files-delete-atomically-and-restore-on-undo",
+    "quote-chips-survive-draft-switch-and-copy-paste",
   ],
 });

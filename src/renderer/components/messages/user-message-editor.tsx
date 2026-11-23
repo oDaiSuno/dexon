@@ -1,3 +1,5 @@
+import { serializeComposerQuotesForSend } from "@shared/quote-tokens";
+import type { QuoteInteractionProps } from "./quote-chip";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { EnvironmentId } from "@contract/environment";
 import { useComposerAttachments } from "../chat-input/use-composer-attachments";
@@ -32,7 +34,7 @@ export interface EditDraftHandlers {
   change(text: string): void;
   removeImage(index: number): void;
   cancel(): void;
-  send(): void | Promise<void>;
+  send(text?: string): void | Promise<void>;
 }
 
 export function flatImageOf(block: ImageContent): OutgoingImage | null {
@@ -99,10 +101,14 @@ export function useMessageEdit({
         );
       },
       cancel: cancelEdit,
-      async send() {
+      async send(text) {
         const draft = editDraftRef.current;
         if (!draft) return;
-        const accepted = await sendMessage(draft.entryId, draft.text, draft.images).then(
+        const accepted = await sendMessage(
+          draft.entryId,
+          text ?? serializeComposerQuotesForSend(draft.text),
+          draft.images,
+        ).then(
           () => true,
           () => false,
         );
@@ -141,7 +147,10 @@ export function UserMessageEditor({
   onRemoveImage,
   onCancel,
   onSend,
-}: {
+  onJumpQuote,
+  jumpingQuoteKey,
+  detachedQuoteKeys,
+}: QuoteInteractionProps & {
   environmentId: EnvironmentId;
   sessionId?: string | null;
   cwd?: string;
@@ -153,7 +162,7 @@ export function UserMessageEditor({
   onChange: (text: string) => void;
   onRemoveImage: (index: number) => void;
   onCancel: () => void;
-  onSend: () => void | Promise<void>;
+  onSend: (text: string) => void | Promise<void>;
 }) {
   const { t } = useI18n();
   const handleRef = useRef<ComposerEditableHandle | null>(null);
@@ -192,7 +201,7 @@ export function UserMessageEditor({
     if (!canSend) return;
     setIsPending(true);
     try {
-      await onSend();
+      await onSend(serializeComposerQuotesForSend(text));
     } finally {
       setIsPending(false);
     }
@@ -326,6 +335,10 @@ export function UserMessageEditor({
           removeLabel={t("remove", "Remove")}
           skillsByName={NO_SKILLS}
           skillRemoveLabel={t("removeSkill", "Remove skill")}
+          quoteRemoveLabel={t("removeQuote", "Remove quote")}
+          onJumpQuote={onJumpQuote}
+          jumpingQuoteKey={jumpingQuoteKey}
+          detachedQuoteKeys={detachedQuoteKeys}
         />
       </div>
       <div style={{ display: "flex", justifyContent: "flex-end", gap: "var(--space-2)" }}>

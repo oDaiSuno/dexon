@@ -8,6 +8,7 @@ export interface MarkdownTreeNode {
   quoted?: boolean;
   raw?: string;
   name?: string;
+  quoteId?: string;
   children?: MarkdownTreeNode[];
 }
 
@@ -99,6 +100,60 @@ export function remarkAttachmentTokens(this: unknown): void {
     },
     exit: {
       attachmentToken(this: FromMarkdownState, token: unknown) {
+        this.exit(token);
+      },
+    },
+  });
+}
+
+function quoteTokenConstruct(): MicromarkConstruct {
+  return {
+    name: "quoteToken",
+    previous: () => true,
+    tokenize(effects, ok, nok) {
+      const label = "[quote:";
+      let index = 0;
+      function start(code: number | null): MicromarkState {
+        if (code !== label.charCodeAt(index)) return nok(code);
+        if (index === 0) effects.enter("quoteToken");
+        effects.consume(code);
+        index += 1;
+        return index === label.length ? firstDigit : start;
+      }
+      function firstDigit(code: number | null): MicromarkState {
+        if (code === null || code < 49 || code > 57) return nok(code);
+        effects.consume(code);
+        return digits;
+      }
+      function digits(code: number | null): MicromarkState {
+        if (code !== null && code >= 48 && code <= 57) {
+          effects.consume(code);
+          return digits;
+        }
+        if (code !== 93) return nok(code);
+        effects.consume(code);
+        effects.exit("quoteToken");
+        return ok;
+      }
+      return start;
+    },
+  };
+}
+
+export function remarkQuoteTokens(this: unknown): void {
+  const data = pluginData(this);
+  const constructs = (data.micromarkExtensions ??= []) as Record<string, unknown>[];
+  constructs.push({ text: { 91: quoteTokenConstruct() } });
+  const extensions = (data.fromMarkdownExtensions ??= []) as Record<string, unknown>[];
+  extensions.push({
+    enter: {
+      quoteToken(this: FromMarkdownState, token: unknown) {
+        const raw = this.sliceSerialize(token);
+        this.enter({ type: "quoteToken", quoteId: raw.slice(7, -1), raw }, token);
+      },
+    },
+    exit: {
+      quoteToken(this: FromMarkdownState, token: unknown) {
         this.exit(token);
       },
     },

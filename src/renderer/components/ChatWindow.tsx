@@ -1,3 +1,5 @@
+import { QuoteJumpPreview } from "./chat-window/quote-jump-preview";
+import { SelectionQuotePopover } from "./chat-window/selection-quote-popover";
 import { DragOverlay } from "./chat-window/drag-overlay";
 import { ChatMessages } from "./chat-window/messages";
 import { OlderHistoryZone } from "./chat-window/older-history-zone";
@@ -36,6 +38,10 @@ export function ChatWindow(props: Props) {
     if (active instanceof HTMLElement && active.closest("[data-chat-surface]")) active.blur();
   }, [visible]);
   const {
+    selectionQuote,
+    quoteInteraction,
+    detachedPreview,
+    closeDetachedPreview,
     loading,
     error,
     sessionLoadReconnecting,
@@ -131,6 +137,12 @@ export function ChatWindow(props: Props) {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      <SelectionQuotePopover
+        selection={selectionQuote.selection}
+        onInsert={selectionQuote.insert}
+        scrollContainerRef={scrollContainerRef}
+      />
+      <QuoteJumpPreview preview={detachedPreview} onClose={closeDetachedPreview} />
       <DragOverlay isDragOver={isDragOver} />
       <ReconnectBanner />
       {sessionLoadReconnecting && sendGate.allowed && (
@@ -205,6 +217,7 @@ export function ChatWindow(props: Props) {
 
                   <ReaderActionProvider onReaderAction={disengageAutoFollow}>
                     <ChatMessages
+                      quoteInteraction={quoteInteraction}
                       environmentId={environmentId}
                       messages={messages}
                       messageRefs={messageRefs}

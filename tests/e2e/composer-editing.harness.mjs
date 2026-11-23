@@ -77,6 +77,23 @@ async function scene(name, run) {
   const evidence = await run();
   records.push({ name, pass: true, ...evidence });
 }
+const QUOTE_ONE = {
+  id: "1",
+  text: "Bold and inline-code quote.",
+  from: "assistant",
+  entryId: "assistant-quote",
+  prefix: "before ",
+  suffix: " after",
+};
+const QUOTE_TWO = {
+  id: "2",
+  text: "Second quote text.",
+  from: "user",
+  entryId: "user-quote",
+  prefix: "first ",
+  suffix: " last",
+};
+
 function sampleScreenshot() {
   const width = 64;
   const height = 40;
@@ -596,6 +613,95 @@ async function run() {
     await key("Escape");
     assert.equal((await view()).text, "edited newest [main.ts]", "Escape does not discard a promoted draft");
     return { screenshot, workingDraftPreserved: true, previewSent: true, editedPreviewPersisted: true };
+  });
+
+  await scene("quote-chips-mix-with-files-delete-atomically-and-restore-on-undo", async () => {
+    await page(`insertQuote(${JSON.stringify(QUOTE_ONE)})`);
+    await type("prose ");
+    await type("@src/main.ts ");
+    await waitFor("window.composerEditing.view().chips.includes('main.ts')", "the file chip is mixed with quotes");
+    await page(`insertQuote(${JSON.stringify(QUOTE_TWO)})`);
+    const original = await page("quoteDetails()");
+    assert.deepEqual(
+      original.map(({ id, text, from, entryId, prefix, suffix }) => ({ id, text, from, entryId, prefix, suffix })),
+      [QUOTE_ONE, QUOTE_TWO],
+      "both quote chips preserve their complete text and coordinates",
+    );
+    await hover(await page(`chipCenter(${JSON.stringify("Second quote text.")})`));
+    await click(await page(`removeButtonCenter(${JSON.stringify("Second quote text.")})`));
+    assert.equal((await page("quoteDetails()")).length, 1, "the remove control deletes one quote atomically");
+    await menu("undo");
+    assert.deepEqual(
+      (await page("quoteDetails()")).map(({ id, text, from, entryId, prefix, suffix }) => ({
+        id,
+        text,
+        from,
+        entryId,
+        prefix,
+        suffix,
+      })),
+      [QUOTE_ONE, QUOTE_TWO],
+      "undo restores the removed quote and all of its coordinates",
+    );
+    await page("placeCaretAfterQuote(0)");
+    await key("Backspace");
+    assert.equal((await page("quoteDetails()")).length, 1, "Backspace removes the quote chip as one atom");
+    await menu("undo");
+    assert.deepEqual(
+      (await page("quoteDetails()")).map(({ text, entryId, prefix, suffix }) => ({ text, entryId, prefix, suffix })),
+      [
+        { text: QUOTE_ONE.text, entryId: QUOTE_ONE.entryId, prefix: QUOTE_ONE.prefix, suffix: QUOTE_ONE.suffix },
+        { text: QUOTE_TWO.text, entryId: QUOTE_TWO.entryId, prefix: QUOTE_TWO.prefix, suffix: QUOTE_TWO.suffix },
+      ],
+    );
+    await page("placeCaretAtEnd()");
+    await key("Enter");
+    const [message] = await sent();
+    assert.ok(
+      message.startsWith(
+        '<quotes>\n<quote id="1" from="assistant" entry="assistant-quote" pre="before " suf=" after">',
+      ),
+      message,
+    );
+    assert.ok(message.includes("Bold and inline-code quote."), "the first quote text is verbatim in the envelope");
+    assert.ok(message.includes("Second quote text."), "the second quote text is verbatim in the envelope");
+    assert.ok(message.includes("</quotes>\n\n[quote:1] prose @src/main.ts [quote:2]"), message);
+    assert.ok(!message.includes("\\uE000quote:"), "the sent prompt does not leak composer tokens");
+    return { quoteDetails: await page("quoteDetails()"), sent: message };
+  });
+
+  await scene("quote-chips-survive-draft-switch-and-copy-paste", async () => {
+    const quote = {
+      id: "1",
+      text: "Quote survives draft copy.",
+      from: "assistant",
+      entryId: "copy-assistant",
+      prefix: "copy before ",
+      suffix: " copy after",
+    };
+    await page(`insertQuote(${JSON.stringify(quote)})`);
+    await type("draft A");
+    await page(`configure({ draftKey: "composer-draft-b" })`);
+    await settle();
+    await page("focus()");
+    assert.deepEqual(await page("quoteDetails()"), [], "draft B starts clean");
+    await page(`configure({ draftKey: ${JSON.stringify(`composer-${records.length}`)} })`);
+    await settle();
+    assert.equal((await page("quoteDetails()"))[0].text, quote.text, "switching back restores the quote chip");
+    await page("selectAll()");
+    await menu("copy");
+    assert.ok(clipboard.readText().length > 0, "copy places the draft on the system clipboard");
+    await page(`configure({ draftKey: "composer-draft-b" })`);
+    await settle();
+    await page("focus()");
+    await menu("paste");
+    await waitFor("window.composerEditing.quoteDetails().length===1", "the pasted quote chip appears");
+    assert.equal((await page("quoteDetails()"))[0].text, quote.text, "paste restores the complete quote chip");
+    await key("Enter");
+    const [message] = await sent();
+    assert.ok(message.includes("Quote survives draft copy."), "the pasted quote is serialized with full text");
+    assert.ok(message.startsWith('<quotes>\n<quote id="1" from="assistant" entry="copy-assistant"'), message);
+    return { quoteDetails: await page("quoteDetails()"), sent: message };
   });
 
   await scene("composition-enter-does-not-send", async () => {

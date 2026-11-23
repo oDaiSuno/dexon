@@ -49,6 +49,7 @@ type MathMode = "chat" | "file";
 
 export interface InlineChips {
   leadingSkill?: string | null;
+  quote?: (ref: { quoteId: string; raw: string }) => ReactNode;
   attachment: (token: { path: string; quoted: boolean }) => ReactNode;
   skill: (name: string) => ReactNode;
 }
@@ -56,6 +57,7 @@ export interface InlineChips {
 interface ChipNodeData {
   attachmentToken?: { path: string; quoted: boolean };
   skillToken?: { name: string };
+  quoteToken?: { quoteId: string; raw: string };
 }
 
 type MarkdownRenderContextValue = Pick<
@@ -187,6 +189,9 @@ const InlineChipsContext = createContext<InlineChips | null>(null);
 function InlineChipSpan({ node, children, ...props }: MarkdownComponentProps<"span">) {
   const chips = useContext(InlineChipsContext);
   const data = (node as { data?: ChipNodeData } | undefined)?.data;
+  const quoteId = (props as Record<string, unknown>)["data-quote-ref"];
+  const quote = data?.quoteToken ?? (typeof quoteId === "string" ? { quoteId, raw: `[quote:${quoteId}]` } : null);
+  if (quote) return <>{chips?.quote?.(quote) ?? quote.raw}</>;
   if (chips && data?.attachmentToken) return <>{chips.attachment(data.attachmentToken)}</>;
   if (chips && data?.skillToken) return <>{chips.skill(data.skillToken.name)}</>;
   return <span {...props}>{children}</span>;

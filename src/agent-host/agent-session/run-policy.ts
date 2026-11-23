@@ -7,6 +7,7 @@ import type {
   ToolExposure,
   ToolLoadoutReader,
 } from "../../shared/pi-types";
+import { stripQuoteCoordinatesFromMessages } from "../../shared/quote-tokens";
 import { browserCapabilityRuntime } from "../browser-capability-runtime";
 import { browserToolNamesForSnapshot } from "../browser-tools";
 import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
@@ -208,7 +209,9 @@ export class RunPolicy {
           return undefined;
         });
         pi.on("context", (event) => ({
-          messages: stripLegacyChannelPrompts(event.messages) as typeof event.messages,
+          messages: stripQuoteCoordinatesFromMessages(
+            stripLegacyChannelPrompts(event.messages) as typeof event.messages,
+          ) as typeof event.messages,
         }));
       },
     };

@@ -1,6 +1,7 @@
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { useCallback } from "react";
+import { expandQuotedPromptToComposerText } from "@shared/quote-tokens";
 import { ThinkingLevelOption, UseAgentSessionOptions } from "./shared";
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionState } from "./use-session-state";
@@ -126,7 +127,7 @@ export function useSessionQueue(context: Dependencies, opts: UseAgentSessionOpti
       setQueuedMessages({ steering: [], followUp: [] });
       const texts = [...(result?.steering ?? []), ...(result?.followUp ?? [])];
       if (texts.length > 0) {
-        opts.chatInputRef?.current?.prependText(texts.join("\n\n"));
+        opts.chatInputRef?.current?.prependText(texts.map(expandQuotedPromptToComposerText).join("\n\n"));
       }
     } catch (e) {
       console.error("Failed to recall queued messages:", e);

@@ -5,7 +5,7 @@ import { useI18n } from "@/i18n";
 import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession";
 import type { ModelCatalogStatus } from "@contract/types";
 import type { CatalogSkill } from "./use-skill-catalog";
-import { ComposerEditable } from "./ComposerEditable";
+import { ComposerTextField } from "./composer-text-field";
 import type {
   CaretPlacement,
   ChatInputProps,
@@ -63,6 +63,9 @@ export interface ComposerViewProps extends ModelPickerStatus {
   missingTokenInspections: ReadonlyMap<string, boolean>;
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
+  onJumpQuote?: ChatInputProps["onJumpQuote"];
+  jumpingQuoteKey?: ChatInputProps["jumpingQuoteKey"];
+  detachedQuoteKeys?: ChatInputProps["detachedQuoteKeys"];
   skillsByName: ReadonlyMap<string, CatalogSkill>;
   attachmentTokens: { path: string }[];
   onOpenPicker: () => void;
@@ -148,23 +151,11 @@ export function ComposerView(props: ComposerViewProps) {
     isStreaming,
     onFollowUp,
     value,
-    restoreCaret,
-    editableRef,
     fileInputRef,
     processFiles,
     onSend,
     onAbort,
     onQueue,
-    onChange,
-    onKeyDown,
-    onPaste,
-    onCompositionStart,
-    onCompositionEnd,
-    tokenPreviewsByPath,
-    missingTokenInspections,
-    onRevealToken,
-    onSkillReveal,
-    skillsByName,
     attachmentTokens,
     onOpenPicker,
     plusMenuOpen,
@@ -177,6 +168,7 @@ export function ComposerView(props: ComposerViewProps) {
     remote,
     navigation,
     skills,
+    skillsByName,
     skillsLoading,
     skillsError,
     onPickSkill,
@@ -388,29 +380,7 @@ export function ComposerView(props: ComposerViewProps) {
                 <PlusIcon size={17} />
               </button>
               <div style={{ flex: 1, minWidth: 0, display: "flex" }}>
-                <ComposerEditable
-                  visible={visible}
-                  value={value}
-                  restoreCaret={restoreCaret}
-                  handleRef={editableRef}
-                  placeholder={
-                    isStreaming
-                      ? t("queuePlaceholder", "Agent is running… sending queues a follow-up")
-                      : t("messagePlaceholder", "Message… Type / for commands, @ for files")
-                  }
-                  onChange={onChange}
-                  onKeyDown={onKeyDown}
-                  onPaste={onPaste}
-                  onCompositionStart={onCompositionStart}
-                  onCompositionEnd={onCompositionEnd}
-                  previewsByPath={tokenPreviewsByPath}
-                  missingByPath={missingTokenInspections}
-                  onRevealToken={onRevealToken}
-                  onSkillReveal={onSkillReveal}
-                  removeLabel={t("remove", "Remove")}
-                  skillsByName={skillsByName}
-                  skillRemoveLabel={t("removeSkill", "Remove skill")}
-                />
+                <ComposerTextField {...props} />
               </div>
               {isStreaming ? (
                 value.trim() && onFollowUp ? (

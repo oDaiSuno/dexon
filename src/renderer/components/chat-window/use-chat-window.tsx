@@ -9,13 +9,16 @@ import { newSessionDraftKey } from "@/lib/unsaved-messages";
 import { modelSupportsImages } from "@/lib/model-selection";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
 import { buildToolMessageIndex } from "@/lib/tool-message-index";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ChatInput } from "../ChatInput";
 import { recallablePrompts } from "../chat-input/prompt-history";
 import { useMessageEdit } from "../messages/user-message-editor";
 import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
+import { useQuoteJump } from "./use-quote-jump";
+import { useSessionReporting } from "./use-session-reporting";
+import { useSelectionQuote } from "./use-selection-quote";
 import { useReadingPosition } from "./use-reading-position";
 
 export function useChatWindow({
@@ -46,6 +49,8 @@ export function useChatWindow({
   navigation,
   workspace,
 }: Props) {
+  const localChatInputRef = useRef<React.ComponentRef<typeof ChatInput>>(null);
+  chatInputRef ??= localChatInputRef;
   const { soundEnabled, onSoundToggle, playDoneSound, unlockAudio } = useAudio();
   const isMobile = useIsMobile(visible);
   const { t } = useI18n();
@@ -164,58 +169,12 @@ export function useChatWindow({
     restoreReadingPosition,
     expansionStores,
   });
-  const statsKey = sessionStats
-    ? [
-        sessionStats.sessionId,
-        sessionStats.sessionFile ?? "",
-        sessionStats.sessionName ?? "",
-        sessionStats.userMessages,
-        sessionStats.assistantMessages,
-        sessionStats.toolCalls,
-        sessionStats.toolResults,
-        sessionStats.totalMessages,
-        sessionStats.tokens.input,
-        sessionStats.tokens.output,
-        sessionStats.tokens.cacheRead,
-        sessionStats.tokens.cacheWrite,
-        sessionStats.tokens.total,
-        sessionStats.cost ?? 0,
-        JSON.stringify(sessionStats.costs ?? null),
-        sessionStats.lastCompactionAt ?? "",
-      ].join("|")
-    : null;
-
-  const sessionStatsRef = useRef(sessionStats);
-
-  sessionStatsRef.current = sessionStats;
-
-  useEffect(() => {
-    onSessionStatsChange?.(sessionStatsRef.current);
-  }, [statsKey, onSessionStatsChange]);
-
-  useEffect(
-    () => () => {
-      onSessionStatsChange?.(null);
-    },
-    [onSessionStatsChange],
-  );
-  const ctxKey = contextUsage ? JSON.stringify(contextUsage) : null;
-
-  const contextUsageRef = useRef(contextUsage);
-
-  contextUsageRef.current = contextUsage;
-
-  useEffect(() => {
-    onContextUsageChange?.(contextUsageRef.current);
-  }, [ctxKey, onContextUsageChange]);
-
-  useEffect(
-    () => () => {
-      onContextUsageChange?.(null);
-    },
-    [onContextUsageChange],
-  );
-
+  const selectionQuote = useSelectionQuote({
+    visible: visible && messages.length > 0,
+    sessionId: session?.id ?? null,
+    scrollContainerRef,
+    chatInputRef,
+  });
   const compaction = useMemo(
     () =>
       session || isNew
@@ -230,29 +189,16 @@ export function useChatWindow({
     [session, isNew, isCompacting, agentRunning, compactError, handleCompact, handleAbortCompaction],
   );
 
-  useEffect(() => {
-    onCompactionChange?.(compaction);
-  }, [compaction, onCompactionChange]);
-
-  useEffect(
-    () => () => {
-      onCompactionChange?.(null);
-    },
-    [onCompactionChange],
-  );
-
-  const displayModelId = displayModelValue?.modelId ?? null;
-
-  useEffect(() => {
-    onModelIdChange?.(displayModelId);
-  }, [displayModelId, onModelIdChange]);
-
-  useEffect(
-    () => () => {
-      onModelIdChange?.(null);
-    },
-    [onModelIdChange],
-  );
+  useSessionReporting({
+    sessionStats,
+    contextUsage,
+    compaction,
+    displayModelId: displayModelValue?.modelId ?? null,
+    onSessionStatsChange,
+    onContextUsageChange,
+    onCompactionChange,
+    onModelIdChange,
+  });
 
   const { editDraft, editHandlers, dropEditFiles } = useMessageEdit({
     sessionId: session?.id,
@@ -307,6 +253,17 @@ export function useChatWindow({
     scrollContainerRef,
   });
 
+  const { jumpToQuote, jumpingQuoteKey, detachedQuoteKeys, detachedPreview, closeDetachedPreview } = useQuoteJump({
+    visible,
+    sessionId: session?.id ?? null,
+    scrollContainerRef,
+    loadedEntryIds: entryIds,
+    hasOlder,
+    turnJump,
+    disengageAutoFollow,
+  });
+  const quoteInteraction = { onJumpQuote: jumpToQuote, jumpingQuoteKey, detachedQuoteKeys };
+
   useReadingPosition({
     visible,
     sessionId: session?.id ?? null,
@@ -355,6 +312,7 @@ export function useChatWindow({
       ref={chatInputRef}
       promptHistory={promptHistory}
       onSend={handleSend}
+      {...quoteInteraction}
       onAbort={handleAbort}
       onSteer={agentRunning ? handleSteer : undefined}
       onFollowUp={agentRunning ? handleFollowUp : undefined}
@@ -406,6 +364,10 @@ export function useChatWindow({
 
   const belowEditorWidgets = extensionWidgets.filter((widget) => widget.placement === "belowEditor");
   return {
+    selectionQuote,
+    quoteInteraction,
+    detachedPreview,
+    closeDetachedPreview,
     loading,
     error,
     sessionLoadReconnecting,

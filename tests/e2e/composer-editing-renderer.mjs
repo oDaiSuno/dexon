@@ -2,6 +2,7 @@ import { createElement, createRef } from "react";
 import { createRoot } from "react-dom/client";
 import { flushSync } from "react-dom";
 import { ChatInput } from "../../src/renderer/components/ChatInput.tsx";
+import { decodeComposerQuoteToken } from "../../src/shared/quote-tokens.ts";
 import { setAppLanguage } from "../../src/renderer/i18n.ts";
 import { installApiShims } from "../../src/renderer/lib/api-fetch.ts";
 import { resetRpc } from "../../src/renderer/lib/api-client.ts";
@@ -30,8 +31,6 @@ let sendReply = () => undefined;
 let stagedCount = 0;
 let releaseSkills;
 
-// Only the other process answers here: project search, installed skills,
-// clipboard image staging and the OS file reveal. The composer stays real.
 const boundary = installRendererApi(
   window,
   { installApiShims, resetRpc },
@@ -193,6 +192,17 @@ window.composerEditing = {
     const box = chip.getBoundingClientRect();
     return { x: Math.round(box.x + box.width / 2), y: Math.round(box.y + box.height / 2) };
   },
+  placeCaretAfterQuote(index = 0) {
+    const chip = editor().querySelectorAll("[data-quote-token]")[index];
+    if (!chip) throw new Error(`No quote chip at index ${index}`);
+    const range = document.createRange();
+    range.setStartAfter(chip);
+    range.collapse(true);
+    const selection = document.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    editor().focus();
+  },
   removeButtonCenter(name) {
     const chip = allByRole(editor(), "button", name)[0];
     if (!chip) throw new Error(`No chip named ${name}`);
@@ -226,6 +236,9 @@ window.composerEditing = {
   addFiles(files) {
     return handle.current.addFiles(files);
   },
+  insertQuote(quote) {
+    handle.current.insertQuoteAtCaret(quote);
+  },
   insertText(text) {
     handle.current.insertText(text);
   },
@@ -241,6 +254,30 @@ window.composerEditing = {
   sent: () => [...sent],
   staged: () => structuredClone(staged),
   revealed: () => [...revealed],
+  quoteDetails() {
+    return [...editor().querySelectorAll("[data-quote-token]")].map((element) => {
+      const quote = decodeComposerQuoteToken(element.dataset.quotePayload ?? "");
+      const rect = element.getBoundingClientRect();
+      return quote
+        ? {
+            ...quote,
+            rect: {
+              x: rect.x,
+              y: rect.y,
+              width: rect.width,
+              height: rect.height,
+              top: rect.top,
+              bottom: rect.bottom,
+              left: rect.left,
+              right: rect.right,
+            },
+          }
+        : null;
+    });
+  },
+  quotePreviewText() {
+    return [...document.querySelectorAll(".quote-preview-text")].map((element) => element.textContent ?? "");
+  },
   storedDraft(key) {
     const raw = window.localStorage.getItem(`dexon-draft:${key}`);
     return raw ? JSON.parse(raw).value : null;

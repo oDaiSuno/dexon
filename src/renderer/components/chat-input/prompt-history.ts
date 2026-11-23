@@ -1,3 +1,4 @@
+import { expandQuotedPromptToComposerText } from "@shared/quote-tokens";
 import type { AgentMessage, UserMessage } from "@/lib/types";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 
@@ -27,7 +28,7 @@ export function recallablePrompts(messages: readonly AgentMessage[]): readonly R
   return messages.flatMap((message) => {
     if (message.role !== "user") return [];
     const text = composerPromptText(message);
-    return text === null ? [] : [{ text, at: message.timestamp ?? null }];
+    return text === null ? [] : [{ text: expandQuotedPromptToComposerText(text), at: message.timestamp ?? null }];
   });
 }
 

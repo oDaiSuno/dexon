@@ -1,4 +1,5 @@
 import { useCallback, useEffect, type ClipboardEvent, type KeyboardEvent, type MouseEvent } from "react";
+import { decodeComposerQuoteToken, type QuoteReference } from "@shared/quote-tokens";
 import { CHIP_SELECTOR } from "./composer-dom";
 import { insertNativeLineBreak, planCloseTypedReference, planRemoveChip, type ComposerEdit } from "./composer-edit";
 import {
@@ -16,6 +17,7 @@ interface Options {
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onRevealToken: (path: string) => void;
   onSkillReveal: (name: string) => void;
+  onJumpQuote?: (quote: QuoteReference, anchorEl?: HTMLElement) => void;
 }
 
 export function useComposerEditorEvents({
@@ -26,6 +28,7 @@ export function useComposerEditorEvents({
   onKeyDown,
   onRevealToken,
   onSkillReveal,
+  onJumpQuote,
 }: Options) {
   const handleBeforeInputNative = useCallback(
     (native: InputEvent) => {
@@ -102,6 +105,11 @@ export function useComposerEditorEvents({
         edit((map) => planRemoveChip(map, chip));
         return;
       }
+      if (chip.dataset.quoteToken !== undefined) {
+        const quote = decodeComposerQuoteToken(chip.dataset.quotePayload ?? "");
+        if (quote) onJumpQuote?.(quote, chip);
+        return;
+      }
       if (chip.dataset.skillToken !== undefined) {
         const name = chip.dataset.skillName ?? "";
         if (name) onSkillReveal(name);
@@ -110,7 +118,7 @@ export function useComposerEditorEvents({
       const path = chip.dataset.path ?? "";
       if (path) onRevealToken(path);
     },
-    [edit, onRevealToken, onSkillReveal, visible],
+    [edit, onRevealToken, onSkillReveal, onJumpQuote, visible],
   );
 
   return { handleEditorKeyDown, handleEditorMouseDown, handleEditorClick, handleCopy, handleCut };

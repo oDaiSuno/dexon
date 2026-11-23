@@ -231,3 +231,60 @@ test("legacy channel prompt headers are stripped from provider requests without 
   const stored = JSON.stringify(session.agent.state.messages.find((message) => message.role === "user").content);
   assert.match(stored, /外部消息来源/);
 });
+
+const QUOTE_VERBATIM = "第一行原文\n第二行 <b>原文</b>";
+const quotePrompt = (attributes) =>
+  ["<quotes>", `<quote ${attributes}>`, QUOTE_VERBATIM, "</quote>", "</quotes>", "", "请解释 [quote:1]"].join("\n");
+const STORED_QUOTE_PROMPT = quotePrompt('id="1" from="assistant" entry="e-42" pre="前文" suf="后文"');
+const MODEL_QUOTE_PROMPT = quotePrompt('id="1" from="assistant"');
+
+const messageText = (message) =>
+  typeof message.content === "string"
+    ? message.content
+    : message.content.map((block) => (block.type === "text" ? block.text : "")).join("");
+
+function captureContextHook() {
+  let hook;
+  RunPolicy.extension(() => undefined).factory({
+    on: (name, handler) => {
+      if (name === "context") hook = handler;
+    },
+  });
+  return hook;
+}
+
+test("selection quotes reach the model without jump coordinates while the transcript keeps them, and a second pass changes nothing", async (t) => {
+  const { session, ask, intend } = await openPolicySession(t);
+  intend(agent(["read"]));
+
+  const first = await ask(STORED_QUOTE_PROMPT);
+  const again = await ask("再问一次");
+  for (const request of [first, again]) {
+    const sent = request.messages.find((message) => message.role === "user");
+    assert.equal(messageText(sent), MODEL_QUOTE_PROMPT);
+  }
+  const stored = session.agent.state.messages.find((message) => message.role === "user");
+  assert.equal(messageText(stored), STORED_QUOTE_PROMPT);
+
+  const hook = captureContextHook();
+  const userText = { role: "user", content: STORED_QUOTE_PROMPT, timestamp: 1 };
+  const userBlocks = { role: "user", content: [{ type: "text", text: STORED_QUOTE_PROMPT }], timestamp: 2 };
+  const assistant = { role: "assistant", content: [{ type: "text", text: STORED_QUOTE_PROMPT }], timestamp: 3 };
+  const plain = { role: "user", content: "没有引用的问题", timestamp: 4 };
+  const original = [userText, userBlocks, assistant, plain];
+
+  const firstPass = hook({ messages: original }).messages;
+  assert.deepEqual(firstPass.map(messageText), [
+    MODEL_QUOTE_PROMPT,
+    MODEL_QUOTE_PROMPT,
+    STORED_QUOTE_PROMPT,
+    "没有引用的问题",
+  ]);
+  assert.equal(messageText(userText), STORED_QUOTE_PROMPT);
+  assert.equal(messageText(userBlocks), STORED_QUOTE_PROMPT);
+  assert.equal(firstPass[2], assistant);
+  assert.equal(firstPass[3], plain);
+
+  const secondPass = hook({ messages: firstPass }).messages;
+  secondPass.forEach((message, index) => assert.equal(message, firstPass[index]));
+});
