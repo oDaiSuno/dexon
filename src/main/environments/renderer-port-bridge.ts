@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { gatekeeperRefusal } from "../../contract/gatekeeper-methods.ts";
 import type { MessagePortMain } from "electron";
 import type { RpcChannel, WireEvent, WireMessage } from "../../contract/rpc.ts";
 
@@ -47,6 +48,11 @@ export function bridgeRendererPort(port: MessagePortMain, channel: RpcChannel): 
     const id = prefix + message.id;
     try {
       if (message.kind === "request" && typeof message.method === "string") {
+        const refusal = gatekeeperRefusal({ id: message.id, method: message.method });
+        if (refusal) {
+          deliver(refusal);
+          return;
+        }
         if (requests.size >= 4096) throw new Error("Too many pending renderer requests");
         requests.set(id, message.id);
         channel.send({ ...message, id });

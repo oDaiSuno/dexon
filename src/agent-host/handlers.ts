@@ -1,6 +1,7 @@
 import type { RpcServer } from "../contract/rpc";
 import { registerAgentHandlers } from "./handlers/agent";
 import { registerAutomationHandlers } from "./handlers/automation";
+import type { DaemonAutomationSecrets } from "./daemon-automation-secrets";
 import { ChannelManager, type ChannelManagerOptions } from "./channels/channel-manager";
 import { ensureSessionEvents } from "./session-event-binding";
 import { desktopUserDataPath } from "./desktop-state-file";
@@ -34,6 +35,7 @@ export { createAgentNewLockKey } from "./session-event-binding";
 export interface HostHandlerOptions {
   readonly channels?: ChannelManagerOptions;
   readonly automation?: Pick<AutomationRuntimeDeps, "dataDirectory" | "limits">;
+  readonly automationSecrets?: DaemonAutomationSecrets;
 }
 export function registerHandlers(server: RpcServer, options: HostHandlerOptions = {}): () => Promise<void> {
   const unsubscribeRunning = subscribeRunningSessions((ids) => {
@@ -64,10 +66,16 @@ export function registerHandlers(server: RpcServer, options: HostHandlerOptions 
     dataDirectory: path.join(desktopUserDataPath(), "automation"),
     channels: channelManager,
     agentSessions: { launch: launchAutomationSession },
-    secrets: { read: (name) => callMain<string | null>("automationSecrets.get", { name }) },
+    secrets: options.automationSecrets ?? {
+      read: (name) => callMain<string | null>("automationSecrets.get", { name }),
+    },
     ...options.automation,
   });
-  const automationCleanup = registerAutomationHandlers(server, automationRuntime);
+  const automationCleanup = registerAutomationHandlers(
+    server,
+    automationRuntime,
+    options.automationSecrets ? { kind: "host", store: options.automationSecrets } : { kind: "desktop-main" },
+  );
   const automationStarted = automationRuntime.start();
   const filesCleanup = registerFileHandlers(server);
   const modelsCleanup = registerModelHandlers(server);

@@ -1,3 +1,4 @@
+import { ENVIRONMENT_SHUTDOWN_BUDGET_MS } from "../../shared/shutdown-budget.ts";
 import type { LifecyclePolicy, RemoteDaemonChoice, RemoveOutcome } from "../../contract/environment-commands.ts";
 export type EnvironmentCloseMode = "disconnect" | "stop-managed";
 export function closeModeFor(
@@ -26,7 +27,10 @@ export async function removeWithChoice(
   actions.remove();
   return { remoteDaemon };
 }
-export async function shutdownAll(actions: readonly (() => Promise<void>)[], timeoutMs = 4000): Promise<void> {
+export async function shutdownAll(
+  actions: readonly (() => Promise<void>)[],
+  timeoutMs = ENVIRONMENT_SHUTDOWN_BUDGET_MS,
+): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     await Promise.race([

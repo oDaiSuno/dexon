@@ -1,3 +1,4 @@
+import type { AutomationCommand, AutomationCommandResult } from "./automation-commands";
 import type { ChannelId } from "../shared/channel-types";
 import type { ManagedProcessCapability } from "./processes";
 import type { EnvironmentId } from "./environment";
@@ -193,9 +194,7 @@ export interface PiBridge {
   openDirectory: (fsPath: string) => Promise<void>;
   openFile: (fsPath: string) => Promise<void>;
   setChannelCredential: (payload: ChannelCredentialWrite) => Promise<void>;
-  setAutomationSecret: (name: string, value: string) => Promise<void>;
-  deleteAutomationSecret: (name: string) => Promise<void>;
-  listAutomationSecretNames: () => Promise<string[]>;
+  automationCommand: <C extends AutomationCommand>(command: C) => Promise<AutomationCommandResult<C>>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;
   saveBinaryFile: (opts: SaveBinaryFileOptions) => Promise<string | null>;
   createHtmlPreview: (content: string, filePath: string, sourceSessionId?: string | null) => Promise<string>;

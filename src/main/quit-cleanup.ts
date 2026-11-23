@@ -1,3 +1,4 @@
+import { ENVIRONMENT_SHUTDOWN_BUDGET_MS, QUIT_CLEANUP_DEADLINE_MS } from "../shared/shutdown-budget";
 import { app, dialog, type BrowserWindow } from "electron";
 import type { EnvironmentManager } from "./environments/environment-manager";
 import type { BrowserService } from "./browser/browser-service";
@@ -49,12 +50,12 @@ export function installQuitCleanup(options: {
       options.setQuitting(true);
       options.getUpdateManager()?.stopAutomaticChecks();
       destroyTray();
-      const deadline = Date.now() + 15000;
+      const deadline = Date.now() + QUIT_CLEANUP_DEADLINE_MS;
       try {
         try {
           const environmentCleanup = await beforeDeadline(
             options.getEnvironmentManager()?.shutdown() ?? Promise.resolve(),
-            Math.min(deadline, Date.now() + 4000),
+            Math.min(deadline, Date.now() + ENVIRONMENT_SHUTDOWN_BUDGET_MS),
           );
           if (!environmentCleanup.completed) appendMainLog("environment cleanup reached the shutdown deadline");
         } catch (disposeError) {

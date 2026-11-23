@@ -1,3 +1,6 @@
+import type { ApiMethod, ApiParams, ApiResult } from "../contract/api";
+import type { WireResponse } from "../contract/rpc";
+import { RpcError } from "../contract/types";
 import { MessageChannelMain, type UtilityProcess, type MessagePortMain } from "electron";
 import fs from "fs";
 import { appendMainLog } from "./logger";
@@ -39,7 +42,7 @@ export class HostManager {
   private child: UtilityProcess | null = null;
   private childExitSignal: HostExitSignal | null = null;
   private status: HostStatus = "stopped";
-  private generation = 0;
+  private hostGeneration = 0;
   private readySince: number | null = null;
   private restartTimes: number[] = [];
   private pingTimer: ReturnType<typeof setInterval> | null = null;
@@ -84,8 +87,12 @@ export class HostManager {
     return this.status;
   }
 
+  get generation(): number {
+    return this.hostGeneration;
+  }
+
   getGeneration(): number {
-    return this.generation;
+    return this.hostGeneration;
   }
 
   getReadySince(): number | null {
@@ -172,7 +179,7 @@ export class HostManager {
       return;
     }
     try {
-      this.child.postMessage({ type: "attach-port" }, [port]);
+      this.child.postMessage({ type: "attach-port", audience: "renderer" }, [port]);
     } catch (err) {
       appendMainLog(`attachRendererPort failed: ${err}`);
       port.close();
@@ -183,6 +190,51 @@ export class HostManager {
     const { port1, port2 } = new MessageChannelMain();
     this.attachRendererPort(port2);
     return { port1, port2 };
+  }
+
+  gatekeeperCall<M extends ApiMethod>(method: M, params?: ApiParams<M>, timeoutMs = 120_000): Promise<ApiResult<M>> {
+    if (!this.child || !this.isServing())
+      return Promise.reject(new RpcError({ code: "DISCONNECTED", message: "Agent Host is not ready" }));
+    const { port1, port2 } = new MessageChannelMain();
+    try {
+      this.child.postMessage({ type: "attach-port", audience: "gatekeeper" }, [port2]);
+    } catch {
+      port1.close();
+      port2.close();
+      return Promise.reject(new RpcError({ code: "DISCONNECTED", message: "Agent Host connection failed" }));
+    }
+    const id = randomUUID();
+    return new Promise<ApiResult<M>>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        port1.removeListener("message", onMessage);
+        port1.removeListener("close", onClose);
+        port1.close();
+      };
+      const onClose = () => {
+        cleanup();
+        reject(new RpcError({ code: "DISCONNECTED", message: "Agent Host connection closed" }));
+      };
+      const onMessage = (event: { data: unknown }) => {
+        const message = event.data as WireResponse;
+        if (message?.kind !== "response" || message.id !== id) return;
+        cleanup();
+        if (message.ok) resolve(message.result as ApiResult<M>);
+        else reject(new RpcError(message.error ?? { code: "UNKNOWN", message: "Host RPC failed" }));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new RpcError({ code: "TIMEOUT", message: `Host RPC timed out: ${method}` }));
+      }, timeoutMs);
+      port1.on("message", onMessage);
+      port1.on("close", onClose);
+      port1.start();
+      try {
+        port1.postMessage({ kind: "request", id, method, params });
+      } catch {
+        onClose();
+      }
+    });
   }
 
   call<T>(method: string, params?: unknown, timeoutMs = 10_000): Promise<T> {
@@ -245,6 +297,7 @@ export class HostManager {
     const child = spawnResult.child;
     const exitSignal = createHostExitSignal();
 
+    this.hostGeneration += 1;
     this.child = child;
     this.childExitSignal = exitSignal;
     this.lastPong = Date.now();
@@ -269,10 +322,7 @@ export class HostManager {
         this.postBrowserSnapshot("browser:init");
         this.postSessionOrchestrationSettings();
         this.postManagedProcessOwnerIdentity();
-        if (!this.isServing()) {
-          this.generation += 1;
-          this.readySince = Date.now();
-        }
+        if (!this.isServing()) this.readySince = Date.now();
         this.setStatus("ready");
         this.startPing();
         if (restarted) {

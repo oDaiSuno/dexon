@@ -13,7 +13,6 @@ import {
   createAutomationSecretRequestHandler,
   type CredentialVault,
 } from "./credential-vault";
-import { createAutomationConsentRequestHandler } from "./automation-consent";
 import { canRestartHostAfterCleanup } from "./managed-process/restart-gate";
 import { managedProcessDialogCopy } from "./managed-process/dialog-copy";
 import { loadUiState } from "./window-state";
@@ -51,13 +50,8 @@ export function installHostServices({
   hostManager.setSessionOrchestrationSettings(loadUiState().sessionOrchestration);
   const credentialRequestHandler = createCredentialRequestHandler(credentialVault);
   const automationSecrets = createAutomationSecretRequestHandler(credentialVault);
-  const automationConsent = createAutomationConsentRequestHandler(async (options) => {
-    const window = getMainWindow();
-    return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
-  });
   hostManager.setRequestHandler(async (method, params) => {
     if (method.startsWith("automationSecrets.")) return automationSecrets(method, params);
-    if (method.startsWith("automationConsent.")) return automationConsent(method, params);
     if (method.startsWith("channelSecrets.")) return credentialRequestHandler(method, params);
     if (method === "toolchain.getSnapshot") return toolchainManager.getSnapshot();
     if (method === "toolchain.resolve") {

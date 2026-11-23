@@ -18,6 +18,7 @@ export interface RemoteProbe {
     payloadVersion: string | null;
     since: number | null;
     activeSessions: number | null;
+    activeAutomation: number | null;
     protocolVersion: number | null;
   };
 }
@@ -49,11 +50,14 @@ export function parseRemoteProbe(output: string): RemoteProbe {
         payloadVersion: null,
         since: null,
         activeSessions: null,
+        activeAutomation: null,
         protocolVersion: null,
       };
   if (
     typeof daemon.running !== "boolean" ||
-    (daemon.activeSessions !== null && (!Number.isSafeInteger(daemon.activeSessions) || daemon.activeSessions < 0))
+    (daemon.activeSessions !== null && (!Number.isSafeInteger(daemon.activeSessions) || daemon.activeSessions < 0)) ||
+    (daemon.activeAutomation !== null &&
+      (!Number.isSafeInteger(daemon.activeAutomation) || daemon.activeAutomation < 0))
   )
     throw new Error("Invalid remote daemon probe");
   return {
@@ -68,6 +72,9 @@ export function parseRemoteProbe(output: string): RemoteProbe {
     installed: fields.get("INSTALLED") === "1",
     daemon,
   };
+}
+export function daemonIsIdle(daemon: RemoteProbe["daemon"]): boolean {
+  return daemon.ownership === "managed" && daemon.activeSessions === 0 && daemon.activeAutomation === 0;
 }
 export function runtimeDiagnosis(probe: RemoteProbe): BlockedDiagnosis | null {
   const detail = "Remote Node.js must satisfy >=22.19.0 <23";
@@ -145,7 +152,7 @@ const [state, key] = process.argv.slice(2);
 let ledger = path.join(state, "ssh-launch", key);
 if (!fs.existsSync(path.join(ledger, "managed"))) ledger = path.join(process.env.HOME, ".dexon", "ssh-launch", key);
 const read = name => { try { return fs.readFileSync(path.join(ledger, name), "utf8").trim(); } catch { return ""; } };
-const absent = { running: false, ownership: null, payloadVersion: null, since: null, activeSessions: null, protocolVersion: null };
+const absent = { running: false, ownership: null, payloadVersion: null, since: null, activeSessions: null, activeAutomation: null, protocolVersion: null };
 const report = value => process.stdout.write("DEXON\tDAEMON\t" + JSON.stringify(value) + "\n");
 (async () => {
   const port = read("port");
@@ -157,21 +164,52 @@ const report = value => process.stdout.write("DEXON\tDAEMON\t" + JSON.stringify(
   if (response.headers.get("x-dexon-proof") !== crypto.createHmac("sha256", token).update(nonce).digest("hex")) return report(absent);
   const descriptor = await response.json();
   if (descriptor.environmentId !== expected) return report(absent);
-  const activeSessions = await new Promise(resolve => {
+  const activity = await new Promise(resolve => {
     const url = new URL("ws://127.0.0.1:" + port + "/rpc");
     url.searchParams.set("environmentId", expected);
     url.searchParams.set("protocolVersion", String(descriptor.protocolVersion));
     url.searchParams.set("token", token);
     const socket = new WebSocket(url);
-    const finish = count => { clearTimeout(timer); socket.close(); resolve(count); };
-    const timer = setTimeout(() => finish(null), 2000);
-    socket.addEventListener("open", () => socket.send(JSON.stringify({ kind: "request", id: "probe", method: "sessions.list", params: null })));
-    socket.addEventListener("error", () => finish(null), { once: true });
+    let done = false, sessionsDone = false, automationDone = false;
+    let activeSessions = null, activeAutomation = null;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      socket.close();
+      resolve({ activeSessions, activeAutomation });
+    };
+    const timer = setTimeout(finish, 2000);
+    socket.addEventListener("open", () => {
+      socket.send(JSON.stringify({ kind: "request", id: "sessions", method: "sessions.list", params: null }));
+      socket.send(JSON.stringify({ kind: "request", id: "automation", method: "automation.activity", params: null }));
+    });
+    socket.addEventListener("error", finish, { once: true });
+    socket.addEventListener("close", finish, { once: true });
     socket.addEventListener("message", event => {
-      try { const message = JSON.parse(event.data); if (message.id === "probe") finish(message.ok && Array.isArray(message.result.runningSessionIds) ? message.result.runningSessionIds.length : null); } catch { finish(null); }
+      try {
+        const message = JSON.parse(event.data);
+        if (message.kind !== "response") return;
+        if (message.id === "sessions" && !sessionsDone) {
+          sessionsDone = true;
+          activeSessions = message.ok && Array.isArray(message.result?.runningSessionIds) ? message.result.runningSessionIds.length : null;
+        }
+        if (message.id === "automation" && !automationDone) {
+          automationDone = true;
+          if (!message.ok && message.error?.code === "METHOD_NOT_FOUND") activeAutomation = 0;
+          else if (message.ok) {
+            const counts = [message.result?.executingRuns, message.result?.cancellingRuns, message.result?.activeProbes];
+            if (counts.every(count => Number.isSafeInteger(count) && count >= 0)) {
+              const total = counts.reduce((sum, count) => sum + count, 0);
+              if (Number.isSafeInteger(total)) activeAutomation = total;
+            }
+          }
+        }
+        if (sessionsDone && automationDone) finish();
+      } catch { finish(); }
     });
   });
-  report({ running: true, ownership: read("managed") === "managed" ? "managed" : "external", payloadVersion: descriptor.runtime?.payloadVersion ?? null, since: descriptor.runtime?.startedAt ?? null, activeSessions, protocolVersion: descriptor.protocolVersion });
+  report({ running: true, ownership: read("managed") === "managed" ? "managed" : "external", payloadVersion: descriptor.runtime?.payloadVersion ?? null, since: descriptor.runtime?.startedAt ?? null, ...activity, protocolVersion: descriptor.protocolVersion });
 })().catch(() => report(absent));`}
 DEXON_PROBE`;
 }

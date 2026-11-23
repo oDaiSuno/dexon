@@ -1,5 +1,6 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import type { TaskSpec, ActionCall, JsonSchema, Cond, Text, EffectDecl } from "../../../shared/automation/spec";
+import { isAutomationSecretName } from "../../../shared/automation/secret-name";
 import { assertValidSchemaDefinition } from "./json-schema";
 
 export interface SpecIssue {
@@ -162,7 +163,7 @@ function validateCall(value: unknown, cwd: string, path: string, probe = false):
     if (options.secretHeaders !== undefined) {
       requireSpec(record(options.secretHeaders), path, "Expected secret map");
       Object.values(options.secretHeaders).forEach((name) => {
-        requireSpec(typeof name === "string" && /^[a-z0-9._-]{1,80}$/.test(name), path, "Invalid secret name");
+        requireSpec(isAutomationSecretName(name), path, "Invalid secret name");
       });
     }
   } else if (value.action === "channel.send") {
@@ -188,8 +189,7 @@ function validateCall(value: unknown, cwd: string, path: string, probe = false):
     if (probe) requireSpec(options.effect === "read", path, "Probe must be read-only");
     if (options.secrets !== undefined)
       requireSpec(
-        Array.isArray(options.secrets) &&
-          options.secrets.every((name) => typeof name === "string" && /^[a-z0-9._-]{1,80}$/.test(name)),
+        Array.isArray(options.secrets) && options.secrets.every(isAutomationSecretName),
         path,
         "Invalid secret names",
       );

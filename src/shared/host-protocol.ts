@@ -1,4 +1,5 @@
 import type { BrowserCapabilitySnapshot } from "../contract/browser";
+import type { PortAudience } from "../contract/rpc";
 import type { SessionOrchestrationSettings } from "./session-orchestration";
 import type { ToolchainSnapshot } from "./toolchains/types";
 
@@ -16,7 +17,7 @@ export function stakeOf(activity: HostActivitySnapshot): number {
 
 export type MainToHost =
   | { readonly type: "ping"; readonly seq: number }
-  | { readonly type: "attach-port" }
+  | { readonly type: "attach-port"; readonly audience?: PortAudience }
   | { readonly type: "shutdown" }
   | {
       readonly type: "managed-process-owner:init";

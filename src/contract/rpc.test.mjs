@@ -5,12 +5,14 @@ import { MessageChannel } from "node:worker_threads";
 import { createRpcClient, createRpcServer } from "./rpc.ts";
 import { RpcError } from "./types.ts";
 import { ToolchainError } from "../shared/toolchains/errors.ts";
+import { gatekeeperRefusal, isGatekeeperMethod } from "./gatekeeper-methods.ts";
 
-function createPair(t) {
+function createPair(t, audience, clientOptions) {
   const { port1, port2 } = new MessageChannel();
   const server = createRpcServer();
-  server.attachPort(port1);
-  const client = createRpcClient(port2);
+  if (audience === undefined) server.attachPort(port1);
+  else server.attachPort(port1, audience);
+  const client = createRpcClient(port2, clientOptions);
   t.after(() => {
     client.close();
     server.detachPort(port1);
@@ -40,6 +42,117 @@ test("performs request/response calls and reports missing methods", async (t) =>
       assert.match(error.message, new RegExp(inheritedName));
       return true;
     });
+  }
+});
+
+const restrictedCalls = [
+  [
+    "automation.enableTask",
+    { taskId: "task-1", revision: 1, planHash: "a".repeat(64) },
+    { task: { id: "task-1", enabledRevision: 1 } },
+  ],
+  [
+    "automation.resolveAttention",
+    {
+      runId: "run-1",
+      stepIndex: 0,
+      expectedVersion: 1,
+      requestId: "request-1",
+      resolution: { kind: "attention", action: "retry" },
+    },
+    { ok: false, reason: "not_found" },
+  ],
+  ["automation.setSecret", { name: "api-key", value: "secret" }, { ok: true }],
+  ["automation.deleteSecret", { name: "api-key" }, { ok: true }],
+  ["automation.listSecretNames", undefined, { names: ["api-key"] }],
+];
+
+test("gatekeeper refusals preserve request identity and leave unrestricted methods alone", () => {
+  for (const [method] of restrictedCalls) {
+    assert.equal(isGatekeeperMethod(method), true);
+    assert.deepEqual(gatekeeperRefusal({ id: "request-1", method }), {
+      kind: "response",
+      id: "request-1",
+      ok: false,
+      error: { code: "FORBIDDEN", message: "Automation operation requires desktop authorization" },
+    });
+  }
+  for (const method of [
+    "host.ping",
+    "automation.activity",
+    "automation.resolveInbox",
+    "constructor",
+    "__proto__",
+    "unknown",
+  ]) {
+    assert.equal(isGatekeeperMethod(method), false);
+    assert.equal(gatekeeperRefusal({ id: "request-1", method }), null);
+  }
+});
+
+for (const audience of [undefined, "renderer"]) {
+  test(
+    `${audience ?? "default"} ports refuse all desktop-authorized operations without disrupting calls or subscriptions`,
+    { timeout: 5_000 },
+    async (t) => {
+      const { client, server } = createPair(t, audience, { callTimeoutMs: 1_000 });
+      server.handle({
+        "host.ping": () => ({ ok: true, ts: 42 }),
+        ...Object.fromEntries(
+          restrictedCalls.map(([method]) => [
+            method,
+            () => {
+              throw new Error("A renderer must not dispatch a desktop-authorized operation");
+            },
+          ]),
+        ),
+      });
+      const events = [];
+      const firstEvent = new Promise((resolve) => {
+        client.subscribe("files.changed", "/project", (event) => {
+          events.push(event);
+          resolve();
+        });
+      });
+      await client.call("host.ping");
+      server.emit("files.changed", "/project", { event: "change", path: "/project/before" });
+      await firstEvent;
+
+      for (const [method, params] of restrictedCalls) {
+        const ping = client.call("host.ping");
+        await assert.rejects(client.call(method, params), (error) => {
+          assert.equal(error instanceof RpcError, true);
+          assert.equal(error.code, "FORBIDDEN");
+          assert.equal(error.message, "Automation operation requires desktop authorization");
+          return true;
+        });
+        assert.deepEqual(await ping, { ok: true, ts: 42 });
+      }
+
+      const afterEvent = new Promise((resolve) => {
+        const unsubscribe = client.subscribe("files.changed", "/project", () => {
+          unsubscribe();
+          resolve();
+        });
+      });
+      await client.call("host.ping");
+      server.emit("files.changed", "/project", { event: "change", path: "/project/after" });
+      await afterEvent;
+      assert.deepEqual(events, [
+        { event: "change", path: "/project/before" },
+        { event: "change", path: "/project/after" },
+      ]);
+      assert.deepEqual(await client.call("host.ping"), { ok: true, ts: 42 });
+    },
+  );
+}
+
+test("gatekeeper ports dispatch all five desktop-authorized operations", async (t) => {
+  const { client, server } = createPair(t, "gatekeeper");
+  server.handle(Object.fromEntries(restrictedCalls.map(([method, , result]) => [method, () => result])));
+
+  for (const [method, params, result] of restrictedCalls) {
+    assert.deepEqual(await client.call(method, params), result);
   }
 });
 
@@ -181,6 +294,24 @@ test("client calls time out and remote close settles pending calls", async () =>
     await assert.rejects(pending, (error) => error instanceof RpcError && error.code === "CLOSED");
     client.close();
   }
+});
+
+test("per-method timeouts leave other methods and the client connection available", async (t) => {
+  const { client, server } = createPair(t, undefined, {
+    callTimeoutMs: 2_000,
+    methodTimeoutMs: { "host.ping": 20 },
+  });
+  server.handle({
+    "host.ping": () => new Promise((resolve) => setTimeout(() => resolve({ ok: true, ts: 1 }), 80)),
+    "sessions.list": () => new Promise((resolve) => setTimeout(() => resolve({ sessions: [] }), 80)),
+  });
+
+  const sessions = client.call("sessions.list");
+  await assert.rejects(client.call("host.ping"), (error) => error instanceof RpcError && error.code === "TIMEOUT");
+  assert.deepEqual(await sessions, { sessions: [] });
+  assert.deepEqual(await client.call("sessions.list"), { sessions: [] });
+  server.handle({ "host.ping": () => ({ ok: true, ts: 42 }) });
+  assert.deepEqual(await client.call("host.ping"), { ok: true, ts: 42 });
 });
 
 test("a remote port close tells the client owner once while a local close stays silent", async () => {
@@ -429,4 +560,21 @@ test("server detaches a port when response fallback or event delivery also fails
   assert.equal(eventCloseCalls, 1);
   assert.equal(eventListeners.get("message").size, 0);
   assert.equal(eventListeners.get("close").size, 0);
+});
+
+test("malformed renderer request method objects are ignored without crashing or disrupting later calls", async () => {
+  const { port1, port2 } = new MessageChannel();
+  const server = createRpcServer();
+  server.handle({ "automation.listTasks": () => ({ tasks: [] }) });
+  server.attachPort(port2, "renderer");
+  const client = createRpcClient(port1);
+  try {
+    assert.deepEqual(await client.call("automation.listTasks"), { tasks: [] });
+    port1.postMessage({ kind: "request", id: "malformed", method: { toString: null } });
+    port1.postMessage({ kind: "request", id: { toString: null }, method: "automation.enableTask" });
+    assert.deepEqual(await client.call("automation.listTasks"), { tasks: [] });
+  } finally {
+    client.close();
+    port2.close();
+  }
 });

@@ -1,3 +1,4 @@
+import { isAutomationSecretName, isAutomationSecretValue } from "../shared/automation/secret-name";
 import { safeStorage } from "electron";
 import fs from "node:fs";
 import path from "node:path";
@@ -13,8 +14,7 @@ function validateKey(key: string): string {
   return key;
 }
 export function automationSecretKey(name: unknown): string {
-  if (typeof name !== "string" || !AUTOMATION_KEY.test(`automation:secret:${name}`))
-    throw new Error("Invalid automation secret name");
+  if (!isAutomationSecretName(name)) throw new Error("Invalid automation secret name");
   return `automation:secret:${name}`;
 }
 export class CredentialVault {
@@ -62,8 +62,7 @@ export class CredentialVault {
   }
   setAutomationSecret(name: unknown, value: unknown): void {
     const key = automationSecretKey(name);
-    if (typeof value !== "string" || !value || Buffer.byteLength(value) > 65536)
-      throw new Error("Invalid automation secret value");
+    if (!isAutomationSecretValue(value)) throw new Error("Invalid automation secret value");
     this.set(key, { value });
   }
   deleteAutomationSecret(name: unknown): void {

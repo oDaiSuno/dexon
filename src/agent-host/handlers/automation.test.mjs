@@ -7,6 +7,9 @@ import { createServer } from "node:http";
 import test from "node:test";
 import { importTestBundle } from "#test-bundle";
 import { createRpcClient, createRpcServer } from "../../contract/rpc.ts";
+import { DaemonAutomationSecrets } from "../daemon-automation-secrets.ts";
+import { startDaemonServer } from "../daemon-server.ts";
+import { createWebSocketClientPort } from "../../contract/rpc-channel.ts";
 
 const base = mkdtempSync(path.join(tmpdir(), "dexon-automation-handlers-"));
 process.env.PI_CODING_AGENT_DIR = path.join(base, "agent");
@@ -41,39 +44,37 @@ async function until(check, label) {
 async function host(t, options = {}) {
   const server = createRpcServer();
   const { port1, port2 } = new MessageChannel();
-  server.attachPort(port1);
+  server.attachPort(port1, "gatekeeper");
   const client = createRpcClient(port2, { callTimeoutMs: 10000 });
+  const rendererChannel = new MessageChannel();
+  server.attachPort(rendererChannel.port1);
+  const renderer = createRpcClient(rendererChannel.port2, { callTimeoutMs: 10000 });
   const requests = [];
-  const native = { confirmed: true, available: true, beforeReturn: null, ...options.native };
   setStandaloneMainRequestHandler(async (method, params) => {
     requests.push({ method, params });
-    if (method === "automationConsent.confirm") {
-      if (!native.available) throw new Error("Native confirmation is unavailable");
-      await native.beforeReturn?.(params);
-      return {
-        confirmed: native.confirmed,
-        taskId: params.taskId,
-        revision: params.revision,
-        planHash: params.planHash,
-        requestId: params.kind === "resolve" ? params.request.requestId : null,
-      };
-    }
     if (method === "automationSecrets.get") return options.secrets?.[params.name] ?? null;
     throw new Error(`Unexpected Main request: ${method}`);
   });
-  const cleanup = registerHandlers(server, { channels: options.channels });
+  const cleanup = registerHandlers(server, {
+    channels: options.channels,
+    automationSecrets: options.automationSecrets,
+    automation: { dataDirectory: path.join(base, `automation-${t.name.replace(/[^a-z0-9]/giu, "-")}`) },
+  });
   let stopped;
   const stop = () => (stopped ??= cleanup());
   t.after(async () => {
     await stop();
     client.close();
+    renderer.close();
     server.detachPort(port1);
+    server.detachPort(rendererChannel.port1);
   });
   return {
+    server,
     client,
+    renderer,
     stop,
     requests,
-    native,
     async enable(spec) {
       const saved = await client.call("automation.saveTask", { spec });
       await client.call("automation.enableTask", {
@@ -150,8 +151,8 @@ test("automation handlers expose durable tasks, inbox decisions, signals and cha
     requestId: "workflow-approve",
     resolution: { kind: "approval", approved: true },
   };
-  assert.equal((await f.client.call("automation.resolveInbox", resolution)).ok, true);
-  assert.equal((await f.client.call("automation.resolveInbox", resolution)).ok, true);
+  assert.equal((await f.renderer.call("automation.resolveInbox", resolution)).ok, true);
+  assert.equal((await f.renderer.call("automation.resolveInbox", resolution)).ok, true);
   await until(
     async () =>
       (await f.client.call("automation.getRun", { runId: started.runId })).run.steps.some(
@@ -175,17 +176,17 @@ test("automation handlers expose durable tasks, inbox decisions, signals and cha
     () => changes.some((change) => change.inboxChanged && change.runIds.includes(started.runId)),
     "change stream",
   );
-  assert.equal(f.requests.filter((request) => request.method === "automationConsent.confirm").length, 1);
+  assert.deepEqual(f.requests, []);
   await f.client.call("automation.disableTask", { taskId: "workflow" });
   assert.equal((await f.client.call("automation.getTask", { taskId: "workflow" })).task.revision, 1);
   await f.client.call("automation.deleteTask", { taskId: "workflow" });
   assert.deepEqual((await f.client.call("automation.listTasks")).tasks, []);
 });
 
-test("renderer booleans cannot replace native consent and edits invalidate an in-flight confirmation", async (t) => {
-  const f = await host(t, { native: { confirmed: false } });
+test("renderer booleans cannot authorize enabling while gatekeeper enabling never asks the host for consent", async (t) => {
+  const f = await host(t);
   const spec = task("consent", [duration]);
-  const saved = await f.client.call("automation.saveTask", { spec });
+  const saved = await f.renderer.call("automation.saveTask", { spec });
   const request = {
     taskId: spec.id,
     revision: saved.revision,
@@ -193,33 +194,30 @@ test("renderer booleans cannot replace native consent and edits invalidate an in
     unattendedWriteApproved: true,
     trustedLocalExecApproved: true,
   };
-  await assert.rejects(f.client.call("automation.enableTask", request), (error) => error.code === "FORBIDDEN");
-  f.native.confirmed = true;
-  f.native.beforeReturn = () =>
-    f.client.call("automation.saveTask", { spec: { ...spec, name: "Edited after prompt" } });
+  await assert.rejects(f.renderer.call("automation.enableTask", request), (error) => error.code === "FORBIDDEN");
+  assert.equal((await f.client.call("automation.getTask", { taskId: spec.id })).task.grant, null);
+  const enabled = await f.client.call("automation.enableTask", request);
+  assert.equal(enabled.task.enabledRevision, saved.revision);
+  assert.equal((await f.client.call("automation.getTask", { taskId: spec.id })).task.grant.planHash, saved.planHash);
+  assert.deepEqual(f.requests, []);
+  await f.renderer.call("automation.saveTask", { spec: { ...spec, name: "Edited after authorization" } });
   await assert.rejects(f.client.call("automation.enableTask", request));
   assert.equal(
     (await f.client.call("automation.listTasks")).tasks.find((entry) => entry.id === spec.id).enabledRevision,
     null,
   );
-  f.native.beforeReturn = null;
-  f.native.available = false;
-  const current = (await f.client.call("automation.getTask", { taskId: spec.id })).task;
   await assert.rejects(
-    f.client.call("automation.enableTask", { taskId: spec.id, revision: current.revision, planHash: current.planHash }),
-  );
-  await assert.rejects(
-    f.client.call("automation.listRuns", { phases: ["not-a-phase"] }),
+    f.renderer.call("automation.listRuns", { phases: ["not-a-phase"] }),
     (error) => error.code === "BAD_REQUEST",
   );
   await assert.rejects(
-    f.client.call("automation.resolveInbox", { runId: "unknown", resolution: { kind: "approval", approved: "yes" } }),
+    f.renderer.call("automation.resolveInbox", { runId: "unknown", resolution: { kind: "approval", approved: "yes" } }),
     (error) => error.code === "BAD_REQUEST",
   );
   await f.client.call("automation.deleteTask", { taskId: spec.id });
 });
 
-test("authorized HTTP steps read secrets only through Main and uncertain writes require native reconciliation", async (t) => {
+test("primary HTTP secrets use Main while attention resolution is isolated from renderer approval", async (t) => {
   let authorization;
   const origin = await endpoint(t, (request, response) => {
     authorization = request.headers.authorization;
@@ -254,12 +252,40 @@ test("authorized HTTP steps read secrets only through Main and uncertain writes 
     requestId: "write-failed",
     resolution: { kind: "attention", action: "mark_failed" },
   };
-  f.native.confirmed = false;
-  await assert.rejects(f.client.call("automation.resolveInbox", resolution), (error) => error.code === "FORBIDDEN");
+  await assert.rejects(f.renderer.call("automation.resolveInbox", resolution), (error) => error.code === "BAD_REQUEST");
+  await assert.rejects(f.client.call("automation.resolveInbox", resolution), (error) => error.code === "BAD_REQUEST");
+  await assert.rejects(
+    f.renderer.call("automation.resolveAttention", resolution),
+    (error) => error.code === "FORBIDDEN",
+  );
+  await assert.rejects(
+    f.client.call("automation.resolveAttention", { ...resolution, resolution: { kind: "approval", approved: true } }),
+    (error) => error.code === "BAD_REQUEST",
+  );
+  await assert.rejects(
+    f.client.call("automation.resolveAttention", {
+      ...resolution,
+      resolution: { kind: "attention", action: "unknown" },
+    }),
+    (error) => error.code === "BAD_REQUEST",
+  );
   assert.equal((await f.client.call("automation.getRun", { runId: run.runId })).run.phase, "attention");
-  f.native.confirmed = true;
-  assert.equal((await f.client.call("automation.resolveInbox", resolution)).ok, true);
-  assert.equal(f.requests.at(-1).params.requiredGrant.httpOrigins[0], origin);
+  assert.equal((await f.client.call("automation.resolveAttention", resolution)).ok, true);
+  for (const action of ["mark_succeeded", "retry", "mark_failed", "confirm_cancelled"]) {
+    assert.deepEqual(
+      await f.client.call("automation.resolveAttention", {
+        ...resolution,
+        runId: "missing",
+        requestId: `missing-${action}`,
+        resolution: { kind: "attention", action },
+      }),
+      { ok: false, reason: "not_found" },
+    );
+  }
+  assert.deepEqual(
+    f.requests.map((request) => request.method),
+    ["automationSecrets.get"],
+  );
   await f.client.call("automation.deleteTask", { taskId: "external-write" });
 });
 
@@ -360,3 +386,160 @@ test("G17 shutdown drains automation delivery before stopping the shared channel
   assert.equal(messages.length, 1);
   await restarted.client.call("automation.deleteTask", { taskId: "delivery" });
 });
+
+test("renderer and gatekeeper can observe automation activity without consent", async (t) => {
+  const f = await host(t);
+  const idle = { executingRuns: 0, cancellingRuns: 0, activeProbes: 0 };
+  assert.deepEqual(await f.renderer.call("automation.activity"), idle);
+  assert.deepEqual(await f.client.call("automation.activity"), idle);
+  assert.deepEqual(f.requests, []);
+});
+
+test("primary host refuses all secret management even for gatekeeper ports without contacting Main", async (t) => {
+  const f = await host(t);
+  for (const [method, params] of [
+    ["automation.setSecret", { name: "api", value: "private-token" }],
+    ["automation.deleteSecret", { name: "api" }],
+    ["automation.listSecretNames", undefined],
+    ["automation.setSecret", null],
+    ["automation.deleteSecret", null],
+  ]) {
+    await assert.rejects(f.client.call(method, params), (error) => {
+      assert.equal(error.code, "FORBIDDEN");
+      assert.equal(error.message, "Primary automation secrets are managed by desktop main process");
+      return true;
+    });
+  }
+  assert.deepEqual(f.requests, []);
+});
+
+test("standalone gatekeeper owns secret CRUD and HTTP execution while renderer cannot access secrets", async (t) => {
+  const store = await DaemonAutomationSecrets.open(path.join(base, "standalone-automation.secrets.json"));
+  const f = await host(t, { automationSecrets: store });
+  for (const [method, params] of [
+    ["automation.setSecret", { name: "api", value: "renderer-value" }],
+    ["automation.deleteSecret", { name: "api" }],
+    ["automation.listSecretNames", undefined],
+  ]) {
+    await assert.rejects(f.renderer.call(method, params), (error) => error.code === "FORBIDDEN");
+    assert.deepEqual(await f.renderer.call("automation.listTasks"), { tasks: [] });
+  }
+  assert.deepEqual(await f.client.call("automation.listSecretNames"), { names: [] });
+  assert.deepEqual(await f.client.call("automation.setSecret", { name: "z-key", value: "other" }), { ok: true });
+  assert.deepEqual(await f.client.call("automation.setSecret", { name: "api", value: "first" }), { ok: true });
+  assert.deepEqual(await f.client.call("automation.setSecret", { name: "api", value: "standalone-private-token" }), {
+    ok: true,
+  });
+  assert.deepEqual(await f.client.call("automation.listSecretNames"), { names: ["api", "z-key"] });
+  for (const [method, params, message] of [
+    ["automation.setSecret", { name: "UPPER", value: "value" }, "Invalid automation secret name"],
+    ["automation.deleteSecret", { name: "UPPER" }, "Invalid automation secret name"],
+    ["automation.setSecret", { name: "api", value: "" }, "Invalid automation secret value"],
+    ["automation.setSecret", { name: "api", value: "密".repeat(21_846) }, "Invalid automation secret value"],
+  ]) {
+    await assert.rejects(
+      f.client.call(method, params),
+      (error) => error.code === "BAD_REQUEST" && error.message === message,
+    );
+  }
+  let authorization;
+  const origin = await endpoint(t, (request, response) => {
+    authorization = request.headers.authorization;
+    response.setHeader("content-type", "application/json");
+    response.end('{"ok":true}');
+  });
+  await f.enable(
+    task("standalone-http", [
+      {
+        kind: "action",
+        id: "request",
+        call: {
+          action: "http.request",
+          with: {
+            url: { origin },
+            method: "GET",
+            secretHeaders: { Authorization: "api" },
+            effect: "read",
+          },
+        },
+      },
+    ]),
+  );
+  const run = await f.start("standalone-http");
+  await f.phase(run.runId, "succeeded");
+  assert.equal(authorization, "standalone-private-token");
+  assert.deepEqual(f.requests, []);
+  for (const name of ["api", "api", "missing", "z-key"]) {
+    assert.deepEqual(await f.client.call("automation.deleteSecret", { name }), { ok: true });
+  }
+  assert.deepEqual(await f.client.call("automation.listSecretNames"), { names: [] });
+  assert.equal(await store.read("api"), null);
+  await f.client.call("automation.deleteTask", { taskId: "standalone-http" });
+});
+
+test(
+  "token-authenticated daemon WebSockets dispatch gatekeeper methods through real host handlers",
+  { timeout: 10_000 },
+  async (t) => {
+    const store = await DaemonAutomationSecrets.open(path.join(base, "websocket-automation.secrets.json"));
+    const f = await host(t, { automationSecrets: store });
+    const daemon = await startDaemonServer({
+      rpcServer: f.server,
+      getDescriptor: () => ({ environmentId: "daemon-automation" }),
+      authToken: "a".repeat(64),
+      listenPort: 0,
+    });
+    t.after(() => daemon.close());
+    const endpoint = `ws://127.0.0.1:${daemon.port}/rpc?environmentId=daemon-automation`;
+    const denied = new globalThis.WebSocket(`${endpoint}&token=wrong`);
+    await new Promise((resolve, reject) => {
+      denied.addEventListener("error", resolve, { once: true });
+      denied.addEventListener("open", () => reject(new Error("Unauthenticated daemon connection was accepted")), {
+        once: true,
+      });
+    });
+    const socket = new globalThis.WebSocket(`${endpoint}&token=${"a".repeat(64)}`);
+    await new Promise((resolve, reject) => {
+      socket.addEventListener("open", resolve, { once: true });
+      socket.addEventListener("error", reject, { once: true });
+    });
+    const remote = createRpcClient(createWebSocketClientPort(socket), { callTimeoutMs: 1_000 });
+    t.after(() => remote.close());
+    assert.deepEqual(await remote.call("automation.setSecret", { name: "api", value: "remote-private-token" }), {
+      ok: true,
+    });
+    assert.deepEqual(await remote.call("automation.listSecretNames"), { names: ["api"] });
+    assert.equal(await store.read("api"), "remote-private-token");
+    assert.deepEqual(await remote.call("automation.activity"), {
+      executingRuns: 0,
+      cancellingRuns: 0,
+      activeProbes: 0,
+    });
+    const spec = task("websocket-task", [duration]);
+    const saved = await remote.call("automation.saveTask", { spec });
+    assert.equal(
+      (
+        await remote.call("automation.enableTask", {
+          taskId: spec.id,
+          revision: saved.revision,
+          planHash: saved.planHash,
+        })
+      ).task.enabledRevision,
+      saved.revision,
+    );
+    assert.deepEqual(
+      await remote.call("automation.resolveAttention", {
+        runId: "missing",
+        stepIndex: 0,
+        expectedVersion: 1,
+        requestId: "remote-attention",
+        resolution: { kind: "attention", action: "mark_failed" },
+      }),
+      { ok: false, reason: "not_found" },
+    );
+    assert.deepEqual(await remote.call("automation.deleteSecret", { name: "api" }), { ok: true });
+    assert.deepEqual(await remote.call("automation.listSecretNames"), { names: [] });
+    await remote.call("automation.deleteTask", { taskId: spec.id });
+    assert.deepEqual(f.requests, []);
+  },
+);

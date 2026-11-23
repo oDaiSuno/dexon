@@ -215,6 +215,12 @@ export function listRuns(adb: AutomationDatabase, opts: ListRunsOptions = {}): r
       .all(...args) as unknown as RunRow[]
   ).map(runSummary);
 }
+export function countCancellingRuns(adb: AutomationDatabase): number {
+  const row = adb.db.prepare("SELECT COUNT(*) AS count FROM runs WHERE phase = 'cancelling'").get() as {
+    count: number;
+  };
+  return row.count;
+}
 export function getInbox(adb: AutomationDatabase): readonly InboxItem[] {
   const runs = adb.db
     .prepare("SELECT * FROM runs WHERE phase IN ('waiting','attention') ORDER BY admitted_at_ms, id")

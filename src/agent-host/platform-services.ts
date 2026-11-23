@@ -16,6 +16,7 @@ import {
 } from "../shared/session-orchestration.ts";
 import { isExecutionIntent } from "../shared/toolchains/types.ts";
 import { browserCapabilityRuntime } from "./browser-capability-runtime.ts";
+import { DaemonAutomationSecrets } from "./daemon-automation-secrets.ts";
 import {
   buildEnvironmentDescriptor,
   ensureEnvironmentIdentity,
@@ -28,6 +29,7 @@ import { StandaloneSecretStore } from "./standalone-secrets.ts";
 import { toolchainRuntime } from "./toolchain-runtime.ts";
 
 export interface StandaloneHostPlatform extends EnvironmentIdentity {
+  readonly automationSecrets: DaemonAutomationSecrets;
   getDescriptor(): EnvironmentDescriptor;
   dispose(): Promise<void>;
 }
@@ -113,7 +115,9 @@ export async function initializeStandaloneHostPlatform(options: {
   process.env.PI_DESKTOP_USER_DATA = stateDir;
   const secrets = new StandaloneSecretStore(path.join(stateDir, "channels.secrets.json"));
   const reaper = new ManagedProcessReaper(path.join(stateDir, "managed-processes-reaper.v2.json"));
+  let automationSecrets: DaemonAutomationSecrets;
   try {
+    automationSecrets = await DaemonAutomationSecrets.open(path.join(stateDir, "automation.secrets.json"));
     await reaper.initialize();
     applyManagedProcessOwnerIdentity({
       version: 1,
@@ -227,6 +231,7 @@ export async function initializeStandaloneHostPlatform(options: {
   await refreshSessionOrchestrationSettings();
   return {
     ...identity,
+    automationSecrets,
     getDescriptor: () => structuredClone(descriptor),
     async dispose() {
       setStandaloneMainRequestHandler(null);

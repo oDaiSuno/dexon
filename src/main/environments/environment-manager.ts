@@ -1,3 +1,5 @@
+import { RpcError } from "../../contract/types.ts";
+import type { BoundAutomationTarget } from "../automation-authority.ts";
 import { planEnvironmentUpdate } from "./environment-editing.ts";
 import { closeModeFor, removeWithChoice, shutdownAll } from "./environment-lifecycle.ts";
 import { testEnvironment } from "./environment-tester.ts";
@@ -254,6 +256,41 @@ export class EnvironmentManager {
       await entry.supervisor.disconnect();
       return structuredClone(this.view(entry));
     });
+  }
+
+  bindAutomationTarget(environmentId: EnvironmentId): BoundAutomationTarget {
+    const disconnected = () =>
+      new RpcError({ code: "DISCONNECTED", message: "Automation environment is not connected" });
+    if (this.disposed) throw disconnected();
+    if (environmentId === PRIMARY_ENVIRONMENT_ID) {
+      const host = this.options.hostManager;
+      if (!host.isServing()) throw disconnected();
+      const generation = host.generation;
+      return {
+        displayName: "Primary",
+        environmentId,
+        call: (method, ...args) => host.gatekeeperCall(method, args[0]),
+        isStillCurrent: () => !this.disposed && host.isServing() && host.generation === generation,
+      };
+    }
+    const entry = this.environments.get(environmentId);
+    const connection = entry?.supervisor.connection;
+    if (!entry || !connection || entry.supervisor.state.status.phase !== "connected") throw disconnected();
+    const generation = entry.supervisor.state.generation;
+    const isStillCurrent = () =>
+      !this.disposed &&
+      this.environments.get(environmentId) === entry &&
+      entry.supervisor.connection === connection &&
+      entry.supervisor.state.generation === generation &&
+      entry.supervisor.state.status.phase === "connected";
+    return {
+      displayName: entry.configuration.label,
+      environmentId,
+      serverEnvironmentId: connection.descriptor.environmentId,
+      call: (method, ...args) =>
+        isStillCurrent() ? connection.rpc.call(method, ...args) : Promise.reject(disconnected()),
+      isStillCurrent,
+    };
   }
 
   attachRendererEnvironmentPort(environmentId: EnvironmentId, sender: WebContents): void {

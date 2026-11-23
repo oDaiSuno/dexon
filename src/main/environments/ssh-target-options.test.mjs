@@ -37,7 +37,8 @@ function assertOptionArguments(args, expected) {
   }
 }
 
-function captureSshCommands(t) {
+function captureSshCommands(t, daemons = []) {
+  let probeIndex = 0;
   const commands = [];
   t.mock.method(childProcess, "spawn", (executable, args, spawnOptions) => {
     commands.push({ executable, args, spawnOptions });
@@ -59,18 +60,23 @@ function captureSshCommands(t) {
       setImmediate(() => child.stderr.write(`Local forwarding listening on 127.0.0.1 port ${localPort}`));
     } else {
       child.stdin.once("finish", () => {
-        const output = args.at(-1).includes("DEXON_LAUNCH")
-          ? JSON.stringify({ port: 3780, ownership: "managed", authToken: "a".repeat(64) })
-          : [
-              "DEXON\tHOME\t/home/dev",
-              "DEXON\tUSER\tdev",
-              "DEXON\tSTATE\t/home/dev/.dexon",
-              "DEXON\tWRITABLE\t1",
-              "DEXON\tOS\tlinux",
-              "DEXON\tARCH\tx64",
-              "DEXON\tINSTALLED\t1",
-              "DEXON\tNODE\t/usr/bin/node\t22.23.3",
-            ].join("\n");
+        const output = args.at(-1).includes("DEXON_STOP")
+          ? "stopped"
+          : args.at(-1).includes("DEXON_LAUNCH")
+            ? JSON.stringify({ port: 3780, ownership: "managed", authToken: "a".repeat(64) })
+            : [
+                "DEXON\tHOME\t/home/dev",
+                "DEXON\tUSER\tdev",
+                "DEXON\tSTATE\t/home/dev/.dexon",
+                "DEXON\tWRITABLE\t1",
+                "DEXON\tOS\tlinux",
+                "DEXON\tARCH\tx64",
+                "DEXON\tINSTALLED\t1",
+                "DEXON\tNODE\t/usr/bin/node\t22.23.3",
+                ...(daemons.length
+                  ? [`DEXON\tDAEMON\t${JSON.stringify(daemons[Math.min(probeIndex++, daemons.length - 1)])}`]
+                  : []),
+              ].join("\n");
         child.stdout.end(output);
         child.exitCode = 0;
         child.emit("close", 0);
@@ -305,4 +311,65 @@ test("renaming a server without changing SSH options preserves the binding and d
   assert.equal(plan.configuration.target.expectedEnvironmentId, "bound-remote");
   assert.equal(targetConnectionKey(plan.configuration.target), targetConnectionKey(current.target));
   assert.equal(computeSshStateKey(plan.configuration.target), computeSshStateKey(current.target));
+});
+
+test("an upgrade rechecks automation immediately before stop and defers if work became active", async (t) => {
+  for (const activeAutomation of [0, 1, null]) {
+    await t.test(`fresh automation count ${activeAutomation}`, async (t) => {
+      const directory = mkdtempSync(path.join(tmpdir(), "dexon-upgrade-activity-"));
+      t.after(() => rmSync(directory, { recursive: true, force: true }));
+      writeFileSync(path.join(directory, "manifest.json"), JSON.stringify({ version: "0.3.3", payloads: [] }));
+      const idle = {
+        running: true,
+        ownership: "managed",
+        payloadVersion: "0.3.2",
+        since: 1,
+        activeSessions: 0,
+        activeAutomation: 0,
+        protocolVersion: 1,
+      };
+      const commands = captureSshCommands(t, [idle, { ...idle, activeAutomation }]);
+      const descriptor = {
+        environmentId: "remote-gpu",
+        label: "GPU",
+        protocolVersion: 1,
+        serverVersion: "0.3.3",
+        platform: { os: "linux", arch: "x64", pathStyle: "posix", home: "/home/dev" },
+        capabilities: {
+          browser: false,
+          nativeDialogs: false,
+          revealInFileManager: false,
+          managedProcesses: true,
+          toolchainInstall: true,
+        },
+        runtime: { nodeVersion: "22.23.3", payloadVersion: "0.3.2", startedAt: 1 },
+      };
+      t.mock.method(
+        globalThis,
+        "fetch",
+        async (_url, request) =>
+          new globalThis.Response(JSON.stringify(descriptor), {
+            headers: {
+              "x-dexon-proof": createHmac("sha256", "a".repeat(64))
+                .update(request.headers["x-dexon-nonce"])
+                .digest("hex"),
+            },
+          }),
+      );
+      const manager = new SshEnvironmentManager({ payloadDirectory: directory });
+      try {
+        const tunnel = await manager.ensureTunnel(target);
+        assert.equal(tunnel.runtime.updatePending, activeAutomation !== 0);
+        const stops = commands.filter(({ args }) => args.at(-1).includes("DEXON_STOP"));
+        assert.equal(stops.length, activeAutomation === 0 ? 1 : 0);
+        assert.equal(commands.filter(({ args }) => args.at(-1).includes("DEXON_PROBE")).length, 2);
+        if (activeAutomation === 0) {
+          const stopAt = commands.indexOf(stops[0]);
+          assert.ok(commands[stopAt - 1].args.at(-1).includes("DEXON_PROBE"));
+        }
+      } finally {
+        await manager.dispose();
+      }
+    });
+  }
 });

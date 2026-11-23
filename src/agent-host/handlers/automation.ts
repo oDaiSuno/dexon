@@ -1,25 +1,47 @@
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
-import type { AutomationConsentRequest, AutomationConsentResult } from "../../shared/automation/views";
 import type { AutomationRuntime } from "../automation";
-import { callMain } from "../parent-rpc";
-import { invalid, object, text, integer, json, queryRuns, inboxRequest } from "./automation-input";
+import type { DaemonAutomationSecrets } from "../daemon-automation-secrets";
+import {
+  invalid,
+  object,
+  text,
+  integer,
+  json,
+  queryRuns,
+  approvalResolveRequest,
+  attentionResolveRequest,
+} from "./automation-input";
 
-async function confirm(request: AutomationConsentRequest): Promise<void> {
-  const consent = await callMain<AutomationConsentResult>("automationConsent.confirm", request, 110000);
-  if (
-    !consent ||
-    consent.confirmed !== true ||
-    consent.taskId !== request.taskId ||
-    consent.revision !== request.revision ||
-    consent.planHash !== request.planHash ||
-    consent.requestId !== (request.kind === "resolve" ? request.request.requestId : null)
-  )
-    throw new RpcError({ code: "FORBIDDEN", message: "Automation operation requires native confirmation" });
-}
-export function registerAutomationHandlers(server: RpcServer, runtime: AutomationRuntime): () => void {
+export type AutomationSecretOwner = { kind: "desktop-main" } | { kind: "host"; store: DaemonAutomationSecrets };
+
+export function registerAutomationHandlers(
+  server: RpcServer,
+  runtime: AutomationRuntime,
+  owner: AutomationSecretOwner,
+): () => void {
   const unsubscribe = runtime.subscribe((change) => server.emit("automation.changed", "*", change));
+  const secretStore = () => {
+    if (owner.kind === "desktop-main")
+      throw new RpcError({
+        code: "FORBIDDEN",
+        message: "Primary automation secrets are managed by desktop main process",
+      });
+    return owner.store;
+  };
   server.handle({
+    "automation.setSecret": async (params) => {
+      const store = secretStore();
+      const body = object(params);
+      await store.set(body.name, body.value);
+      return { ok: true };
+    },
+    "automation.deleteSecret": async (params) => {
+      const store = secretStore();
+      await store.delete(object(params).name);
+      return { ok: true };
+    },
+    "automation.listSecretNames": async () => ({ names: await secretStore().listNames() }),
     "automation.listTasks": (params) => {
       const body = params === undefined ? {} : object(params);
       return { tasks: runtime.listTasks(body.cwd === undefined ? {} : { cwd: text(body.cwd, 4096) }) };
@@ -31,21 +53,13 @@ export function registerAutomationHandlers(server: RpcServer, runtime: Automatio
       };
     },
     "automation.saveTask": async (params) => runtime.saveTask(object(params).spec),
-    "automation.enableTask": async (params) => {
+    "automation.enableTask": (params) => {
       const body = object(params);
       const taskId = text(body.taskId);
       const revision = integer(body.revision, 1);
       const planHash = text(body.planHash, 64);
       const task = runtime.getTask(taskId, revision);
       if (task.planHash !== planHash) invalid("Automation definition changed");
-      await confirm({
-        kind: "enable",
-        taskId,
-        revision,
-        planHash,
-        taskName: task.source.name,
-        requiredGrant: task.requiredGrant,
-      });
       return {
         task: runtime.enableTask({
           taskId,
@@ -79,23 +93,9 @@ export function registerAutomationHandlers(server: RpcServer, runtime: Automatio
     "automation.listRuns": (params) => ({ runs: runtime.listRuns(queryRuns(params)) }),
     "automation.getRun": (params) => ({ run: runtime.getRun(text(object(params).runId)) }),
     "automation.listInbox": () => ({ items: runtime.listInbox() }),
-    "automation.resolveInbox": async (params) => {
-      const request = inboxRequest(params);
-      if (request.resolution.kind === "attention") {
-        const run = runtime.getRun(request.runId);
-        const task = runtime.getTask(run.taskId, run.revision);
-        await confirm({
-          kind: "resolve",
-          taskId: run.taskId,
-          revision: run.revision,
-          planHash: task.planHash,
-          taskName: task.source.name,
-          requiredGrant: task.requiredGrant,
-          request,
-        });
-      }
-      return runtime.resolveInbox(request);
-    },
+    "automation.activity": () => runtime.activity(),
+    "automation.resolveInbox": (params) => runtime.resolveInbox(approvalResolveRequest(params)),
+    "automation.resolveAttention": (params) => runtime.resolveInbox(attentionResolveRequest(params)),
     "automation.emitSignal": (params) => {
       const body = object(params);
       return runtime.emitSignal(text(body.taskId), {

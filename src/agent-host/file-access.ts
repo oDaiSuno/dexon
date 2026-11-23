@@ -1,3 +1,5 @@
+import { realpath } from "node:fs/promises";
+import path from "node:path";
 import { RpcError } from "../contract/types";
 import {
   allowedRootsCacheTtlMs,
@@ -7,6 +9,7 @@ import {
   normalizeSlashes,
   setAllowedRootsCacheIfCurrent,
 } from "../shared/allowed-roots";
+import { desktopUserDataPath } from "./desktop-state-file";
 import { listAllSessions } from "./session-reader";
 import { isFilePathReferencedBySession } from "./session-file-references";
 import { pathAccess, type AllowedRoots } from "./file-access-core";
@@ -17,9 +20,54 @@ export {
   setAllowedRootsWatcherHealthy,
 } from "../shared/allowed-roots";
 
+const PROTECTED_STATE_FILES = new Set([
+  "auth-token",
+  "automation.secrets.json",
+  "channels.secrets.json",
+  "credentials.vault.json",
+  "daemon-owner.lock",
+]);
+
+async function resolveNormalizedPath(target: string): Promise<string> {
+  try {
+    return normalizeSlashes(await realpath(target));
+  } catch {
+    return normalizeSlashes(path.resolve(target));
+  }
+}
+
+function matchesProtectedStateFile(stateRoot: string, candidate: string): boolean {
+  const compare = (value: string) => (process.platform === "win32" ? value.toLowerCase() : value);
+  const root = compare(stateRoot);
+  const file = compare(candidate);
+  const prefix = root.endsWith("/") ? root : `${root}/`;
+  if (!file.startsWith(prefix)) return false;
+  const relative = file.slice(prefix.length);
+  if (relative.includes("/")) return false;
+  if (PROTECTED_STATE_FILES.has(relative)) return true;
+  for (const name of PROTECTED_STATE_FILES) {
+    if (relative.startsWith(`${name}.`) && relative.endsWith(".tmp")) return true;
+  }
+  return false;
+}
+
+async function isProtectedStateFile(target: string): Promise<boolean> {
+  const rawStateRoot = normalizeSlashes(path.resolve(desktopUserDataPath()));
+  const realStateRoot = await resolveNormalizedPath(desktopUserDataPath());
+  const rawTarget = normalizeSlashes(path.resolve(target));
+  const realTarget = await resolveNormalizedPath(target);
+  return (
+    matchesProtectedStateFile(rawStateRoot, rawTarget) ||
+    matchesProtectedStateFile(realStateRoot, rawTarget) ||
+    matchesProtectedStateFile(rawStateRoot, realTarget) ||
+    matchesProtectedStateFile(realStateRoot, realTarget)
+  );
+}
+
 let preparedRoots: { readonly key: string; readonly allowed: Promise<AllowedRoots> } | undefined;
 
 export async function isFilePathAllowed(target: string): Promise<boolean> {
+  if (await isProtectedStateFile(target)) return false;
   const roots = [...(await getAllowedFileRoots())];
   const key = JSON.stringify(roots);
   if (preparedRoots?.key !== key) preparedRoots = { key, allowed: pathAccess.prepare(roots) };
@@ -29,6 +77,7 @@ export async function isFilePathAllowed(target: string): Promise<boolean> {
 /** Reject any target outside the allowed roots unless the source session
  * references it directly (worktree file references). */
 export async function assertPathAllowed(target: string, sourceSessionId?: string): Promise<void> {
+  if (await isProtectedStateFile(target)) throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });
   if (await isFilePathAllowed(target)) return;
   if (sourceSessionId && (await isFilePathReferencedBySession(target, sourceSessionId))) return;
   throw new RpcError({ code: "FORBIDDEN", message: "Access denied" });

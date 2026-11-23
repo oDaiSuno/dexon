@@ -5,6 +5,20 @@ import type { AttemptContext, SecretReader } from "./types";
 import { rejected, interrupted, OutputLimitError, parseOutput } from "./observations";
 import { readSecret, secretText, secretValue, SecretError } from "./secrets";
 
+const PUBLIC_RESPONSE_HEADERS = new Set([
+  "cache-control",
+  "content-language",
+  "content-length",
+  "content-type",
+  "date",
+  "etag",
+  "expires",
+  "last-modified",
+  "location",
+  "retry-after",
+  "x-request-id",
+]);
+
 async function responseBody(response: Response, limit: number): Promise<Json> {
   const reader = response.body?.getReader();
   if (!reader) return null;
@@ -71,7 +85,7 @@ export function createHttpAction(deps: { fetch: typeof fetch; secrets: SecretRea
       }
       const output = {
         status,
-        headers: Object.fromEntries(response.headers),
+        headers: Object.fromEntries([...response.headers].filter(([name]) => PUBLIC_RESPONSE_HEADERS.has(name))),
         body: await responseBody(response, ctx.maxOutputBytes),
       };
       return { kind: "applied", output };

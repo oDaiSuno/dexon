@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+import { isRpcError, MissingSessionCwdError } from "../../../contract/types";
 import type { Json } from "../../../shared/automation/spec";
 import type { EffectObservation } from "../../effect-observation";
 import { createAutomationResultSink } from "../../agent-session/automation-result-tool";
@@ -24,7 +26,18 @@ export function createAgentStepRunner(sessions: AgentSessionPort) {
         model: step.model,
         thinkingLevel: step.thinkingLevel,
       });
-    } catch {
+    } catch (error) {
+      if (error instanceof MissingSessionCwdError || (isRpcError(error) && error.code === "MISSING_SESSION_CWD"))
+        return rejected("invalid_input", error.message);
+      if (
+        isRpcError(error) &&
+        error.code === "BAD_REQUEST" &&
+        !(await stat(ctx.cwd).then(
+          (info) => info.isDirectory(),
+          () => false,
+        ))
+      )
+        return rejected("invalid_input", error.message);
       return rejected("model_unavailable", "Automation session could not be launched", true);
     }
     try {

@@ -19,6 +19,8 @@ after(() => {
   rmSync(base, { recursive: true, force: true });
 });
 const {
+  allowFileRoot,
+  assertPathAllowed,
   createPathAccess,
   getAllowedFileRoots,
   invalidateAllowedRootsCache,
@@ -29,7 +31,7 @@ const {
   packages: "external",
   stdin: {
     contents:
-      'export {getAllowedFileRoots, invalidateAllowedRootsCache, isFilePathAllowed, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {createPathAccess} from "./file-access-core.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
+      'export {allowFileRoot, assertPathAllowed, getAllowedFileRoots, invalidateAllowedRootsCache, isFilePathAllowed, setAllowedRootsWatcherHealthy} from "./file-access.ts"; export {createPathAccess} from "./file-access-core.ts"; export {setGitCommandRunner} from "../shared/worktree.ts";',
     resolveDir: import.meta.dirname,
     loader: "ts",
   },
@@ -84,4 +86,35 @@ test("a directory change during a real session scan cannot publish stale allowed
     false,
     "the next caller cannot read a cached stale directory",
   );
+});
+
+test("denies daemon and desktop secret and auth state files even when the state directory is an allowed root", async (t) => {
+  const stateDir = mkdtempSync(path.join(tmpdir(), "dexon-protected-state-"));
+  const previous = process.env.PI_DESKTOP_USER_DATA;
+  process.env.PI_DESKTOP_USER_DATA = stateDir;
+  t.after(() => {
+    if (previous === undefined) delete process.env.PI_DESKTOP_USER_DATA;
+    else process.env.PI_DESKTOP_USER_DATA = previous;
+    invalidateAllowedRootsCache();
+    rmSync(stateDir, { recursive: true, force: true });
+  });
+  allowFileRoot(stateDir);
+  invalidateAllowedRootsCache();
+  const normalFile = path.join(stateDir, "notes.txt");
+  writeFileSync(normalFile, "ok");
+  assert.equal(await isFilePathAllowed(normalFile), true);
+  await assertPathAllowed(normalFile);
+  for (const name of [
+    "auth-token",
+    "automation.secrets.json",
+    "channels.secrets.json",
+    "credentials.vault.json",
+    "daemon-owner.lock",
+    "automation.secrets.json.123.tmp",
+  ]) {
+    const file = path.join(stateDir, name);
+    writeFileSync(file, "private");
+    assert.equal(await isFilePathAllowed(file), false, name);
+    await assert.rejects(assertPathAllowed(file), (error) => error.code === "FORBIDDEN");
+  }
 });

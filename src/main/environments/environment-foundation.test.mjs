@@ -31,6 +31,7 @@ const fixtureProbe = (patch = {}) => ({
     payloadVersion: null,
     since: null,
     activeSessions: null,
+    activeAutomation: null,
     protocolVersion: null,
   },
   ...patch,
@@ -164,13 +165,19 @@ test("renaming a server retains its identity while changing its state directory 
   assert.equal(relocate.configuration.target.expectedEnvironmentId, undefined);
 });
 
-test("old managed daemons upgrade only after a confirmed zero-session report", () => {
-  const daemon = { running: true, ownership: "managed", payloadVersion: "old", activeSessions: 0 };
+test("old managed daemons upgrade only after confirmed zero sessions and automation", () => {
+  const daemon = { running: true, ownership: "managed", payloadVersion: "old", activeSessions: 0, activeAutomation: 0 };
   assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon }), "new"), {
     deploy: true,
     restartDaemon: true,
     updatePending: false,
   });
+  for (const activeAutomation of [1, 3, null])
+    assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon: { ...daemon, activeAutomation } }), "new"), {
+      deploy: false,
+      restartDaemon: false,
+      updatePending: true,
+    });
   for (const activeSessions of [1, null])
     assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon: { ...daemon, activeSessions } }), "new"), {
       deploy: false,
@@ -270,4 +277,33 @@ test("local SSH OS spawn failures are blocked and preserve their original diagno
     assert.ok(result.diagnosis.detail.includes(code));
     assert.ok(!result.diagnosis.detail.includes("private"));
   }
+});
+
+test("changing a WebSocket environment URL clears the saved auth token unless a new one is supplied", () => {
+  const current = {
+    id: "env-ws",
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4100/rpc", expectedEnvironmentId: "remote-a" },
+    authToken: "saved-token",
+    enabled: true,
+  };
+  const renamed = planEnvironmentUpdate(current, {
+    label: "Remote A Renamed",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4100/rpc" },
+  });
+  assert.equal(renamed.rebind, false);
+  assert.equal(renamed.configuration.authToken, "saved-token");
+  const redirected = planEnvironmentUpdate(current, {
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4999/rpc" },
+  });
+  assert.equal(redirected.rebind, true);
+  assert.equal(redirected.configuration.authToken, undefined);
+  const replaced = planEnvironmentUpdate(current, {
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4999/rpc" },
+    authToken: "explicit-new-token",
+  });
+  assert.equal(replaced.rebind, true);
+  assert.equal(replaced.configuration.authToken, "explicit-new-token");
 });

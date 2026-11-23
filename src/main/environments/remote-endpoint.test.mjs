@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createHmac } from "node:crypto";
+import childProcess from "node:child_process";
+import { syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { fetchUnauthenticatedDescriptor, openRemoteConnection } from "./remote-endpoint.ts";
 import { startDaemonServer } from "../../agent-host/daemon-server.ts";
@@ -110,4 +112,132 @@ test("a real daemon descriptor and authenticated WebSocket carry a complete ping
   const connection = await openRemoteConnection(endpoint, found);
   t.after(() => connection.close());
   assert.deepEqual(await connection.rpc.call("host.ping"), { ok: true, ts: 42 });
+});
+
+test("I3 business calls and a 500ms native confirmation outlive short probes while hung pings time out", async (t) => {
+  const { importTestBundle } = await import("#test-bundle");
+  const { createAutomationAuthority, EnvironmentSupervisor, SshEnvironmentManager } = await importTestBundle(
+    "remote-automation-timeouts",
+    {
+      stdin: {
+        contents:
+          'export { createAutomationAuthority } from "./src/main/automation-authority"; export { EnvironmentSupervisor } from "./src/main/environments/environment-supervisor"; export { SshEnvironmentManager } from "./src/main/environments/ssh-tunnel-manager";',
+        resolveDir: process.cwd(),
+        loader: "ts",
+      },
+    },
+  );
+  const { setTimeout: delay } = await import("node:timers/promises");
+  const server = createRpcServer();
+  const hash = "a".repeat(64);
+  let hangPing = false;
+  let enables = 0;
+  server.handle({
+    "host.ping": async () => (hangPing ? new Promise(() => {}) : { ok: true, ts: 42 }),
+    "automation.getTask": async () => {
+      await delay(300);
+      return {
+        task: {
+          taskId: "report",
+          revision: 1,
+          planHash: hash,
+          source: { name: "Report" },
+          requiredGrant: {
+            planHash: hash,
+            cwd: "/srv/work",
+            httpOrigins: [],
+            scripts: [],
+            secrets: [],
+            unattendedWrites: [],
+          },
+        },
+      };
+    },
+    "automation.enableTask": async () => {
+      enables++;
+      await delay(300);
+      return { task: { id: "report", enabledRevision: 1 } };
+    },
+  });
+  const daemon = await startDaemonServer({
+    rpcServer: server,
+    getDescriptor: descriptor,
+    authToken: "c".repeat(64),
+    listenPort: 0,
+  });
+  t.after(() => daemon.close());
+  const endpoint = {
+    httpBaseUrl: `http://127.0.0.1:${daemon.port}`,
+    wsUrl: `ws://127.0.0.1:${daemon.port}/rpc`,
+    authToken: "c".repeat(64),
+  };
+  const direct = await openRemoteConnection(endpoint, descriptor(), undefined, { probeTimeoutMs: 200 });
+  t.after(() => direct.close());
+  assert.equal((await direct.rpc.call("automation.getTask", { taskId: "report" })).task.taskId, "report");
+  const sshCalls = [];
+  t.mock.method(childProcess, "spawn", (...args) => {
+    sshCalls.push(args);
+    throw new Error("Direct mode must never invoke SSH");
+  });
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+  const ssh = new SshEnvironmentManager();
+  t.after(() => ssh.dispose());
+  const supervisor = new EnvironmentSupervisor({
+    configuration: { target: { kind: "websocket", url: endpoint.wsUrl }, authToken: endpoint.authToken },
+    policy: () => ({ detachedDaemon: false, autoReconnect: false }),
+    sshTunnelManager: ssh,
+    probeTimeoutMs: 200,
+    onBound() {},
+    onChange() {},
+  });
+  t.after(() => supervisor.dispose("stop-managed"));
+  await supervisor.connect();
+  assert.equal(supervisor.state.status.phase, "connected");
+  const connection = supervisor.connection;
+  const authority = createAutomationAuthority({
+    targets: {
+      bindAutomationTarget: (environmentId) => ({
+        environmentId,
+        displayName: "GPU",
+        serverEnvironmentId: "remote-id",
+        call: (method, params) => connection.rpc.call(method, params),
+        isStillCurrent: () => supervisor.connection === connection && supervisor.state.status.phase === "connected",
+      }),
+    },
+    primarySecrets: {},
+    show: async () => {
+      assert.equal(enables, 0);
+      await delay(500);
+      assert.equal(enables, 0);
+      return { response: 1 };
+    },
+  });
+  assert.equal(
+    (await authority({ type: "enable-task", environmentId: "remote", taskId: "report", revision: 1, planHash: hash }))
+      .outcome,
+    "enabled",
+  );
+  assert.equal(enables, 1);
+  assert.equal(supervisor.state.status.phase, "connected");
+  hangPing = true;
+  const started = Date.now();
+  await assert.rejects(direct.rpc.call("host.ping"), (error) => error.code === "TIMEOUT");
+  assert.ok(Date.now() - started >= 150);
+  assert.ok(Date.now() - started < 1500);
+  const failed = new Promise((resolve) => {
+    const remove = connection.channel.onClose(() => {
+      remove();
+      resolve();
+    });
+  });
+  supervisor.wakeup("resume");
+  await failed;
+  assert.equal(supervisor.state.status.phase, "offline");
+  assert.equal(supervisor.connection, null);
+  await supervisor.dispose("stop-managed");
+  assert.deepEqual(sshCalls, []);
 });

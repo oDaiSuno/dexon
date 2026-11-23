@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { RpcError } from "../../contract/types";
+import { AUTOMATION_DRIVER_STOP_GRACE_MS, AUTOMATION_PROBE_STOP_GRACE_MS } from "../../shared/shutdown-budget";
 import { AutomationStore, systemClock } from "./store";
 import { assertTaskSpec } from "./spec/validate";
 import { DriverPool } from "./driver-pool";
@@ -14,7 +15,8 @@ const defaults: RuntimeLimits = {
   maxConcurrentDrivers: 4,
   maxSchedulerSleepMs: 60000,
   resumeGraceMs: 15000,
-  shutdownGraceMs: 5000,
+  shutdownGraceMs: AUTOMATION_DRIVER_STOP_GRACE_MS,
+  probeStopGraceMs: AUTOMATION_PROBE_STOP_GRACE_MS,
   maxOutputBytes: 256 * 1024,
 };
 export function createAutomationRuntime(deps: AutomationRuntimeDeps): AutomationRuntime {
@@ -110,6 +112,11 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
   }
   const runtime: AutomationRuntime = {
     status: () => ({ ...status }),
+    activity: () => ({
+      executingRuns: pool?.activeCount() ?? 0,
+      cancellingRuns: store?.countCancellingRuns() ?? 0,
+      activeProbes: scheduler?.activeCount() ?? 0,
+    }),
     async start() {
       if (status.kind === "ready") return;
       if (stopping) await stopping;
@@ -127,7 +134,7 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
     stop() {
       stopping ??= (async () => {
         status = { kind: "stopped" };
-        await scheduler?.stop();
+        await scheduler?.stop(limits.probeStopGraceMs);
         await pool?.shutdown(limits.shutdownGraceMs);
         await executors?.shutdown();
         await probeScripts?.shutdown();
@@ -203,8 +210,10 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
     },
     async tickNow() {
       if (!peekStore()) return;
-      await scheduler!.tickNow();
-      pool!.pump();
+      const tickingScheduler = scheduler!;
+      const tickingPool = pool!;
+      await tickingScheduler.tickNow();
+      if (status.kind === "ready" && scheduler === tickingScheduler && pool === tickingPool) tickingPool.pump();
     },
     subscribe(listener) {
       listeners.add(listener);

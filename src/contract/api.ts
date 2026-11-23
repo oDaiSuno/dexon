@@ -1,6 +1,6 @@
 import type { HostSelfCheckReport } from "../shared/host-self-check";
 import type { FolderListing } from "./folder-browse";
-import type { TaskSpec } from "../shared/automation/spec";
+import type { SecretName, TaskSpec } from "../shared/automation/spec";
 import type {
   TaskView,
   TaskRevisionView,
@@ -12,8 +12,11 @@ import type {
   InboxItem,
   FireRequest,
   FireResult,
-  ResolveInboxRequest,
+  ApprovalResolveRequest,
+  AttentionResolveRequest,
   ResolveInboxResult,
+  AutomationActivity,
+  AutomationSecretWrite,
   SignalEmit,
   AutomationChange,
 } from "../shared/automation/views";
@@ -90,7 +93,7 @@ export interface Api {
   "automation.listTasks": { params: { cwd?: string } | void; result: { tasks: readonly TaskView[] } };
   "automation.getTask": { params: { taskId: string; revision?: number }; result: { task: TaskRevisionView } };
   "automation.saveTask": { params: { spec: TaskSpec }; result: SaveTaskResult };
-  "automation.enableTask": { params: TaskEnableRequest; result: { task: TaskView } };
+  "automation.enableTask": { params: TaskEnableRequest; result: { task: TaskView }; access: "gatekeeper" };
   "automation.disableTask": { params: { taskId: string }; result: { task: TaskView } };
   "automation.deleteTask": { params: { taskId: string }; result: { ok: true } };
   "automation.startRun": { params: FireRequest; result: FireResult };
@@ -98,7 +101,16 @@ export interface Api {
   "automation.listRuns": { params: ListRunsQuery | void; result: { runs: readonly RunSummaryView[] } };
   "automation.getRun": { params: { runId: string }; result: { run: RunDetailView } };
   "automation.listInbox": { params: void; result: { items: readonly InboxItem[] } };
-  "automation.resolveInbox": { params: ResolveInboxRequest; result: ResolveInboxResult };
+  "automation.resolveInbox": { params: ApprovalResolveRequest; result: ResolveInboxResult };
+  "automation.resolveAttention": {
+    params: AttentionResolveRequest;
+    result: ResolveInboxResult;
+    access: "gatekeeper";
+  };
+  "automation.activity": { params: void; result: AutomationActivity };
+  "automation.setSecret": { params: AutomationSecretWrite; result: { ok: true }; access: "gatekeeper" };
+  "automation.deleteSecret": { params: { name: SecretName }; result: { ok: true }; access: "gatekeeper" };
+  "automation.listSecretNames": { params: void; result: { names: readonly string[] }; access: "gatekeeper" };
   "automation.emitSignal": { params: SignalEmit & { taskId: string }; result: { woke: number } };
   "host.selfCheck": { params: void; result: HostSelfCheckReport };
   "host.ping": { params: void; result: { ok: true; ts: number; descriptor?: EnvironmentDescriptor } };

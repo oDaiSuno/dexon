@@ -1,4 +1,4 @@
-import type { Json, JsonSchema, TaskSpec, RequiredGrant, ConfirmedGrant } from "./spec";
+import type { Json, JsonSchema, TaskSpec, RequiredGrant, ConfirmedGrant, SecretName } from "./spec";
 import type {
   RunPhase,
   StepStatus,
@@ -124,9 +124,12 @@ export interface ApprovalResolution {
   readonly data?: Json;
 }
 
+export const ATTENTION_ACTIONS = ["mark_succeeded", "retry", "mark_failed", "confirm_cancelled"] as const;
+export type AttentionAction = (typeof ATTENTION_ACTIONS)[number];
+
 export interface AttentionResolution {
   readonly kind: "attention";
-  readonly action: "mark_succeeded" | "retry" | "mark_failed" | "confirm_cancelled";
+  readonly action: AttentionAction;
   readonly output?: Json;
 }
 
@@ -158,6 +161,20 @@ export interface ResolveInboxRequest {
   readonly requestDigest?: string;
   readonly resolution: InboxResolution;
 }
+export type ApprovalResolveRequest = ResolveInboxRequest & { readonly resolution: ApprovalResolution };
+export type AttentionResolveRequest = ResolveInboxRequest & { readonly resolution: AttentionResolution };
+
+export interface AutomationActivity {
+  readonly executingRuns: number;
+  readonly cancellingRuns: number;
+  readonly activeProbes: number;
+}
+
+export interface AutomationSecretWrite {
+  readonly name: SecretName;
+  readonly value: string;
+}
+
 export type ResolveInboxResult =
   | { readonly ok: true; readonly run: RunSummaryView }
   | {
@@ -219,18 +236,4 @@ export interface AutomationChange {
   readonly taskIds: readonly string[];
   readonly runIds: readonly string[];
   readonly inboxChanged: boolean;
-}
-export type AutomationConsentRequest = {
-  readonly taskId: string;
-  readonly revision: number;
-  readonly planHash: string;
-  readonly taskName: string;
-  readonly requiredGrant: RequiredGrant;
-} & ({ readonly kind: "enable" } | { readonly kind: "resolve"; readonly request: ResolveInboxRequest });
-export interface AutomationConsentResult {
-  readonly confirmed: boolean;
-  readonly taskId: string;
-  readonly revision: number;
-  readonly planHash: string;
-  readonly requestId: string | null;
 }

@@ -1,3 +1,4 @@
+import { AUTOMATION_PROBE_STOP_GRACE_MS } from "../../shared/shutdown-budget";
 import type { AutomationStore, Clock, DueTrigger } from "./store";
 import { observeTickGap, type WatchSample } from "./core/triggers";
 
@@ -14,18 +15,32 @@ export class AutomationScheduler {
     private readonly clock: Clock,
     private readonly options: { maxSleepMs: number; resumeGraceMs: number; onError: (error: unknown) => void },
   ) {}
+  activeCount(): number {
+    return this.inFlight.size;
+  }
   start(): void {
     if (this.running) return;
     this.running = true;
     this.lastTickAtMs = this.clock.now();
     this.rearm();
   }
-  async stop(): Promise<void> {
+  async stop(graceMs = AUTOMATION_PROBE_STOP_GRACE_MS): Promise<void> {
     this.running = false;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     for (const entry of this.inFlight.values()) entry.controller.abort();
-    await Promise.all([...this.inFlight.values()].map((entry) => entry.task));
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all([...this.inFlight.values()].map((entry) => entry.task)),
+        new Promise<void>((resolve) => {
+          timer = setTimeout(resolve, graceMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+      this.inFlight.clear();
+    }
   }
   rearm(): void {
     if (!this.running) return;
@@ -61,7 +76,9 @@ export class AutomationScheduler {
         .then((sample) => {
           if (this.running) this.store.recordTriggerSample(due, sample, this.clock.now());
         })
-        .catch(this.options.onError)
+        .catch((error: unknown) => {
+          if (this.running) this.options.onError(error);
+        })
         .finally(() => {
           this.inFlight.delete(due.key);
           this.rearm();
