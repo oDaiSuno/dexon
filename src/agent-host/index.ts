@@ -14,6 +14,7 @@ import { startDaemonServer, type DaemonServer } from "./daemon-server";
 import { HostActivity } from "./host-activity";
 import { subscribeActivity } from "./rpc-manager";
 import type { MainToHost } from "../shared/host-protocol";
+import { DAEMON_EXIT_DEADLINE_MS } from "../shared/shutdown-budget";
 
 function parseStandaloneArguments(args: string[]) {
   const { values } = parseArgs({
@@ -47,7 +48,10 @@ const hostActivity = new HostActivity({
 });
 const stopActivity = subscribeActivity((activity) => hostActivity.observe(activity));
 const restoreGitRunner = installToolchainGitRunner();
-const stopHandlers = registerHandlers(server);
+const stopHandlers = registerHandlers(
+  server,
+  standalonePlatform ? { automationSecrets: standalonePlatform.automationSecrets } : {},
+);
 const stopWatcher = startSessionWatcher(server);
 
 function log(message: string): void {
@@ -71,8 +75,9 @@ if (parentPort) {
       const port = event.ports?.[0];
       if (port) {
         try {
-          server.attachPort(port as never);
-          log("renderer port attached");
+          const audience = msg.audience === "gatekeeper" ? "gatekeeper" : "renderer";
+          server.attachPort(port as never, audience);
+          log(`${audience} port attached`);
         } catch (err) {
           log(`attach-port failed: ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -145,6 +150,10 @@ if (parentPort) {
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
+    const deadline = setTimeout(() => {
+      log("shutdown deadline reached");
+      process.exit(1);
+    }, DAEMON_EXIT_DEADLINE_MS);
     stopActivity();
     hostActivity.dispose();
     stopWatcher();
@@ -157,8 +166,12 @@ if (parentPort) {
         await standalonePlatform.dispose();
       }
     })().then(
-      () => process.exit(0),
+      () => {
+        clearTimeout(deadline);
+        process.exit(0);
+      },
       (error: unknown) => {
+        clearTimeout(deadline);
         log(`shutdown failed: ${error instanceof Error ? error.message : String(error)}`);
         process.exit(1);
       },

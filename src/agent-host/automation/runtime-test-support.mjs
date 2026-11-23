@@ -100,14 +100,15 @@ export async function fixture(t, options = {}) {
       delete: async () => {},
     },
   });
-  let now = 1000000;
+  let now = options.startAtMs ?? 1000000;
   const errors = [];
   const deps = {
     dataDirectory: path.join(directory, "automation"),
     clock: { now: () => now },
     channels,
     agentSessions: { launch: bundle.launchAutomationSession },
-    secrets: { read: async (name) => options.secrets?.[name] ?? null },
+    secrets: options.secretReader ?? { read: async (name) => options.secrets?.[name] ?? null },
+    ...(options.fetch ? { fetch: options.fetch } : {}),
     limits: { maxConcurrentDrivers: 6, resumeGraceMs: 0, ...options.limits },
     onError: (error) => errors.push(error),
   };
@@ -131,6 +132,7 @@ export async function fixture(t, options = {}) {
     sent,
     channels,
     deps,
+    errors,
     get runtime() {
       return runtime;
     },

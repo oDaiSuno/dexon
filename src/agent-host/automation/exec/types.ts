@@ -21,6 +21,9 @@ export interface AttemptContext {
 export interface SecretReader {
   read(name: string): Promise<string | null>;
 }
+export interface SecretUseScope extends SecretReader {
+  containsUsedSecret(text: string): boolean;
+}
 export type AutomationChannelPort = Pick<ChannelManager, "deliver" | "deliveryCapability">;
 export type AgentSessionPort = {
   launch(launch: AutomationSessionLaunch<Json>): Promise<AutomationSessionHandle<Json>>;

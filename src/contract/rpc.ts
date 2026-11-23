@@ -2,6 +2,9 @@ import type { ApiMethod, ApiParams, ApiResult, StreamTopic, Streams } from "./ap
 import { isRpcError, RpcError, type RpcErrorShape } from "./types.ts";
 import { ToolchainError } from "../shared/toolchains/errors.ts";
 import { listenPort, type AnyMessagePort } from "./rpc-channel.ts";
+import { gatekeeperRefusal } from "./gatekeeper-methods.ts";
+
+export type PortAudience = "renderer" | "gatekeeper";
 
 export type { AnyMessagePort, RpcChannel, WebSocketLike } from "./rpc-channel.ts";
 export {
@@ -85,6 +88,7 @@ function makeId(): string {
 
 export type RpcClientOptions = {
   callTimeoutMs?: number;
+  methodTimeoutMs?: Partial<Record<ApiMethod, number>>;
   onClosed?: () => void;
 };
 
@@ -160,11 +164,18 @@ export function createRpcClient(port: RpcClientPort, options: RpcClientOptions =
     call(method, ...args) {
       const params = (args[0] ?? undefined) as unknown;
       const id = makeId();
+      const configuredMethodTimeout = options.methodTimeoutMs?.[method];
+      const timeoutMs =
+        typeof configuredMethodTimeout === "number" &&
+        Number.isFinite(configuredMethodTimeout) &&
+        configuredMethodTimeout > 0
+          ? configuredMethodTimeout
+          : callTimeoutMs;
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           if (!pending.delete(id)) return;
           reject(new RpcError({ code: "TIMEOUT", message: `RPC call timed out: ${String(method)}` }));
-        }, callTimeoutMs);
+        }, timeoutMs);
         pending.set(id, {
           resolve: resolve as (v: unknown) => void,
           reject,
@@ -248,7 +259,7 @@ export type StreamSink = {
 export interface RpcServer {
   handle(handlers: ApiHandler): void;
   emit<T extends StreamTopic>(topic: T, key: string, data: Streams[T]): void;
-  attachPort(port: AnyMessagePort): void;
+  attachPort(port: AnyMessagePort, audience?: PortAudience): void;
   detachPort(port: AnyMessagePort): void;
   inFlightRequests(): number;
 }
@@ -332,7 +343,7 @@ export function createRpcServer(): RpcServer {
     return m;
   }
 
-  async function onPortMessage(port: AnyMessagePort, raw: unknown) {
+  async function onPortMessage(port: AnyMessagePort, audience: PortAudience, raw: unknown) {
     const msg = raw as WireMessage;
     if (!msg || typeof msg !== "object") return;
 
@@ -345,6 +356,18 @@ export function createRpcServer(): RpcServer {
       return;
     }
     if (msg.kind !== "request") return;
+
+    if (audience !== "gatekeeper") {
+      const refusal = gatekeeperRefusal({ id: msg.id, method: msg.method });
+      if (refusal) {
+        try {
+          port.postMessage(refusal);
+        } catch {
+          return;
+        }
+        return;
+      }
+    }
 
     inFlight += 1;
     if (inFlight === 1) notifyRequestActivity();
@@ -445,13 +468,13 @@ export function createRpcServer(): RpcServer {
       }
     },
 
-    attachPort(port) {
+    attachPort(port, audience = "renderer") {
       if (ports.has(port)) return;
       ports.add(port);
       ensureSubs(port);
       portLeases.set(port, new Map());
       const unlisten = listenPort(port, (data) => {
-        void onPortMessage(port, data);
+        void onPortMessage(port, audience, data);
       });
       portUnlisten.set(port, unlisten);
       const onClose = () => {

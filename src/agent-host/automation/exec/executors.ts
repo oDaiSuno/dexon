@@ -6,12 +6,14 @@ import { createChannelAction, channelPolicy } from "./channel-action";
 import { createScriptAction } from "./script-action";
 import { createAgentStepRunner } from "./agent-step";
 import { interrupted, rejected } from "./observations";
+import { createSecretUseScope, protectObservation } from "./secrets";
 import type { AttemptContext, SecretReader, AgentSessionPort, AutomationChannelPort, StepExecutors } from "./types";
 
 type ActionRegistry = {
   [K in ActionCallPlan["action"]]: (
     call: Extract<ActionCallPlan, { action: K }>,
     context: AttemptContext,
+    secrets: SecretReader,
   ) => Promise<EffectObservation<Json>>;
 };
 export function createStepExecutors(deps: {
@@ -23,7 +25,7 @@ export function createStepExecutors(deps: {
   const script = createScriptAction(deps.secrets);
   const agent = createAgentStepRunner(deps.agentSessions);
   const actions: ActionRegistry = {
-    "http.request": createHttpAction(deps),
+    "http.request": (call, context, secrets) => createHttpAction({ fetch: deps.fetch, secrets })(call, context),
     "channel.send": createChannelAction(deps.channels),
     "script.run": script.execute,
   };
@@ -36,17 +38,25 @@ export function createStepExecutors(deps: {
   return {
     policyFor,
     async execute(step, context) {
+      const secrets = createSecretUseScope(deps.secrets);
       try {
-        if (step.kind === "agent") return await agent(step, context);
-        const call = step.call;
-        switch (call.action) {
-          case "http.request":
-            return await actions[call.action](call, context);
-          case "channel.send":
-            return await actions[call.action](call, context);
-          case "script.run":
-            return await actions[call.action](call, context);
+        let observed: EffectObservation<Json>;
+        if (step.kind === "agent") observed = await agent(step, context);
+        else {
+          const call = step.call;
+          switch (call.action) {
+            case "http.request":
+              observed = await actions[call.action](call, context, secrets);
+              break;
+            case "channel.send":
+              observed = await actions[call.action](call, context, secrets);
+              break;
+            case "script.run":
+              observed = await actions[call.action](call, context, secrets);
+              break;
+          }
         }
+        return protectObservation(observed, policyFor(step), secrets);
       } catch (error) {
         if (error instanceof Error && "code" in error && error.code === "invalid_input")
           return rejected("invalid_input", "Step references a missing input value");

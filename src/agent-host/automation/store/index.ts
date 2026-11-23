@@ -135,6 +135,9 @@ export class AutomationStore {
   listRuns(opts: queries.ListRunsOptions = {}) {
     return queries.listRuns(this.adb, opts);
   }
+  countCancellingRuns(): number {
+    return queries.countCancellingRuns(this.adb);
+  }
   listRunsByTask(taskId: string, limit = 50) {
     return this.listRuns({ taskId, limit });
   }

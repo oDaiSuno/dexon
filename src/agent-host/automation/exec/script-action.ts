@@ -40,7 +40,11 @@ function observeStdout(
 }
 export function createScriptAction(secrets: SecretReader) {
   const active = new Set<ChildProcess>();
-  async function execute(call: ScriptActionPlan, ctx: AttemptContext): Promise<EffectObservation<Json>> {
+  async function execute(
+    call: ScriptActionPlan,
+    ctx: AttemptContext,
+    reader: SecretReader = secrets,
+  ): Promise<EffectObservation<Json>> {
     if (!ctx.grant.scripts.some((script) => script.path === call.path && script.sha256 === call.sha256))
       return rejected("grant_violation", "Script is not approved");
     let bytes: Buffer;
@@ -59,8 +63,8 @@ export function createScriptAction(secrets: SecretReader) {
     env.DEXON_RUN_ID = ctx.runId;
     let args: Json;
     try {
-      args = await secretValue(call.argsTmpl, ctx, secrets);
-      for (const name of call.secrets) env[`DEXON_SECRET_${name}`] = await readSecret(name, ctx, secrets);
+      args = await secretValue(call.argsTmpl, ctx, reader);
+      for (const name of call.secrets) env[`DEXON_SECRET_${name}`] = await readSecret(name, ctx, reader);
     } catch (error) {
       return rejected(
         error instanceof SecretError ? error.code : "invalid_input",

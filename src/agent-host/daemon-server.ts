@@ -85,7 +85,7 @@ function upgrade(request: IncomingMessage, socket: Socket, head: Buffer, options
   );
   const webSocket = new DaemonWebSocket(socket);
   const port = createWebSocketServerPort(webSocket);
-  options.rpcServer.attachPort(port);
+  options.rpcServer.attachPort(port, "gatekeeper");
   webSocket.receive(head);
 }
 

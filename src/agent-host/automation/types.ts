@@ -13,6 +13,7 @@ import type {
   SaveTaskResult,
   ListRunsQuery,
   AutomationChange,
+  AutomationActivity,
 } from "../../shared/automation/views";
 export type { SaveTaskResult, ListRunsQuery, AutomationChange } from "../../shared/automation/views";
 import type { SecretReader, AutomationChannelPort, AgentSessionPort } from "./exec/types";
@@ -22,6 +23,7 @@ export interface RuntimeLimits {
   readonly maxSchedulerSleepMs: number;
   readonly resumeGraceMs: number;
   readonly shutdownGraceMs: number;
+  readonly probeStopGraceMs: number;
   readonly maxOutputBytes: number;
 }
 export interface AutomationRuntimeDeps {
@@ -43,6 +45,7 @@ export interface EnableTaskRequest extends DesktopConsent {
 }
 export interface AutomationRuntime {
   status(): RuntimeStatus;
+  activity(): AutomationActivity;
   start(): Promise<void>;
   stop(): Promise<void>;
   saveTask(spec: TaskSpec | unknown): Promise<SaveTaskResult>;

@@ -1,7 +1,12 @@
 import { RpcError } from "../../contract/types";
 import { RUN_PHASES } from "../../shared/automation/phases";
 import type { Json } from "../../shared/automation/spec";
-import type { ResolveInboxRequest } from "../../shared/automation/views";
+import {
+  ATTENTION_ACTIONS,
+  type ApprovalResolveRequest,
+  type AttentionAction,
+  type AttentionResolveRequest,
+} from "../../shared/automation/views";
 
 export function invalid(message = "Invalid automation request"): never {
   throw new RpcError({ code: "BAD_REQUEST", message });
@@ -40,36 +45,36 @@ export function queryRuns(value: unknown) {
         }),
   };
 }
-export function inboxRequest(value: unknown): ResolveInboxRequest {
+function resolveRequestBase(value: unknown) {
   const body = object(value);
-  const resolution = object(body.resolution);
-  const base = {
+  return {
     runId: text(body.runId),
     stepIndex: integer(body.stepIndex),
     expectedVersion: integer(body.expectedVersion, 1),
     requestId: text(body.requestId),
+    resolution: object(body.resolution),
   };
-  if (resolution.kind === "approval") {
-    if (typeof resolution.approved !== "boolean") invalid();
-    return {
-      ...base,
-      resolution: {
-        kind: "approval",
-        approved: resolution.approved,
-        ...(resolution.data === undefined ? {} : { data: json(resolution.data) }),
-      },
-    };
-  }
-  if (
-    resolution.kind !== "attention" ||
-    !["mark_succeeded", "retry", "mark_failed", "confirm_cancelled"].includes(String(resolution.action))
-  )
-    invalid();
+}
+export function approvalResolveRequest(value: unknown): ApprovalResolveRequest {
+  const { resolution, ...base } = resolveRequestBase(value);
+  if (resolution.kind !== "approval" || typeof resolution.approved !== "boolean") invalid();
+  return {
+    ...base,
+    resolution: {
+      kind: "approval",
+      approved: resolution.approved,
+      ...(resolution.data === undefined ? {} : { data: json(resolution.data) }),
+    },
+  };
+}
+export function attentionResolveRequest(value: unknown): AttentionResolveRequest {
+  const { resolution, ...base } = resolveRequestBase(value);
+  if (resolution.kind !== "attention" || !ATTENTION_ACTIONS.some((action) => action === resolution.action)) invalid();
   return {
     ...base,
     resolution: {
       kind: "attention",
-      action: resolution.action as "mark_succeeded" | "retry" | "mark_failed" | "confirm_cancelled",
+      action: resolution.action as AttentionAction,
       ...(resolution.output === undefined ? {} : { output: json(resolution.output) }),
     },
   };

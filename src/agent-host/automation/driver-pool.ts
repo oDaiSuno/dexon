@@ -21,6 +21,9 @@ export class DriverPool {
       readonly onError: (error: unknown) => void;
     },
   ) {}
+  activeCount(): number {
+    return this.active.size;
+  }
   pump(): void {
     if (this.stopping || this.pumping) return;
     this.pumping = true;
@@ -62,6 +65,7 @@ export class DriverPool {
     } finally {
       if (timer) clearTimeout(timer);
       this.abandoned = true;
+      this.active.clear();
     }
   }
   private async drive(claim: ClaimedRun, signal: AbortSignal): Promise<void> {
@@ -93,7 +97,9 @@ export class DriverPool {
         values: contextFor(view.run, view.plan, view.steps),
         signal,
         maxOutputBytes: this.options.maxOutputBytes,
-        onSession: (sessionId) => this.store.attachSession(ticket, sessionId),
+        onSession: (sessionId) => {
+          if (!this.abandoned) this.store.attachSession(ticket, sessionId);
+        },
       });
       if (this.abandoned) return;
       const outcome = classifyCommit(

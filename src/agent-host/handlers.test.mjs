@@ -8,7 +8,7 @@ import { loadHandlersModule, captureHandlers, root } from "./handlers-test-suppo
 
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
-  assert.equal(Object.keys(handlers).length, 108);
+  assert.equal(Object.keys(handlers).length, 113);
   for (const method of [
     "host.selfCheck",
     "host.ping",
@@ -18,6 +18,11 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "automation.saveTask",
     "automation.enableTask",
     "automation.resolveInbox",
+    "automation.resolveAttention",
+    "automation.activity",
+    "automation.setSecret",
+    "automation.deleteSecret",
+    "automation.listSecretNames",
     "sessions.list",
     "sessions.contextPage",
     "sessions.entryContent",

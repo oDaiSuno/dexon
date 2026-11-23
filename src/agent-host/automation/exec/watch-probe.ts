@@ -3,6 +3,7 @@ import type { WatchSample } from "../core/triggers";
 import { createHttpAction } from "./http-action";
 import type { AttemptContext, SecretReader } from "./types";
 import type { createScriptAction } from "./script-action";
+import { createSecretUseScope, protectObservation } from "./secrets";
 
 export function createWatchProbe(deps: {
   store: AutomationStore;
@@ -11,12 +12,12 @@ export function createWatchProbe(deps: {
   script: ReturnType<typeof createScriptAction>;
   maxOutputBytes: number;
 }) {
-  const http = createHttpAction(deps);
   return async (due: DueTrigger, signal: AbortSignal): Promise<WatchSample> => {
     if (due.plan.kind !== "watch") throw new Error("Expected a watch trigger");
     const revision = deps.store.getTaskRevision(due.taskId, due.revision);
     if (!revision?.grant)
       return { kind: "probe_fault", error: { code: "grant_violation", message: "Watch revision is not granted" } };
+    const secrets = createSecretUseScope(deps.secrets);
     const context: AttemptContext = {
       taskId: due.taskId,
       runId: due.key,
@@ -38,9 +39,13 @@ export function createWatchProbe(deps: {
     };
     const call = due.plan.probe;
     try {
-      const observed = await (call.action === "http.request"
-        ? http(call, context)
-        : deps.script.execute(call, context));
+      const observed = protectObservation(
+        await (call.action === "http.request"
+          ? createHttpAction({ fetch: deps.fetch, secrets })(call, context)
+          : deps.script.execute(call, context, secrets)),
+        call.effect,
+        secrets,
+      );
       if (observed.kind === "applied") {
         const output = observed.output;
         return {
