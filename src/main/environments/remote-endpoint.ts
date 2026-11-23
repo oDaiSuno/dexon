@@ -196,6 +196,7 @@ export async function openRemoteConnection(
   endpoint: RemoteEndpoint,
   descriptor: EnvironmentDescriptor,
   signal?: AbortSignal,
+  options?: { probeTimeoutMs?: number; businessTimeoutMs?: number },
 ): Promise<RemoteConnection> {
   signal?.throwIfAborted();
   const url = new URL(endpoint.wsUrl);
@@ -210,7 +211,7 @@ export async function openRemoteConnection(
     await new Promise<void>((resolve, reject) => {
       const timer = setTimeout(
         () => finish(new EnvironmentConnectionError("transient", "timeout", "Remote WebSocket opening timed out")),
-        REMOTE_PROBE_TIMEOUT_MS,
+        options?.probeTimeoutMs ?? REMOTE_PROBE_TIMEOUT_MS,
       );
       const onOpen = () => finish();
       const onAbort = () => finish(new Error("Remote WebSocket opening aborted"));
@@ -240,7 +241,10 @@ export async function openRemoteConnection(
   }
   const wsPort = createWebSocketClientPort(socket);
   const channel = channelFromMessagePort(wsPort);
-  const rpc = createRpcClient(wsPort, { callTimeoutMs: REMOTE_PROBE_TIMEOUT_MS });
+  const rpc = createRpcClient(wsPort, {
+    callTimeoutMs: options?.businessTimeoutMs,
+    methodTimeoutMs: { "host.ping": options?.probeTimeoutMs ?? REMOTE_PROBE_TIMEOUT_MS },
+  });
   return {
     ...endpoint,
     descriptor,

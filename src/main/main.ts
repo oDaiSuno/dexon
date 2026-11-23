@@ -1,10 +1,11 @@
+import { createAutomationAuthority } from "./automation-authority";
 import { createDesktopToolchains } from "./desktop-toolchains";
 import { installHostNotifications, applyDesktopBadgeCount } from "./host-notifications";
 import { installHostServices } from "./host-services";
 import { installQuitCleanup } from "./quit-cleanup";
 import { PackagedStartupValidation } from "./packaged-startup-validation";
 import { stopAllManagedProcessesFromTray } from "./managed-process/dialog-copy";
-import { app, BrowserWindow, crashReporter, nativeTheme, Notification, powerMonitor } from "electron";
+import { app, BrowserWindow, crashReporter, dialog, nativeTheme, Notification, powerMonitor } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "path";
@@ -399,7 +400,14 @@ function startMainProcess(): void {
       performToolchainAction: (request) => toolchainManager!.performAction(request),
       chooseCustomTool: (capability, executable) => toolchainManager!.registerCustomTool(capability, executable),
       getManagedToolsRoot: () => toolchainManager?.getManagedRoot(),
-      automationSecrets: credentialVault,
+      automation: createAutomationAuthority({
+        targets: environmentManager,
+        primarySecrets: credentialVault,
+        show: (options) => {
+          const window = getMainWindow();
+          return window ? dialog.showMessageBox(window, options) : dialog.showMessageBox(options);
+        },
+      }),
       setChannelCredential: (payload) =>
         credentialVault.set(`channel:${payload.channel}:${payload.accountId}`, payload.credential),
       getBrowserService: () => browserService,

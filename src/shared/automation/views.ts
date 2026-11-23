@@ -237,17 +237,3 @@ export interface AutomationChange {
   readonly runIds: readonly string[];
   readonly inboxChanged: boolean;
 }
-export type AutomationConsentRequest = {
-  readonly taskId: string;
-  readonly revision: number;
-  readonly planHash: string;
-  readonly taskName: string;
-  readonly requiredGrant: RequiredGrant;
-} & ({ readonly kind: "enable" } | { readonly kind: "resolve"; readonly request: ResolveInboxRequest });
-export interface AutomationConsentResult {
-  readonly confirmed: boolean;
-  readonly taskId: string;
-  readonly revision: number;
-  readonly planHash: string;
-  readonly requestId: string | null;
-}

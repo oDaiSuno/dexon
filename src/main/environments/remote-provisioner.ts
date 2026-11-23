@@ -3,7 +3,13 @@ import { createReadStream } from "node:fs";
 import type { SshEnvironmentTarget } from "../../contract/environment.ts";
 import type { ConnectionStage } from "../../contract/environment-status.ts";
 import { RemotePayloadCatalog, type RemotePayload } from "./remote-payload.ts";
-import { buildRemoteProbeScript, parseRemoteProbe, runtimeDiagnosis, type RemoteProbe } from "./remote-probe.ts";
+import {
+  daemonIsIdle,
+  buildRemoteProbeScript,
+  parseRemoteProbe,
+  runtimeDiagnosis,
+  type RemoteProbe,
+} from "./remote-probe.ts";
 import { runSsh } from "./ssh-command.ts";
 import { remotePath, shellQuote } from "./ssh-scripts.ts";
 import { EnvironmentConnectionError } from "./supervisor-policy.ts";
@@ -25,7 +31,7 @@ export function planRuntimeUpgrade(
   const newer = remoteVersion && desktopVersion && compareSemver(remoteVersion, desktopVersion) > 0;
   if (probe.daemon.running && newer) return { deploy: false, restartDaemon: false, updatePending: false };
   const skew = probe.daemon.running && probe.daemon.payloadVersion !== version;
-  const restartDaemon = skew && probe.daemon.ownership === "managed" && probe.daemon.activeSessions === 0;
+  const restartDaemon = skew && daemonIsIdle(probe.daemon);
   const updatePending = skew && !restartDaemon;
   return { deploy: !probe.installed && !updatePending, restartDaemon, updatePending };
 }

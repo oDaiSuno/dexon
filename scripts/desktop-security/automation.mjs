@@ -1,6 +1,7 @@
 export function automationSecurityChecks(read) {
   const main = read("src/main/main.ts");
   const requests = read("src/main/host-services.ts");
+  const authority = read("src/main/automation-authority.ts");
   const consent = read("src/main/automation-consent.ts");
   const vault = read("src/main/credential-vault.ts");
   const ipc = read("src/main/ipc.ts");
@@ -8,39 +9,66 @@ export function automationSecurityChecks(read) {
   const desktop = read("src/contract/desktop.ts");
   const handlers = read("src/agent-host/handlers.ts");
   const automation = read("src/agent-host/handlers/automation.ts");
+  const gatekeeper = read("src/contract/gatekeeper-methods.ts");
+  const renderer = read("src/main/environments/renderer-port-bridge.ts");
+  const rpc = read("src/contract/rpc.ts");
+  const host = read("src/main/host-manager.ts");
   const stopAt = handlers.indexOf("await automationRuntime.stop()");
   return [
     [
-      main.includes("installHostServices({") &&
-        requests.includes('method.startsWith("automationConsent.")') &&
-        requests.includes("dialog.showMessageBox") &&
+      main.includes("automation: createAutomationAuthority({") &&
+        !requests.includes("automationConsent") &&
+        !automation.includes("automationConsent") &&
+        consent.includes('type: "warning"') &&
+        consent.includes('buttons: ["取消", "确认"]') &&
         consent.includes("defaultId: 0") &&
         consent.includes("cancelId: 0") &&
-        consent.includes("request.requiredGrant?.planHash !== request.planHash"),
-      "Main must own cancellation-first native automation consent bound to the displayed definition",
+        consent.includes("noLink: true") &&
+        consent.includes("singleLine(target.serverEnvironmentId)"),
+      "Main must own cancellation-first native automation consent without a Host-to-Main consent callback",
     ],
     [
-      automation.includes('callMain<AutomationConsentResult>("automationConsent.confirm"') &&
-        automation.includes("consent.taskId !== request.taskId") &&
-        automation.includes("consent.revision !== request.revision") &&
-        automation.includes("consent.planHash !== request.planHash") &&
+      authority.includes("task.requiredGrant.planHash !== planHash") &&
+        authority.includes("assertCurrent(target)") &&
+        authority.indexOf('confirmAutomation({ kind: "enable"') <
+          authority.indexOf('target.call("automation.enableTask"') &&
+        authority.indexOf('confirmAutomation({ kind: "resolve"') <
+          authority.indexOf('target.call("automation.resolveAttention"') &&
         !automation.includes("body.unattendedWriteApproved") &&
         !automation.includes("body.trustedLocalExecApproved"),
-      "automation enablement must use a matching native decision rather than renderer approval booleans",
+      "AutomationAuthority must bind the displayed revision and connection and confirm before restricted RPC",
     ],
     [
       requests.includes('method.startsWith("automationSecrets.")') &&
         vault.includes('method !== "automationSecrets.get"') &&
         vault.includes("Automation secret access is read-only") &&
-        vault.includes("safeStorage.encryptString"),
-      "automation Host secret access must be read-only and backed by encrypted Main storage",
+        vault.includes("safeStorage.encryptString") &&
+        authority.includes("command.environmentId === PRIMARY_ENVIRONMENT_ID") &&
+        authority.includes('target.call("automation.setSecret"'),
+      "primary secrets must remain encrypted and read-only to the Host while remote writes stay on the bound remote",
     ],
     [
-      ["set-automation-secret", "delete-automation-secret", "list-automation-secret-names"].every(
-        (name) =>
-          ipc.includes(`trustedHandle("desktop:${name}"`) && bridge.includes(`ipcRenderer.invoke("desktop:${name}"`),
-      ) && !/getAutomationSecret|readAutomationSecret/.test(desktop),
-      "renderer automation secret access must use trusted write/delete/name-list IPC and never return values",
+      ipc.includes('trustedHandle("desktop:automation:command"') &&
+        ipc.includes("options.automation(parseAutomationCommand(command))") &&
+        bridge.includes('ipcRenderer.invoke("desktop:automation:command", command)') &&
+        desktop.includes("automationCommand:") &&
+        !/getAutomationSecret|readAutomationSecret|setAutomationSecret|deleteAutomationSecret|listAutomationSecretNames/.test(
+          desktop,
+        ) &&
+        !/desktop:(?:set-automation-secret|delete-automation-secret|list-automation-secret-names)/.test(ipc + bridge),
+      "renderer automation commands must use one trusted parsed IPC contract without a plaintext secret-read API",
+    ],
+    [
+      gatekeeper.includes("Record<GatekeeperMethod, true>") &&
+        ["enableTask", "resolveAttention", "setSecret", "deleteSecret", "listSecretNames"].every((method) =>
+          gatekeeper.includes(`"automation.${method}": true`),
+        ) &&
+        renderer.indexOf("gatekeeperRefusal({ id: message.id, method: message.method })") <
+          renderer.indexOf("requests.set(id, message.id)") &&
+        rpc.includes("gatekeeperRefusal({ id: msg.id, method: msg.method })") &&
+        host.includes('audience: "renderer"') &&
+        host.includes('audience: "gatekeeper"'),
+      "all GATEKEEPER_METHODS must be refused in place on renderer ports and use an explicit main-only audience",
     ],
     [
       stopAt >= 0 &&

@@ -56,6 +56,8 @@ export class EnvironmentSupervisor {
   private lastTickAt = 0;
 
   private readonly options: {
+    probeTimeoutMs?: number;
+    businessTimeoutMs?: number;
     policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
@@ -64,6 +66,8 @@ export class EnvironmentSupervisor {
   };
 
   constructor(options: {
+    probeTimeoutMs?: number;
+    businessTimeoutMs?: number;
     policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
@@ -181,7 +185,7 @@ export class EnvironmentSupervisor {
       if (!current()) return;
       this.options.onBound(descriptor);
       this.publish({ type: "stage", stage: "opening" });
-      connection = await openRemoteConnection(endpoint, descriptor, signal);
+      connection = await openRemoteConnection(endpoint, descriptor, signal, this.options);
       if (!current()) return;
       this.openingConnection = connection;
       this.publish({ type: "stage", stage: "synchronizing" });

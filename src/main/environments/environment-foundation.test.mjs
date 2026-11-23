@@ -31,6 +31,7 @@ const fixtureProbe = (patch = {}) => ({
     payloadVersion: null,
     since: null,
     activeSessions: null,
+    activeAutomation: null,
     protocolVersion: null,
   },
   ...patch,
@@ -164,13 +165,19 @@ test("renaming a server retains its identity while changing its state directory 
   assert.equal(relocate.configuration.target.expectedEnvironmentId, undefined);
 });
 
-test("old managed daemons upgrade only after a confirmed zero-session report", () => {
-  const daemon = { running: true, ownership: "managed", payloadVersion: "old", activeSessions: 0 };
+test("old managed daemons upgrade only after confirmed zero sessions and automation", () => {
+  const daemon = { running: true, ownership: "managed", payloadVersion: "old", activeSessions: 0, activeAutomation: 0 };
   assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon }), "new"), {
     deploy: true,
     restartDaemon: true,
     updatePending: false,
   });
+  for (const activeAutomation of [1, 3, null])
+    assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon: { ...daemon, activeAutomation } }), "new"), {
+      deploy: false,
+      restartDaemon: false,
+      updatePending: true,
+    });
   for (const activeSessions of [1, null])
     assert.deepEqual(planRuntimeUpgrade(fixtureProbe({ daemon: { ...daemon, activeSessions } }), "new"), {
       deploy: false,

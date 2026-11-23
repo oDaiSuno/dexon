@@ -43,21 +43,21 @@ export async function runAutomationSmokeChecks(
 export async function runAutomationBridgeSmokeCheck(window: BrowserWindow): Promise<void> {
   const result = await window.webContents.executeJavaScript(`(async () => {
     const bridge = window.piBridge;
-    if (typeof bridge.setAutomationSecret !== "function" || typeof bridge.deleteAutomationSecret !== "function" || typeof bridge.listAutomationSecretNames !== "function" || "getAutomationSecret" in bridge) return false;
-    const names = await bridge.listAutomationSecretNames();
+    if (typeof bridge.automationCommand !== "function" || ["setAutomationSecret", "deleteAutomationSecret", "listAutomationSecretNames", "getAutomationSecret", "readAutomationSecret"].some((name) => name in bridge)) return false;
+    const { names } = await bridge.automationCommand({ type: "list-secret-names", environmentId: "primary" });
     if (!Array.isArray(names) || names.some((name) => typeof name !== "string")) return false;
     try {
-      await bridge.setAutomationSecret("smoke.bridge", "bridge-secret");
-      const saved = await bridge.listAutomationSecretNames();
+      await bridge.automationCommand({ type: "set-secret", environmentId: "primary", name: "smoke.bridge", value: "bridge-secret" });
+      const { names: saved } = await bridge.automationCommand({ type: "list-secret-names", environmentId: "primary" });
       if (!saved.includes("smoke.bridge") || saved.includes("bridge-secret")) return false;
-      await bridge.deleteAutomationSecret("smoke.bridge");
-      if ((await bridge.listAutomationSecretNames()).includes("smoke.bridge")) return false;
+      await bridge.automationCommand({ type: "delete-secret", environmentId: "primary", name: "smoke.bridge" });
+      if ((await bridge.automationCommand({ type: "list-secret-names", environmentId: "primary" })).names.includes("smoke.bridge")) return false;
     } catch (error) {
       if (!String(error).includes("OS credential encryption is unavailable")) return false;
-      if ((await bridge.listAutomationSecretNames()).includes("smoke.bridge")) return false;
+      if ((await bridge.automationCommand({ type: "list-secret-names", environmentId: "primary" })).names.includes("smoke.bridge")) return false;
     }
-    try { await bridge.setAutomationSecret("INVALID", "must-not-persist"); return false; }
-    catch (error) { return String(error).includes("Invalid automation secret name"); }
+    try { await bridge.automationCommand({ type: "set-secret", environmentId: "primary", name: "INVALID", value: "must-not-persist" }); return false; }
+    catch (error) { return String(error).includes("Invalid automation command: name"); }
   })()`);
   if (result !== true) throw new Error("Automation write-only secret bridge did not enforce its public boundary");
 }

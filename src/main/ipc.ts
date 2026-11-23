@@ -1,3 +1,6 @@
+import { parseAutomationCommand } from "../contract/automation-commands";
+import { isRpcError } from "../contract/types";
+import type { AutomationAuthority } from "./automation-authority";
 import { dispatchEnvironmentCommand, parseEnvironmentCommand } from "./environments/environment-command";
 import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
@@ -67,11 +70,7 @@ export type DesktopIpcOptions = {
   ) => Promise<PublicToolchainState>;
   getManagedToolsRoot: () => string | undefined;
   setChannelCredential: (payload: ChannelCredentialWrite) => void;
-  automationSecrets: {
-    setAutomationSecret(name: unknown, value: unknown): void;
-    deleteAutomationSecret(name: unknown): void;
-    listAutomationSecretNames(): string[];
-  };
+  automation: AutomationAuthority;
   getBrowserService: () => BrowserService | null;
   getManagedProcessCapability: () => ManagedProcessCapability;
   updateManager: {
@@ -263,13 +262,14 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     }
     setChannelCredential(payload);
   });
-  trustedHandle("desktop:set-automation-secret", (_event, name: unknown, value: unknown) =>
-    options.automationSecrets.setAutomationSecret(name, value),
-  );
-  trustedHandle("desktop:delete-automation-secret", (_event, name: unknown) =>
-    options.automationSecrets.deleteAutomationSecret(name),
-  );
-  trustedHandle("desktop:list-automation-secret-names", () => options.automationSecrets.listAutomationSecretNames());
+  trustedHandle("desktop:automation:command", async (_event, command: unknown) => {
+    try {
+      return await options.automation(parseAutomationCommand(command));
+    } catch (error) {
+      if (isRpcError(error)) throw new Error(`${error.code}: ${error.message}`);
+      throw error;
+    }
+  });
   trustedHandle("desktop:save-file", async (event, saveOptions: SaveTextFileOptions) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showSaveDialog(win ?? undefined!, {

@@ -1,3 +1,5 @@
+import { REMOTE_STOP_COMMAND_TIMEOUT_MS } from "../../shared/shutdown-budget.ts";
+import { daemonIsIdle } from "./remote-probe.ts";
 import { osErrorFacts } from "../../agent-host/subprocess-cwd.ts";
 import path from "node:path";
 import type { RemoteRuntimeMeta, RemoveOutcome } from "../../contract/environment-commands.ts";
@@ -123,7 +125,7 @@ export class SshEnvironmentManager {
       const output = await runSsh(
         target,
         buildRemoteStopScript({ stateKey: key, remoteStateDir: target.remoteStateDir, nodePath }),
-        { signal: this.controller.signal, timeoutMs: 10000 },
+        { signal: this.controller.signal, timeoutMs: REMOTE_STOP_COMMAND_TIMEOUT_MS },
       );
       return output.trim() === "stopped" ? "stopped" : "not-owned";
     });
@@ -162,13 +164,16 @@ export class SshEnvironmentManager {
       const runtime = await this.getProvisioner().prepare(target, cancellation, report);
       if (runtime.restartDaemon) {
         const fresh = await this.probe(target, cancellation);
-        if (fresh.daemon.ownership === "managed" && fresh.daemon.activeSessions === 0)
+        if (daemonIsIdle(fresh.daemon))
           await runSsh(
             target,
             buildRemoteStopScript({ stateKey: key, remoteStateDir: target.remoteStateDir, nodePath: runtime.nodePath }),
-            { signal: cancellation },
+            { signal: cancellation, timeoutMs: REMOTE_STOP_COMMAND_TIMEOUT_MS },
           );
-        else runtime.updatePending = true;
+        else {
+          runtime.updatePending = true;
+          runtime.restartDaemon = false;
+        }
       }
       report("starting-daemon");
       const output = await runSsh(
@@ -313,6 +318,7 @@ export class SshEnvironmentManager {
           remoteStateDir: entry.target.remoteStateDir,
           nodePath: entry.nodePath,
         }),
+        { timeoutMs: REMOTE_STOP_COMMAND_TIMEOUT_MS },
       );
     }
   }

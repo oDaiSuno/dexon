@@ -3,12 +3,17 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { EventEmitter } from "node:events";
+import { bridgeRendererPort } from "./environments/renderer-port-bridge.ts";
+import { RpcError } from "../contract/types.ts";
+import { GATEKEEPER_METHODS } from "../contract/gatekeeper-methods.ts";
 import { importTestBundle } from "#test-bundle";
 
 const loaded = await importTestBundle("automation-security", {
   stdin: {
     contents: `export * from "./src/main/credential-vault";
       export * from "./src/main/automation-consent";
+      export * from "./src/main/automation-authority";
       export * from "./src/main/host-services";
       export { installDesktopIpc } from "./src/main/ipc";
       export { handlers, dialogs } from "electron";`,
@@ -54,23 +59,103 @@ function fixtureVault(t) {
   return new loaded.CredentialVault(path.join(directory, "secrets.json"));
 }
 const hash = "a".repeat(64);
-const consent = () => ({
-  kind: "enable",
+const taskRevision = () => ({
   taskId: "report",
   revision: 3,
-  taskName: "Daily report",
+  source: { name: "Daily report", cwd: "/srv/work" },
   planHash: hash,
   requiredGrant: {
+    cwd: "/srv/work",
     planHash: hash,
-    requiresUnattendedWrite: true,
-    requiresTrustedLocalExecution: false,
+    requiresTrustedLocalExecution: true,
     httpOrigins: ["https://api.example.com"],
     channelTargets: [],
-    scripts: [],
+    scripts: [{ path: "/srv/work/publish.sh", sha256: "b".repeat(64) }],
     secrets: ["api"],
     agentTools: [],
+    unattendedWrites: [{ stepId: "publish", kind: "http_write" }],
   },
 });
+const enableCommand = (environmentId = "primary") => ({
+  type: "enable-task",
+  environmentId,
+  taskId: "report",
+  revision: 3,
+  planHash: hash,
+});
+const attentionCommand = (environmentId = "primary") => ({
+  type: "resolve-attention",
+  environmentId,
+  request: {
+    runId: "run-1",
+    stepIndex: 2,
+    expectedVersion: 4,
+    requestId: "decision-1",
+    resolution: { kind: "attention", action: "confirm_cancelled" },
+  },
+});
+function deferred() {
+  let resolve;
+  const promise = new Promise((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+function authorityFixture(t, patch = {}) {
+  const calls = [];
+  let current = true;
+  const revision = taskRevision();
+  const run = {
+    taskId: "report",
+    revision: 3,
+    version: 4,
+    phase: "attention",
+    steps: [{ stepIndex: 2, status: "unknown" }],
+  };
+  const target = {
+    displayName: "GPU server",
+    environmentId: "remote-route",
+    serverEnvironmentId: "server-identity",
+    isStillCurrent: () => current,
+    call: async (method, params) => {
+      calls.push({ method, params });
+      if (method === "automation.getTask") return { task: revision };
+      if (method === "automation.getRun") return { run };
+      if (method === "automation.enableTask") return { task: { id: "report", enabledRevision: 3 } };
+      if (method === "automation.resolveAttention") return { ok: true, run };
+      if (method === "automation.listSecretNames") return { names: ["remote.api"], value: "remote-private" };
+      return { ok: true, value: params?.value ?? "remote-private" };
+    },
+  };
+  const shown = [];
+  const vault = fixtureVault(t);
+  const authority = loaded.createAutomationAuthority({
+    targets: {
+      bindAutomationTarget: (environmentId) => {
+        if (environmentId === "offline") throw new RpcError({ code: "DISCONNECTED", message: "Remote is offline" });
+        return { ...target, environmentId };
+      },
+    },
+    primarySecrets: vault,
+    show: async (options) => {
+      shown.push(options);
+      return { response: 1 };
+    },
+    ...patch,
+  });
+  return {
+    authority,
+    calls,
+    shown,
+    vault,
+    revision,
+    run,
+    target,
+    invalidate: () => {
+      current = false;
+    },
+  };
+}
 
 test("automation secret management exposes sorted names and isolates channel writes from Host read-only access", async (t) => {
   const vault = fixtureVault(t);
@@ -102,49 +187,200 @@ test("automation secret management exposes sorted names and isolates channel wri
   assert.deepEqual(vault.listAutomationSecretNames(), ["z.api"]);
 });
 
-test("native consent defaults to cancellation and binds approval to the displayed immutable definition", async () => {
-  const request = consent();
-  const shown = [];
-  let response = 0;
-  const confirm = loaded.createAutomationConsentRequestHandler(async (options) => {
-    shown.push(options);
-    request.planHash = "b".repeat(64);
-    return { response };
-  });
-  const denied = await confirm("automationConsent.confirm", request);
-  assert.equal(denied.confirmed, false);
-  assert.equal(denied.planHash, hash);
-  assert.equal(shown[0].defaultId, 0);
-  assert.equal(shown[0].cancelId, 0);
-  assert.match(shown[0].detail, /https:\/\/api.example.com/);
-  assert.match(shown[0].detail, /api/);
-  response = 1;
-  assert.deepEqual(await confirm("automationConsent.confirm", consent()), {
-    confirmed: true,
-    taskId: "report",
-    revision: 3,
-    planHash: hash,
-    requestId: null,
-  });
-  const resolution = {
-    ...consent(),
-    kind: "resolve",
-    request: {
-      runId: "run-1",
-      stepIndex: 2,
-      expectedVersion: 4,
-      requestId: "decision-1",
-      resolution: { kind: "attention", action: "confirm_cancelled" },
-    },
-  };
-  assert.equal((await confirm("automationConsent.confirm", resolution)).requestId, "decision-1");
-  assert.match(shown.at(-1).detail, /confirm_cancelled.*run-1.*4/);
-  for (const invalid of [null, { ...consent(), planHash: "b".repeat(64) }, { ...consent(), revision: 0 }])
-    await assert.rejects(confirm("automationConsent.confirm", invalid), /confirmation/);
-  await assert.rejects(confirm("automationConsent.bypass", consent()), /Unsupported/);
+test("unified automation IPC uses one cancellation-first native dialog with the complete target and grant", async (t) => {
+  for (const environmentId of ["primary", "remote-route"]) {
+    const fixture = authorityFixture(t);
+    const mainFrame = {};
+    const window = { isDestroyed: () => false, webContents: { mainFrame } };
+    loaded.installDesktopIpc({ getMainWindow: () => window, automation: fixture.authority });
+    const command = loaded.handlers.get("desktop:automation:command");
+    const trusted = { sender: window.webContents, senderFrame: mainFrame };
+    assert.equal((await command(trusted, enableCommand(environmentId))).outcome, "enabled");
+    assert.equal(fixture.shown.length, 1);
+    const options = fixture.shown[0];
+    assert.equal(options.type, "warning");
+    assert.deepEqual(options.buttons, ["取消", "确认"]);
+    assert.equal(options.defaultId, 0);
+    assert.equal(options.cancelId, 0);
+    assert.equal(options.noLink, true);
+    for (const field of [
+      "GPU server",
+      environmentId,
+      "server-identity",
+      "report",
+      "3",
+      hash,
+      "/srv/work",
+      "https://api.example.com",
+      "/srv/work/publish.sh",
+      "b".repeat(64),
+      "api",
+      "http_write",
+      "publish",
+    ])
+      assert.ok(options.detail.includes(field), field);
+    assert.deepEqual(
+      await command(trusted, { type: "set-secret", environmentId, name: "api", value: "private-value" }),
+      { ok: true },
+    );
+    assert.deepEqual(await command(trusted, { type: "list-secret-names", environmentId }), {
+      names: environmentId === "primary" ? ["api"] : ["remote.api"],
+    });
+    assert.deepEqual(await command(trusted, { type: "delete-secret", environmentId, name: "api" }), { ok: true });
+    assert.equal((await command(trusted, attentionCommand(environmentId))).outcome, "resolved");
+    assert.equal(fixture.shown.length, 2);
+    await assert.rejects(
+      command(trusted, { type: "get-secret", environmentId, name: "api" }),
+      /Invalid automation command: type/,
+    );
+    assert.throws(() => command({ sender: window.webContents, senderFrame: {} }, enableCommand()), /Untrusted/);
+    await assert.rejects(
+      command(trusted, { type: "set-secret", environmentId, name: "INVALID", value: "x" }),
+      /Invalid automation command/,
+    );
+    await assert.rejects(command(trusted, enableCommand("offline")), /DISCONNECTED: Remote is offline/);
+    for (const old of [
+      "desktop:set-automation-secret",
+      "desktop:delete-automation-secret",
+      "desktop:list-automation-secret-names",
+      "desktop:get-automation-secret",
+    ])
+      assert.equal(loaded.handlers.has(old), false);
+  }
 });
 
-test("Main Host router owns native consent and cannot mutate automation secrets", async (t) => {
+test("enable and attention commands send no restricted RPC until native confirmation and reject changed connections", async (t) => {
+  for (const command of [enableCommand("remote-route"), attentionCommand("remote-route")]) {
+    for (const decision of ["confirm", "cancel", "reconnect"]) {
+      const pending = deferred();
+      const opened = deferred();
+      const shown = [];
+      const fixture = authorityFixture(t, {
+        show: (options) => {
+          shown.push(options);
+          opened.resolve();
+          return pending.promise;
+        },
+      });
+      const result = fixture.authority(command);
+      await opened.promise;
+      const restricted = () =>
+        fixture.calls.filter(({ method }) => ["automation.enableTask", "automation.resolveAttention"].includes(method));
+      assert.deepEqual(restricted(), []);
+      if (command.type === "resolve-attention")
+        for (const field of ["confirm_cancelled", "run-1", "4"]) assert.ok(shown[0].detail.includes(field));
+      if (decision === "reconnect") fixture.invalidate();
+      pending.resolve({ response: decision === "cancel" ? 0 : 1 });
+      if (decision === "reconnect") await assert.rejects(result, (error) => error.code === "DISCONNECTED");
+      else
+        assert.equal(
+          (await result).outcome,
+          decision === "cancel" ? "cancelled" : command.type === "enable-task" ? "enabled" : "resolved",
+        );
+      assert.equal(restricted().length, decision === "confirm" ? 1 : 0);
+      assert.equal(shown.length, 1);
+    }
+  }
+});
+
+test("stale task bindings and non-attention or stale run versions never open a dialog", async (t) => {
+  for (const mutate of [
+    (f) => {
+      f.revision.planHash = "c".repeat(64);
+    },
+    (f) => {
+      f.revision.requiredGrant.planHash = "c".repeat(64);
+    },
+    (f) => {
+      f.revision.taskId = "other";
+    },
+    (f) => {
+      f.revision.revision = 2;
+    },
+  ]) {
+    const f = authorityFixture(t);
+    mutate(f);
+    await assert.rejects(f.authority(enableCommand()), (error) => error.code === "CONFLICT");
+    assert.equal(f.shown.length, 0);
+  }
+  for (const mutate of [
+    (f) => {
+      f.run.phase = "running";
+    },
+    (f) => {
+      f.run.version = 5;
+    },
+    (f) => {
+      f.run.steps[0].status = "succeeded";
+    },
+  ]) {
+    const f = authorityFixture(t);
+    mutate(f);
+    await assert.rejects(f.authority(attentionCommand()), (error) => error.code === "CONFLICT");
+    assert.equal(f.shown.length, 0);
+  }
+});
+
+test("remote text cannot inject lines into native consent", async () => {
+  const task = taskRevision();
+  task.source.name = "Task\r\nspoof\u001b";
+  task.requiredGrant.cwd = "/srv\nspoof";
+  task.requiredGrant.httpOrigins = ["https://api.example.com\r\nspoof"];
+  task.requiredGrant.scripts[0].path = "/script\nspoof";
+  task.requiredGrant.secrets = ["api\nspoof"];
+  const options = loaded.automationDialog({
+    kind: "enable",
+    task,
+    target: {
+      displayName: "GPU\r\nspoof\u0001",
+      environmentId: "route\nspoof",
+      serverEnvironmentId: "server\r\nspoof",
+    },
+  });
+  assert.doesNotMatch(options.message, /\p{Cc}/u);
+  assert.doesNotMatch(options.detail, /\r|\nspoof/);
+  assert.equal(
+    [...options.detail].some((char) => char !== "\n" && /\p{Cc}/u.test(char)),
+    false,
+  );
+  for (const value of ["GPUspoof", "routespoof", "serverspoof", "/srvspoof", "/scriptspoof", "apispoof"])
+    assert.ok(options.detail.includes(value), value);
+});
+
+test("primary secrets stay in the vault and remote secret commands never fall back or return plaintext", async (t) => {
+  const f = authorityFixture(t);
+  assert.deepEqual(
+    await f.authority({ type: "set-secret", environmentId: "primary", name: "api", value: "local-private" }),
+    { ok: true },
+  );
+  assert.deepEqual(await f.authority({ type: "list-secret-names", environmentId: "primary" }), { names: ["api"] });
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(
+    await f.authority({ type: "set-secret", environmentId: "remote-route", name: "api", value: "remote-private" }),
+    { ok: true },
+  );
+  assert.deepEqual(await f.authority({ type: "list-secret-names", environmentId: "remote-route" }), {
+    names: ["remote.api"],
+  });
+  assert.equal(f.vault.get("automation:secret:api").value, "local-private");
+  assert.deepEqual(await f.authority({ type: "delete-secret", environmentId: "remote-route", name: "api" }), {
+    ok: true,
+  });
+  for (const type of ["set-secret", "delete-secret", "list-secret-names"])
+    await assert.rejects(
+      f.authority({ type, environmentId: "offline", name: "api", value: "overwrite" }),
+      (error) => error.code === "DISCONNECTED",
+    );
+  assert.equal(f.vault.get("automation:secret:api").value, "local-private");
+  assert.deepEqual(
+    f.calls.map(({ method }) => method),
+    ["automation.setSecret", "automation.listSecretNames", "automation.deleteSecret"],
+  );
+  assert.deepEqual(await f.authority({ type: "delete-secret", environmentId: "primary", name: "api" }), { ok: true });
+  assert.deepEqual(f.vault.listAutomationSecretNames(), []);
+});
+
+test("the Host request router retains read-only secrets but rejects all native consent callbacks", async (t) => {
   const vault = fixtureVault(t);
   vault.setAutomationSecret("api", "private-token");
   let main;
@@ -163,27 +399,49 @@ test("Main Host router owns native consent and cannot mutate automation secrets"
     toolchainManager: { getSnapshot: () => ({}) },
     browserService: { getCapabilitySnapshot: () => ({}) },
   });
-  loaded.dialogs.response = 1;
-  assert.equal((await main("automationConsent.confirm", consent())).confirmed, true);
-  assert.equal(loaded.dialogs.calls.at(-1).defaultId, 0);
+  await assert.rejects(main("automationConsent.confirm", {}), /Unsupported Host request/);
   assert.equal(await main("automationSecrets.get", { name: "api" }), "private-token");
   await assert.rejects(main("automationSecrets.set", { name: "api", value: "overwrite" }), /read-only/);
 });
 
-test("Desktop secret IPC accepts only the trusted main frame and never offers a value-reading method", async (t) => {
-  const vault = fixtureVault(t);
-  const mainFrame = {};
-  const window = { isDestroyed: () => false, webContents: { mainFrame } };
-  loaded.installDesktopIpc({ getMainWindow: () => window, automationSecrets: vault });
-  const trusted = { sender: window.webContents, senderFrame: mainFrame };
-  const set = loaded.handlers.get("desktop:set-automation-secret");
-  const list = loaded.handlers.get("desktop:list-automation-secret-names");
-  const remove = loaded.handlers.get("desktop:delete-automation-secret");
-  assert.equal(set(trusted, "api", "private-value"), undefined);
-  assert.deepEqual(list(trusted), ["api"]);
-  assert.throws(() => list({ sender: window.webContents, senderFrame: {} }), /Untrusted/);
-  assert.throws(() => set({ sender: {}, senderFrame: mainFrame }, "api", "overwrite"), /Untrusted/);
-  assert.equal(loaded.handlers.has("desktop:get-automation-secret"), false);
-  remove(trusted, "api");
-  assert.deepEqual(list(trusted), []);
+function rendererPort() {
+  const port = new EventEmitter();
+  port.sent = [];
+  port.start = () => {};
+  port.close = () => {
+    port.closed = true;
+  };
+  port.postMessage = (message) => port.sent.push(message);
+  port.request = (message) => port.emit("message", { data: message });
+  return port;
+}
+
+test("renderer gatekeeper refusals preserve IDs, subscriptions and subsequent ordinary RPC", () => {
+  const port = rendererPort();
+  const sent = [];
+  let receive;
+  const close = bridgeRendererPort(port, {
+    send: (message) => sent.push(message),
+    onMessage: (listener) => {
+      receive = listener;
+      return () => {};
+    },
+    onClose: () => () => {},
+  });
+  port.request({ kind: "subscribe", id: "sub", topic: "automation.changed", key: "*" });
+  for (let index = 0; index < 4100; index++) {
+    const method = Object.keys(GATEKEEPER_METHODS)[index % 5];
+    const id = `restricted-${index}`;
+    port.request({ kind: "request", id, method });
+    assert.equal(port.sent.at(-1)?.id, id);
+    assert.equal(port.sent.at(-1)?.error.code, "FORBIDDEN");
+  }
+  assert.equal(sent.length, 1);
+  assert.notEqual(port.closed, true);
+  receive({ kind: "event", topic: "automation.changed", key: "*", data: { taskIds: ["report"] } });
+  assert.deepEqual(port.sent.at(-1).data, { taskIds: ["report"] });
+  port.request({ kind: "request", id: "normal", method: "automation.listTasks" });
+  receive({ kind: "response", id: sent.at(-1).id, ok: true, result: { tasks: [] } });
+  assert.deepEqual(port.sent.at(-1), { kind: "response", id: "normal", ok: true, result: { tasks: [] } });
+  close();
 });

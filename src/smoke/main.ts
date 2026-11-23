@@ -9,7 +9,7 @@ import { appendMainLog } from "../main/logger";
 import { handleAppProtocol, registerAppProtocol, rendererRootPath } from "../main/protocol";
 import { createMainWindow } from "../main/window";
 import { runSmokeHostChecks } from "./host-checks";
-import { createAutomationConsentRequestHandler } from "../main/automation-consent";
+import { createAutomationAuthority } from "../main/automation-authority";
 import {
   createCredentialRequestHandler,
   createAutomationSecretRequestHandler,
@@ -99,12 +99,8 @@ void app.whenReady().then(async () => {
   hostManager.setToolchainSnapshot(toolchainManager.getSnapshot());
   const credentialRequestHandler = createCredentialRequestHandler(credentialVault);
   const automationSecrets = createAutomationSecretRequestHandler(credentialVault);
-  const automationConsent = createAutomationConsentRequestHandler((options) =>
-    smokeWindow ? dialog.showMessageBox(smokeWindow, options) : dialog.showMessageBox(options),
-  );
   hostManager.setRequestHandler(async (method, params) => {
     if (method.startsWith("automationSecrets.")) return automationSecrets(method, params);
-    if (method.startsWith("automationConsent.")) return automationConsent(method, params);
     if (method.startsWith("channelSecrets.")) return credentialRequestHandler(method, params);
     if (method === "toolchain.getSnapshot") return toolchainManager.getSnapshot();
     if (method === "toolchain.resolve") {
@@ -177,7 +173,11 @@ void app.whenReady().then(async () => {
     performToolchainAction: (request) => toolchainManager.performAction(request),
     chooseCustomTool: (capability, executable) => toolchainManager.registerCustomTool(capability, executable),
     getManagedToolsRoot: () => toolchainManager.getManagedRoot(),
-    automationSecrets: credentialVault,
+    automation: createAutomationAuthority({
+      targets: environmentManager,
+      primarySecrets: credentialVault,
+      show: (options) => (smokeWindow ? dialog.showMessageBox(smokeWindow, options) : dialog.showMessageBox(options)),
+    }),
     setChannelCredential: (payload) =>
       credentialVault.set(`channel:${payload.channel}:${payload.accountId}`, payload.credential),
     getBrowserService: () => null,

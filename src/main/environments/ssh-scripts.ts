@@ -1,3 +1,4 @@
+import { REMOTE_STOP_WAIT_MS } from "../../shared/shutdown-budget.ts";
 import { createHash } from "node:crypto";
 import type { SshEnvironmentTarget } from "../../contract/environment.ts";
 
@@ -252,9 +253,9 @@ const alive = pid => { try { process.kill(pid, 0); return true; } catch (error) 
     const response = await fetch("http://127.0.0.1:" + port + "/.well-known/dexon/environment", { headers: { "x-dexon-nonce": nonce }, signal: AbortSignal.timeout(2000) });
     if (response.headers.get("x-dexon-proof") !== crypto.createHmac("sha256", token).update(nonce).digest("hex") || (await response.json()).environmentId !== identity.environmentId) throw new Error("Remote daemon ownership could not be verified");
     process.kill(pid, "SIGTERM");
-    const deadline = Date.now() + 3000;
+    const deadline = Date.now() + ${REMOTE_STOP_WAIT_MS};
     while (alive(pid) && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 50));
-    if (alive(pid)) throw new Error("Remote daemon did not stop within 3 seconds");
+    if (alive(pid)) throw new Error("Remote daemon did not stop within ${REMOTE_STOP_WAIT_MS}ms");
   }
   for (const name of ["pid", "port", "managed"]) fs.rmSync(path.join(ledger, name), { force: true });
   process.stdout.write("stopped");
