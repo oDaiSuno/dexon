@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Json, Text } from "../../../shared/automation/spec";
 import type { EffectErrorCode, EffectObservation } from "../../effect-observation";
 import type { EffectPolicy } from "../core/plan";
@@ -78,24 +79,36 @@ export async function resolveSecrets(value: Json, ctx: AttemptContext, reader: S
 }
 export async function secretText(text: Text, ctx: AttemptContext, reader: SecretReader): Promise<string> {
   if (typeof text === "string") return String(await resolveSecrets(text, ctx, reader));
-  const masked = text.$tmpl.replace(/\{\{secret:([^}]+)\}\}/g, (_, name: string) => `\u0001${name}\u0002`);
-  const rendered = renderText({ $tmpl: masked }, ctx.values).replace(
-    /\u0001([^\u0002]+)\u0002/g,
-    (_, name: string) => `{{secret:${name}}}`,
-  );
-  return String(await resolveSecrets(rendered, ctx, reader));
+  const nonce = randomUUID();
+  const names: string[] = [];
+  const masked = text.$tmpl.replace(/\{\{secret:([a-z0-9._-]+)\}\}/g, (_, name: string) => {
+    const index = names.length;
+    names.push(name);
+    return `\u0000${nonce}:${index}\u0000`;
+  });
+  const rendered = renderText({ $tmpl: masked }, ctx.values);
+  if (names.length === 0) return rendered;
+  const resolved = new Map<string, string>();
+  for (const name of names) {
+    if (!resolved.has(name)) resolved.set(name, await readSecret(name, ctx, reader));
+  }
+  return rendered.replace(new RegExp(`\u0000${nonce}:(\\d+)\u0000`, "g"), (_, index: string) => {
+    const name = names[Number(index)];
+    return resolved.get(name)!;
+  });
 }
 export async function secretValue(value: Json, ctx: AttemptContext, reader: SecretReader): Promise<Json> {
+  if (typeof value === "string") return resolveSecrets(value, ctx, reader);
   if (value !== null && typeof value === "object") {
     if (Array.isArray(value)) return Promise.all(value.map((entry) => secretValue(entry, ctx, reader)));
     if (typeof value.$secret === "string") return readSecret(value.$secret, ctx, reader);
     if (typeof value.$tmpl === "string") return secretText({ $tmpl: value.$tmpl }, ctx, reader);
-    if (typeof value.$ref !== "string")
-      return Object.fromEntries(
-        await Promise.all(
-          Object.entries(value).map(async ([key, entry]) => [key, await secretValue(entry, ctx, reader)]),
-        ),
-      );
+    if (typeof value.$ref === "string") return resolveValue(value, ctx.values);
+    return Object.fromEntries(
+      await Promise.all(
+        Object.entries(value).map(async ([key, entry]) => [key, await secretValue(entry, ctx, reader)]),
+      ),
+    );
   }
-  return resolveSecrets(resolveValue(value, ctx.values), ctx, reader);
+  return value;
 }

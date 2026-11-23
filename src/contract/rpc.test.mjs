@@ -561,3 +561,20 @@ test("server detaches a port when response fallback or event delivery also fails
   assert.equal(eventListeners.get("message").size, 0);
   assert.equal(eventListeners.get("close").size, 0);
 });
+
+test("malformed renderer request method objects are ignored without crashing or disrupting later calls", async () => {
+  const { port1, port2 } = new MessageChannel();
+  const server = createRpcServer();
+  server.handle({ "automation.listTasks": () => ({ tasks: [] }) });
+  server.attachPort(port2, "renderer");
+  const client = createRpcClient(port1);
+  try {
+    assert.deepEqual(await client.call("automation.listTasks"), { tasks: [] });
+    port1.postMessage({ kind: "request", id: "malformed", method: { toString: null } });
+    port1.postMessage({ kind: "request", id: { toString: null }, method: "automation.enableTask" });
+    assert.deepEqual(await client.call("automation.listTasks"), { tasks: [] });
+  } finally {
+    client.close();
+    port2.close();
+  }
+});

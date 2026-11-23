@@ -13,12 +13,12 @@ export const GATEKEEPER_METHODS: Record<GatekeeperMethod, true> = {
   "automation.listSecretNames": true,
 };
 
-export function isGatekeeperMethod(method: string): method is GatekeeperMethod {
-  return Object.hasOwn(GATEKEEPER_METHODS, method);
+export function isGatekeeperMethod(method: unknown): method is GatekeeperMethod {
+  return typeof method === "string" && Object.hasOwn(GATEKEEPER_METHODS, method);
 }
 
-export function gatekeeperRefusal(message: { id: string; method: string }): WireResponse | null {
-  if (!isGatekeeperMethod(message.method)) return null;
+export function gatekeeperRefusal(message: { id: unknown; method: unknown }): WireResponse | null {
+  if (typeof message.id !== "string" || !isGatekeeperMethod(message.method)) return null;
   return {
     kind: "response",
     id: message.id,

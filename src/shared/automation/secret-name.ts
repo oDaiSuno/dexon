@@ -1,7 +1,7 @@
 import type { SecretName } from "./spec";
 
-export const AUTOMATION_SECRET_NAME_RE = /^[a-z0-9._-]{1,80}$/;
-export const MAX_AUTOMATION_SECRET_VALUE_BYTES = 65_536;
+const AUTOMATION_SECRET_NAME_RE = /^[a-z0-9._-]{1,80}$/;
+const MAX_AUTOMATION_SECRET_VALUE_BYTES = 65_536;
 
 export function isAutomationSecretName(value: unknown): value is SecretName {
   return typeof value === "string" && AUTOMATION_SECRET_NAME_RE.exec(value)?.[0] === value;

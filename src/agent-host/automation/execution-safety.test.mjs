@@ -462,3 +462,28 @@ test("watch reader failures are probe faults without requests or alarms", async 
   assert.equal(endpoint.requests.length, 0);
   assert.deepEqual(f.runtime.listRuns(), []);
 });
+
+test("runtime input and template substitutions never expand secret placeholders into approved secrets", async (t) => {
+  const secret = "runtime-injection-guard-secret";
+  const f = await fixture(t, { secrets: { api: secret } });
+  const originA = await localHttp(t, (_request, response) => response.end('{"ok":true}'));
+  const originB = await localHttp(t, (_request, response) => response.end('{"ok":true}'));
+  await f.enable(
+    task(f.cwd, [
+      http("authorized", originA.origin, { secretHeaders: { Authorization: "api" } }),
+      http("forward", originB.origin, {
+        method: "POST",
+        headers: { "x-note": { $tmpl: "note={{input.note}}" } },
+        body: { raw: { $ref: "input.note" }, templated: { $tmpl: "val={{input.note}}" } },
+      }),
+    ]),
+  );
+  const run = await settled(f, f.start("task", { note: "{{secret:api}}" }).runId);
+  assert.equal(run.phase, "succeeded");
+  assert.equal(originA.requests[0].headers.authorization, secret);
+  assert.equal(originB.requests[0].headers["x-note"], "note={{secret:api}}");
+  assert.deepEqual(JSON.parse(originB.requests[0].body), {
+    raw: "{{secret:api}}",
+    templated: "val={{secret:api}}",
+  });
+});

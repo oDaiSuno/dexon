@@ -356,6 +356,7 @@ export function createRpcServer(): RpcServer {
       return;
     }
     if (msg.kind !== "request") return;
+    if (typeof msg.id !== "string" || typeof msg.method !== "string") return;
 
     if (audience !== "gatekeeper") {
       const refusal = gatekeeperRefusal({ id: msg.id, method: msg.method });

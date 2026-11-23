@@ -445,3 +445,65 @@ test("renderer gatekeeper refusals preserve IDs, subscriptions and subsequent or
   assert.deepEqual(port.sent.at(-1), { kind: "response", id: "normal", ok: true, result: { tasks: [] } });
   close();
 });
+
+test("concurrent confirmation commands serialize so only one native dialog is open at a time", async () => {
+  const currentTask = taskRevision();
+  let openDialogs = 0;
+  let maxConcurrentDialogs = 0;
+  const resolvers = [];
+  const enableCalls = [];
+  const authority = loaded.createAutomationAuthority({
+    targets: {
+      bindAutomationTarget: (environmentId) => ({
+        environmentId,
+        displayName: "Remote A",
+        serverEnvironmentId: "remote-a",
+        isStillCurrent: () => true,
+        call: async (method) => {
+          if (method === "automation.getTask") return { task: currentTask };
+          if (method === "automation.enableTask") {
+            assert.equal(openDialogs, 0);
+            enableCalls.push(method);
+            return { task: { id: currentTask.taskId, enabledRevision: currentTask.revision } };
+          }
+          throw new Error(`Unexpected RPC ${method}`);
+        },
+      }),
+    },
+    primarySecrets: {
+      setAutomationSecret() {},
+      deleteAutomationSecret() {},
+      listAutomationSecretNames: () => [],
+    },
+    show: async () => {
+      openDialogs += 1;
+      maxConcurrentDialogs = Math.max(maxConcurrentDialogs, openDialogs);
+      try {
+        return await new Promise((resolve) => resolvers.push(resolve));
+      } finally {
+        openDialogs -= 1;
+      }
+    },
+  });
+  const command = {
+    type: "enable-task",
+    environmentId: "remote-a",
+    taskId: currentTask.taskId,
+    revision: currentTask.revision,
+    planHash: currentTask.planHash,
+  };
+  const first = authority(command);
+  const second = authority(command);
+  while (resolvers.length < 1) await new Promise((resolve) => setTimeout(resolve, 1));
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.equal(resolvers.length, 1);
+  assert.equal(maxConcurrentDialogs, 1);
+  assert.equal(enableCalls.length, 0);
+  resolvers[0]({ response: 1 });
+  assert.equal((await first).outcome, "enabled");
+  while (resolvers.length < 2) await new Promise((resolve) => setTimeout(resolve, 1));
+  assert.equal(maxConcurrentDialogs, 1);
+  resolvers[1]({ response: 0 });
+  assert.equal((await second).outcome, "cancelled");
+  assert.equal(enableCalls.length, 1);
+});

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { RpcError } from "../../contract/types";
-import { AUTOMATION_PROBE_STOP_GRACE_MS } from "../../shared/shutdown-budget";
+import { AUTOMATION_DRIVER_STOP_GRACE_MS, AUTOMATION_PROBE_STOP_GRACE_MS } from "../../shared/shutdown-budget";
 import { AutomationStore, systemClock } from "./store";
 import { assertTaskSpec } from "./spec/validate";
 import { DriverPool } from "./driver-pool";
@@ -15,7 +15,7 @@ const defaults: RuntimeLimits = {
   maxConcurrentDrivers: 4,
   maxSchedulerSleepMs: 60000,
   resumeGraceMs: 15000,
-  shutdownGraceMs: 5000,
+  shutdownGraceMs: AUTOMATION_DRIVER_STOP_GRACE_MS,
   probeStopGraceMs: AUTOMATION_PROBE_STOP_GRACE_MS,
   maxOutputBytes: 256 * 1024,
 };

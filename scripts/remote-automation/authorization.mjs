@@ -103,15 +103,30 @@ console.log(JSON.stringify({ ok: true, names }));\n`;
     await boundary.wait("/script-proof");
     decision = { promise: Promise.resolve({ response: 1 }) };
     const dynamic = task(daemon.cwd, "dynamic-secret-denied", [
-      http("dynamic", boundary.origin, "/must-not-send", { body: { $ref: "input" } }),
+      http("dynamic", boundary.origin, "/must-not-send", { body: { leaked: { $secret: "unrelated" } } }),
     ]);
     await ui.enable(rpc, dynamic);
-    const denied = await phase(rpc, await startRun(rpc, dynamic.id, "{{secret:unrelated}}"), "failed");
+    const denied = await phase(rpc, await startRun(rpc, dynamic.id), "failed");
     assert.ok(JSON.stringify(denied).includes("grant_violation"));
     assert.equal(
       boundary.requests.some(({ url }) => url === "/must-not-send"),
       false,
     );
+    boundary.handlers.set("/literal-input", (entry, response) => {
+      assert.deepEqual(JSON.parse(entry.body), { note: "{{secret:api.token}}" });
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end('{"ok":true}');
+    });
+    const injection = task(daemon.cwd, "runtime-injection-blocked", [
+      http("authorized", boundary.origin, "/http-proof", {
+        secretHeaders: { "x-secret": "api.token", "x-template": "template.token" },
+        body: { token: { $secret: "template.token" } },
+      }),
+      http("literal", boundary.origin, "/literal-input", { body: { note: { $ref: "input" } } }),
+    ]);
+    await ui.enable(rpc, injection);
+    await phase(rpc, await startRun(rpc, injection.id, "{{secret:api.token}}"), "succeeded");
+    await boundary.wait("/literal-input");
     boundary.handlers.set("/echo", (entry, response) => {
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ leaked: entry.headers["x-secret"] }));
@@ -155,6 +170,13 @@ console.log(JSON.stringify({ ok: true, names }));\n`;
     assert.deepEqual(await command("list-secret-names"), namesBefore);
     assert.deepEqual(readFileSync(secretPath), secretBytesBefore);
     assert.deepEqual(readFileSync(channelPath), channelBytesBefore);
+    await renderer.rpc.call("agent.new", { cwd: daemon.stateDir });
+    for (const protectedPath of [secretPath, path.join(daemon.stateDir, "auth-token"), channelPath]) {
+      await assert.rejects(
+        renderer.rpc.call("files.read", { path: protectedPath }),
+        (error) => error.code === "FORBIDDEN",
+      );
+    }
     await enable();
     await command("delete-secret", { name: "api.token" });
     const requestCount = boundary.requests.length;

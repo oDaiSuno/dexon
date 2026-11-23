@@ -37,6 +37,15 @@ export function createAutomationAuthority(options: {
   primarySecrets: Pick<CredentialVault, "setAutomationSecret" | "deleteAutomationSecret" | "listAutomationSecretNames">;
   show: ShowAutomationDialog;
 }): AutomationAuthority {
+  let confirmationQueue: Promise<void> = Promise.resolve();
+  const serializeConfirmation = <T>(operation: () => Promise<T>): Promise<T> => {
+    const next = confirmationQueue.then(operation, operation);
+    confirmationQueue = next.then(
+      () => undefined,
+      () => undefined,
+    );
+    return next;
+  };
   const execute = async (command: AutomationCommand): Promise<AutomationCommandResults[AutomationCommand["type"]]> => {
     if (command.environmentId === PRIMARY_ENVIRONMENT_ID) {
       switch (command.type) {
@@ -62,39 +71,44 @@ export function createAutomationAuthority(options: {
         const { names } = await target.call("automation.listSecretNames");
         return { names };
       }
-      case "enable-task": {
-        const { task } = await target.call("automation.getTask", {
-          taskId: command.taskId,
-          revision: command.revision,
+      case "enable-task":
+        return serializeConfirmation(async () => {
+          assertCurrent(target);
+          const { task } = await target.call("automation.getTask", {
+            taskId: command.taskId,
+            revision: command.revision,
+          });
+          assertTask(task, command.taskId, command.revision, command.planHash);
+          assertCurrent(target);
+          if (!(await confirmAutomation({ kind: "enable", target, task }, options.show)))
+            return { outcome: "cancelled" };
+          assertCurrent(target);
+          const result = await target.call("automation.enableTask", {
+            taskId: command.taskId,
+            revision: command.revision,
+            planHash: command.planHash,
+          });
+          return { outcome: "enabled", task: result.task };
         });
-        assertTask(task, command.taskId, command.revision, command.planHash);
-        assertCurrent(target);
-        if (!(await confirmAutomation({ kind: "enable", target, task }, options.show))) return { outcome: "cancelled" };
-        assertCurrent(target);
-        const result = await target.call("automation.enableTask", {
-          taskId: command.taskId,
-          revision: command.revision,
-          planHash: command.planHash,
+      case "resolve-attention":
+        return serializeConfirmation(async () => {
+          assertCurrent(target);
+          const request = command.request;
+          const { run } = await target.call("automation.getRun", { runId: request.runId });
+          if (
+            run.phase !== "attention" ||
+            run.version !== request.expectedVersion ||
+            !run.steps.some((step) => step.stepIndex === request.stepIndex && step.status === "unknown")
+          )
+            throw new RpcError({ code: "CONFLICT", message: "Automation attention state or version changed" });
+          const { task } = await target.call("automation.getTask", { taskId: run.taskId, revision: run.revision });
+          assertTask(task, run.taskId, run.revision, task.planHash);
+          assertCurrent(target);
+          if (!(await confirmAutomation({ kind: "resolve", target, task, request }, options.show)))
+            return { outcome: "cancelled" };
+          assertCurrent(target);
+          return { outcome: "resolved", result: await target.call("automation.resolveAttention", request) };
         });
-        return { outcome: "enabled", task: result.task };
-      }
-      case "resolve-attention": {
-        const request = command.request;
-        const { run } = await target.call("automation.getRun", { runId: request.runId });
-        if (
-          run.phase !== "attention" ||
-          run.version !== request.expectedVersion ||
-          !run.steps.some((step) => step.stepIndex === request.stepIndex && step.status === "unknown")
-        )
-          throw new RpcError({ code: "CONFLICT", message: "Automation attention state or version changed" });
-        const { task } = await target.call("automation.getTask", { taskId: run.taskId, revision: run.revision });
-        assertTask(task, run.taskId, run.revision, task.planHash);
-        assertCurrent(target);
-        if (!(await confirmAutomation({ kind: "resolve", target, task, request }, options.show)))
-          return { outcome: "cancelled" };
-        assertCurrent(target);
-        return { outcome: "resolved", result: await target.call("automation.resolveAttention", request) };
-      }
     }
   };
   return async <C extends AutomationCommand>(command: C): Promise<AutomationCommandResult<C>> =>

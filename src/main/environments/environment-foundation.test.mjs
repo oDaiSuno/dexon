@@ -278,3 +278,32 @@ test("local SSH OS spawn failures are blocked and preserve their original diagno
     assert.ok(!result.diagnosis.detail.includes("private"));
   }
 });
+
+test("changing a WebSocket environment URL clears the saved auth token unless a new one is supplied", () => {
+  const current = {
+    id: "env-ws",
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4100/rpc", expectedEnvironmentId: "remote-a" },
+    authToken: "saved-token",
+    enabled: true,
+  };
+  const renamed = planEnvironmentUpdate(current, {
+    label: "Remote A Renamed",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4100/rpc" },
+  });
+  assert.equal(renamed.rebind, false);
+  assert.equal(renamed.configuration.authToken, "saved-token");
+  const redirected = planEnvironmentUpdate(current, {
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4999/rpc" },
+  });
+  assert.equal(redirected.rebind, true);
+  assert.equal(redirected.configuration.authToken, undefined);
+  const replaced = planEnvironmentUpdate(current, {
+    label: "Remote A",
+    target: { kind: "websocket", url: "ws://127.0.0.1:4999/rpc" },
+    authToken: "explicit-new-token",
+  });
+  assert.equal(replaced.rebind, true);
+  assert.equal(replaced.configuration.authToken, "explicit-new-token");
+});
