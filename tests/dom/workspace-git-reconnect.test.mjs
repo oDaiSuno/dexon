@@ -5,14 +5,20 @@ import { createFolderBrowserHost } from "../../src/renderer/components/remote-fo
 
 const api = await loadRenderer(
   "workspace-git-reconnect",
-  'export {useWorkspaceCard} from "./src/renderer/components/app-shell/use-workspace-card.ts"; export {useSessionLocation} from "./src/renderer/components/app-shell/use-session-location.ts"; export {useChangedPaths} from "./src/renderer/components/file-explorer/use-changed-paths.ts"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry} from "./src/renderer/lib/environment-registry.ts";',
+  'export {useWorkspaceCard} from "./src/renderer/components/app-shell/use-workspace-card.ts"; export {useSessionLocation} from "./src/renderer/components/app-shell/use-session-location.ts"; export {useChangedPaths} from "./src/renderer/components/file-explorer/use-changed-paths.ts"; export {workspaceStore} from "./src/renderer/lib/workspace-store.ts"; export {environmentRegistry, useEnvironments} from "./src/renderer/lib/environment-registry.ts";',
 );
 api.setAppLanguage("en-US");
 after(restoreGlobals);
 
 const noop = () => {};
 const isMissing = () => false;
-const projects = ["/same"];
+const mountedSpace = (environmentId, path) => ({
+  environmentId,
+  path,
+  key: JSON.stringify([environmentId, path]),
+  displayPath: path,
+});
+const spaces = [mountedSpace("gpu", "/same")];
 const workspace = { selectedProject: "/same", selectedCwd: "/same", wtRefreshKey: 0 };
 
 test("Git queries use their explicit owner and distinguish unavailable data from clean and non-Git replies across reconnect", async (t) => {
@@ -21,8 +27,9 @@ test("Git queries use their explicit owner and distinguish unavailable data from
   let fail = false;
   const host = await createFolderBrowserHost(api, {
     target: dom.window,
-    reply(_id, method) {
+    reply(_id, method, params) {
       if (fail) throw Object.assign(new Error("Git transport disconnected"), { code: "DISCONNECTED" });
+      if (method === "system.validateCwd") return { ok: true, path: params.path };
       if (method === "git.status") return { isGit, entries: branch === "main" ? [] : [{ path: "changed.txt" }] };
       if (method === "git.branch") return { isGit, branch: isGit ? branch : null };
       if (method === "worktrees.list") return { worktrees: [{ path: "/same", isMain: false }] };
@@ -41,6 +48,7 @@ test("Git queries use their explicit owner and distinguish unavailable data from
   await act(async () => api.workspaceStore.openSpace({ environmentId: "staging", path: "/same" }));
   let state;
   function Probe({ refreshKey = 0 }) {
+    const environments = api.useEnvironments();
     state = {
       changed: api.useChangedPaths("gpu", "/same", refreshKey),
       location: api.useSessionLocation("gpu", "/same"),
@@ -48,7 +56,8 @@ test("Git queries use their explicit owner and distinguish unavailable data from
         environmentId: "gpu",
         workspace: { ...workspace, wtRefreshKey: refreshKey },
         open: true,
-        projects,
+        spaces,
+        environments,
         currentFolder: "/same",
         currentProject: null,
         isMissing,
@@ -96,7 +105,8 @@ test("Git queries use their explicit owner and distinguish unavailable data from
 test("changing a workspace card's owner never sends the previous machine's browsed folder to the new machine", async (t) => {
   const host = await createFolderBrowserHost(api, {
     target: dom.window,
-    reply(id, method) {
+    reply(id, method, params) {
+      if (method === "system.validateCwd") return { ok: true, path: params.path };
       if (method === "git.branch") return { isGit: true, branch: id };
       return { isGit: true, isTopLevel: true, branches: [], detached: [] };
     },
@@ -105,13 +115,18 @@ test("changing a workspace card's owner never sends the previous machine's brows
   api.environmentRegistry.initialize();
   let card;
   const choices = { gpu: ["/gpu-only"], staging: ["/staging-only"] };
+  const mountedChoices = Object.fromEntries(
+    Object.entries(choices).map(([id, paths]) => [id, paths.map((path) => mountedSpace(id, path))]),
+  );
   function Probe({ environmentId }) {
+    const environments = api.useEnvironments();
     const cwd = choices[environmentId][0];
     card = api.useWorkspaceCard({
       environmentId,
       workspace: { ...workspace, selectedCwd: cwd, selectedProject: cwd },
       open: true,
-      projects: choices[environmentId],
+      spaces: mountedChoices[environmentId],
+      environments,
       currentFolder: cwd,
       currentProject: null,
       isMissing,

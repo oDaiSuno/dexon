@@ -229,6 +229,20 @@ export function navigationBoundary({
   };
   const desktopBridge = {
     platform,
+    listEnvironments: async () => ({
+      revision: 1,
+      policy: { detachedDaemon: true, autoReconnect: true },
+      environments: [
+        {
+          id: "primary",
+          label: "This computer",
+          enabled: true,
+          target: { kind: "primary" },
+          status: { phase: "connected", generation: 1, since: 0 },
+          descriptor: null,
+        },
+      ],
+    }),
     getUiState: async () => structuredClone(uiState),
     setUiState: async (patch) => {
       Object.assign(uiState, patch);

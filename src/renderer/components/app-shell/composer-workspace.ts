@@ -1,5 +1,7 @@
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useMemo } from "react";
+import { useI18n } from "@/i18n";
+import { projectKeyOf } from "@shared/project-space-state";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import type { ComposerCheckout, ComposerProject, ComposerWorkspace, ComposerWorkspaceCard } from "../chat-input/types";
 import { checkoutSections } from "../chat-input/workspace-card-rows";
@@ -15,6 +17,7 @@ export function useComposerWorkspace(props: {
   card?: ComposerWorkspaceCard | null;
   readOnly?: { branch: string | null; isWorktree: boolean; path: string } | null;
 }): ComposerWorkspace | null {
+  const { t } = useI18n();
   const {
     environmentId = PRIMARY_ENVIRONMENT_ID,
     workspace,
@@ -51,6 +54,13 @@ export function useComposerWorkspace(props: {
     return {
       projects: [
         {
+          key: projectKeyOf({ environmentId, path: project.path }),
+          environmentId,
+          environmentLabel:
+            environmentId === PRIMARY_ENVIRONMENT_ID ? t("serversThisComputer", "This computer") : environmentId,
+          isPrimaryEnvironment: environmentId === PRIMARY_ENVIRONMENT_ID,
+          environmentState: "connected",
+          unavailable: false,
           path: project.path,
           name: project.name,
           displayPath: project.displayPath,
@@ -64,6 +74,8 @@ export function useComposerWorkspace(props: {
       ],
       pane: checkouts.length === 0 ? { state: "not-repo" } : { state: "ready", count, sections },
       browsedName: project.name,
+      browsedEnvironmentId: environmentId,
+      showEnvironmentGroups: false,
       folder: project.path,
       showFilter: false,
       filter: "",
@@ -94,6 +106,8 @@ export function useComposerWorkspace(props: {
       },
     };
   }, [
+    environmentId,
+    t,
     checkouts,
     project,
     selectedCwd,
@@ -171,6 +185,8 @@ const EMPTY_CARD: ComposerWorkspaceCard = {
   projects: [],
   pane: { state: "loading" },
   browsedName: "",
+  browsedEnvironmentId: PRIMARY_ENVIRONMENT_ID,
+  showEnvironmentGroups: false,
   folder: "",
   showFilter: false,
   filter: "",

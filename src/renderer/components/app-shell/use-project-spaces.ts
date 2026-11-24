@@ -9,7 +9,6 @@ import { mergeMissing, probePresence } from "@/lib/project-presence";
 
 export interface ProjectSpaces {
   spaces: readonly MountedSpace[];
-  projects: string[];
   pinned: ProjectKey | null;
   missing: ReadonlySet<string>;
   isMissing: (folder: string | null | undefined, environmentId?: EnvironmentId) => boolean;
@@ -50,10 +49,6 @@ export function useProjectSpaces({
     const ids = new Set<string>(JSON.parse(environmentIds));
     return withDefaultSpace(snapshot.spaces, pinned).filter((space) => ids.has(space.environmentId));
   }, [snapshot.spaces, pinned, environmentIds]);
-  const projects = useMemo(
-    () => spaces.filter((space) => space.environmentId === PRIMARY_ENVIRONMENT_ID).map((space) => space.path),
-    [spaces],
-  );
   useLayoutEffect(() => {
     if (!snapshot.loaded || !currentProject || snapshot.focus.environmentId !== PRIMARY_ENVIRONMENT_ID) return;
     const ref = refOf(currentProject);
@@ -153,7 +148,6 @@ export function useProjectSpaces({
   );
   return {
     spaces,
-    projects,
     pinned: pinned ? projectKeyOf(pinned) : null,
     missing,
     isMissing,

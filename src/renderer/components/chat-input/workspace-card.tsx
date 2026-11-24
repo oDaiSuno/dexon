@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 import { useI18n } from "@/i18n";
 import { useEnvironments } from "@/lib/environment-registry";
+import { copyText } from "@/lib/clipboard";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { DisabledReason, useRevealInFileManagerLabel } from "../disabled-reason";
 import { KeyHint } from "./SendControls";
@@ -51,12 +52,11 @@ export function WorkspaceCard({
   onFocusTrigger: () => void;
 }) {
   const { t } = useI18n();
-  const { environmentId } = workspace;
+  const card = workspace.card;
   const { isPrimary, unavailable } = environmentAffordances(
-    useEnvironments().find((view) => view.id === environmentId),
+    useEnvironments().find((view) => view.id === card.browsedEnvironmentId),
   );
   const copyLabel = isPrimary ? t("copyPath", "Copy path") : t("remoteCopyPath", "Copy remote path");
-  const card = workspace.card;
   const rootRef = useRef<HTMLDivElement>(null);
   const latestCardRef = useRef(card);
   latestCardRef.current = card;
@@ -81,19 +81,24 @@ export function WorkspaceCard({
     match?.focus();
   }, []);
 
-  const projectKeys = card.projects.filter((project) => !project.missing).map((project) => project.path);
-  const browsedPath = card.projects.find((project) => project.browsed)?.path ?? "";
+  const projectKeys = card.projects
+    .filter((project) => !project.missing && !project.unavailable)
+    .map((project) => project.key);
+  const browsedKey = card.projects.find((project) => project.browsed)?.key ?? "";
 
   useEffect(() => {
     if (focusedOnceRef.current) return;
-    const first = latestCardRef.current.projects.find((project) => project.browsed);
+    const projects = latestCardRef.current.projects;
+    const first =
+      projects.find((project) => project.browsed && !project.missing && !project.unavailable) ??
+      projects.find((project) => !project.missing && !project.unavailable);
     if (!first) return;
     focusedOnceRef.current = true;
-    focusRow("project", first.path);
+    focusRow("project", first.key);
   }, [focusRow, card.projects]);
 
   const paneIdentity = card.pane.state === "ready" ? `ready:${card.pane.count}` : card.pane.state;
-  const identity = `${card.browsedName}\u0000${paneIdentity}\u0000${card.filter}`;
+  const identity = `${card.browsedEnvironmentId}\u0000${card.folder}\u0000${card.browsedName}\u0000${paneIdentity}\u0000${card.filter}`;
   const identityRef = useRef(identity);
   if (identityRef.current !== identity) {
     identityRef.current = identity;
@@ -105,10 +110,10 @@ export function WorkspaceCard({
     onFocusTrigger();
   }, [onFocusTrigger, onRequestClose]);
 
-  const browsedProjectPath = browsedPath;
+  const browsedProjectKey = browsedKey;
 
   const moveBrowsed = (offset: -1 | 1) => {
-    const index = projectKeys.indexOf(browsedProjectPath);
+    const index = projectKeys.indexOf(browsedProjectKey);
     const next = projectKeys[index + offset];
     if (!next) return;
     card.browseProject(next);
@@ -134,7 +139,7 @@ export function WorkspaceCard({
       event.stopPropagation();
       if (pane === "branches") {
         setPane("projects");
-        focusRow("project", browsedProjectPath);
+        focusRow("project", browsedProjectKey);
         return;
       }
       closeAndFocusTrigger();
@@ -168,7 +173,7 @@ export function WorkspaceCard({
       if (pane !== "branches") return;
       event.preventDefault();
       setPane("projects");
-      focusRow("project", browsedProjectPath);
+      focusRow("project", browsedProjectKey);
       return;
     }
     if (event.key === "Enter") {
@@ -194,7 +199,15 @@ export function WorkspaceCard({
     void action().then(onRequestClose, (error: unknown) => setActionError(failure(error)));
   };
 
-  const message = actionError ?? card.error;
+  const browsedCurrentProject =
+    card.browsedEnvironmentId === workspace.environmentId &&
+    card.projects.some((project) => project.browsed && project.current);
+  const revealFolder = () =>
+    browsedCurrentProject
+      ? workspace.openInFinder()
+      : (window.piBridge?.openDirectory(card.folder) ?? Promise.resolve());
+  const copyFolder = () => (browsedCurrentProject ? workspace.copyPath() : copyText(card.folder));
+  const message = actionError ?? (card.pane.state === "error" && card.error === card.pane.message ? null : card.error);
   const hints =
     pane === "branches" || card.pane.state !== "not-repo"
       ? [
@@ -239,6 +252,7 @@ export function WorkspaceCard({
         <div style={{ display: "flex", minWidth: 0 }} onFocus={() => setPane("projects")}>
           <WorkspaceProjectList
             projects={card.projects}
+            showEnvironmentGroups={card.showEnvironmentGroups}
             onActivate={card.activateProject}
             onBrowse={card.browseProject}
           />
@@ -249,7 +263,7 @@ export function WorkspaceCard({
             activeKey={activeKey ?? ""}
             onActivateRow={card.activateBranch}
             onFocusRow={setActiveKey}
-            onSwitchToProject={() => (browsedProjectPath ? card.activateProject(browsedProjectPath) : undefined)}
+            onSwitchToProject={() => (browsedProjectKey ? card.activateProject(browsedProjectKey) : undefined)}
           />
         </div>
       </div>
@@ -344,7 +358,7 @@ export function WorkspaceCard({
               <button
                 type="button"
                 onClick={() =>
-                  runAction(workspace.openInFinder, (error) => (error instanceof Error ? error.message : String(error)))
+                  runAction(revealFolder, (error) => (error instanceof Error ? error.message : String(error)))
                 }
                 style={{ ...FOOTER_BUTTON, color: "var(--fx-text-body)" }}
                 className="type-label-default"
@@ -359,7 +373,7 @@ export function WorkspaceCard({
             </DisabledReason>
             <button
               type="button"
-              onClick={() => runAction(workspace.copyPath, () => t("copyFailed", "Copy failed"))}
+              onClick={() => runAction(copyFolder, () => t("copyFailed", "Copy failed"))}
               style={{ ...FOOTER_BUTTON, color: "var(--fx-text-body)" }}
               className="type-label-default"
               onMouseEnter={(event) => paint(event, HOVER)}

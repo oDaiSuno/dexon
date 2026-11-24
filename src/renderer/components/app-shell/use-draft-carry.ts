@@ -1,11 +1,18 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from "react";
+import type { EnvironmentId } from "@contract/environment";
 import { worktreePathsEqual } from "@shared/worktree-path";
 import { flushDraft, getDraft, mergeCarriedDraft, setDraft, withoutCarriedDraft } from "@/lib/draft-store";
 import { newSessionDraftKey } from "@/lib/unsaved-messages";
 import { workspaceStore } from "@/lib/workspace-store";
 
+interface CapturedDraft {
+  carry: (target: string, targetEnvironmentId: EnvironmentId) => void;
+  rollback: () => void;
+}
+
 export interface DraftCarry {
-  carry: (target: string | null) => (() => void) | null;
+  carry: (target: string | null, targetEnvironmentId?: EnvironmentId) => (() => void) | null;
+  capture: () => CapturedDraft | null;
 }
 
 export function useDraftCarry({
@@ -25,27 +32,52 @@ export function useDraftCarry({
     workspaceStore.getSnapshot,
   );
   const environmentId = focus.environmentId;
-  const carry = useCallback(
-    (target: string | null) => {
-      if (!enabled || !target) return null;
-      if (currentFolder && worktreePathsEqual(currentFolder, target)) return null;
-      const text = take();
-      if (!text.trim()) return null;
-      const targetKey = newSessionDraftKey(target, environmentId);
-      const originKey = currentFolder ? newSessionDraftKey(currentFolder, environmentId) : null;
-      setDraft(targetKey, mergeCarriedDraft(getDraft(targetKey), text) ?? { value: text });
-      flushDraft(targetKey);
-      return () => {
-        setDraft(targetKey, withoutCarriedDraft(getDraft(targetKey), text) ?? { value: "" });
+  const committedLocation = useRef({ environmentId, folder: currentFolder });
+  useLayoutEffect(() => {
+    committedLocation.current = { environmentId, folder: currentFolder };
+  }, [environmentId, currentFolder]);
+  const capture = useCallback((): CapturedDraft | null => {
+    if (!enabled) return null;
+    const text = take();
+    if (!text.trim()) return null;
+    const originKey = currentFolder ? newSessionDraftKey(currentFolder, environmentId) : null;
+    let targetKey: string | null = null;
+    return {
+      carry: (target, targetEnvironmentId) => {
+        targetKey = newSessionDraftKey(target, targetEnvironmentId);
+        setDraft(targetKey, mergeCarriedDraft(getDraft(targetKey), text) ?? { value: text });
         flushDraft(targetKey);
+        const committed = committedLocation.current;
+        if (
+          committed.environmentId === targetEnvironmentId &&
+          committed.folder &&
+          worktreePathsEqual(committed.folder, target)
+        )
+          restore(text);
+      },
+      rollback: () => {
+        if (targetKey) {
+          setDraft(targetKey, withoutCarriedDraft(getDraft(targetKey), text) ?? { value: "" });
+          flushDraft(targetKey);
+        }
         if (originKey) {
           setDraft(originKey, { value: text });
           flushDraft(originKey);
         }
         restore(text);
-      };
+      },
+    };
+  }, [currentFolder, environmentId, enabled, restore, take]);
+  const carry = useCallback(
+    (target: string | null, targetEnvironmentId: EnvironmentId = workspaceStore.getSnapshot().focus.environmentId) => {
+      if (!target) return null;
+      if (targetEnvironmentId === environmentId && currentFolder && worktreePathsEqual(currentFolder, target))
+        return null;
+      const captured = capture();
+      captured?.carry(target, targetEnvironmentId);
+      return captured?.rollback ?? null;
     },
-    [currentFolder, environmentId, enabled, restore, take],
+    [capture, currentFolder, environmentId],
   );
-  return { carry };
+  return { carry, capture };
 }

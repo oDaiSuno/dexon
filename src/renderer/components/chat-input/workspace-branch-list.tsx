@@ -4,7 +4,7 @@ import { CLEAR, QUICK, paint } from "./menu-chrome";
 import type { ComposerWorkspaceCard } from "./types";
 import { BranchRow } from "./workspace-branch-row";
 import { ELLIPSIS, GLYPH, HOVER_OVERLAY, OUTLINE_NONE, SURFACE_INSET } from "./workspace-chrome";
-import { FolderGlyph } from "./workspace-glyphs";
+import { ActivityGlyph, FolderGlyph, UnlinkGlyph } from "./workspace-glyphs";
 
 const SECTION_ROW = {
   display: "flex",
@@ -131,6 +131,72 @@ export function WorkspaceBranchList({
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 2, overflowY: "auto", minHeight: 0 }}>
+        {pane.state === "error" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              padding: "36px 24px",
+              textAlign: "center",
+            }}
+          >
+            <span className="type-body-medium" style={{ color: "var(--fx-text-primary)" }}>
+              {t("workspaceBranchesError", "Could not load branches")}
+            </span>
+            <span
+              role="alert"
+              className="type-meta-default"
+              style={{ color: "var(--fx-status-danger-text)", overflowWrap: "anywhere" }}
+            >
+              {pane.message}
+            </span>
+            {card.retryBranches && (
+              <button
+                type="button"
+                onClick={card.retryBranches}
+                className="type-label-medium"
+                style={{
+                  ...OUTLINE_NONE,
+                  height: 28,
+                  padding: "0 10px",
+                  border: "1px solid var(--fx-line-default)",
+                  borderRadius: "var(--radius-control)",
+                  background: "var(--fx-surface-raised)",
+                  color: "var(--fx-text-primary)",
+                  cursor: "pointer",
+                }}
+              >
+                {t("retry", "Retry")}
+              </button>
+            )}
+          </div>
+        )}
+
+        {pane.state === "offline" && (
+          <div
+            role="status"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 8,
+              padding: "36px 24px",
+              textAlign: "center",
+              color: "var(--fx-text-secondary)",
+            }}
+          >
+            {pane.connecting ? <ActivityGlyph size={20} /> : <UnlinkGlyph size={20} />}
+            <span className="type-body-medium">
+              {(pane.connecting
+                ? t("workspaceBranchesReconnecting", "Reconnecting to {server}…")
+                : t("workspaceBranchesOffline", "{server} is offline")
+              ).replace("{server}", pane.environmentLabel)}
+            </span>
+          </div>
+        )}
+
         {pane.state === "not-repo" && (
           <div
             style={{
