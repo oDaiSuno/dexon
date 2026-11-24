@@ -25,16 +25,6 @@
       "file": "src/renderer/components/file-viewer/html-preview.tsx",
       "name": "--text-body",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/file-viewer/image-viewer.tsx",
-      "name": "--text-body",
-      "count": 2
-    },
-    {
-      "file": "src/renderer/components/file-viewer/image-viewer.tsx",
-      "name": "--text-label",
-      "count": 1
     }
   ],
   "typography": [
@@ -52,11 +42,6 @@
       "file": "src/renderer/components/file-viewer/html-preview.tsx",
       "property": "fontSize",
       "count": 1
-    },
-    {
-      "file": "src/renderer/components/file-viewer/image-viewer.tsx",
-      "property": "fontSize",
-      "count": 3
     }
   ],
   "colors": [

@@ -209,6 +209,7 @@ jobs:
             .artifacts/chat-history-electron
             .artifacts/composer-editing-electron
             .artifacts/user-bubble-electron
+            .artifacts/image-zoom-electron
             .artifacts/nav-layout-electron
             .artifacts/browser-electron
             .artifacts/browser-agent-e2e

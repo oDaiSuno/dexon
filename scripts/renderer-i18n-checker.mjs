@@ -23,6 +23,7 @@ const LOCALIZED_OWNER_SUFFIXES = [
   "components/app-nav/project-switcher-popover.tsx",
   "components/app-nav/resource-page.tsx",
   "components/FileViewer.tsx",
+  "components/zoom-canvas.tsx",
   "components/file-viewer/audio-viewer.tsx",
   "components/file-viewer/diff-segments.ts",
   "components/file-viewer/diff-view.tsx",
@@ -152,7 +153,6 @@ function rendererSourceFiles(directory, dictionaryPaths, result = []) {
 const DICTIONARY_NAMES = new Set(["enUS", "zhCN"]);
 
 function importAliases(source, sourcePath) {
-  // Map<alias identifier> → { propertyName, resolvedPath } for top-level named imports.
   const aliases = new Map();
   for (const statement of source.statements) {
     if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
@@ -160,9 +160,9 @@ function importAliases(source, sourcePath) {
     if (!named || !ts.isNamedImports(named)) continue;
     const resolvedPath = path.resolve(path.dirname(sourcePath), statement.moduleSpecifier.text);
     for (const element of named.elements) {
-      const propertyName = (element.propertyName ?? element.name).text;
-      const alias = element.name.text; // ImportSpecifier.name is always the local binding
-      aliases.set(alias, { propertyName, resolvedPath });
+      const importedName = (element.propertyName ?? element.name).text;
+      const localName = element.name.text;
+      aliases.set(localName, { propertyName: importedName, resolvedPath });
     }
   }
   return aliases;
@@ -189,9 +189,6 @@ function readDictionaries({ root, dictionaryPaths }) {
       const values = node.name.text === "enUS" ? enUS : zhCN;
       for (const property of node.initializer.properties) {
         if (ts.isSpreadAssignment(property)) {
-          // Spreads are the composition-root mechanism; every spread must name a
-          // top-level static import of the same language from a checked dictionary
-          // file. Anything else would hide non-static entries from every check.
           const alias = ts.isIdentifier(property.expression) ? aliases?.get(property.expression.text) : undefined;
           const sourceChecked =
             !!alias && checkedPaths.has(alias.resolvedPath) && alias.propertyName === node.name.text;

@@ -1,4 +1,9 @@
 export const enUS: Record<string, string> = {
+  zoomCanvasLabel: "Zoomable preview",
+  zoomControls: "Zoom controls",
+  zoomOut: "Zoom out",
+  zoomIn: "Zoom in",
+  zoomResetFit: "Reset to fit",
   allFileTabs: "All tabs",
   fileContextMenuUnavailable: "The file menu could not be opened.",
   fileIndexTruncated: "index truncated",
@@ -80,6 +85,11 @@ export const enUS: Record<string, string> = {
 };
 
 export const zhCN: Record<string, string> = {
+  zoomCanvasLabel: "可缩放预览",
+  zoomControls: "缩放控制",
+  zoomOut: "缩小",
+  zoomIn: "放大",
+  zoomResetFit: "适应窗口",
   allFileTabs: "全部标签",
   fileContextMenuUnavailable: "无法打开文件菜单。",
   fileIndexTruncated: "索引已截断",
