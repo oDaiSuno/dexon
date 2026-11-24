@@ -83,6 +83,7 @@ export function registerProjectHandlers(server: RpcServer, deps: ProjectHandlerD
 
     "worktrees.branches": async (params) => {
       const { cwd } = params as { cwd: string };
+      await assertPathAllowed(cwd);
       return listBranches(cwd);
     },
 

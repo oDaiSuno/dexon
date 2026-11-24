@@ -100,11 +100,15 @@ export function requestEnvironmentPort(
     const request: PortRequest = { environmentId, generation, resolve, cancel };
     broker.requests.add(request);
     signal?.addEventListener("abort", onAbort, { once: true });
-    try {
-      requestPort();
-    } catch (error) {
+    const fail = (error: unknown) => {
+      if (!broker.requests.has(request)) return;
       cancel();
       reject(error);
+    };
+    try {
+      void Promise.resolve(requestPort()).catch(fail);
+    } catch (error) {
+      fail(error);
     }
   });
 }

@@ -6,6 +6,15 @@ import { isTrustedPreloadLocation } from "./preload-location-policy";
 import { readDevRendererPortArgument } from "../shared/dev-renderer-origin";
 import { isValidDeepLinkSessionMessage, selectTransferredHostPort } from "./preload-message-policy";
 
+function portRequestFailure(
+  channel: "desktop:connect-host" | "desktop:connect-environment-port",
+  error: unknown,
+): Error {
+  const message = error instanceof Error ? error.message : String(error);
+  const prefix = `Error invoking remote method '${channel}': `;
+  return new Error(message.startsWith(prefix) ? message.slice(prefix.length).replace(/^Error:\s*/, "") : message);
+}
+
 const preloadLocation = (globalThis as unknown as { location?: { href?: unknown } }).location?.href;
 
 if (
@@ -74,7 +83,13 @@ if (
     setAutomaticUpdateChecks: (enabled) => ipcRenderer.invoke("desktop:update:set-automatic-checks", enabled),
     listEnvironments: () => ipcRenderer.invoke("desktop:environments:list"),
     environmentCommand: (command) => ipcRenderer.invoke("desktop:environments:command", command),
-    requestEnvironmentPort: (environmentId) => ipcRenderer.send("desktop:connect-environment-port", environmentId),
+    requestEnvironmentPort: (environmentId) =>
+      ipcRenderer.invoke("desktop:connect-environment-port", environmentId).then(
+        () => undefined,
+        (error: unknown) => {
+          throw portRequestFailure("desktop:connect-environment-port", error);
+        },
+      ),
     onEnvironmentsChanged: (cb) => {
       const handler = (_: Electron.IpcRendererEvent, environments: Parameters<typeof cb>[0]) => cb(environments);
       ipcRenderer.on("environments:changed", handler);
@@ -86,9 +101,13 @@ if (
     rescanToolchains: (cwd) => ipcRenderer.invoke("desktop:toolchains:rescan", cwd),
     performToolchainAction: (request) => ipcRenderer.invoke("desktop:toolchains:action", request),
     openManagedToolsFolder: () => ipcRenderer.invoke("desktop:toolchains:open-managed-folder"),
-    requestHostPort: () => {
-      ipcRenderer.send("desktop:connect-host");
-    },
+    requestHostPort: () =>
+      ipcRenderer.invoke("desktop:connect-host").then(
+        () => undefined,
+        (error: unknown) => {
+          throw portRequestFailure("desktop:connect-host", error);
+        },
+      ),
     openExternal: (url) => ipcRenderer.invoke("desktop:open-external", url),
     showItemInFolder: (fsPath) => ipcRenderer.invoke("desktop:show-item-in-folder", fsPath),
     showFileContextMenu: (request) => ipcRenderer.invoke("desktop:file-context-menu", request),

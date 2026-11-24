@@ -14,7 +14,7 @@ import type { ManagedProcessCapability } from "../contract/processes";
 import { exportDiagnostics } from "./diagnostics";
 import type { HostManager } from "./host-manager";
 import type { EnvironmentManager } from "./environments/environment-manager";
-import type { EnvironmentId } from "../contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "../contract/environment";
 import { appendMainLog, getMainLogPath } from "./logger";
 import { showFileContextMenu } from "./file-context-menu";
 import { inspectLocalFiles } from "./file-context-policy";
@@ -150,6 +150,12 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     saveUiState({ automaticUpdateChecks: enabled });
     return updateManager.setAutomaticChecksEnabled(enabled);
   });
+  const requireServingHostManager = (): HostManager => {
+    const manager = getHostManager();
+    if (!manager) throw new Error("Agent Host is unavailable");
+    if (!manager.isServing()) throw new Error("Agent Host is not ready");
+    return manager;
+  };
   const requireEnvironmentManager = (): EnvironmentManager => {
     if (!environmentManager) throw new Error("Environment manager is unavailable");
     return environmentManager;
@@ -158,11 +164,13 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   trustedHandle("desktop:environments:command", (_event, command: unknown) =>
     dispatchEnvironmentCommand(requireEnvironmentManager(), parseEnvironmentCommand(command)),
   );
-  trustedOn("desktop:connect-environment-port", (event, environmentId: EnvironmentId) => {
+  trustedHandle("desktop:connect-environment-port", (event, environmentId: EnvironmentId) => {
     try {
+      if (environmentId === PRIMARY_ENVIRONMENT_ID) requireServingHostManager();
       requireEnvironmentManager().attachRendererEnvironmentPort(environmentId, event.sender);
     } catch (error) {
       appendMainLog(`environment port attachment failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error;
     }
   });
   trustedHandle("desktop:get-host-status", () => getHostManager()?.getStatus() ?? "stopped");
@@ -212,11 +220,15 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     await mkdir(root, { recursive: true });
     await openValidatedDirectory(root, { openPath: (target) => shell.openPath(target) });
   });
-  trustedOn("desktop:connect-host", (event) => {
-    const manager = getHostManager();
-    if (!manager) return;
+  trustedHandle("desktop:connect-host", (event) => {
+    const manager = requireServingHostManager();
     const { port1 } = manager.createRendererChannel();
-    event.sender.postMessage("desktop:host-port", { generation: manager.getGeneration() }, [port1]);
+    try {
+      event.sender.postMessage("desktop:host-port", { generation: manager.getGeneration() }, [port1]);
+    } catch (error) {
+      port1.close();
+      throw error;
+    }
   });
   trustedHandle("desktop:open-external", async (_event, url: string) => {
     if (typeof url !== "string") return;
