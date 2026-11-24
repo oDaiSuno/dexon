@@ -54,6 +54,9 @@ function createPortBroker(target: Window) {
     abandonPrimary() {
       orphanedPrimaryCount += 1;
     },
+    releaseAbandonedPrimary() {
+      if (orphanedPrimaryCount > 0) orphanedPrimaryCount -= 1;
+    },
   };
 }
 
@@ -80,13 +83,17 @@ export function requestEnvironmentPort(
     const broker = brokers.get(target) ?? createPortBroker(target);
     brokers.set(target, broker);
     broker.refreshBridge();
+    let abandonedPrimary = false;
     const cancel = () => {
       clearTimeout(timer);
       broker.requests.delete(request);
       signal?.removeEventListener("abort", onAbort);
     };
     const abandon = () => {
-      if (environmentId === PRIMARY_ENVIRONMENT_ID) broker.abandonPrimary();
+      if (environmentId === PRIMARY_ENVIRONMENT_ID) {
+        abandonedPrimary = true;
+        broker.abandonPrimary();
+      }
       cancel();
     };
     const onAbort = () => {
@@ -101,6 +108,10 @@ export function requestEnvironmentPort(
     broker.requests.add(request);
     signal?.addEventListener("abort", onAbort, { once: true });
     const fail = (error: unknown) => {
+      if (abandonedPrimary) {
+        abandonedPrimary = false;
+        broker.releaseAbandonedPrimary();
+      }
       if (!broker.requests.has(request)) return;
       cancel();
       reject(error);

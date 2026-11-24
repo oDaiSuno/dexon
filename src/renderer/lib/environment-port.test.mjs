@@ -161,3 +161,19 @@ test("a rejected bridge request fails only its own environment while another env
   assert.equal((await online).port, delivered.port);
   assert.equal(delivered.closed(), false);
 });
+
+test("aborting a primary request whose acknowledgement rejects does not close a subsequent direct primary port", async () => {
+  const acknowledgements = [];
+  const fixture = windowFixture({
+    requestHostPort: () => new Promise((resolve, reject) => acknowledgements.push({ resolve, reject })),
+  });
+  const controller = new globalThis.AbortController();
+  const cancelled = requestEnvironmentPort("primary", controller.signal, 1);
+  controller.abort();
+  await assert.rejects(cancelled, /cancelled/u);
+
+  acknowledgements[0].reject(new Error("Host unavailable"));
+  await Promise.resolve();
+  const direct = fixture.deliver("primary", 1);
+  assert.equal(direct.closed(), false);
+});

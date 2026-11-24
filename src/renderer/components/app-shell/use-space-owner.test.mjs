@@ -316,3 +316,30 @@ test("an unavailable remote folder leaves both drafts and the current workspace 
   assert.equal(api.getDraft("new:/shared")?.value, "keep this local text");
   assert.equal(api.getDraft('new:["gpu","/missing"]')?.value, "keep remote text");
 });
+
+test("a cancelled personal-space return after switching workspaces keeps the origin draft stored without injecting it into the new editor", async (t) => {
+  const host = await mountProbe(t, useKeyedOwnerProbe, { dom: true, target: dom.window });
+  await host.run(() => {
+    api.workspaceStore.noteCurrentProject({ environmentId: "primary", path: "/local" }, null);
+    api.workspaceStore.noteCurrentProject({ environmentId: "gpu", path: "/remote-a" }, null);
+    api.workspaceStore.noteCurrentProject({ environmentId: "gpu", path: "/remote-b" }, null);
+    api.workspaceStore.openSpace({ environmentId: "gpu", path: "/remote-a" });
+  });
+  await host.run(() => host.get().editor.current.edit("draft from remote a"));
+  let rejectDefaultCwd;
+  host.setReply((_id, method, params) => {
+    if (method === "system.defaultCwd")
+      return new Promise((_resolve, reject) => {
+        rejectDefaultCwd = reject;
+      });
+    if (method === "system.validateCwd") return { ok: true, path: params.path };
+    if (method === "system.home") return { home: "/home/remote" };
+    return { projectRoot: params.projectRoot, isGit: false, isTopLevel: true, worktrees: [] };
+  });
+  await host.run(() => host.get().owner.handleReturnToPersonalSpace());
+  await host.run(() => api.workspaceStore.openSpace({ environmentId: "gpu", path: "/remote-b" }));
+  await host.run(() => host.get().editor.current.edit("draft in remote b"));
+  await host.run(() => rejectDefaultCwd(new Error("Default space unavailable")));
+  assert.equal(host.get().editor.current.shown, "draft in remote b");
+  assert.equal(api.getDraft('new:["gpu","/remote-a"]')?.value, "draft from remote a");
+});

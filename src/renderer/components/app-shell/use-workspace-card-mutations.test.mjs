@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { deferred } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
-import { branches, mount, mountCard } from "./workspace-card-test-harness.mjs";
+import { deferred, remoteServer } from "../remote-folder-picker/folder-browser-test-helpers.mjs";
+import { branches, mount, mountCard, primary } from "./workspace-card-test-harness.mjs";
 
 const listingWithCheckout = () => ({
   ...branches("/work/app"),
@@ -116,3 +116,27 @@ for (const lateFailure of [false, true]) {
     );
   });
 }
+
+test("dirty removal confirmation stays scoped to its environment and reconnect clears blocked switch recovery", async (t) => {
+  const host = await mountCard(t, {
+    spaces: [mount("primary", "/work/app"), mount("gpu", "/work/app")],
+    workspace: {
+      wtConfirmRemoveTarget: { environmentId: "gpu", path: "/work/checkout" },
+      wtConfirmRemove: null,
+    },
+    reply: (_id, method, params) => {
+      if (method === "system.validateCwd") return { ok: true, path: params.path };
+      if (method === "git.branch") return { isGit: true, branch: "main" };
+      if (method === "worktrees.branches") return branches(params.cwd, "main");
+      if (method === "worktrees.switchBranch") return { ok: false, reason: "dirty" };
+      throw new Error(`Unexpected request ${method}`);
+    },
+  });
+  assert.equal(host.get().confirmRemovePath, null);
+  await host.run((card) => card.browseProject('["gpu","/work/app"]'));
+  assert.equal(host.get().confirmRemovePath, "/work/checkout");
+  await host.run((card) => card.activateBranch("branch:topic"));
+  assert.equal(host.get().blocked?.reason, "dirty");
+  await host.changeEnvironments([primary(1), remoteServer("gpu", 2)]);
+  assert.equal(host.get().blocked, null);
+});

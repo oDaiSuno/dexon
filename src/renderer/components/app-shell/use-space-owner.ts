@@ -98,19 +98,21 @@ export function useSpaceOwner(props: {
   });
 
   const handleReturnToPersonalSpace = useCallback(() => {
+    const originFocus = workspaceStore.getSnapshot().focus;
     const captured = draftCarry.capture();
+    const rollback = () => captured?.rollback({ restoreEditor: workspaceStore.getSnapshot().focus === originFocus });
     void coordination
       .returnToPersonalSpace()
       .then((cwd) => {
         if (!cwd) {
-          captured?.rollback();
+          rollback();
           return;
         }
         captured?.carry(cwd, PRIMARY_ENVIRONMENT_ID);
         onCwdCommitted(cwd, cwd);
         coordination.noteExternalCwd(cwd);
       })
-      .catch(() => captured?.rollback());
+      .catch(rollback);
   }, [coordination, draftCarry, onCwdCommitted]);
 
   const spacePath = workspace.selectedProject;

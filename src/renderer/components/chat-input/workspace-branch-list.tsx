@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useI18n } from "@/i18n";
 import { ArrowRightIcon, PlusIcon, SearchIcon } from "./icons";
 import { CLEAR, QUICK, paint } from "./menu-chrome";
@@ -45,6 +46,7 @@ export function WorkspaceBranchList({
   onSwitchToProject: () => void;
 }) {
   const { t } = useI18n();
+  const [retryFocused, setRetryFocused] = useState(false);
   const pane = card.pane;
   const sections =
     pane.state === "ready"
@@ -156,6 +158,8 @@ export function WorkspaceBranchList({
               <button
                 type="button"
                 onClick={card.retryBranches}
+                onFocus={() => setRetryFocused(true)}
+                onBlur={() => setRetryFocused(false)}
                 className="type-label-medium"
                 style={{
                   ...OUTLINE_NONE,
@@ -165,6 +169,7 @@ export function WorkspaceBranchList({
                   borderRadius: "var(--radius-control)",
                   background: "var(--fx-surface-raised)",
                   color: "var(--fx-text-primary)",
+                  boxShadow: retryFocused ? "0 0 0 2px var(--fx-accent-blue)" : undefined,
                   cursor: "pointer",
                 }}
               >

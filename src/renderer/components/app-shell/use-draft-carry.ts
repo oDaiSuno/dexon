@@ -7,7 +7,7 @@ import { workspaceStore } from "@/lib/workspace-store";
 
 interface CapturedDraft {
   carry: (target: string, targetEnvironmentId: EnvironmentId) => void;
-  rollback: () => void;
+  rollback: (options?: { restoreEditor?: boolean }) => void;
 }
 
 export interface DraftCarry {
@@ -55,7 +55,7 @@ export function useDraftCarry({
         )
           restore(text);
       },
-      rollback: () => {
+      rollback: (options?: { restoreEditor?: boolean }) => {
         if (targetKey) {
           setDraft(targetKey, withoutCarriedDraft(getDraft(targetKey), text) ?? { value: "" });
           flushDraft(targetKey);
@@ -64,7 +64,7 @@ export function useDraftCarry({
           setDraft(originKey, { value: text });
           flushDraft(originKey);
         }
-        restore(text);
+        if (options?.restoreEditor !== false) restore(text);
       },
     };
   }, [currentFolder, environmentId, enabled, restore, take]);

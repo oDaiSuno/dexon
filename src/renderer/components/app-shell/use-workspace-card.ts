@@ -279,27 +279,31 @@ export function useWorkspaceCard({
       setFilter("");
       setBlocked(null);
       setFailure(null);
+      workspace.cancelWorktreeRemove();
       setBrowsed({ environmentId: project.environmentId, path: project.path });
     },
-    [projectRows],
+    [projectRows, workspace],
   );
 
   useEffect(() => {
     actionRequest.current += 1;
     navigationRequest.current += 1;
+    setBlocked(null);
     setSwitching(false);
   }, [actionContext]);
 
   const runAction = useCallback(
-    async (operation: (isCurrent: () => boolean) => Promise<void>) => {
+    async (operation: (isCurrent: () => boolean, canNavigate: () => boolean) => Promise<void>) => {
       if (!open || (spaces !== null && (generation === null || isMissing(browsed, browsedEnvironmentId)))) return;
       const request = ++actionRequest.current;
+      const navRequest = navigationRequest.current;
       const isCurrent = () =>
         mounted.current && latest.current.actionContext === actionContext && actionRequest.current === request;
+      const canNavigate = () => isCurrent() && navigationRequest.current === navRequest;
       setSwitching(true);
       setFailure(null);
       try {
-        await operation(isCurrent);
+        await operation(isCurrent, canNavigate);
       } catch (error) {
         if (isCurrent()) setFailure(error instanceof Error ? error.message : String(error));
       } finally {
@@ -311,7 +315,7 @@ export function useWorkspaceCard({
 
   const switchIn = useCallback(
     (cwd: string, branch: string, other: boolean) =>
-      runAction(async (isCurrent) => {
+      runAction(async (isCurrent, canNavigate) => {
         if (generation !== null) await authorize(cwd);
         if (!isCurrent()) return;
         const result = await getEnvironmentApiClient(browsedEnvironmentId).call("worktrees.switchBranch", {
@@ -321,12 +325,15 @@ export function useWorkspaceCard({
         if (!isCurrent()) return;
         if (result.ok) {
           onSwitched();
-          if (other) await goTo(cwd, browsedEnvironmentId);
-          else closeCard();
+          if (other) {
+            if (canNavigate()) await goTo(cwd, browsedEnvironmentId);
+          } else {
+            closeCard();
+          }
           return;
         }
         if (result.reason === "occupied" && result.path) {
-          await goTo(result.path, browsedEnvironmentId);
+          if (canNavigate()) await goTo(result.path, browsedEnvironmentId);
           return;
         }
         if (result.reason === "stale") {
@@ -411,15 +418,18 @@ export function useWorkspaceCard({
 
   const createWorktree = useCallback(
     (projectRoot: string, branch?: string, fromBlocked = false) => {
-      void runAction(async (isCurrent) => {
+      void runAction(async (isCurrent, canNavigate) => {
         const path = await workspace.createWorktreeAt(
           { projectRoot, ...(branch ? { branch } : {}) },
           browsedEnvironmentId,
         );
         if (!path || !isCurrent()) return;
         if (fromBlocked) setBlocked(null);
-        if (browsedEnvironmentId !== environmentId) await goTo(path, browsedEnvironmentId);
-        else if (fromBlocked) closeCard();
+        if (browsedEnvironmentId !== environmentId) {
+          if (canNavigate()) await goTo(path, browsedEnvironmentId);
+        } else if (fromBlocked) {
+          closeCard();
+        }
       });
     },
     [browsedEnvironmentId, closeCard, environmentId, goTo, runAction, workspace],
@@ -466,7 +476,12 @@ export function useWorkspaceCard({
     closeNewEntry: workspace.closeNewWorktreeEntry,
     createCheckout,
     removeCheckout,
-    confirmRemovePath: workspace.wtConfirmRemove,
+    confirmRemovePath:
+      workspace.wtConfirmRemoveTarget !== undefined
+        ? workspace.wtConfirmRemoveTarget?.environmentId === browsedEnvironmentId
+          ? workspace.wtConfirmRemoveTarget.path
+          : null
+        : workspace.wtConfirmRemove,
     cancelRemove: workspace.cancelWorktreeRemove,
     busy: workspace.wtBusy || switching,
     error: failure ?? listing?.error ?? workspace.wtError,

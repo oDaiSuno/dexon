@@ -90,7 +90,11 @@ export function useProjectWorkspace({
   const [wtNewBranch, setWtNewBranch] = useState("");
   const [wtBusy, setWtBusy] = useState(false);
   const [wtError, setWtError] = useState<string | null>(null);
-  const [wtConfirmRemove, setWtConfirmRemove] = useState<string | null>(null);
+  const [wtConfirmRemoveTarget, setWtConfirmRemoveTarget] = useState<{
+    environmentId: EnvironmentId;
+    path: string;
+  } | null>(null);
+  const wtConfirmRemove = wtConfirmRemoveTarget?.environmentId === environment.id ? wtConfirmRemoveTarget.path : null;
 
   const projectRootFor = useCallback(
     (cwd: string | null): string | null => {
@@ -337,7 +341,7 @@ export function useProjectWorkspace({
           return;
         if (sameEnvironment) setWtRefreshKey((k) => k + 1);
         if (workspaceStore.getSnapshot().focus !== origin) return;
-        setWtConfirmRemove(null);
+        setWtConfirmRemoveTarget(null);
         if (sameEnvironment && selectedCwd === path) setSelectedCwd(cwd, environmentId);
       } catch (e) {
         if (
@@ -347,7 +351,7 @@ export function useProjectWorkspace({
         )
           return;
         if (!force && (e as { detail?: { dirty?: boolean } }).detail?.dirty) {
-          setWtConfirmRemove(path);
+          setWtConfirmRemoveTarget({ environmentId, path });
           return;
         }
         setWtError(e instanceof Error ? e.message : String(e));
@@ -372,7 +376,7 @@ export function useProjectWorkspace({
     setWtNewOpen(false);
     setWtNewBranch("");
     setWtError(null);
-    setWtConfirmRemove(null);
+    setWtConfirmRemoveTarget(null);
   }, []);
 
   const openNewWorktreeEntry = useCallback(() => {
@@ -396,7 +400,7 @@ export function useProjectWorkspace({
   }, []);
 
   const cancelWorktreeRemove = useCallback(() => {
-    setWtConfirmRemove(null);
+    setWtConfirmRemoveTarget(null);
   }, []);
 
   const selectedProject = projectRootFor(selectedCwd);
@@ -433,6 +437,7 @@ export function useProjectWorkspace({
     wtBusy,
     wtError,
     wtConfirmRemove,
+    wtConfirmRemoveTarget,
     cancelWorktreeRemove,
     handleCreateWorktree,
     createWorktreeAt,
