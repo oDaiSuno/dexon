@@ -183,11 +183,15 @@ function transition(data: Data, action: ViewportAction): Data {
     const p = project(data);
     if (p.phase !== "ready") return data;
     const fit = fitScale(data.container, data.content);
+    const minScale = Math.min(fit, 0.05);
     const stops = [
       fit,
-      ...[0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16].filter((s) => Math.abs(s / fit - 1) > 0.005),
+      ...(minScale < fit ? [minScale] : []),
+      ...[0.05, 0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16].filter(
+        (s) => s > minScale && Math.abs(s / fit - 1) > 0.005,
+      ),
     ]
-      .filter((s) => s >= Math.min(fit, 0.05) && s <= 16)
+      .filter((s) => s >= minScale && s <= 16)
       .sort((a, b) => a - b);
     const scale =
       action.direction === 1 ? stops.find((s) => s > p.scale + 1e-12) : stops.findLast((s) => s < p.scale - 1e-12);

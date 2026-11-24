@@ -200,3 +200,13 @@ test("bookmarks restore framing and rebase when resolution changes", () => {
   close(p.translate.x, -254);
   close(p.translate.y, 16);
 });
+
+test("step zoom out reaches minimum scale even when fit sits within tolerance of 5%", () => {
+  const v = ready(10000, 1000, 533, 532);
+  const initial = inspectViewport(v);
+  close(initial.scale, 0.0501);
+  assert.equal(initial.canZoomOut, true);
+  const zoomedOut = inspectViewport(transitionViewport(v, { type: "step", direction: -1 }));
+  close(zoomedOut.scale, 0.05);
+  assert.equal(zoomedOut.canZoomOut, false);
+});
