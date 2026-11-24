@@ -550,12 +550,14 @@ export class PortForwardManager {
       if (finished) return;
       finished = true;
       handshake.abort();
-      release();
       socket.end();
       websocket?.socket.end();
     };
     socket.on("error", finish);
-    socket.once("close", finish);
+    socket.once("close", () => {
+      release();
+      finish();
+    });
     void connectWebSocket(
       url,
       {
@@ -584,7 +586,11 @@ export class PortForwardManager {
               blocked = false;
               if (!finished) {
                 connection.socket.resume();
-                parser.resume();
+                try {
+                  parser.resume();
+                } catch {
+                  finish();
+                }
               }
             });
           }

@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { chmod, lstat, mkdir, open, readdir, rename, unlink } from "node:fs/promises";
+import { chmod, lstat, mkdir, open, readdir, rename, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import { allowFileRoot } from "./file-access";
 
@@ -271,11 +271,13 @@ export class RemoteAttachmentStore {
       constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),
     ).catch(() => undefined);
     if (!handle) return undefined;
+    let data: Buffer;
+    const now = digest ? new Date((this.options.now ?? Date.now)()) : undefined;
     try {
       const opened = await handle.stat();
       if (!opened.isFile() || opened.nlink !== 1 || opened.ino !== info.ino || opened.dev !== info.dev)
         return undefined;
-      const data = await handle.readFile();
+      data = await handle.readFile();
       const detected = imageMime(data);
       const extension = path.extname(filePath).toLowerCase();
       if (
@@ -288,15 +290,15 @@ export class RemoteAttachmentStore {
       const current = await lstat(filePath).catch(() => undefined);
       if (!current?.isFile() || current.nlink !== 1 || current.dev !== opened.dev || current.ino !== opened.ino)
         return undefined;
-      await handle.chmod(0o600);
-      if (digest) {
-        const now = new Date((this.options.now ?? Date.now)());
-        await handle.utimes(now, now);
+      if (process.platform !== "win32") {
+        await handle.chmod(0o600);
+        if (now) await handle.utimes(now, now);
       }
-      return data;
     } finally {
       await handle.close();
     }
+    if (process.platform === "win32" && now) await utimes(filePath, now, now);
+    return data;
   }
 
   async dispose(): Promise<void> {

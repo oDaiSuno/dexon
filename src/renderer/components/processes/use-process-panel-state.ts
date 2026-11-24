@@ -7,12 +7,15 @@ import { getEnvironmentApiClient } from "@/lib/api-client";
 import { runEnvironmentCommand, useEnvironments, useEnvironmentsSnapshot } from "@/lib/environment-registry";
 import { useI18n } from "@/i18n";
 
-export function remoteLoopbackEndpoint(url: string): { remotePort: number; suffix: string } | null {
+export function remoteLoopbackEndpoint(
+  url: string,
+): { protocol: "http:" | "https:"; remotePort: number; suffix: string } | null {
   const match = /^(https?):\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?([/?#][^\s\\]*)?$/i.exec(url);
   if (!match) return null;
-  const remotePort = match[3] === undefined ? (match[1].toLowerCase() === "https" ? 443 : 80) : Number(match[3]);
+  const protocol = match[1].toLowerCase() === "https" ? "https:" : "http:";
+  const remotePort = match[3] === undefined ? (protocol === "https:" ? 443 : 80) : Number(match[3]);
   return Number.isInteger(remotePort) && remotePort > 0 && remotePort <= 65535
-    ? { remotePort, suffix: match[4] ?? "" }
+    ? { protocol, remotePort, suffix: match[4] ?? "" }
     : null;
 }
 
@@ -228,7 +231,7 @@ export function useProcessPanelState({
           throw new Error("Forwarded preview is not active");
         }
         const base = new URL(entry.localUrl);
-        previewUrl = `${base.origin}${endpoint.suffix.startsWith("/") ? "" : "/"}${endpoint.suffix}`;
+        previewUrl = `${endpoint.protocol}//${base.host}${endpoint.suffix.startsWith("/") ? "" : "/"}${endpoint.suffix}`;
       }
       const tab = await window.piBridge.browserCreateUserTab({
         url: previewUrl,

@@ -259,8 +259,8 @@ test("loopback HTTP and HTTPS previews use strict explicit or default ports with
     f.tabs.map((tab) => tab.url),
     [
       "http://127.0.0.1:43000/",
-      "http://127.0.0.1:43000/a%2Fb?q=a%20b#c",
-      "http://127.0.0.1:43000/?x=1#end",
+      "https://127.0.0.1:43000/a%2Fb?q=a%20b#c",
+      "https://127.0.0.1:43000/?x=1#end",
       "http://127.0.0.1:43000/a/../b?raw=%2f#part",
     ],
   );
