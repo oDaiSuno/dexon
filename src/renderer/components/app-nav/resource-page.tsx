@@ -1,5 +1,6 @@
-import type { EnvironmentId } from "@contract/environment";
-import { useCallback, useEffect, useRef } from "react";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { useEnvironments } from "@/lib/environment-registry";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { PluginPackageInfo } from "@/lib/api-types";
 import type { ChannelsSnapshot } from "@shared/channel-types";
@@ -11,6 +12,7 @@ import { packageKey } from "../plugins/plugin-shared";
 import { useSkillDirectory } from "../skills/use-skill-directory";
 import { ResourcesOverview } from "../resources/resources-overview";
 import { ChevronLeftIcon, ChevronRightIcon } from "../resources/overview-icons";
+import { EnvironmentScopeBar, EnvironmentScopeContext, useEnvironmentHome } from "../settings/environment-scope-bar";
 
 export type ResourceTab = "plugins" | "skills";
 export type ResourceView = "overview" | "manage";
@@ -26,10 +28,84 @@ interface ResourcePageProps {
   onPluginsReloaded?: () => void;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
+  onScopeChange?: (id: EnvironmentId) => void;
 }
 
 export function ResourcePage(props: ResourcePageProps) {
-  return <ResourceWorkspace key={`${props.environmentId}\0${props.cwd}`} {...props} />;
+  return (
+    <EnvironmentScopeContext.Provider value={props.environmentId}>
+      <ResourceTarget key={`${props.environmentId}\0${props.cwd}`} {...props} />
+    </EnvironmentScopeContext.Provider>
+  );
+}
+
+function ResourceTarget(props: ResourcePageProps) {
+  const { t } = useI18n();
+  const home = useEnvironmentHome(props.environmentId, props.cwd);
+  const { cwd } = home;
+  return cwd ? (
+    <ResourceWorkspace key={cwd} {...props} cwd={cwd} />
+  ) : (
+    <ResourceFrame environmentId={props.environmentId} onScopeChange={props.onScopeChange}>
+      <div style={{ margin: "var(--space-6)", display: "grid", gap: "var(--space-3)", justifyItems: "start" }}>
+        {home.failed ? (
+          <>
+            <p role="alert" className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
+              {t("schemeCResourceFolderUnavailable", "Couldn't load this environment's home folder.")}
+            </p>
+            <Button onClick={home.retry}>{t("retry", "Retry")}</Button>
+          </>
+        ) : (
+          <div
+            role="status"
+            aria-label={t("schemeCResolvingResourceFolder", "Resolving resource folder")}
+            className="type-body-default"
+            style={{ color: "var(--fx-text-secondary)" }}
+          >
+            {t("schemeCResolvingResourceFolder", "Resolving resource folder")}
+          </div>
+        )}
+      </div>
+    </ResourceFrame>
+  );
+}
+
+function ResourceFrame({
+  environmentId,
+  onScopeChange,
+  children,
+}: Pick<ResourcePageProps, "environmentId" | "onScopeChange"> & { children: ReactNode }) {
+  const environments = useEnvironments();
+  const hasScopeSelector =
+    environmentId !== PRIMARY_ENVIRONMENT_ID || environments.some((view) => view.id !== PRIMARY_ENVIRONMENT_ID);
+  return (
+    <div
+      className="app-nav-resource"
+      style={{
+        flex: 1,
+        minWidth: 0,
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        overflow: "hidden",
+        background: "var(--fx-surface-main)",
+      }}
+    >
+      {hasScopeSelector && (
+        <div style={{ flexShrink: 0, padding: "var(--space-4) var(--space-6) 0" }}>
+          <div style={{ maxWidth: 760, margin: "0 auto" }}>
+            <EnvironmentScopeBar
+              mode="selector"
+              purpose="resources"
+              selectedEnvironmentId={environmentId}
+              onSelect={(id) => onScopeChange?.(id)}
+            />
+          </div>
+        </div>
+      )}
+      {children}
+    </div>
+  );
 }
 
 function ResourceWorkspace({
@@ -43,6 +119,7 @@ function ResourceWorkspace({
   onPluginsReloaded,
   channelSnapshot,
   onOpenRemote,
+  onScopeChange,
 }: ResourcePageProps) {
   const library = usePluginLibrary({ environmentId, cwd, sessionId, onReloaded: onPluginsReloaded });
   const directory = useSkillDirectory(environmentId, cwd);
@@ -64,18 +141,7 @@ function ResourceWorkspace({
   };
 
   return (
-    <div
-      className="app-nav-resource"
-      style={{
-        flex: 1,
-        minWidth: 0,
-        height: "100%",
-        display: "flex",
-        flexDirection: "column",
-        overflow: "hidden",
-        background: "var(--fx-surface-main)",
-      }}
-    >
+    <ResourceFrame environmentId={environmentId} onScopeChange={onScopeChange}>
       {view === "overview" ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-[24px] py-[32px]">
           <ResourcesOverview
@@ -133,7 +199,7 @@ function ResourceWorkspace({
           </div>
         </>
       )}
-    </div>
+    </ResourceFrame>
   );
 }
 

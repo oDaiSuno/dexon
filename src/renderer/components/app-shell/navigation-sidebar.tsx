@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { PRIMARY_ENVIRONMENT_ID, qualifySessionKey } from "@contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, qualifySessionKey, type EnvironmentId } from "@contract/environment";
 import { projectKeyOf, type ProjectSpaceRef } from "@shared/project-space-state";
 import { workspaceStore } from "@/lib/workspace-store";
 import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { useActiveEnvironment, getActiveEnvironmentId } from "@/lib/environment-registry";
+import { useActiveEnvironment, getActiveEnvironmentId, runEnvironmentCommand } from "@/lib/environment-registry";
+import { ProjectReconnectContext } from "../app-nav/project-menu";
+import { subscribeResourcesRequest } from "@/lib/settings-request";
+import type { ResourceTab, ResourceView } from "../app-nav/resource-page";
 import { useEnvironmentDirectories } from "../session-sidebar/use-environment-directories";
 import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
@@ -25,6 +28,54 @@ import { useShownSessionReveal } from "./use-shown-session-reveal";
 import type { SpaceCoordination } from "./use-space-coordination";
 import type { ProjectSpaces } from "./use-project-spaces";
 import type { SettingsTab } from "../SettingsConfig";
+
+export function useSidebarNavigation(beforeNavigate: () => void) {
+  const [page, setPage] = useState<NavPage>("chat");
+  const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
+  const [resourceView, setResourceView] = useState<ResourceView>("overview");
+  const [resourcesEnvironmentId, setResourcesEnvironmentId] = useState<EnvironmentId | null>(null);
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  const handleNavigate = useCallback(
+    (target: NavPage) => {
+      beforeNavigate();
+      setRemoteOpen(false);
+      if (target === "resources" && page !== "resources") {
+        setResourceView("overview");
+        setResourcesEnvironmentId(null);
+      }
+      setPage(target);
+    },
+    [beforeNavigate, page],
+  );
+  useEffect(
+    () =>
+      subscribeResourcesRequest((request) => {
+        handleNavigate("resources");
+        setResourceView("overview");
+        setResourcesEnvironmentId(request.environmentId ?? null);
+      }),
+    [handleNavigate],
+  );
+  const openRemote = useCallback(() => {
+    beforeNavigate();
+    setPage("resources");
+    setRemoteOpen(true);
+  }, [beforeNavigate]);
+  return {
+    page,
+    setPage,
+    resourceTab,
+    setResourceTab,
+    resourceView,
+    setResourceView,
+    resourcesEnvironmentId,
+    setResourcesEnvironmentId,
+    remoteOpen,
+    setRemoteOpen,
+    handleNavigate,
+    openRemote,
+  };
+}
 
 export function NavigationSidebar({
   isMobile,
@@ -285,8 +336,20 @@ export function NavigationSidebar({
   const refreshEnvironment = (environmentId: string) => {
     void directories.find((item) => item.environment.id === environmentId)?.refreshSessions();
   };
+  const reconnectProjectServer = useCallback(
+    async (environmentId: string) => {
+      setSpaceError(null);
+      try {
+        await runEnvironmentCommand({ type: "connect", environmentId });
+      } catch (error) {
+        setSpaceError(t("remoteAttributionReconnectFailed", "Reconnect failed."));
+        throw error;
+      }
+    },
+    [t],
+  );
   return (
-    <>
+    <ProjectReconnectContext.Provider value={reconnectProjectServer}>
       <div
         className={`sidebar-overlay-backdrop${pendingClass}`}
         onClick={onClose}
@@ -383,6 +446,6 @@ export function NavigationSidebar({
           onOpenSettings={serverSettings}
         />
       )}
-    </>
+    </ProjectReconnectContext.Provider>
   );
 }

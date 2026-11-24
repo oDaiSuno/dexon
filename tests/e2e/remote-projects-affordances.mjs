@@ -36,19 +36,9 @@ async function verifyDisabledReason(driver, target, expected, name) {
 export async function verifyRemoteAffordances({ driver, views }) {
   await driver.showPanel();
   await driver.click({ role: "button", name: "Explorer" });
-  const browserTarget = { selector: `${selectors.panel} button[aria-disabled="true"]`, text: "Local preview" };
-  const browser = await verifyDisabledReason(
-    driver,
-    browserTarget,
-    /remote.*(?:embedded|local).*preview/iu,
-    "remote-browser",
-  );
-  await driver.clickCss({ ...browserTarget, allowDisabled: true });
-  assert.equal(
-    await driver.page("attribute", { role: "button", name: "Explorer", attribute: "aria-pressed" }),
-    "true",
-    "Native input cannot activate the disabled local browser",
-  );
+  const browserControls = await driver.read("all", { selector: `${selectors.panel} button`, text: "Local preview" });
+  assert.equal(browserControls.length, 1, "Remote port-forwarding environments expose the embedded browser preview");
+  assert.equal(browserControls[0].disabled, false, "Local preview is enabled when remote port forwarding is supported");
   const finderTarget = {
     selector: `${selectors.panel} button[aria-disabled="true"]`,
     includes: process.platform === "darwin" ? "Finder" : "file manager",
@@ -62,9 +52,9 @@ export async function verifyRemoteAffordances({ driver, views }) {
   assert.ok(finder.hoverText.includes(views.alpha.label), "The Finder reason names the actual server");
   assert.match(finder.hoverText, /copy.*remote path|view.*file panel/iu);
   return {
-    browser,
+    browser: { enabled: true },
     finder,
-    browserStayedInactive: true,
+    browserEnabledWithPortForwarding: true,
     limitation:
       "Finder evidence covers the visible dashed disabled control and its hover/keyboard reasons. No native file-manager window is launched.",
   };

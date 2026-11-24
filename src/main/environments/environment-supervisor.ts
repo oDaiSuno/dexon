@@ -17,6 +17,7 @@ import {
   type RemoteConnection,
   type RemoteEndpoint,
 } from "./remote-endpoint.ts";
+import { daemonIsIdle } from "./remote-probe.ts";
 import type { SshEnvironmentManager } from "./ssh-tunnel-manager.ts";
 import {
   EnvironmentConnectionError,
@@ -50,6 +51,8 @@ export class EnvironmentSupervisor {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private silentTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleUpgradeTimer: ReturnType<typeof setInterval> | null = null;
+  private idleUpgradeController: AbortController | null = null;
   private probePending = false;
   private lastProbeAt = 0;
   private lastAcknowledgedAt = 0;
@@ -58,6 +61,7 @@ export class EnvironmentSupervisor {
   private readonly options: {
     probeTimeoutMs?: number;
     businessTimeoutMs?: number;
+    idleUpgradeIntervalMs?: number;
     policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
@@ -68,6 +72,7 @@ export class EnvironmentSupervisor {
   constructor(options: {
     probeTimeoutMs?: number;
     businessTimeoutMs?: number;
+    idleUpgradeIntervalMs?: number;
     policy?: () => LifecyclePolicy;
     configuration: RemoteEnvironmentConfiguration;
     sshTunnelManager: SshEnvironmentManager;
@@ -75,6 +80,16 @@ export class EnvironmentSupervisor {
     onChange: () => void;
   }) {
     this.options = options;
+  }
+
+  getEndpoint(): RemoteEndpoint | null {
+    const connection = this.connection;
+    if (this.state.status.phase !== "connected" || !connection) return null;
+    return {
+      httpBaseUrl: connection.httpBaseUrl,
+      wsUrl: connection.wsUrl,
+      ...(connection.authToken === undefined ? {} : { authToken: connection.authToken }),
+    };
   }
 
   connect(): Promise<void> {
@@ -86,14 +101,21 @@ export class EnvironmentSupervisor {
     return this.startAttempt();
   }
 
-  async disconnect(mode = closeModeFor("disconnect", this.policy)): Promise<void> {
+  async disconnect(mode = closeModeFor("disconnect", this.policy, this.options.configuration.target)): Promise<void> {
     this.enabled = false;
     this.epoch += 1;
     this.releaseConnection();
     this.publish({ type: "disconnect" });
     await this.task;
     const { target } = this.options.configuration;
-    if (target.kind === "ssh") await this.options.sshTunnelManager.closeTunnel(target, mode);
+    if (target.kind === "ssh") {
+      try {
+        await this.options.sshTunnelManager.closeTunnel(target, mode);
+      } catch (error) {
+        if (mode === "stop-managed") await this.options.sshTunnelManager.closeTunnel(target, "disconnect");
+        throw error;
+      }
+    }
   }
 
   async dispose(mode: EnvironmentCloseMode = "disconnect"): Promise<void> {
@@ -257,6 +279,53 @@ export class EnvironmentSupervisor {
       if (heartbeat.clockDiscontinuity || now - this.lastProbeAt >= 15_000) this.probe(connection);
     }, 1_000);
     this.heartbeatTimer.unref();
+    if (
+      this.options.configuration.target.kind === "ssh" &&
+      this.runtime?.ownership === "managed" &&
+      this.runtime.updatePending
+    ) {
+      this.idleUpgradeTimer = setInterval(() => {
+        void this.checkIdleUpgrade(connection);
+      }, this.options.idleUpgradeIntervalMs ?? 30_000);
+      this.idleUpgradeTimer.unref();
+    }
+  }
+
+  private async checkIdleUpgrade(connection: RemoteConnection): Promise<void> {
+    const { target } = this.options.configuration;
+    if (
+      this.idleUpgradeController ||
+      target.kind !== "ssh" ||
+      !this.enabled ||
+      this.disposed ||
+      this.state.status.phase !== "connected" ||
+      this.connection !== connection ||
+      this.runtime?.ownership !== "managed" ||
+      !this.runtime.updatePending
+    )
+      return;
+    const controller = new AbortController();
+    this.idleUpgradeController = controller;
+    const epoch = this.epoch;
+    try {
+      const probe = await this.options.sshTunnelManager.probe(target, controller.signal);
+      if (
+        controller.signal.aborted ||
+        !this.enabled ||
+        this.disposed ||
+        this.epoch !== epoch ||
+        this.connection !== connection ||
+        probe.daemon.running !== true ||
+        !daemonIsIdle(probe.daemon)
+      )
+        return;
+      const refreshEpoch = epoch + 1;
+      await this.disconnect("disconnect");
+      if (!this.disposed && this.epoch === refreshEpoch) await this.connect();
+    } catch {
+    } finally {
+      if (this.idleUpgradeController === controller) this.idleUpgradeController = null;
+    }
   }
 
   private probe(connection: RemoteConnection): void {
@@ -328,9 +397,12 @@ export class EnvironmentSupervisor {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.silentTimer) clearTimeout(this.silentTimer);
+    if (this.idleUpgradeTimer) clearInterval(this.idleUpgradeTimer);
     this.retryTimer = null;
     this.heartbeatTimer = null;
     this.silentTimer = null;
+    this.idleUpgradeTimer = null;
+    this.idleUpgradeController?.abort();
   }
 
   private releaseConnection(): void {

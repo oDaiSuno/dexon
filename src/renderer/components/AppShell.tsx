@@ -18,13 +18,12 @@ import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
 import { useSessionInfo } from "./app-shell/use-session-info";
 import { TopBar } from "./app-shell/top-bar";
-import { NavigationSidebar } from "./app-shell/navigation-sidebar";
+import { NavigationSidebar, useSidebarNavigation } from "./app-shell/navigation-sidebar";
 import { useSettingsDialog } from "./app-shell/use-settings-dialog";
-import type { NavPage } from "./app-nav/nav-sidebar";
 import { ChatPlaceholder } from "./app-shell/chat-placeholder";
 import { RightPanelDock } from "./app-shell/right-panel-dock";
 import { RightPanelToggle, useRightPanelToggleFocus } from "./app-shell/right-panel-toggle";
-import { ResourcePage, type ResourceTab, type ResourceView } from "./app-nav/resource-page";
+import { ResourcePage } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useMissingFolderRecovery } from "./app-shell/use-missing-folder-recovery";
 import { useShellSpace } from "./app-shell/use-shell-space";
@@ -41,10 +40,7 @@ export function AppShell({
 }) {
   const isMobile = useIsMobile();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [page, setPage] = useState<NavPage>("chat");
-  const [resourceTab, setResourceTab] = useState<ResourceTab>("plugins");
-  const [resourceView, setResourceView] = useState<ResourceView>("overview");
-  const [remoteOpen, setRemoteOpen] = useState(false);
+  const [activeTopPanel, setActiveTopPanel] = useState<"session" | null>(null);
   useEffect(() => {
     if (isMobile) setSidebarOpen(false);
   }, [isMobile]);
@@ -54,19 +50,42 @@ export function AppShell({
   const readingPositionRegistryRef = useRef(new ReadingPositionRegistry());
   const collapseMobileSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebarForSwitchSession = useCallback(() => setSidebarOpen(true), []);
-  const { settingsOpen, settingsInitialTab, settingsNavigationRequestId, openSettings, closeSettings } =
-    useSettingsDialog();
+  const {
+    settingsOpen,
+    settingsInitialTab,
+    settingsEnvironmentId,
+    settingsNavigationRequestId,
+    openSettings,
+    closeSettings,
+  } = useSettingsDialog();
+  const {
+    page,
+    setPage,
+    resourceTab,
+    setResourceTab,
+    resourceView,
+    setResourceView,
+    resourcesEnvironmentId,
+    setResourcesEnvironmentId,
+    remoteOpen,
+    setRemoteOpen,
+    handleNavigate,
+    openRemote,
+  } = useSidebarNavigation(
+    useCallback(() => {
+      setActiveTopPanel(null);
+      if (isMobile) setSidebarOpen(false);
+      closeSettings();
+    }, [isMobile, closeSettings]),
+  );
   const showChatPage = useCallback(() => {
     closeSettings();
     setRemoteOpen(false);
     setPage("chat");
-  }, [closeSettings]);
+  }, [closeSettings, setPage, setRemoteOpen]);
   const [authorizationSettingsSessionId, setAuthorizationSettingsSessionId] = useState<string | null>(null);
   const [modelsRefreshKey, setModelsRefreshKey] = useState(0);
-  const [activeTopPanel, setActiveTopPanel] = useState<"session" | null>(null);
-  const dismissTopPanel = useCallback(() => {
-    setActiveTopPanel(null);
-  }, []);
+  const dismissTopPanel = useCallback(() => setActiveTopPanel(null), []);
   const toggleTopPanel = useCallback(() => {
     if (isMobile) setSidebarOpen(false);
     setActiveTopPanel((cur) => (cur === "session" ? null : "session"));
@@ -124,17 +143,6 @@ export function AppShell({
     sessionFound: selectedSession !== null,
     sessionCwd: sessionSpaceCwd,
   });
-  const handleNavigate = useCallback(
-    (target: NavPage) => {
-      setActiveTopPanel(null);
-      if (isMobile) setSidebarOpen(false);
-      closeSettings();
-      setRemoteOpen(false);
-      if (target === "resources" && page !== "resources") setResourceView("overview");
-      setPage(target);
-    },
-    [isMobile, closeSettings, page],
-  );
   const handleOpenSettings = useCallback(
     (tab: SettingsTab = "general") => {
       setActiveTopPanel(null);
@@ -143,12 +151,6 @@ export function AppShell({
     },
     [isMobile, openSettings],
   );
-  const openRemote = useCallback(() => {
-    setActiveTopPanel(null);
-    closeSettings();
-    setPage("resources");
-    setRemoteOpen(true);
-  }, [closeSettings]);
   const openResources = useCallback(() => handleNavigate("resources"), [handleNavigate]);
   const openModelSettings = useCallback(() => {
     setActiveTopPanel(null);
@@ -206,6 +208,14 @@ export function AppShell({
         ? location
         : null;
   const activeLocation = draftLocation ?? location;
+  const settingsTarget =
+    settingsEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
+  const resourcesTarget =
+    resourcesEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
+  const resourcesCwd =
+    activeLocation?.environmentId === resourcesTarget
+      ? activeLocation.path
+      : (workspaceSnapshot.spaces.find((space) => space.environmentId === resourcesTarget)?.path ?? "");
   const dock = useRightPanelDock({
     environmentId,
     isMobile,
@@ -257,6 +267,7 @@ export function AppShell({
   const showPlaceholder = initialSessionRestored && !showChat;
 
   const explorerCwd = activeLocation?.path ?? null;
+  const authorizationRequest = authorization.browserAuthorization;
 
   const previousExplorer = useRef({ environmentId, path: explorerCwd, isMobile });
   useEffect(() => {
@@ -270,18 +281,6 @@ export function AppShell({
 
   return (
     <>
-      <style>{`
-      @media (max-width: 640px) {
-        .sidebar-overlay-backdrop.sidebar-mobile-pending {
-          opacity: 0 !important;
-          pointer-events: none !important;
-        }
-        .sidebar-container.sidebar-mobile-pending.sidebar-open {
-          transform: translateX(-100%);
-          box-shadow: none;
-        }
-      }
-    `}</style>
       <div style={{ display: "flex", height: "100dvh", overflow: "hidden", background: "var(--fx-surface-main)" }}>
         <NavigationSidebar
           isMobile={isMobile}
@@ -327,9 +326,12 @@ export function AppShell({
           )}
           {settingsOpen && (
             <SettingsConfig
-              environmentId={activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId}
-              cwd={activeLocation?.path ?? null}
-              sessionId={authorizationSettingsSessionId ?? selectedSession?.id ?? null}
+              environmentId={settingsTarget}
+              cwd={activeLocation?.environmentId === settingsTarget ? activeLocation.path : null}
+              sessionId={
+                authorizationSettingsSessionId ??
+                (selectedSession?.environmentId === settingsTarget ? selectedSession.id : null)
+              }
               initialTab={settingsInitialTab}
               navigationRequestId={settingsNavigationRequestId}
               onClose={closeSettings}
@@ -383,9 +385,10 @@ export function AppShell({
             <div style={{ flex: 1, overflow: "hidden", position: "relative" }}>
               {onResources && (
                 <ResourcePage
-                  environmentId={activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId}
-                  cwd={activeLocation?.path ?? ""}
-                  sessionId={selectedSession?.id ?? null}
+                  environmentId={resourcesTarget}
+                  onScopeChange={setResourcesEnvironmentId}
+                  cwd={resourcesCwd}
+                  sessionId={selectedSession?.environmentId === resourcesTarget ? selectedSession.id : null}
                   view={resourceView}
                   onViewChange={setResourceView}
                   activeTab={resourceTab}
@@ -475,25 +478,21 @@ export function AppShell({
         />
       </div>
       {folderRecovery.picker}
-      {(() => {
-        const authorizationRequest = authorization.browserAuthorization;
-        if (!authorizationRequest || settingsOpen) return null;
-        return (
-          <BrowserAuthorizationDialog
-            request={authorizationRequest}
-            sessionTitle={
-              selectedSession?.id === authorizationRequest.sessionId
-                ? getSessionDisplayTitle(selectedSession, 240)
-                : authorizationRequest.sessionId
-            }
-            onRespond={authorization.respondToBrowserAuthorization}
-            onManage={() => {
-              setAuthorizationSettingsSessionId(authorizationRequest.sessionId);
-              openSettings("browser");
-            }}
-          />
-        );
-      })()}
+      {authorizationRequest && !settingsOpen && (
+        <BrowserAuthorizationDialog
+          request={authorizationRequest}
+          sessionTitle={
+            selectedSession?.id === authorizationRequest.sessionId
+              ? getSessionDisplayTitle(selectedSession, 240)
+              : authorizationRequest.sessionId
+          }
+          onRespond={authorization.respondToBrowserAuthorization}
+          onManage={() => {
+            setAuthorizationSettingsSessionId(authorizationRequest.sessionId);
+            openSettings("browser");
+          }}
+        />
+      )}
     </>
   );
 }

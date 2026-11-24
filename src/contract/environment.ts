@@ -18,6 +18,8 @@ export interface EnvironmentCapabilities {
   revealInFileManager: boolean;
   managedProcesses: boolean;
   toolchainInstall: boolean;
+  remoteAttachmentUpload?: boolean;
+  portForwarding?: boolean;
 }
 
 export interface EnvironmentDescriptor {
@@ -40,6 +42,7 @@ export interface SshEnvironmentTarget {
   proxyJump?: string;
   remotePort?: number;
   remoteStateDir?: string;
+  stopOnDisconnect?: boolean;
   expectedEnvironmentId?: EnvironmentId;
 }
 

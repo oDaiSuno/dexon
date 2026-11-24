@@ -4,7 +4,20 @@ import { isManagedProcessActiveState } from "@contract/processes";
 import type { EnvironmentId } from "@contract/environment";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { useEnvironments } from "@/lib/environment-registry";
+import { runEnvironmentCommand, useEnvironments, useEnvironmentsSnapshot } from "@/lib/environment-registry";
+import { useI18n } from "@/i18n";
+
+export function remoteLoopbackEndpoint(
+  url: string,
+): { protocol: "http:" | "https:"; remotePort: number; suffix: string } | null {
+  const match = /^(https?):\/\/(localhost|127\.0\.0\.1|\[::1\])(?::(\d+))?([/?#][^\s\\]*)?$/i.exec(url);
+  if (!match) return null;
+  const protocol = match[1].toLowerCase() === "https" ? "https:" : "http:";
+  const remotePort = match[3] === undefined ? (protocol === "https:" ? 443 : 80) : Number(match[3]);
+  return Number.isInteger(remotePort) && remotePort > 0 && remotePort <= 65535
+    ? { protocol, remotePort, suffix: match[4] ?? "" }
+    : null;
+}
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -19,7 +32,14 @@ export function useProcessPanelState({
   onActiveCountChange?: (count: number) => void;
   onOpenBrowser?: () => void;
 }) {
-  const { embeddedBrowser } = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
+  const { t } = useI18n();
+  const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
+  const { embeddedBrowser, isPrimary, portForwarding } = affordances;
+  const portForwards = (useEnvironmentsSnapshot().portForwards ?? []).filter(
+    (entry) => entry.environmentId === environmentId && entry.status === "active",
+  );
+  const scopeRef = useRef({ environmentId });
+  if (scopeRef.current.environmentId !== environmentId) scopeRef.current = { environmentId };
   const [processes, setProcesses] = useState<ManagedProcessPublicInfo[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [records, setRecords] = useState<ManagedProcessLogRecord[]>([]);
@@ -101,6 +121,15 @@ export function useProcessPanelState({
   );
 
   useEffect(() => {
+    const scope = scopeRef.current;
+    setBusy(false);
+    setError(null);
+    return () => {
+      if (scopeRef.current === scope) scopeRef.current = { environmentId };
+    };
+  }, [environmentId]);
+
+  useEffect(() => {
     void refresh();
     let disposed = false;
     let unsubscribe: (() => void) | undefined;
@@ -178,19 +207,64 @@ export function useProcessPanelState({
 
   const openEndpoint = async (process: ManagedProcessPublicInfo, url: string) => {
     if (!embeddedBrowser) return;
+    const endpoint = isPrimary ? null : remoteLoopbackEndpoint(url);
+    if (!isPrimary && (!portForwarding || !endpoint)) return;
+    const scope = scopeRef.current;
     setBusy(true);
+    setError(null);
     try {
+      let previewUrl = url;
+      if (endpoint) {
+        const entry = await runEnvironmentCommand({
+          type: "open-port-forward",
+          environmentId,
+          remotePort: endpoint.remotePort,
+          processId: process.processId,
+          label: process.label,
+        });
+        if (scopeRef.current !== scope) return;
+        if (
+          entry.status !== "active" ||
+          entry.environmentId !== environmentId ||
+          entry.remotePort !== endpoint.remotePort
+        ) {
+          throw new Error("Forwarded preview is not active");
+        }
+        const base = new URL(entry.localUrl);
+        previewUrl = `${endpoint.protocol}//${base.host}${endpoint.suffix.startsWith("/") ? "" : "/"}${endpoint.suffix}`;
+      }
       const tab = await window.piBridge.browserCreateUserTab({
-        url,
+        url: previewUrl,
         ownerSessionId: process.ownerSessionId,
         activate: true,
       });
+      if (scopeRef.current !== scope) return;
       window.dispatchEvent(new CustomEvent("dexon:open-browser-tab", { detail: { tabId: tab.id } }));
       onOpenBrowser?.();
     } catch (cause) {
-      setError(messageOf(cause));
+      if (scopeRef.current === scope) {
+        setError(
+          isPrimary
+            ? messageOf(cause)
+            : t("remoteForwardOpenFailed", "Could not open the forwarded preview. Try again."),
+        );
+      }
     } finally {
-      setBusy(false);
+      if (scopeRef.current === scope) setBusy(false);
+    }
+  };
+
+  const closeForward = async (remotePort: number) => {
+    if (!portForwarding) return;
+    const scope = scopeRef.current;
+    setBusy(true);
+    setError(null);
+    try {
+      await runEnvironmentCommand({ type: "close-port-forward", environmentId, remotePort });
+    } catch (cause) {
+      if (scopeRef.current === scope) setError(messageOf(cause));
+    } finally {
+      if (scopeRef.current === scope) setBusy(false);
     }
   };
 
@@ -210,5 +284,8 @@ export function useProcessPanelState({
     readMore,
     invoke,
     openEndpoint,
+    closeForward,
+    portForwards,
+    affordances,
   };
 }

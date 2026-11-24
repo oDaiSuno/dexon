@@ -1,5 +1,5 @@
-import { useId, useState, type FormEvent } from "react";
-import type { DiscoveredSshHost } from "@contract/environment-commands";
+import { useId, useRef, useState, type FormEvent } from "react";
+import type { DiscoveredSshHost, ProbeReport } from "@contract/environment-commands";
 import type { EnvironmentView } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { useEnvironmentsSnapshot } from "@/lib/environment-registry";
@@ -8,6 +8,7 @@ import { Button } from "../../form-controls";
 import { ModelDialogShell } from "../../models/model-dialog-shell";
 import { createServerDraft, toEnvironmentDraft } from "./server-draft";
 import { ServerForm } from "./server-form";
+import { ServerTestReport } from "./server-test-report";
 import { SshHostList } from "./ssh-host-list";
 import { ProvisioningSteps } from "./provisioning-steps";
 import { ServerDiagnosisCard } from "./server-diagnosis-card";
@@ -29,10 +30,13 @@ export function AddServerDialog({
 }) {
   const { t } = useI18n();
   const formId = useId();
+  const formRef = useRef<HTMLFormElement>(null);
   const { environments } = useEnvironmentsSnapshot();
   const { run, pending, error } = useServerActions();
   const [tab, setTab] = useState<AddServerTab>(initialTab);
   const [draft, setDraft] = useState(createServerDraft);
+  const [report, setReport] = useState<ProbeReport | null>(null);
+  const [focusedField, setFocusedField] = useState<"remoteStateDir">();
   const [created, setCreated] = useState<EnvironmentView | null>(null);
   const current = environments.find((view) => view.id === created?.id) ?? created;
   const presentation = current ? presentConnection(current, Date.now()) : null;
@@ -41,10 +45,16 @@ export function AddServerDialog({
   const connectHost = async (host: DiscoveredSshHost) => {
     const result = await run({
       type: "add",
-      draft: { label: host.alias, target: { kind: "ssh", sshAlias: host.alias } },
+      draft: { label: host.alias, target: { kind: "ssh", sshAlias: host.alias, stopOnDisconnect: false } },
       connect: true,
     });
     if (result.ok) setCreated(result.value);
+  };
+  const testConnection = async () => {
+    if (!formRef.current?.reportValidity()) return;
+    setReport(null);
+    const result = await run({ type: "test", subject: { draft: toEnvironmentDraft(draft) } });
+    if (result.ok) setReport(result.value);
   };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,9 +95,20 @@ export function AddServerDialog({
             {created || tab === "ssh-config" ? t("close", "Close") : t("cancel", "Cancel")}
           </Button>
           {!created && tab === "manual" && (
-            <Button type="submit" form={formId} variant="primary" disabled={Boolean(pending)} busy={pending === "add"}>
-              {t("serversAddConnect", "Add and connect")}
-            </Button>
+            <>
+              <Button disabled={Boolean(pending)} busy={pending === "test"} onClick={() => void testConnection()}>
+                {t("serversTestConnection", "Test connection")}
+              </Button>
+              <Button
+                type="submit"
+                form={formId}
+                variant="primary"
+                disabled={Boolean(pending)}
+                busy={pending === "add"}
+              >
+                {t("serversAddConnect", "Add and connect")}
+              </Button>
+            </>
           )}
           {current && presentation?.canSend && onOpenProject && (
             <Button variant="primary" onClick={() => onOpenProject(current.id)}>
@@ -107,7 +128,10 @@ export function AddServerDialog({
               { value: "ssh-config", label: t("serversSshConfigTab", "From local SSH config (recommended)") },
               { value: "manual", label: t("serversManualTab", "Enter connection details") },
             ]}
-            onChange={setTab}
+            onChange={(next) => {
+              setTab(next);
+              setReport(null);
+            }}
           />
         )}
         {current && presentation ? (
@@ -138,11 +162,39 @@ export function AddServerDialog({
             onManual={() => setTab("manual")}
           />
         ) : (
-          <form id={formId} onSubmit={submit} autoComplete="off">
-            <fieldset disabled={Boolean(pending)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
-              <ServerForm draft={draft} onChange={setDraft} />
-            </fieldset>
-          </form>
+          <>
+            <form ref={formRef} id={formId} onSubmit={submit} autoComplete="off">
+              <fieldset disabled={Boolean(pending)} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+                <ServerForm
+                  draft={draft}
+                  focusField={focusedField}
+                  onChange={(next) => {
+                    setDraft(next);
+                    setReport(null);
+                  }}
+                />
+              </fieldset>
+            </form>
+            {report && (
+              <ServerTestReport
+                report={report}
+                view={{
+                  id: "draft",
+                  label: draft.label,
+                  enabled: true,
+                  target: toEnvironmentDraft(draft).target,
+                  status: { phase: "offline", lastFailure: null },
+                  descriptor: null,
+                }}
+                onEdit={(_field, value) => {
+                  if (draft.kind !== "ssh") return;
+                  setDraft({ ...draft, remoteStateDir: value });
+                  setFocusedField("remoteStateDir");
+                  setReport(null);
+                }}
+              />
+            )}
+          </>
         )}
         <ServerActionError error={error} />
       </div>

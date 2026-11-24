@@ -14,6 +14,13 @@ interface FileInspection {
   insideCwd: boolean;
 }
 
+interface RemoteUpload {
+  id: number;
+  file: File;
+  status: "uploading" | "failed";
+  message?: string;
+}
+
 type Translate = (key: string, fallback: string) => string;
 
 interface Options {
@@ -44,6 +51,14 @@ function extensionForImageMime(mimeType: string): string | null {
   }
 }
 
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return btoa(binary);
+}
+
 export function useComposerAttachments({
   environmentId,
   sessionId,
@@ -64,6 +79,16 @@ export function useComposerAttachments({
   const [inspections, setInspections] = useState({ scope, paths: new Map<string, FileInspection>() });
   const [previews, setPreviews] = useState({ scope, paths: new Map<string, string | null>() });
   const [processing, setProcessing] = useState({ scope, count: 0 });
+  const [remoteUploads, setRemoteUploads] = useState<{ scope: typeof scope; files: RemoteUpload[] }>({
+    scope,
+    files: [],
+  });
+  const [remoteNotice, setRemoteNotice] = useState<{ scope: typeof scope; message: string | null }>({
+    scope,
+    message: null,
+  });
+  const uploadSequence = useRef(0);
+  const activeUploads = useRef(new Set<number>());
 
   useEffect(() => {
     currentScope.current = scope;
@@ -130,9 +155,133 @@ export function useComposerAttachments({
     [editableRef, environmentId, scope],
   );
 
+  const stageRemoteFile = useCallback(
+    async ({ id, file }: RemoteUpload) => {
+      if (currentScope.current !== scope || activeUploads.current.has(id)) return;
+      activeUploads.current.add(id);
+      setRemoteUploads((current) => ({
+        scope,
+        files: (current.scope === scope ? current.files : []).map((upload) =>
+          upload.id === id ? { ...upload, status: "uploading", message: undefined } : upload,
+        ),
+      }));
+      let previewUrl: string | undefined;
+      try {
+        const stage = window.piBridge?.stageRemoteAttachment;
+        if (!stage)
+          throw new Error(
+            t(
+              "remoteAttachmentUploadUnsupported",
+              "This server does not support attachment uploads. Your draft was kept.",
+            ),
+          );
+        let name = file.name;
+        let mime = file.type || "application/octet-stream";
+        let base64: string;
+        if (file.type.startsWith("image/")) {
+          const { images, failures } = await processImageFileBatch([file]);
+          const image = images[0];
+          previewUrl = image?.previewUrl;
+          if (currentScope.current !== scope) return;
+          if (!image) throw failures[0]?.error;
+          mime = image.mimeType;
+          base64 = image.data;
+          name = `${file.name.replace(/\.[^.]*$/, "") || "image"}.${extensionForImageMime(mime) ?? "png"}`;
+        } else {
+          const maxBytes = 25 * 1024 * 1024;
+          if (file.size > maxBytes) throw new Error(t("remoteAttachmentTooLarge", "Files must be 25 MiB or smaller."));
+          const bytes = new Uint8Array(await file.arrayBuffer());
+          if (currentScope.current !== scope) return;
+          if (bytes.byteLength > maxBytes)
+            throw new Error(t("remoteAttachmentTooLarge", "Files must be 25 MiB or smaller."));
+          base64 = bytesToBase64(bytes);
+        }
+        const result = await stage({ environmentId, name, mime, base64 });
+        if (currentScope.current !== scope) return;
+        if (!result?.ok) throw new Error(result?.message);
+        if (previewUrl) {
+          registerStagedPreviewUrl(result.staged.path, previewUrl, environmentId);
+          previewUrl = undefined;
+        }
+        insertAttachmentPath(result.staged.path);
+        setRemoteUploads((current) =>
+          current.scope === scope ? { scope, files: current.files.filter((upload) => upload.id !== id) } : current,
+        );
+      } catch (error) {
+        if (currentScope.current !== scope) return;
+        const message =
+          error instanceof Error && error.message
+            ? error.message
+            : t("remoteAttachmentUploadError", "Attachment upload failed. Your draft was kept.");
+        setRemoteUploads((current) =>
+          current.scope === scope
+            ? {
+                scope,
+                files: current.files.map((upload) =>
+                  upload.id === id ? { ...upload, status: "failed", message } : upload,
+                ),
+              }
+            : current,
+        );
+      } finally {
+        activeUploads.current.delete(id);
+        if (previewUrl) URL.revokeObjectURL(previewUrl);
+      }
+    },
+    [environmentId, insertAttachmentPath, scope, t],
+  );
+
+  const stageRemoteFiles = useCallback(
+    async (files: File[]) => {
+      if (!window.piBridge?.stageRemoteAttachment) {
+        setRemoteNotice({
+          scope,
+          message: t(
+            "remoteAttachmentUploadUnsupported",
+            "This server does not support attachment uploads. Your draft was kept.",
+          ),
+        });
+        return;
+      }
+      setRemoteNotice({
+        scope,
+        message:
+          files.length > 4
+            ? t(
+                "remoteAttachmentBatchLimit",
+                "You can upload up to 4 files at a time. Add the remaining files in another batch.",
+              )
+            : null,
+      });
+      const uploads = files
+        .slice(0, 4)
+        .map((file): RemoteUpload => ({ id: ++uploadSequence.current, file, status: "uploading" }));
+      setRemoteUploads((current) => ({
+        scope,
+        files: [...(current.scope === scope ? current.files : []), ...uploads],
+      }));
+      for (const upload of uploads) {
+        if (currentScope.current !== scope) return;
+        await stageRemoteFile(upload);
+      }
+    },
+    [scope, stageRemoteFile, t],
+  );
+
+  const retryRemoteUpload = useCallback(
+    (id: number) => {
+      if (!visible || !affordances.remoteAttachmentUpload || remoteUploads.scope !== scope) return;
+      const upload = remoteUploads.files.find((entry) => entry.id === id && entry.status === "failed");
+      if (upload) void stageRemoteFile(upload);
+    },
+    [affordances.remoteAttachmentUpload, remoteUploads, scope, stageRemoteFile, visible],
+  );
+
   const processFiles = useCallback(
     async (files: File[]) => {
-      if (!visible || !affordances.attachLocalFiles || currentScope.current !== scope) return;
+      if (!visible || currentScope.current !== scope) return;
+      if (affordances.remoteAttachmentUpload) return stageRemoteFiles(files);
+      if (!affordances.attachLocalFiles) return;
       setProcessing((current) => ({ scope, count: (current.scope === scope ? current.count : 0) + 1 }));
       try {
         const notices: string[] = [];
@@ -212,6 +361,8 @@ export function useComposerAttachments({
       t,
       visible,
       affordances.attachLocalFiles,
+      affordances.remoteAttachmentUpload,
+      stageRemoteFiles,
       scope,
     ],
   );
@@ -246,7 +397,7 @@ export function useComposerAttachments({
     void window.piBridge
       .inspectLocalFiles({ paths: tokenPaths.slice(0, 8), cwd: cwd ?? undefined })
       .then((inspections) => {
-        if (cancelled) return;
+        if (cancelled || currentScope.current !== scope) return;
         const next = new Map<string, FileInspection>();
         inspections.forEach((inspection, index) => {
           const tokenPath = tokenPaths[index];
@@ -255,7 +406,7 @@ export function useComposerAttachments({
         setInspections({ scope, paths: next });
       })
       .catch(() => {
-        if (!cancelled) setInspections({ scope, paths: new Map() });
+        if (!cancelled && currentScope.current === scope) setInspections({ scope, paths: new Map() });
       });
     return () => {
       cancelled = true;
@@ -274,18 +425,33 @@ export function useComposerAttachments({
         async (path) => [path, await loadAttachmentPreview(path, sessionId ?? undefined, environmentId)] as const,
       ),
     ).then((entries) => {
-      if (!cancelled) setPreviews({ scope, paths: new Map(entries) });
+      if (!cancelled && currentScope.current === scope) setPreviews({ scope, paths: new Map(entries) });
     });
     return () => {
       cancelled = true;
     };
   }, [environmentId, sessionId, scope, tokenPaths, visible]);
 
+  const scopedRemoteUploads = remoteUploads.scope === scope ? remoteUploads.files : [];
+  const remoteUploadDestination = environments.find((view) => view.id === environmentId)?.label ?? environmentId;
+  const uploadingLabel = t("remoteAttachmentUploading", "Uploading to {environment}").replace(
+    "{environment}",
+    remoteUploadDestination,
+  );
+
   return {
     attachmentTokens,
     missingTokenInspections,
     tokenPreviewsByPath,
     isProcessingImages: processing.scope === scope && processing.count > 0,
+    remoteUploads: scopedRemoteUploads,
+    remoteUploadSendGate: scopedRemoteUploads.some((upload) => upload.status === "uploading")
+      ? { allowed: false, label: uploadingLabel, hint: uploadingLabel }
+      : undefined,
+    remoteUploadNotice: remoteNotice.scope === scope ? remoteNotice.message : null,
+    dismissRemoteUploadNotice: () => setRemoteNotice({ scope, message: null }),
+    remoteUploadDestination,
+    retryRemoteUpload,
     revealToken,
     insertAttachmentPath,
     processFiles,

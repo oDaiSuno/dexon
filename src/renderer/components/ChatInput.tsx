@@ -7,6 +7,7 @@ import { useSendGate } from "@/lib/space-attribution";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { modelSupportsImages } from "@/lib/model-selection";
 import { ComposerView } from "./chat-input/composer-view";
+import { Button } from "./form-controls";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
 import { buildPromptHistory, localCommandsFor, recordLocalCommand } from "./chat-input/prompt-history";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
@@ -99,7 +100,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     "missingSessionFolderReadOnly",
     "The original project folder no longer exists. This historical conversation is protected as read-only.",
   );
-  const sendGate = sessionFolderMissing
+  const environmentGate = sessionFolderMissing
     ? { allowed: false, label: missingFolderHint, hint: missingFolderHint }
     : environmentSendGate;
   const editableRef = useRef<ComposerEditableHandle | null>(null);
@@ -130,6 +131,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     t,
     onImageNotice: setImageAttachNotice,
   });
+  const sendGate = environmentGate.allowed ? (attachments.remoteUploadSendGate ?? environmentGate) : environmentGate;
 
   const handleAbort = useCallback(() => {
     if (visible) onAbort();
@@ -307,13 +309,13 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     : null;
 
   const openPicker = useCallback(() => {
-    if (!visible || !affordances.attachLocalFiles) return;
+    if (!visible || (!affordances.attachLocalFiles && !affordances.remoteAttachmentUpload)) return;
     closePlusMenu();
     const input = fileInputRef.current;
     if (!input) return;
     input.removeAttribute("accept");
     input.click();
-  }, [closePlusMenu, visible, affordances.attachLocalFiles]);
+  }, [closePlusMenu, visible, affordances.attachLocalFiles, affordances.remoteAttachmentUpload]);
   const handleModelPick = useCallback(
     (provider: string, modelId: string, isActive: boolean) => {
       if (!visible) return;
@@ -340,116 +342,152 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   useComposerHandle(ref, { editableRef, draft, suggestions, attachments, visible });
 
   return (
-    <ComposerView
-      environmentId={environmentId}
-      sendGate={sendGate}
-      sessionFolderMissing={sessionFolderMissing}
-      missingFolderRecovery={missingFolderRecovery}
-      rootRef={inputRootRef}
-      visible={visible}
-      isMobile={isMobile}
-      isStreaming={isStreaming}
-      hasSteering={Boolean(onSteer)}
-      onFollowUp={onFollowUp}
-      value={draft.shown}
-      restoreCaret={draft.restoreCaret}
-      editableRef={editableRef}
-      fileInputRef={fileInputRef}
-      processFiles={attachments.processFiles}
-      onSend={() => void handleSend()}
-      onAbort={handleAbort}
-      onQueue={() => void sendQueued()}
-      onChange={handleComposerChange}
-      onKeyDown={keys.onKeyDown}
-      onPaste={attachments.handlePaste}
-      onCompositionStart={keys.onCompositionStart}
-      onCompositionEnd={keys.onCompositionEnd}
-      tokenPreviewsByPath={attachments.tokenPreviewsByPath}
-      missingTokenInspections={attachments.missingTokenInspections}
-      onRevealToken={attachments.revealToken}
-      onSkillReveal={skills.revealSkill}
-      onJumpQuote={onJumpQuote}
-      jumpingQuoteKey={jumpingQuoteKey}
-      detachedQuoteKeys={detachedQuoteKeys}
-      skillsByName={skillCatalog.byName}
-      attachmentTokens={attachments.attachmentTokens}
-      onOpenPicker={openPicker}
-      plusMenuOpen={skills.plusMenuOpen}
-      onTogglePlusMenu={() => {
-        suggestions.dismiss();
-        skills.openPlusMenu();
-      }}
-      onOpenSkillPicker={skills.openSkillPicker}
-      remotePanelOpen={skills.remotePanelOpen}
-      onOpenRemotePanel={skills.openRemotePanel}
-      onBackToPlusMenu={skills.backToPlusMenu}
-      onCloseMenus={skills.closeTransientMenus}
-      remote={remote}
-      navigation={navigation}
-      skills={skillCatalog.skills}
-      skillsLoading={skillCatalog.status === "loading"}
-      skillsError={skillCatalog.status === "error"}
-      onPickSkill={skills.pickSkill}
-      onRetrySkills={skillCatalog.refresh}
-      skillPickerOpen={skills.skillPickerOpen}
-      skillRevealName={skills.skillRevealName}
-      onCloseSkillPicker={skills.closeTransientMenus}
-      onCloseSkillReveal={() => skills.setSkillRevealName(null)}
-      slashMenu={suggestions.slashMenu}
-      atMenuOpen={suggestions.atMenuOpen}
-      atQuery={suggestions.atQuery}
-      atSuggestionState={suggestions.activeSuggestionState}
-      atMatches={suggestions.atMatches}
-      atActiveIndex={suggestions.atActiveIndex}
-      atItemRefs={suggestions.atItemRefs}
-      onApplyAt={suggestions.applyAtCompletion}
-      onHoverAt={suggestions.setAtActiveIndex}
-      imageAttachNotice={imageAttachNotice}
-      onDismissImageNotice={() => setImageAttachNotice(null)}
-      submissionNotice={draft.submissionNotice}
-      onDismissSubmissionNotice={draft.dismissSubmissionNotice}
-      onResendSubmission={() => void handleSend()}
-      queuedMessages={queuedMessages}
-      onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}
-      compactResult={compactResult}
-      onDismissCompactResult={() => onDismissCompactResult?.()}
-      model={model}
-      modelOptionsByProvider={modelOptionsByProvider}
-      currentModelName={currentModelName}
-      modelCatalog={modelCatalog}
-      modelCatalogScope={modelCatalogScope}
-      modelLoading={modelLoading}
-      modelReconnecting={modelReconnecting}
-      modelLoadError={modelLoadError}
-      modelRefreshing={modelRefreshing}
-      modelDropdownOpen={modelDropdownOpen}
-      onToggleModelDropdown={toggleModelDropdown}
-      modelButtonRef={modelButtonRef}
-      modelContainerRef={dropdownRef}
-      modelPanelRef={modelDropdownPanelRef}
-      modelDropdownRect={modelDropdownRect}
-      onModelChange={onModelChange}
-      onModelsRefresh={onModelsRefresh}
-      onModelPick={handleModelPick}
-      onCloseModelDropdown={closeModelDropdown}
-      onManageModels={handleManageModels}
-      isAutoModelSelection={isAutoModelSelection}
-      onOpenUsage={onOpenUsage}
-      isCompacting={isCompacting}
-      compactError={compactError}
-      contextUsage={contextUsage}
-      thinkingLevel={thinkingLevel}
-      onThinkingLevelChange={onThinkingLevelChange}
-      availableThinkingLevels={availableThinkingLevels}
-      thinkingLevelMap={thinkingLevelMap}
-      thinkingDropdownOpen={thinkingDropdownOpen}
-      onToggleThinkingDropdown={toggleThinkingDropdown}
-      thinkingContainerRef={thinkingDropdownRef}
-      thinkingButtonRef={thinkingButtonRef}
-      closeControlDropdowns={closeControlDropdowns}
-      soundEnabled={soundEnabled}
-      onSoundToggle={onSoundToggle}
-      workspace={workspace}
-    />
+    <>
+      {visible && attachments.remoteUploads.length > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="type-label-default"
+          style={{
+            display: "grid",
+            gap: "var(--space-1)",
+            padding: "var(--space-2) var(--space-3)",
+            color: "var(--fx-text-secondary)",
+          }}
+        >
+          {attachments.remoteUploads.map((upload) => (
+            <div key={upload.id} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
+                {upload.file.name} ·{" "}
+                {(upload.status === "uploading"
+                  ? t("remoteAttachmentUploading", "Uploading to {environment}")
+                  : t("remoteAttachmentUploadFailed", "Upload to {environment} failed")
+                ).replace("{environment}", attachments.remoteUploadDestination)}
+                {upload.message && ` · ${upload.message}`}
+              </span>
+              {upload.status === "failed" && (
+                <Button variant="ghost" onClick={() => attachments.retryRemoteUpload(upload.id)}>
+                  {t("retry", "Retry")}
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <ComposerView
+        environmentId={environmentId}
+        sendGate={sendGate}
+        sessionFolderMissing={sessionFolderMissing}
+        missingFolderRecovery={missingFolderRecovery}
+        rootRef={inputRootRef}
+        visible={visible}
+        isMobile={isMobile}
+        isStreaming={isStreaming}
+        hasSteering={Boolean(onSteer)}
+        onFollowUp={onFollowUp}
+        value={draft.shown}
+        restoreCaret={draft.restoreCaret}
+        editableRef={editableRef}
+        fileInputRef={fileInputRef}
+        processFiles={attachments.processFiles}
+        onSend={() => void handleSend()}
+        onAbort={handleAbort}
+        onQueue={() => void sendQueued()}
+        onChange={handleComposerChange}
+        onKeyDown={keys.onKeyDown}
+        onPaste={attachments.handlePaste}
+        onCompositionStart={keys.onCompositionStart}
+        onCompositionEnd={keys.onCompositionEnd}
+        tokenPreviewsByPath={attachments.tokenPreviewsByPath}
+        missingTokenInspections={attachments.missingTokenInspections}
+        onRevealToken={attachments.revealToken}
+        onSkillReveal={skills.revealSkill}
+        onJumpQuote={onJumpQuote}
+        jumpingQuoteKey={jumpingQuoteKey}
+        detachedQuoteKeys={detachedQuoteKeys}
+        skillsByName={skillCatalog.byName}
+        attachmentTokens={attachments.attachmentTokens}
+        onOpenPicker={openPicker}
+        plusMenuOpen={skills.plusMenuOpen}
+        onTogglePlusMenu={() => {
+          suggestions.dismiss();
+          skills.openPlusMenu();
+        }}
+        onOpenSkillPicker={skills.openSkillPicker}
+        remotePanelOpen={skills.remotePanelOpen}
+        onOpenRemotePanel={skills.openRemotePanel}
+        onBackToPlusMenu={skills.backToPlusMenu}
+        onCloseMenus={skills.closeTransientMenus}
+        remote={remote}
+        navigation={navigation}
+        skills={skillCatalog.skills}
+        skillsLoading={skillCatalog.status === "loading"}
+        skillsError={skillCatalog.status === "error"}
+        onPickSkill={skills.pickSkill}
+        onRetrySkills={skillCatalog.refresh}
+        skillPickerOpen={skills.skillPickerOpen}
+        skillRevealName={skills.skillRevealName}
+        onCloseSkillPicker={skills.closeTransientMenus}
+        onCloseSkillReveal={() => skills.setSkillRevealName(null)}
+        slashMenu={suggestions.slashMenu}
+        atMenuOpen={suggestions.atMenuOpen}
+        atQuery={suggestions.atQuery}
+        atSuggestionState={suggestions.activeSuggestionState}
+        atMatches={suggestions.atMatches}
+        atActiveIndex={suggestions.atActiveIndex}
+        atItemRefs={suggestions.atItemRefs}
+        onApplyAt={suggestions.applyAtCompletion}
+        onHoverAt={suggestions.setAtActiveIndex}
+        imageAttachNotice={attachments.remoteUploadNotice ?? imageAttachNotice}
+        onDismissImageNotice={() => {
+          attachments.dismissRemoteUploadNotice();
+          setImageAttachNotice(null);
+        }}
+        submissionNotice={draft.submissionNotice}
+        onDismissSubmissionNotice={draft.dismissSubmissionNotice}
+        onResendSubmission={() => void handleSend()}
+        queuedMessages={queuedMessages}
+        onRecallQueue={onRecallQueue ? handleRecallQueue : undefined}
+        compactResult={compactResult}
+        onDismissCompactResult={() => onDismissCompactResult?.()}
+        model={model}
+        modelOptionsByProvider={modelOptionsByProvider}
+        currentModelName={currentModelName}
+        modelCatalog={modelCatalog}
+        modelCatalogScope={modelCatalogScope}
+        modelLoading={modelLoading}
+        modelReconnecting={modelReconnecting}
+        modelLoadError={modelLoadError}
+        modelRefreshing={modelRefreshing}
+        modelDropdownOpen={modelDropdownOpen}
+        onToggleModelDropdown={toggleModelDropdown}
+        modelButtonRef={modelButtonRef}
+        modelContainerRef={dropdownRef}
+        modelPanelRef={modelDropdownPanelRef}
+        modelDropdownRect={modelDropdownRect}
+        onModelChange={onModelChange}
+        onModelsRefresh={onModelsRefresh}
+        onModelPick={handleModelPick}
+        onCloseModelDropdown={closeModelDropdown}
+        onManageModels={handleManageModels}
+        isAutoModelSelection={isAutoModelSelection}
+        onOpenUsage={onOpenUsage}
+        isCompacting={isCompacting}
+        compactError={compactError}
+        contextUsage={contextUsage}
+        thinkingLevel={thinkingLevel}
+        onThinkingLevelChange={onThinkingLevelChange}
+        availableThinkingLevels={availableThinkingLevels}
+        thinkingLevelMap={thinkingLevelMap}
+        thinkingDropdownOpen={thinkingDropdownOpen}
+        onToggleThinkingDropdown={toggleThinkingDropdown}
+        thinkingContainerRef={thinkingDropdownRef}
+        thinkingButtonRef={thinkingButtonRef}
+        closeControlDropdowns={closeControlDropdowns}
+        soundEnabled={soundEnabled}
+        onSoundToggle={onSoundToggle}
+        workspace={workspace}
+      />
+    </>
   );
 });

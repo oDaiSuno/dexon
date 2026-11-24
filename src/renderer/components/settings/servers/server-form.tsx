@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type InputHTMLAttributes } from "react";
 import { useI18n } from "@/i18n";
+import { Toggle } from "../../form-controls";
 import { ServerTabs } from "./server-ui";
 import { createServerDraft, type ServerDraft } from "./server-draft";
 
@@ -48,6 +49,8 @@ export function ServerForm({
   focusField?: "remoteStateDir";
 }) {
   const { t } = useI18n();
+  const shutdownId = useId();
+  const shutdownHelpId = useId();
   const [advanced, setAdvanced] = useState(Boolean(focusField));
   const directoryRef = useRef<HTMLInputElement>(null);
 
@@ -155,15 +158,6 @@ export function ServerForm({
                 onValue={(port) => onChange({ ...draft, port })}
               />
               <ServerInput
-                label={t("serversRemotePort", "Remote service port")}
-                value={draft.remotePort}
-                type="number"
-                min={1}
-                max={65535}
-                step={1}
-                onValue={(remotePort) => onChange({ ...draft, remotePort })}
-              />
-              <ServerInput
                 label={t("serversIdentityFile", "Identity file")}
                 value={draft.identityFile}
                 placeholder={t("serversIdentityFileExample", "~/.ssh/id_ed25519")}
@@ -182,6 +176,38 @@ export function ServerForm({
                   placeholder={t("serversRemoteStateDirExample", "~/.dexon")}
                   onValue={(remoteStateDir) => onChange({ ...draft, remoteStateDir })}
                 />
+              </div>
+              <div style={{ gridColumn: "1 / -1", display: "grid", gap: "var(--space-2)" }}>
+                <label
+                  htmlFor={shutdownId}
+                  className="type-label-medium"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "var(--space-3)",
+                    color: "var(--fx-text-primary)",
+                  }}
+                >
+                  <span style={{ flex: 1 }}>
+                    {t("schemeCServersStopOnDisconnect", "Stop the remote service on disconnect or exit")}
+                  </span>
+                  <Toggle
+                    id={shutdownId}
+                    aria-describedby={shutdownHelpId}
+                    checked={draft.stopOnDisconnect}
+                    onChange={(event) => onChange({ ...draft, stopOnDisconnect: event.target.checked })}
+                  />
+                </label>
+                <p
+                  id={shutdownHelpId}
+                  className="type-label-default"
+                  style={{ margin: 0, color: "var(--fx-text-tertiary)" }}
+                >
+                  {t(
+                    "schemeCServersStopOnDisconnectHelp",
+                    "For temporary rented machines. Off by default so remote tasks keep running when you disconnect or quit Dexon.",
+                  )}
+                </p>
               </div>
             </div>
           </details>

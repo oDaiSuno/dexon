@@ -3,6 +3,7 @@ import type { EnvironmentView } from "@contract/environment";
 import type { ProbeReport } from "@contract/environment-commands";
 import { useI18n } from "@/i18n";
 import { workspaceStore } from "@/lib/workspace-store";
+import { useEnvironmentsSnapshot } from "@/lib/environment-registry";
 import { Button } from "../../form-controls";
 import { ModelDialogShell } from "../../models/model-dialog-shell";
 import { createServerDraft, toEnvironmentDraft } from "./server-draft";
@@ -10,6 +11,8 @@ import { ServerForm } from "./server-form";
 import { ServerTestReport } from "./server-test-report";
 import { ServerActionError, ServerFooter, ServerIcon, serverStackStyle } from "./server-ui";
 import { useServerActions } from "./use-server-actions";
+import { serverDaemonControl } from "./server-daemon-control";
+import { ServerRestartConfirmation, ServerRuntimeDetails } from "./server-runtime-tools";
 
 export function EditServerDialog({
   view,
@@ -25,9 +28,12 @@ export function EditServerDialog({
   suggestedValue?: string;
 }) {
   const { t } = useI18n();
+  const { policy } = useEnvironmentsSnapshot();
   const formId = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const [report, setReport] = useState<ProbeReport | null>(null);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const canRestart = serverDaemonControl(view) === "managed";
   const [testTokenRequired, setTestTokenRequired] = useState(false);
   const [focusedField, setFocusedField] = useState(focusField);
   const workspace = useSyncExternalStore(
@@ -37,7 +43,7 @@ export function EditServerDialog({
   );
   const spaces = workspace.spaces.filter((space) => space.environmentId === view.id);
   const [draft, setDraft] = useState(() => {
-    const initial = createServerDraft(view);
+    const initial = createServerDraft(view, !policy.detachedDaemon);
     return initial.kind === "ssh" && focusField && suggestedValue
       ? { ...initial, remoteStateDir: suggestedValue }
       : initial;
@@ -72,6 +78,14 @@ export function EditServerDialog({
     }
     onClose();
   };
+  const restart = async () => {
+    if (!canRestart) return;
+    const result = await run({ type: "restart-daemon", environmentId: view.id });
+    if (result.ok) {
+      setConfirmRestart(false);
+      setReport(null);
+    }
+  };
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     void save(false);
@@ -79,7 +93,7 @@ export function EditServerDialog({
   return (
     <ModelDialogShell
       width={624}
-      dirty={JSON.stringify(draft) !== JSON.stringify(createServerDraft(view))}
+      dirty={JSON.stringify(draft) !== JSON.stringify(createServerDraft(view, !policy.detachedDaemon))}
       title={t("serversEditTitle", "Edit remote server")}
       subtitle={view.label}
       leading={<ServerIcon />}
@@ -129,11 +143,24 @@ export function EditServerDialog({
             />
           </fieldset>
         </form>
-        <div>
+        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
           <Button disabled={Boolean(pending)} busy={pending === "test"} onClick={() => void testConnection()}>
             {t("serversTestConnection", "Test connection")}
           </Button>
+          {canRestart && (
+            <Button disabled={Boolean(pending)} variant="ghost" onClick={() => setConfirmRestart(true)}>
+              {t("schemeCRestartDaemon", "Restart remote daemon")}
+            </Button>
+          )}
         </div>
+        {confirmRestart && canRestart && (
+          <ServerRestartConfirmation
+            pending={Boolean(pending)}
+            onCancel={() => setConfirmRestart(false)}
+            onConfirm={() => void restart()}
+          />
+        )}
+        <ServerRuntimeDetails view={view} />
         {report && (
           <ServerTestReport
             report={report}

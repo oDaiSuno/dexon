@@ -1,7 +1,11 @@
+import { useState } from "react";
 import type { EnvironmentView } from "@contract/environment";
 import { useI18n } from "@/i18n";
 import { presentConnection } from "@/lib/connection-presentation";
 import { useConnectionLabel } from "@/lib/connection-labels";
+import { requestResources, requestSettings } from "@/lib/settings-request";
+import { ActionMenu } from "../../action-menu";
+import { ServerRestartConfirmation, ServerRuntimeDetails } from "./server-runtime-tools";
 import { Badge, Button } from "../../form-controls";
 import { ProvisioningSteps } from "./provisioning-steps";
 import { ServerDiagnosisCard } from "./server-diagnosis-card";
@@ -20,7 +24,6 @@ export function ServerRow({
   view,
   now,
   mountedSpaces,
-  detachedDaemon,
   divider = true,
   onEdit,
   onRemove,
@@ -29,14 +32,15 @@ export function ServerRow({
   view: EnvironmentView;
   now: number;
   mountedSpaces: number | null;
-  detachedDaemon: boolean;
   divider?: boolean;
   onEdit: (field?: "remoteStateDir", suggestedValue?: string) => void;
   onRemove: () => void;
   onOpenProject: () => void;
 }) {
-  const { t, language } = useI18n();
+  const { t } = useI18n();
   const { run, pending, error } = useServerActions();
+  const [runtimeDetailsRequest, setRuntimeDetailsRequest] = useState(0);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const presentation = presentConnection(view, now);
   const label = useConnectionLabel(presentation);
   const phase = presentation.status.kind;
@@ -54,6 +58,12 @@ export function ServerRow({
             : "warning"
           : "muted";
   const descriptor = view.descriptor;
+  const moreLabel = t("schemeCServersMoreActions", "More actions for {server}").replace("{server}", view.label);
+  const restart = async () => {
+    if (serverDaemonControl(view) !== "managed") return;
+    const result = await run({ type: "restart-daemon", environmentId: view.id });
+    if (result.ok) setConfirmRestart(false);
+  };
   return (
     <article
       aria-label={view.label}
@@ -83,11 +93,9 @@ export function ServerRow({
             <Badge tone="neutral">
               {view.target.kind === "ssh" ? t("serversProtocolSsh", "SSH") : t("serversProtocolWebSocket", "WebSocket")}
             </Badge>
-            {daemonControl === "external" ? (
+            {daemonControl === "external" && (
               <Badge tone="muted">{t("serversDaemonExternal", "Externally managed service")}</Badge>
-            ) : detachedDaemon && daemonControl === "managed" ? (
-              <Badge tone="accent">{t("serversIndependentDaemon", "Independent daemon")}</Badge>
-            ) : null}
+            )}
           </div>
           <span className="type-mono-meta" style={{ color: "var(--fx-text-tertiary)", overflowWrap: "anywhere" }}>
             {serverHostSummary(view)}
@@ -96,13 +104,6 @@ export function ServerRow({
           {mountedSpaces !== null && (
             <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
               {t("serversMountedCount", "{count} mounted project spaces").replace("{count}", String(mountedSpaces))}
-            </span>
-          )}
-          {runtime && (
-            <span className="type-label-default" style={{ color: "var(--fx-text-tertiary)" }}>
-              {t("serversNodeRuntime", "Node.js")} {runtime.nodeVersion} · {runtime.payloadVersion}
-              {" · "}
-              {t("serversDaemonStarted", "Started")} {new Date(runtime.startedAt).toLocaleString(language)}
             </span>
           )}
         </div>
@@ -128,7 +129,7 @@ export function ServerRow({
         <div style={{ ...serverRowStyle, gap: "var(--space-1-5)" }}>
           {presentation.canSend && (
             <Button disabled={Boolean(pending)} onClick={onOpenProject}>
-              {t("serversOpenProject", "Open project")}
+              {t("schemeCOpenFolder", "Open folder")}
             </Button>
           )}
           {phase !== "blocked" && (
@@ -159,12 +160,48 @@ export function ServerRow({
               {t("serversDisconnect", "Disconnect")}
             </Button>
           )}
-          <Button disabled={Boolean(pending)} onClick={() => onEdit()}>
-            {t("serversEdit", "Edit")}
-          </Button>
-          <Button variant="ghost" disabled={Boolean(pending)} onClick={onRemove}>
-            {t("serversRemove", "Remove")}
-          </Button>
+          <ActionMenu
+            label={moreLabel}
+            zIndex={1200}
+            trigger={(props) => (
+              <Button {...props} variant="ghost" disabled={Boolean(pending)} aria-label={moreLabel}>
+                {t("schemeCServersMore", "More")}
+              </Button>
+            )}
+            items={[
+              {
+                key: "models",
+                label: t("schemeCConfigureServerModels", "Configure models on this server"),
+                onSelect: () => requestSettings("models", { environmentId: view.id }),
+              },
+              {
+                key: "resources",
+                label: t("schemeCManageServerResources", "Manage plugins and skills on this server"),
+                onSelect: () => requestResources({ environmentId: view.id }),
+              },
+              { key: "edit", label: t("schemeCServersEditConnection", "Edit connection"), onSelect: () => onEdit() },
+              ...(daemonControl === "managed"
+                ? [
+                    {
+                      key: "restart",
+                      label: t("schemeCRestartDaemon", "Restart remote daemon"),
+                      onSelect: () => setConfirmRestart(true),
+                    },
+                  ]
+                : []),
+              {
+                key: "runtime",
+                label: t("schemeCServersRuntimeDetails", "Runtime details"),
+                onSelect: () => setRuntimeDetailsRequest((request) => request + 1),
+              },
+              {
+                key: "remove",
+                label: t("schemeCServersRemove", "Remove remote server"),
+                danger: true,
+                onSelect: onRemove,
+              },
+            ]}
+          />
         </div>
       </div>
       {view.status.phase === "backoff" && (
@@ -190,19 +227,18 @@ export function ServerRow({
         />
       )}
       {runtime?.updatePending && daemonControl === "managed" && (
-        <div style={serverRowStyle}>
-          <span className="type-label-default" style={{ color: "var(--fx-status-warning-text)" }}>
-            {t("serversUpdatePending", "A remote service update is ready. Restarting interrupts running sessions.")}
-          </span>
-          <Button
-            disabled={Boolean(pending)}
-            busy={pending === "restart-daemon"}
-            onClick={() => void run({ type: "restart-daemon", environmentId: view.id })}
-          >
-            {t("serversRestartDaemon", "Restart and update")}
-          </Button>
-        </div>
+        <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
+          {t("schemeCServersUpdatePending", "An update is ready and will be applied when the remote service is idle.")}
+        </p>
       )}
+      {confirmRestart && daemonControl === "managed" && (
+        <ServerRestartConfirmation
+          pending={Boolean(pending)}
+          onCancel={() => setConfirmRestart(false)}
+          onConfirm={() => void restart()}
+        />
+      )}
+      {runtimeDetailsRequest > 0 && <ServerRuntimeDetails key={runtimeDetailsRequest} view={view} initiallyOpen />}
       <ServerActionError error={error} />
     </article>
   );

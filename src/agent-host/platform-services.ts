@@ -152,6 +152,8 @@ export async function initializeStandaloneHostPlatform(options: {
       revealInFileManager: false,
       managedProcesses: true,
       toolchainInstall: true,
+      remoteAttachmentUpload: true,
+      portForwarding: true,
     },
   });
   const readUiState = (): Record<string, unknown> => {

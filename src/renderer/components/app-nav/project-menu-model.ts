@@ -2,7 +2,7 @@ import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import type { ProjectSpaceRow } from "./project-space-rows";
 
 export type ProjectMenuAction =
-  "new-session" | "copy-path" | "server-settings" | "reveal" | "move-up" | "move-down" | "remove";
+  "reconnect" | "new-session" | "copy-path" | "server-settings" | "reveal" | "move-up" | "move-down" | "remove";
 export interface ProjectMenuEntry {
   readonly action: ProjectMenuAction;
   readonly disabled: boolean;
@@ -12,6 +12,7 @@ export interface ProjectMenuEntry {
 export function projectMenuFor(row: ProjectSpaceRow, options: { canMoveUp: boolean; canMoveDown: boolean }) {
   const remote = row.environmentId !== PRIMARY_ENVIRONMENT_ID;
   const entries: ProjectMenuEntry[] = [];
+  if (remote && !row.connection.canSend) entries.push({ action: "reconnect", disabled: false });
   if (remote)
     entries.push(
       {
