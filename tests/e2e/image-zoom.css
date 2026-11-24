@@ -1,0 +1,29 @@
+.image-zoom-scroll {
+  position: fixed;
+  inset: 0;
+  overflow: auto;
+}
+
+.image-zoom-layout {
+  display: flex;
+  gap: 48px;
+  width: 1500px;
+  min-height: 1200px;
+  padding: 64px 100px;
+}
+
+.image-zoom-host {
+  flex: none;
+  width: 532px;
+  height: 572px;
+}
+
+.image-zoom-retired {
+  position: fixed;
+  z-index: 1;
+  top: 104px;
+  left: 100px;
+  display: flex;
+  width: 532px;
+  height: 532px;
+}

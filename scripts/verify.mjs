@@ -53,6 +53,7 @@ run("Real chat layout and composer Electron integration", "npm", ["run", "test:c
 run("Long history reading Electron integration", "npm", ["run", "test:chat-history-electron"]);
 run("Composer editing Electron integration", "npm", ["run", "test:composer-editing-electron"]);
 run("User bubble chips Electron integration", "npm", ["run", "test:user-bubble-electron"]);
+run("Image preview zoom Electron integration", "npm", ["run", "test:image-zoom-electron"]);
 run("Selection quote and jump Electron integration", "npm", ["run", "test:quote-selection-electron"]);
 run("Navigation layout and keyboard Electron integration", "npm", ["run", "test:nav-layout-electron"]);
 run("Sidebar background activity Electron integration", "npm", ["run", "test:sidebar-pulse-well-electron"]);

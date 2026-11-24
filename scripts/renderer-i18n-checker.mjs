@@ -153,7 +153,6 @@ function rendererSourceFiles(directory, dictionaryPaths, result = []) {
 const DICTIONARY_NAMES = new Set(["enUS", "zhCN"]);
 
 function importAliases(source, sourcePath) {
-  // Map<alias identifier> → { propertyName, resolvedPath } for top-level named imports.
   const aliases = new Map();
   for (const statement of source.statements) {
     if (!ts.isImportDeclaration(statement) || !statement.importClause) continue;
@@ -190,9 +189,6 @@ function readDictionaries({ root, dictionaryPaths }) {
       const values = node.name.text === "enUS" ? enUS : zhCN;
       for (const property of node.initializer.properties) {
         if (ts.isSpreadAssignment(property)) {
-          // Spreads are the composition-root mechanism; every spread must name a
-          // top-level static import of the same language from a checked dictionary
-          // file. Anything else would hide non-static entries from every check.
           const alias = ts.isIdentifier(property.expression) ? aliases?.get(property.expression.text) : undefined;
           const sourceChecked =
             !!alias && checkedPaths.has(alias.resolvedPath) && alias.propertyName === node.name.text;
