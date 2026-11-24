@@ -123,10 +123,18 @@ export function installHostBridge(target, { call, subscribe } = {}) {
       ...supplied,
       getHostStatus: supplied?.getHostStatus ?? (async () => "ready"),
       requestHostPort() {
-        globalThis.queueMicrotask(() => {
-          for (const listener of windowMessages)
-            listener({ source: target, data: "dexon-host-port", ports: [clientPort] });
-        });
+        const deliver = (snapshot) => {
+          const primary = snapshot?.environments.find((view) => view.id === "primary");
+          const data =
+            primary?.status.phase === "connected"
+              ? { channel: "dexon-host-port", environmentId: "primary", generation: primary.status.generation }
+              : "dexon-host-port";
+          globalThis.queueMicrotask(() => {
+            for (const listener of windowMessages) listener({ source: target, data, ports: [clientPort] });
+          });
+        };
+        if (supplied?.listEnvironments) return supplied.listEnvironments().then(deliver);
+        deliver();
       },
     };
   } catch (error) {

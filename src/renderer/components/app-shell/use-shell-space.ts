@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type RefObject } from "react";
+import { useEffect, useState, type RefObject } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { defaultSpaceFolder } from "@/lib/space-identity";
 import type { ProjectSpaceRef } from "@shared/project-space-state";
@@ -34,7 +34,8 @@ export function useShellSpace(props: {
   const spaceFrozen = selectedSession !== null && selectedSession.id === spaceFrozenSessionId;
 
   const environment = useActiveEnvironment();
-  const primary = useEnvironments().find((view) => view.id === PRIMARY_ENVIRONMENT_ID);
+  const environments = useEnvironments();
+  const primary = environments.find((view) => view.id === PRIMARY_ENVIRONMENT_ID);
   const primaryGeneration = primary?.status.phase === "connected" ? primary.status.generation : null;
   const isPrimary = environment.id === PRIMARY_ENVIRONMENT_ID;
   const [localHomeDir, setLocalHomeDir] = useState("");
@@ -84,25 +85,18 @@ export function useShellSpace(props: {
     onCloseCurrent: space.handleReturnToPersonalSpace,
   });
 
-  const { spaces, isMissing: spaceMissing } = openProjects;
-  const cardProjects = useMemo(
-    () => spaces.filter((mounted) => mounted.environmentId === environment.id).map((mounted) => mounted.path),
-    [spaces, environment.id],
-  );
-  const isMissing = useCallback(
-    (folder: string | null | undefined) => spaceMissing(folder, environment.id),
-    [environment.id, spaceMissing],
-  );
+  const { spaces, isMissing } = openProjects;
   const card = useWorkspaceCard({
     environmentId: environment.id,
     workspace: space.workspace,
     open: space.workspace.wtDropdownOpen,
-    projects: cardProjects,
+    spaces,
+    environments,
     currentFolder: space.workspace.selectedCwd,
     currentProject: space.project ? { name: space.project.name, path: space.project.path } : null,
     isMissing,
     personalCwd: coordination.personalCwd,
-    homeDir: space.homeDir,
+    homeDir: isPrimary ? space.homeDir : localHomeDir,
     onGoToFolder: space.goToFolder,
     onReturnToPersonalSpace: space.handleReturnToPersonalSpace,
     onSwitched: onBranchSwitched,

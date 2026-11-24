@@ -175,10 +175,10 @@ export interface PiBridge {
   rescanToolchains: (cwd?: string) => Promise<PublicToolchainState>;
   performToolchainAction: (request: ToolchainActionRequest) => Promise<PublicToolchainState>;
   openManagedToolsFolder: () => Promise<void>;
-  requestHostPort: () => void;
+  requestHostPort: () => void | Promise<void>;
   listEnvironments: () => Promise<EnvironmentsSnapshot>;
   environmentCommand: <C extends EnvironmentCommand>(command: C) => Promise<EnvironmentCommandResult<C>>;
-  requestEnvironmentPort: (environmentId: EnvironmentId) => void;
+  requestEnvironmentPort: (environmentId: EnvironmentId) => void | Promise<void>;
   onEnvironmentsChanged: (callback: (snapshot: EnvironmentsSnapshot) => void) => () => void;
   openExternal: (url: string) => Promise<void>;
   showItemInFolder: (fsPath: string) => Promise<void>;

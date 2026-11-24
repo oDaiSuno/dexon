@@ -53,6 +53,24 @@ const byName = (result) => new Map(result.branches.map((entry) => [entry.name, e
 
 const at = (iso) => Date.parse(iso);
 
+test("branch facts require an authorized folder before a repository or a plain folder can be inspected", async () => {
+  const repository = initRepository(path.join(base, "unauthorized", "repository"));
+  git(repository, "commit", "-q", "--allow-empty", "-m", "initial");
+  const plain = path.join(base, "unauthorized", "notes");
+  mkdirSync(plain, { recursive: true });
+
+  for (const cwd of [repository, plain]) {
+    await assert.rejects(
+      handlers["worktrees.branches"]({ cwd }),
+      (error) => error.code === "FORBIDDEN" && error.message === "Access denied",
+    );
+  }
+
+  const allowed = await branchesOf(repository);
+  assert.equal(allowed.isGit, true);
+  assert.equal(allowed.current, "main");
+});
+
 test("every local branch is listed newest commit first, and each one says which folder holds it", async () => {
   const world = branchWorld(path.join(base, "listed"));
   const result = await branchesOf(world.repository);
@@ -154,6 +172,7 @@ test("no remote branch appears, even after a fetch brings one in", async () => {
 test("the same branch list comes back from any worktree of the repository; only the current mark differs", async () => {
   const world = branchWorld(path.join(base, "anywhere"));
   const fromMain = await branchesOf(world.repository);
+  await handlers["system.allowRoot"]({ path: world.review });
   const fromReview = await handlers["worktrees.branches"]({ cwd: world.review });
 
   assert.deepEqual(
@@ -179,6 +198,7 @@ test("a folder that is not a repository has no branches, and a folder inside one
 
   const nested = path.join(world.repository, "packages", "app");
   mkdirSync(nested, { recursive: true });
+  await handlers["system.allowRoot"]({ path: nested });
   const inside = await handlers["worktrees.branches"]({ cwd: nested });
   assert.equal(inside.isGit, true);
   assert.equal(inside.isTopLevel, false);

@@ -117,7 +117,21 @@ for (const mode of ["read-only", "switchable"]) {
         copied += 1;
       },
       card: {
-        projects: [],
+        browsedEnvironmentId: "gpu",
+        folder: "/same/project",
+        showEnvironmentGroups: false,
+        projects: [
+          {
+            key: '["gpu","/same/project"]',
+            environmentId: "gpu",
+            path: "/same/project",
+            name: "project",
+            current: true,
+            browsed: true,
+            missing: false,
+            unavailable: false,
+          },
+        ],
         pane: { state: "loading" },
         browsedName: "project",
         filter: "",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey, type EnvironmentId } from "@contract/environment";
 import { workspaceStore } from "@/lib/workspace-store";
 import type { ProjectSpaceRef } from "@shared/project-space-state";
 import { worktreePathsEqual } from "@shared/worktree-path";
@@ -8,7 +8,7 @@ import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
-import { spaceDisplayName } from "@/lib/space-identity";
+import { spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
 import { useSessionProjectRoots } from "@/lib/session-catalog";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
 import { useDraftCarry } from "./use-draft-carry";
@@ -98,24 +98,40 @@ export function useSpaceOwner(props: {
   });
 
   const handleReturnToPersonalSpace = useCallback(() => {
-    void coordination.returnToPersonalSpace().then((cwd) => {
-      if (cwd) commitFolder(cwd, cwd);
-    });
-  }, [coordination, commitFolder]);
+    const originFocus = workspaceStore.getSnapshot().focus;
+    const captured = draftCarry.capture();
+    const rollback = () => captured?.rollback({ restoreEditor: workspaceStore.getSnapshot().focus === originFocus });
+    void coordination
+      .returnToPersonalSpace()
+      .then((cwd) => {
+        if (!cwd) {
+          rollback();
+          return;
+        }
+        captured?.carry(cwd, PRIMARY_ENVIRONMENT_ID);
+        onCwdCommitted(cwd, cwd);
+        coordination.noteExternalCwd(cwd);
+      })
+      .catch(rollback);
+  }, [coordination, draftCarry, onCwdCommitted]);
 
   const spacePath = workspace.selectedProject;
   const personalLabel = t("personalSpace", "Default space");
   const composerProjectPath = sessionLocation?.projectPath ?? spacePath;
+  const composerEnvironmentId = sessionLocation?.environmentId ?? environment.id;
   const project = useMemo(
     () =>
       composerProjectPath
         ? {
             path: composerProjectPath,
-            name: spaceDisplayName(composerProjectPath, coordination.personalCwd, homeDir, personalLabel),
+            name:
+              composerEnvironmentId === PRIMARY_ENVIRONMENT_ID
+                ? spaceDisplayName(composerProjectPath, coordination.personalCwd, homeDir, personalLabel)
+                : spaceFolderName(composerProjectPath),
             displayPath: abbreviateHomePath(composerProjectPath, homeDir),
           }
         : null,
-    [composerProjectPath, coordination.personalCwd, homeDir, personalLabel],
+    [composerProjectPath, composerEnvironmentId, coordination.personalCwd, homeDir, personalLabel],
   );
 
   const location = useSessionLocation(sessionLocation?.environmentId ?? environment.id, sessionLocation?.cwd ?? null);
@@ -128,13 +144,22 @@ export function useSpaceOwner(props: {
   );
 
   const goToFolder = useCallback(
-    async (folder: string): Promise<FolderOutcome> => {
-      const result = await workspace.openDirectory(folder, environment.id);
-      if (result.status === "selected") return { ok: true };
-      if (result.status === "invalid") return { ok: false, error: result.error };
-      return { ok: false };
+    async (folder: string, targetEnvironmentId: EnvironmentId = environment.id): Promise<FolderOutcome> => {
+      const transfer: { rollback?: () => void } = {};
+      try {
+        const result = await workspace.openDirectory(folder, targetEnvironmentId, (path) => {
+          transfer.rollback = draftCarry.carry(path, targetEnvironmentId) ?? undefined;
+        });
+        if (result.status === "selected") return { ok: true };
+        transfer.rollback?.();
+        if (result.status === "invalid") return { ok: false, error: result.error };
+        return { ok: false };
+      } catch (error) {
+        transfer.rollback?.();
+        throw error;
+      }
     },
-    [workspace, environment.id],
+    [workspace, environment.id, draftCarry],
   );
 
   const openInFinder = useCallback(

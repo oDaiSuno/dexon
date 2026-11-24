@@ -3,10 +3,10 @@ import type { SessionInfo } from "@/lib/types";
 import { useI18n } from "@/i18n";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { projectKeyOf } from "@shared/project-space-state";
-import { worktreePathsEqual } from "@shared/worktree-path";
+import { normalizeWorktreePathForComparison, worktreePathsEqual } from "@shared/worktree-path";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { workspaceStore } from "@/lib/workspace-store";
-import { useActiveEnvironment } from "@/lib/environment-registry";
+import { environmentRegistry, useActiveEnvironment } from "@/lib/environment-registry";
 
 export interface WorktreeEntry {
   path: string;
@@ -27,6 +27,28 @@ export interface WorktreeState {
 
 export type WorkspaceSelectResult =
   { status: "cancelled" } | { status: "selected" } | { status: "invalid"; error: string };
+
+function environmentGenerationFor(environmentId: EnvironmentId): number | null {
+  const target = environmentRegistry.getEnvironments().find((view) => view.id === environmentId);
+  return target?.enabled && target.status.phase === "connected" ? target.status.generation : null;
+}
+
+function mountedRootFor(path: string | null | undefined, environmentId: EnvironmentId): string | null {
+  if (!path) return null;
+  const windows = /^(?:[A-Za-z]:[\\/]|\\\\|\/\/)/u.test(path);
+  const normalize = (value: string) => normalizeWorktreePathForComparison(value, windows ? "win32" : "");
+  const folder = normalize(path);
+  return (
+    workspaceStore
+      .getSnapshot()
+      .spaces.filter((space) => {
+        if (space.environmentId !== environmentId) return false;
+        const root = normalize(space.path);
+        return folder === root || folder.startsWith(root.endsWith("/") ? root : `${root}/`);
+      })
+      .sort((left, right) => normalize(right.path).length - normalize(left.path).length)[0]?.path ?? null
+  );
+}
 
 export function useProjectWorkspace({
   sessions,
@@ -68,7 +90,11 @@ export function useProjectWorkspace({
   const [wtNewBranch, setWtNewBranch] = useState("");
   const [wtBusy, setWtBusy] = useState(false);
   const [wtError, setWtError] = useState<string | null>(null);
-  const [wtConfirmRemove, setWtConfirmRemove] = useState<string | null>(null);
+  const [wtConfirmRemoveTarget, setWtConfirmRemoveTarget] = useState<{
+    environmentId: EnvironmentId;
+    path: string;
+  } | null>(null);
+  const wtConfirmRemove = wtConfirmRemoveTarget?.environmentId === environment.id ? wtConfirmRemoveTarget.path : null;
 
   const projectRootFor = useCallback(
     (cwd: string | null): string | null => {
@@ -144,16 +170,46 @@ export function useProjectWorkspace({
   }, [selectedCwd, wtRefreshKey, refreshKey, environment.id, generation]);
 
   const openDirectory = useCallback(
-    async (dir: string, environmentId: EnvironmentId): Promise<WorkspaceSelectResult> => {
+    async (
+      dir: string,
+      environmentId: EnvironmentId,
+      beforeOpen?: (path: string) => void,
+    ): Promise<WorkspaceSelectResult> => {
       const origin = workspaceStore.getSnapshot().focus;
+      const targetGeneration = environmentGenerationFor(environmentId);
+      const isCurrent = () =>
+        workspaceStore.getSnapshot().focus === origin && environmentGenerationFor(environmentId) === targetGeneration;
       try {
-        const data = await getEnvironmentApiClient(environmentId).validateCwd(dir);
-        if (workspaceStore.getSnapshot().focus !== origin) return { status: "cancelled" };
+        const api = getEnvironmentApiClient(environmentId);
+        const data = await api.validateCwd(dir);
+        if (!isCurrent()) return { status: "cancelled" };
         if (!data.ok || data.error) {
           return { status: "invalid", error: data.error ?? t("invalidDirectory", "Invalid directory") };
         }
         const path = data.path ?? dir;
-        const root = projectRootFor(path) ?? path;
+        const mounted = mountedRootFor(path, environmentId);
+        let root = mounted ?? (environmentId === environment.id ? projectRootFor(path) : null) ?? path;
+        if (!mounted && environmentId !== environment.id) {
+          const listing = await api.listWorktrees(path).catch(() => null);
+          if (!isCurrent()) return { status: "cancelled" };
+          if (listing) {
+            root = mountedRootFor(listing.projectRoot, environmentId) ?? path;
+            setWorktreeState({
+              environmentId,
+              generation: targetGeneration,
+              forCwd: path,
+              projectRoot: root,
+              isGit: listing.isGit,
+              isTopLevel: listing.isTopLevel,
+              worktrees: listing.worktrees.map((worktree) => ({
+                path: worktree.path,
+                branch: worktree.branch ?? null,
+                isMain: worktree.isMain === true,
+              })),
+            });
+          }
+        }
+        beforeOpen?.(path);
         if (environmentId !== origin.environmentId || selectedCwd === path) {
           if (origin.environmentId === environmentId && origin.sessionId) {
             workspaceStore.focusSession({ id: origin.sessionId, environmentId, cwd: path, projectRoot: root });
@@ -164,10 +220,11 @@ export function useProjectWorkspace({
         setSelectedCwd(path, environmentId);
         return { status: "selected" };
       } catch (e) {
+        if (!isCurrent()) return { status: "cancelled" };
         return { status: "invalid", error: e instanceof Error ? e.message : String(e) };
       }
     },
-    [t, setSelectedCwd, projectRootFor, selectedCwd],
+    [t, setSelectedCwd, projectRootFor, selectedCwd, environment.id],
   );
 
   const selectDirectoryFromPicker = useCallback(
@@ -190,12 +247,17 @@ export function useProjectWorkspace({
   );
 
   const createWorktreeAt = useCallback(
-    async (target: { projectRoot: string; branch?: string } | null): Promise<string | null> => {
-      const environmentId = environment.id;
+    async (
+      target: { projectRoot: string; branch?: string } | null,
+      targetEnvironmentId: EnvironmentId = environment.id,
+    ): Promise<string | null> => {
+      const environmentId = targetEnvironmentId;
+      const sameEnvironment = environmentId === environment.id;
       const origin = workspaceStore.getSnapshot().focus;
       const branch = (target?.branch ?? wtNewBranch).trim();
-      const projectRoot = target?.projectRoot ?? worktreeState?.projectRoot;
-      if (!branch || wtBusy || !projectRoot) return null;
+      const projectRoot = target?.projectRoot ?? (sameEnvironment ? worktreeState?.projectRoot : null);
+      const targetGeneration = environmentGenerationFor(environmentId);
+      if (!branch || wtBusy || !projectRoot || (!sameEnvironment && targetGeneration === null)) return null;
       setWtBusy(true);
       setWtError(null);
       try {
@@ -204,6 +266,15 @@ export function useProjectWorkspace({
           cwd: projectRoot,
           branch,
         });
+        if (environmentGenerationFor(environmentId) !== targetGeneration) return null;
+        if (!sameEnvironment) {
+          if (workspaceStore.getSnapshot().focus === origin && currentScope.current === operationScope) {
+            setWtNewOpen(false);
+            setWtNewBranch("");
+            setWtDropdownOpen(false);
+          }
+          return worktree.path;
+        }
         if (workspaceStore.getSnapshot().focus !== origin || currentScope.current !== operationScope) return null;
         setWorktreeState((prev) => {
           const entry = { path: worktree.path, branch, isMain: false };
@@ -212,7 +283,7 @@ export function useProjectWorkspace({
           );
           return {
             environmentId,
-            generation,
+            generation: targetGeneration,
             forCwd: worktree.path,
             projectRoot,
             isGit: true,
@@ -227,14 +298,18 @@ export function useProjectWorkspace({
         setWtDropdownOpen(false);
         return worktree.path;
       } catch (e) {
-        if (workspaceStore.getSnapshot().focus === origin && currentScope.current === operationScope)
+        if (
+          environmentGenerationFor(environmentId) === targetGeneration &&
+          workspaceStore.getSnapshot().focus === origin &&
+          currentScope.current === operationScope
+        )
           setWtError(e instanceof Error ? e.message : String(e));
         return null;
       } finally {
         setWtBusy(false);
       }
     },
-    [wtNewBranch, wtBusy, worktreeState, environment.id, generation, setSelectedCwd, operationScope],
+    [wtNewBranch, wtBusy, worktreeState, environment.id, setSelectedCwd, operationScope],
   );
 
   const handleCreateWorktree = useCallback(() => {
@@ -242,11 +317,18 @@ export function useProjectWorkspace({
   }, [createWorktreeAt]);
 
   const handleRemoveWorktree = useCallback(
-    async (path: string, force: boolean, projectCwd?: string) => {
-      const environmentId = environment.id;
+    async (
+      path: string,
+      force: boolean,
+      projectCwd?: string,
+      targetEnvironmentId: EnvironmentId = environment.id,
+    ): Promise<void> => {
+      const environmentId = targetEnvironmentId;
+      const sameEnvironment = environmentId === environment.id;
       const origin = workspaceStore.getSnapshot().focus;
-      const cwd = projectCwd ?? worktreeState?.projectRoot;
-      if (!cwd || wtBusy) return;
+      const cwd = projectCwd ?? (sameEnvironment ? worktreeState?.projectRoot : null);
+      const targetGeneration = environmentGenerationFor(environmentId);
+      if (!cwd || wtBusy || (!sameEnvironment && targetGeneration === null)) return;
       setWtBusy(true);
       setWtError(null);
       try {
@@ -255,15 +337,21 @@ export function useProjectWorkspace({
           path,
           force,
         });
-        if (currentScope.current !== operationScope) return;
-        setWtRefreshKey((k) => k + 1);
+        if (environmentGenerationFor(environmentId) !== targetGeneration || currentScope.current !== operationScope)
+          return;
+        if (sameEnvironment) setWtRefreshKey((k) => k + 1);
         if (workspaceStore.getSnapshot().focus !== origin) return;
-        setWtConfirmRemove(null);
-        if (selectedCwd === path) setSelectedCwd(cwd, environmentId);
+        setWtConfirmRemoveTarget(null);
+        if (sameEnvironment && selectedCwd === path) setSelectedCwd(cwd, environmentId);
       } catch (e) {
-        if (workspaceStore.getSnapshot().focus !== origin || currentScope.current !== operationScope) return;
+        if (
+          environmentGenerationFor(environmentId) !== targetGeneration ||
+          workspaceStore.getSnapshot().focus !== origin ||
+          currentScope.current !== operationScope
+        )
+          return;
         if (!force && (e as { detail?: { dirty?: boolean } }).detail?.dirty) {
-          setWtConfirmRemove(path);
+          setWtConfirmRemoveTarget({ environmentId, path });
           return;
         }
         setWtError(e instanceof Error ? e.message : String(e));
@@ -288,7 +376,7 @@ export function useProjectWorkspace({
     setWtNewOpen(false);
     setWtNewBranch("");
     setWtError(null);
-    setWtConfirmRemove(null);
+    setWtConfirmRemoveTarget(null);
   }, []);
 
   const openNewWorktreeEntry = useCallback(() => {
@@ -312,7 +400,7 @@ export function useProjectWorkspace({
   }, []);
 
   const cancelWorktreeRemove = useCallback(() => {
-    setWtConfirmRemove(null);
+    setWtConfirmRemoveTarget(null);
   }, []);
 
   const selectedProject = projectRootFor(selectedCwd);
@@ -349,6 +437,7 @@ export function useProjectWorkspace({
     wtBusy,
     wtError,
     wtConfirmRemove,
+    wtConfirmRemoveTarget,
     cancelWorktreeRemove,
     handleCreateWorktree,
     createWorktreeAt,

@@ -87,6 +87,12 @@ export interface ComposerProject {
 export type ComposerProjectIcon = "house" | "folder" | "folder-open" | "folder-missing";
 
 export interface ComposerCardProject {
+  key: string;
+  environmentId: EnvironmentId;
+  environmentLabel: string;
+  isPrimaryEnvironment: boolean;
+  environmentState: "connected" | "connecting" | "offline";
+  unavailable: boolean;
   path: string;
   name: string;
   displayPath: string;
@@ -124,7 +130,11 @@ export interface ComposerCardSections {
 }
 
 export type ComposerCardPane =
-  { state: "loading" } | { state: "not-repo" } | { state: "ready"; count: number; sections: ComposerCardSections };
+  | { state: "loading" }
+  | { state: "offline"; environmentLabel: string; connecting: boolean }
+  | { state: "error"; message: string }
+  | { state: "not-repo" }
+  | { state: "ready"; count: number; sections: ComposerCardSections };
 
 export interface ComposerCardBlocked {
   reason: "dirty" | "busy";
@@ -138,6 +148,9 @@ export interface ComposerWorkspaceCard {
   projects: ComposerCardProject[];
   pane: ComposerCardPane;
   browsedName: string;
+  browsedEnvironmentId: EnvironmentId;
+  retryBranches?: () => void;
+  showEnvironmentGroups: boolean;
   folder: string;
   showFilter: boolean;
   filter: string;
@@ -156,8 +169,8 @@ export interface ComposerWorkspaceCard {
   cancelRemove: () => void;
   busy: boolean;
   error: string | null;
-  activateProject: (path: string) => void;
-  browseProject: (path: string) => void;
+  activateProject: (key: string) => void;
+  browseProject: (key: string) => void;
   activateBranch: (key: string) => void;
 }
 
