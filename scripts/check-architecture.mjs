@@ -265,6 +265,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/session-menu.css",
   "styles/composer.css",
   "styles/ref-chips.css",
+  "styles/quote-selection.css",
   "styles/popover-motion.css",
   "styles/markdown.css",
   "styles/markdown-user.css",

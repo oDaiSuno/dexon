@@ -1,5 +1,6 @@
 import { isRpcError } from "@contract/types";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
+import { quoteTitleText } from "@shared/quote-tokens";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
@@ -170,7 +171,7 @@ export function useSessionActions(context: Dependencies) {
               type: "prompt",
               message,
             });
-            promoteNewSession(1, promptIntentText(intent));
+            promoteNewSession(1, quoteTitleText(promptIntentText(intent)));
             if (shouldAutoTitleMessage(message)) {
               void trackSessionNaming(sid, () =>
                 requestAutoSessionTitle({ sessionId: sid, prompt: message, environmentId }),

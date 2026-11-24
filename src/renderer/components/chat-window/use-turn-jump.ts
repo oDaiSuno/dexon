@@ -18,6 +18,7 @@ interface Options {
 
 export function useTurnJump({ visible, turns, tops, scrollContainer, messageRefs, turnJump }: Options) {
   const { jumpTarget, arrivedTurn, requestTurn, cancelJump } = turnJump;
+  const requestedTurnRef = useRef<string | null>(null);
   const handledArrivalRef = useRef<string | null>(null);
   const cancelAlignmentRef = useRef<(() => void) | null>(null);
   const pointerHeldRef = useRef(false);
@@ -33,6 +34,8 @@ export function useTurnJump({ visible, turns, tops, scrollContainer, messageRefs
       const turn = turns[index];
       if (!visible || !turn) return;
       stopAlignment();
+      requestedTurnRef.current = null;
+      handledArrivalRef.current = null;
       if (turn.refIndex !== undefined) {
         cancelJump();
         const container = scrollContainer.current;
@@ -41,7 +44,10 @@ export function useTurnJump({ visible, turns, tops, scrollContainer, messageRefs
           container.scrollTo({ top: Math.max(0, top - TURN_TOP_OFFSET), behavior: "smooth" });
         return;
       }
-      if (turn.entryId) requestTurn(turn.entryId);
+      if (turn.entryId) {
+        requestedTurnRef.current = turn.entryId;
+        requestTurn(turn.entryId);
+      }
     },
     [cancelJump, requestTurn, scrollContainer, stopAlignment, tops, turns, visible],
   );
@@ -85,12 +91,19 @@ export function useTurnJump({ visible, turns, tops, scrollContainer, messageRefs
   }, [arrivedTurn, cancelJump, jumpTarget, scrollContainer, visible]);
 
   useEffect(() => {
-    if (!visible || arrivedTurn === null || handledArrivalRef.current === arrivedTurn) return;
+    if (
+      !visible ||
+      arrivedTurn === null ||
+      requestedTurnRef.current !== arrivedTurn ||
+      handledArrivalRef.current === arrivedTurn
+    )
+      return;
     const container = scrollContainer.current;
     const refIndex = turns.find((turn) => turn.entryId === arrivedTurn)?.refIndex;
     const element = refIndex === undefined ? null : messageRefs.current?.[refIndex];
     if (!container || !element || refIndex === undefined) return;
     handledArrivalRef.current = arrivedTurn;
+    requestedTurnRef.current = null;
     const startAt = gestureAtRef.current;
     container.scrollTop = Math.max(
       0,

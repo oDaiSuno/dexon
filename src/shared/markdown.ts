@@ -7,7 +7,7 @@ import remarkCjkFriendlyGfmStrikethrough from "remark-cjk-friendly-gfm-strikethr
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { remarkChatMath, remarkHoldUnclosedMath } from "./chat-math.ts";
-import { remarkAttachmentTokens } from "./markdown-attachment-tokens.ts";
+import { remarkAttachmentTokens, remarkQuoteTokens } from "./markdown-attachment-tokens.ts";
 import { remarkStandaloneDisplayMath } from "./standalone-display-math.ts";
 
 export const markdownSanitizeSchema = {
@@ -15,6 +15,7 @@ export const markdownSanitizeSchema = {
   attributes: {
     ...defaultSchema.attributes,
     code: [["className", /^language-./, "math-inline", "math-display"]],
+    span: [...(defaultSchema.attributes?.span ?? []), ["dataQuoteRef", /^[1-9]\d*$/]],
   },
   protocols: {
     ...defaultSchema.protocols,
@@ -66,6 +67,9 @@ const chipHandlers = {
   skillToken(_state: unknown, node: { name: string }) {
     return { type: "skillToken", data: { skillToken: { name: node.name } } };
   },
+  quoteToken(_state: unknown, node: { quoteId: string; raw: string }) {
+    return { type: "quoteToken", data: { quoteToken: { quoteId: node.quoteId, raw: node.raw } } };
+  },
 };
 
 export function rehypeAttachmentChips() {
@@ -73,11 +77,18 @@ export function rehypeAttachmentChips() {
     const convert = (node: ChipHastNode, insideLink: boolean): void => {
       if (!node.children) return;
       node.children = node.children.map((child) => {
-        const chip = child.type === "attachmentToken" || child.type === "skillToken";
+        const chip = child.type === "attachmentToken" || child.type === "skillToken" || child.type === "quoteToken";
         if (chip) {
-          const raw = (child.data?.attachmentToken as { raw?: string } | undefined)?.raw;
+          const quote = child.data?.quoteToken as { quoteId: string; raw: string } | undefined;
+          const raw = quote?.raw ?? (child.data?.attachmentToken as { raw?: string } | undefined)?.raw;
           if (insideLink && raw) return { type: "text", value: raw };
-          return { type: "element", tagName: "span", properties: {}, children: [], data: child.data };
+          return {
+            type: "element",
+            tagName: "span",
+            properties: quote ? { dataQuoteRef: quote.quoteId } : {},
+            children: quote ? [{ type: "text", value: quote.raw }] : [],
+            data: child.data,
+          };
         }
         convert(child, insideLink || (child.type === "element" && child.tagName === "a"));
         return child;
@@ -95,6 +106,7 @@ export const userMessageRemarkPlugins: NonNullable<ReactMarkdownOptions["remarkP
   remarkHoldUnclosedMath,
   remarkStandaloneDisplayMath,
   remarkAttachmentTokens,
+  remarkQuoteTokens,
 ];
 
 export const userMessageRemarkRehypeOptions: NonNullable<ReactMarkdownOptions["remarkRehypeOptions"]> = {
@@ -102,7 +114,7 @@ export const userMessageRemarkRehypeOptions: NonNullable<ReactMarkdownOptions["r
 };
 
 export const userMessageRehypePlugins: NonNullable<ReactMarkdownOptions["rehypePlugins"]> = [
-  [rehypeRaw, { passThrough: ["attachmentToken", "skillToken"] }],
+  [rehypeRaw, { passThrough: ["attachmentToken", "skillToken", "quoteToken"] }],
   rehypeAttachmentChips,
   [rehypeSanitize, markdownSanitizeSchema],
   [rehypeKatex, { throwOnError: false, strict: false }],

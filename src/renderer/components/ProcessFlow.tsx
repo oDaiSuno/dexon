@@ -18,6 +18,7 @@ export function ProcessFlow({
   thinkingExpansionStore,
   unanswered,
   speedHint,
+  quoteStreamingEntryId,
 }: {
   environmentId: EnvironmentId;
   items: ProcessFlowItem[];
@@ -27,6 +28,7 @@ export function ProcessFlow({
   thinkingExpansionStore?: ThinkingExpansionStore;
   unanswered?: boolean;
   speedHint?: AssistantMessage;
+  quoteStreamingEntryId?: string;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
@@ -35,7 +37,16 @@ export function ProcessFlow({
         switch (item.kind) {
           case "thinking":
             return (
-              <Fragment key={item.key}>
+              <div
+                key={item.key}
+                data-quote-entry-id={item.entryId ?? ""}
+                data-quote-role="assistant"
+                data-quote-streaming={
+                  quoteStreamingEntryId !== undefined && (item.entryId ?? "") === quoteStreamingEntryId
+                    ? "true"
+                    : undefined
+                }
+              >
                 <ThinkingBlock
                   block={item.block}
                   duration={item.duration}
@@ -45,11 +56,20 @@ export function ProcessFlow({
                   streaming={item.streaming}
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />
-              </Fragment>
+              </div>
             );
           case "toolCall":
             return (
-              <Fragment key={item.key}>
+              <div
+                key={item.key}
+                data-quote-entry-id={item.entryId ?? ""}
+                data-quote-role="assistant"
+                data-quote-streaming={
+                  quoteStreamingEntryId !== undefined && (item.entryId ?? "") === quoteStreamingEntryId
+                    ? "true"
+                    : undefined
+                }
+              >
                 <ToolCallBlock
                   block={item.block}
                   result={item.result}
@@ -60,7 +80,7 @@ export function ProcessFlow({
                   onLoadDeferredContent={onLoadDeferredContent}
                 />
                 <DeferredContentActions content={[item.block]} onLoad={onLoadDeferredContent} />
-              </Fragment>
+              </div>
             );
           case "custom": {
             const view =

@@ -11,6 +11,7 @@ import "./session-row.css";
 import "./session-menu.css";
 import "./composer.css";
 import "./ref-chips.css";
+import "./quote-selection.css";
 import "./popover-motion.css";
 import "./markdown.css";
 import "./markdown-user.css";

@@ -1,0 +1,176 @@
+.quote-chip {
+  display: inline-block;
+  height: 20px;
+  max-width: 236px;
+  padding: 0 var(--space-1);
+  position: relative;
+  top: -0.05em;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--fx-line-translucent);
+  background: var(--fx-surface-subtle);
+  color: var(--fx-text-primary);
+  cursor: pointer;
+  transition: background var(--duration-quick) var(--ease-smooth-out);
+}
+
+.quote-chip > * {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.quote-chip > * + * {
+  margin-left: var(--space-1);
+}
+
+.quote-chip:hover {
+  background: var(--fx-surface-hover-overlay-strong);
+}
+
+.quote-chip-glyph,
+.quote-chip-arrow {
+  color: var(--fx-text-secondary);
+}
+
+.quote-chip-glyph svg {
+  display: inline;
+  vertical-align: middle;
+}
+
+.quote-chip-arrow {
+  opacity: 0.6;
+}
+
+.composer-editor .quote-chip:hover .token-chip-remove {
+  width: 13px;
+  margin-left: var(--space-1);
+  opacity: 0.8;
+  pointer-events: auto;
+}
+
+.quote-chip-jumping,
+.quote-chip-jumping:hover {
+  background: var(--fx-accent-blue-soft);
+  border-color: var(--fx-accent-blue-border);
+  color: var(--fx-accent-blue-text);
+  animation: quote-chip-pulse calc(var(--duration-very-slow) * 2) var(--ease-in-out) infinite;
+}
+
+.quote-chip-loader {
+  animation: quote-chip-spin calc(var(--duration-very-slow) * 2) var(--ease-linear) infinite;
+}
+
+.quote-chip-detached {
+  border-style: dashed;
+  border-color: var(--fx-line-strong);
+  color: var(--fx-text-secondary);
+}
+
+.quote-preview-floating {
+  position: fixed;
+  z-index: 1000;
+  width: 328px;
+  max-width: calc(100vw - var(--space-4));
+  overflow: auto;
+  border-radius: var(--radius-menu);
+  box-shadow: var(--shadow-menu);
+}
+
+.quote-preview-card {
+  max-width: 328px;
+  padding: var(--space-3);
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-menu);
+  box-shadow: var(--shadow-menu);
+  color: var(--fx-text-primary);
+}
+
+.quote-preview-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  color: var(--fx-text-secondary);
+}
+
+.quote-preview-text {
+  border-left: 2px solid var(--fx-line-strong);
+  padding-left: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.quote-preview-hint {
+  margin-top: var(--space-3);
+  color: var(--fx-text-tertiary);
+}
+
+.selection-quote-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 30px;
+  padding: 0 var(--space-3);
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-menu);
+  color: var(--fx-text-primary);
+  cursor: pointer;
+  transition:
+    background var(--duration-quick) var(--ease-smooth-out),
+    border-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.selection-quote-pill:hover {
+  background: var(--fx-surface-raised-hover);
+  border-color: var(--fx-line-strong);
+}
+
+::highlight(dexon-quote-target) {
+  background-color: var(--fx-status-warning-soft);
+}
+
+.quote-target-message-flash {
+  animation: quote-target-flash calc(var(--duration-very-slow) * 3) var(--ease-smooth-out);
+}
+
+@keyframes quote-chip-pulse {
+  50% {
+    opacity: 0.65;
+  }
+}
+
+@keyframes quote-chip-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes quote-target-flash {
+  0%,
+  50% {
+    background-color: var(--fx-accent-blue-soft);
+    box-shadow: inset 0 0 0 1px var(--fx-accent-blue-border);
+  }
+  100% {
+    background-color: var(--fx-surface-hover-clear);
+    box-shadow: inset 0 0 0 1px var(--fx-surface-hover-clear);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .quote-chip-jumping,
+  .quote-chip-loader {
+    animation: none;
+  }
+
+  .quote-target-message-flash {
+    animation: none;
+    background-color: var(--fx-accent-blue-soft);
+    box-shadow: inset 0 0 0 1px var(--fx-accent-blue-border);
+  }
+}

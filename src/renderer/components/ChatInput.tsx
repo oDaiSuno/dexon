@@ -1,13 +1,4 @@
-import {
-  forwardRef,
-  useCallback,
-  useEffect,
-  useImperativeHandle,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { useActiveEnvironment, useEnvironments } from "@/lib/environment-registry";
@@ -24,7 +15,8 @@ import { useComposerDraft } from "./chat-input/use-composer-draft";
 import { useComposerKeys } from "./chat-input/use-composer-keys";
 import { useComposerSkills } from "./chat-input/use-composer-skills";
 import { useSkillCatalog } from "./chat-input/use-skill-catalog";
-import { toSkillName } from "./chat-input/command-slot";
+import { useComposerHandle } from "./chat-input/use-composer-handle";
+import { serializeComposerQuotesForSend } from "@shared/quote-tokens";
 import { useComposerSuggestions } from "./chat-input/use-composer-suggestions";
 import type { ChatInputHandle, ChatInputProps, ComposerChange, ComposerEditableHandle } from "./chat-input/types";
 
@@ -45,6 +37,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     sessionFolderMissing = false,
     missingFolderRecovery,
     onSend,
+    onJumpQuote,
+    jumpingQuoteKey,
+    detachedQuoteKeys,
     onAbort,
     onSteer,
     onFollowUp,
@@ -158,7 +153,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
           return;
         }
       }
-      const settled = await Promise.resolve(onSend(ticket.message));
+      const settled = await Promise.resolve(onSend(serializeComposerQuotesForSend(ticket.message)));
       if (submissionRejected(settled)) {
         draft.restoreFailed(ticket, "send", null);
       }
@@ -181,7 +176,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     if (!visible || !sendGate.allowed || !onFollowUp) return;
     const ticket = draft.submit();
     if (!ticket) return;
-    const message = ticket.message;
+    const message = serializeComposerQuotesForSend(ticket.message);
     onAudioUnlock?.();
     try {
       const settled =
@@ -342,41 +337,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     [openModelSettings, setModelDropdownOpen],
   );
 
-  useImperativeHandle(
-    ref,
-    () => ({
-      prependText(text: string) {
-        if (!text.trim()) return;
-        const current = editableRef.current?.getValue() ?? draft.shown;
-        const combined = [text, current].filter((item) => item.trim()).join("\n\n");
-        if (visible) editableRef.current?.focus();
-        editableRef.current?.replaceAll(combined);
-        suggestions.dismiss();
-      },
-      takeDraft() {
-        const text = draft.takeDraft();
-        suggestions.dismiss();
-        return text;
-      },
-      insertText(text: string) {
-        editableRef.current?.insertTextAtCaret(text);
-        suggestions.dismiss();
-      },
-      addFiles(files: File[]) {
-        void attachments.processFiles(files);
-      },
-      insertToken(path: string) {
-        attachments.insertAttachmentPath(path);
-      },
-      insertSkill(raw: string) {
-        const name = toSkillName(raw);
-        if (!name) return;
-        if (visible) editableRef.current?.focus();
-        editableRef.current?.fillCommandSlot({ kind: "skill", name });
-      },
-    }),
-    [attachments, draft, suggestions, visible],
-  );
+  useComposerHandle(ref, { editableRef, draft, suggestions, attachments, visible });
 
   return (
     <ComposerView
@@ -407,6 +368,9 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       missingTokenInspections={attachments.missingTokenInspections}
       onRevealToken={attachments.revealToken}
       onSkillReveal={skills.revealSkill}
+      onJumpQuote={onJumpQuote}
+      jumpingQuoteKey={jumpingQuoteKey}
+      detachedQuoteKeys={detachedQuoteKeys}
       skillsByName={skillCatalog.byName}
       attachmentTokens={attachments.attachmentTokens}
       onOpenPicker={openPicker}

@@ -1,3 +1,4 @@
+import { encodeComposerQuoteToken, type QuoteReference } from "@shared/quote-tokens";
 import { buildAtInsertText, extractAtQuery, type AtQueryMatch } from "@/lib/file-fuzzy";
 import { attachmentTokenText, looksLikePath } from "@shared/attachment-tokens";
 import { findLeadingSkillCommand, skillCommandText } from "@shared/skill-commands";
@@ -8,6 +9,7 @@ import { readComposerText, selectOffsets, type ComposerSelection, type ComposerT
 export interface ChipFactory {
   attachment(path: string): HTMLElement;
   skill(name: string): HTMLElement;
+  quote(quote: QuoteReference): HTMLElement;
 }
 
 export interface ComposerEdit {
@@ -22,6 +24,7 @@ const editingRoots = new WeakSet<HTMLElement>();
 function buildNodes(doc: Document, content: readonly ComposerSegment[], chips: ChipFactory): Node[] {
   return content.flatMap((segment): Node[] => {
     if (segment.type === "text") return segment.text ? [doc.createTextNode(segment.text)] : [];
+    if (segment.type === "quote") return [chips.quote(segment.quote)];
     return [segment.type === "skill" ? chips.skill(segment.name) : chips.attachment(segment.path)];
   });
 }
@@ -51,9 +54,11 @@ export function applyComposerEdit(root: HTMLElement, edit: ComposerEdit, chips: 
     .map((segment) =>
       segment.type === "text"
         ? segment.text
-        : segment.type === "skill"
-          ? skillCommandText(segment.name)
-          : attachmentTokenText(segment.path),
+        : segment.type === "quote"
+          ? encodeComposerQuoteToken(segment.quote)
+          : segment.type === "skill"
+            ? skillCommandText(segment.name)
+            : attachmentTokenText(segment.path),
     )
     .join("");
   const holder = holderFor(doc, buildNodes(doc, edit.content, chips));
@@ -121,6 +126,19 @@ export function planInsertText(
 export function planInsertAttachment(map: ComposerTextMap, selection: ComposerSelection, path: string): ComposerEdit {
   const content: ComposerSegment[] = [
     { type: "attachment", path },
+    { type: "text", text: " " },
+  ];
+  if (needsSeparatorBefore(map, selection.start)) content.unshift({ type: "text", text: " " });
+  return { start: selection.start, end: selection.end, content };
+}
+
+export function planInsertQuote(
+  map: ComposerTextMap,
+  selection: ComposerSelection,
+  quote: QuoteReference,
+): ComposerEdit {
+  const content: ComposerSegment[] = [
+    { type: "quote", quote },
     { type: "text", text: " " },
   ];
   if (needsSeparatorBefore(map, selection.start)) content.unshift({ type: "text", text: " " });

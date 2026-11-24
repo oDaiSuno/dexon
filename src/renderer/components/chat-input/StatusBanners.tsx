@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useI18n } from "@/i18n";
 import type { QueuedMessages, CompactResultInfo } from "@/hooks/useAgentSession";
 import { segmentByAttachmentTokens } from "@shared/attachment-tokens";
+import { formatQuotedPromptForCopy } from "@shared/quote-tokens";
 import { AttachmentChip } from "../messages/message-chips";
 import { CircleAlertIcon, CircleCheckIcon, CloseIcon, Icon, RecallIcon, TriangleAlertIcon } from "./icons";
 import { formatTokenCount } from "./SessionControls";
@@ -49,8 +50,9 @@ function QueuedMessageRow({
 }) {
   const { t } = useI18n();
   const isSteer = kind === "steer";
+  const displayText = formatQuotedPromptForCopy(text);
   return (
-    <div className="queue-tray-row" title={text}>
+    <div className="queue-tray-row" title={displayText}>
       <span
         className="queue-tray-kind type-label-medium"
         style={{ color: isSteer ? "var(--fx-status-warning-text)" : "var(--fx-text-secondary)" }}
@@ -59,7 +61,7 @@ function QueuedMessageRow({
         {isSteer ? t("steer", "Steer") : t("followUp", "Follow-up")}
       </span>
       <div className="queue-tray-message type-body-default">
-        {segmentByAttachmentTokens(text).map((segment, index) =>
+        {segmentByAttachmentTokens(displayText).map((segment, index) =>
           segment.type === "text" ? (
             <span key={index} className="queue-tray-message-text">
               {segment.text}

@@ -1,5 +1,8 @@
+import { expandQuotedPromptToComposerText, formatQuotedPromptForCopy } from "@shared/quote-tokens";
+import type { QuoteInteractionProps } from "./quote-chip";
+import { messageQuoteInteraction } from "./quote-interaction";
 import type { EnvironmentId } from "@contract/environment";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { getUserBubbleStyle } from "@/lib/channel-message-style";
 import { CHANNEL_ATTACHMENT_PROMPT_PLACEHOLDER, channelAttachmentCopyText } from "@shared/channel-message";
@@ -24,10 +27,12 @@ export function UserMessageView({
   agentRunning,
   onLoadDeferredContent,
   afterAssistant,
-}: {
+  onJumpQuote,
+  jumpingQuoteKey,
+  detachedQuoteKeys,
+}: QuoteInteractionProps & {
   environmentId: EnvironmentId;
   message: UserMessage;
-  /** Active session id — authorizes files.read for referenced attachment paths. */
   sessionId?: string | null;
   cwd?: string;
   entryId?: string;
@@ -36,15 +41,16 @@ export function UserMessageView({
   editHandlers?: EditDraftHandlers;
   onSwitchVersion?: (entryId: string) => void;
   agentRunning?: boolean;
-  /* Turn-boundary spacing: when the previous message is an assistant reply,
-     lift the bubble so it sits centered between the two replies (the hover
-     action row below already reserves the same visual gap). */
   afterAssistant?: boolean;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
 }) {
   const { t } = useI18n();
   const { isDark } = useTheme();
   const [hovered, setHovered] = useState(false);
+  const entryQuoteInteraction = useMemo(
+    () => messageQuoteInteraction({ onJumpQuote, jumpingQuoteKey, detachedQuoteKeys }, entryId),
+    [detachedQuoteKeys, entryId, jumpingQuoteKey, onJumpQuote],
+  );
 
   const content =
     typeof message.content === "string"
@@ -68,12 +74,14 @@ export function UserMessageView({
       ? ""
       : attachmentCopyContent || t("channelAttachment", "Attachment")
     : content;
-  const copyableContent = isChannelAttachmentPlaceholder ? attachmentCopyContent : visibleContent;
+  const copyableContent = isChannelAttachmentPlaceholder
+    ? attachmentCopyContent
+    : formatQuotedPromptForCopy(visibleContent);
 
   const intent = readPromptIntent(visibleContent);
   const prose = intent.kind === "skill" ? intent.goal : visibleContent;
   const leadingSkillName = intent.kind === "skill" ? intent.name : null;
-  const draftText = promptIntentText(intent);
+  const draftText = expandQuotedPromptToComposerText(promptIntentText(intent));
 
   const hasDeferredContent =
     Array.isArray(message.content) &&
@@ -115,7 +123,8 @@ export function UserMessageView({
           onChange={(text) => editHandlers?.change(text)}
           onRemoveImage={(index) => editHandlers?.removeImage(index)}
           onCancel={() => editHandlers?.cancel()}
-          onSend={() => editHandlers?.send()}
+          onSend={(message) => editHandlers?.send(message)}
+          {...entryQuoteInteraction}
         />
       ) : (
         <>
@@ -130,6 +139,7 @@ export function UserMessageView({
             prose={prose}
             leadingSkillName={leadingSkillName}
             imageBlocks={imageBlocks}
+            {...entryQuoteInteraction}
           />
           <UserMessageFooter
             hovered={hovered}

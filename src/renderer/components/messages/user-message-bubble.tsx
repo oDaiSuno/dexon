@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { MarkdownBody, type InlineChips } from "../MarkdownBody";
 import { findAttachmentTokens, isImagePath } from "@shared/attachment-tokens";
 import { loadAttachmentPreview } from "@/lib/attachment-token-previews";
+import { parseQuotedPrompt } from "@shared/quote-tokens";
+import { QuoteChip, type QuoteInteractionProps } from "./quote-chip";
 import { AttachmentChip, SkillChip } from "./message-chips";
 import { LongPromptFold } from "./long-prompt-fold";
 import { SessionSourceChip } from "./session-links";
@@ -30,7 +32,10 @@ export function UserMessageBubble({
   prose,
   leadingSkillName,
   imageBlocks,
-}: {
+  onJumpQuote,
+  jumpingQuoteKey,
+  detachedQuoteKeys,
+}: QuoteInteractionProps & {
   environmentId: EnvironmentId;
   message: UserMessage;
   sessionId?: string | null;
@@ -42,12 +47,28 @@ export function UserMessageBubble({
   leadingSkillName: string | null;
   imageBlocks: ImageContent[];
 }) {
+  const { quotes, body } = useMemo(() => parseQuotedPrompt(prose), [prose]);
+  const quotesById = useMemo(() => new Map(quotes.map((quote) => [quote.id, quote])), [quotes]);
+  const unreferencedQuotes = quotes.filter((quote) => !body.includes(`[quote:${quote.id}]`));
+  const renderQuote = (quoteId: string, raw: string) => {
+    const quote = quotesById.get(quoteId);
+    return quote ? (
+      <QuoteChip
+        quote={quote}
+        onJumpQuote={onJumpQuote}
+        jumping={jumpingQuoteKey === quote.id}
+        detached={detachedQuoteKeys?.has(quote.id)}
+      />
+    ) : (
+      raw
+    );
+  };
   const tokenImagePaths = useMemo(
     () =>
-      findAttachmentTokens(prose)
+      findAttachmentTokens(body)
         .map((token) => token.path)
         .filter(isImagePath),
-    [prose],
+    [body],
   );
   const [tokenPreviews, setTokenPreviews] = useState<Map<string, string | null>>(new Map());
   const imageTokenPreviews = tokenImagePaths
@@ -73,22 +94,20 @@ export function UserMessageBubble({
     };
   }, [environmentId, sessionId, tokenImagePaths, tokenPreviews]);
 
-  const inlineChips = useMemo<InlineChips>(
-    () => ({
-      leadingSkill: leadingSkillName,
-      attachment: ({ path }) => (
-        <AttachmentChip
-          environmentId={environmentId}
-          path={path}
-          onOpenFile={onOpenFile}
-          cwd={cwd}
-          previewUrl={tokenPreviews.get(qualifyProjectKey(environmentId, path)) ?? null}
-        />
-      ),
-      skill: (name) => <SkillChip name={name} />,
-    }),
-    [environmentId, cwd, leadingSkillName, tokenPreviews, onOpenFile],
-  );
+  const inlineChips: InlineChips = {
+    leadingSkill: leadingSkillName,
+    attachment: ({ path }) => (
+      <AttachmentChip
+        environmentId={environmentId}
+        path={path}
+        onOpenFile={onOpenFile}
+        cwd={cwd}
+        previewUrl={tokenPreviews.get(qualifyProjectKey(environmentId, path)) ?? null}
+      />
+    ),
+    skill: (name) => <SkillChip name={name} />,
+    quote: ({ quoteId, raw }) => renderQuote(quoteId, raw),
+  };
 
   return (
     <div
@@ -146,7 +165,10 @@ export function UserMessageBubble({
             ))}
           </div>
         )}
-        {(prose.trim() || leadingSkillName) && (
+        {unreferencedQuotes.map((quote) => (
+          <span key={quote.id}>{renderQuote(quote.id, "")} </span>
+        ))}
+        {(body.trim() || leadingSkillName) && (
           <LongPromptFold>
             <MarkdownBody
               environmentId={environmentId}
@@ -156,7 +178,7 @@ export function UserMessageBubble({
               onOpenFile={onOpenFile}
               inlineChips={inlineChips}
             >
-              {prose}
+              {body}
             </MarkdownBody>
           </LongPromptFold>
         )}

@@ -1,4 +1,5 @@
 import { promptIntentText, readPromptIntent } from "./prompt-intent";
+import { quoteTitleText } from "./quote-tokens.ts";
 import type { AgentMessage } from "./types";
 
 export function turnTitleOf(content: AgentMessage["content"]): string {
@@ -8,5 +9,8 @@ export function turnTitleOf(content: AgentMessage["content"]): string {
       : Array.isArray(content)
         ? content.flatMap((block) => (block.type === "text" ? [block.text] : [])).join(" ")
         : "";
-  return promptIntentText(readPromptIntent(text)).replace(/\s+/g, " ").trim().slice(0, 200);
+  return quoteTitleText(promptIntentText(readPromptIntent(text)))
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
 }

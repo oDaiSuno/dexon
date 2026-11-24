@@ -8,14 +8,19 @@ const {
   applyComposerEdit,
   createTokenChip,
   createSkillChip,
+  createQuoteChip,
   planReplaceAll,
+  planInsertQuote,
+  planRemoveChip,
+  segmentComposerText,
   readComposerText,
   readSnapshot,
   resetComposerContent,
+  encodeComposerQuoteToken,
 } = await importTestBundle("chat-input-composer-edit", {
   stdin: {
     contents:
-      'export { applyComposerEdit, planReplaceAll, resetComposerContent } from "./chat-input/composer-edit.ts"; export { createTokenChip, createSkillChip } from "./chat-input/composer-dom.ts"; export { readComposerText, readSnapshot } from "./chat-input/composer-text-map.ts";',
+      'export { applyComposerEdit, planReplaceAll, planInsertQuote, planRemoveChip, resetComposerContent } from "./chat-input/composer-edit.ts"; export { createTokenChip, createSkillChip, createQuoteChip, segmentComposerText } from "./chat-input/composer-dom.ts"; export { readComposerText, readSnapshot } from "./chat-input/composer-text-map.ts"; export { encodeComposerQuoteToken } from "../../shared/quote-tokens.ts";',
     resolveDir: import.meta.dirname,
     sourcefile: "chat-input-composer-edit-test-entry.ts",
     loader: "ts",
@@ -25,6 +30,7 @@ const {
 
 const doc = harness.dom.window.document;
 const chips = {
+  quote: (quote) => createQuoteChip(quote, { removeLabel: "Remove quote" }),
   attachment: (filePath) =>
     createTokenChip(filePath, {
       isImage: false,
@@ -148,4 +154,62 @@ test("an edit raised during a native input event cannot run a recursive fallback
     masked: "before NEW after",
     caret: { kind: "caret", offset: 10 },
   });
+});
+
+const quote = {
+  id: "1",
+  from: "assistant",
+  text: "Full selected text\nSecond line with @private.ts",
+  entryId: "reply",
+};
+
+test("a skill, quote and file rebuild as separate atomic chips with an exact round trip", () => {
+  const value = `/skill:review ${encodeComposerQuoteToken(quote)} @src/main.ts `;
+  const editor = editorWith(value);
+  assert.equal(editor.querySelectorAll("[data-quote-token]").length, 1);
+  assert.equal(editor.querySelectorAll("[data-skill-token]").length, 1);
+  assert.equal(editor.querySelectorAll("[data-attachment-token]").length, 1);
+  assert.equal(readComposerText(editor).text, value);
+});
+
+test("inserting a quote replaces the selected text and adds separators around the atomic chip", () => {
+  const editor = editorWith("beforeOLD @src/main.ts ");
+  const map = readComposerText(editor);
+  const request = planInsertQuote(map, { start: 6, end: 9 }, quote);
+  assert.equal(applyComposerEdit(editor, request, chips), true);
+  const token = encodeComposerQuoteToken(quote);
+  assert.equal(readComposerText(editor).text, `before ${token}  @src/main.ts `);
+  assert.deepEqual(readSnapshot(editor).caret, { kind: "caret", offset: 8 + token.length });
+  assert.equal(editor.querySelector("[data-quote-token]").contentEditable, "false");
+  assert.equal(editor.querySelectorAll("[data-attachment-token]").length, 1);
+});
+
+test("inserting at the start needs no leading separator and preserves an adjacent file", () => {
+  const editor = editorWith("@src/main.ts ");
+  const map = readComposerText(editor);
+  applyComposerEdit(editor, planInsertQuote(map, { start: 0, end: 0 }, quote), chips);
+  assert.equal(readComposerText(editor).text, `${encodeComposerQuoteToken(quote)} @src/main.ts `);
+});
+
+test("removing a quote removes the whole payload and one separator, leaving the file intact", () => {
+  const editor = editorWith(`Read ${encodeComposerQuoteToken(quote)} @src/main.ts `);
+  const chip = editor.querySelector("[data-quote-token]");
+  const request = planRemoveChip(readComposerText(editor), chip);
+  assert.ok(request);
+  applyComposerEdit(editor, request, chips);
+  assert.equal(readComposerText(editor).text, "Read @src/main.ts ");
+  assert.equal(editor.querySelectorAll("[data-quote-token]").length, 0);
+  assert.equal(editor.querySelectorAll("[data-attachment-token]").length, 1);
+});
+
+test("segmentation keeps quote contents opaque between a leading skill and a file", () => {
+  const value = `/skill:review ${encodeComposerQuoteToken(quote)} @src/main.ts `;
+  assert.deepEqual(segmentComposerText(value), [
+    { type: "skill", name: "review" },
+    { type: "text", text: " " },
+    { type: "quote", quote },
+    { type: "text", text: " " },
+    { type: "attachment", path: "src/main.ts" },
+    { type: "text", text: " " },
+  ]);
 });

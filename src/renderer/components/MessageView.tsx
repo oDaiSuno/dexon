@@ -1,6 +1,7 @@
 import type { EnvironmentId } from "@contract/environment";
 import { memo } from "react";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import type { QuoteInteractionProps } from "./messages/quote-chip";
 import { UserMessageView } from "./messages/UserMessage";
 import type { EditDraft, EditDraftHandlers } from "./messages/user-message-editor";
 import { AssistantMessageView } from "./messages/AssistantMessage";
@@ -8,12 +9,10 @@ import { CompactionMessageView, CustomMessageView } from "./messages/SystemMessa
 import { DeferredContentActions } from "./messages/shared";
 import type { AgentMessage, AssistantMessage, CustomMessage, ToolResultMessage, UserMessage } from "@/lib/types";
 
-interface Props {
+interface Props extends QuoteInteractionProps {
   environmentId: EnvironmentId;
-  /** Active session id — authorizes files.read for referenced attachment paths. */
   sessionId?: string | null;
   message: AgentMessage;
-  /* Previous message is an assistant reply — user bubble gets turn-boundary top spacing. */
   afterAssistant?: boolean;
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
@@ -52,6 +51,9 @@ export const MessageView = memo(function MessageView({
   thinkingExpansionStore,
   compact,
   retried,
+  onJumpQuote,
+  jumpingQuoteKey,
+  detachedQuoteKeys,
 }: Props) {
   if (message.role === "user") {
     return (
@@ -68,6 +70,9 @@ export const MessageView = memo(function MessageView({
         onSwitchVersion={onSwitchVersion}
         agentRunning={agentRunning}
         onLoadDeferredContent={onLoadDeferredContent}
+        onJumpQuote={onJumpQuote}
+        jumpingQuoteKey={jumpingQuoteKey}
+        detachedQuoteKeys={detachedQuoteKeys}
       />
     );
   }
@@ -92,7 +97,6 @@ export const MessageView = memo(function MessageView({
     );
   }
   if (message.role === "toolResult") {
-    // Rendered inline under its toolCall — skip standalone rendering if paired
     return null;
   }
   if (message.role === "custom") {

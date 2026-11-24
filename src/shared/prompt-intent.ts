@@ -1,4 +1,5 @@
 import { isValidSkillName, skillCommandText, splitLeadingSkillCommand } from "./skill-commands";
+import { quoteTitleText } from "./quote-tokens.ts";
 
 export type PromptIntent =
   { kind: "prose"; text: string } | { kind: "skill"; name: string; goal: string } | { kind: "command"; text: string };
@@ -30,7 +31,7 @@ export interface TitleSource {
 
 export function titleSourceOf(intent: PromptIntent): TitleSource | null {
   if (intent.kind === "command") return null;
-  const goal = (intent.kind === "skill" ? intent.goal : intent.text).trim();
+  const goal = quoteTitleText(intent.kind === "skill" ? intent.goal : intent.text).trim();
   if ([...goal].length < TITLE_SOURCE_MIN_CODE_POINTS) return null;
   return intent.kind === "skill" ? { goal, skill: intent.name } : { goal };
 }

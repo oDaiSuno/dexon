@@ -1,3 +1,5 @@
+import type { QuoteInteractionProps } from "../messages/quote-chip";
+import type { QuoteReference } from "@shared/quote-tokens";
 import type { ModelPickerStatus } from "./model-picker-state";
 import type {
   BuiltinSlashCommandResult,
@@ -19,7 +21,7 @@ export type { RecallablePrompt } from "./prompt-history";
 export type SubmissionOutcome = void | { ok: boolean };
 export type SubmissionHandler = (message: string) => SubmissionOutcome | Promise<SubmissionOutcome>;
 
-export interface ChatInputProps extends ModelPickerStatus {
+export interface ChatInputProps extends ModelPickerStatus, QuoteInteractionProps {
   environmentId?: EnvironmentId;
   sessionFolderMissing?: boolean;
   missingFolderRecovery?: MissingFolderRecovery;
@@ -249,6 +251,7 @@ export interface ComposerEditableHandle {
   insertTextAtCaret(text: string): void;
   pasteTextAtCaret(text: string): void;
   insertTokenAtCaret(path: string): void;
+  insertQuoteAtCaret(quote: QuoteReference): void;
   fillCommandSlot(completion: SlashCompletion): void;
   completeAtQuery(atQuery: AtQueryMatch, entryPath: string, isDir: boolean): void;
   focus(): void;
@@ -257,6 +260,8 @@ export interface ComposerEditableHandle {
 }
 
 export interface ChatInputHandle {
+  focus(): void;
+  insertQuoteAtCaret(quote: QuoteReference): void;
   insertText: (text: string) => void;
   prependText: (text: string) => void;
   addFiles: (files: File[]) => void;

@@ -1,0 +1,10 @@
+[
+  "askDexonSelection",
+  "removeQuote",
+  "quoteFromAssistant",
+  "quoteFromUser",
+  "quoteClickToJump",
+  "quoteDetachedSource",
+  "quoteDetachedPreserved",
+  "quoteJumping"
+]

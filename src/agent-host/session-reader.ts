@@ -20,6 +20,7 @@ import type { SessionSourceRef } from "../shared/session-orchestration";
 import { normalizeToolCalls } from "../shared/normalize";
 import { toDisplayMessage } from "./display-message";
 import { promptIntentText, readPromptIntent } from "../shared/prompt-intent";
+import { quoteTitleText } from "../shared/quote-tokens";
 import { versionsByEntryId } from "./session-versions";
 import { branchAt, type SessionBranch } from "./session-branch";
 import { locateSessionProject, type LocatedProject } from "./session-project";
@@ -103,7 +104,7 @@ export function firstPromptRaw(entries: readonly SessionEntry[]): string {
 }
 
 export function toFirstMessage(raw: string): string {
-  return raw ? promptIntentText(readPromptIntent(raw)) : "(no messages)";
+  return raw ? quoteTitleText(promptIntentText(readPromptIntent(raw))) : "(no messages)";
 }
 
 function countConversationMessages(entries: readonly SessionEntry[]): number {

@@ -1,9 +1,13 @@
+import type { QuoteInteractionProps } from "../messages/quote-chip";
+import { useComposerQuotePreview } from "./use-composer-quote-preview";
 import * as React from "react";
 import { isImagePath } from "@shared/attachment-tokens";
 import type { AtQueryMatch } from "@/lib/file-fuzzy";
 import type { CaretEdge, CaretPlacement, ComposerChange, ComposerChangeCause, ComposerEditableHandle } from "./types";
 import {
   createSkillChip,
+  createQuoteChip,
+  insertSerializedQuote,
   createTokenChip,
   insertSerializedAttachment,
   insertSerializedText,
@@ -16,6 +20,7 @@ import {
   applyComposerEdit,
   planCompleteQuery,
   planInsertAttachment,
+  planInsertQuote,
   planInsertText,
   planReplaceAll,
   planFillCommandSlot,
@@ -35,13 +40,6 @@ import {
 import { useComposerEditorEvents } from "./use-composer-editor-events";
 import { fillSerializedCommandSlot, type SlashCompletion } from "./command-slot";
 
-/**
- * Native rich-text composer surface. The DOM is the source of truth: text
- * nodes plus atomic chips (attachment `@path`, skill `/skill:name`), all
- * serialized back to literal text so the rest of the app keeps working on
- * the string. Chips are atomic — the caret never enters them; Backspace at a
- * boundary removes the whole chip; the ✕ (hover) removes it; click reveals.
- */
 export function ComposerEditable({
   value,
   restoreCaret = "end",
@@ -61,7 +59,11 @@ export function ComposerEditable({
   removeLabel,
   skillsByName,
   skillRemoveLabel,
-}: {
+  quoteRemoveLabel,
+  onJumpQuote,
+  jumpingQuoteKey,
+  detachedQuoteKeys,
+}: QuoteInteractionProps & {
   value: string;
   restoreCaret?: CaretPlacement;
   visible?: boolean;
@@ -80,6 +82,7 @@ export function ComposerEditable({
   removeLabel: string;
   skillsByName: ReadonlyMap<string, { readonly description: string }>;
   skillRemoveLabel: string;
+  quoteRemoveLabel?: string;
 }): React.ReactElement {
   const editorRef = React.useRef<HTMLDivElement>(null);
   const visibleRef = React.useRef(visible);
@@ -100,6 +103,7 @@ export function ComposerEditable({
     removeLabel,
     skillsByName,
     skillRemoveLabel,
+    quoteRemoveLabel: quoteRemoveLabel ?? removeLabel,
   });
   propsRef.current = {
     value,
@@ -109,6 +113,7 @@ export function ComposerEditable({
     removeLabel,
     skillsByName,
     skillRemoveLabel,
+    quoteRemoveLabel: quoteRemoveLabel ?? removeLabel,
   };
 
   const getEditor = React.useCallback(() => editorRef.current, []);
@@ -126,6 +131,7 @@ export function ComposerEditable({
   const visuals = React.useMemo<ChipVisuals>(
     () => ({
       attachment: visualFor,
+      quote: () => ({ removeLabel: propsRef.current.quoteRemoveLabel }),
       skill: (name) => ({
         description: propsRef.current.skillsByName.get(name)?.description ?? null,
         removeLabel: propsRef.current.skillRemoveLabel,
@@ -135,6 +141,7 @@ export function ComposerEditable({
   );
   const chips = React.useMemo<ChipFactory>(
     () => ({
+      quote: (quote) => createQuoteChip(quote, visuals.quote(quote)),
       attachment: (path) => createTokenChip(path, visuals.attachment(path)),
       skill: (name) => createSkillChip(name, visuals.skill(name)),
     }),
@@ -244,6 +251,11 @@ export function ComposerEditable({
           if (visibleRef.current) edit((map, selection) => planInsertAttachment(map, selection, path));
           else replaceInBackground(insertSerializedAttachment(lastSerializedRef.current, path));
         }),
+      insertQuoteAtCaret: (quote) =>
+        whenNotComposing(() => {
+          if (visibleRef.current) edit((map, selection) => planInsertQuote(map, selection, quote));
+          else replaceInBackground(insertSerializedQuote(lastSerializedRef.current, quote));
+        }),
       fillCommandSlot: (completion: SlashCompletion) =>
         whenNotComposing(() => {
           if (visibleRef.current) edit((map) => planFillCommandSlot(map, completion));
@@ -299,7 +311,16 @@ export function ComposerEditable({
   React.useEffect(() => {
     const el = getEditor();
     if (el) syncChipVisuals(el, visuals);
-  }, [getEditor, missingByPath, previewsByPath, removeLabel, skillRemoveLabel, skillsByName, visuals]);
+  }, [
+    getEditor,
+    missingByPath,
+    previewsByPath,
+    removeLabel,
+    skillRemoveLabel,
+    quoteRemoveLabel,
+    skillsByName,
+    visuals,
+  ]);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -320,45 +341,53 @@ export function ComposerEditable({
     onKeyDown,
     onRevealToken,
     onSkillReveal,
+    onJumpQuote,
   });
+  const quotePreview = useComposerQuotePreview(visible, value, editorRef, { jumpingQuoteKey, detachedQuoteKeys });
 
   return (
-    <div
-      ref={editorRef}
-      className="composer-editor type-chat-input"
-      contentEditable={visible}
-      suppressContentEditableWarning
-      spellCheck={false}
-      role="textbox"
-      aria-label={ariaLabel}
-      aria-multiline="true"
-      data-placeholder={placeholder}
-      data-empty={value === "" ? "" : undefined}
-      onFocus={() => publish("caret")}
-      onInput={(e) => {
-        if (!visible) return;
-        syncEditorHeight(e.currentTarget);
-        publish("edit");
-      }}
-      onKeyDown={editorEvents.handleEditorKeyDown}
-      onPaste={(e) => {
-        if (visible) onPaste(e);
-      }}
-      onCopy={editorEvents.handleCopy}
-      onCut={editorEvents.handleCut}
-      onMouseDown={editorEvents.handleEditorMouseDown}
-      onClick={editorEvents.handleEditorClick}
-      onCompositionStart={() => {
-        if (!visible) return;
-        isComposingRef.current = true;
-        onCompositionStart();
-      }}
-      onCompositionEnd={() => {
-        isComposingRef.current = false;
-        if (visible) publish("edit");
-        onCompositionEnd();
-        flushDeferredEdits();
-      }}
-    />
+    <>
+      {quotePreview.portal}
+      <div
+        ref={editorRef}
+        className="composer-editor type-chat-input"
+        contentEditable={visible}
+        suppressContentEditableWarning
+        spellCheck={false}
+        role="textbox"
+        aria-label={ariaLabel}
+        aria-multiline="true"
+        data-placeholder={placeholder}
+        data-empty={value === "" ? "" : undefined}
+        onFocus={() => publish("caret")}
+        onInput={(e) => {
+          if (!visible) return;
+          syncEditorHeight(e.currentTarget);
+          publish("edit");
+        }}
+        onKeyDown={editorEvents.handleEditorKeyDown}
+        onPaste={(e) => {
+          if (visible) onPaste(e);
+        }}
+        onCopy={editorEvents.handleCopy}
+        onCut={editorEvents.handleCut}
+        onMouseDown={editorEvents.handleEditorMouseDown}
+        onClick={editorEvents.handleEditorClick}
+        onClickCapture={quotePreview.close}
+        onMouseOver={quotePreview.onMouseOver}
+        onMouseOut={quotePreview.onMouseOut}
+        onCompositionStart={() => {
+          if (!visible) return;
+          isComposingRef.current = true;
+          onCompositionStart();
+        }}
+        onCompositionEnd={() => {
+          isComposingRef.current = false;
+          if (visible) publish("edit");
+          onCompositionEnd();
+          flushDeferredEdits();
+        }}
+      />
+    </>
   );
 }
