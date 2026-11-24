@@ -23,6 +23,7 @@ const LOCALIZED_OWNER_SUFFIXES = [
   "components/app-nav/project-switcher-popover.tsx",
   "components/app-nav/resource-page.tsx",
   "components/FileViewer.tsx",
+  "components/zoom-canvas.tsx",
   "components/file-viewer/audio-viewer.tsx",
   "components/file-viewer/diff-segments.ts",
   "components/file-viewer/diff-view.tsx",

@@ -17,6 +17,7 @@ import "./markdown.css";
 import "./markdown-user.css";
 import "./markdown-system.css";
 import "./markdown-file-preview.css";
+import "./zoom-canvas.css";
 import "./motion.css";
 import "./nav.css";
 import "./sidebar-layout.css";

@@ -78,6 +78,8 @@ test("zoom at the maximum returns the exact same viewport", () => {
   for (let i = 0; i < 4; i++) v = transitionViewport(v, { type: "zoom", at: at(266, 266), logDelta: 100 });
   close(inspectViewport(v).scale, 16);
   assert.equal(transitionViewport(v, { type: "zoom", at: at(266, 266), logDelta: 1 }), v);
+  const almost = transitionViewport(v, { type: "zoom", at: at(266, 266), logDelta: Math.log(15.99 / 16) });
+  close(inspectViewport(transitionViewport(almost, { type: "step", direction: 1 })).scale, 16);
 });
 
 test("panoramas may fit below five percent", () => {
@@ -100,6 +102,9 @@ test("temporary container clamping does not consume the intended focus", () => {
   const enlarged = transitionViewport(v, { type: "measure", width: 1200, height: 1200 });
   geometry(enlarged, 1, 100, 100);
   geometry(transitionViewport(enlarged, { type: "measure", width: 532, height: 532 }), 1, -100, -100);
+  const clamped = transitionViewport(v, { type: "measure", width: 800, height: 800 });
+  const edgeDrag = pan(clamped, 10, 10);
+  geometry(transitionViewport(edgeDrag, { type: "measure", width: 532, height: 532 }), 1, -100, -100);
 });
 
 test("pending content preserves intent and ignores interaction until ready", () => {

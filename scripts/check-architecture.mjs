@@ -271,6 +271,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/markdown-user.css",
   "styles/markdown-system.css",
   "styles/markdown-file-preview.css",
+  "styles/zoom-canvas.css",
   "styles/motion.css",
   "styles/nav.css",
   "styles/sidebar-layout.css",

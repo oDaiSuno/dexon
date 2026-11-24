@@ -74,7 +74,11 @@ function project(data: Data): ViewportProjection {
   };
 }
 
-function positioned(data: Extract<Data, { phase: "ready" }>, scale: number, translate: InputPoint): Data {
+function positioned(
+  data: Extract<Data, { phase: "ready" }>,
+  scale: number,
+  translate: InputPoint,
+): Extract<Data, { phase: "ready" }> {
   const { container, content } = data;
   const x = axis(container.width, scale * content.width, translate.x);
   const y = axis(container.height, scale * content.height, translate.y);
@@ -166,13 +170,14 @@ function transition(data: Data, action: ViewportAction): Data {
     if (!data.drag || data.drag.pointerId !== action.pointerId || !validPoint(action.at)) return data;
     const p = project(data);
     if (p.phase !== "ready") return data;
-    return {
-      ...positioned(data, p.scale, {
-        x: p.translate.x + action.at.x - data.drag.last.x,
-        y: p.translate.y + action.at.y - data.drag.last.y,
-      }),
-      drag: { pointerId: action.pointerId, last: action.at },
-    } as Data;
+    const next = positioned(data, p.scale, {
+      x: p.translate.x + action.at.x - data.drag.last.x,
+      y: p.translate.y + action.at.y - data.drag.last.y,
+    });
+    const projected = project(next);
+    const unchanged =
+      projected.phase === "ready" && projected.translate.x === p.translate.x && projected.translate.y === p.translate.y;
+    return { ...(unchanged ? data : next), drag: { pointerId: action.pointerId, last: action.at } };
   }
   if (action.type === "step") {
     const p = project(data);
@@ -185,7 +190,7 @@ function transition(data: Data, action: ViewportAction): Data {
       .filter((s) => s >= Math.min(fit, 0.05) && s <= 16)
       .sort((a, b) => a - b);
     const scale =
-      action.direction === 1 ? stops.find((s) => s > p.scale * 1.005) : stops.findLast((s) => s < p.scale / 1.005);
+      action.direction === 1 ? stops.find((s) => s > p.scale + 1e-12) : stops.findLast((s) => s < p.scale - 1e-12);
     if (scale === undefined) return data;
     if (scale === fit) return { ...data, bookmark: { mode: "fit" }, drag: null };
     return zoomTo(data, scale, { x: data.container.width / 2, y: data.container.height / 2 });

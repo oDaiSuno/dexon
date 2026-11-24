@@ -1,0 +1,115 @@
+.zoom-canvas {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  container-type: inline-size;
+}
+
+.zoom-canvas__toolbar {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
+  padding: var(--space-2);
+}
+
+.zoom-canvas__stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  touch-action: none;
+}
+
+.zoom-canvas__stage[data-pannable="true"] {
+  cursor: grab;
+}
+
+.zoom-canvas__stage[data-dragging="true"] {
+  cursor: grabbing;
+}
+
+.zoom-canvas__content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+  user-select: none;
+}
+
+.zoom-canvas__content[data-hidden="true"] {
+  visibility: hidden;
+}
+
+.zoom-canvas__content > img,
+.zoom-canvas__content > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+}
+
+.zoom-canvas__feedback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  color: var(--fx-text-secondary);
+}
+
+.zoom-canvas__controls {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  height: 26px;
+  padding: 2px;
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-inset);
+}
+
+.zoom-canvas__step,
+.zoom-canvas__reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-segment);
+  background: none;
+  color: var(--fx-text-secondary);
+  cursor: pointer;
+}
+
+.zoom-canvas__step {
+  width: 22px;
+}
+
+.zoom-canvas__reset {
+  min-width: 44px;
+  padding: 0 var(--space-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-canvas__step:hover:not(:disabled),
+.zoom-canvas__reset:hover:not(:disabled) {
+  background: var(--fx-surface-hover-overlay);
+  color: var(--fx-text-primary);
+}
+
+.zoom-canvas__step:disabled,
+.zoom-canvas__reset:disabled {
+  color: var(--fx-text-faint);
+  cursor: default;
+}

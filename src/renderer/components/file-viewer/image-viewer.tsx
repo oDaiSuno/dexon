@@ -1,7 +1,9 @@
+import { qualifyProjectKey } from "@contract/environment";
 import { useCallback, useState } from "react";
 import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { useI18n } from "@/i18n";
 import { formatFileSize } from "@/lib/locale-format";
+import { ZoomCanvas, type ZoomScene } from "../zoom-canvas";
 import { DownloadLink } from "./download-link";
 import type { FileViewerProps } from "./types";
 import { useBlobSrc } from "./use-blob-src";
@@ -11,92 +13,69 @@ import { WatchIndicator } from "./watch-indicator";
 export function ImageViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
   const { language, t } = useI18n();
   const [bust, setBust] = useState(0);
-  const [naturalSize, setNaturalSize] = useState<{ w: number; h: number } | null>(null);
+  const [decoded, setDecoded] = useState<{ width: number; height: number } | null>(null);
   const { src, size, error, setError, setSize } = useBlobSrc(environmentId, filePath, sourceSessionId, bust);
   const onChange = useCallback(
     (s?: number) => {
       if (typeof s === "number") setSize(s);
-      setNaturalSize(null);
       setBust((b) => b + 1);
     },
     [setSize],
   );
   const watching = useFileWatch(environmentId, filePath, sourceSessionId, onChange);
-
+  if ((error || !src) && decoded) setDecoded(null);
   const ext = getFileName(filePath).toLowerCase().split(".").pop() ?? "";
-
-  const formatSizeStr = size != null ? formatFileSize(size, language) : null;
+  const image = src ? (
+    <img
+      src={src}
+      alt={filePath}
+      draggable={false}
+      onLoad={(e) => {
+        const img = e.currentTarget;
+        if (img.currentSrc === src) setDecoded({ width: img.naturalWidth || 300, height: img.naturalHeight || 150 });
+      }}
+      onError={(e) => {
+        if (e.currentTarget.currentSrc !== src) return;
+        setDecoded(null);
+        setError(t("imageLoadFailed", "Failed to load image"));
+      }}
+    />
+  ) : null;
+  const scene: ZoomScene = error
+    ? { kind: "failed", feedback: <div className="image-viewer-error type-body-default">{error}</div> }
+    : decoded
+      ? { kind: "ready", ...decoded, content: image }
+      : {
+          kind: "pending",
+          content: image,
+          feedback: <div className="type-body-default">{t("loading", "Loading…")}</div>,
+        };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-          minHeight: 40,
-          padding: "4px 12px",
-          borderBottom: "1px solid var(--fx-line-default)",
-          fontSize: "var(--text-label)",
-          color: "var(--fx-text-tertiary)",
-          background: "var(--fx-surface-main)",
-          flexShrink: 0,
-          overflowX: "auto",
-          whiteSpace: "nowrap",
-        }}
-      >
-        <span style={{ fontFamily: "var(--font-mono)" }} title={filePath}>
-          {getRelativeFilePath(filePath, cwd)}
-        </span>
-        <span style={{ marginLeft: "auto" }}>{ext || "image"}</span>
-        {naturalSize && (
-          <span>
-            {naturalSize.w} × {naturalSize.h}
+    <ZoomCanvas
+      className="image-viewer"
+      memoryKey={qualifyProjectKey(environmentId, filePath)}
+      label={t("zoomCanvasLabel", "Zoomable preview")}
+      scene={scene}
+      header={(controls) => (
+        <div className="file-viewer-meta image-viewer-meta type-mono-meta">
+          <span className="file-viewer-crumbs image-viewer-path" title={filePath}>
+            {getRelativeFilePath(filePath, cwd)}
           </span>
-        )}
-        {formatSizeStr && <span>{formatSizeStr}</span>}
-        <WatchIndicator watching={watching} />
-        <DownloadLink environmentId={environmentId} filePath={filePath} sourceSessionId={sourceSessionId} />
-      </div>
-      <div
-        style={{
-          flex: 1,
-          overflow: "auto",
-          background: "var(--fx-surface-raised)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 16,
-          backgroundImage:
-            "linear-gradient(45deg, var(--fx-surface-main) 25%, transparent 25%), linear-gradient(-45deg, var(--fx-surface-main) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--fx-surface-main) 75%), linear-gradient(-45deg, transparent 75%, var(--fx-surface-main) 75%)",
-          backgroundSize: "16px 16px",
-          backgroundPosition: "0 0, 0 8px, 8px -8px, -8px 0px",
-        }}
-      >
-        {error ? (
-          <div style={{ color: "var(--fx-status-danger)", fontSize: "var(--text-body)" }}>{error}</div>
-        ) : !src ? (
-          <div style={{ color: "var(--fx-text-secondary)", fontSize: "var(--text-body)" }}>
-            {t("loading", "Loading…")}
-          </div>
-        ) : (
-          <img
-            src={src}
-            alt={filePath}
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              setNaturalSize({ w: img.naturalWidth, h: img.naturalHeight });
-            }}
-            onError={() => setError(t("imageLoadFailed", "Failed to load image"))}
-            style={{
-              maxWidth: "100%",
-              maxHeight: "100%",
-              objectFit: "contain",
-              boxShadow: "var(--shadow-picker)",
-            }}
-          />
-        )}
-      </div>
-    </div>
+          <span className="image-viewer-secondary">
+            <span>{ext || "image"}</span>
+            {decoded && (
+              <span>
+                {decoded.width} × {decoded.height}
+              </span>
+            )}
+            {size != null && <span>{formatFileSize(size, language)}</span>}
+          </span>
+          {controls}
+          <WatchIndicator watching={watching} />
+          <DownloadLink environmentId={environmentId} filePath={filePath} sourceSessionId={sourceSessionId} />
+        </div>
+      )}
+    />
   );
 }
