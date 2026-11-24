@@ -52,6 +52,8 @@ export function ProcessPanel({ environmentId, onActiveCountChange, onOpenBrowser
     readMore,
     invoke,
     openEndpoint,
+    closeForward,
+    portForwards,
   } = useProcessPanelState({ environmentId, onActiveCountChange, onOpenBrowser });
   const [search, setSearch] = useState("");
   const [streams, setStreams] = useState<Set<ManagedProcessLogStream>>(() => new Set(LOG_STREAMS));
@@ -66,6 +68,7 @@ export function ProcessPanel({ environmentId, onActiveCountChange, onOpenBrowser
     });
   const detailActions = (process: ManagedProcessPublicInfo): ProcessDetailActions => ({
     openEndpoint: (url) => void openEndpoint(process, url),
+    closeForward: (remotePort) => void closeForward(remotePort),
     stop: (mode) =>
       void invoke(() =>
         getEnvironmentApiClient(environmentId).call("processes.stop", {
@@ -165,7 +168,14 @@ export function ProcessPanel({ environmentId, onActiveCountChange, onOpenBrowser
             className="flex min-h-[320px] min-w-0 flex-[1_0_auto] flex-col overflow-hidden"
             style={{ borderTop: "1px solid var(--fx-line-default)", background: "var(--fx-surface-raised)" }}
           >
-            <ProcessDetailHeader process={selected} now={now} busy={busy} actions={detailActions(selected)} />
+            <ProcessDetailHeader
+              process={selected}
+              now={now}
+              busy={busy}
+              actions={detailActions(selected)}
+              environmentId={environmentId}
+              portForwards={portForwards}
+            />
             <ProcessNetworkWarnings process={selected} />
             <LogToolbar
               search={search}

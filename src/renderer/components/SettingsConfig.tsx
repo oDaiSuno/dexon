@@ -43,6 +43,14 @@ export function SettingsConfig({
   const { isDark, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useI18n();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
+  const [scopedEnvironmentId, setScopedEnvironmentId] = useState(environmentId);
+  const [scopeNavigationRequestId, setScopeNavigationRequestId] = useState(navigationRequestId);
+  if (scopeNavigationRequestId !== navigationRequestId) {
+    setScopeNavigationRequestId(navigationRequestId);
+    setScopedEnvironmentId(environmentId);
+  }
+  const scopedCwd = scopedEnvironmentId === environmentId ? cwd : null;
+  const scopedSessionId = scopedEnvironmentId === environmentId ? sessionId : null;
   const activeTabRef = useRef(activeTab);
   activeTabRef.current = activeTab;
   const pageRef = useRef<HTMLDivElement>(null);
@@ -228,18 +236,31 @@ export function SettingsConfig({
               onChatAppearanceChange={onChatAppearanceChange}
             />
           )}
-          {activeTab === "browser" && <BrowserSettings sessionId={sessionId} />}
+          {activeTab === "browser" && (
+            <BrowserSettings
+              environmentId={scopedEnvironmentId}
+              sessionId={scopedSessionId}
+              onScopeChange={setScopedEnvironmentId}
+            />
+          )}
           {activeTab === "models" && (
             <ModelsConfig
-              key={environmentId}
-              environmentId={environmentId}
+              key={scopedEnvironmentId}
+              environmentId={scopedEnvironmentId}
+              onScopeChange={setScopedEnvironmentId}
               embedded
-              cwd={cwd}
+              cwd={scopedCwd}
               onClose={() => undefined}
               onChanged={onModelsChanged}
             />
           )}
-          {activeTab === "tools" && <ToolchainsConfig environmentId={environmentId} cwd={cwd} />}
+          {activeTab === "tools" && (
+            <ToolchainsConfig
+              environmentId={scopedEnvironmentId}
+              cwd={scopedCwd}
+              onScopeChange={setScopedEnvironmentId}
+            />
+          )}
           {activeTab === "servers" && <ServersSettings />}
           {activeTab === "about" && <AboutSettings onClose={close} />}
         </div>

@@ -103,7 +103,7 @@ async function addRemote(daemon, label) {
 async function mount(view, project) {
   await driver.settings();
   await driver.click({ role: "tab", name: "Servers" });
-  await driver.click({ role: "button", name: "Open project", scope: { role: "article", name: view.label } });
+  await driver.click({ role: "button", name: "Open folder", scope: { role: "article", name: view.label } });
   const scope = { role: "dialog", name: labels.picker };
   await driver.waitFor(() => driver.exists(scope), "the production folder picker");
   await driver.fill(labels.path, project, scope);

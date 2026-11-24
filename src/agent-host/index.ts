@@ -1,3 +1,4 @@
+import path from "node:path";
 import { parseArgs } from "node:util";
 import { createRpcServer } from "../contract/rpc";
 import { registerHandlers } from "./handlers";
@@ -11,6 +12,7 @@ import { readPiRuntimeVersion } from "./runtime-version";
 import { applyManagedProcessOwnerIdentity } from "./managed-process/owner-identity";
 import { initializeStandaloneHostPlatform } from "./platform-services";
 import { startDaemonServer, type DaemonServer } from "./daemon-server";
+import { RemoteAttachmentStore } from "./remote-attachment-store";
 import { HostActivity } from "./host-activity";
 import { subscribeActivity } from "./rpc-manager";
 import type { MainToHost } from "../shared/host-protocol";
@@ -40,6 +42,7 @@ const standalonePlatform = standaloneOptions
   ? await initializeStandaloneHostPlatform({ ...standaloneOptions, piVersion: piRuntimeVersion })
   : null;
 let daemon: DaemonServer | undefined;
+let attachmentStore: RemoteAttachmentStore | undefined;
 
 const server = createRpcServer();
 const hostActivity = new HostActivity({
@@ -134,13 +137,21 @@ if (parentPort) {
   log("agent-host ready");
 } else if (standalonePlatform && standaloneOptions) {
   if (standaloneOptions.listenPort !== undefined) {
-    daemon = await startDaemonServer({
-      rpcServer: server,
-      getDescriptor: () => standalonePlatform.getDescriptor(),
-      authToken: standalonePlatform.authToken,
-      listenHost: standaloneOptions.listenHost,
-      listenPort: standaloneOptions.listenPort,
-    });
+    attachmentStore = new RemoteAttachmentStore(path.join(standalonePlatform.stateDir, "staged-attachments"));
+    try {
+      await attachmentStore.initialize();
+      daemon = await startDaemonServer({
+        rpcServer: server,
+        getDescriptor: () => standalonePlatform.getDescriptor(),
+        authToken: standalonePlatform.authToken,
+        listenHost: standaloneOptions.listenHost,
+        listenPort: standaloneOptions.listenPort,
+        attachmentStore,
+      });
+    } catch (error) {
+      await attachmentStore.dispose();
+      throw error;
+    }
     const host = daemon.listenHost.includes(":") ? `[${daemon.listenHost}]` : daemon.listenHost;
     log(`daemon listening on http://${host}:${daemon.port}`);
   } else {
@@ -159,11 +170,18 @@ if (parentPort) {
     stopWatcher();
     restoreGitRunner();
     void (async () => {
-      await daemon?.close();
       try {
-        await stopHandlers();
+        await daemon?.close();
       } finally {
-        await standalonePlatform.dispose();
+        try {
+          await attachmentStore?.dispose();
+        } finally {
+          try {
+            await stopHandlers();
+          } finally {
+            await standalonePlatform.dispose();
+          }
+        }
       }
     })().then(
       () => {

@@ -1,11 +1,15 @@
 import type { ReactNode } from "react";
 import type { ManagedProcessPublicInfo } from "@contract/processes";
 import { isManagedProcessActiveState } from "@contract/processes";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import type { PortForwardEntry } from "@contract/environment-commands";
 import { useI18n } from "@/i18n";
-import { useActiveEnvironmentAffordances } from "@/lib/environment-registry";
+import { environmentAffordances, type EnvironmentAffordances } from "@/lib/environment-affordances";
+import { useEnvironments } from "@/lib/environment-registry";
 import { resolveSessionTitle, useSessionCatalog } from "@/lib/session-catalog";
 import { Badge, Button, type BadgeTone } from "../form-controls";
 import { formatDuration, processExitLabel, processStateLabel } from "./process-format";
+import { remoteLoopbackEndpoint } from "./use-process-panel-state";
 import {
   DownloadGlyph,
   GlobeGlyph,
@@ -21,6 +25,7 @@ const LAN_ADDRESS = /\b0\.0\.0\.0\b/;
 
 export type ProcessDetailActions = {
   openEndpoint: (url: string) => void;
+  closeForward?: (remotePort: number) => void;
   stop: (mode: "graceful" | "force") => void;
   restart: () => void;
   dismiss: () => void;
@@ -67,28 +72,60 @@ function DetailActions({
   process,
   busy,
   actions,
+  affordances,
+  portForwards,
 }: {
   process: ManagedProcessPublicInfo;
   busy: boolean;
   actions: ProcessDetailActions;
+  affordances: EnvironmentAffordances;
+  portForwards: PortForwardEntry[];
 }) {
   const { t } = useI18n();
-  const { embeddedBrowser } = useActiveEnvironmentAffordances();
+  const { embeddedBrowser, isPrimary, portForwarding } = affordances;
   if (process.state === "lost") return null;
   if (isManagedProcessActiveState(process.state)) {
     return (
       <div className="flex w-full flex-wrap items-center gap-[6px] pt-[2px]">
-        {process.endpoints.map((endpoint) => (
-          <ActionButton
-            key={endpoint.id}
-            variant="secondary"
-            icon={<GlobeGlyph />}
-            label={t("managedProcessOpenInBrowser", "Open in browser")}
-            title={endpoint.url}
-            busy={busy || !embeddedBrowser}
-            onClick={() => actions.openEndpoint(endpoint.url)}
-          />
-        ))}
+        {process.endpoints.map((endpoint) => {
+          const loopback = remoteLoopbackEndpoint(endpoint.url);
+          const forward =
+            !isPrimary && loopback
+              ? portForwards.find((entry) => entry.status === "active" && entry.remotePort === loopback.remotePort)
+              : undefined;
+          return (
+            <div key={endpoint.id} className="flex flex-wrap items-center gap-[var(--space-1-5)]">
+              <ActionButton
+                variant="secondary"
+                icon={<GlobeGlyph />}
+                label={
+                  isPrimary
+                    ? t("managedProcessOpenInBrowser", "Open in browser")
+                    : t("remoteForwardPreview", "Forward & preview")
+                }
+                title={endpoint.url}
+                busy={busy || !embeddedBrowser || (!isPrimary && (!portForwarding || !loopback))}
+                onClick={() => actions.openEndpoint(endpoint.url)}
+              />
+              {forward && (
+                <>
+                  <Badge tone="muted">
+                    {t("remoteForwardActive", ":{port} previewing").replace("{port}", String(forward.localPort))}
+                  </Badge>
+                  {actions.closeForward && (
+                    <ActionButton
+                      variant="ghost"
+                      icon={<XGlyph />}
+                      label={t("remoteStopForwarding", "Stop forwarding")}
+                      busy={busy || !portForwarding}
+                      onClick={() => actions.closeForward?.(forward.remotePort)}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })}
         <ActionButton
           variant="ghost"
           icon={<RotateCcwGlyph />}
@@ -148,13 +185,21 @@ export function ProcessDetailHeader({
   now,
   busy,
   actions,
+  environmentId = PRIMARY_ENVIRONMENT_ID,
+  portForwards = [],
 }: {
   process: ManagedProcessPublicInfo;
   now: number;
   busy: boolean;
   actions: ProcessDetailActions;
+  environmentId?: EnvironmentId;
+  portForwards?: PortForwardEntry[];
 }) {
   const { t } = useI18n();
+  const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
+  const activeForwards = portForwards.filter(
+    (entry) => entry.environmentId === environmentId && entry.status === "active",
+  );
   const catalog = useSessionCatalog();
   const exitLabel = processExitLabel(process, t);
   const stateLabel = processStateLabel(process, t);
@@ -185,7 +230,13 @@ export function ProcessDetailHeader({
           {t("ownerTask", "Owner task")} {ownerName(process, catalog)}
         </span>
       </div>
-      <DetailActions process={process} busy={busy} actions={actions} />
+      <DetailActions
+        process={process}
+        busy={busy}
+        actions={actions}
+        affordances={affordances}
+        portForwards={activeForwards}
+      />
     </div>
   );
 }

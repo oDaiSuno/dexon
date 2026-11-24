@@ -113,6 +113,7 @@ if (
     showFileContextMenu: (request) => ipcRenderer.invoke("desktop:file-context-menu", request),
     inspectLocalFiles: (request) => ipcRenderer.invoke("desktop:inspect-local-files", request),
     stageClipboardImage: (request) => ipcRenderer.invoke("desktop:stage-clipboard-image", request),
+    stageRemoteAttachment: (request) => ipcRenderer.invoke("desktop:stage-remote-attachment", request),
     getPathForFile: (file: File) => (webUtils ? webUtils.getPathForFile(file) : null),
     selectDirectory: () => ipcRenderer.invoke("desktop:select-directory"),
     openDirectory: (fsPath) => ipcRenderer.invoke("desktop:open-directory", fsPath),

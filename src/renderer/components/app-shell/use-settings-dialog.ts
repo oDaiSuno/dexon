@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useState } from "react";
+import type { EnvironmentId } from "@contract/environment";
 import type { SettingsTab } from "../SettingsConfig";
 import { subscribeSettingsRequest } from "@/lib/settings-request";
 
 export function useSettingsDialog() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTab>("general");
+  const [settingsEnvironmentId, setSettingsEnvironmentId] = useState<EnvironmentId | null>(null);
   const [settingsNavigationRequestId, setSettingsNavigationRequestId] = useState(0);
 
-  const openSettings = useCallback((tab: SettingsTab = "general") => {
+  const openSettings = useCallback((tab: SettingsTab = "general", environmentId?: EnvironmentId | null) => {
     setSettingsInitialTab(tab);
+    setSettingsEnvironmentId(environmentId ?? null);
     setSettingsNavigationRequestId((id) => id + 1);
     setSettingsOpen(true);
   }, []);
@@ -16,9 +19,13 @@ export function useSettingsDialog() {
   const closeSettings = useCallback(() => {
     setSettingsOpen(false);
     setSettingsInitialTab("general");
+    setSettingsEnvironmentId(null);
   }, []);
 
-  useEffect(() => subscribeSettingsRequest(openSettings), [openSettings]);
+  useEffect(
+    () => subscribeSettingsRequest((request) => openSettings(request.tab, request.environmentId)),
+    [openSettings],
+  );
 
   useEffect(() => {
     const offSettings = window.piBridge?.onMenu?.("settings", () => openSettings("general"));
@@ -34,5 +41,12 @@ export function useSettingsDialog() {
     };
   }, [openSettings]);
 
-  return { settingsOpen, settingsInitialTab, settingsNavigationRequestId, openSettings, closeSettings };
+  return {
+    settingsOpen,
+    settingsInitialTab,
+    settingsEnvironmentId,
+    settingsNavigationRequestId,
+    openSettings,
+    closeSettings,
+  };
 }

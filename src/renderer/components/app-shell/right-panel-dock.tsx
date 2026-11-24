@@ -1,7 +1,7 @@
 import { useI18n } from "@/i18n";
 import type { UnavailableReason } from "@/lib/environment-affordances";
 import { DisabledReason } from "../disabled-reason";
-import { useEnvironments } from "@/lib/environment-registry";
+import { useEnvironmentsSnapshot } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import type { EnvironmentId } from "@contract/environment";
 import type { ProjectSpaceRef } from "@shared/project-space-state";
@@ -98,8 +98,11 @@ export function RightPanelDock({
 }) {
   const { language, t } = useI18n();
   const explorerCwd = location?.environmentId === environmentId ? location.path : null;
-  const { embeddedBrowser, isPrimary, unavailable } = environmentAffordances(
-    useEnvironments().find((view) => view.id === environmentId),
+  const snapshot = useEnvironmentsSnapshot();
+  const environment = snapshot.environments.find((view) => view.id === environmentId);
+  const { embeddedBrowser, isPrimary, unavailable } = environmentAffordances(environment);
+  const portForwards = (snapshot.portForwards ?? []).filter(
+    (entry) => !isPrimary && entry.environmentId === environmentId && entry.status === "active",
   );
   const fileTabs = useMemo(
     () => providedTabs.filter((tab) => tab.environmentId === environmentId),
@@ -213,10 +216,33 @@ export function RightPanelDock({
 
       <div style={{ flex: 1, overflow: "hidden" }}>
         {activeFileTabId === BROWSER_TAB_ID ? (
-          <BrowserDock
-            visible={rightPanelOpen && !suspended && !settingsOpen && !browserAuthorizationOpen}
-            ownerSessionId={selectedSessionId}
-          />
+          <div className="flex h-full min-h-0 flex-col">
+            {portForwards.length > 0 && (
+              <div
+                role="status"
+                aria-label={t("remoteForwardAttribution", "Forwarded preview")}
+                className="type-mono-meta flex shrink-0 flex-wrap"
+                style={{
+                  gap: "var(--space-2)",
+                  padding: "var(--space-1-5) var(--space-3)",
+                  background: "var(--fx-surface-sidebar)",
+                  color: "var(--fx-text-secondary)",
+                }}
+              >
+                {portForwards.map((entry) => (
+                  <span key={entry.id}>
+                    {environment?.label ?? environmentId} :{entry.remotePort} → 127.0.0.1:{entry.localPort}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="min-h-0 flex-1">
+              <BrowserDock
+                visible={rightPanelOpen && !suspended && !settingsOpen && !browserAuthorizationOpen}
+                ownerSessionId={selectedSessionId}
+              />
+            </div>
+          </div>
         ) : activeFileTabId === PROCESSES_TAB_ID ? (
           <ProcessPanel
             environmentId={environmentId}

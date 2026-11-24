@@ -43,6 +43,8 @@ export function parseAddEnvironmentInput(input: unknown): AddEnvironmentInput {
   )
     throw new Error("Invalid environment auth token");
   const target = record(value.target);
+  if (target.stopOnDisconnect !== undefined && (target.kind !== "ssh" || typeof target.stopOnDisconnect !== "boolean"))
+    throw new Error("Invalid SSH stop-on-disconnect flag");
   if (
     target.expectedEnvironmentId !== undefined &&
     (typeof target.expectedEnvironmentId !== "string" ||
@@ -74,6 +76,7 @@ export function parseAddEnvironmentInput(input: unknown): AddEnvironmentInput {
       proxyJump: target.proxyJump as string | undefined,
       remotePort: target.remotePort as number | undefined,
       remoteStateDir: target.remoteStateDir as string | undefined,
+      ...(target.stopOnDisconnect === undefined ? {} : { stopOnDisconnect: target.stopOnDisconnect as boolean }),
       expectedEnvironmentId,
     };
     validateSshTarget(parsedTarget);

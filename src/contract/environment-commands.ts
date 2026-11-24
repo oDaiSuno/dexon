@@ -51,6 +51,18 @@ export type RemoteDaemonChoice = "keep" | "stop";
 export interface RemoveOutcome {
   remoteDaemon: "kept" | "stopped" | "not-owned" | "unreachable";
 }
+export type PortForwardStatus = "active" | "reconnecting" | "stopped" | "error";
+export interface PortForwardEntry {
+  id: string;
+  environmentId: EnvironmentId;
+  remotePort: number;
+  localPort: number;
+  localUrl: string;
+  processId?: string;
+  label?: string;
+  status: PortForwardStatus;
+  error?: string;
+}
 export type EnvironmentCommand =
   | { type: "add"; draft: EnvironmentDraft; connect: boolean }
   | { type: "update"; environmentId: EnvironmentId; draft: EnvironmentDraft }
@@ -61,7 +73,16 @@ export type EnvironmentCommand =
   | { type: "restart-daemon"; environmentId: EnvironmentId }
   | { type: "remove"; environmentId: EnvironmentId; remoteDaemon: RemoteDaemonChoice }
   | { type: "set-policy"; policy: Partial<LifecyclePolicy> }
-  | { type: "discover-ssh-hosts" };
+  | { type: "discover-ssh-hosts" }
+  | { type: "list-port-forwards"; environmentId?: EnvironmentId }
+  | {
+      type: "open-port-forward";
+      environmentId: EnvironmentId;
+      remotePort: number;
+      processId?: string;
+      label?: string;
+    }
+  | { type: "close-port-forward"; environmentId: EnvironmentId; remotePort: number };
 export interface EnvironmentCommandResults {
   add: EnvironmentView;
   update: EnvironmentView;
@@ -73,10 +94,14 @@ export interface EnvironmentCommandResults {
   remove: RemoveOutcome;
   "set-policy": LifecyclePolicy;
   "discover-ssh-hosts": SshHostDiscovery;
+  "list-port-forwards": PortForwardEntry[];
+  "open-port-forward": PortForwardEntry;
+  "close-port-forward": { closed: boolean };
 }
 export type EnvironmentCommandResult<C extends EnvironmentCommand> = EnvironmentCommandResults[C["type"]];
 export interface EnvironmentsSnapshot {
   revision: number;
   policy: LifecyclePolicy;
   environments: EnvironmentView[];
+  portForwards?: PortForwardEntry[];
 }

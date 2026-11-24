@@ -24,7 +24,7 @@ import { openValidatedMarkdownFile } from "./open-file";
 import { createHtmlPreviewUrl, releaseHtmlPreviewUrl } from "./protocol";
 import { loadUiState, saveUiState, saveUiStateStrict } from "./window-state";
 import path from "node:path";
-import { mkdir, realpath } from "node:fs/promises";
+import { mkdir, realpath, writeFile } from "node:fs/promises";
 import {
   isToolchainActionRequest,
   type PublicToolchainState,
@@ -254,6 +254,9 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   });
   trustedHandle("desktop:inspect-local-files", async (_event, request: unknown) => inspectLocalFiles(request));
   trustedHandle("desktop:stage-clipboard-image", async (_event, request: unknown) => stageClipboardImage(request));
+  trustedHandle("desktop:stage-remote-attachment", (_event, request: unknown) =>
+    requireEnvironmentManager().stageRemoteAttachment(request),
+  );
   trustedHandle("desktop:select-directory", async (event) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     const ui = loadUiState();
@@ -289,8 +292,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
       filters: saveOptions.filters ?? [{ name: "Markdown", extensions: ["md"] }],
     });
     if (result.canceled || !result.filePath) return null;
-    const fs = await import("fs");
-    fs.writeFileSync(result.filePath, saveOptions.content, "utf8");
+    await writeFile(result.filePath, saveOptions.content, "utf8");
     return result.filePath;
   });
   trustedHandle("desktop:save-binary-file", async (event, saveOptions: SaveBinaryFileOptions) => {
@@ -298,8 +300,7 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
     const win = BrowserWindow.fromWebContents(event.sender);
     const result = await dialog.showSaveDialog(win ?? undefined!, { defaultPath: saveOptions.defaultPath });
     if (result.canceled || !result.filePath) return null;
-    const fs = await import("fs");
-    fs.writeFileSync(result.filePath, Buffer.from(saveOptions.base64, "base64"));
+    await writeFile(result.filePath, Buffer.from(saveOptions.base64, "base64"));
     return result.filePath;
   });
   trustedHandle(

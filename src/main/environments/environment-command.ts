@@ -14,6 +14,20 @@ function environmentId(value: unknown): string {
     throw new Error("Invalid environment ID");
   return value;
 }
+function boundedString(value: unknown, name: string, maxLength: number): string {
+  if (typeof value !== "string" || !value.trim() || value.length > maxLength || /\p{Cc}/u.test(value))
+    throw new Error(`Invalid ${name}`);
+  return value;
+}
+function remotePort(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535)
+    throw new Error("Invalid remote port");
+  return value;
+}
+function commandFields(command: Record<string, unknown>, fields: readonly string[]): void {
+  if (Object.keys(command).some((key) => key !== "type" && !fields.includes(key)))
+    throw new Error("Unexpected environment command field");
+}
 function draft(value: unknown): EnvironmentDraft {
   const input = record(value);
   if ("expectedEnvironmentId" in record(input.target)) throw new Error("Drafts cannot bind an environment identity");
@@ -66,6 +80,30 @@ export function parseEnvironmentCommand(value: unknown): EnvironmentCommand {
     }
     case "discover-ssh-hosts":
       return { type: "discover-ssh-hosts" };
+    case "list-port-forwards":
+      commandFields(command, ["environmentId"]);
+      return {
+        type: "list-port-forwards",
+        ...(command.environmentId === undefined
+          ? {}
+          : { environmentId: boundedString(command.environmentId, "environment ID", 1024) }),
+      };
+    case "open-port-forward":
+      commandFields(command, ["environmentId", "remotePort", "processId", "label"]);
+      return {
+        type: "open-port-forward",
+        environmentId: boundedString(command.environmentId, "environment ID", 1024),
+        remotePort: remotePort(command.remotePort),
+        ...(command.processId === undefined ? {} : { processId: boundedString(command.processId, "process ID", 1024) }),
+        ...(command.label === undefined ? {} : { label: boundedString(command.label, "port forward label", 256) }),
+      };
+    case "close-port-forward":
+      commandFields(command, ["environmentId", "remotePort"]);
+      return {
+        type: "close-port-forward",
+        environmentId: boundedString(command.environmentId, "environment ID", 1024),
+        remotePort: remotePort(command.remotePort),
+      };
     default:
       throw new Error("Unknown environment command");
   }
@@ -105,6 +143,20 @@ export async function dispatchEnvironmentCommand<C extends EnvironmentCommand>(
       break;
     case "discover-ssh-hosts":
       result = await manager.discoverSshHosts();
+      break;
+    case "list-port-forwards":
+      result = manager.listPortForwards(command.environmentId);
+      break;
+    case "open-port-forward":
+      result = await manager.openPortForward({
+        environmentId: command.environmentId,
+        remotePort: command.remotePort,
+        ...(command.processId === undefined ? {} : { processId: command.processId }),
+        ...(command.label === undefined ? {} : { label: command.label }),
+      });
+      break;
+    case "close-port-forward":
+      result = await manager.closePortForward(command.environmentId, command.remotePort);
       break;
   }
   return result as EnvironmentCommandResult<C>;

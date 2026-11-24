@@ -201,42 +201,29 @@ export async function verifyProjectSources(context) {
 }
 
 export async function verifyPolicyAttribution({ driver, fixture, views }) {
-  const externalPolicy =
-    /Independent mode is off;\s*externally managed remote services are not stopped by this desktop/iu;
-  const observations = [];
-  for (const detachedDaemon of [true, false]) {
-    await driver.bridge("environmentCommand", { type: "set-policy", policy: { detachedDaemon, autoReconnect: true } });
-    await driver.waitFor(
-      () => driver.read("exists", { selector: selectors.welcome }),
-      "the production welcome daemon capsule",
-    );
-    await driver.waitFor(async () => {
-      const text = await driver.read("text", { selector: selectors.welcome });
-      return detachedDaemon
-        ? /independent|continue.*(?:disconnect|desktop)|close.*laptop/iu.test(text)
-        : externalPolicy.test(text);
-    }, `welcome copy reflects detachedDaemon=${detachedDaemon}`);
-    const welcome = await driver.read("text", { selector: selectors.welcome });
-    assert.ok(welcome.includes(views.alpha.label));
-    if (!detachedDaemon) {
-      assert.match(welcome, externalPolicy, "Disabling independent mode does not stop externally managed services");
-      assert.doesNotMatch(
-        welcome,
-        /disconnecting or quitting the desktop app stops the remote service|tasks (?:will )?(?:continue|survive)|tasks (?:are )?not interrupted/iu,
-        "The external service capsule must not claim desktop-owned shutdown or guaranteed task survival",
-      );
-    }
-    observations.push({
-      detachedDaemon,
-      welcome,
-      screenshot: await driver.screenshot(`welcome-detached-${detachedDaemon}`),
-    });
-  }
-  await driver.bridge("environmentCommand", { type: "set-policy", policy: { detachedDaemon: true } });
+  assert.equal(
+    await driver.read("exists", { selector: selectors.welcome }),
+    false,
+    "Scheme C removes the noisy welcome daemon capsule from chat welcome",
+  );
   const topbar = await driver.read("text", { selector: selectors.topbar });
   const composer = await driver.read("text", { selector: selectors.attribution });
   assert.ok(topbar.includes(views.alpha.label));
   assert.match(topbar, /Online/u);
   assert.ok(composer.includes(views.alpha.label) && composer.includes(fixture.project));
-  return { observations, topbar, composer, daemonOwnership: "external", processExitSurvivalNotClaimed: true };
+  await driver.clickCss({ selector: selectors.topbar });
+  const popover = { role: "dialog", name: views.alpha.label };
+  await driver.waitFor(() => driver.exists(popover), "the Remote Control Popover opens from the top bar capsule");
+  const popoverText = await driver.page("text", { scope: popover });
+  assert.match(popoverText, /Disconnecting does not stop remote tasks/iu);
+  const screenshot = await driver.screenshot("remote-control-popover-open");
+  await driver.key("Escape");
+  await driver.waitFor(async () => !(await driver.exists(popover)), "Escape dismisses the Remote Control Popover");
+  return {
+    observations: [{ popoverText, screenshot }],
+    topbar,
+    composer,
+    daemonOwnership: "external",
+    processExitSurvivalNotClaimed: true,
+  };
 }

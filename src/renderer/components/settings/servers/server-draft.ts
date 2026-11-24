@@ -14,11 +14,12 @@ export type ServerDraft = {
       proxyJump: string;
       remotePort: string;
       remoteStateDir: string;
+      stopOnDisconnect: boolean;
     }
   | { kind: "websocket"; url: string; authToken: string }
 );
 
-export function createServerDraft(view?: EnvironmentView): ServerDraft {
+export function createServerDraft(view?: EnvironmentView, fallbackStopOnDisconnect = false): ServerDraft {
   if (view?.target.kind === "websocket") {
     return { kind: "websocket", label: view.label, url: view.target.url, authToken: "" };
   }
@@ -34,6 +35,7 @@ export function createServerDraft(view?: EnvironmentView): ServerDraft {
     proxyJump: target?.proxyJump ?? "",
     remotePort: target?.remotePort?.toString() ?? "",
     remoteStateDir: target?.remoteStateDir ?? "",
+    stopOnDisconnect: target?.stopOnDisconnect ?? fallbackStopOnDisconnect,
   };
 }
 
@@ -57,6 +59,7 @@ export function toEnvironmentDraft(draft: ServerDraft): EnvironmentDraft {
       ...(draft.proxyJump.trim() ? { proxyJump: draft.proxyJump.trim() } : {}),
       ...(draft.remotePort ? { remotePort: Number(draft.remotePort) } : {}),
       ...(draft.remoteStateDir.trim() ? { remoteStateDir: draft.remoteStateDir.trim() } : {}),
+      stopOnDisconnect: draft.stopOnDisconnect,
     },
   };
 }

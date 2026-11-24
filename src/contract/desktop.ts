@@ -147,6 +147,29 @@ export type StageClipboardImageResult =
       message: string;
     };
 
+export interface StageRemoteAttachmentRequest {
+  environmentId: EnvironmentId;
+  name: string;
+  mime?: string;
+  base64: string;
+  sha256?: string;
+}
+
+export type StageRemoteAttachmentResult =
+  | { ok: true; staged: { path: string; name: string; mime: string; size: number; deduplicated: boolean } }
+  | {
+      ok: false;
+      code:
+        | "unsupported"
+        | "disconnected"
+        | "unsupported-type"
+        | "empty-payload"
+        | "too-large"
+        | "write-failed"
+        | "aborted";
+      message: string;
+    };
+
 export interface DesktopUiState {
   backgroundMode?: boolean;
   managedProcessesEnabled?: boolean;
@@ -187,6 +210,7 @@ export interface PiBridge {
   inspectLocalFiles: (request: InspectLocalFilesRequest) => Promise<LocalFileInspection[]>;
 
   stageClipboardImage: (request: StageClipboardImageRequest) => Promise<StageClipboardImageResult>;
+  stageRemoteAttachment?: (request: StageRemoteAttachmentRequest) => Promise<StageRemoteAttachmentResult>;
 
   getPathForFile?: (file: File) => string | null;
   selectDirectory: () => Promise<string | null>;

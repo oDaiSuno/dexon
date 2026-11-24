@@ -2,7 +2,6 @@ import { type NoticeItem } from "@/hooks/useAgentSession";
 import { useI18n } from "@/i18n";
 import appIconUrl from "../../../../build/icon.png";
 import { NoticeShelf } from "./status";
-import { RemoteDaemonCapsule } from "./remote-daemon-capsule";
 export function Welcome({
   notices,
   onDismissNotice,
@@ -62,7 +61,6 @@ export function Welcome({
         >
           {t("welcomeGreeting", "What are we working on? Describe a task, paste an error, or drop in files.")}
         </div>
-        <RemoteDaemonCapsule />
         <NoticeShelf notices={notices} onDismiss={onDismissNotice} align="center" />
       </div>
     </div>

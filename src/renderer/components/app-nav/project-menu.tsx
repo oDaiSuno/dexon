@@ -1,12 +1,19 @@
-import { useId, type ReactNode } from "react";
+import { createContext, useContext, useId, useState, type ReactNode } from "react";
+import type { EnvironmentId } from "@contract/environment";
+import { runEnvironmentCommand } from "@/lib/environment-registry";
 import { useI18n } from "@/i18n";
 import type { ProjectSpaceRow } from "./project-space-rows";
 import { projectMenuFor, type ProjectMenuAction } from "./project-menu-model";
 import { ProjectMenuHeader } from "./project-menu-header";
 import { FOLDER_PATH, MenuIcon } from "./project-switcher-parts";
 
+export const ProjectReconnectContext = createContext<(environmentId: EnvironmentId) => Promise<unknown>>(
+  (environmentId) => runEnvironmentCommand({ type: "connect", environmentId }),
+);
+
 function ActionGlyph({ action }: { action: ProjectMenuAction }) {
   const paths = {
+    reconnect: "M20 7v5h-5M4 17v-5h5M6.1 7a7 7 0 0 1 11.6-2L20 8M4 16l2.3 3A7 7 0 0 0 17.9 17",
     "new-session": "M12 5v14M5 12h14",
     "copy-path": "M9 9h12v12H9zM15 9V3H3v12h6",
     "server-settings": "M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-5M14 3h7v7M21 3l-9 9",
@@ -28,6 +35,7 @@ function MenuItem({
   disabled,
   reason,
   danger,
+  highlighted,
   onChoose,
 }: {
   label: string;
@@ -35,6 +43,7 @@ function MenuItem({
   disabled: boolean;
   reason?: string;
   danger?: boolean;
+  highlighted?: boolean;
   onChoose: () => void;
 }) {
   const reasonId = useId();
@@ -50,7 +59,8 @@ function MenuItem({
         onClick={() => {
           if (!disabled) onChoose();
         }}
-        className={`project-menu-item type-body-large${danger ? " project-menu-danger" : ""}`}
+        data-highlighted={highlighted ? "true" : undefined}
+        className={`project-menu-item type-body-large${danger ? " project-menu-danger" : ""}${highlighted ? " project-menu-reconnect" : ""}`}
       >
         {icon}
         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -94,6 +104,9 @@ export function ProjectMenuContent({
   onReveal?: () => void;
 }) {
   const { t } = useI18n();
+  const reconnect = useContext(ProjectReconnectContext);
+  const [reconnecting, setReconnecting] = useState(false);
+  const [reconnectError, setReconnectError] = useState(false);
   const model = project
     ? projectMenuFor(project, { canMoveUp, canMoveDown })
     : {
@@ -105,6 +118,7 @@ export function ProjectMenuContent({
         ],
       };
   const labels: Record<ProjectMenuAction, string> = {
+    reconnect: t("schemeCReconnectServer", "Reconnect {server}").replace("{server}", project?.environment.label ?? ""),
     "new-session": t("navProjectNewSession", "New session in this project"),
     "copy-path": t("navCopyRemotePath", "Copy remote path"),
     "server-settings": t("navProjectServerSettings", "Server connection settings…"),
@@ -116,6 +130,14 @@ export function ProjectMenuContent({
       : t("closeProject", "Close project"),
   };
   const run: Record<ProjectMenuAction, () => void> = {
+    reconnect: () => {
+      if (!project || reconnecting) return;
+      setReconnecting(true);
+      setReconnectError(false);
+      void reconnect(project.environmentId)
+        .catch(() => setReconnectError(true))
+        .finally(() => setReconnecting(false));
+    },
     "new-session": () => onNewSession?.(),
     "copy-path": () => onCopyPath?.(),
     "server-settings": () => onOpenServerSettings?.(),
@@ -142,7 +164,8 @@ export function ProjectMenuContent({
           <MenuItem
             label={labels[entry.action]}
             icon={<ActionGlyph action={entry.action} />}
-            disabled={entry.disabled}
+            disabled={entry.disabled || (entry.action === "reconnect" && reconnecting)}
+            highlighted={entry.action === "reconnect"}
             danger={model.remote && entry.action === "remove"}
             reason={
               entry.reason === "remote-folder"
@@ -158,6 +181,11 @@ export function ProjectMenuContent({
           />
         </div>
       ))}
+      {reconnectError && (
+        <p role="alert" className="type-label-default project-menu-reconnect-error">
+          {t("remoteAttributionReconnectFailed", "Reconnect failed.")}
+        </p>
+      )}
     </>
   );
 }

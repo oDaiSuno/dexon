@@ -4,7 +4,7 @@ import test, { after, afterEach } from "node:test";
 import { MessageChannel } from "node:worker_threads";
 import { createManagedDomRoot, dom, restoreGlobals } from "../../resource-dom-environment.mjs";
 import { act, createElement, StrictMode } from "react";
-import { button, click, input, labelledControl, waitFor } from "../../../../../tests/support/dom-events.mjs";
+import { button, byRole, click, input, labelledControl, waitFor } from "../../../../../tests/support/dom-events.mjs";
 import { importTestBundle } from "#test-bundle";
 import { realRendererGraphOptions } from "../../renderer-real-graph.mjs";
 
@@ -17,7 +17,8 @@ export { RemoveServerDialog } from "./src/renderer/components/settings/servers/r
 export { SshHostList } from "./src/renderer/components/settings/servers/ssh-host-list.tsx";
 export { workspaceStore } from "./src/renderer/lib/workspace-store.ts";
 export { environmentRegistry } from "./src/renderer/lib/environment-registry.ts";
-export { createRpcServer } from "./src/contract/rpc.ts";`,
+export { createRpcServer } from "./src/contract/rpc.ts";
+export { subscribeSettingsRequest, subscribeResourcesRequest } from "./src/renderer/lib/settings-request.ts";`,
     resolveDir: root,
     sourcefile: "server-management-entry.tsx",
     loader: "tsx",
@@ -32,6 +33,14 @@ const remote = (id = "gpu", status = { phase: "offline", lastFailure: null }) =>
   status,
   descriptor: null,
 });
+const runtime = (overrides = {}) => ({
+  nodeVersion: "v22.23.3",
+  payloadVersion: "0.3.3",
+  startedAt: 1000,
+  ownership: "managed",
+  updatePending: false,
+  ...overrides,
+});
 const host = (alias, extra = {}) => ({
   alias,
   hostname: "10.0.0.8",
@@ -45,7 +54,10 @@ const host = (alias, extra = {}) => ({
 });
 let mounted;
 let cleanup;
-after(() => restoreGlobals());
+after(async () => {
+  await act(async () => new Promise((resolve) => dom.window.setTimeout(resolve, 0)));
+  restoreGlobals();
+});
 afterEach(async () => {
   await mounted?.unmount();
   mounted = null;
@@ -152,35 +164,6 @@ test("SSH discovery survives a restarted effect and only offers new hosts for co
   assert.equal([...page.querySelectorAll("button")].filter((element) => element.textContent === "Connect").length, 2);
 });
 
-test("manual WebSocket add sends a draft and opens the project picker through its callback", async () => {
-  const connected = {
-    ...remote("worker"),
-    target: { kind: "websocket", url: "wss://worker.example" },
-    status: { phase: "connected", generation: 1, since: 0 },
-  };
-  const { commands } = await setup({ command: () => connected });
-  const opened = [];
-  const page = await render(api.AddServerDialog, {
-    initialTab: "manual",
-    onClose: () => {},
-    onOpenProject: (id) => opened.push(id),
-  });
-  await click(button(page, "WebSocket address"));
-  await input(labelledControl(page, "Display name"), "Worker");
-  await input(labelledControl(page, "Remote service address"), "wss://worker.example");
-  await input(labelledControl(page, "Access token"), "new-token");
-  await click(button(page, "Add and connect"));
-  assert.deepEqual(commands, [
-    {
-      type: "add",
-      connect: true,
-      draft: { label: "Worker", target: { kind: "websocket", url: "wss://worker.example" }, authToken: "new-token" },
-    },
-  ]);
-  await click(button(page, "Open project"));
-  assert.deepEqual(opened, ["worker"]);
-});
-
 test("offline removal defaults to keeping the daemon and does not claim to know running sessions", async () => {
   const spaces = [
     { environmentId: "gpu", path: "/code/a" },
@@ -220,15 +203,23 @@ test("removing an unreachable daemon reports the uncertainty instead of claiming
   assert.match(page.textContent, /may still be running/);
 });
 
-test("settings exclude the primary environment and expose both lifecycle switches", async () => {
+test("settings exclude the primary environment and explain automatic defaults without global lifecycle switches", async () => {
   const local = { ...remote("primary"), target: { kind: "primary" }, label: "Primary device" };
   const { commands } = await setup({ views: [local, remote()] });
   const page = await render(api.ServersSettings);
   assert.equal(page.querySelector('article[aria-label="Primary device"]'), null);
   assert.ok(page.querySelector('article[aria-label="gpu"]'));
-  await click(labelledControl(page, "Run independently of this desktop"));
-  assert.deepEqual(commands.at(-1), { type: "set-policy", policy: { detachedDaemon: false } });
-  assert.equal(labelledControl(page, "Reconnect and recover session output automatically").checked, true);
+  assert.equal(page.querySelectorAll('[role="switch"]').length, 0);
+  assert.doesNotMatch(page.textContent, /Independent daemon/);
+  assert.match(page.textContent, /automatically managed/);
+  assert.match(page.textContent, /tasks keep running/);
+  assert.match(page.textContent, /backoff/);
+  assert.match(page.textContent, /idle/);
+  assert.match(page.textContent, /per server/);
+  assert.equal(
+    commands.some((command) => command.type === "set-policy"),
+    false,
+  );
 });
 
 test("a directory permission diagnosis opens edit with the suggested directory expanded and focused", async () => {
@@ -323,17 +314,13 @@ test("externally managed WebSocket services never offer a managed restart", asyn
   const view = {
     ...remote("external"),
     target: { kind: "websocket", url: "wss://external.example" },
-    runtime: {
-      nodeVersion: "v22.23.3",
-      payloadVersion: "0.3.3",
-      startedAt: 1000,
-      ownership: "external",
-      updatePending: true,
-    },
+    runtime: runtime({ ownership: "external", updatePending: true }),
   };
   await setup({ views: [view] });
   const page = await render(api.ServersSettings);
   assert.equal(Boolean(button(page, "Restart and update")), false);
+  await click(button(page, "More actions for external"));
+  assert.equal(Boolean(byRole(dom.window.document.body, "menuitem", "Restart remote daemon")), false);
   assert.match(page.textContent, /Externally managed service/);
 });
 
@@ -341,13 +328,7 @@ test("externally managed services can be removed locally but cannot be selected 
   const view = {
     ...remote("external"),
     target: { kind: "websocket", url: "wss://external.example" },
-    runtime: {
-      nodeVersion: "v22.23.3",
-      payloadVersion: "0.3.3",
-      startedAt: 1000,
-      ownership: "external",
-      updatePending: false,
-    },
+    runtime: runtime({ ownership: "external", updatePending: false }),
   };
   const { commands } = await setup({ views: [view], command: () => ({ remoteDaemon: "kept" }) });
   const page = await render(api.RemoveServerDialog, { view, onClose: () => {} });
@@ -405,44 +386,21 @@ test("retry status identifies the next attempt and preserves the server runtime 
       retryAt: Date.now() + 12_000,
       failureCount: 2,
     }),
-    runtime: {
-      nodeVersion: "v22.23.3",
-      payloadVersion: "0.3.3",
-      startedAt: 1000,
-      ownership: "managed",
-      updatePending: false,
-    },
+    runtime: runtime({ ownership: "managed", updatePending: false }),
   };
   await setup({ views: [view] });
   const page = await render(api.ServersSettings);
   assert.match(page.textContent, /attempt 3/);
+  assert.doesNotMatch(page.textContent, /v22.23.3|0.3.3|Started/);
+  await click(button(page, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Runtime details"));
   assert.match(page.textContent, /v22.23.3/);
   assert.match(page.textContent, /0.3.3/);
-});
-
-test("a pending SSH scan does not block manual submission or overwrite the added server when it fails later", async () => {
-  let rejectDiscovery;
-  const discovery = new Promise((_resolve, reject) => {
-    rejectDiscovery = reject;
-  });
-  const connected = remote("manual", { phase: "connected", generation: 1, since: 0 });
-  const { commands } = await setup({
-    command: (action) => (action.type === "discover-ssh-hosts" ? discovery : connected),
-  });
-  const page = await render(api.AddServerDialog, { onClose: () => {}, onOpenProject: () => {} });
-  assert.match(page.textContent, /Reading local SSH configuration/);
-  await click(button(page, "Enter connection details"));
-  await input(labelledControl(page, "Display name"), "Manual");
-  await input(labelledControl(page, "Host or SSH alias"), "manual");
-  await click(button(page, "Add and connect"));
-  assert.equal(commands.filter((command) => command.type === "add").length, 1);
-  assert.equal(Boolean(button(page, "Open project")), true);
-  await act(async () => {
-    rejectDiscovery(new Error("Late discovery failure"));
-    await discovery.catch(() => {});
-  });
-  assert.equal(page.querySelector('[role="alert"]'), null);
-  assert.equal(Boolean(button(page, "Open project")), true);
+  await click(page.querySelector("details summary"));
+  assert.equal(page.querySelector("details").open, false);
+  await click(button(page, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Runtime details"));
+  assert.equal(page.querySelector("details").open, true);
 });
 
 test("unsupported SSH environments never expose managed restart or allow daemon shutdown", async () => {
@@ -451,31 +409,21 @@ test("unsupported SSH environments never expose managed restart or allow daemon 
       phase: "blocked",
       diagnosis: { reason: "unsupported", detail: "Unsupported remote platform" },
     }),
-    runtime: {
-      nodeVersion: "v22.23.3",
-      payloadVersion: "0.3.3",
-      startedAt: 1000,
-      ownership: "managed",
-      updatePending: true,
-    },
+    runtime: runtime({ ownership: "managed", updatePending: true }),
   };
   await setup({ views: [view] });
   const page = await render(api.ServersSettings);
   assert.equal(Boolean(button(page, "Restart and update")), false);
-  await click(button(page, "Remove"));
+  await click(button(page, "More actions for unsupported"));
+  assert.equal(Boolean(byRole(dom.window.document.body, "menuitem", "Restart remote daemon")), false);
+  await click(byRole(dom.window.document.body, "menuitem", "Remove remote server"));
   assert.equal(page.querySelector('input[value="stop"]').disabled, true);
 });
 
 test("a managed SSH daemon with an update can still be restarted by its named server action", async () => {
   const view = {
     ...remote("managed"),
-    runtime: {
-      nodeVersion: "v22.23.3",
-      payloadVersion: "0.3.3",
-      startedAt: 1000,
-      ownership: "managed",
-      updatePending: true,
-    },
+    runtime: runtime({ ownership: "managed", updatePending: true }),
   };
   const { commands } = await setup({
     views: [view],
@@ -483,9 +431,62 @@ test("a managed SSH daemon with an update can still be restarted by its named se
       action.type === "discover-ssh-hosts" ? { configPath: "~/.ssh/config", hosts: [], error: null } : view,
   });
   const page = await render(api.ServersSettings);
-  await click(button(page, "Restart and update"));
+  assert.equal(Boolean(button(page, "Restart and update")), false);
+  await click(button(page, "More actions for managed"));
+  await click(byRole(dom.window.document.body, "menuitem", "Restart remote daemon"));
+  assert.equal(
+    commands.some((command) => command.type === "restart-daemon"),
+    false,
+  );
+  assert.match(page.textContent, /Running sessions and processes on this server will be interrupted\./);
+  await click(button(page, "Cancel restart"));
+  assert.equal(Boolean(button(page, "Confirm daemon restart")), false);
+  await click(button(page, "More actions for managed"));
+  await click(byRole(dom.window.document.body, "menuitem", "Restart remote daemon"));
+  await click(button(page, "Confirm daemon restart"));
   assert.deepEqual(
     commands.filter((command) => command.type === "restart-daemon"),
     [{ type: "restart-daemon", environmentId: "managed" }],
   );
+});
+
+test("server menus split model and resource navigation by environment while keeping routine actions visible", async (t) => {
+  const view = remote("gpu", { phase: "connected", generation: 1, since: 0 });
+  await setup({ views: [view] });
+  const settings = [],
+    resources = [];
+  t.after(api.subscribeSettingsRequest((request) => settings.push(request)));
+  t.after(api.subscribeResourcesRequest((request) => resources.push(request)));
+  const page = await render(api.ServersSettings);
+  const row = page.querySelector('article[aria-label="gpu"]');
+  assert.ok(button(row, "Open folder"));
+  assert.ok(button(row, "Disconnect"));
+  assert.equal(Boolean(button(row, "Edit")), false);
+  assert.equal(Boolean(button(row, "Remove")), false);
+  await click(button(row, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Configure models on this server"));
+  assert.deepEqual(settings, [{ tab: "models", environmentId: "gpu" }]);
+  await click(button(row, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Manage plugins and skills on this server"));
+  assert.deepEqual(resources, [{ environmentId: "gpu" }]);
+  await click(button(row, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Edit connection"));
+  assert.match(page.querySelector('[role="dialog"]').textContent, /Edit remote server/);
+});
+
+test("an open edit dialog refreshes runtime details and restart ownership without replacing unsaved fields", async () => {
+  const view = remote();
+  const fixture = await setup({ views: [view] });
+  const page = await render(api.ServersSettings);
+  await click(button(page, "More actions for gpu"));
+  await click(byRole(dom.window.document.body, "menuitem", "Edit connection"));
+  const dialog = page.querySelector('[role="dialog"]');
+  await input(labelledControl(dialog, "Display name"), "Unsaved name");
+  await fixture.changeViews([{ ...view, runtime: runtime() }]);
+  assert.ok(button(dialog, "Restart remote daemon"), "runtime ownership must refresh while the edit dialog stays open");
+  assert.match(dialog.textContent, /v22.23.3/);
+  await fixture.changeViews([{ ...view, runtime: runtime({ payloadVersion: "0.4.1", ownership: "external" }) }]);
+  assert.match(dialog.textContent, /0.4.1/);
+  assert.equal(Boolean(button(dialog, "Restart remote daemon")), false);
+  assert.equal(labelledControl(dialog, "Display name").value, "Unsaved name");
 });

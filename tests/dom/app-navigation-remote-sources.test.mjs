@@ -38,7 +38,7 @@ test("the production switcher's server settings source opens the Servers setting
   const scene = await startNavigation(t);
   await click(control(await scene.menu(), "menuitem", "Connect a remote server…"));
   await waitFor(() => assert.equal(control(scene.container, "tab", "Servers").getAttribute("aria-selected"), "true"));
-  control(scene.container, "heading", "Work locally and on multiple remote servers");
+  control(scene.container, "heading", "Your remote servers");
 });
 
 test("an unrelated server retry never prevents restoring an already listed local conversation", async (t) => {

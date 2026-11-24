@@ -4,7 +4,9 @@ import type { Socket } from "node:net";
 import type { WebSocketLike } from "../contract/rpc-channel.ts";
 
 const MAX_MESSAGE_BYTES = 64 * 1024 * 1024;
+const MAX_MESSAGE_FRAGMENTS = 65536;
 const MAX_OUTBOUND_BUFFER_BYTES = 128 * 1024 * 1024;
+const MAX_PAUSE_MS = 1000;
 
 function encodeFrame(opcode: number, payload: Buffer): Buffer {
   const prefix = payload.length < 126 ? 2 : payload.length <= 0xffff ? 4 : 10;
@@ -31,14 +33,20 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
   private buffered: Buffer = Buffer.alloc(0);
   private fragments: Buffer[] = [];
   private messageBytes = 0;
-  private fragmented = false;
+  private fragmentType: number | undefined;
+  private paused = false;
+  private pauseTimer: NodeJS.Timeout | undefined;
 
   private readonly socket: Socket;
+  private readonly binary: boolean;
 
-  constructor(socket: Socket) {
+  constructor(socket: Socket, binary = false) {
     super();
     this.socket = socket;
+    this.binary = binary;
     socket.on("data", (chunk: Buffer) => this.receive(chunk));
+    socket.on("drain", () => this.emit("drain"));
+    socket.once("end", () => socket.destroy());
     socket.on("error", (error) => {
       socket.destroy();
       if (this.listenerCount("error") > 0) this.emit("error", error);
@@ -47,13 +55,36 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
       this.readyState = 3;
       this.buffered = Buffer.alloc(0);
       this.fragments = [];
+      clearTimeout(this.pauseTimer);
+      this.pauseTimer = undefined;
       this.emit("close");
     });
   }
 
-  send(data: string): void {
+  send(data: string | Buffer): boolean {
     if (this.readyState !== 1) throw new Error("WebSocket is not open");
-    if (!this.enqueueFrame(1, data)) throw new Error("WebSocket outbound buffer limit exceeded");
+    if (!this.enqueueFrame(typeof data === "string" ? 1 : 2, data)) {
+      throw new Error("WebSocket outbound buffer limit exceeded");
+    }
+    return !this.socket.writableNeedDrain;
+  }
+
+  pause(): void {
+    if (this.readyState !== 1) return;
+    this.paused = true;
+    clearTimeout(this.pauseTimer);
+    this.pauseTimer = setTimeout(() => this.socket.destroy(), MAX_PAUSE_MS);
+    this.pauseTimer.unref();
+    this.socket.pause();
+  }
+
+  resume(): void {
+    if (this.readyState !== 1) return;
+    this.paused = false;
+    clearTimeout(this.pauseTimer);
+    this.pauseTimer = undefined;
+    this.receive(Buffer.alloc(0));
+    if (!this.paused) this.socket.resume();
   }
 
   private enqueueFrame(opcode: number, payload: string | Buffer): boolean {
@@ -77,6 +108,9 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
 
   private end(payload: Buffer): void {
     this.readyState = 2;
+    clearTimeout(this.pauseTimer);
+    this.pauseTimer = undefined;
+    this.socket.resume();
     this.buffered = Buffer.alloc(0);
     this.fragments = [];
     if (this.socket.destroyed) return;
@@ -87,14 +121,18 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
   }
 
   receive(chunk: Buffer): void {
-    if (this.readyState !== 1 || chunk.length === 0) return;
-    this.buffered = this.buffered.length ? Buffer.concat([this.buffered, chunk]) : chunk;
-    while (this.readyState === 1 && this.buffered.length >= 2) {
+    if (this.readyState !== 1) return;
+    if (this.buffered.length + this.messageBytes + chunk.length > MAX_MESSAGE_BYTES + 65536 + 14) {
+      this.close(1009);
+      return;
+    }
+    if (chunk.length) this.buffered = this.buffered.length ? Buffer.concat([this.buffered, chunk]) : chunk;
+    while (this.readyState === 1 && !this.paused && this.buffered.length >= 2) {
       const first = this.buffered[0]!;
       const second = this.buffered[1]!;
       const final = (first & 0x80) !== 0;
       const opcode = first & 0x0f;
-      if ((first & 0x70) !== 0 || (second & 0x80) === 0 || ![0, 1, 8, 9, 10].includes(opcode)) {
+      if ((first & 0x70) !== 0 || (second & 0x80) === 0 || ![0, 1, 2, 8, 9, 10].includes(opcode)) {
         this.close(1002);
         return;
       }
@@ -127,11 +165,17 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
         this.close(1002);
         return;
       }
-      if (!control && ((opcode === 0 && !this.fragmented) || (opcode === 1 && this.fragmented))) {
+      if (
+        !control &&
+        ((opcode === 0 && this.fragmentType === undefined) || (opcode !== 0 && this.fragmentType !== undefined))
+      ) {
         this.close(1002);
         return;
       }
-      if (length + (control ? 0 : this.messageBytes) > MAX_MESSAGE_BYTES) {
+      if (
+        length + (control ? 0 : this.messageBytes) > MAX_MESSAGE_BYTES ||
+        (!control && this.fragments.length >= MAX_MESSAGE_FRAGMENTS)
+      ) {
         this.close(1009);
         return;
       }
@@ -161,14 +205,20 @@ export class DaemonWebSocket extends EventEmitter implements WebSocketLike {
       return;
     }
     if (opcode === 10) return;
+    if (opcode !== 0) this.fragmentType = opcode;
+    if (this.fragmentType === 2 && !this.binary) {
+      this.close(1003);
+      return;
+    }
     this.fragments.push(payload);
     this.messageBytes += payload.length;
-    this.fragmented = !final;
     if (!final) return;
     const message = this.fragments.length === 1 ? payload : Buffer.concat(this.fragments, this.messageBytes);
+    const binary = this.fragmentType === 2;
     this.fragments = [];
     this.messageBytes = 0;
-    if (!isUtf8(message)) this.close(1007);
-    else this.emit("message", message.toString("utf8"));
+    this.fragmentType = undefined;
+    if (!binary && !isUtf8(message)) this.close(1007);
+    else this.emit("message", binary ? message : message.toString("utf8"));
   }
 }

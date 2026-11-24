@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
+import { EnvironmentScopeBar, usePageEnvironmentScope } from "../settings/environment-scope-bar";
 import { useI18n } from "@/i18n";
 import { browserErrorMessage as messageOf } from "./browser-error-message";
 import type { BrowserPageSnippetSummary, BrowserRendererState, BrowserSettingsPatch } from "../../../contract/browser";
@@ -15,7 +17,34 @@ import { DeveloperOptions } from "./settings/developer-section";
 
 const ADVANCED_PHRASE = "ENABLE ADVANCED BROWSER";
 
-export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
+export function BrowserSettings({
+  sessionId,
+  environmentId = PRIMARY_ENVIRONMENT_ID,
+  onScopeChange,
+}: {
+  sessionId: string | null;
+  environmentId?: EnvironmentId;
+  onScopeChange?: (id: EnvironmentId) => void;
+}) {
+  const [scope, selectScope] = usePageEnvironmentScope(environmentId, onScopeChange);
+  return (
+    <LocalBrowserSettings
+      sessionId={environmentId === PRIMARY_ENVIRONMENT_ID ? sessionId : null}
+      focusedEnvironmentId={scope}
+      onViewLocal={() => selectScope(PRIMARY_ENVIRONMENT_ID)}
+    />
+  );
+}
+
+function LocalBrowserSettings({
+  sessionId,
+  focusedEnvironmentId,
+  onViewLocal,
+}: {
+  sessionId: string | null;
+  focusedEnvironmentId: EnvironmentId;
+  onViewLocal: () => void;
+}) {
   const { language, t } = useI18n();
   const [state, setState] = useState<BrowserRendererState | null>(null);
   const [error, setError] = useState("");
@@ -95,27 +124,37 @@ export function BrowserSettings({ sessionId }: { sessionId: string | null }) {
     };
   }, [refresh, state, update]);
 
-  if (!model) {
-    return (
-      <div className="type-body-default" style={{ margin: "auto", color: "var(--fx-text-secondary)" }}>
-        {error || t("browserLoadingSettings", "Loading Browser settings…")}
-      </div>
-    );
-  }
-
   return (
     <>
       <div style={scrollStyle}>
         <div style={{ ...contentStyle, opacity: busy ? 0.72 : 1 }}>
-          <BrowserHero model={model} />
-          {error && <SettingNote alert>{error}</SettingNote>}
-          <BasicsSection model={model} />
-          <NetworkSection model={model} />
-          <AgentSection model={model} sessionId={sessionId} />
-          <DownloadsProxySection model={model} label={t("browserDownloadsProxy", "Downloads and proxy")} />
-          <ProfilesSection model={model} />
-          <DiagnosticsSection model={model} />
-          <DeveloperOptions model={model} snippets={snippets} />
+          <EnvironmentScopeBar
+            mode="local-only"
+            focusedEnvironmentId={focusedEnvironmentId}
+            onViewLocal={onViewLocal}
+          />
+          {focusedEnvironmentId !== PRIMARY_ENVIRONMENT_ID && (
+            <h2 className="type-body-large-medium" style={{ margin: 0, color: "var(--fx-text-primary)" }}>
+              {t("schemeCLocalBrowserSettings", "Browser settings on this computer")}
+            </h2>
+          )}
+          {model ? (
+            <>
+              <BrowserHero model={model} />
+              {error && <SettingNote alert>{error}</SettingNote>}
+              <BasicsSection model={model} />
+              <NetworkSection model={model} />
+              <AgentSection model={model} sessionId={sessionId} />
+              <DownloadsProxySection model={model} label={t("browserDownloadsProxy", "Downloads and proxy")} />
+              <ProfilesSection model={model} />
+              <DiagnosticsSection model={model} />
+              <DeveloperOptions model={model} snippets={snippets} />
+            </>
+          ) : (
+            <div className="type-body-default" style={{ color: "var(--fx-text-secondary)" }}>
+              {error || t("browserLoadingSettings", "Loading Browser settings…")}
+            </div>
+          )}
         </div>
       </div>
       {prompt && <TextPromptDialog prompt={prompt} cancelLabel={t("cancel", "Cancel")} onRespond={respondToPrompt} />}
@@ -128,4 +167,4 @@ const scrollStyle: CSSProperties = {
   overflowY: "auto",
   padding: "var(--space-6) var(--space-6) var(--space-10)",
 };
-const contentStyle: CSSProperties = { maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 };
+const contentStyle: CSSProperties = { maxWidth: 760, margin: "0 auto", display: "grid", gap: "var(--space-7)" };

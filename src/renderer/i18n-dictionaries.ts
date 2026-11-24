@@ -14,6 +14,7 @@ import { enUS as enUSResources, zhCN as zhCNResources } from "./i18n/resources.t
 import { enUS as enUSSettings, zhCN as zhCNSettings } from "./i18n/settings.ts";
 import { enUS as enUSToolchains, zhCN as zhCNToolchains } from "./i18n/toolchains.ts";
 import { enUS as enUSServers, zhCN as zhCNServers } from "./i18n/servers.ts";
+import { enUS as enUSRemoteUx, zhCN as zhCNRemoteUx } from "./i18n/remote-ux.ts";
 
 export const enUS: Record<string, string> = {
   ...enUSApp,
@@ -32,6 +33,7 @@ export const enUS: Record<string, string> = {
   ...enUSSettings,
   ...enUSToolchains,
   ...enUSServers,
+  ...enUSRemoteUx,
 };
 
 export const zhCN: Record<string, string> = {
@@ -51,6 +53,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNSettings,
   ...zhCNToolchains,
   ...zhCNServers,
+  ...zhCNRemoteUx,
 };
 
 export const dictionaries = {

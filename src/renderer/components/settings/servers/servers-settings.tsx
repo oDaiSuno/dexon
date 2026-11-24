@@ -1,12 +1,11 @@
-import { useEffect, useId, useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentView } from "@contract/environment";
 import type { DiscoveredSshHost } from "@contract/environment-commands";
 import { useI18n } from "@/i18n";
 import { useEnvironmentsSnapshot } from "@/lib/environment-registry";
 import { workspaceStore } from "@/lib/workspace-store";
 import { RemoteFolderPickerDialog } from "@/components/remote-folder-picker/remote-folder-picker-dialog";
-import { Badge, Button, Toggle } from "../../form-controls";
-import { SettingGroup, SettingRow } from "../setting-row";
+import { Badge, Button } from "../../form-controls";
 import { AddServerDialog, type AddServerTab } from "./add-server-dialog";
 import { EditServerDialog } from "./edit-server-dialog";
 import { RemoveServerDialog } from "./remove-server-dialog";
@@ -23,8 +22,7 @@ type ServerDialog =
 
 export function ServersSettings() {
   const { t } = useI18n();
-  const id = useId();
-  const { environments, policy } = useEnvironmentsSnapshot();
+  const { environments } = useEnvironmentsSnapshot();
   const workspace = useSyncExternalStore(
     workspaceStore.subscribe,
     workspaceStore.getSnapshot,
@@ -34,6 +32,8 @@ export function ServersSettings() {
   const online = servers.filter((view) => view.status.phase === "connected");
   const { run, pending, error } = useServerActions();
   const [dialog, setDialog] = useState<ServerDialog>(null);
+  const dialogView =
+    dialog && dialog.kind !== "add" ? (environments.find((view) => view.id === dialog.view.id) ?? dialog.view) : null;
   const [picker, setPicker] = useState<{ initialEnvironmentId: string } | null>(null);
   const [now, setNow] = useState(Date.now);
   const reconnecting = servers.some((view) => view.status.phase === "backoff");
@@ -51,7 +51,7 @@ export function ServersSettings() {
   const connectHost = async (host: DiscoveredSshHost) => {
     await run({
       type: "add",
-      draft: { label: host.alias, target: { kind: "ssh", sshAlias: host.alias } },
+      draft: { label: host.alias, target: { kind: "ssh", sshAlias: host.alias, stopOnDisconnect: false } },
       connect: true,
     });
   };
@@ -79,23 +79,12 @@ export function ServersSettings() {
                   String(online.length),
                 )}
               </Badge>
-              {policy.detachedDaemon && (
-                <Badge tone="accent">{t("serversIndependentDaemon", "Independent daemon")}</Badge>
-              )}
             </div>
             <h2 className="type-title-dialog" style={{ color: "var(--fx-text-primary)", margin: 0 }}>
-              {t("serversHeroTitle", "Work locally and on multiple remote servers")}
+              {t("schemeCServersHeroTitle", "Your remote servers")}
             </h2>
             <p className="type-body-relaxed" style={{ color: "var(--fx-text-secondary)", margin: 0 }}>
-              {policy.detachedDaemon
-                ? t(
-                    "serversHeroDetached",
-                    "Connect over SSH or WebSocket and add remote folders to your sidebar. Remote tasks keep running when this desktop disconnects, then sync when you reconnect.",
-                  )
-                : t(
-                    "serversHeroAttached",
-                    "Connect over SSH or WebSocket and add remote folders to your sidebar. Managed remote services stop when you disconnect or quit this desktop.",
-                  )}
+              {t("schemeCServersHeroHelp", "Connect a server, then open its folders alongside local projects.")}
             </p>
           </div>
           <div
@@ -151,7 +140,6 @@ export function ServersSettings() {
                   key={view.id}
                   view={view}
                   now={now}
-                  detachedDaemon={policy.detachedDaemon}
                   divider={index > 0}
                   mountedSpaces={
                     workspace.loaded ? workspace.spaces.filter((space) => space.environmentId === view.id).length : null
@@ -213,39 +201,25 @@ export function ServersSettings() {
             onManual={() => setDialog({ kind: "add", tab: "manual" })}
           />
         </section>
-        <SettingGroup title={t("serversLifecycle", "Remote service lifecycle and offline tasks")}>
-          <SettingRow
-            label={t("serversDetachedDaemon", "Run independently of this desktop")}
-            description={t(
-              "serversDetachedDaemonHelp",
-              "Keep remote daemons, running sessions and managed processes alive when this desktop closes or disconnects.",
+        <section
+          style={{
+            ...serverPanelStyle,
+            padding: "var(--space-4)",
+            display: "grid",
+            gap: "var(--space-2)",
+            background: "var(--fx-surface-card)",
+          }}
+        >
+          <h2 className="type-label-medium" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
+            {t("schemeCServersDefaultsTitle", "Automatic by default")}
+          </h2>
+          <p className="type-label-default" style={{ margin: 0, color: "var(--fx-text-tertiary)" }}>
+            {t(
+              "schemeCServersDefaultsHelp",
+              "Remote services are automatically managed. Remote tasks keep running after you disconnect or exit; interrupted connections retry with backoff, and updates wait until the service is idle. You can choose to stop on disconnect or exit per server in Advanced options.",
             )}
-            controlId={`${id}-detached`}
-            divider={false}
-          >
-            <Toggle
-              id={`${id}-detached`}
-              checked={policy.detachedDaemon}
-              disabled={Boolean(pending)}
-              onChange={(event) => void run({ type: "set-policy", policy: { detachedDaemon: event.target.checked } })}
-            />
-          </SettingRow>
-          <SettingRow
-            label={t("serversAutoReconnect", "Reconnect and recover session output automatically")}
-            description={t(
-              "serversAutoReconnectHelp",
-              "Retry interrupted connections and synchronize remote session output after the network recovers.",
-            )}
-            controlId={`${id}-reconnect`}
-          >
-            <Toggle
-              id={`${id}-reconnect`}
-              checked={policy.autoReconnect}
-              disabled={Boolean(pending)}
-              onChange={(event) => void run({ type: "set-policy", policy: { autoReconnect: event.target.checked } })}
-            />
-          </SettingRow>
-        </SettingGroup>
+          </p>
+        </section>
         <ServerActionError error={error} />
         {dialog?.kind === "add" && (
           <AddServerDialog
@@ -255,17 +229,19 @@ export function ServersSettings() {
             onEdit={(view, focusField, suggestedValue) => setDialog({ kind: "edit", view, focusField, suggestedValue })}
           />
         )}
-        {dialog?.kind === "edit" && (
+        {dialog?.kind === "edit" && dialogView && (
           <EditServerDialog
             key={dialog.view.id}
-            view={dialog.view}
+            view={dialogView}
             focusField={dialog.focusField}
             suggestedValue={dialog.suggestedValue}
             onClose={() => setDialog(null)}
-            onRemove={() => setDialog({ kind: "remove", view: dialog.view })}
+            onRemove={() => setDialog({ kind: "remove", view: dialogView })}
           />
         )}
-        {dialog?.kind === "remove" && <RemoveServerDialog view={dialog.view} onClose={() => setDialog(null)} />}
+        {dialog?.kind === "remove" && dialogView && (
+          <RemoveServerDialog view={dialogView} onClose={() => setDialog(null)} />
+        )}
         {picker && (
           <RemoteFolderPickerDialog
             initialEnvironmentId={picker.initialEnvironmentId}

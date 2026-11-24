@@ -1,5 +1,7 @@
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { useState } from "react";
+import { useEnvironments } from "@/lib/environment-registry";
+import { EnvironmentScopeBar, usePageEnvironmentScope } from "./settings/environment-scope-bar";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useI18n } from "@/i18n";
 import { Button } from "./form-controls";
@@ -11,21 +13,41 @@ import { SelectionDetail } from "./models/selection-detail";
 import type { DialogTarget } from "./models/types";
 import { useModelsConfig } from "./models/use-models-config";
 
-export function ModelsConfig({
-  environmentId = PRIMARY_ENVIRONMENT_ID,
-  onClose,
-  onChanged,
-  embedded = false,
-  cwd = null,
-}: {
+interface ModelsConfigProps {
   environmentId?: EnvironmentId;
   onClose: () => void;
   onChanged?: () => void;
   embedded?: boolean;
   cwd?: string | null;
-}) {
+  onScopeChange?: (id: EnvironmentId) => void;
+}
+
+export function ModelsConfig(props: ModelsConfigProps) {
+  const environmentId = props.environmentId ?? PRIMARY_ENVIRONMENT_ID;
+  const [scope, selectScope] = usePageEnvironmentScope(environmentId, props.onScopeChange);
+  return (
+    <ScopedModelsConfig
+      key={scope}
+      {...props}
+      environmentId={scope}
+      cwd={scope === PRIMARY_ENVIRONMENT_ID && environmentId === PRIMARY_ENVIRONMENT_ID ? props.cwd : null}
+      onScopeChange={selectScope}
+    />
+  );
+}
+
+function ScopedModelsConfig({
+  environmentId = PRIMARY_ENVIRONMENT_ID,
+  onClose,
+  onChanged,
+  embedded = false,
+  cwd = null,
+  onScopeChange,
+}: ModelsConfigProps) {
   const isMobile = useIsMobile();
   const { t } = useI18n();
+  const environments = useEnvironments();
+  const server = environments.find((view) => view.id === environmentId)?.label ?? environmentId;
   const editor = useModelsConfig({ environmentId, cwd, onChanged });
   const [target, setTarget] = useState<DialogTarget | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -131,14 +153,19 @@ export function ModelsConfig({
                 : "var(--space-6) var(--space-6) var(--space-10)",
             }}
           >
-            <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: 28 }}>
+            <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: "var(--space-7)" }}>
+              <EnvironmentScopeBar
+                mode="selector"
+                selectedEnvironmentId={environmentId}
+                onSelect={(id) => onScopeChange?.(id)}
+              />
               <DefaultModelGroup
                 environmentId={environmentId}
                 preferences={editor.modelPreferences}
                 cwd={cwd}
                 onChanged={onChanged}
               />
-              <SessionNamingGroup preferences={editor.modelPreferences} />
+              {environmentId === PRIMARY_ENVIRONMENT_ID && <SessionNamingGroup preferences={editor.modelPreferences} />}
               <ProviderTree
                 loading={editor.loading}
                 loadError={editor.loadError}
@@ -158,10 +185,15 @@ export function ModelsConfig({
                 className="type-body-default"
                 style={{ margin: 0, textAlign: "center", color: "var(--fx-text-tertiary)" }}
               >
-                {t(
-                  "modelsConfigFootnote",
-                  "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
-                )}
+                {environmentId === PRIMARY_ENVIRONMENT_ID
+                  ? t(
+                      "modelsConfigFootnote",
+                      "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
+                    )
+                  : t(
+                      "schemeCRemoteModelsFootnote",
+                      "Settings are saved in {server}'s ~/.pi/agent/models.json and only affect that server.",
+                    ).replace("{server}", server)}
               </p>
             </div>
           </div>

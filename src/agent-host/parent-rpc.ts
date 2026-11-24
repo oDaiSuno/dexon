@@ -47,6 +47,8 @@ export function getActiveEnvironmentDescriptor(): EnvironmentDescriptor {
       revealInFileManager: Boolean(process.parentPort),
       managedProcesses: true,
       toolchainInstall: true,
+      remoteAttachmentUpload: false,
+      portForwarding: false,
     },
   });
   return structuredClone(activeDescriptor);

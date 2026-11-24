@@ -1,7 +1,11 @@
 import { RpcError } from "../../contract/types.ts";
 import type { BoundAutomationTarget } from "../automation-authority.ts";
-import { planEnvironmentUpdate } from "./environment-editing.ts";
-import { closeModeFor, removeWithChoice, shutdownAll } from "./environment-lifecycle.ts";
+import {
+  assertUniqueEnvironmentTarget,
+  bindEnvironmentIdentity,
+  planEnvironmentUpdate,
+} from "./environment-editing.ts";
+import { closeModeFor, EnvironmentOperationQueue, removeWithChoice, shutdownAll } from "./environment-lifecycle.ts";
 import { testEnvironment } from "./environment-tester.ts";
 import { discoverSshHosts } from "./ssh-config-discovery.ts";
 import {
@@ -20,49 +24,58 @@ import {
   type EnvironmentDescriptor,
   type EnvironmentId,
   type EnvironmentView,
+  type EnvironmentStatus,
 } from "../../contract/environment.ts";
 import type { HostManager } from "../host-manager.ts";
 import { EnvironmentStore, type StoredEnvironment } from "./environment-store.ts";
 import { EnvironmentSupervisor, type EnvironmentWakeupReason } from "./environment-supervisor.ts";
 import { bridgeRendererPort } from "./renderer-port-bridge.ts";
-import { targetConnectionKey } from "./ssh-scripts.ts";
 import { SshEnvironmentManager } from "./ssh-tunnel-manager.ts";
-import { EnvironmentConnectionError } from "./supervisor-policy.ts";
+import { PortForwardManager } from "./port-forward-manager.ts";
+import { stageRemoteAttachment } from "./remote-attachment-client.ts";
+import type { StageRemoteAttachmentRequest, StageRemoteAttachmentResult } from "../../contract/desktop.ts";
 
 interface EnvironmentEntry {
   configuration: StoredEnvironment;
   supervisor: EnvironmentSupervisor;
 }
+interface EnvironmentManagerOptions {
+  hostManager: HostManager;
+  userDataDir: string;
+  onChanged?: (snapshot: EnvironmentsSnapshot) => void;
+  sshTunnelManager?: SshEnvironmentManager;
+  payloadDirectory?: string;
+}
 
 export class EnvironmentManager {
   private readonly store: EnvironmentStore;
   private readonly sshTunnelManager: SshEnvironmentManager;
+  private readonly portForwardManager: PortForwardManager;
   private readonly environments = new Map<EnvironmentId, EnvironmentEntry>();
-  private readonly locks = new Map<EnvironmentId, Promise<void>>();
+  private readonly operations = new EnvironmentOperationQueue();
   private readonly listeners = new Set<(snapshot: EnvironmentsSnapshot) => void>();
   private revision = 0;
   private primaryDescriptor: EnvironmentDescriptor | null = null;
   private disposed = false;
-
-  private readonly options: {
-    hostManager: HostManager;
-    userDataDir: string;
-    onChanged?: (snapshot: EnvironmentsSnapshot) => void;
-    sshTunnelManager?: SshEnvironmentManager;
-    payloadDirectory?: string;
-  };
-
-  constructor(options: {
-    hostManager: HostManager;
-    userDataDir: string;
-    onChanged?: (snapshot: EnvironmentsSnapshot) => void;
-    sshTunnelManager?: SshEnvironmentManager;
-    payloadDirectory?: string;
-  }) {
+  private readonly options: EnvironmentManagerOptions;
+  constructor(options: EnvironmentManagerOptions) {
     this.options = options;
     this.store = new EnvironmentStore(options.userDataDir);
     this.sshTunnelManager =
       options.sshTunnelManager ?? new SshEnvironmentManager({ payloadDirectory: options.payloadDirectory });
+    this.portForwardManager = new PortForwardManager({
+      resolveTransport: (environmentId) => {
+        const entry = this.environments.get(environmentId);
+        const endpoint = entry?.supervisor.getEndpoint();
+        if (this.disposed || !entry || !endpoint) return null;
+        return {
+          target: entry.configuration.target,
+          endpoint,
+          remoteEnvironmentId: entry.supervisor.descriptor?.environmentId,
+        };
+      },
+      onChanged: () => this.emit(),
+    });
     this.primaryDescriptor = this.buildPrimaryDescriptor();
     if (options.onChanged) this.listeners.add(options.onChanged);
     for (const configuration of this.store.load()) this.register(configuration);
@@ -74,33 +87,78 @@ export class EnvironmentManager {
       this.notifyPrimaryStatus();
     });
   }
-
   listEnvironments(): EnvironmentView[] {
     const host = this.options.hostManager;
+    const status: EnvironmentStatus = host.isServing()
+      ? { phase: "connected", generation: host.getGeneration(), since: host.getReadySince()! }
+      : host.getStatus() === "starting"
+        ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
+        : { phase: "offline", lastFailure: null };
     const primary: EnvironmentView = {
       id: PRIMARY_ENVIRONMENT_ID,
       label: "Primary",
       enabled: true,
       target: { kind: "primary" },
       descriptor: this.primaryDescriptor,
-      status: host.isServing()
-        ? { phase: "connected", generation: host.getGeneration(), since: host.getReadySince()! }
-        : host.getStatus() === "starting"
-          ? { phase: "connecting", stage: "authenticating", attempt: 1, progress: null }
-          : { phase: "offline", lastFailure: null },
+      status,
     };
     return structuredClone([primary, ...[...this.environments.values()].map((entry) => this.view(entry))]);
   }
-
   snapshot(): EnvironmentsSnapshot {
-    return { revision: this.revision, policy: { ...this.store.policy }, environments: this.listEnvironments() };
+    return {
+      revision: this.revision,
+      policy: { ...this.store.policy },
+      environments: this.listEnvironments(),
+      portForwards: this.portForwardManager.list(),
+    };
   }
-
+  listPortForwards(environmentId?: EnvironmentId) {
+    this.assertActive();
+    return this.portForwardManager.list(environmentId);
+  }
+  openPortForward(input: { environmentId: EnvironmentId; remotePort: number; processId?: string; label?: string }) {
+    return this.operations.run(input.environmentId, async () => {
+      this.assertActive();
+      const entry = this.requireEnvironment(input.environmentId);
+      if (
+        entry.configuration.target.kind === "websocket" &&
+        entry.supervisor.descriptor?.capabilities.portForwarding === false
+      )
+        throw new Error("Remote port forwarding is not supported");
+      return this.portForwardManager.open(input);
+    });
+  }
+  closePortForward(environmentId: EnvironmentId, remotePort: number) {
+    return this.operations.run(environmentId, async () => {
+      this.assertActive();
+      return this.portForwardManager.close(environmentId, remotePort);
+    });
+  }
+  async stageRemoteAttachment(request: unknown): Promise<StageRemoteAttachmentResult> {
+    const input = request as StageRemoteAttachmentRequest | null;
+    if (
+      !input ||
+      typeof input.environmentId !== "string" ||
+      !input.environmentId.trim() ||
+      input.environmentId.length > 1024 ||
+      /[\p{Cc}]/u.test(input.environmentId)
+    )
+      return { ok: false, code: "unsupported-type", message: "Invalid attachment environment" };
+    if (input.environmentId === PRIMARY_ENVIRONMENT_ID)
+      return { ok: false, code: "unsupported", message: "Primary attachments use local staging" };
+    const entry = this.environments.get(input.environmentId);
+    const endpoint = entry?.supervisor.getEndpoint();
+    if (this.disposed || !entry || !endpoint)
+      return { ok: false, code: "disconnected", message: "Remote environment is not connected" };
+    if (entry.supervisor.descriptor?.capabilities.remoteAttachmentUpload === false)
+      return { ok: false, code: "unsupported", message: "Remote attachment uploads are not supported" };
+    return stageRemoteAttachment(endpoint, input);
+  }
   async addEnvironment(input: AddEnvironmentInput): Promise<EnvironmentView> {
     this.assertActive();
     if (this.environments.size >= 100) throw new Error("Too many environments");
     const configuration = this.store.create(input);
-    this.assertUniqueTarget(configuration);
+    assertUniqueEnvironmentTarget(configuration, this.configurations);
     const entry = this.register(configuration);
     try {
       this.persist();
@@ -112,9 +170,8 @@ export class EnvironmentManager {
     if (configuration.enabled) void entry.supervisor.connect();
     return structuredClone(this.view(entry));
   }
-
   removeEnvironment(environmentId: EnvironmentId, choice: RemoteDaemonChoice = "keep"): Promise<RemoveOutcome> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       if (environmentId === PRIMARY_ENVIRONMENT_ID) throw new Error("The Primary environment cannot be removed");
       const entry = this.requireEnvironment(environmentId);
@@ -123,7 +180,10 @@ export class EnvironmentManager {
           entry.configuration.target.kind === "ssh"
             ? this.sshTunnelManager.stopRemoteDaemon(entry.configuration.target)
             : Promise.resolve("not-owned"),
-        disconnect: () => entry.supervisor.dispose("disconnect"),
+        disconnect: async () => {
+          await this.portForwardManager.closeEnvironment(environmentId);
+          await entry.supervisor.dispose("disconnect");
+        },
         remove: () => {
           this.environments.delete(environmentId);
           try {
@@ -138,13 +198,12 @@ export class EnvironmentManager {
       });
     });
   }
-
   updateEnvironment(environmentId: EnvironmentId, draft: EnvironmentDraft): Promise<EnvironmentView> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       const entry = this.requireEnvironment(environmentId);
       const plan = planEnvironmentUpdate(entry.configuration, draft);
-      this.assertUniqueTarget(plan.configuration, environmentId);
+      assertUniqueEnvironmentTarget(plan.configuration, this.configurations, environmentId);
       const previous = entry.configuration;
       entry.configuration = plan.configuration;
       try {
@@ -154,6 +213,7 @@ export class EnvironmentManager {
         throw error;
       }
       if (plan.reconnect) {
+        await this.portForwardManager.closeEnvironment(environmentId, !plan.rebind);
         await entry.supervisor.dispose("disconnect");
         const next = this.register(plan.configuration);
         if (plan.configuration.enabled) void next.supervisor.connect();
@@ -165,7 +225,6 @@ export class EnvironmentManager {
       return structuredClone(this.view(this.requireEnvironment(environmentId)));
     });
   }
-
   test(subject: { environmentId: EnvironmentId } | { draft: EnvironmentDraft }) {
     this.assertActive();
     return testEnvironment(
@@ -173,26 +232,20 @@ export class EnvironmentManager {
       this.sshTunnelManager,
     );
   }
-
   discoverSshHosts() {
     this.assertActive();
-    return discoverSshHosts([...this.environments.values()].map((entry) => entry.configuration));
+    return discoverSshHosts(this.configurations);
   }
-
   async setPolicy(patch: Partial<LifecyclePolicy>): Promise<LifecyclePolicy> {
     this.assertActive();
     const policy = { ...this.store.policy, ...patch };
-    this.store.save(
-      [...this.environments.values()].map((entry) => entry.configuration),
-      policy,
-    );
+    this.store.save(this.configurations, policy);
     for (const entry of this.environments.values()) entry.supervisor.policyChanged();
     this.emit();
     return { ...policy };
   }
-
   trust(environmentId: EnvironmentId, trust: "host-key" | "environment-identity"): Promise<EnvironmentView> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       const entry = this.requireEnvironment(environmentId);
       const status = entry.supervisor.state.status;
@@ -221,9 +274,8 @@ export class EnvironmentManager {
       return structuredClone(this.view(entry));
     });
   }
-
   restartDaemon(environmentId: EnvironmentId): Promise<EnvironmentView> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       const entry = this.requireEnvironment(environmentId);
       if (entry.configuration.target.kind !== "ssh") throw new Error("Only managed SSH daemons can be restarted");
@@ -235,9 +287,8 @@ export class EnvironmentManager {
       return structuredClone(this.view(entry));
     });
   }
-
   connectEnvironment(environmentId: EnvironmentId): Promise<EnvironmentView> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       if (environmentId === PRIMARY_ENVIRONMENT_ID) return this.listEnvironments()[0];
       const entry = this.requireEnvironment(environmentId);
@@ -246,18 +297,17 @@ export class EnvironmentManager {
       return structuredClone(this.view(entry));
     });
   }
-
   disconnectEnvironment(environmentId: EnvironmentId): Promise<EnvironmentView> {
-    return this.withEnvironmentLock(environmentId, async () => {
+    return this.operations.run(environmentId, async () => {
       this.assertActive();
       if (environmentId === PRIMARY_ENVIRONMENT_ID) return this.listEnvironments()[0];
       const entry = this.requireEnvironment(environmentId);
       this.setEnabled(entry, false);
-      await entry.supervisor.disconnect();
+      await this.portForwardManager.closeEnvironment(environmentId);
+      await entry.supervisor.disconnect(closeModeFor("disconnect", this.store.policy, entry.configuration.target));
       return structuredClone(this.view(entry));
     });
   }
-
   bindAutomationTarget(environmentId: EnvironmentId): BoundAutomationTarget {
     const disconnected = () =>
       new RpcError({ code: "DISCONNECTED", message: "Automation environment is not connected" });
@@ -292,7 +342,6 @@ export class EnvironmentManager {
       isStillCurrent,
     };
   }
-
   attachRendererEnvironmentPort(environmentId: EnvironmentId, sender: WebContents): void {
     this.assertActive();
     if (typeof environmentId !== "string" || sender.isDestroyed()) throw new Error("Invalid environment port request");
@@ -328,18 +377,15 @@ export class EnvironmentManager {
       throw error;
     }
   }
-
   notifyWakeup(reason: EnvironmentWakeupReason): void {
     if (this.disposed) return;
     for (const entry of this.environments.values()) entry.supervisor.wakeup(reason);
   }
-
   notifyPrimaryStatus(): void {
     if (this.disposed) return;
     this.primaryDescriptor = this.buildPrimaryDescriptor();
     this.emit();
   }
-
   private buildPrimaryDescriptor(): EnvironmentDescriptor {
     const os = process.platform === "win32" ? "win32" : process.platform === "darwin" ? "darwin" : "linux";
     return {
@@ -347,12 +393,7 @@ export class EnvironmentManager {
       label: "Primary",
       protocolVersion: DEXON_ENVIRONMENT_PROTOCOL_VERSION,
       serverVersion: this.options.hostManager.getPiVersion() ?? "0.0.0",
-      platform: {
-        os,
-        arch: process.arch,
-        pathStyle: os === "win32" ? "win32" : "posix",
-        home: homedir(),
-      },
+      platform: { os, arch: process.arch, pathStyle: os === "win32" ? "win32" : "posix", home: homedir() },
       capabilities: {
         browser: true,
         nativeDialogs: true,
@@ -362,86 +403,62 @@ export class EnvironmentManager {
       },
     };
   }
-
   subscribe(listener: (snapshot: EnvironmentsSnapshot) => void): () => void {
     this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+    return () => this.listeners.delete(listener);
   }
-
   async shutdown(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
     this.listeners.clear();
-    await shutdownAll(
-      [...this.environments.values()].map(
-        (entry) => () => entry.supervisor.dispose(closeModeFor("shutdown", this.store.policy)),
+    await shutdownAll([
+      () => this.portForwardManager.dispose(),
+      ...[...this.environments.values()].map(
+        (entry) => () =>
+          entry.supervisor.dispose(closeModeFor("shutdown", this.store.policy, entry.configuration.target)),
       ),
-    );
-    await shutdownAll(
-      [() => this.sshTunnelManager.dispose(), ...[...this.locks.values()].map((lock) => () => lock)],
-      0,
-    );
+    ]);
+    await shutdownAll([() => this.sshTunnelManager.dispose(), ...this.operations.pending.map((lock) => () => lock)], 0);
   }
-
   async dispose(): Promise<void> {
     await this.shutdown();
   }
-
   private register(configuration: StoredEnvironment): EnvironmentEntry {
+    this.assertActive();
+    let connected = false;
+    let forwarding = Promise.resolve();
     const supervisor = new EnvironmentSupervisor({
       configuration,
       sshTunnelManager: this.sshTunnelManager,
       policy: () => this.store.policy,
-      onBound: (descriptor) => {
-        for (const entry of this.environments.values()) {
-          if (
-            entry.configuration.id !== configuration.id &&
-            entry.configuration.target.expectedEnvironmentId === descriptor.environmentId
-          ) {
-            throw new EnvironmentConnectionError(
-              "blocked",
-              "configuration",
-              "Remote environment identity is already registered",
-            );
-          }
+      onBound: (descriptor) =>
+        bindEnvironmentIdentity(configuration, descriptor, this.configurations, () => this.persist()),
+      onChange: () => {
+        if (this.disposed || this.environments.get(configuration.id)?.supervisor !== supervisor) return;
+        const active = supervisor.getEndpoint() !== null;
+        if (active !== connected) {
+          connected = active;
+          forwarding = forwarding
+            .then(() =>
+              active
+                ? this.portForwardManager.reconnectEnvironment(configuration.id)
+                : this.portForwardManager.closeEnvironment(configuration.id, configuration.enabled),
+            )
+            .catch(() => {});
         }
-        if (configuration.target.expectedEnvironmentId === descriptor.environmentId) return;
-        configuration.target.expectedEnvironmentId = descriptor.environmentId;
-        try {
-          this.persist();
-        } catch (error) {
-          delete configuration.target.expectedEnvironmentId;
-          throw error;
-        }
+        this.emit();
       },
-      onChange: () => this.emit(),
     });
     const entry = { configuration, supervisor };
     this.environments.set(configuration.id, entry);
     return entry;
   }
-
-  private assertUniqueTarget(configuration: StoredEnvironment, excludedId?: string): void {
-    const key =
-      configuration.target.kind === "ssh" ? targetConnectionKey(configuration.target) : configuration.target.url;
-    for (const existing of this.environments.values()) {
-      if (existing.configuration.id === excludedId) continue;
-      const target = existing.configuration.target;
-      if (target.kind !== configuration.target.kind) continue;
-      if ((target.kind === "ssh" ? targetConnectionKey(target) : target.url) === key)
-        throw new Error("Environment target already exists");
-    }
-  }
-
   private requireEnvironment(environmentId: EnvironmentId): EnvironmentEntry {
     if (typeof environmentId !== "string") throw new Error("Invalid environment ID");
     const entry = this.environments.get(environmentId);
     if (!entry) throw new Error("Unknown environment ID");
     return entry;
   }
-
   private view({ configuration, supervisor }: EnvironmentEntry): EnvironmentView {
     return {
       id: configuration.id,
@@ -453,17 +470,17 @@ export class EnvironmentManager {
       runtime: supervisor.runtime,
     };
   }
-
   private emit(): void {
     if (this.disposed) return;
     this.revision += 1;
     for (const listener of this.listeners) listener(this.snapshot());
   }
-
-  private persist(): void {
-    this.store.save([...this.environments.values()].map((entry) => entry.configuration));
+  private get configurations(): StoredEnvironment[] {
+    return [...this.environments.values()].map((entry) => entry.configuration);
   }
-
+  private persist(): void {
+    this.store.save(this.configurations);
+  }
   private setEnabled(entry: EnvironmentEntry, enabled: boolean): void {
     const previous = entry.configuration.enabled;
     entry.configuration.enabled = enabled;
@@ -475,22 +492,6 @@ export class EnvironmentManager {
     }
     this.emit();
   }
-
-  private async withEnvironmentLock<T>(environmentId: EnvironmentId, fn: () => Promise<T>): Promise<T> {
-    const previous = this.locks.get(environmentId) ?? Promise.resolve();
-    const running = previous.then(fn);
-    const settled = running.then(
-      () => undefined,
-      () => undefined,
-    );
-    this.locks.set(environmentId, settled);
-    try {
-      return await running;
-    } finally {
-      if (this.locks.get(environmentId) === settled) this.locks.delete(environmentId);
-    }
-  }
-
   private assertActive(): void {
     if (this.disposed) throw new Error("Environment manager is disposed");
   }

@@ -14,6 +14,8 @@ export interface EnvironmentAffordances {
   revealInFileManager: boolean;
   openLocalFile: boolean;
   attachLocalFiles: boolean;
+  remoteAttachmentUpload: boolean;
+  portForwarding: boolean;
   embeddedBrowser: boolean;
   pathStyle: "posix" | "win32";
   platformOs: "linux" | "darwin" | "win32";
@@ -27,7 +29,9 @@ export function environmentAffordances(view: EnvironmentView | null | undefined)
   const os = platformOs === "win32" ? "win32" : platformOs === "darwin" ? "darwin" : "linux";
   const capabilities = view?.descriptor?.capabilities;
   const revealInFileManager = isPrimary && capabilities?.revealInFileManager !== false;
-  const embeddedBrowser = isPrimary && capabilities?.browser !== false;
+  const portForwarding = !isPrimary && capabilities?.portForwarding === true;
+  const embeddedBrowser = (isPrimary && capabilities?.browser !== false) || portForwarding;
+  const remoteAttachmentUpload = !isPrimary && capabilities?.remoteAttachmentUpload === true;
   const reason = (feature: UnavailableFeature): UnavailableReason => ({
     kind: !view ? "environment-unknown" : isPrimary ? "capability-missing" : "remote-environment",
     environmentId: view?.id ?? null,
@@ -40,6 +44,8 @@ export function environmentAffordances(view: EnvironmentView | null | undefined)
     revealInFileManager,
     openLocalFile: isPrimary,
     attachLocalFiles: isPrimary,
+    remoteAttachmentUpload,
+    portForwarding,
     embeddedBrowser,
     pathStyle: view?.descriptor?.platform.pathStyle ?? (os === "win32" ? "win32" : "posix"),
     platformOs: os,

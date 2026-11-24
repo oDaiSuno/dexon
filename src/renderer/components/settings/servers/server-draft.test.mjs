@@ -57,6 +57,33 @@ test("SSH edits round-trip advanced fields without sending the trusted environme
       proxyJump: "bastion",
       remotePort: 39100,
       remoteStateDir: "/data/dexon",
+      stopOnDisconnect: false,
     },
+  });
+});
+
+test("new SSH servers keep tasks alive by default and leave the service port automatically managed", () => {
+  const draft = createServerDraft();
+  assert.equal(draft.stopOnDisconnect, false);
+  assert.deepEqual(toEnvironmentDraft({ ...draft, label: " New GPU ", sshAlias: " gpu-new " }), {
+    label: "New GPU",
+    target: { kind: "ssh", sshAlias: "gpu-new", stopOnDisconnect: false },
+  });
+});
+
+test("SSH edits preserve a legacy service port and explicitly save either per-server shutdown choice", () => {
+  const draft = createServerDraft(view({ kind: "ssh", sshAlias: "rented", remotePort: 39100, stopOnDisconnect: true }));
+  assert.equal(draft.stopOnDisconnect, true);
+  assert.deepEqual(toEnvironmentDraft(draft).target, {
+    kind: "ssh",
+    sshAlias: "rented",
+    remotePort: 39100,
+    stopOnDisconnect: true,
+  });
+  assert.deepEqual(toEnvironmentDraft({ ...draft, stopOnDisconnect: false }).target, {
+    kind: "ssh",
+    sshAlias: "rented",
+    remotePort: 39100,
+    stopOnDisconnect: false,
   });
 });

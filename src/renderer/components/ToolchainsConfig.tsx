@@ -13,14 +13,39 @@ import { OverviewSection } from "./toolchains/overview-section";
 import { ReadySection } from "./toolchains/ready-list";
 import { StorageSection } from "./toolchains/storage-section";
 import { actionKey, friendlyToolchainError, issueCapabilities, type ToolAction } from "./toolchains/shared";
+import { EnvironmentScopeBar, usePageEnvironmentScope } from "./settings/environment-scope-bar";
 
 export function ToolchainsConfig({
   cwd,
   environmentId = PRIMARY_ENVIRONMENT_ID,
+  onScopeChange,
 }: {
   cwd?: string | null;
   environmentId?: EnvironmentId;
+  onScopeChange?: (id: EnvironmentId) => void;
 }) {
+  const { t } = useI18n();
+  const [scope, selectScope] = usePageEnvironmentScope(environmentId, onScopeChange);
+  if (scope !== PRIMARY_ENVIRONMENT_ID) {
+    return (
+      <div role="status" style={{ flex: 1, padding: "var(--space-6)" }}>
+        <div style={{ maxWidth: 760, margin: "0 auto", display: "grid", gap: "var(--space-4)" }}>
+          <p className="type-body-default" style={{ margin: 0, color: "var(--fx-text-secondary)" }}>
+            {t("toolchainsLocalOnly", "Developer toolchain inspection is only available for the local environment.")}
+          </p>
+          <EnvironmentScopeBar
+            mode="local-only"
+            focusedEnvironmentId={scope}
+            onViewLocal={() => selectScope(PRIMARY_ENVIRONMENT_ID)}
+          />
+        </div>
+      </div>
+    );
+  }
+  return <LocalToolchainsConfig cwd={environmentId === PRIMARY_ENVIRONMENT_ID ? cwd : null} />;
+}
+
+function LocalToolchainsConfig({ cwd }: { cwd?: string | null }) {
   const { t } = useI18n();
   const [state, setState] = useState<PublicToolchainState | null>(null);
   const [pendingAction, setPendingAction] = useState<string | null>(null);
@@ -28,7 +53,6 @@ export function ToolchainsConfig({
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
-    if (environmentId !== PRIMARY_ENVIRONMENT_ID) return;
     let disposed = false;
     const unsubscribe = window.piBridge.onToolchainState((nextState) => {
       if (disposed) return;
@@ -61,7 +85,7 @@ export function ToolchainsConfig({
       disposed = true;
       unsubscribe();
     };
-  }, [cwd, environmentId]);
+  }, [cwd]);
 
   const performAction = async (request: ToolchainActionRequest): Promise<void> => {
     setPendingAction(actionKey(request));
@@ -89,14 +113,6 @@ export function ToolchainsConfig({
       setActionError(t("toolOpenManagedFolderFailed", "Couldn't open the managed tools folder."));
     }
   };
-
-  if (environmentId !== PRIMARY_ENVIRONMENT_ID) {
-    return (
-      <div role="status" className="type-body-default p-[24px] text-[var(--fx-text-secondary)]">
-        {t("toolchainsLocalOnly", "Developer toolchain inspection is only available for the local environment.")}
-      </div>
-    );
-  }
 
   return (
     <ToolchainStateView

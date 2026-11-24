@@ -1,4 +1,7 @@
 import type { ChannelId, ChannelsSnapshot } from "@shared/channel-types";
+import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
+import { useContext } from "react";
+import { EnvironmentScopeContext } from "../settings/environment-scope-bar";
 import { useI18n } from "@/i18n";
 import { formatNumber } from "@/lib/locale-format";
 import { Badge } from "../form-controls";
@@ -22,6 +25,7 @@ function offlineCount(snapshot: ChannelsSnapshot): number {
 
 export function RemoteEntryCard({ snapshot, onOpen }: { snapshot: ChannelsSnapshot; onOpen: () => void }) {
   const { language, t } = useI18n();
+  const remoteScope = useContext(EnvironmentScopeContext) !== PRIMARY_ENVIRONMENT_ID;
   const connected = snapshot.bindings.length;
   const offline = offlineCount(snapshot);
   const title = t("channels", "Remote chat");
@@ -44,7 +48,9 @@ export function RemoteEntryCard({ snapshot, onOpen }: { snapshot: ChannelsSnapsh
         <span className="flex min-w-0 flex-1 flex-col gap-[3px]">
           <span className="flex w-full min-w-0 items-center gap-[8px]">
             <span className="type-body-large-medium text-[var(--fx-text-primary)]">{title}</span>
-            {connected > 0 ? (
+            {remoteScope ? (
+              <Badge tone="muted">{t("schemeCOnlyAffectsLocal", "Only affects this computer")}</Badge>
+            ) : connected > 0 ? (
               <Badge tone="success">
                 {t("remoteChatConnectedCount", "{count} conversations connected").replace(
                   "{count}",
@@ -67,7 +73,7 @@ export function RemoteEntryCard({ snapshot, onOpen }: { snapshot: ChannelsSnapsh
             <ChannelBrandMark key={channel} channel={channel} size={22} />
           ))}
         </span>
-        {offline > 0 && (
+        {!remoteScope && offline > 0 && (
           <span className="flex shrink-0 items-center gap-[6px]">
             <span aria-hidden="true" className="size-[6px] rounded-[3px] bg-[var(--fx-status-warning)]" />
             <span className="type-label-default whitespace-nowrap text-[var(--fx-status-warning-text)]">
