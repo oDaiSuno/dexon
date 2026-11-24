@@ -160,9 +160,9 @@ function importAliases(source, sourcePath) {
     if (!named || !ts.isNamedImports(named)) continue;
     const resolvedPath = path.resolve(path.dirname(sourcePath), statement.moduleSpecifier.text);
     for (const element of named.elements) {
-      const propertyName = (element.propertyName ?? element.name).text;
-      const alias = element.name.text; // ImportSpecifier.name is always the local binding
-      aliases.set(alias, { propertyName, resolvedPath });
+      const importedName = (element.propertyName ?? element.name).text;
+      const localName = element.name.text;
+      aliases.set(localName, { propertyName: importedName, resolvedPath });
     }
   }
   return aliases;
