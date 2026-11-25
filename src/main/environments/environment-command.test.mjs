@@ -246,7 +246,7 @@ async function desktopBoundary(t) {
             export const BrowserWindow = { getAllWindows: () => [] };
             export const dialog = {}; export const Menu = {}; export const Notification = {};
             export const protocol = {}; export const shell = {}; export const clipboard = {};
-            export const nativeTheme = {}; export const safeStorage = {};`,
+            export const nativeImage = {}; export const nativeTheme = {}; export const safeStorage = {};`,
             loader: "js",
           }));
         },

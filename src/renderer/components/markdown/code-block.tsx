@@ -2,30 +2,49 @@ import { useEffect, useState, type ReactNode } from "react";
 import { SyntaxHighlighter } from "@/lib/syntax-highlight";
 import { useTheme } from "@/hooks/useTheme";
 import { useCopyFeedback } from "@/hooks/useCopyFeedback";
+import { useI18n } from "@/i18n";
 import { shouldHighlightCode } from "@/lib/code-highlight-policy";
 import { mermaidCacheKey, renderMermaidSvg } from "@/lib/mermaid-renderer";
+import {
+  CheckIcon,
+  CopyIcon,
+  ExpandIcon,
+  WarningTriangleIcon,
+  WordWrapIcon,
+} from "@/components/media-lightbox/media-lightbox-icons";
+import { MermaidLightbox } from "@/components/media-lightbox/mermaid-lightbox";
+import { CodeLines } from "./code-lines";
 
 export type CodeBlockVariant = "card" | "plain";
 
+type MermaidViewMode = "preview" | "source";
+
+interface RenderedMermaid {
+  key: string;
+  code: string;
+  svg: string;
+}
+
 export function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?: boolean }) {
   const { isDark } = useTheme();
-  const [showPreview, setShowPreview] = useState(false);
-  const [svg, setSvg] = useState<string | null>(null);
-  const [renderedKey, setRenderedKey] = useState("");
+  const { t } = useI18n();
+  const { copied, copy } = useCopyFeedback();
+  const [viewModeOverride, setViewModeOverride] = useState<MermaidViewMode | null>(null);
+  const [rendered, setRendered] = useState<RenderedMermaid | null>(null);
   const [failedKey, setFailedKey] = useState<string | null>(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const currentKey = mermaidCacheKey(code, isDark);
 
   useEffect(() => {
-    if (!showPreview || isStreaming) return;
+    if (isStreaming) return;
 
     let cancelled = false;
-    setFailedKey(null);
 
     const render = async () => {
-      const rendered = await renderMermaidSvg(code, isDark);
+      const svg = await renderMermaidSvg(code, isDark);
       if (!cancelled) {
-        setSvg(rendered);
-        setRenderedKey(currentKey);
+        setRendered({ key: currentKey, code, svg });
+        setFailedKey((prev) => (prev === currentKey ? null : prev));
       }
     };
 
@@ -36,46 +55,115 @@ export function MermaidBlock({ code, isStreaming }: { code: string; isStreaming?
     return () => {
       cancelled = true;
     };
-  }, [code, currentKey, isDark, isStreaming, showPreview]);
+  }, [code, currentKey, isDark, isStreaming]);
 
+  const hasFailed = !isStreaming && failedKey === currentKey;
+  const activeSvg = !isStreaming && !hasFailed && rendered?.code === code ? rendered.svg : null;
+  const isReady = activeSvg !== null;
+  const showDiagram = isReady && viewModeOverride !== "source";
+
+  if (hasFailed) {
+    return (
+      <CodeCard
+        code={code}
+        lang="mermaid"
+        banner={
+          <div className="mermaid-block-error-banner type-label-default" role="status">
+            <WarningTriangleIcon />
+            <span>{t("mermaidSyntaxErrorBanner", "Diagram syntax error — keeping source code for inspection")}</span>
+          </div>
+        }
+      />
+    );
+  }
+
+  if (showDiagram && activeSvg) {
+    const copyLabel = copied ? t("copied", "Copied") : t("copySource", "Copy source");
+    const expandLabel = t("expandPreview", "Expand");
+    return (
+      <>
+        <div className="markdown-code-block">
+          <div className="markdown-code-header">
+            <span className="markdown-code-lang">mermaid</span>
+            <div className="markdown-code-actions">
+              <button
+                type="button"
+                onClick={() => setViewModeOverride("source")}
+                title={t("mermaidShowSource", "Show Mermaid source")}
+                className="markdown-code-action type-meta-default"
+              >
+                {t("source", "Source")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="markdown-code-icon-btn"
+                title={expandLabel}
+                aria-label={expandLabel}
+              >
+                <ExpandIcon size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => void copy(code)}
+                className={["markdown-code-copy", copied ? "is-copied" : ""].filter(Boolean).join(" ")}
+                title={copyLabel}
+                aria-label={copyLabel}
+              >
+                {copied ? <CheckIcon /> : <CopyIcon size={14} />}
+              </button>
+            </div>
+          </div>
+          <div
+            className="mermaid-block is-interactive"
+            onDoubleClick={() => setLightboxOpen(true)}
+            dangerouslySetInnerHTML={{ __html: activeSvg }}
+          />
+        </div>
+        {lightboxOpen && <MermaidLightbox code={code} svg={activeSvg} onClose={() => setLightboxOpen(false)} />}
+      </>
+    );
+  }
+
+  const expandLabel = t("expandPreview", "Expand");
   const previewButton = (
     <button
-      onClick={() => setShowPreview((v) => !v)}
-      disabled={isStreaming}
+      type="button"
+      onClick={() => setViewModeOverride("preview")}
+      disabled={!isReady}
       title={
-        isStreaming
-          ? "Preview available after streaming"
-          : showPreview
-            ? "Show Mermaid source"
-            : "Preview Mermaid diagram"
+        isReady
+          ? t("mermaidShowPreview", "Preview Mermaid diagram")
+          : t("mermaidPreviewStreamingHint", "Preview available after streaming")
       }
-      className={["markdown-code-action", showPreview ? "is-active" : ""].filter(Boolean).join(" ")}
+      className="markdown-code-action type-meta-default"
     >
-      {showPreview ? "Source" : "Preview"}
+      {t("preview", "Preview")}
     </button>
   );
 
-  if (!showPreview || isStreaming) {
-    return <CodeBlock code={code} lang="mermaid" headerAction={previewButton} />;
-  }
-
-  const body =
-    failedKey === currentKey ? (
-      <div className="mermaid-block mermaid-block-error">Invalid Mermaid diagram</div>
-    ) : !svg || renderedKey !== currentKey ? (
-      <div className="mermaid-block mermaid-block-loading" aria-label="Rendering Mermaid diagram" />
-    ) : (
-      <div className="mermaid-block" dangerouslySetInnerHTML={{ __html: svg }} />
-    );
+  const expandButton = (
+    <button
+      type="button"
+      onClick={() => {
+        if (isReady) setLightboxOpen(true);
+      }}
+      disabled={!isReady}
+      className="markdown-code-icon-btn"
+      title={isReady ? expandLabel : t("mermaidPreviewStreamingHint", "Preview available after streaming")}
+      aria-label={expandLabel}
+    >
+      <ExpandIcon size={13} />
+    </button>
+  );
 
   return (
-    <div className="markdown-code-block">
-      <div className="markdown-code-header">
-        <span className="markdown-code-lang">mermaid</span>
-        {previewButton}
-      </div>
-      {body}
-    </div>
+    <>
+      <CodeCard code={code} lang="mermaid" headerAction={previewButton} afterWrapAction={expandButton} />
+      {lightboxOpen && activeSvg && (
+        <MermaidLightbox code={code} svg={activeSvg} onClose={() => setLightboxOpen(false)} />
+      )}
+    </>
   );
 }
 
@@ -110,8 +198,23 @@ export function CodeBlock({
   return <CodeCard code={code} lang={lang} headerAction={headerAction} />;
 }
 
-function CodeCard({ code, lang, headerAction }: { code: string; lang: string; headerAction?: ReactNode }) {
+function CodeCard({
+  code,
+  lang,
+  headerAction,
+  afterWrapAction,
+  banner,
+}: {
+  code: string;
+  lang: string;
+  headerAction?: ReactNode;
+  afterWrapAction?: ReactNode;
+  banner?: ReactNode;
+}) {
+  const { t } = useI18n();
   const { copied, copy } = useCopyFeedback();
+  const [wrapLines, setWrapLines] = useState(true);
+  const copyLabel = copied ? t("copied", "Copied") : t("copyCode", "Copy code");
 
   return (
     <div className="markdown-code-block">
@@ -120,58 +223,29 @@ function CodeCard({ code, lang, headerAction }: { code: string; lang: string; he
         <div className="markdown-code-actions">
           {headerAction}
           <button
+            type="button"
+            onClick={() => setWrapLines((current) => !current)}
+            className={["markdown-code-icon-btn", wrapLines ? "is-active" : ""].filter(Boolean).join(" ")}
+            aria-label={t("wrap", "Word wrap")}
+            aria-pressed={wrapLines}
+            title={wrapLines ? t("disableWordWrap", "Disable word wrap") : t("enableWordWrap", "Enable word wrap")}
+          >
+            <WordWrapIcon size={13} />
+          </button>
+          {afterWrapAction}
+          <button
+            type="button"
             onClick={() => void copy(code)}
             className={["markdown-code-copy", copied ? "is-copied" : ""].filter(Boolean).join(" ")}
-            aria-label={copied ? "copied" : "copy"}
+            title={copyLabel}
+            aria-label={copyLabel}
           >
-            {copied ? (
-              <svg
-                width="13"
-                height="13"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <path d="M20 6L9 17l-5-5" />
-              </svg>
-            ) : (
-              <svg
-                width="15"
-                height="15"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                aria-hidden="true"
-              >
-                <rect x="9" y="9" width="12" height="12" rx="2.5" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-            )}
+            {copied ? <CheckIcon /> : <CopyIcon size={14} />}
           </button>
         </div>
       </div>
-      {shouldHighlightCode(code) ? (
-        <SyntaxHighlighter
-          language={lang || "text"}
-          className="markdown-code-body type-mono-chat-code"
-          showLineNumbers
-          lineNumberStyle={{ color: "var(--fx-text-tertiary)", fontStyle: "normal" }}
-          codeTagProps={{ style: { fontFamily: "var(--font-mono)" } }}
-        >
-          {code}
-        </SyntaxHighlighter>
-      ) : (
-        <pre className="markdown-code-body type-mono-chat-code">
-          <code>{code}</code>
-        </pre>
-      )}
+      {banner}
+      <CodeLines code={code} lang={lang || "text"} wrapLines={wrapLines} />
     </div>
   );
 }

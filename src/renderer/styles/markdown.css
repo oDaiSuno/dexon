@@ -346,11 +346,49 @@
 }
 .markdown-code-body {
   margin: 0;
-  padding: var(--space-3) var(--space-4);
-  overflow: auto;
-  white-space: pre;
+  padding: var(--space-3) 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--fx-surface-inset);
   color: var(--fx-text-primary);
+  tab-size: 4;
+}
+.markdown-code-lines {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+  font-family: var(--font-mono);
+}
+.markdown-code-body.is-wrapped {
+  overflow-x: hidden;
+}
+.markdown-code-body.is-wrapped .markdown-code-lines {
+  width: 100%;
+  min-width: 0;
+}
+.markdown-code-line {
+  display: flex;
+  align-items: flex-start;
+}
+.markdown-code-line-no {
+  flex: 0 0 calc(var(--code-gutter-digits, 2) * 1ch + 24px);
+  padding: 0 12px;
+  text-align: right;
+  color: var(--fx-text-tertiary);
+  user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.markdown-code-line-text {
+  flex: 1 0 auto;
+  min-height: 1lh;
+  padding-right: var(--space-4);
+  white-space: pre;
+}
+.markdown-code-body.is-wrapped .markdown-code-line-text {
+  flex: 1 1 0%;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .markdown-code-plain {
@@ -364,15 +402,6 @@
   color: var(--fx-text-body);
 }
 
-.mermaid-block {
-  padding: var(--space-3);
-  overflow-x: auto;
-  background: var(--fx-surface-inset);
-}
-.mermaid-block svg {
-  display: block;
-  max-width: none;
-}
 .mermaid-block-loading {
   min-height: 120px;
 }
