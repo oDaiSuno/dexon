@@ -459,3 +459,173 @@ test("a manual rename wins over automatic naming in a live session and later fir
   });
   assert.equal(model.requests().length, before);
 });
+
+test("a host with automatic naming disabled skips first prompts but still allows explicit regeneration", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  await client.call("models.sessionNaming.set", { enabled: false, model: namingModel });
+  const sessionId = "host-disabled-automatic";
+  const prompt = "Name this session only when explicitly requested";
+  const storedName = await titleSession(sessionId, { prompt });
+  const before = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "first-prompt", prompt }), {
+    title: null,
+  });
+  assert.equal(storedName(), undefined);
+  assert.equal(model.requests().length, before);
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "regenerate" }), {
+    title: "Login page styling fix",
+  });
+  assert.equal(storedName(), "Login page styling fix");
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    ["naming-model"],
+  );
+});
+
+test("saved host naming models override a stale client preference for both naming triggers", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  await client.call("models.sessionNaming.set", { model: namingModel });
+  for (const trigger of ["first-prompt", "regenerate"]) {
+    const sessionId = `host-preference-${trigger}`;
+    const prompt = "Use the naming model chosen on this host";
+    const storedName = await titleSession(sessionId, { prompt });
+    const before = model.requests().length;
+    assert.deepEqual(
+      await client.call("agent.generateTitle", { sessionId, trigger, prompt, namingModel: conversationModel }),
+      { title: "Login page styling fix" },
+    );
+    assert.equal(storedName(), "Login page styling fix");
+    assert.deepEqual(
+      model
+        .requests()
+        .slice(before)
+        .map((request) => request.model),
+      ["naming-model"],
+    );
+  }
+});
+
+test("an unconfigured host still accepts a legacy client naming preference", async () => {
+  assert.deepEqual(await client.call("models.sessionNaming.get"), { enabled: true, model: null, configured: false });
+  for (const trigger of ["first-prompt", "regenerate"]) {
+    const sessionId = `legacy-preference-${trigger}`;
+    const prompt = "Keep the client naming preference before migration";
+    await titleSession(sessionId, { prompt });
+    const before = model.requests().length;
+    assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger, prompt, namingModel }), {
+      title: "Login page styling fix",
+    });
+    assert.deepEqual(
+      model
+        .requests()
+        .slice(before)
+        .map((request) => request.model),
+      ["naming-model"],
+    );
+  }
+});
+
+test("a configured host with no preferred model ignores legacy preferences and uses the conversation model", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  await client.call("models.sessionNaming.set", { enabled: true });
+  for (const trigger of ["first-prompt", "regenerate"]) {
+    const sessionId = `host-null-preference-${trigger}`;
+    const prompt = "Use the conversation model after migration";
+    await titleSession(sessionId, { prompt });
+    const before = model.requests().length;
+    assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger, prompt, namingModel }), {
+      title: "Login page styling fix",
+    });
+    assert.deepEqual(
+      model
+        .requests()
+        .slice(before)
+        .map((request) => request.model),
+      [heldModel.modelId],
+    );
+  }
+});
+
+test("an unreachable host naming model falls back to the conversation model instead of a legacy preference", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  await client.call("models.sessionNaming.set", { model: { provider: "absent-provider", modelId: "absent-model" } });
+  const sessionId = "host-unreachable-preference";
+  await titleSession(sessionId);
+  const before = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "regenerate", namingModel }), {
+    title: "Login page styling fix",
+  });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
+});
+
+test("a failed host naming model retries with the conversation model", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  await client.call("models.sessionNaming.set", { model: namingModel });
+  const sessionId = "host-preference-failure";
+  const prompt = "Retry the host preference failure with the conversation model";
+  model.script(prompt, [
+    { error: { status: 400, message: "host preference refused" } },
+    { text: "Host fallback title" },
+  ]);
+  const storedName = await titleSession(sessionId, { prompt });
+  const before = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "regenerate" }), {
+    title: "Host fallback title",
+  });
+  assert.equal(storedName(), "Host fallback title");
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    ["naming-model", heldModel.modelId],
+  );
+});
+
+test("host naming settings round-trip over RPC and invalid changes preserve the saved settings", async (t) => {
+  t.after(() => rmSync(path.join(base, "desktop", "session-naming.json"), { force: true }));
+  assert.deepEqual(await client.call("models.sessionNaming.get"), { enabled: true, model: null, configured: false });
+  const saved = { enabled: false, model: namingModel, configured: true };
+  assert.deepEqual(await client.call("models.sessionNaming.set", { enabled: false, model: namingModel }), saved);
+  assert.deepEqual(await client.call("models.sessionNaming.get"), saved);
+  for (const patch of [undefined, null, [], false, { enabled: "false" }, { model: { provider: "" } }]) {
+    await assert.rejects(client.call("models.sessionNaming.set", patch), (error) => error.code === "BAD_REQUEST");
+  }
+  assert.deepEqual(await client.call("models.sessionNaming.get"), saved);
+  assert.deepEqual(await client.call("models.sessionNaming.set", { model: null }), {
+    enabled: false,
+    model: null,
+    configured: true,
+  });
+});
+
+test("a saved host naming model on a disabled provider is skipped in favor of the conversation model", async (t) => {
+  t.after(async () => {
+    rmSync(path.join(base, "desktop", "session-naming.json"), { force: true });
+    await client.call("modelsConfig.channels.setEnabled", { provider: "disabled-naming", enabled: true });
+  });
+  await client.call("models.sessionNaming.set", { model: { provider: "disabled-naming", modelId: "disabled-model" } });
+  await client.call("modelsConfig.channels.setEnabled", { provider: "disabled-naming", enabled: false });
+  const sessionId = "host-disabled-naming-provider";
+  await titleSession(sessionId);
+  const before = model.requests().length;
+  assert.deepEqual(await client.call("agent.generateTitle", { sessionId, trigger: "regenerate", namingModel }), {
+    title: "Login page styling fix",
+  });
+  assert.deepEqual(
+    model
+      .requests()
+      .slice(before)
+      .map((request) => request.model),
+    [heldModel.modelId],
+  );
+});

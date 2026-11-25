@@ -195,6 +195,8 @@ async function mountModels(t, { defaults = { model: null, thinkingLevel: "medium
             return { models: PREFERENCE_MODELS, enabledModels: ["deepseek/deepseek-chat", "github-copilot/gpt-5"] };
           case "modelsConfig.channels.get":
             return { channels: {} };
+          case "models.sessionNaming.get":
+            return { enabled: true, model: null, configured: true };
           case "models.defaults.get":
             return defaults;
           case "models.defaults.set":

@@ -160,6 +160,8 @@ export function createNavigationHostMethods({
         return { channels: {} };
       case "models.preferences.get":
         return { enabledModels: null, models: [] };
+      case "models.sessionNaming.get":
+        return { enabled: true, model: null, configured: true };
       case "models.defaults.get":
         return { model: null, thinkingLevel: "medium" };
       case "auth.providers":

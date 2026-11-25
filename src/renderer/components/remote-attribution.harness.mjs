@@ -138,6 +138,7 @@ export async function attributionFixture(t, extraExports = "", beforeImport = ()
         "agent.state": (params) => host.agentState?.(params.sessionId) ?? { running: false, state: {} },
         "agent.new": (params) => host.newAgent(params),
         "agent.command": (params) => host.sendAgentCommand(params.sessionId, params.command),
+        "models.sessionNaming.get": () => host.call("models.sessionNaming.get"),
         "agent.generateTitle": (params) => host.call("agent.generateTitle", params),
         "skills.list": () => ({ skills: [] }),
         "files.index": () => ({ files: [], truncated: false }),

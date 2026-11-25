@@ -21,6 +21,7 @@ import {
 } from "../model-catalog/index";
 import { disabledProviderIds } from "../provider-channels";
 import { filterByExactEnabledModels, stripThinkingSuffix } from "../session-model";
+import { readSessionNamingSettings, writeSessionNamingSettings } from "../session-naming-settings";
 
 const THINKING_SUFFIXES = new Set(["off", "minimal", "low", "medium", "high", "xhigh", "max"]);
 const DEFAULT_THINKING_LEVEL = "medium";
@@ -292,6 +293,10 @@ export function registerModelHandlers(server: RpcServer): () => Promise<void> {
       await flushSettings(settings);
       return projectModelPreferences(models, enabledModels);
     },
+
+    "models.sessionNaming.get": () => readSessionNamingSettings(),
+
+    "models.sessionNaming.set": (params) => writeSessionNamingSettings(params),
 
     "models.defaults.get": async (params) => {
       const location = await resolveModelsLocation(params);

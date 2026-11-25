@@ -5,7 +5,8 @@ import test, { after } from "node:test";
 
 after(restoreGlobals);
 
-const sessionExports = 'export { useAgentSession } from "./hooks/useAgentSession.ts";';
+const sessionExports =
+  'export { useAgentSession } from "./hooks/useAgentSession.ts"; export { useSessionNaming } from "./lib/session-naming-store.ts";';
 
 async function mountSession(f, options) {
   let latest;
@@ -181,3 +182,36 @@ for (const method of ["handleSteer", "handleFollowUp", "handlePromptWithStreamin
     assert.deepEqual(outcome, { result: { ok: false } });
   });
 }
+
+test("a remote host with automatic naming disabled sends the prompt without ever showing Naming", async (t) => {
+  const f = await attributionFixture(t, sessionExports);
+  const requests = [];
+  const host = createSessionTestHost({
+    newAgent: async () => ({ sessionId: "remote-disabled-title" }),
+  });
+  host.call = (method, params) => {
+    requests.push({ method, params });
+    if (method === "models.sessionNaming.get") return { enabled: false, model: null, configured: true };
+    if (method === "agent.generateTitle") return { title: "Unexpected name" };
+    throw new Error(`Unexpected disabled naming request: ${method}`);
+  };
+  f.serve("remote-a", host);
+  await f.focus();
+  let state;
+  const namingStates = [];
+  function Session() {
+    state = f.api.useAgentSession({ session: null, newSessionCwd: "/srv/shared" });
+    const naming = f.api.useSessionNaming("remote-disabled-title");
+    namingStates.push(naming);
+    return createElement("output", null, naming ? "Naming…" : "Ready");
+  }
+  await f.render(Session);
+  await f.flush();
+  assert.deepEqual(requests, [{ method: "models.sessionNaming.get", params: undefined }]);
+  await act(async () => state.handleSend("Fix the login page"));
+  await f.flush();
+  assert.equal(host.sendCommands.filter(({ payload }) => payload.type === "prompt").length, 1);
+  assert.equal(requests.filter(({ method }) => method === "agent.generateTitle").length, 0);
+  assert.ok(namingStates.length > 0);
+  assert.ok(namingStates.every((naming) => naming === false));
+});

@@ -2,9 +2,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useI18n } from "@/i18n";
 import type { ModelsJson } from "@/lib/models-config-state";
 import { getEnvironmentApiClient } from "@/lib/api-client";
+import { loadSessionNamingSettings, type SessionNamingLoadState } from "@/lib/auto-session-title";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
-import { isRpcError, type ModelPreferencesResult, type ProviderChannelState } from "@contract/types";
+import {
+  isRpcError,
+  type ModelPreferencesResult,
+  type ProviderChannelState,
+  type SessionNamingSettingsResult,
+} from "@contract/types";
 import type { ApiKeyProvider, ModelSelectionControl, OAuthProvider } from "./types";
+
+export type SessionNamingState = SessionNamingLoadState | { status: "loading" } | { status: "error"; message: string };
 
 export type PersistResult = { ok: true } | { ok: false; error: string; conflict: boolean };
 
@@ -31,6 +39,10 @@ export function useModelsConfig({
   const [modelPreferencesLoading, setModelPreferencesLoading] = useState(true);
   const [modelPreferencesSaving, setModelPreferencesSaving] = useState(false);
   const [modelPreferencesError, setModelPreferencesError] = useState<string | null>(null);
+  const [sessionNaming, setSessionNaming] = useState<SessionNamingState>({ status: "loading" });
+  const updateSessionNaming = useCallback((settings: SessionNamingSettingsResult) => {
+    setSessionNaming({ status: "ready", settings });
+  }, []);
   const [channels, setChannels] = useState<Record<string, ProviderChannelState>>({});
   const [channelSaving, setChannelSaving] = useState<string | null>(null);
   const [channelError, setChannelError] = useState<string | null>(null);
@@ -119,8 +131,24 @@ export function useModelsConfig({
   }, [loadApiKeyProviders, loadChannels, loadModelsConfig, loadOAuthProviders]);
 
   useEffect(() => {
-    void loadModelPreferences();
-  }, [loadModelPreferences]);
+    let cancelled = false;
+    setSessionNaming({ status: "loading" });
+    void Promise.all([
+      loadModelPreferences(),
+      loadSessionNamingSettings(environmentId).then(
+        (state) => {
+          if (!cancelled) setSessionNaming(state);
+        },
+        (error: unknown) => {
+          if (!cancelled)
+            setSessionNaming({ status: "error", message: error instanceof Error ? error.message : String(error) });
+        },
+      ),
+    ]);
+    return () => {
+      cancelled = true;
+    };
+  }, [environmentId, loadModelPreferences]);
 
   const persist = useCallback(
     async (next: ModelsJson): Promise<PersistResult> => {
@@ -202,6 +230,8 @@ export function useModelsConfig({
     savedAt,
     oauthProviders,
     apiKeyProviders,
+    sessionNaming,
+    updateSessionNaming,
     modelPreferences,
     modelPreferencesLoading,
     modelPreferencesSaving,

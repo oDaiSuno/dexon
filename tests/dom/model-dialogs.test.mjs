@@ -76,6 +76,8 @@ async function openModels(t) {
             };
           case "modelsConfig.channels.get":
             return { channels: {} };
+          case "models.sessionNaming.get":
+            return { enabled: true, model: null, configured: true };
           case "models.defaults.get":
             return { model: null, thinkingLevel: "medium" };
           case "models.preferences.set":

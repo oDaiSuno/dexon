@@ -228,6 +228,7 @@ function modelReply(method) {
   if (method === "modelsConfig.get") return { config: { providers: {} }, version: "v1" };
   if (method === "modelsConfig.channels.get") return { channels: {} };
   if (method === "models.preferences.get") return { enabledModels: null, models: [] };
+  if (method === "models.sessionNaming.get") return { enabled: true, model: null, configured: true };
   if (method === "models.defaults.get") return { model: null, thinkingLevel: "medium" };
   if (method === "auth.providers" || method === "auth.allProviders") return { providers: [] };
   throw new Error(`Unexpected scope request: ${method}`);
@@ -238,11 +239,12 @@ const modelMethods = [
   "modelsConfig.channels.get",
   "models.preferences.get",
   "models.defaults.get",
+  "models.sessionNaming.get",
   "auth.providers",
   "auth.allProviders",
 ];
 
-test("remote models name the server's models.json, omit local cwd, and can switch to local without moving focus", async (t) => {
+test("remote model settings name their server, omit local cwd, and can switch to local without moving focus", async (t) => {
   const calls = [];
   const fixture = await setup([remote()], { call: modelReply });
   fixture.serve(
@@ -275,7 +277,7 @@ test("remote models name the server's models.json, omit local cwd, and can switc
     false,
     "server model preferences must not receive a local path",
   );
-  assert.match(view.container.textContent, /GPU server.*~\/.pi\/agent\/models.json.*only affect that server/);
+  assert.match(view.container.textContent, /Settings are saved on GPU server and only affect that server\./);
   await click(button(view.container, "This computer"));
   assert.equal(button(view.container, "This computer").getAttribute("aria-pressed"), "true");
   assert.match(view.container.textContent, /only affect this computer/);

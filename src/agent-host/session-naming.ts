@@ -9,6 +9,7 @@ import { getRpcSession } from "./rpc-manager";
 import { readSessionManager, readSessionHeader, appendSessionName } from "./session-jsonl";
 import { invalidateSessionContent } from "./session-content-cache";
 import { reachableModels, type AvailableModel } from "./session-model";
+import { readSessionNamingSettings } from "./session-naming-settings";
 import { chosenModelView } from "./session-orchestration/model-view";
 import { emitIndexedSessionChange, firstPromptRaw, resolveSessionPath } from "./session-reader";
 import { openSessionSource } from "./session-source";
@@ -204,6 +205,8 @@ function settingsDefaultRef(settings: TitleModelServices["settingsManager"]): Se
 
 export async function nameSession(server: RpcServer, request: NamingRequest): Promise<string | null> {
   try {
+    const hostSettings = await readSessionNamingSettings();
+    if (request.trigger === "first-prompt" && !hostSettings.enabled) return null;
     const { sessionId } = request;
     if (request.trigger === "first-prompt" && (!request.source || (await hasSessionName(sessionId)))) return null;
     const target = await resolveTitleSessionTarget(sessionId);
@@ -216,8 +219,9 @@ export async function nameSession(server: RpcServer, request: NamingRequest): Pr
     const services =
       target.services ?? (await createAgentSessionServices({ cwd: target.cwd, agentDir: getAgentDir() }));
     const conversation = (await chosenModelView(sessionId)).model ?? settingsDefaultRef(services.settingsManager);
+    const preference = hostSettings.configured ? hostSettings.model : request.preference;
     const plan = planNamingModels({
-      preference: request.preference,
+      preference,
       conversation,
       reachable: reachableModels(services.modelRuntime),
     });

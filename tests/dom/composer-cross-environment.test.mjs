@@ -138,6 +138,7 @@ test("a typed composer draft follows local-to-remote-to-local card navigation wh
       if (method === "system.defaultCwd") return { cwd: SHARED_ROOT };
       if (method === "system.validateCwd") return { ok: true, path: params.path };
       if (method === "sessions.list") return { sessions: [], runningSessionIds: [], sessionStatuses: {} };
+      if (method === "models.sessionNaming.get") return { enabled: true, model: null, configured: true };
       if (method === "models.list") return { models: [], nameMap: {}, catalog: {} };
       if (method === "skills.list") return { skills: [] };
       if (method === "files.index") return { files: [], truncated: false };
