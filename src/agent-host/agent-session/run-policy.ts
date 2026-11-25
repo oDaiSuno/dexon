@@ -8,6 +8,7 @@ import type {
   ToolLoadoutReader,
 } from "../../shared/pi-types";
 import { stripQuoteCoordinatesFromMessages } from "../../shared/quote-tokens";
+import { isAutomationChatReady } from "../automation";
 import { browserCapabilityRuntime } from "../browser-capability-runtime";
 import { browserToolNamesForSnapshot } from "../browser-tools";
 import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
@@ -18,12 +19,14 @@ import { DEFAULT_TOOL_INTENT, type ToolIntent, type ToolIntentStore } from "./to
 export interface ToolGlobals {
   readonly browserToolNames: ReadonlySet<string>;
   readonly orchestrationEnabled: boolean;
+  readonly automationEnabled?: boolean;
 }
 
 export function readToolGlobals(): ToolGlobals {
   return {
     browserToolNames: new Set(browserToolNamesForSnapshot(browserCapabilityRuntime.getSnapshot())),
     orchestrationEnabled: sessionOrchestrationEnabled(),
+    automationEnabled: isAutomationChatReady(),
   };
 }
 
@@ -68,6 +71,7 @@ const DECLARE: { readonly [O in ToolOwner]: (tool: CatalogTool, context: Declare
   coding: (tool, { intent }) => intent.coding === "all" || (intent.coding as readonly string[]).includes(tool.name),
   browser: (tool, { globals }) => globals.browserToolNames.has(tool.name),
   orchestration: (_tool, { globals }) => globals.orchestrationEnabled,
+  automation: (_tool, { globals }) => globals.automationEnabled === true,
   pi: (tool, { live }) => tool.activatedOnRegistration || live.has(tool.name),
   withheld: () => false,
 };
