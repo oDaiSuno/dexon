@@ -12,9 +12,11 @@ function settingsFilePath(): string {
 function serializeWrite<T>(filePath: string, task: () => Promise<T>): Promise<T> {
   const previous = writeQueues.get(filePath) ?? Promise.resolve();
   const next = previous.catch(() => undefined).then(task);
-  const tail = next.finally(() => {
-    if (writeQueues.get(filePath) === tail) writeQueues.delete(filePath);
-  });
+  const tail = next
+    .catch(() => undefined)
+    .finally(() => {
+      if (writeQueues.get(filePath) === tail) writeQueues.delete(filePath);
+    });
   writeQueues.set(filePath, tail);
   return next;
 }
@@ -55,7 +57,8 @@ async function readSettingsFromFile(filePath: string): Promise<SessionNamingSett
 }
 
 export async function readSessionNamingSettings(): Promise<SessionNamingSettingsResult> {
-  return readSettingsFromFile(settingsFilePath());
+  const filePath = settingsFilePath();
+  return serializeWrite(filePath, () => readSettingsFromFile(filePath));
 }
 
 export async function writeSessionNamingSettings(patch: unknown): Promise<SessionNamingSettingsResult> {

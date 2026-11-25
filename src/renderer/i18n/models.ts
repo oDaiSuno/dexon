@@ -139,7 +139,7 @@ export const enUS: Record<string, string> = {
     "A title is only a few dozen characters, so a fast, inexpensive model is enough. Regenerate name in the session menu uses it too.",
   sessionNamingModelUnset: "Not set",
   sessionNamingModelUnavailable:
-    "This model is unavailable or not enabled in this environment. Naming will fall back to the active session model.",
+    "This model is not in this environment's enabled list. If it is unavailable on this host, naming will fall back to the active session model.",
   sessionNamingUnsupported: "Update this server to configure session naming settings separately for this server.",
   sessionNamingSaveFailed: "Couldn't save session naming: {error}",
   sessionNamingPreviewFirstMessage: "First message",
@@ -298,7 +298,8 @@ export const zhCN: Record<string, string> = {
   sessionNamingModel: "命名模型",
   sessionNamingModelDescription: "起名只需几十个字，选一个又快又便宜的模型就够了。右键“重新生成名称”也用它。",
   sessionNamingModelUnset: "未设置",
-  sessionNamingModelUnavailable: "此模型在当前环境中不可用或未启用，命名时将改用当前会话的模型。",
+  sessionNamingModelUnavailable:
+    "此模型不在当前环境的已启用列表中；若该主机无法访问此模型，命名时将改用当前会话的模型。",
   sessionNamingUnsupported: "请更新此服务器，即可单独配置这台服务器的会话命名设置。",
   sessionNamingSaveFailed: "无法保存会话命名设置：{error}",
   sessionNamingPreviewFirstMessage: "第一条消息",

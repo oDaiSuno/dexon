@@ -200,3 +200,24 @@ test("concurrent partial updates preserve both fields without racing", async () 
   ]);
   assert.deepEqual(await settings.readSessionNamingSettings(), { enabled: false, model: preferred, configured: true });
 });
+
+test("a filesystem write failure rejects only the caller without unhandled rejection and keeps later writes working", async () => {
+  mkdirSync(settingsFile, { recursive: true });
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on("unhandledRejection", onUnhandled);
+  try {
+    await assert.rejects(() => settings.writeSessionNamingSettings({ enabled: false }));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(unhandled.length, 0);
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+    rmSync(settingsFile, { recursive: true, force: true });
+  }
+  assert.deepEqual(await settings.writeSessionNamingSettings({ enabled: false, model: preferred }), {
+    enabled: false,
+    model: preferred,
+    configured: true,
+  });
+  assert.deepEqual(await settings.readSessionNamingSettings(), { enabled: false, model: preferred, configured: true });
+});

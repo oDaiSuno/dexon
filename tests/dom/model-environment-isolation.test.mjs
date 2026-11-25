@@ -221,14 +221,14 @@ test("remote naming settings stay on gpu and preserve an unavailable stored mode
     ["Not set", "GPU Fast · fast", "old/missing"],
   );
   assert.equal(select.value, "old/missing");
-  assert.match(view.container.textContent, /unavailable or not enabled in this environment.*active session model/);
+  assert.match(view.container.textContent, /not in this environment's enabled list.*active session model/);
   assert.deepEqual(states.gpu.model, { provider: "old", modelId: "missing" });
   await click(labelledControl(view.container, "Auto-name new sessions"));
   await waitFor(() => assert.equal(states.gpu.enabled, true));
   assert.equal(api.shouldAutoTitleMessage("Fix the login page", "gpu"), true);
   await selectOption(select, "remote/fast");
   await waitFor(() => assert.deepEqual(states.gpu.model, { provider: "remote", modelId: "fast" }));
-  assert.doesNotMatch(view.container.textContent, /unavailable or not enabled in this environment/);
+  assert.doesNotMatch(view.container.textContent, /not in this environment's enabled list/);
   assert.deepEqual(states.primary, { enabled: true, model: null, configured: true });
   assert.ok(boundary.requests.every(({ environmentId }) => environmentId === "gpu"));
   assert.deepEqual(

@@ -122,7 +122,7 @@ export function SessionNamingGroup({
               <SettingNote>
                 {t(
                   "sessionNamingModelUnavailable",
-                  "This model is unavailable or not enabled in this environment. Naming will fall back to the active session model.",
+                  "This model is not in this environment's enabled list. If it is unavailable on this host, naming will fall back to the active session model.",
                 )}
               </SettingNote>
             </div>

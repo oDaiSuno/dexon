@@ -10,6 +10,7 @@ const isolatedAgentDirectory = mkdtempSync(path.join(tmpdir(), "dexon-model-defa
 const otherProject = mkdtempSync(path.join(tmpdir(), "dexon-model-defaults-project-"));
 process.env.PI_CODING_AGENT_DIR = isolatedAgentDirectory;
 process.env.PI_CODING_AGENT_SESSION_DIR = path.join(isolatedAgentDirectory, "sessions");
+process.env.PI_DESKTOP_USER_DATA = path.join(isolatedAgentDirectory, "desktop");
 process.env.PI_OFFLINE = "1";
 process.env.OPENAI_API_KEY = "sk-model-defaults-test";
 test.after(() => {
