@@ -225,6 +225,20 @@ export interface ModelDefaultsResult {
   thinkingLevel: DefaultThinkingLevel;
 }
 
+export interface SessionNamingModelRef {
+  provider: string;
+  modelId: string;
+}
+
+export interface SessionNamingSettings {
+  enabled: boolean;
+  model: SessionNamingModelRef | null;
+}
+
+export interface SessionNamingSettingsResult extends SessionNamingSettings {
+  configured: boolean;
+}
+
 export interface ModelsConfig {
   [key: string]: unknown;
 }

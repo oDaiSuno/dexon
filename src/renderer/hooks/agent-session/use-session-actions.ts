@@ -3,12 +3,12 @@ import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { quoteTitleText } from "@shared/quote-tokens";
 import { canSendToEnvironment } from "@/lib/space-attribution";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
+import { primeSessionNamingSettings, requestAutoSessionTitle, shouldAutoTitleMessage } from "@/lib/auto-session-title";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { trackSessionNaming } from "@/lib/session-naming-store";
 import { appendLocalHistoryMessage, removeLastHistoryMessage } from "@/lib/session-history-update";
 import type { AgentMessage } from "@/lib/types";
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   CompactCommandResult,
   ThinkingLevelOption,
@@ -113,6 +113,10 @@ export function useSessionActions(context: Dependencies) {
     unsavedMessages,
   } = context;
 
+  useEffect(() => {
+    primeSessionNamingSettings(environmentId);
+  }, [environmentId]);
+
   const handleSend = useCallback(
     async (message: string) => {
       const trimmedMessage = message.trim();
@@ -172,7 +176,7 @@ export function useSessionActions(context: Dependencies) {
               message,
             });
             promoteNewSession(1, quoteTitleText(promptIntentText(intent)));
-            if (shouldAutoTitleMessage(message)) {
+            if (shouldAutoTitleMessage(message, environmentId)) {
               void trackSessionNaming(sid, () =>
                 requestAutoSessionTitle({ sessionId: sid, prompt: message, environmentId }),
               );

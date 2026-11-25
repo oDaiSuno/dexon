@@ -130,14 +130,18 @@ export const enUS: Record<string, string> = {
   modelEnvSource: "Reads environment variable {name}",
   modelSignedIn: "Signed in",
   modelSignInWith: "Sign in with your {vendor} account",
-  modelsConfigFootnote: "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
+  modelsConfigFootnote: "Settings are saved on this computer and only affect this computer.",
   sessionNamingGroup: "Session naming",
   sessionNamingAutoDescription:
-    "After the first reply finishes, reads the conversation and replaces the “New session” placeholder name.",
+    "Uses the first message to replace the “New session” placeholder name, without waiting for a reply.",
   sessionNamingModel: "Naming model",
   sessionNamingModelDescription:
     "A title is only a few dozen characters, so a fast, inexpensive model is enough. Regenerate name in the session menu uses it too.",
   sessionNamingModelUnset: "Not set",
+  sessionNamingModelUnavailable:
+    "This model is unavailable or not enabled in this environment. Naming will fall back to the active session model.",
+  sessionNamingUnsupported: "Update this server to configure session naming settings separately for this server.",
+  sessionNamingSaveFailed: "Couldn't save session naming: {error}",
   sessionNamingPreviewFirstMessage: "First message",
   sessionNamingPreviewMessage:
     "Sidebar sessions can only be opened right now. I want a right-click menu to rename and delete them, and ideally have AI pick a new name for me.",
@@ -288,12 +292,15 @@ export const zhCN: Record<string, string> = {
   modelEnvSource: "读取环境变量 {name}",
   modelSignedIn: "已登录",
   modelSignInWith: "使用 {vendor} 账号登录",
-  modelsConfigFootnote: "配置保存在 ~/.pi/agent/models.json，只影响本机。",
+  modelsConfigFootnote: "设置保存在本机，仅影响本机。",
   sessionNamingGroup: "会话命名",
-  sessionNamingAutoDescription: "第一轮回答结束后，读一遍对话，换掉“新会话”这个占位名。",
+  sessionNamingAutoDescription: "发送第一条消息后，根据消息内容替换“新会话”占位名，无需等待回答。",
   sessionNamingModel: "命名模型",
   sessionNamingModelDescription: "起名只需几十个字，选一个又快又便宜的模型就够了。右键“重新生成名称”也用它。",
   sessionNamingModelUnset: "未设置",
+  sessionNamingModelUnavailable: "此模型在当前环境中不可用或未启用，命名时将改用当前会话的模型。",
+  sessionNamingUnsupported: "请更新此服务器，即可单独配置这台服务器的会话命名设置。",
+  sessionNamingSaveFailed: "无法保存会话命名设置：{error}",
   sessionNamingPreviewFirstMessage: "第一条消息",
   sessionNamingPreviewMessage:
     "侧栏的会话现在只能点开，想加一个右键菜单，能改名、删除，最好还能让 AI 帮我重新起个名字。",

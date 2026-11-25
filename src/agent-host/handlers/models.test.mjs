@@ -40,6 +40,35 @@ function captureModelHandlers() {
 
 const handlers = captureModelHandlers();
 
+test("an unconfigured host exposes automatic session naming with no preferred model", async () => {
+  assert.deepEqual(await handlers["models.sessionNaming.get"](), { enabled: true, model: null, configured: false });
+});
+
+test("session naming handlers save host choices and keep omitted settings when patched", async (t) => {
+  t.after(() => rmSync(path.join(isolatedAgentDirectory, "desktop", "session-naming.json"), { force: true }));
+  const model = { provider: "remote-provider", modelId: "remote-model" };
+  assert.deepEqual(await handlers["models.sessionNaming.set"]({ enabled: false, model }), {
+    enabled: false,
+    model,
+    configured: true,
+  });
+  assert.deepEqual(await captureModelHandlers()["models.sessionNaming.get"](), {
+    enabled: false,
+    model,
+    configured: true,
+  });
+  assert.deepEqual(await handlers["models.sessionNaming.set"]({ enabled: true }), {
+    enabled: true,
+    model,
+    configured: true,
+  });
+  assert.deepEqual(await handlers["models.sessionNaming.set"]({ model: null }), {
+    enabled: true,
+    model: null,
+    configured: true,
+  });
+});
+
 test("before anything is chosen, the defaults report no model and Pi's own medium thinking level", async () => {
   assert.deepEqual(await handlers["models.defaults.get"]({ cwd: root }), { model: null, thinkingLevel: "medium" });
 });
@@ -131,4 +160,12 @@ test("every model endpoint keeps working on a deleted project folder by using th
     folderPath: otherProject,
   });
   await handlers["models.preferences.set"]({ cwd: otherProject, enabledModels: null });
+});
+
+test("session naming handlers reject malformed parameters without saving a host configuration", async () => {
+  rmSync(path.join(isolatedAgentDirectory, "desktop", "session-naming.json"), { force: true });
+  for (const params of [undefined, null, [], true, "settings", { enabled: "no" }, { model: {} }]) {
+    await assert.rejects(handlers["models.sessionNaming.set"](params), (error) => error.code === "BAD_REQUEST");
+  }
+  assert.deepEqual(await handlers["models.sessionNaming.get"](), { enabled: true, model: null, configured: false });
 });

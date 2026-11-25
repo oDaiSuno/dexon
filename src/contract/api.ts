@@ -43,6 +43,8 @@ import type {
   RunningStateEvent,
   SessionDetail,
   SessionInfo,
+  SessionNamingModelRef,
+  SessionNamingSettingsResult,
   TestResult,
   WorktreeInfo,
 } from "./types";
@@ -384,6 +386,11 @@ export interface Api {
   "models.defaults.set": {
     params: { cwd?: string; model?: { provider: string; modelId: string }; thinkingLevel?: DefaultThinkingLevel };
     result: ModelDefaultsResult;
+  };
+  "models.sessionNaming.get": { params: void; result: SessionNamingSettingsResult };
+  "models.sessionNaming.set": {
+    params: { enabled?: boolean; model?: SessionNamingModelRef | null };
+    result: SessionNamingSettingsResult;
   };
   "modelsConfig.get": { params: void; result: ModelsConfigSnapshot };
   "modelsConfig.set": {

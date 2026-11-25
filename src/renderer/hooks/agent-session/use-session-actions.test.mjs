@@ -492,3 +492,22 @@ test("abort, fork, tree navigation, compaction and interactive answers stay on t
   assert.ok(h.requests.every((request) => request.environmentId === "gpu"));
   assert.ok(commands.every((request) => request.params.sessionId === "same-id"));
 });
+
+test("opening a new session preloads its host naming setting before sending and skips disabled automatic naming", async (t) => {
+  const requests = [];
+  const host = createSessionTestHost({ newAgent: async () => ({ sessionId: "disabled-title" }) });
+  host.call = (method, params) => {
+    requests.push({ method, params });
+    if (method === "models.sessionNaming.get") return { enabled: false, model: null, configured: true };
+    if (method === "agent.generateTitle") return { title: "Unexpected name" };
+    throw new Error(`Unexpected session request: ${method}`);
+  };
+  const h = await createSessionHookHarness(t, { bundleName: "session-actions-disabled-naming", host });
+  await h.mount({ session: null, newSessionCwd: "/fixture" });
+  await h.flush();
+  assert.deepEqual(requests, [{ method: "models.sessionNaming.get", params: undefined }]);
+  await h.act(() => h.state.handleSend("Fix the login page"));
+  await h.flush();
+  assert.equal(host.sendCommands.filter(({ payload }) => payload.type === "prompt").length, 1);
+  assert.equal(requests.filter(({ method }) => method === "agent.generateTitle").length, 0);
+});

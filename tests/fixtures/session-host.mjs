@@ -64,9 +64,9 @@ export function createSessionTestHost(overrides = {}) {
     getSessionContextPage: (sid, ...rest) => recordRpc("getSessionContextPage", sid, ...rest),
     getSessionEntryContent: (sid, ...rest) => recordRpc("getSessionEntryContent", sid, ...rest),
     agentState: (sid, ...rest) => recordRpc("agentState", sid, ...rest),
-    // External RPC boundary of the real auto-session-title module. The title
-    // request is recorded here; the local eligibility policy is not doubled.
     call(method, params) {
+      if (method === "models.sessionNaming.get")
+        return Promise.resolve(overrides.sessionNamingSettings ?? { enabled: true, model: null, configured: true });
       if (method !== "agent.generateTitle") throw new Error("api-client.call is not configured in the harness host");
       autoTitleRequests.push(params);
       return Promise.resolve({ title: null });

@@ -165,7 +165,12 @@ function ScopedModelsConfig({
                 cwd={cwd}
                 onChanged={onChanged}
               />
-              {environmentId === PRIMARY_ENVIRONMENT_ID && <SessionNamingGroup preferences={editor.modelPreferences} />}
+              <SessionNamingGroup
+                environmentId={environmentId}
+                preferences={editor.modelPreferences}
+                namingState={editor.sessionNaming}
+                onNamingChange={editor.updateSessionNaming}
+              />
               <ProviderTree
                 loading={editor.loading}
                 loadError={editor.loadError}
@@ -186,13 +191,10 @@ function ScopedModelsConfig({
                 style={{ margin: 0, textAlign: "center", color: "var(--fx-text-tertiary)" }}
               >
                 {environmentId === PRIMARY_ENVIRONMENT_ID
-                  ? t(
-                      "modelsConfigFootnote",
-                      "Settings are saved in ~/.pi/agent/models.json and only affect this computer.",
-                    )
+                  ? t("modelsConfigFootnote", "Settings are saved on this computer and only affect this computer.")
                   : t(
                       "schemeCRemoteModelsFootnote",
-                      "Settings are saved in {server}'s ~/.pi/agent/models.json and only affect that server.",
+                      "Settings are saved on {server} and only affect that server.",
                     ).replace("{server}", server)}
               </p>
             </div>
