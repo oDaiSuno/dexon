@@ -25,6 +25,9 @@ export function useOlderHistory({
   messagesLength,
   loadedEntryIds,
   scrollContainerRef,
+  autoOlderBlocked = false,
+  onAutoOlderZoneLeave,
+  onManualLoad,
 }: {
   visible: boolean;
   sessionId: string | null;
@@ -35,6 +38,9 @@ export function useOlderHistory({
   messagesLength: number;
   loadedEntryIds: string[];
   scrollContainerRef: RefObject<HTMLDivElement | null>;
+  autoOlderBlocked?: boolean;
+  onAutoOlderZoneLeave?: () => void;
+  onManualLoad?: () => void;
 }) {
   const [sentinel, setSentinel] = useState<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(false);
@@ -44,6 +50,7 @@ export function useOlderHistory({
   const [jumpTarget, setJumpTarget] = useState<string | null>(null);
   const [arrivedTurn, setArrivedTurn] = useState<string | null>(null);
   const busyRef = useRef(false);
+  const prevInViewRef = useRef(false);
   const jumpTargetRef = useRef<string | null>(null);
   jumpTargetRef.current = jumpTarget;
 
@@ -89,11 +96,17 @@ export function useOlderHistory({
     }
   }, [loadOlder]);
 
+  useEffect(() => {
+    if (prevInViewRef.current && !inView) onAutoOlderZoneLeave?.();
+    prevInViewRef.current = inView;
+  }, [inView, onAutoOlderZoneLeave]);
+
   const loadOlderHistory = useCallback(async () => {
+    onManualLoad?.();
     setStalledAt(null);
     setFailure(null);
     await load();
-  }, [load]);
+  }, [load, onManualLoad]);
 
   useEffect(() => {
     if (jumpTarget === null) return;
@@ -112,8 +125,10 @@ export function useOlderHistory({
   useEffect(() => {
     if (!visible || (!inView && jumpTargetRef.current === null) || !hasOlder || loadingOlder || halted || failed)
       return;
+    if (jumpTargetRef.current === null && autoOlderBlocked) return;
     void load();
   }, [
+    autoOlderBlocked,
     completedLoads,
     failed,
     halted,
@@ -128,10 +143,10 @@ export function useOlderHistory({
   ]);
 
   useEffect(() => {
-    if (!visible || !inView || !hasOlder || halted || !failed) return;
+    if (!visible || !inView || !hasOlder || halted || !failed || autoOlderBlocked) return;
     const timer = setTimeout(() => void load(), retryDelay(attempt));
     return () => clearTimeout(timer);
-  }, [attempt, failed, halted, hasOlder, inView, load, position, visible]);
+  }, [attempt, autoOlderBlocked, failed, halted, hasOlder, inView, load, position, visible]);
 
   const requestTurn = useCallback((entryId: string) => {
     setArrivedTurn(null);

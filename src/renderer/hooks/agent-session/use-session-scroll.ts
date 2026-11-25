@@ -1,3 +1,4 @@
+import type { ChatViewportController } from "@/lib/chat-viewport";
 import { useCallback, useState, type MutableRefObject } from "react";
 import {
   isScrollbarPointerDown,
@@ -34,7 +35,7 @@ type Dependencies = Pick<
   | "scrollbarHoldRef"
   | "scrollbarReleaseAtRef"
   | "sessionChangeIgnoreScrollUntilRef"
-> & { visualFrameIdsRef: MutableRefObject<Set<number>> };
+> & { visualFrameIdsRef: MutableRefObject<Set<number>>; viewport?: ChatViewportController };
 function distanceFromBottom(container: HTMLElement): number {
   return container.scrollHeight - container.clientHeight - container.scrollTop;
 }
@@ -60,6 +61,7 @@ export function useSessionScroll(context: Dependencies) {
     scrollbarReleaseAtRef,
     sessionChangeIgnoreScrollUntilRef,
     visualFrameIdsRef,
+    viewport,
   } = context;
 
   const [followSuspended, setFollowSuspended] = useState(false);
@@ -102,10 +104,11 @@ export function useSessionScroll(context: Dependencies) {
     const container = scrollContainerRef.current;
     const el = lastUserMsgRef.current;
     if (!container || !el) return;
+    viewport?.claim("sent-message");
     const elAbsTop = el.getBoundingClientRect().top - container.getBoundingClientRect().top + container.scrollTop;
     ignoreProgrammaticScrollUntilRef.current = Date.now() + PROGRAMMATIC_SCROLL_IGNORE_MS;
     container.scrollTo({ top: elAbsTop - 16, behavior: "smooth" });
-  }, [ignoreProgrammaticScrollUntilRef, lastUserMsgRef, scrollContainerRef]);
+  }, [ignoreProgrammaticScrollUntilRef, lastUserMsgRef, scrollContainerRef, viewport]);
 
   const updateScrollPresence = useCallback(() => {
     const container = scrollContainerRef.current;
@@ -118,6 +121,7 @@ export function useSessionScroll(context: Dependencies) {
   // "Scroll to bottom": snap to the end and re-magnet the viewport so the next
   // streaming ticks keep following until the user scrolls away again.
   const reattachAutoFollow = useCallback(() => {
+    viewport?.claim("scroll-to-bottom");
     setFollowSuspended(false);
     completionScrollAllowedRef.current = true;
     externalTurnAutoFollowRef.current = false;
@@ -134,11 +138,13 @@ export function useSessionScroll(context: Dependencies) {
     pendingScrollToUserRef,
     scrollToBottom,
     userScrollIntentUntilRef,
+    viewport,
   ]);
 
   const settleAtLatest = useCallback(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
+    const lease = viewport?.claim("settle-latest");
     setFollowSuspended(false);
     autoFollowMagnetRef.current = true;
     completionScrollAllowedRef.current = true;
@@ -155,13 +161,23 @@ export function useSessionScroll(context: Dependencies) {
       settledHeight = container.scrollHeight;
     };
     const snap = () => {
-      if (!container.isConnected) return;
-      if (Date.now() <= userScrollIntentUntilRef.current) return;
+      if (!container.isConnected) {
+        lease?.finish();
+        return;
+      }
+      if (lease && !lease.isCurrent()) return;
+      if (Date.now() <= userScrollIntentUntilRef.current) {
+        lease?.finish();
+        return;
+      }
       const moved = Math.abs(container.scrollTop - settledTop);
       const distanceMoved = Math.abs(distanceFromBottom(container) - settledDistance);
       const grown = container.scrollHeight - settledHeight;
       const growthExplains = grown >= moved - 1;
-      if (moved > 1 && distanceMoved > 1 && !growthExplains) return;
+      if (moved > 1 && distanceMoved > 1 && !growthExplains) {
+        lease?.finish();
+        return;
+      }
       scrollToBottom("auto");
       settleFrame();
       frames += 1;
@@ -169,6 +185,7 @@ export function useSessionScroll(context: Dependencies) {
       stableFrames = height === previousHeight ? stableFrames + 1 : 0;
       previousHeight = height;
       if (stableFrames < 3 && frames < 60) scheduleVisualFrame(snap);
+      else lease?.finish();
     };
     scheduleVisualFrame(snap);
   }, [
@@ -178,6 +195,7 @@ export function useSessionScroll(context: Dependencies) {
     scrollToBottom,
     scheduleVisualFrame,
     userScrollIntentUntilRef,
+    viewport,
   ]);
 
   const disengageAutoFollowForExplicitUpwardGesture = useCallback(() => {
@@ -188,9 +206,8 @@ export function useSessionScroll(context: Dependencies) {
 
   const disengageAutoFollow = useCallback(() => {
     userScrollIntentUntilRef.current = Date.now() + USER_SCROLL_INTENT_MS;
-    if (!agentRunningRef.current) return;
     disengageAutoFollowForExplicitUpwardGesture();
-    setFollowSuspended(true);
+    if (agentRunningRef.current) setFollowSuspended(true);
   }, [agentRunningRef, disengageAutoFollowForExplicitUpwardGesture, userScrollIntentUntilRef]);
 
   const markUserScrollIntent = useCallback(

@@ -1,5 +1,7 @@
+import type { ChatViewportController } from "@/lib/chat-viewport";
 import { alignReadingPosition, readReadingAnchorOffset, type ReadingAnchor } from "@/lib/reading-anchor";
-import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
+import type { AgentMessage } from "@/lib/types";
+import { useCallback, useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
 
 type HistoryAnchor = {
   element: HTMLDivElement;
@@ -14,27 +16,32 @@ type HistoryAnchor = {
 
 type Options = {
   readingVisible: boolean;
+  messages: AgentMessage[];
   historyGenerationRef: MutableRefObject<number>;
   sessionIdRef: MutableRefObject<string | null>;
   historyRevisionRef: MutableRefObject<string | null>;
   scrollContainerRef: MutableRefObject<HTMLDivElement | null>;
   userScrollIntentUntilRef: MutableRefObject<number>;
+  viewport?: ChatViewportController;
 };
 
 /** Owns reading-side animation frames and deferred history anchor restoration. */
 export function useSessionHistoryVisuals({
   readingVisible,
+  messages,
   historyGenerationRef,
   sessionIdRef,
   historyRevisionRef,
   scrollContainerRef,
   userScrollIntentUntilRef,
+  viewport,
 }: Options) {
   const readingVisibleRef = useRef(readingVisible);
   readingVisibleRef.current = readingVisible;
   const mountedRef = useRef(true);
   const frameIdsRef = useRef<Set<number>>(new Set());
   const pendingAnchorRef = useRef<HistoryAnchor | null>(null);
+  const commitAnchorRef = useRef<HistoryAnchor | null>(null);
   const cancelAlignmentRef = useRef<(() => void) | null>(null);
 
   const cancelFrames = useCallback(() => {
@@ -99,6 +106,10 @@ export function useSessionHistoryVisuals({
       return;
     }
     pendingAnchorRef.current = null;
+    if (viewport?.isNavigationActive()) {
+      settle(anchor);
+      return;
+    }
     const container = anchor.element;
     const contentAnchor = anchor.contentAnchor;
     if (!contentAnchor || readReadingAnchorOffset(container, contentAnchor.key) === null) {
@@ -107,8 +118,9 @@ export function useSessionHistoryVisuals({
       return;
     }
     const intentBaseline = userScrollIntentUntilRef.current;
+    const lease = viewport?.claim("history-anchor");
     cancelAlignmentRef.current?.();
-    cancelAlignmentRef.current = alignReadingPosition({
+    const cancel = alignReadingPosition({
       container,
       target: contentAnchor.offsetTop,
       measure: () => readReadingAnchorOffset(container, contentAnchor.key),
@@ -118,12 +130,15 @@ export function useSessionHistoryVisuals({
         anchor.generation !== historyGenerationRef.current ||
         anchor.sessionId !== sessionIdRef.current ||
         anchor.revision !== historyRevisionRef.current ||
-        userScrollIntentUntilRef.current > intentBaseline,
-      onSettled: () => {
+        (lease ? !lease.isCurrent() : userScrollIntentUntilRef.current > intentBaseline),
+      onSettled: (outcome) => {
         cancelAlignmentRef.current = null;
+        lease?.finish({ outcome });
         settle(anchor);
       },
     });
+    cancelAlignmentRef.current = cancel;
+    lease?.onAbort(cancel);
   }, [
     fallBackToHeightDelta,
     historyGenerationRef,
@@ -132,21 +147,42 @@ export function useSessionHistoryVisuals({
     sessionIdRef,
     settle,
     userScrollIntentUntilRef,
+    viewport,
   ]);
 
   const queueHistoryAnchor = useCallback(
-    (anchor: HistoryAnchor) => {
+    (anchor: HistoryAnchor, afterCommit = false) => {
       cancelAlignmentRef.current?.();
       cancelAlignmentRef.current = null;
-      pendingAnchorRef.current = anchor;
       if (!readingVisibleRef.current) {
+        commitAnchorRef.current = null;
+        pendingAnchorRef.current = anchor;
         settle(anchor);
         return;
       }
+      if (afterCommit) {
+        pendingAnchorRef.current = null;
+        commitAnchorRef.current = anchor;
+        return;
+      }
+      commitAnchorRef.current = null;
+      pendingAnchorRef.current = anchor;
       scheduleVisualFrame(restorePendingAnchor);
     },
     [restorePendingAnchor, scheduleVisualFrame, settle],
   );
+
+  useLayoutEffect(() => {
+    const anchor = commitAnchorRef.current;
+    if (!anchor) return;
+    commitAnchorRef.current = null;
+    pendingAnchorRef.current = anchor;
+    if (!readingVisibleRef.current) {
+      settle(anchor);
+      return;
+    }
+    scheduleVisualFrame(restorePendingAnchor);
+  }, [messages, restorePendingAnchor, scheduleVisualFrame, settle]);
 
   useEffect(() => {
     if (readingVisible && pendingAnchorRef.current) scheduleVisualFrame(restorePendingAnchor);

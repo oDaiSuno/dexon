@@ -36,7 +36,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
   readingVisibleRef.current = readingVisible;
   const visualFrameIdsRef = useRef<Set<number>>(new Set());
   const state = useSessionState(opts);
-  const history = useSessionHistory(state, readingVisible);
+  const history = useSessionHistory(state, readingVisible, opts.viewport);
   const deferredContent = useSessionDeferredContent({ ...state, ...history });
   const extensions = useSessionExtensions(state, opts);
   const events = useSessionEvents({
@@ -75,6 +75,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     ...commands,
     ...queue,
     visualFrameIdsRef,
+    viewport: opts.viewport,
   });
   const lifecycle = useSessionLifecycle({
     ...state,

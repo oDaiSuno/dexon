@@ -1,3 +1,4 @@
+import type { ChatViewportController } from "@/lib/chat-viewport";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { NavigatorTurn } from "./shared";
@@ -10,9 +11,10 @@ interface Props {
   messageRefs: RefObject<(HTMLDivElement | null)[]>;
   visible: boolean;
   turnJump: TurnJumpHandle;
+  viewport: ChatViewportController;
 }
 
-const EMPTY = { show: false, current: -1, tops: [] as number[] };
+const EMPTY = { show: false, current: -1 };
 const EXPAND_SETTLE_MS = 300;
 
 function useTurnGeometry(
@@ -47,14 +49,7 @@ function useTurnGeometry(
     });
     if (atBottom && tops.length > 0) current = tops.length - 1;
 
-    setGeometry((prev) =>
-      prev.show === show &&
-      prev.current === current &&
-      prev.tops.length === tops.length &&
-      prev.tops.every((top, index) => top === tops[index])
-        ? prev
-        : { show, current, tops },
-    );
+    setGeometry((prev) => (prev.show === show && prev.current === current ? prev : { show, current }));
   }, [visible, scrollContainer, messageRefs]);
 
   useEffect(() => {
@@ -84,10 +79,10 @@ function useTurnGeometry(
   return geometry;
 }
 
-export function TurnNavigator({ turns, scrollContainer, messageRefs, visible, turnJump }: Props) {
+export function TurnNavigator({ turns, scrollContainer, messageRefs, visible, turnJump, viewport }: Props) {
   const { t } = useI18n();
-  const { show, current, tops } = useTurnGeometry(turns, scrollContainer, messageRefs, visible);
-  const { chooseTurn } = useTurnJump({ visible, turns, tops, scrollContainer, messageRefs, turnJump });
+  const { show, current } = useTurnGeometry(turns, scrollContainer, messageRefs, visible);
+  const { chooseTurn } = useTurnJump({ visible, turns, scrollContainer, messageRefs, turnJump, viewport });
   const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
   const navRef = useRef<HTMLElement | null>(null);
   const [interacting, setInteracting] = useState(false);
