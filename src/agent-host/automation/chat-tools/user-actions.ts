@@ -34,6 +34,13 @@ export interface RequestUserActionInput {
   readonly secretOperation?: "set" | "delete";
 }
 
+function requireExactSignalKey(value: unknown): string {
+  if (typeof value !== "string" || value.trim().length === 0 || value.length > 1024 || /[\0\r\n]/.test(value)) {
+    throw new Error("Missing or invalid required string: signalKey");
+  }
+  return value;
+}
+
 export function requestAutomationUserAction(
   ctx: AutomationChatHostContext,
   input: RequestUserActionInput,
@@ -81,12 +88,19 @@ export function requestAutomationUserAction(
         kind: "start_run",
         taskId: summary.id,
         taskName: summary.name,
+        revision: summary.enabledRevision,
         triggerId,
         input: input.input === undefined ? null : input.input,
         reason,
       };
       return {
-        payload: { cardEmitted: true, action: "start_run", taskId: summary.id, triggerId },
+        payload: {
+          cardEmitted: true,
+          action: "start_run",
+          taskId: summary.id,
+          revision: summary.enabledRevision,
+          triggerId,
+        },
         details: { automationCard: card, targetTaskId: summary.id, targetTaskName: summary.name, summary: reason },
       };
     }
@@ -192,7 +206,7 @@ export function requestAutomationUserAction(
     case "emit_signal": {
       const taskId = requireText(input.taskId, "taskId");
       const signalName = requireText(input.signalName, "signalName");
-      const signalKey = requireText(input.signalKey, "signalKey");
+      const signalKey = requireExactSignalKey(input.signalKey);
       const summary = findTaskSummary(ctx, taskId);
       if (!summary) throw new Error(`Task '${taskId}' not found.`);
       const card: AutomationChatCard = {

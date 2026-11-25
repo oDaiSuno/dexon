@@ -3,12 +3,14 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import { importTestBundle } from "#test-bundle";
 
 const loaded = await importTestBundle("automation-chat-tools", {
   packages: "external",
   stdin: {
     contents: `export * from "./src/agent-host/automation/index";
+      export { deriveRequiredGrant } from "./src/agent-host/automation/spec/grant";
       export { assertTaskSpec } from "./src/agent-host/automation/spec/validate";
       export { normalizeTaskSpec } from "./src/agent-host/automation/spec/normalize";
       export { setBrowserSessionSource } from "./src/agent-host/browser-tools";
@@ -156,6 +158,12 @@ test("every guide recipe passes real backend validation and normalization", () =
     const plan = loaded.normalizeTaskSpec(recipe);
     assert.equal(plan.id, recipe.id);
   }
+  const approvalPlan = loaded.normalizeTaskSpec(loaded.AUTOMATION_GUIDE_RECIPES.watchEndpointWithApproval);
+  const approvalGrant = loaded.deriveRequiredGrant(
+    approvalPlan,
+    loaded.AUTOMATION_GUIDE_RECIPES.watchEndpointWithApproval,
+  );
+  assert.deepEqual(approvalGrant.unattendedWrites, []);
   const built = loaded.buildAutomationGuide(["core", "triggers", "steps", "expressions", "recipes"]);
   assert.equal(built.schema, "dexon.automation/v1");
   assert.match(built.guide, /dexon\.automation\/v1/);
@@ -239,7 +247,9 @@ test("chat tools inspect capabilities, validate, save draft without enabling, st
     triggerId: "manual",
     reason: "Manual test run",
   });
-  assert.equal(loaded.readAutomationChatCard(runProposal.details)?.kind, "start_run");
+  const startRunCard = loaded.readAutomationChatCard(runProposal.details);
+  assert.equal(startRunCard?.kind, "start_run");
+  assert.equal(startRunCard?.revision, 1);
   assert.equal(runtime.listRuns({ taskId: "daily-check" }).length, 0);
 
   const fired = runtime.startRun({ taskId: "daily-check", triggerId: "manual", input: null });
@@ -274,6 +284,24 @@ test("chat tools inspect capabilities, validate, save draft without enabling, st
     reason: "Stop test",
   });
   assert.equal(cancelled.json.action, "cancel_run");
+  for (let i = 0; i < 40; i += 1) {
+    if (runtime.getRun(fired.runId).phase === "cancelled" && runtime.listInbox().length === 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.equal(runtime.getRun(fired.runId).phase, "cancelled");
+  assert.equal(runtime.listInbox().length, 0);
+
+  const signalProposal = await callTool("automation_request_user_action", {
+    action: "emit_signal",
+    taskId: "daily-check",
+    signalName: "deploy_ready",
+    signalKey: " key-with-space ",
+    signalPayload: null,
+    reason: "Emit exact signal key",
+  });
+  const signalCard = loaded.readAutomationChatCard(signalProposal.details);
+  assert.equal(signalCard?.kind, "emit_signal");
+  assert.equal(signalCard?.signalKey, " key-with-space ");
 
   const updateCheck = await callTool("automation_validate", {
     mode: "update",
@@ -349,4 +377,162 @@ test("security boundaries block channel turns and isolate automation/sealed prof
     automationEnabled: true,
   });
   assert.deepEqual(on, available);
+});
+
+test("validate schema allows empty lists through SDK validation and card guards reject malformed payloads", async (t) => {
+  const { cwd, tools, callTool } = await setupFixture(t);
+  const validateTool = tools.get("automation_validate");
+  const emptySteps = validateToolArguments(validateTool, {
+    type: "toolCall",
+    id: "tc-validate-steps",
+    name: "automation_validate",
+    arguments: {
+      mode: "create",
+      spec: { ...sampleSpec(cwd, "empty-steps"), steps: [] },
+    },
+  });
+  const emptyStepsOutcome = await callTool("automation_validate", emptySteps);
+  assert.equal(emptyStepsOutcome.json.valid, false);
+  assert.equal(emptyStepsOutcome.json.issues[0].path, "steps");
+
+  const emptyTriggers = validateToolArguments(validateTool, {
+    type: "toolCall",
+    id: "tc-validate-triggers",
+    name: "automation_validate",
+    arguments: {
+      mode: "create",
+      spec: { ...sampleSpec(cwd, "empty-triggers"), triggers: [] },
+    },
+  });
+  const emptyTriggersOutcome = await callTool("automation_validate", emptyTriggers);
+  assert.equal(emptyTriggersOutcome.json.valid, false);
+  assert.equal(emptyTriggersOutcome.json.issues[0].path, "triggers");
+
+  await callTool("automation_save_draft", {
+    mode: "create",
+    summary: "Channel target task",
+    spec: {
+      ...sampleSpec(cwd, "channel-diff"),
+      steps: [
+        {
+          id: "send",
+          kind: "action",
+          call: { action: "channel.send", with: { to: { accountId: "a:b", peerId: "c" }, text: "hi" } },
+        },
+      ],
+    },
+  });
+  const diffCheck = await callTool("automation_validate", {
+    mode: "update",
+    expectedRevision: 1,
+    spec: {
+      ...sampleSpec(cwd, "channel-diff"),
+      steps: [
+        {
+          id: "send",
+          kind: "action",
+          call: { action: "channel.send", with: { to: { accountId: "a", peerId: "b:c" }, text: "hi" } },
+        },
+      ],
+    },
+  });
+  assert.equal(diffCheck.json.valid, true);
+  assert.deepEqual(diffCheck.json.impact.addedChannelTargets, [{ accountId: "a", peerId: "b:c" }]);
+
+  const validGrant = {
+    cwd,
+    agentTools: ["read"],
+    channelTargets: [],
+    allowedChannelTargets: [],
+    httpOrigins: [],
+    scripts: [],
+    secrets: [],
+    unattendedWrites: [],
+    requiresTrustedLocalExecution: false,
+    stepEffects: [],
+    planHash: "a".repeat(64),
+  };
+  const baseDraft = {
+    kind: "draft_saved",
+    mode: "create",
+    taskId: "t1",
+    taskName: "Task",
+    revision: 1,
+    planHash: "a".repeat(64),
+    summary: "Summary",
+    cwd,
+    disarmedPreviousRevision: null,
+    triggers: [{ id: "manual", kind: "manual" }],
+    stepCount: 1,
+    requiredGrant: validGrant,
+  };
+  assert.ok(loaded.readAutomationChatCard({ automationCard: baseDraft }));
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: { ...baseDraft, requiredGrant: { ...validGrant, scripts: [null] } },
+    }),
+    null,
+  );
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: { ...baseDraft, requiredGrant: { ...validGrant, stepEffects: undefined } },
+    }),
+    null,
+  );
+  assert.equal(loaded.readAutomationChatCard({ automationCard: { ...baseDraft, triggers: [null] } }), null);
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: { kind: "start_run", taskId: "t1", taskName: "Task", triggerId: "manual", reason: "Run" },
+    }),
+    null,
+  );
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: {
+        kind: "resolve_approval",
+        taskId: "t1",
+        taskName: "Task",
+        runId: "r1",
+        stepIndex: 0,
+        expectedVersion: 1,
+        title: "Approve",
+        prompt: null,
+        show: null,
+        fields: [],
+        defaults: null,
+        expiresAtMs: null,
+        reason: "Approve",
+      },
+    }),
+    null,
+  );
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: {
+        kind: "resolve_attention",
+        taskId: "t1",
+        taskName: "Task",
+        runId: "r1",
+        stepIndex: 0,
+        expectedVersion: 1,
+        stepId: "s1",
+        suggestedAction: null,
+        reason: "Check",
+      },
+    }),
+    null,
+  );
+  assert.equal(
+    loaded.readAutomationChatCard({
+      automationCard: {
+        kind: "emit_signal",
+        taskId: "t1",
+        taskName: "Task",
+        signalName: "sig",
+        signalKey: "k",
+        reason: "Emit",
+      },
+    }),
+    null,
+  );
 });

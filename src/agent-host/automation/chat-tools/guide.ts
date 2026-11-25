@@ -92,6 +92,7 @@ export const AUTOMATION_GUIDE_RECIPES: Readonly<Record<string, TaskSpec>> = {
         data: { trigger: { $ref: "trigger" } },
         tools: ["read", "grep"],
         effect: "read",
+        stopRunIf: { ref: "steps.diagnose.output.shouldRestart", op: "ne", value: true },
         output: {
           schema: {
             type: "object",
@@ -107,7 +108,6 @@ export const AUTOMATION_GUIDE_RECIPES: Readonly<Record<string, TaskSpec>> = {
       {
         id: "confirm-restart",
         kind: "wait",
-        when: { ref: "steps.diagnose.output.shouldRestart", op: "eq", value: true },
         expiresIn: "2h",
         onTimeout: "fail",
         wait: {

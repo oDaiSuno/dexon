@@ -103,6 +103,7 @@ export type AutomationChatCard =
       readonly kind: "start_run";
       readonly taskId: string;
       readonly taskName: string;
+      readonly revision: number;
       readonly triggerId: string;
       readonly input: Json;
       readonly reason: string;
@@ -181,17 +182,87 @@ function nonNegativeInt(value: unknown): value is number {
   return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 }
 
+const AGENT_WORKSPACE_TOOL_SET = new Set<string>(["read", "write", "edit", "bash", "grep", "find"]);
+const UNATTENDED_WRITE_KIND_SET = new Set<string>(["channel_send", "http_write", "script_write", "agent_write"]);
+const STEP_EFFECT_KIND_SET = new Set<string>(["read", "idempotent", "unsafe"]);
+
+function isJsonValue(value: unknown): value is Json {
+  if (value === null || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isJsonValue);
+  if (isRecord(value)) return Object.values(value).every(isJsonValue);
+  return false;
+}
+
+function isJsonObject(value: unknown): value is JsonSchema {
+  return isRecord(value) && Object.values(value).every(isJsonValue);
+}
+
+function isChannelTarget(value: unknown): boolean {
+  return isRecord(value) && nonEmptyString(value.accountId) && nonEmptyString(value.peerId);
+}
+
+function isScriptGrant(value: unknown): boolean {
+  return isRecord(value) && nonEmptyString(value.path) && nonEmptyString(value.sha256);
+}
+
+function isUnattendedWrite(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    nonEmptyString(value.stepId) &&
+    typeof value.kind === "string" &&
+    UNATTENDED_WRITE_KIND_SET.has(value.kind)
+  );
+}
+
+function isStepEffect(value: unknown): boolean {
+  return (
+    isRecord(value) &&
+    nonEmptyString(value.stepId) &&
+    typeof value.effect === "string" &&
+    STEP_EFFECT_KIND_SET.has(value.effect)
+  );
+}
+
+function isTriggerSummary(value: unknown): value is AutomationTriggerSummary {
+  if (!isRecord(value) || !nonEmptyString(value.id) || typeof value.kind !== "string") return false;
+  if (value.kind === "manual") return true;
+  if (value.kind === "schedule") {
+    const hasCron = nonEmptyString(value.cron) && (value.tz === undefined || nonEmptyString(value.tz));
+    const hasEvery = nonEmptyString(value.every);
+    return (hasCron && value.every === undefined) || (hasEvery && value.cron === undefined && value.tz === undefined);
+  }
+  if (value.kind === "watch") {
+    return (
+      nonEmptyString(value.every) &&
+      (value.mode === "threshold" || value.mode === "items") &&
+      (value.probeKind === "http.request" || value.probeKind === "script.run")
+    );
+  }
+  return false;
+}
+
 function isRequiredGrant(value: unknown): value is RequiredGrant {
   if (!isRecord(value)) return false;
   return (
     nonEmptyString(value.cwd) &&
     nonEmptyString(value.planHash) &&
     Array.isArray(value.agentTools) &&
+    value.agentTools.every((item) => typeof item === "string" && AGENT_WORKSPACE_TOOL_SET.has(item)) &&
     Array.isArray(value.channelTargets) &&
+    value.channelTargets.every(isChannelTarget) &&
+    Array.isArray(value.allowedChannelTargets) &&
+    value.allowedChannelTargets.every(isChannelTarget) &&
     Array.isArray(value.httpOrigins) &&
+    value.httpOrigins.every(nonEmptyString) &&
     Array.isArray(value.scripts) &&
+    value.scripts.every(isScriptGrant) &&
     Array.isArray(value.secrets) &&
+    value.secrets.every(nonEmptyString) &&
     Array.isArray(value.unattendedWrites) &&
+    value.unattendedWrites.every(isUnattendedWrite) &&
+    Array.isArray(value.stepEffects) &&
+    value.stepEffects.every(isStepEffect) &&
     typeof value.requiresTrustedLocalExecution === "boolean"
   );
 }
@@ -216,6 +287,7 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
         nonEmptyString(card.cwd) &&
         (card.disarmedPreviousRevision === null || positiveInt(card.disarmedPreviousRevision)) &&
         Array.isArray(card.triggers) &&
+        card.triggers.every(isTriggerSummary) &&
         positiveInt(card.stepCount) &&
         isRequiredGrant(card.requiredGrant)
       ) {
@@ -231,6 +303,7 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
         nonEmptyString(card.reason) &&
         nonEmptyString(card.cwd) &&
         Array.isArray(card.triggers) &&
+        card.triggers.every(isTriggerSummary) &&
         positiveInt(card.stepCount) &&
         isRequiredGrant(card.requiredGrant)
       ) {
@@ -241,7 +314,9 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
       if (
         nonEmptyString(card.taskId) &&
         nonEmptyString(card.taskName) &&
+        positiveInt(card.revision) &&
         nonEmptyString(card.triggerId) &&
+        isJsonValue(card.input) &&
         nonEmptyString(card.reason)
       ) {
         return card as unknown as AutomationChatCard;
@@ -265,6 +340,11 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
         nonNegativeInt(card.stepIndex) &&
         positiveInt(card.expectedVersion) &&
         nonEmptyString(card.title) &&
+        (card.prompt === null || typeof card.prompt === "string") &&
+        (card.show === null || isJsonValue(card.show)) &&
+        (card.fields === null || isJsonObject(card.fields)) &&
+        (card.defaults === null || isJsonValue(card.defaults)) &&
+        (card.expiresAtMs === null || positiveInt(card.expiresAtMs)) &&
         nonEmptyString(card.reason)
       ) {
         return card as unknown as AutomationChatCard;
@@ -278,6 +358,7 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
         nonNegativeInt(card.stepIndex) &&
         positiveInt(card.expectedVersion) &&
         nonEmptyString(card.stepId) &&
+        isJsonValue(card.error) &&
         (card.suggestedAction === null || isAttentionAction(card.suggestedAction)) &&
         nonEmptyString(card.reason)
       ) {
@@ -290,6 +371,7 @@ export function readAutomationChatCard(details: unknown): AutomationChatCard | n
         nonEmptyString(card.taskName) &&
         nonEmptyString(card.signalName) &&
         nonEmptyString(card.signalKey) &&
+        isJsonValue(card.payload) &&
         nonEmptyString(card.reason)
       ) {
         return card as unknown as AutomationChatCard;

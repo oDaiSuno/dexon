@@ -39,7 +39,7 @@ function sampleDraftCard() {
   };
 }
 
-function stubConnection(t, { tasks = [], inbox = [], onCall } = {}) {
+function stubConnection(t, { tasks = [], inbox = [], onCall, onSubscribe } = {}) {
   const conn = environmentRegistry.getConnection("primary");
   const origCall = conn.call.bind(conn);
   const origSubscribe = conn.subscribe.bind(conn);
@@ -52,7 +52,10 @@ function stubConnection(t, { tasks = [], inbox = [], onCall } = {}) {
     if (method === "automation.listInbox") return { items: inbox };
     return { ok: true };
   };
-  conn.subscribe = async () => () => {};
+  conn.subscribe = async (event, scope, handler, onReconnect) => {
+    if (onSubscribe) return onSubscribe(event, scope, handler, onReconnect);
+    return () => {};
+  };
   t.after(() => {
     conn.call = origCall;
     conn.subscribe = origSubscribe;
@@ -248,4 +251,179 @@ test("delete_task card requires two-step confirmation and approval card resolves
   assert.equal(rpcCalls[1].method, "automation.resolveInbox");
   assert.equal(rpcCalls[1].params.resolution.approved, true);
   assert.ok(text(approvalView.container, "Approved"));
+});
+
+test("start_run binds expectedRevision and reuses requestId across retries; approval reject ignores invalid JSON; stopped task clears enabled display", async (t) => {
+  const startCalls = [];
+  let failOnce = true;
+  const resolveCalls = [];
+  let changedHandler = null;
+  const listTaskResolvers = [];
+
+  const prevBridge = globalThis.window.piBridge;
+  globalThis.window.piBridge = {
+    automationCommand: async (command) => {
+      if (command.type === "list-secret-names") return { names: ["github.token"] };
+      if (command.type === "enable-task") {
+        return {
+          outcome: "enabled",
+          task: {
+            id: command.taskId,
+            name: "Daily Digest",
+            cwd: "/work/repo",
+            currentRevision: command.revision,
+            enabledRevision: command.revision,
+            createdAtMs: 1,
+            updatedAtMs: 2,
+          },
+        };
+      }
+      return { ok: true };
+    },
+  };
+  t.after(() => {
+    globalThis.window.piBridge = prevBridge;
+  });
+
+  stubConnection(t, {
+    onSubscribe: (_event, _scope, handler) => {
+      changedHandler = handler;
+      return () => {
+        changedHandler = null;
+      };
+    },
+    onCall: async (method, params) => {
+      if (method === "automation.startRun") {
+        startCalls.push(params);
+        if (failOnce) {
+          failOnce = false;
+          throw new Error("network timeout");
+        }
+        return { outcome: "admitted", runId: "run-1", phase: "ready" };
+      }
+      if (method === "automation.resolveInbox") {
+        resolveCalls.push(params);
+        return { ok: true };
+      }
+      if (method === "automation.listTasks") {
+        return new Promise((resolve) => {
+          listTaskResolvers.push(resolve);
+        });
+      }
+      return undefined;
+    },
+  });
+
+  const runView = await mount(t, AutomationChatCardView, {
+    environmentId: "primary",
+    card: {
+      kind: "start_run",
+      taskId: "daily-digest",
+      taskName: "Daily Digest",
+      revision: 4,
+      triggerId: "manual",
+      input: { dryRun: true },
+      reason: "Test run",
+    },
+  });
+  await click(button(runView.container, "Run now"));
+  assert.ok(text(runView.container, "network timeout"));
+  await click(button(runView.container, "Run now"));
+  assert.equal(startCalls.length, 2);
+  assert.equal(startCalls[0].expectedRevision, 4);
+  assert.equal(startCalls[1].expectedRevision, 4);
+  assert.equal(startCalls[0].requestId, startCalls[1].requestId);
+
+  const rejectView = await mount(t, AutomationChatCardView, {
+    environmentId: "primary",
+    card: {
+      kind: "resolve_approval",
+      taskId: "deploy",
+      taskName: "Deploy",
+      runId: "run-10",
+      stepIndex: 0,
+      expectedVersion: 1,
+      title: "Approve?",
+      prompt: null,
+      show: null,
+      fields: { type: "object" },
+      defaults: null,
+      expiresAtMs: null,
+      reason: "Need decision",
+    },
+  });
+  const textarea = rejectView.container.querySelector("textarea");
+  assert.ok(textarea);
+  await act(async () => {
+    const setter = Object.getOwnPropertyDescriptor(globalThis.window.HTMLTextAreaElement.prototype, "value").set;
+    setter.call(textarea, "{not valid json");
+    textarea.dispatchEvent(new globalThis.window.Event("input", { bubbles: true }));
+  });
+  await click(button(rejectView.container, "Reject"));
+  assert.equal(resolveCalls.length, 1);
+  assert.equal(resolveCalls[0].resolution.approved, false);
+  assert.equal("data" in resolveCalls[0].resolution, false);
+
+  listTaskResolvers.length = 0;
+  const draftView = await mount(t, AutomationChatCardView, {
+    environmentId: "primary",
+    card: sampleDraftCard(),
+  });
+  await act(async () => {
+    listTaskResolvers.shift()?.({
+      tasks: [
+        {
+          id: "daily-digest",
+          name: "Daily Digest",
+          cwd: "/work/repo",
+          currentRevision: 2,
+          enabledRevision: null,
+          createdAtMs: 1,
+          updatedAtMs: 2,
+        },
+      ],
+    });
+  });
+  await click(button(draftView.container, "Review & Enable"));
+  assert.ok(text(draftView.container, "Enabled (v2)"));
+
+  await act(async () => {
+    changedHandler?.();
+    changedHandler?.();
+  });
+  assert.equal(listTaskResolvers.length, 2);
+  const staleResolver = listTaskResolvers.shift();
+  const latestResolver = listTaskResolvers.shift();
+  await act(async () => {
+    latestResolver({
+      tasks: [
+        {
+          id: "daily-digest",
+          name: "Daily Digest",
+          cwd: "/work/repo",
+          currentRevision: 2,
+          enabledRevision: null,
+          createdAtMs: 1,
+          updatedAtMs: 3,
+        },
+      ],
+    });
+  });
+  await act(async () => {
+    staleResolver({
+      tasks: [
+        {
+          id: "daily-digest",
+          name: "Daily Digest",
+          cwd: "/work/repo",
+          currentRevision: 2,
+          enabledRevision: 2,
+          createdAtMs: 1,
+          updatedAtMs: 2,
+        },
+      ],
+    });
+  });
+  assert.equal(draftView.container.textContent.includes("Enabled (v2)"), false);
+  assert.ok(button(draftView.container, "Review & Enable"));
 });

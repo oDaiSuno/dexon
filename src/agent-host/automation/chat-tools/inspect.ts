@@ -139,6 +139,10 @@ export async function inspectAutomation(
           details: { targetTaskId: run.taskId, targetRunId: run.id },
         };
       }
+      const attemptCounts = new Map<number, number>();
+      for (const attempt of run.attempts) {
+        attemptCounts.set(attempt.stepIndex, (attemptCounts.get(attempt.stepIndex) ?? 0) + 1);
+      }
       return {
         payload: {
           view: "run",
@@ -159,7 +163,7 @@ export async function inspectAutomation(
               waitKind: step.waitKind,
               outputPreview: truncateJson(step.output, PREVIEW_MAX_CHARS).value,
               errorPreview: truncateJson(step.error, PREVIEW_MAX_CHARS).value,
-              attemptCount: run.attempts.filter((attempt) => attempt.stepIndex === step.stepIndex).length,
+              attemptCount: attemptCounts.get(step.stepIndex) ?? 0,
             })),
           },
         },

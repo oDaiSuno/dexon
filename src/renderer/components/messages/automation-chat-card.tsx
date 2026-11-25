@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { EnvironmentId } from "@contract/environment";
 import type { AutomationChatCard } from "@shared/automation/chat-tools";
 import type { TaskView } from "@shared/automation/views";
@@ -46,6 +46,8 @@ export function AutomationChatCardView({
     null,
   );
   const [secretInput, setSecretInput] = useState("");
+  const runtimeGenRef = useRef(0);
+  const secretsGenRef = useRef(0);
 
   const taskId = "taskId" in card ? card.taskId : null;
   const needsSecretNames =
@@ -54,24 +56,30 @@ export function AutomationChatCardView({
   const refreshSecrets = useCallback(async () => {
     if (!needsSecretNames) return;
     if (typeof window === "undefined" || typeof window.piBridge?.automationCommand !== "function") return;
+    const gen = ++secretsGenRef.current;
     try {
       const result = await window.piBridge.automationCommand({ type: "list-secret-names", environmentId });
+      if (gen !== secretsGenRef.current) return;
       setConfiguredSecrets(new Set(result.names));
     } catch {
+      if (gen !== secretsGenRef.current) return;
       setConfiguredSecrets(null);
     }
   }, [environmentId, needsSecretNames]);
 
   const refreshRuntimeState = useCallback(async () => {
     if (card.kind === "configure_secret") return;
+    const gen = ++runtimeGenRef.current;
     try {
       const connection = getEnvironmentConnection(environmentId);
       if (taskId) {
         const { tasks } = await connection.call("automation.listTasks");
+        if (gen !== runtimeGenRef.current) return;
         setLiveTask(tasks.find((item) => item.id === taskId) ?? null);
       }
       if (card.kind === "resolve_approval" || card.kind === "resolve_attention") {
         const { items } = await connection.call("automation.listInbox");
+        if (gen !== runtimeGenRef.current) return;
         const exists = items.some(
           (item) =>
             item.runId === card.runId &&
@@ -111,6 +119,8 @@ export function AutomationChatCardView({
     }
     return () => {
       active = false;
+      runtimeGenRef.current += 1;
+      secretsGenRef.current += 1;
       unsubscribe?.();
     };
   }, [card.kind, environmentId, refreshRuntimeState, refreshSecrets]);
@@ -133,10 +143,7 @@ export function AutomationChatCardView({
       });
       if (result.outcome === "enabled") {
         setLiveTask(result.task);
-        setStatusMessage({
-          tone: "success",
-          text: t("automationCardStatusEnabled", "Enabled (v{revision})").replace("{revision}", String(revision)),
-        });
+        setStatusMessage(null);
       } else {
         setStatusMessage({ tone: "warning", text: t("automationCardStatusCancelled", "Confirmation cancelled") });
       }

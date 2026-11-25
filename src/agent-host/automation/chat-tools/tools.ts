@@ -31,58 +31,63 @@ const AUTOMATION_PROMPT_GUIDELINES = [
   "You cannot enable tasks, approve wait steps, resolve ambiguous side effects, delete tasks, or trigger runs directly; hand those to the user via automation_save_draft or automation_request_user_action.",
 ];
 
-const TaskSpecSchema = Type.Object(
-  {
-    schema: Type.Literal("dexon.automation/v1", {
-      description: "Task schema version; must be 'dexon.automation/v1'.",
-    }),
-    id: Type.String({
-      minLength: 1,
-      maxLength: 256,
-      description: "Stable unique task identifier (recommend lowercase kebab-case like 'daily-pr-digest').",
-    }),
-    name: Type.String({
-      minLength: 1,
-      maxLength: 256,
-      description: "Human-readable task title shown in the UI and confirmation dialog.",
-    }),
-    description: Type.Optional(
-      Type.String({
-        maxLength: 2_000,
-        description: "Optional short description of the task's purpose.",
+function buildTaskSpecSchema(allowEmptyLists: boolean) {
+  return Type.Object(
+    {
+      schema: Type.Literal("dexon.automation/v1", {
+        description: "Task schema version; must be 'dexon.automation/v1'.",
       }),
-    ),
-    cwd: Type.String({
-      minLength: 1,
-      maxLength: 4_096,
-      description: "Absolute workspace directory path where agent steps and relative scripts run.",
-    }),
-    inputSchema: Type.Optional(
-      Type.Record(Type.String(), Type.Unknown(), {
-        description: "Optional JSON Schema validating manual or trigger run input.",
+      id: Type.String({
+        minLength: 1,
+        maxLength: 256,
+        description: "Stable unique task identifier (recommend lowercase kebab-case like 'daily-pr-digest').",
       }),
-    ),
-    triggers: Type.Array(Type.Record(Type.String(), Type.Unknown()), {
-      minItems: 1,
-      description:
-        "Non-empty list of triggers (kind: 'manual' | 'schedule' | 'watch'). See automation_guide(topics: ['triggers']).",
-    }),
-    steps: Type.Array(Type.Record(Type.String(), Type.Unknown()), {
-      minItems: 1,
-      description:
-        "Non-empty ordered list of steps (kind: 'agent' | 'action' | 'wait'). See automation_guide(topics: ['steps']).",
-    }),
-    concurrency: Type.Optional(
-      Type.Record(Type.String(), Type.Unknown(), {
-        description: "Optional concurrency limits (maxExecuting and lane capacity/overflow).",
+      name: Type.String({
+        minLength: 1,
+        maxLength: 256,
+        description: "Human-readable task title shown in the UI and confirmation dialog.",
       }),
-    ),
-  },
-  {
-    additionalProperties: false,
-    description: "Complete dexon.automation/v1 task definition.",
-  },
-);
+      description: Type.Optional(
+        Type.String({
+          maxLength: 2_000,
+          description: "Optional short description of the task's purpose.",
+        }),
+      ),
+      cwd: Type.String({
+        minLength: 1,
+        maxLength: 4_096,
+        description: "Absolute workspace directory path where agent steps and relative scripts run.",
+      }),
+      inputSchema: Type.Optional(
+        Type.Record(Type.String(), Type.Unknown(), {
+          description: "Optional JSON Schema validating manual or trigger run input.",
+        }),
+      ),
+      triggers: Type.Array(Type.Record(Type.String(), Type.Unknown()), {
+        ...(allowEmptyLists ? {} : { minItems: 1 }),
+        description:
+          "Non-empty list of triggers (kind: 'manual' | 'schedule' | 'watch'). See automation_guide(topics: ['triggers']).",
+      }),
+      steps: Type.Array(Type.Record(Type.String(), Type.Unknown()), {
+        ...(allowEmptyLists ? {} : { minItems: 1 }),
+        description:
+          "Non-empty ordered list of steps (kind: 'agent' | 'action' | 'wait'). See automation_guide(topics: ['steps']).",
+      }),
+      concurrency: Type.Optional(
+        Type.Record(Type.String(), Type.Unknown(), {
+          description: "Optional concurrency limits (maxExecuting and lane capacity/overflow).",
+        }),
+      ),
+    },
+    {
+      additionalProperties: false,
+      description: "Complete dexon.automation/v1 task definition.",
+    },
+  );
+}
+
+const ValidateTaskSpecSchema = buildTaskSpecSchema(true);
+const TaskSpecSchema = buildTaskSpecSchema(false);
 
 function formatResult(payload: unknown, details?: AutomationToolDetails) {
   return {
@@ -240,7 +245,7 @@ export function createAutomationChatToolDefinitions(
               description: "Required when mode is 'update'. Must match the task's currentRevision.",
             }),
           ),
-          spec: TaskSpecSchema,
+          spec: ValidateTaskSpecSchema,
         },
         { additionalProperties: false },
       ),

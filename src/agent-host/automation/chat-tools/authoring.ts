@@ -29,19 +29,24 @@ function diffSets(previous: readonly string[], next: readonly string[]): string[
   return next.filter((item) => !prev.has(item));
 }
 
+function diffByKey<T>(previous: readonly T[], next: readonly T[], keyOf: (item: T) => string): T[] {
+  const prev = new Set(previous.map(keyOf));
+  return next.filter((item) => !prev.has(keyOf(item)));
+}
+
 function computeImpact(previous: TaskRevisionView | null, previousSummary: TaskView | null, next: RequiredGrant) {
   const prevGrant = previous?.requiredGrant;
-  const prevTargets = (prevGrant?.channelTargets ?? []).map((item) => `${item.accountId}:${item.peerId}`);
-  const nextTargets = next.channelTargets.map((item) => `${item.accountId}:${item.peerId}`);
-  const prevScripts = (prevGrant?.scripts ?? []).map((item) => `${item.path}@${item.sha256}`);
-  const nextScripts = next.scripts.map((item) => `${item.path}@${item.sha256}`);
   return {
     disarmsEnabledRevision: previousSummary?.enabledRevision ?? null,
     addedHttpOrigins: diffSets(prevGrant?.httpOrigins ?? [], next.httpOrigins),
     addedSecrets: diffSets(prevGrant?.secrets ?? [], next.secrets),
     addedAgentTools: diffSets(prevGrant?.agentTools ?? [], next.agentTools),
-    addedChannelTargets: diffSets(prevTargets, nextTargets),
-    addedOrChangedScripts: diffSets(prevScripts, nextScripts),
+    addedChannelTargets: diffByKey(prevGrant?.channelTargets ?? [], next.channelTargets, (item) =>
+      JSON.stringify([item.accountId, item.peerId]),
+    ),
+    addedOrChangedScripts: diffByKey(prevGrant?.scripts ?? [], next.scripts, (item) =>
+      JSON.stringify([item.path, item.sha256]),
+    ),
     requiresTrustedLocalExecution: next.requiresTrustedLocalExecution,
     unattendedWriteCount: next.unattendedWrites.length,
   };

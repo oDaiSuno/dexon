@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { EnvironmentId } from "@contract/environment";
 import type { AutomationChatCard } from "@shared/automation/chat-tools";
 import type { Json } from "@shared/automation/spec";
@@ -53,6 +53,7 @@ export function AutomationActionSubCard({
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<StatusBanner | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const runRequestRef = useRef<{ key: string; id: string } | null>(null);
   const [approvalJson, setApprovalJson] = useState(() =>
     card.kind === "resolve_approval" && card.defaults !== null ? JSON.stringify(card.defaults, null, 2) : "",
   );
@@ -64,13 +65,18 @@ export function AutomationActionSubCard({
     const startRun = async () => {
       setBusy(true);
       setError(null);
+      const requestKey = JSON.stringify([card.taskId, card.revision, card.triggerId, card.input]);
+      if (!runRequestRef.current || runRequestRef.current.key !== requestKey) {
+        runRequestRef.current = { key: requestKey, id: makeRequestId("chat-run") };
+      }
       try {
         const connection = getEnvironmentConnection(environmentId);
         const result = await connection.call("automation.startRun", {
           taskId: card.taskId,
           triggerId: card.triggerId,
+          expectedRevision: card.revision,
           input: card.input,
-          requestId: makeRequestId("chat-run"),
+          requestId: runRequestRef.current.id,
         });
         if (result.outcome === "admitted" || result.outcome === "enqueued" || result.outcome === "dedupe_hit") {
           setStatusMessage({
@@ -223,7 +229,7 @@ export function AutomationActionSubCard({
     const settled = inboxActive === false || statusMessage !== null;
     const submitApproval = async (approved: boolean) => {
       let data: Json | undefined;
-      if (approvalJson.trim()) {
+      if (approved && approvalJson.trim()) {
         try {
           data = JSON.parse(approvalJson) as Json;
         } catch {
