@@ -23,6 +23,7 @@ import {
   type CreateAgentSessionFromServicesOptions,
 } from "@earendil-works/pi-coding-agent";
 import { browserAgentRuntime } from "./browser-agent-runtime";
+import { createAutomationChatToolDefinitions, peekAutomationChatHost } from "./automation";
 import { createBrowserToolDefinitions } from "./browser-tools";
 import { peekManagedProcessService } from "./managed-process/runtime";
 import { installManagedProcessSessionRedaction } from "./managed-process/session-redaction";
@@ -267,6 +268,7 @@ export async function startRpcSession(
               )
             : []),
           ...createSessionOrchestrationToolDefinitions(),
+          ...(peekAutomationChatHost() ? createAutomationChatToolDefinitions(cwd) : []),
         ]
       : [];
     const customTools = customToolsFor(

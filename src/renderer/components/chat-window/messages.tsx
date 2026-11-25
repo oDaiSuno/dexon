@@ -4,6 +4,8 @@ import type { AgentMessage, AssistantMessage } from "@/lib/types";
 import { type ReactNode } from "react";
 import { MessageView } from "../MessageView";
 import { ProcessDetailsGroup } from "../ProcessDetailsGroup";
+import { readAutomationChatCard } from "@shared/automation/chat-tools";
+import { AutomationChatCardList, type SurfacedAutomationCard } from "../messages/automation-chat-card";
 import { ProcessFlow } from "../ProcessFlow";
 import { SessionProfiler } from "../SessionProfiler";
 import { AnswerTurn } from "./answer-turn";
@@ -226,49 +228,58 @@ export function ChatMessages({
       );
     };
 
-    const renderProcess = (piece: TurnProcessPiece, inProgress: boolean): ReactNode => (
-      <div
-        key={messageRenderKeys.screenKey(piece.key)}
-        className="chat-history-item"
-        data-quote-entry-id={piece.flow.items.find((item) => item.kind !== "custom")?.entryId ?? ""}
-        data-quote-role="assistant"
-        data-quote-streaming={
-          streamingMessage &&
-          piece.flow.items.some(
-            (item) => item.kind !== "custom" && (item.entryId ?? "") === (streamState.streamingEntryId ?? ""),
-          )
-            ? "true"
-            : undefined
-        }
-        ref={refForPiece(piece.refIndex)}
-        {...readingAnchorAttributes(piece.anchor)}
-      >
-        <ProcessDetailsGroup
-          stateKey={piece.key}
-          expansionStore={processDetailsExpansionStore}
-          messageCount={piece.flow.messageCount}
-          toolCallCount={piece.flow.toolCallCount}
-          createdSessionCount={piece.flow.createdSessionCount}
-          durationSeconds={piece.durationSeconds}
-          liveStartedAt={piece.liveStartedAt}
-          unanswered={piece.unanswered}
-          onReaderAction={inProgress ? disengageAutoFollow : undefined}
+    const renderProcess = (piece: TurnProcessPiece, inProgress: boolean): ReactNode => {
+      const automationCards: SurfacedAutomationCard[] = [];
+      for (const item of piece.flow.items) {
+        if (item.kind !== "toolCall" || !item.result || item.result.isError) continue;
+        const card = readAutomationChatCard(item.result.details);
+        if (card) automationCards.push({ key: item.key, card });
+      }
+      return (
+        <div
+          key={messageRenderKeys.screenKey(piece.key)}
+          className="chat-history-item"
+          data-quote-entry-id={piece.flow.items.find((item) => item.kind !== "custom")?.entryId ?? ""}
+          data-quote-role="assistant"
+          data-quote-streaming={
+            streamingMessage &&
+            piece.flow.items.some(
+              (item) => item.kind !== "custom" && (item.entryId ?? "") === (streamState.streamingEntryId ?? ""),
+            )
+              ? "true"
+              : undefined
+          }
+          ref={refForPiece(piece.refIndex)}
+          {...readingAnchorAttributes(piece.anchor)}
         >
-          <ProcessFlow
-            environmentId={environmentId}
-            items={piece.flow.items}
-            liveToolUpdates={updatesForFlow(piece.flow.items)}
-            quoteStreamingEntryId={streamingMessage ? (streamState.streamingEntryId ?? "") : undefined}
-            cwd={messageCwd}
-            onOpenFile={onOpenFile}
-            onLoadDeferredContent={loadDeferredContent}
-            thinkingExpansionStore={thinkingExpansionStore}
+          <ProcessDetailsGroup
+            stateKey={piece.key}
+            expansionStore={processDetailsExpansionStore}
+            messageCount={piece.flow.messageCount}
+            toolCallCount={piece.flow.toolCallCount}
+            createdSessionCount={piece.flow.createdSessionCount}
+            durationSeconds={piece.durationSeconds}
+            liveStartedAt={piece.liveStartedAt}
             unanswered={piece.unanswered}
-            speedHint={piece.liveStartedAt === undefined ? undefined : streamingMessage}
-          />
-        </ProcessDetailsGroup>
-      </div>
-    );
+            onReaderAction={inProgress ? disengageAutoFollow : undefined}
+          >
+            <ProcessFlow
+              environmentId={environmentId}
+              items={piece.flow.items}
+              liveToolUpdates={updatesForFlow(piece.flow.items)}
+              quoteStreamingEntryId={streamingMessage ? (streamState.streamingEntryId ?? "") : undefined}
+              cwd={messageCwd}
+              onOpenFile={onOpenFile}
+              onLoadDeferredContent={loadDeferredContent}
+              thinkingExpansionStore={thinkingExpansionStore}
+              unanswered={piece.unanswered}
+              speedHint={piece.liveStartedAt === undefined ? undefined : streamingMessage}
+            />
+          </ProcessDetailsGroup>
+          <AutomationChatCardList environmentId={environmentId} cards={automationCards} />
+        </div>
+      );
+    };
 
     const renderFailure = (piece: TurnFailurePiece): ReactNode => (
       <div

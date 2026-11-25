@@ -1,5 +1,6 @@
 import type { InlineExtension, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import type { ToolLoadoutReader } from "../../shared/pi-types";
+import { isAutomationChatToolName } from "../../shared/automation/chat-tools";
 import { isSessionToolName } from "../../shared/session-orchestration";
 import {
   SessionAccess,
@@ -80,6 +81,7 @@ export function activeToolNamesFor(
     if (name === "codemode") return caps.codemodeEnabled;
     if (name.startsWith("browser_")) return caps.browserToolNames.has(name);
     if (isSessionToolName(name)) return caps.orchestrationEnabled;
+    if (isAutomationChatToolName(name)) return caps.automationEnabled === true;
     return !isCodingToolName(name) || requested.has(name);
   });
 }

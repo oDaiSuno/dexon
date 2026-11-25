@@ -289,6 +289,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/messages-long-prompt.css",
   "styles/messages-stream.css",
   "styles/tool-cards.css",
+  "styles/automation-cards.css",
 ];
 function checkCssWiring() {
   const failures = [];

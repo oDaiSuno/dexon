@@ -11,6 +11,8 @@ import {
 } from "@/lib/message-display";
 import { thinkingDurationSeconds } from "@/lib/process-flow";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import { readAutomationChatCard } from "@shared/automation/chat-tools";
+import { AutomationChatCardView } from "./automation-chat-card";
 import { FailureLine, LengthLimitLine } from "./FailureLine";
 import { StreamSpeedHint } from "./StreamSpeedHint";
 import { ThinkingBlock } from "./ThinkingBlock";
@@ -170,6 +172,7 @@ function BlockView({
     const tc = block as ToolCallContent;
     const result = toolResults?.get(tc.toolCallId);
     const duration = toolCallDurations?.get(tc.toolCallId);
+    const automationCard = result && !result.isError ? readAutomationChatCard(result.details) : null;
     return (
       <>
         <ToolCallBlock
@@ -185,6 +188,7 @@ function BlockView({
           expansionStore={thinkingExpansionStore}
           onLoadDeferredContent={onLoadDeferredContent}
         />
+        {automationCard && <AutomationChatCardView environmentId={environmentId} card={automationCard} />}
         <DeferredContentActions content={[block]} onLoad={onLoadDeferredContent} />
       </>
     );

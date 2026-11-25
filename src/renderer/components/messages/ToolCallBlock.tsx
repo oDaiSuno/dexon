@@ -3,8 +3,10 @@ import type { LiveToolUpdate } from "@/hooks/agent-session/shared";
 import { isCodemodeToolName } from "@shared/codemode";
 import { CodemodeToolRow } from "./codemode-tool-row";
 import { useI18n } from "@/i18n";
+import { isAutomationChatToolName } from "@shared/automation/chat-tools";
 import { isSessionToolName } from "@shared/session-orchestration";
 import { useExpansion, type ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
+import { AutomationToolRow } from "./automation-tool-row";
 import { SessionToolRow } from "./session-tool-row";
 import { DeferredContentActions, useDelayedUnmount } from "./shared";
 import { getResultDiff, PairedDiffResult } from "./DiffViews";
@@ -28,7 +30,9 @@ export interface ToolCallBlockProps {
 
 export function ToolCallBlock(props: ToolCallBlockProps) {
   if (isCodemodeToolName(props.block.toolName)) return <CodemodeToolRow {...props} />;
-  return isSessionToolName(props.block.toolName) ? <SessionToolRow {...props} /> : <GenericToolRow {...props} />;
+  if (isSessionToolName(props.block.toolName)) return <SessionToolRow {...props} />;
+  if (isAutomationChatToolName(props.block.toolName)) return <AutomationToolRow {...props} />;
+  return <GenericToolRow {...props} />;
 }
 
 function GenericToolRow({
