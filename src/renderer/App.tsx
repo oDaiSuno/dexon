@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 import { AppShell } from "@/components/AppShell";
+import { useI18n } from "@/i18n";
 import { ensureRpc, resetRpc } from "@/lib/api-client";
 import { useChatAppearance } from "@/hooks/useChatAppearance";
 
@@ -43,12 +44,17 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
 }
 
 export function App() {
+  const { language } = useI18n();
   const chatAppearance = useChatAppearance();
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("Connecting…");
   const cancelledRef = useRef(false);
   const readyRef = useRef(false);
+
+  useEffect(() => {
+    void window.piBridge?.setUiState?.({ language })?.catch(() => undefined);
+  }, [language]);
 
   const connect = useCallback(() => {
     ensureRpc()

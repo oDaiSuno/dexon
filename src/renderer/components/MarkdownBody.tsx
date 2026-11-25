@@ -3,6 +3,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ImgHTMLAttributes,
   type JSX,
@@ -30,6 +31,14 @@ import { useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { CodeBlock, MermaidBlock, type CodeBlockVariant } from "./markdown/code-block";
+import {
+  closeExternalLinkPopover,
+  ExternalLinkPopover,
+  openExternalLinkUrl,
+  toggleExternalLinkPopover,
+  useActiveExternalLink,
+} from "./markdown/external-link-popover";
+import { normalizeExternalHref } from "@shared/external-links";
 
 interface MarkdownBodyProps {
   environmentId?: EnvironmentId;
@@ -98,8 +107,43 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
   const { language, t } = useI18n();
   const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const [menuError, setMenuError] = useState(false);
+  const anchorRef = useRef<HTMLAnchorElement>(null);
+  const activeExternalLink = useActiveExternalLink(anchorRef);
   const filePath = resolveLocalFileHref(href, cwd);
+  const externalHref = !filePath ? normalizeExternalHref(href) : null;
   if (!filePath || !onOpenFile) {
+    if (externalHref) {
+      const handleExternalClick = (event: MouseEvent<HTMLAnchorElement>) => {
+        if (event.defaultPrevented || event.button !== 0) return;
+        const selection = event.currentTarget.ownerDocument.defaultView?.getSelection();
+        if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+          event.preventDefault();
+          closeExternalLinkPopover();
+          return;
+        }
+        if (event.metaKey || event.ctrlKey) {
+          event.preventDefault();
+          closeExternalLinkPopover();
+          void openExternalLinkUrl(externalHref).catch(() => undefined);
+          return;
+        }
+        if (event.shiftKey || event.altKey) return;
+        event.preventDefault();
+        toggleExternalLinkPopover(
+          event.currentTarget,
+          externalHref,
+          event.detail > 0 ? { x: event.clientX, y: event.clientY } : undefined,
+        );
+      };
+      return (
+        <>
+          <a ref={anchorRef} href={href} title={props.title ?? externalHref} {...props} onClick={handleExternalClick}>
+            {children}
+          </a>
+          {activeExternalLink && <ExternalLinkPopover active={activeExternalLink} />}
+        </>
+      );
+    }
     return (
       <a
         href={href}

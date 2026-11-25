@@ -36,6 +36,7 @@ import { BrowserError } from "./browser/browser-error";
 import { isTrustedDesktopIpcSender } from "./ipc-trust";
 import { toolchainActionConfirmation, validateOptionalToolchainCwd } from "./ipc-toolchain-helpers";
 import { validateDesktopUiStatePatch } from "./ui-state-patch";
+import { normalizeExternalHref } from "../shared/external-links";
 import type {
   BrowserConfirmationKind,
   BrowserConfirmationProof,
@@ -232,8 +233,9 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   });
   trustedHandle("desktop:open-external", async (_event, url: string) => {
     if (typeof url !== "string") return;
-    if (!/^(https?:|mailto:)/i.test(url)) throw new Error("Blocked non-http(s)/mailto URL");
-    await shell.openExternal(url);
+    const safeUrl = normalizeExternalHref(url);
+    if (!safeUrl) throw new Error("Blocked non-http(s)/mailto URL");
+    await shell.openExternal(safeUrl);
   });
   trustedHandle("desktop:show-item-in-folder", async (_event, fsPath: string) => {
     if (typeof fsPath !== "string" || !path.isAbsolute(fsPath) || fsPath.includes("\0")) return;

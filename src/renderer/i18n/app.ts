@@ -102,6 +102,10 @@ export const enUS: Record<string, string> = {
   secretInputShow: "Show API key",
   secretInputHide: "Hide API key",
   selectUseDefault: "Use default",
+  externalLinkActions: "Link actions",
+  externalLinkCopy: "Copy",
+  externalLinkOpen: "Open",
+  externalLinkOpenFailed: "Open failed",
 };
 
 export const zhCN: Record<string, string> = {
@@ -207,4 +211,8 @@ export const zhCN: Record<string, string> = {
   secretInputShow: "显示 API Key",
   secretInputHide: "隐藏 API Key",
   selectUseDefault: "使用默认",
+  externalLinkActions: "链接操作",
+  externalLinkCopy: "复制",
+  externalLinkOpen: "打开",
+  externalLinkOpenFailed: "打开失败",
 };
