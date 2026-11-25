@@ -1,4 +1,5 @@
 import type { EnvironmentId } from "@contract/environment";
+import type { ChatViewportController } from "@/lib/chat-viewport";
 import { type EventStreamConnectionStatus } from "@/lib/event-stream-connection";
 import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, AssistantContentBlock, SessionInfo, SessionTreeNode } from "@/lib/types";
@@ -123,6 +124,7 @@ export interface UseAgentSessionOptions {
   readingVisible?: boolean;
   restoreReadingPosition?: boolean;
   expansionStores?: readonly ThinkingExpansionStore[];
+  viewport?: ChatViewportController;
 }
 const THINKING_LEVEL_OPTIONS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 export type ThinkingLevelOption = (typeof THINKING_LEVEL_OPTIONS)[number];

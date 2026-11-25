@@ -14,12 +14,14 @@ export interface ReadingAnchor {
   offsetTop: number;
 }
 
+export type ReadingAlignmentOutcome = "settled" | "clamped" | "aborted" | "missing" | "max-frames";
+
 export interface ReadingAlignment {
   container: HTMLElement;
   target: number | (() => number);
   measure: () => number | null;
   shouldStop?: () => boolean;
-  onSettled?: () => void;
+  onSettled?: (outcome: ReadingAlignmentOutcome) => void;
 }
 
 export function captureReadingAnchor(container: HTMLElement | null): ReadingAnchor | null {
@@ -55,34 +57,55 @@ export function alignReadingPosition({ container, target, measure, shouldStop, o
   let frameId = 0;
   let frames = 0;
   let stable = 0;
+  let previousHeight: number | null = null;
+  let expectedScrollTop: number | null = null;
+  let expectedScrollHeight: number | null = null;
   let finished = false;
 
-  const finish = () => {
+  const finish = (outcome: ReadingAlignmentOutcome = "aborted") => {
     if (finished) return;
     finished = true;
     globalThis.cancelAnimationFrame?.(frameId);
-    onSettled?.();
+    onSettled?.(outcome);
   };
 
   const step = () => {
     if (finished) return;
-    if (frames >= MAX_FRAMES || shouldStop?.()) return finish();
+    if (shouldStop?.()) return finish("aborted");
+    if (expectedScrollTop !== null && expectedScrollHeight !== null) {
+      const externalScrollDelta = Math.abs(container.scrollTop - expectedScrollTop);
+      const heightDelta = Math.abs(container.scrollHeight - expectedScrollHeight);
+      if (externalScrollDelta > heightDelta + 2) return finish("aborted");
+    }
+    if (frames >= MAX_FRAMES) return finish("max-frames");
     frames += 1;
     const offset = measure();
-    if (offset === null) return finish();
+    if (offset === null) return finish("missing");
     const delta = offset - targetOf();
     if (Math.abs(delta) < 1) {
       stable += 1;
-      if (stable >= STABLE_FRAMES) return finish();
+      previousHeight = container.scrollHeight;
+      if (stable >= STABLE_FRAMES) return finish("settled");
     } else {
-      stable = 0;
-      container.scrollTop += delta;
+      const before = container.scrollTop;
+      const beforeHeight = container.scrollHeight;
+      container.scrollTop = Math.max(0, before + delta);
+      const moved = Math.abs(container.scrollTop - before);
+      if (moved < 0.5 && previousHeight === beforeHeight) {
+        stable += 1;
+        if (stable >= STABLE_FRAMES) return finish("clamped");
+      } else {
+        stable = 0;
+      }
+      previousHeight = beforeHeight;
     }
+    expectedScrollTop = container.scrollTop;
+    expectedScrollHeight = container.scrollHeight;
     frameId = globalThis.requestAnimationFrame?.(step) ?? 0;
   };
 
   step();
-  return finish;
+  return () => finish("aborted");
 }
 
 function findReadingAnchor(container: HTMLElement, key: string): HTMLElement | null {

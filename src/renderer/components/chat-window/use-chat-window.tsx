@@ -5,6 +5,7 @@ import { useIsMobile } from "@/hooks/useIsMobile";
 import { useObservedElementHeight } from "@/hooks/useObservedElementHeight";
 import { useI18n } from "@/i18n";
 import { getActiveEnvironmentId } from "@/lib/environment-registry";
+import { ChatViewportController } from "@/lib/chat-viewport";
 import { newSessionDraftKey } from "@/lib/unsaved-messages";
 import { modelSupportsImages } from "@/lib/model-selection";
 import { MessageRenderKeyRegistry } from "@/lib/message-render-key";
@@ -17,6 +18,7 @@ import { Props, toNavigatorTurns } from "./shared";
 import { AssistantBlockCache } from "./turn-layout";
 import { useOlderHistory } from "./use-older-history";
 import { useQuoteJump } from "./use-quote-jump";
+import { useChatViewport } from "./use-chat-viewport";
 import { useSessionReporting } from "./use-session-reporting";
 import { useSelectionQuote } from "./use-selection-quote";
 import { useReadingPosition } from "./use-reading-position";
@@ -59,6 +61,9 @@ export function useChatWindow({
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const viewportRef = useRef<ChatViewportController | null>(null);
+  if (!viewportRef.current) viewportRef.current = new ChatViewportController();
+  const viewport = viewportRef.current;
   const [restoreReadingPosition] = useState(() => Boolean(session && readingPositions?.get(session.id)));
 
   const expansionStores = useMemo(
@@ -169,6 +174,7 @@ export function useChatWindow({
     readingVisible: visible,
     restoreReadingPosition,
     expansionStores,
+    viewport,
   });
   const selectionQuote = useSelectionQuote({
     visible: visible && messages.length > 0,
@@ -235,6 +241,23 @@ export function useChatWindow({
   const toolMessageIndex = useMemo(() => buildToolMessageIndex(messages), [messages]);
   const promptHistory = useMemo(() => recallablePrompts(messages), [messages]);
 
+  const { autoOlderBlocked } = useChatViewport({
+    viewport,
+    visible,
+    sessionId: session?.id ?? null,
+    scrollContainerRef,
+    onReleaseAutoFollow: disengageAutoFollow,
+    containerWatchKey: (loading ? 0 : 1) + messages.length * 2,
+  });
+
+  const handleAutoOlderZoneLeave = useCallback(() => {
+    if (!viewport.isNavigationActive()) viewport.clearAutoOlderStandby();
+  }, [viewport]);
+
+  const handleManualOlderLoad = useCallback(() => {
+    viewport.clearAutoOlderStandby();
+  }, [viewport]);
+
   const {
     olderHistorySentinelRef,
     loadOlderHistory,
@@ -252,6 +275,9 @@ export function useChatWindow({
     messagesLength: messages.length,
     loadedEntryIds: entryIds,
     scrollContainerRef,
+    autoOlderBlocked,
+    onAutoOlderZoneLeave: handleAutoOlderZoneLeave,
+    onManualLoad: handleManualOlderLoad,
   });
 
   const { jumpToQuote, jumpingQuoteKey, detachedQuoteKeys, detachedPreview, closeDetachedPreview } = useQuoteJump({
@@ -261,7 +287,7 @@ export function useChatWindow({
     loadedEntryIds: entryIds,
     hasOlder,
     turnJump,
-    disengageAutoFollow,
+    viewport,
   });
   const quoteInteraction = { onJumpQuote: jumpToQuote, jumpingQuoteKey, detachedQuoteKeys };
 
@@ -280,6 +306,7 @@ export function useChatWindow({
     olderHistoryHalted,
     continueOlderHistory,
     settleAtLatest,
+    viewport,
   });
 
   const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;
@@ -423,6 +450,7 @@ export function useChatWindow({
     messagesEndRef,
     navigatorTurns,
     turnJump,
+    viewport,
     isAwayFromBottom,
     reattachAutoFollow,
     disengageAutoFollow,

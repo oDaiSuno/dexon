@@ -95,6 +95,7 @@ export function ChatWindow(props: Props) {
     messagesEndRef,
     navigatorTurns,
     turnJump,
+    viewport,
     isAwayFromBottom,
     reattachAutoFollow,
     disengageAutoFollow,
@@ -277,6 +278,7 @@ export function ChatWindow(props: Props) {
                   messageRefs={messageRefs}
                   visible={visible}
                   turnJump={turnJump}
+                  viewport={viewport}
                 />
               </SessionProfiler>
             )}

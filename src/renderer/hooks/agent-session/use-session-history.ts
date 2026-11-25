@@ -1,4 +1,5 @@
 import { getEnvironmentApiClient } from "@/lib/api-client";
+import type { ChatViewportController } from "@/lib/chat-viewport";
 import { isSessionTransportClosed, sessionClientErrorMessage } from "@/lib/session-error-message";
 import { captureReadingAnchor } from "@/lib/reading-anchor";
 import { normalizeSessionHistory, type SessionHistoryValue } from "@/lib/session-history-update";
@@ -62,14 +63,11 @@ type Dependencies = Pick<
 >;
 export type OlderHistoryOutcome = "unavailable" | "loaded" | "stalled" | "discarded" | "reset" | "failed";
 export type OlderHistoryPurpose = "reading" | "jump";
-export function useSessionHistory(context: Dependencies, readingVisible = true) {
+export function useSessionHistory(context: Dependencies, readingVisible = true, viewport?: ChatViewportController) {
   const { readingVisibleRef, scheduleVisualFrame, queueHistoryAnchor } = useSessionHistoryVisuals({
+    ...context,
     readingVisible,
-    historyGenerationRef: context.historyGenerationRef,
-    sessionIdRef: context.sessionIdRef,
-    historyRevisionRef: context.historyRevisionRef,
-    scrollContainerRef: context.scrollContainerRef,
-    userScrollIntentUntilRef: context.userScrollIntentUntilRef,
+    viewport,
   });
   const {
     environmentId,
@@ -422,26 +420,28 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
         const advanced =
           prepended.messages.length > loadedMessagesRef.current.length && (prepended.previousCursor ?? null) !== cursor;
         result = advanced ? "loaded" : "stalled";
+        const preserveAnchor = purpose !== "jump" && !viewport?.isNavigationActive();
         const contentAnchor =
-          purpose === "jump" || !readingVisibleRef.current
-            ? contentAnchorAtRequest
-            : captureReadingAnchor(scrollElement);
+          preserveAnchor && readingVisibleRef.current ? captureReadingAnchor(scrollElement) : contentAnchorAtRequest;
         completionScrollAllowedRef.current = false;
         commitHistory(prepended.messages, prepended.entryIds);
         updatePagingState(revision, prepended.previousCursor ?? undefined);
         setOlderOutline((current) => outlineBeyondWindow(current, prepended.entryIds));
-        if (scrollElement && purpose !== "jump") {
+        if (scrollElement && preserveAnchor) {
           anchorRestoreQueued = true;
-          queueHistoryAnchor({
-            element: scrollElement,
-            previousScrollHeight,
-            previousScrollTop,
-            contentAnchor,
-            generation,
-            sessionId: sid,
-            revision,
-            onSettled: settle,
-          });
+          queueHistoryAnchor(
+            {
+              element: scrollElement,
+              previousScrollHeight,
+              previousScrollTop,
+              contentAnchor,
+              generation,
+              sessionId: sid,
+              revision,
+              onSettled: settle,
+            },
+            true,
+          );
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -482,6 +482,7 @@ export function useSessionHistory(context: Dependencies, readingVisible = true) 
       setLoadingOlder,
       setOlderOutline,
       updatePagingState,
+      viewport,
     ],
   );
 

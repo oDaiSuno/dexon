@@ -1,6 +1,7 @@
 import type { QuoteReference } from "@shared/quote-tokens";
+import type { ChatViewportController, ViewportLease } from "@/lib/chat-viewport";
 import { flashQuoteTarget, locateQuoteRangeInElements } from "@/lib/quote-text-locator";
-import { MESSAGE_TOP_GAP, alignReadingPosition } from "@/lib/reading-anchor";
+import { MESSAGE_TOP_GAP } from "@/lib/reading-anchor";
 
 const MAX_PREFERRED_OFFSET = 120;
 const PREFERRED_OFFSET_RATIO = 0.25;
@@ -36,7 +37,9 @@ export function findMessageElements(container: HTMLElement, entryId: string): HT
 export function revealQuoteTarget(
   container: HTMLDivElement,
   quote: QuoteReference,
-  stabilize = false,
+  viewport: ChatViewportController,
+  lease: ViewportLease,
+  preferSmooth: boolean,
 ): (() => void) | null {
   let elements = quote.entryId ? findMessageElements(container, quote.entryId) : [];
   let range: Range | null = null;
@@ -61,13 +64,11 @@ export function revealQuoteTarget(
   if (!placement) return null;
   const { target } = placement;
   const measure = () => readQuotePlacement(container, messageElement, range)?.spanTop ?? null;
-  const top = Math.max(0, container.scrollTop + placement.spanTop - target);
-  if (typeof container.scrollTo === "function") container.scrollTo({ top, behavior: stabilize ? "instant" : "smooth" });
-  else container.scrollTop = top;
-  const cancelAlignment = stabilize ? alignReadingPosition({ container, target, measure }) : null;
-  const cancelFlash = flashQuoteTarget({ range, fallbackElement });
-  return () => {
-    cancelAlignment?.();
-    cancelFlash();
-  };
+  viewport.navigateLease(lease, {
+    container,
+    targetOffset: target,
+    measure,
+    preferSmooth,
+  });
+  return flashQuoteTarget({ range, fallbackElement });
 }

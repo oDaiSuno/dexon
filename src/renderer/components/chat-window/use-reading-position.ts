@@ -1,8 +1,6 @@
-import { SCROLL_KEYS } from "@/hooks/agent-session/shared";
-import { marksChatScrollIntent } from "@/hooks/chat-scroll-policy";
+import type { ChatViewportController, ViewportLease } from "@/lib/chat-viewport";
 import {
   READING_ANCHOR_ATTRIBUTE,
-  alignReadingPosition,
   captureReadingAnchor,
   clampedReadingOffset,
   readReadingAnchorHeight,
@@ -39,12 +37,6 @@ function messagePresent(container: HTMLElement, key: string): boolean {
   return message ? prefixOffset(container, message) !== null : readReadingAnchorOffset(container, key) !== null;
 }
 
-function isReaderScrollInput(event: Event): boolean {
-  if (event instanceof KeyboardEvent) return marksChatScrollIntent(event, SCROLL_KEYS);
-  if (event.type === "pointerdown") return event.target === event.currentTarget;
-  return true;
-}
-
 export function useReadingPosition({
   visible,
   sessionId,
@@ -60,6 +52,7 @@ export function useReadingPosition({
   olderHistoryHalted,
   continueOlderHistory,
   settleAtLatest,
+  viewport,
 }: {
   visible: boolean;
   sessionId: string | null;
@@ -75,15 +68,14 @@ export function useReadingPosition({
   olderHistoryHalted: boolean;
   continueOlderHistory: () => Promise<unknown>;
   settleAtLatest: () => void;
+  viewport: ChatViewportController;
 }) {
   const [requested, setRequested] = useState(0);
   const pendingRef = useRef<ReadingPosition | null>(null);
   const positionedRef = useRef(false);
   const restoreStartedRef = useRef(false);
-  const readerMovedRef = useRef(false);
-  const gestureRef = useRef(0);
-  const alignRunRef = useRef(0);
-  const mountedRef = useRef(true);
+  const restoreLeaseRef = useRef<ViewportLease | null>(null);
+  const alignStartedLeaseRef = useRef<ViewportLease | null>(null);
   const frameIdsRef = useRef<Set<number>>(new Set());
   const scrollQueuedRef = useRef(false);
   const lastRequestRef = useRef<{ cursor: string | null; length: number } | null>(null);
@@ -115,19 +107,17 @@ export function useReadingPosition({
   }, [cancelFrames, visible]);
 
   useEffect(() => {
-    mountedRef.current = true;
     return () => {
-      mountedRef.current = false;
-      alignRunRef.current += 1;
       cancelFrames();
     };
   }, [cancelFrames]);
 
   const record = useCallback(() => {
     if (!visibleRef.current || !positionedRef.current || !sessionId || !readingPositions) return;
+    if (viewport.isNavigationActive()) return;
     const anchor = persistedAnchor(scrollContainerRef.current);
     if (anchor) readingPositions.set(sessionId, anchor);
-  }, [readingPositions, scrollContainerRef, sessionId]);
+  }, [readingPositions, scrollContainerRef, sessionId, viewport]);
 
   const finish = useCallback(() => {
     if (!pendingRef.current || loadingOlderRef.current) return;
@@ -136,23 +126,25 @@ export function useReadingPosition({
     record();
   }, [record]);
 
-  const align = useCallback(
-    (container: HTMLElement, target: ReadingPosition) => {
-      const run = ++alignRunRef.current;
-      const gesture = gestureRef.current;
-      const current = () => mountedRef.current && alignRunRef.current === run && gestureRef.current === gesture;
-      alignReadingPosition({
-        container,
-        target: () => clampedReadingOffset(target.offsetTop, readReadingAnchorHeight(container, target.key)),
-        measure: () => messageOffset(container, target.key),
-        shouldStop: () => !visibleRef.current || !current(),
-        onSettled: () => {
-          if (current() && visibleRef.current && messageOffset(container, target.key) !== null) finish();
-        },
-      });
-    },
-    [finish],
-  );
+  const ensureRestoreLease = useCallback(() => {
+    const existing = restoreLeaseRef.current;
+    if (existing && existing.isCurrent()) return existing;
+    const lease = viewport.claim("reading-restore", {
+      blocksAutoOlder: true,
+      releaseAutoFollow: false,
+    });
+    restoreLeaseRef.current = lease;
+    alignStartedLeaseRef.current = null;
+    lease.onAbort((byReason) => {
+      if (restoreLeaseRef.current === lease) restoreLeaseRef.current = null;
+      if (alignStartedLeaseRef.current === lease) alignStartedLeaseRef.current = null;
+      if (byReason !== "hidden") {
+        pendingRef.current = null;
+        positionedRef.current = true;
+      }
+    });
+    return lease;
+  }, [viewport]);
 
   useEffect(() => {
     if (restoreStartedRef.current || positionedRef.current) return;
@@ -164,21 +156,44 @@ export function useReadingPosition({
     if (!visible) return;
     restoreStartedRef.current = true;
     pendingRef.current = { key: stored.key, offsetTop: stored.offsetTop };
+    ensureRestoreLease();
     setRequested((count) => count + 1);
-  }, [readingPositions, restoreReadingPosition, sessionId, visible]);
+  }, [ensureRestoreLease, readingPositions, restoreReadingPosition, sessionId, visible]);
 
   useEffect(() => {
     const target = pendingRef.current;
     const container = scrollContainerRef.current;
     if (!visible || !target || loading || !container) return;
+    const lease = ensureRestoreLease();
     if (messagePresent(container, target.key)) {
-      align(container, target);
+      if (loadingOlder || alignStartedLeaseRef.current === lease) return;
+      alignStartedLeaseRef.current = lease;
+      viewport.navigateLease(lease, {
+        container,
+        targetOffset: () => clampedReadingOffset(target.offsetTop, readReadingAnchorHeight(container, target.key)),
+        measure: () => messageOffset(container, target.key),
+        preferSmooth: false,
+        onSettled: (outcome) => {
+          if (restoreLeaseRef.current === lease) restoreLeaseRef.current = null;
+          if (alignStartedLeaseRef.current === lease) alignStartedLeaseRef.current = null;
+          if (
+            (outcome === "settled" || outcome === "clamped") &&
+            visibleRef.current &&
+            messageOffset(container, target.key) !== null
+          ) {
+            finish();
+          }
+        },
+      });
       return;
     }
     if (loadingOlder || olderHistoryFailed) return;
     if (!hasOlder || olderHistoryHalted) {
+      restoreLeaseRef.current = null;
+      alignStartedLeaseRef.current = null;
       pendingRef.current = null;
       positionedRef.current = true;
+      lease.finish({ outcome: "missing" });
       settleAtLatest();
       record();
       return;
@@ -188,8 +203,9 @@ export function useReadingPosition({
     lastRequestRef.current = { cursor: previousCursor, length: messages.length };
     void continueOlderHistory();
   }, [
-    align,
     continueOlderHistory,
+    ensureRestoreLease,
+    finish,
     hasOlder,
     loading,
     loadingOlder,
@@ -201,41 +217,20 @@ export function useReadingPosition({
     requested,
     scrollContainerRef,
     settleAtLatest,
+    viewport,
     visible,
   ]);
 
-  const adoptReaderPosition = useCallback(() => {
-    const anchor = persistedAnchor(scrollContainerRef.current);
-    if (!anchor) {
-      pendingRef.current = null;
-      positionedRef.current = true;
-      return;
-    }
-    pendingRef.current = anchor;
-    setRequested((count) => count + 1);
-  }, [scrollContainerRef]);
-
   useEffect(() => {
-    if (!visible) return;
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const onReaderInput = (event: Event) => {
-      if (!pendingRef.current || !isReaderScrollInput(event)) return;
-      readerMovedRef.current = true;
-      gestureRef.current += 1;
-      cancelFrames();
-    };
-    container.addEventListener("wheel", onReaderInput, { passive: true });
-    container.addEventListener("touchmove", onReaderInput, { passive: true });
-    container.addEventListener("pointerdown", onReaderInput);
-    window.addEventListener("keydown", onReaderInput);
-    return () => {
-      container.removeEventListener("wheel", onReaderInput);
-      container.removeEventListener("touchmove", onReaderInput);
-      container.removeEventListener("pointerdown", onReaderInput);
-      window.removeEventListener("keydown", onReaderInput);
-    };
-  }, [cancelFrames, loading, messages.length, scrollContainerRef, visible]);
+    let wasNavigating = viewport.isNavigationActive();
+    return viewport.subscribe(() => {
+      const navigating = viewport.isNavigationActive();
+      if (wasNavigating && !navigating && positionedRef.current && visibleRef.current) {
+        scheduleFrame(record);
+      }
+      wasNavigating = navigating;
+    });
+  }, [record, scheduleFrame, viewport]);
 
   useEffect(() => {
     if (!visible) return;
@@ -248,12 +243,10 @@ export function useReadingPosition({
         scrollQueuedRef.current = false;
         if (!pendingRef.current) {
           record();
-          return;
         }
-        if (readerMovedRef.current) adoptReaderPosition();
       });
     };
     container.addEventListener("scroll", onScroll, { passive: true });
     return () => container.removeEventListener("scroll", onScroll);
-  }, [adoptReaderPosition, loading, messages.length, record, scheduleFrame, scrollContainerRef, visible]);
+  }, [loading, messages.length, record, scheduleFrame, scrollContainerRef, visible]);
 }
