@@ -1,15 +1,4 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ImgHTMLAttributes,
-  type JSX,
-  type MouseEvent,
-  type ReactNode,
-} from "react";
+import { createContext, useContext, useMemo, useRef, useState, type JSX, type MouseEvent, type ReactNode } from "react";
 import ReactMarkdown, {
   defaultUrlTransform,
   type Components,
@@ -38,6 +27,7 @@ import {
   toggleExternalLinkPopover,
   useActiveExternalLink,
 } from "./markdown/external-link-popover";
+import { MarkdownImage } from "./markdown/markdown-image";
 import { normalizeExternalHref } from "@shared/external-links";
 
 interface MarkdownBodyProps {
@@ -72,7 +62,7 @@ interface ChipNodeData {
 type MarkdownRenderContextValue = Pick<
   MarkdownBodyProps,
   "environmentId" | "isStreaming" | "cwd" | "imageBasePath" | "sourceSessionId" | "onOpenFile" | "codeBlockVariant"
->;
+> & { streamingSource?: string };
 
 const MarkdownRenderContext = createContext<MarkdownRenderContextValue>({});
 
@@ -80,14 +70,43 @@ type MarkdownComponentProps<Tag extends keyof JSX.IntrinsicElements> = JSX.Intri
   node?: unknown;
 };
 
-function MarkdownCode({ className, children, node: _node, ...props }: MarkdownComponentProps<"code">) {
-  const { isStreaming, codeBlockVariant } = useContext(MarkdownRenderContext);
+interface HastPositionNode {
+  position?: {
+    start?: { line?: number };
+    end?: { line?: number };
+  };
+}
+
+function isFencedCodeStreaming(
+  streamingSource: string | undefined,
+  isStreaming: boolean | undefined,
+  node: unknown,
+): boolean {
+  if (!isStreaming) return false;
+  if (!streamingSource) return true;
+  const position = (node as HastPositionNode | undefined)?.position;
+  const startLine = position?.start?.line;
+  const endLine = position?.end?.line;
+  if (typeof startLine !== "number" || typeof endLine !== "number" || endLine <= startLine) return true;
+  const lines = streamingSource.split("\n");
+  const closingLine = lines[endLine - 1];
+  if (typeof closingLine !== "string") return true;
+  return !/^\s*(?:>\s*)*(?:`{3,}|~{3,})\s*$/.test(closingLine);
+}
+
+function MarkdownCode({ className, children, node, ...props }: MarkdownComponentProps<"code">) {
+  const { isStreaming, streamingSource, codeBlockVariant } = useContext(MarkdownRenderContext);
   const lang = className?.replace("language-", "").toLowerCase() ?? "";
   const raw = String(children);
   const isBlock = className?.includes("language-") || raw.includes("\n");
   if (isBlock) {
     if (lang === "mermaid") {
-      return <MermaidBlock code={raw.replace(/\n$/, "")} isStreaming={isStreaming} />;
+      return (
+        <MermaidBlock
+          code={raw.replace(/\n$/, "")}
+          isStreaming={isFencedCodeStreaming(streamingSource, isStreaming, node)}
+        />
+      );
     }
     return <CodeBlock code={raw.replace(/\n$/, "")} lang={lang} variant={codeBlockVariant} />;
   }
@@ -262,9 +281,19 @@ export function MarkdownBody({
   codeBlockVariant,
   mathMode = "chat",
 }: MarkdownBodyProps) {
+  const streamingSource = isStreaming ? children : undefined;
   const renderContext = useMemo(
-    () => ({ environmentId, isStreaming, cwd, imageBasePath, sourceSessionId, onOpenFile, codeBlockVariant }),
-    [environmentId, codeBlockVariant, cwd, imageBasePath, isStreaming, onOpenFile, sourceSessionId],
+    () => ({
+      environmentId,
+      isStreaming,
+      streamingSource,
+      cwd,
+      imageBasePath,
+      sourceSessionId,
+      onOpenFile,
+      codeBlockVariant,
+    }),
+    [environmentId, codeBlockVariant, cwd, imageBasePath, isStreaming, streamingSource, onOpenFile, sourceSessionId],
   );
   const hasInlineChips = inlineChips !== undefined;
   const leadingSkill = inlineChips?.leadingSkill ?? null;
@@ -296,78 +325,4 @@ export function MarkdownBody({
       </MarkdownRenderContext.Provider>
     </SessionProfiler>
   );
-}
-
-function MarkdownImage({
-  environmentId = PRIMARY_ENVIRONMENT_ID,
-  src,
-  alt,
-  cwd,
-  relativeBase,
-  sourceSessionId,
-  ...props
-}: ImgHTMLAttributes<HTMLImageElement> & {
-  environmentId?: EnvironmentId;
-  cwd?: string;
-  relativeBase?: string;
-  sourceSessionId?: string | null;
-}) {
-  const identity = JSON.stringify([environmentId, src, cwd, relativeBase, sourceSessionId]);
-  const [loadedIdentity, setLoadedIdentity] = useState(identity);
-  const localPath = useMemo(
-    () => resolveLocalFileHref(typeof src === "string" ? src : undefined, cwd, relativeBase),
-    [cwd, relativeBase, src],
-  );
-  const [previewSrc, setPreviewSrc] = useState<string | null>(localPath ? null : typeof src === "string" ? src : null);
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    setLoadedIdentity(identity);
-    if (!localPath) {
-      setPreviewSrc(typeof src === "string" ? src : null);
-      setFailed(false);
-      return;
-    }
-
-    let disposed = false;
-    let revoke: (() => void) | null = null;
-    setPreviewSrc(null);
-    setFailed(false);
-
-    void import("@/lib/file-blob")
-      .then(({ fileToObjectUrl }) => fileToObjectUrl(environmentId, localPath, sourceSessionId))
-      .then((result) => {
-        if (disposed) {
-          result.revoke();
-          return;
-        }
-        revoke = result.revoke;
-        setPreviewSrc(result.url);
-      })
-      .catch(() => {
-        if (!disposed) setFailed(true);
-      });
-
-    return () => {
-      disposed = true;
-      revoke?.();
-    };
-  }, [environmentId, localPath, sourceSessionId, src, identity]);
-
-  if (loadedIdentity !== identity)
-    return <span className="markdown-image-loading" aria-label={alt || "Loading image"} />;
-
-  if (failed) {
-    return (
-      <span className="markdown-image-error" title={localPath ?? undefined}>
-        {alt || "Image failed to load"}
-      </span>
-    );
-  }
-
-  if (!previewSrc) {
-    return <span className="markdown-image-loading" aria-label={alt || "Loading image"} />;
-  }
-
-  return <img src={previewSrc} alt={alt ?? ""} loading="lazy" referrerPolicy="no-referrer" {...props} />;
 }

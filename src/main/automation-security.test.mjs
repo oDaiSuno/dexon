@@ -34,6 +34,7 @@ const loaded = await importTestBundle("automation-security", {
             export const BrowserWindow = { getAllWindows: () => [] };
             export const Menu = {}; export const Notification = {}; export const protocol = {}; export const shell = {};
             export const clipboard = {};
+            export const nativeImage = {};
             export const nativeTheme = {};
             export const safeStorage = { isEncryptionAvailable: () => true, encryptString: (value) => Buffer.from(Buffer.from(value).toString('base64')), decryptString: (value) => Buffer.from(value.toString(), 'base64').toString() };`,
           loader: "js",

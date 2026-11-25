@@ -1,0 +1,19 @@
+[
+  "copyCode",
+  "copySource",
+  "copyImage",
+  "exportDiagram",
+  "exportPng",
+  "exportSvg",
+  "downloadOriginalImage",
+  "expandPreview",
+  "mermaidPreviewStreamingHint",
+  "mermaidShowSource",
+  "mermaidShowPreview",
+  "mermaidSyntaxErrorBanner",
+  "mermaidVectorMeta",
+  "mermaidSourceMeta",
+  "lightboxShortcutHint",
+  "lightboxImageFallbackTitle",
+  "mermaidDiagramViewMode"
+]

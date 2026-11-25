@@ -122,6 +122,7 @@ if (
     automationCommand: (command) => ipcRenderer.invoke("desktop:automation:command", command),
     saveFile: (opts) => ipcRenderer.invoke("desktop:save-file", opts),
     saveBinaryFile: (opts) => ipcRenderer.invoke("desktop:save-binary-file", opts),
+    copyImage: (opts) => ipcRenderer.invoke("desktop:copy-image", opts),
     createHtmlPreview: (content, filePath, sourceSessionId) =>
       ipcRenderer.invoke("desktop:create-html-preview", content, filePath, sourceSessionId),
     releaseHtmlPreview: (previewUrl) => ipcRenderer.invoke("desktop:release-html-preview", previewUrl),
