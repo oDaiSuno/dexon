@@ -27,6 +27,7 @@ export function createNavigationHostMethods({
   pluginList,
   resourceFor,
   files,
+  codemodeSettings,
   unexpected,
   state,
 }) {
@@ -162,6 +163,17 @@ export function createNavigationHostMethods({
         return { enabledModels: null, models: [] };
       case "models.sessionNaming.get":
         return { enabled: true, model: null, configured: true };
+      case "codemode.get":
+        return {
+          enabled: true,
+          mode: "on",
+          configPath: "/Users/navigation-fixture/.dexon/.pi/settings.json",
+          availability: { available: true },
+          projectOverride: null,
+          ...codemodeSettings,
+        };
+      case "files.read":
+        return { content: '{"codemode":{"mode":"only"}}', language: "json", encoding: "utf8" };
       case "models.defaults.get":
         return { model: null, thinkingLevel: "medium" };
       case "auth.providers":

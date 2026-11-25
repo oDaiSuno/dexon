@@ -7,9 +7,11 @@ import type {
   ToolExposure,
   ToolLoadoutReader,
 } from "../../shared/pi-types";
+import { isCodemodeToolName } from "../../shared/codemode";
 import { stripQuoteCoordinatesFromMessages } from "../../shared/quote-tokens";
 import { browserCapabilityRuntime } from "../browser-capability-runtime";
 import { browserToolNamesForSnapshot } from "../browser-tools";
+import { isCodemodeEnabledForCwd } from "../codemode-settings";
 import { sessionOrchestrationEnabled } from "../session-orchestration/settings";
 import { stripLegacyChannelPrompts } from "./compat";
 import { isCodingToolName } from "./tool-intent";
@@ -18,12 +20,14 @@ import { DEFAULT_TOOL_INTENT, type ToolIntent, type ToolIntentStore } from "./to
 export interface ToolGlobals {
   readonly browserToolNames: ReadonlySet<string>;
   readonly orchestrationEnabled: boolean;
+  readonly codemodeEnabled: boolean;
 }
 
-export function readToolGlobals(): ToolGlobals {
+export function readToolGlobals(cwd?: string): ToolGlobals {
   return {
     browserToolNames: new Set(browserToolNamesForSnapshot(browserCapabilityRuntime.getSnapshot())),
     orchestrationEnabled: sessionOrchestrationEnabled(),
+    codemodeEnabled: isCodemodeEnabledForCwd(cwd),
   };
 }
 
@@ -68,6 +72,7 @@ const DECLARE: { readonly [O in ToolOwner]: (tool: CatalogTool, context: Declare
   coding: (tool, { intent }) => intent.coding === "all" || (intent.coding as readonly string[]).includes(tool.name),
   browser: (tool, { globals }) => globals.browserToolNames.has(tool.name),
   orchestration: (_tool, { globals }) => globals.orchestrationEnabled,
+  codemode: (_tool, { globals }) => globals.codemodeEnabled,
   pi: (tool, { live }) => tool.activatedOnRegistration || live.has(tool.name),
   withheld: () => false,
 };
@@ -76,6 +81,7 @@ const BUILTIN_SOURCE = "builtin";
 
 function classifyTool(name: string, source: string, definition: ToolDefinitionMetadata | undefined): ToolOwner {
   if (definition?.dexonOwner) return definition.dexonOwner;
+  if (isCodemodeToolName(name)) return "codemode";
   if (isCodingToolName(name)) return "coding";
   if (source === BUILTIN_SOURCE) return "withheld";
   return "pi";

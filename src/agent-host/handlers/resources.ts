@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { DefaultResourceLoader, getAgentDir } from "@earendil-works/pi-coding-agent";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
+import { readCodemodeSettings, writeCodemodeSettings } from "../codemode-settings";
 import { ToolchainError } from "../../shared/toolchains/errors";
 import { updateSkillModelInvocation } from "../skill-frontmatter";
 import { installSkill, searchSkills } from "../skills-service";
@@ -48,17 +49,17 @@ async function writeTextAtomically(filePath: string, content: string): Promise<v
   try {
     await renameWithRetry(tmp, filePath);
   } catch (error) {
-    try {
-      await fs.unlink(tmp);
-    } catch {
-      /* ignore cleanup failure */
-    }
+    await fs.unlink(tmp).catch(() => undefined);
     throw error;
   }
 }
 
 export function registerResourceHandlers(server: RpcServer): void {
   server.handle({
+    "codemode.get": async (params) => readCodemodeSettings(params?.cwd),
+
+    "codemode.set": async (params) => writeCodemodeSettings(params),
+
     "skills.list": async (params) => {
       const cwd = (params as { cwd?: string } | void)?.cwd;
       if (!cwd) throw new RpcError({ code: "BAD_REQUEST", message: "cwd required" });

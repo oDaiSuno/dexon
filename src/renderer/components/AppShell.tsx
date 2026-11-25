@@ -3,7 +3,7 @@ import { ChatWindow } from "./ChatWindow";
 import { SettingsConfig, type SettingsTab } from "./SettingsConfig";
 import { BrowserAuthorizationDialog } from "./browser/BrowserAuthorizationDialog";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { getFileName } from "@/lib/file-paths";
+import { useLinkedFileOpener } from "./app-shell/use-linked-file-opener";
 import { getSessionDisplayTitle } from "@/lib/session-list";
 import { buildAtMentionText } from "@/lib/file-fuzzy";
 import { ReadingPositionRegistry } from "@/lib/reading-position-store";
@@ -250,17 +250,13 @@ export function AppShell({
     [dispatchFileTab, openRightPanel, environmentId],
   );
 
-  const handleOpenLinkedFile = useCallback(
-    (filePath: string, sourceEnvironmentId?: EnvironmentId) => {
-      handleOpenFile(
-        filePath,
-        getFileName(filePath),
-        selectedSession?.id ?? null,
-        sourceEnvironmentId ?? selectedSession?.environmentId ?? environmentId,
-      );
-    },
-    [handleOpenFile, selectedSession?.id, selectedSession?.environmentId, environmentId],
-  );
+  const handleOpenLinkedFile = useLinkedFileOpener({
+    environmentId,
+    selectedSession,
+    resourceLocation: onResources ? { environmentId: resourcesTarget, path: resourcesCwd } : null,
+    onShowChat: showChatPage,
+    onOpenFile: handleOpenFile,
+  });
 
   const effectiveNewSessionCwd = draftLocation?.path ?? null;
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
@@ -396,6 +392,7 @@ export function AppShell({
                   onPluginsReloaded={bumpSessionKey}
                   channelSnapshot={channels.channelSnapshot}
                   onOpenRemote={openRemote}
+                  onOpenFile={handleOpenLinkedFile}
                 />
               )}
               {showChat ? (

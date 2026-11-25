@@ -1,3 +1,4 @@
+import type { LiveToolUpdate } from "@/hooks/agent-session/shared";
 import type { EnvironmentId } from "@contract/environment";
 import { MarkdownBody } from "../MarkdownBody";
 import {
@@ -30,6 +31,7 @@ export function AssistantMessageView({
   message,
   isStreaming,
   toolResults,
+  liveToolUpdates,
   toolCallDurations,
   cwd,
   onOpenFile,
@@ -45,6 +47,7 @@ export function AssistantMessageView({
   message: AssistantMessage;
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
+  liveToolUpdates?: ReadonlyMap<string, LiveToolUpdate>;
   toolCallDurations?: ReadonlyMap<string, number>;
   cwd?: string;
   onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
@@ -52,9 +55,6 @@ export function AssistantMessageView({
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
   entryId?: string;
   thinkingExpansionStore?: ThinkingExpansionStore;
-  /* In-flight process stream: 8px rhythm like the process-details flow, no
-     per-message footer (usage row + copy button) — the turn settles into
-     groups once it completes. */
   compact?: boolean;
   retried?: boolean;
 }) {
@@ -85,6 +85,7 @@ export function AssistantMessageView({
             key={originalIndex}
             block={block}
             toolResults={toolResults}
+            liveToolUpdates={liveToolUpdates}
             isStreaming={isStreaming}
             streamingDuration={
               block.type === "thinking" ? thinkingDurationSeconds(message, originalIndex, prevTimestamp) : undefined
@@ -113,6 +114,7 @@ function BlockView({
   sourceSessionId,
   block,
   toolResults,
+  liveToolUpdates,
   isStreaming,
   streamingDuration,
   toolCallDurations,
@@ -127,6 +129,7 @@ function BlockView({
   sourceSessionId?: string | null;
   block: AssistantContentBlock;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
+  liveToolUpdates?: ReadonlyMap<string, LiveToolUpdate>;
   isStreaming?: boolean;
   streamingDuration?: number;
   toolCallDurations?: ReadonlyMap<string, number>;
@@ -172,6 +175,10 @@ function BlockView({
         <ToolCallBlock
           block={tc}
           result={result}
+          liveUpdate={liveToolUpdates?.get(tc.toolCallId)}
+          environmentId={environmentId}
+          cwd={cwd}
+          onOpenFile={onOpenFile}
           duration={duration}
           startedAt={toolStartedAt}
           stateKey={blockStateKey}
@@ -210,10 +217,6 @@ function TextBlock({
       </div>
     );
   }
-  // transitions.dev 30-streaming-text, adapted for growing markdown:
-  // settled lines render as markdown; only the tail after the last newline
-  // resolves token by token (CJK per glyph, latin per word), keyed by the
-  // token's absolute character offset so existing tokens never replay.
   const lastBreak = text.lastIndexOf("\n");
   const settled = lastBreak >= 0 ? text.slice(0, lastBreak + 1) : "";
   const tail = lastBreak >= 0 ? text.slice(lastBreak + 1) : text;

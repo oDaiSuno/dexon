@@ -7,6 +7,7 @@ import test from "node:test";
 import {
   createAgentSessionFromServices,
   createAgentSessionServices,
+  createCodemodeExtension,
   SessionManager,
 } from "@earendil-works/pi-coding-agent";
 import {
@@ -47,7 +48,12 @@ function deferredToolExtension(pi) {
   pi.registerTool(tool(DEFERRED_TOOL, { exposure: "deferred" }));
 }
 
-async function openPolicySession(t, { bound = true, globals, toolchain = null, customTools = [] } = {}) {
+const CODEMODE_EXTENSION = { name: "codemode", factory: createCodemodeExtension(), replaceable: true };
+
+async function openPolicySession(
+  t,
+  { bound = true, globals, toolchain = null, customTools = [], extensions = [] } = {},
+) {
   const base = mkdtempSync(path.join(tmpdir(), "dexon-run-policy-"));
   t.after(() => rm(base, { recursive: true, force: true }));
   const cwd = path.join(base, "project");
@@ -64,7 +70,7 @@ async function openPolicySession(t, { bound = true, globals, toolchain = null, c
       noPromptTemplates: true,
       noThemes: true,
       noContextFiles: true,
-      extensionFactories: [RunPolicy.extension(() => bridge.policy), deferredToolExtension],
+      extensionFactories: [RunPolicy.extension(() => bridge.policy), deferredToolExtension, ...extensions],
     },
   });
   const faux = fauxProvider();
@@ -88,7 +94,7 @@ async function openPolicySession(t, { bound = true, globals, toolchain = null, c
     session,
     toolchain,
     intents: store,
-    globals: globals ?? (() => ({ browserToolNames: new Set(), orchestrationEnabled: false })),
+    globals: globals ?? (() => ({ browserToolNames: new Set(), orchestrationEnabled: false, codemodeEnabled: false })),
   });
   if (bound) bridge.policy = policy;
 
@@ -184,7 +190,11 @@ test("capability-gated tools stay inactive on registration and follow the live g
       tool("browser_open", { exposure: "direct", defaultActive: false, dexonOwner: "browser" }),
       tool("session_list", { exposure: "direct", defaultActive: false, dexonOwner: "orchestration" }),
     ],
-    globals: () => ({ browserToolNames: new Set(globals.browser), orchestrationEnabled: globals.orchestration }),
+    globals: () => ({
+      browserToolNames: new Set(globals.browser),
+      orchestrationEnabled: globals.orchestration,
+      codemodeEnabled: false,
+    }),
   });
   intend(agent(["read"]));
   assert.ok(!session.getActiveToolNames().includes("browser_open"));
@@ -197,6 +207,52 @@ test("capability-gated tools stay inactive on registration and follow the live g
   globals.orchestration = true;
   const widened = await ask("widened");
   assert.deepEqual([...widened.tools].sort(), ["browser_open", "read", "session_list"]);
+});
+
+test("the codemode tool is declared only while codemode is enabled, even if Pi activated it itself", async (t) => {
+  const state = { enabled: true };
+  const { session, ask, intend } = await openPolicySession(t, {
+    extensions: [CODEMODE_EXTENSION],
+    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false, codemodeEnabled: state.enabled }),
+  });
+  intend(agent(["read"]));
+
+  const enabled = await ask("enabled");
+  assert.deepEqual(enabled.tools, ["read", "codemode"]);
+
+  state.enabled = false;
+  session.setActiveToolsByName([...session.getActiveToolNames(), "codemode"]);
+  const disabled = await ask("disabled");
+  assert.deepEqual(disabled.tools, ["read"]);
+
+  state.enabled = true;
+  const restored = await ask("restored");
+  assert.deepEqual(restored.tools, ["read", "codemode"]);
+});
+
+test("each run follows live codemode globals before it declares tools", async (t) => {
+  const state = { enabled: false };
+  const { ask, intend } = await openPolicySession(t, {
+    extensions: [CODEMODE_EXTENSION],
+    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false, codemodeEnabled: state.enabled }),
+  });
+  intend(agent(["read"]));
+
+  assert.deepEqual((await ask("first")).tools, ["read"]);
+  state.enabled = true;
+  assert.deepEqual((await ask("second")).tools, ["read", "codemode"]);
+});
+
+test("a bare session declares no tools even when codemode is enabled", async (t) => {
+  const { ask, intend } = await openPolicySession(t, {
+    extensions: [CODEMODE_EXTENSION],
+    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false, codemodeEnabled: true }),
+  });
+  intend(BARE);
+
+  const request = await ask("bare");
+  assert.deepEqual(request.tools, []);
+  assert.equal(request.prompt, "");
 });
 
 test("the policy view shows the next run's tools immediately and the prompt only after Pi records it", async (t) => {

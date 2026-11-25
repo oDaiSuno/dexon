@@ -17,7 +17,7 @@ import {
   type PackageResource,
 } from "./overview-model";
 import { PlusIcon, RefreshCwIcon } from "./overview-icons";
-import { RemoteEntryCard } from "./remote-entry-card";
+import { BuiltInPluginsSection } from "./built-in-plugins-section";
 import { ExtensionsSection, PromptsSection, SourcesBar } from "./resource-sections";
 import { SkillDrawer } from "./skill-drawer";
 import { SkillGrid } from "./skill-grid";
@@ -30,6 +30,7 @@ export function ResourcesOverview({
   canReload,
   channelSnapshot,
   onOpenRemote,
+  onOpenFile,
   onAdd,
   onRefresh,
   onDiscoverSkills,
@@ -43,6 +44,7 @@ export function ResourcesOverview({
   canReload: boolean;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
+  onOpenFile?: (filePath: string, environmentId: EnvironmentId) => void;
   onAdd: () => void;
   onRefresh: () => void;
   onDiscoverSkills: () => void;
@@ -116,7 +118,13 @@ export function ResourcesOverview({
           />
         )}
       </AttentionCard>
-      <RemoteEntryCard snapshot={channelSnapshot} onOpen={onOpenRemote} />
+      <BuiltInPluginsSection
+        environmentId={environmentId}
+        cwd={cwd}
+        snapshot={channelSnapshot}
+        onOpenRemote={onOpenRemote}
+        onOpenFile={onOpenFile}
+      />
       <SkillGrid
         skills={directory.skills}
         loading={directory.loading}

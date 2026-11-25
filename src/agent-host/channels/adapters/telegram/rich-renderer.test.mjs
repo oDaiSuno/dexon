@@ -94,3 +94,47 @@ test("normalizes partial Pi tool-call snapshots before rendering a draft", () =>
   assert.match(draft, /工具 · tool · 完成/);
   assert.match(draft, /"command": "pwd"/);
 });
+
+test("Code Mode uses clean summaries for rich and plain progress and retains final details", () => {
+  const builder = new TelegramRichMessageBuilder();
+  const args = { code: "privateScript();" };
+  builder.update({ type: "tool_start", toolCallId: "script", toolName: "codemode", args });
+  assert.match(builder.renderDraft(), /正在运行脚本 · 准备沙箱环境…/);
+  assert.match(builder.renderPlainDraft(), /正在运行脚本 · 准备沙箱环境…/);
+  builder.update({
+    type: "tool_update",
+    toolCallId: "script",
+    toolName: "codemode",
+    args,
+    partialResult: {
+      details: {
+        calls: [
+          { id: "1", name: "read", args: "privateArgs", status: "ok" },
+          { id: "2", name: "bash", args: "privateArgs", status: "running" },
+        ],
+      },
+    },
+  });
+  assert.match(builder.renderDraft(), /正在运行脚本 · 已完成 1 步（当前：执行命令）/);
+  builder.update({
+    type: "tool_end",
+    toolCallId: "script",
+    toolName: "codemode",
+    isError: true,
+    result: { content: [{ type: "text", text: "Script error:\nScript timed out" }] },
+  });
+  builder.update({
+    type: "message",
+    phase: "end",
+    message: {
+      role: "toolResult",
+      toolCallId: "script",
+      toolName: "codemode",
+      isError: true,
+      content: [{ type: "text", text: "privateOutput" }],
+    },
+  });
+  const final = builder.renderFinal("完成");
+  assert.match(final, /脚本执行超时.*已完成 1 步，第 2 步执行命令未返回/);
+  assert.doesNotMatch(final, /privateScript|privateArgs|privateOutput|```/);
+});

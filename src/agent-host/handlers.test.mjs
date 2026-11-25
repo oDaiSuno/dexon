@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, truncateSync, writeFileSync } from "node:fs";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,7 +9,7 @@ import { loadHandlersModule, captureHandlers, root } from "./handlers-test-suppo
 
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
-  assert.equal(Object.keys(handlers).length, 115);
+  assert.equal(Object.keys(handlers).length, 117);
   for (const method of [
     "host.selfCheck",
     "host.ping",
@@ -46,6 +47,8 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "models.sessionNaming.set",
     "auth.providers",
     "skills.list",
+    "codemode.get",
+    "codemode.set",
     "plugins.list",
     "plugins.markReloaded",
     "processes.list",
@@ -58,6 +61,32 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "system.allowRoot",
   ]) {
     assert.equal(typeof handlers[method], "function", `${method} must be registered`);
+  }
+});
+
+test("Code Mode RPC saves global choices and reports project overrides without overwriting them", async () => {
+  const { handlers } = await captureHandlers();
+  const configPath = (await handlers["codemode.get"]()).configPath;
+  const previous = await readFile(configPath, "utf8").catch(() => null);
+  const cwd = await mkdtemp(path.join(tmpdir(), "pi-handler-codemode-"));
+  const projectFile = path.join(cwd, ".pi", "settings.json");
+  try {
+    await handlers["codemode.set"]({ enabled: false, mode: "only" });
+    const global = await handlers["codemode.get"]();
+    assert.equal(global.enabled, false);
+    assert.equal(global.mode, "only");
+    assert.equal(global.projectOverride, null);
+    await mkdir(path.dirname(projectFile), { recursive: true });
+    await writeFile(projectFile, JSON.stringify({ defaultTools: ["+codemode"], codemode: { mode: "on" } }));
+    const project = await handlers["codemode.get"]({ cwd });
+    assert.equal(project.enabled, false);
+    assert.deepEqual(project.projectOverride, { filePath: projectFile, enabled: true, mode: "on" });
+    await assert.rejects(handlers["codemode.set"]({ enabled: "true" }), (error) => error.code === "BAD_REQUEST");
+    await assert.rejects(handlers["codemode.get"]({ cwd: 12 }), (error) => error.code === "BAD_REQUEST");
+  } finally {
+    if (previous === null) await rm(configPath, { force: true });
+    else await writeFile(configPath, previous);
+    await rm(cwd, { recursive: true, force: true });
   }
 });
 

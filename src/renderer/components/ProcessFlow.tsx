@@ -1,3 +1,4 @@
+import type { LiveToolUpdate } from "@/hooks/agent-session/shared";
 import type { EnvironmentId } from "@contract/environment";
 import { Fragment } from "react";
 import type { ProcessFlowItem } from "@/lib/process-flow";
@@ -12,6 +13,7 @@ import { ToolCallBlock } from "./messages/ToolCallBlock";
 export function ProcessFlow({
   environmentId,
   items,
+  liveToolUpdates,
   cwd,
   onOpenFile,
   onLoadDeferredContent,
@@ -22,6 +24,7 @@ export function ProcessFlow({
 }: {
   environmentId: EnvironmentId;
   items: ProcessFlowItem[];
+  liveToolUpdates?: ReadonlyMap<string, LiveToolUpdate>;
   cwd?: string;
   onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   onLoadDeferredContent?: (entryId: string, blockIndex?: number) => Promise<void>;
@@ -73,6 +76,10 @@ export function ProcessFlow({
                 <ToolCallBlock
                   block={item.block}
                   result={item.result}
+                  liveUpdate={liveToolUpdates?.get(item.block.toolCallId)}
+                  environmentId={environmentId}
+                  cwd={cwd}
+                  onOpenFile={onOpenFile}
                   duration={item.duration}
                   startedAt={item.startedAt}
                   stateKey={`${item.entryId ?? "assistant"}:${item.blockIndex}`}

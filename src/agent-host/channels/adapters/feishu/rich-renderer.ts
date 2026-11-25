@@ -3,6 +3,7 @@ import type { AssistantMessage, ToolResultMessage } from "../../../../shared/typ
 import { normalizeToolCalls } from "../../../../shared/normalize";
 import { redactChannelText, redactChannelValue } from "../../redaction";
 import type { ChannelTurnProgressEvent } from "../../types";
+import { retainCodemodeOutput, summarizeCodemodeTool } from "../../codemode-summary";
 
 export const FEISHU_STREAM_ELEMENT_ID = "stream_md";
 const FEISHU_CARD_JSON_LIMIT_BYTES = 28_000;
@@ -22,6 +23,8 @@ type ToolProgress = {
   output?: unknown;
   running: boolean;
   isError: boolean;
+  startedAt?: number;
+  endedAt?: number;
 };
 
 export type FeishuFinalCardRender = {
@@ -63,7 +66,6 @@ function closeOpenCodeFence(markdown: string): string {
   return open ? `${markdown}\n${open.char.repeat(open.length)}` : markdown;
 }
 
-/** Keep standard Markdown while blocking raw Card JSON/HTML tags and unsafe link targets. */
 export function sanitizeFeishuMarkdown(value: unknown): string {
   const normalized = redactChannelText(value).replace(/\r\n/g, "\n");
   const withoutMedia = normalized.replace(/!\[([^\]\n]*)\]\(([^)\n]+)\)/g, (_match, alt: string, raw: string) => {
@@ -216,9 +218,11 @@ export class FeishuRichMessageBuilder {
             id: block.toolCallId,
             name: safeToolName(block.toolName, existing?.name),
             args: block.input,
-            running: existing?.running ?? false,
+            running: existing?.running ?? block.toolName === "codemode",
             isError: existing?.isError ?? false,
             ...(existing?.output !== undefined ? { output: existing.output } : {}),
+            ...(existing?.startedAt !== undefined ? { startedAt: existing.startedAt } : {}),
+            ...(existing?.endedAt !== undefined ? { endedAt: existing.endedAt } : {}),
           });
         }
         if (event.phase === "end") {
@@ -229,13 +233,20 @@ export class FeishuRichMessageBuilder {
         }
       } else if (event.message.role === "toolResult") {
         const existing = this.tools.get(event.message.toolCallId);
+        const codemode = event.message.toolName === "codemode";
         this.tools.set(event.message.toolCallId, {
           id: event.message.toolCallId,
           name: safeToolName(event.message.toolName, existing?.name),
           args: existing?.args,
-          output: toolResultText(event.message),
+          output: codemode ? retainCodemodeOutput(existing?.output, event.message) : toolResultText(event.message),
           running: event.phase !== "end",
           isError: event.message.isError === true,
+          ...(existing?.startedAt !== undefined ? { startedAt: existing.startedAt } : {}),
+          ...(existing?.endedAt !== undefined
+            ? { endedAt: existing.endedAt }
+            : event.phase === "end"
+              ? { endedAt: Date.now() }
+              : {}),
         });
       }
       return;
@@ -250,24 +261,31 @@ export class FeishuRichMessageBuilder {
         running: true,
         isError: false,
         ...(existing?.output !== undefined ? { output: existing.output } : {}),
+        ...(event.toolName === "codemode" ? { startedAt: Date.now() } : {}),
       });
     } else if (event.type === "tool_update") {
       this.tools.set(event.toolCallId, {
         id: event.toolCallId,
         name: safeToolName(event.toolName, existing?.name),
         args: event.args,
-        output: event.partialResult,
+        output:
+          event.toolName === "codemode"
+            ? retainCodemodeOutput(existing?.output, event.partialResult)
+            : event.partialResult,
         running: true,
         isError: false,
+        ...(existing?.startedAt !== undefined ? { startedAt: existing.startedAt } : {}),
       });
     } else {
       this.tools.set(event.toolCallId, {
         id: event.toolCallId,
         name: safeToolName(event.toolName, existing?.name),
         args: existing?.args,
-        output: event.result,
+        output: event.toolName === "codemode" ? retainCodemodeOutput(existing?.output, event.result) : event.result,
         running: false,
         isError: event.isError,
+        ...(existing?.startedAt !== undefined ? { startedAt: existing.startedAt } : {}),
+        ...(event.toolName === "codemode" ? { endedAt: Date.now() } : {}),
       });
     }
   }
@@ -294,6 +312,22 @@ export class FeishuRichMessageBuilder {
     for (const tool of [...this.tools.values()].slice(0, MAX_TOOL_DETAILS)) {
       const status = tool.running ? "运行中" : tool.isError ? "失败" : "完成";
       const body: string[] = [];
+      if (tool.name === "codemode") {
+        blocks.push(
+          sanitizeFeishuMarkdown(
+            summarizeCodemodeTool({
+              running: tool.running,
+              isError: tool.isError,
+              output: tool.output,
+              timing:
+                tool.startedAt === undefined
+                  ? undefined
+                  : { startedAt: tool.startedAt, ...(tool.endedAt !== undefined ? { endedAt: tool.endedAt } : {}) },
+            }),
+          ),
+        );
+        continue;
+      }
       if (tool.args !== undefined)
         body.push(`**输入**\n\n${codeBlock(safeValue(tool.args, TOOL_INPUT_LIMIT_BYTES), "json")}`);
       if (tool.output !== undefined)
@@ -308,7 +342,8 @@ export class FeishuRichMessageBuilder {
 
   renderDraft(): string {
     const activeTool = [...this.tools.values()].find((tool) => tool.running);
-    const status = activeTool ? `⏳ 正在运行工具 **${activeTool.name}**…` : "💭 正在思考…";
+    const status =
+      activeTool?.name === "codemode" ? "" : activeTool ? `⏳ 正在运行工具 **${activeTool.name}**…` : "💭 正在思考…";
     const process = this.process();
     const answer = sanitizeFeishuMarkdown(this.answer().trim());
     return closeOpenCodeFence(

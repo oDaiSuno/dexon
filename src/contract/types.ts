@@ -281,6 +281,14 @@ export interface ProviderStatus {
   [key: string]: unknown;
 }
 
+export type {
+  CodemodeAvailability,
+  CodemodeMode,
+  CodemodeProjectOverride,
+  CodemodeSettingsPatch,
+  CodemodeSettingsResult,
+} from "../shared/codemode";
+
 export interface SkillInfo {
   name: string;
   description?: string;

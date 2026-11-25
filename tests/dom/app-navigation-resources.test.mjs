@@ -28,6 +28,21 @@ test("the official Resources entry first shows one overview with skills, tool ex
   assert.deepEqual(currentPages(scene), ["Plugins & Skills"]);
 });
 
+test("opening a Code Mode project override reveals its settings in the right-side file viewer", async (t) => {
+  const filePath = "/Users/navigation-fixture/.dexon/.pi/settings.json";
+  const scene = await startNavigation(t, {
+    history: false,
+    codemodeSettings: { projectOverride: { filePath, mode: "only" } },
+  });
+  await scene.overview();
+  await click(control(scene.container, "button", "Code Mode"));
+  await waitFor(() => control(scene.container, "button", "Open project settings →"));
+  await click(control(scene.container, "button", "Open project settings →"));
+  await waitFor(() => control(scene.container, "button", "settings.json"));
+  await waitFor(() => assert.ok(scene.external.requests("files.read").some((request) => request.path === filePath)));
+  assert.equal(roles(scene.container, "dialog", "Code Mode").length, 0);
+});
+
 test("Manage sources keeps the full plugin manager reachable, and returning to the page shows the overview again", async (t) => {
   const scene = await startNavigation(t, { initialSession: "personal-history" });
   await waitFor(() => visibleText(scene.container, "Personal conversation marker"));

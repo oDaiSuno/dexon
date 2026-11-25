@@ -23,6 +23,8 @@ import type {
 import type {
   AgentCommand,
   AgentEvent,
+  CodemodeSettingsPatch,
+  CodemodeSettingsResult,
   CredentialMutationResult,
   DirEntry,
   EntryContentResult,
@@ -466,6 +468,14 @@ export interface Api {
   "plugins.markReloaded": {
     params: { cwd: string };
     result: PluginsResponse;
+  };
+  "codemode.get": {
+    params: { cwd?: string } | void;
+    result: CodemodeSettingsResult;
+  };
+  "codemode.set": {
+    params: CodemodeSettingsPatch;
+    result: CodemodeSettingsResult;
   };
   "system.home": { params: void; result: { home: string } };
   "system.validateCwd": {

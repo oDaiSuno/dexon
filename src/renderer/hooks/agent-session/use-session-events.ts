@@ -1,4 +1,3 @@
-import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
 import { isSessionTransportClosed, sessionClientErrorMessage } from "@/lib/session-error-message";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { normalizeToolCalls } from "@/lib/normalize";
@@ -12,7 +11,6 @@ import type { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
 import type { AgentMessage, ExtensionUiRequest } from "@/lib/types";
 import { useCallback, useEffect, useRef, type MutableRefObject } from "react";
 import {
-  AGENT_STATE_RECONCILE_MS,
   AgentEvent,
   AgentStateResponse,
   PROMPT_SETTLE_INITIAL_DELAY_MS,
@@ -28,6 +26,8 @@ import {
 import type { SessionExtensions } from "./use-session-extensions";
 import type { SessionHistory } from "./use-session-history";
 import type { SessionState } from "./use-session-state";
+import { applyToolExecutionEvent, removeLiveToolUpdate } from "./session-tool-updates";
+import { useSessionReconciliation } from "./use-session-reconciliation";
 type Dependencies = Pick<
   SessionState,
   | "environmentId"
@@ -38,6 +38,7 @@ type Dependencies = Pick<
   | "agentRunningRef"
   | "setAgentRunning"
   | "setAgentPhase"
+  | "setLiveToolUpdates"
   | "setRetryInfo"
   | "dispatch"
   | "onAgentEnd"
@@ -73,6 +74,7 @@ export function useSessionEvents(context: Dependencies) {
     agentRunningRef,
     setAgentRunning,
     setAgentPhase,
+    setLiveToolUpdates,
     setRetryInfo,
     dispatch,
     onAgentEnd,
@@ -99,7 +101,6 @@ export function useSessionEvents(context: Dependencies) {
     expansionStores,
   } = context;
 
-  const restartNoticeRunRef = useRef<number | null>(null);
   const finishPromptWithoutStream = useCallback(
     async (sid: string | null = sessionIdRef.current, runId?: number) => {
       if (runId !== undefined && promptRunIdRef.current !== runId) return;
@@ -112,6 +113,7 @@ export function useSessionEvents(context: Dependencies) {
         agentRunningRef.current = false;
         setAgentRunning(false);
         setAgentPhase(null);
+        setLiveToolUpdates(new Map());
         setRetryInfo(null);
         dispatch({ type: "end" });
         onAgentEnd?.();
@@ -127,6 +129,7 @@ export function useSessionEvents(context: Dependencies) {
       sessionIdRef,
       setAgentPhase,
       setAgentRunning,
+      setLiveToolUpdates,
       setRetryInfo,
     ],
   );
@@ -212,40 +215,16 @@ export function useSessionEvents(context: Dependencies) {
     ],
   );
 
-  useEffect(() => {
-    const reconcile = () => {
-      const sid = sessionIdRef.current;
-      if (sid) void reconcileAgentState(sid);
-    };
-    const onVisible = () => {
-      if (document.visibilityState === "visible") reconcile();
-    };
-    const offRestart =
-      environmentId === PRIMARY_ENVIRONMENT_ID
-        ? window.piBridge?.onHostRestarted?.(() => {
-            if (agentRunningRef.current && restartNoticeRunRef.current !== promptRunIdRef.current) {
-              restartNoticeRunRef.current = promptRunIdRef.current;
-              addNotice({
-                type: "warning",
-                message: t(
-                  "hostRestartedTurnInterrupted",
-                  "The background service restarted and interrupted the current reply.",
-                ),
-              });
-            }
-            reconcile();
-          })
-        : undefined;
-    const interval = agentRunning ? setInterval(reconcile, AGENT_STATE_RECONCILE_MS) : undefined;
-    document.addEventListener("visibilitychange", onVisible);
-    window.addEventListener("online", reconcile);
-    return () => {
-      offRestart?.();
-      if (interval) clearInterval(interval);
-      document.removeEventListener("visibilitychange", onVisible);
-      window.removeEventListener("online", reconcile);
-    };
-  }, [environmentId, addNotice, agentRunning, agentRunningRef, promptRunIdRef, reconcileAgentState, sessionIdRef, t]);
+  useSessionReconciliation({
+    environmentId,
+    addNotice,
+    agentRunning,
+    agentRunningRef,
+    promptRunIdRef,
+    reconcileAgentState,
+    sessionIdRef,
+    t,
+  });
 
   useEffect(() => {
     agentRunningRef.current = agentRunning;
@@ -270,6 +249,7 @@ export function useSessionEvents(context: Dependencies) {
           externalTurnAutoFollowRef.current = false;
           break;
         case "agent_start":
+          setLiveToolUpdates(new Map());
           agentRunningRef.current = true;
           unsavedMessages.endStreaming();
           setAgentRunning(true);
@@ -278,6 +258,7 @@ export function useSessionEvents(context: Dependencies) {
           dispatch({ type: "start" });
           break;
         case "agent_end":
+          setLiveToolUpdates(new Map());
           if (!agentRunningRef.current) break;
           if (event.willRetry === true) {
             dispatch({ type: "reset" });
@@ -376,6 +357,9 @@ export function useSessionEvents(context: Dependencies) {
             });
             unsavedMessages.awaitSave(questionEntryId);
           } else if (completed) {
+            if (completed.role === "toolResult") {
+              setLiveToolUpdates((current) => removeLiveToolUpdate(current, completed.toolCallId));
+            }
             const stamped = { ...normalizeToolCalls(completed), timestamp: Date.now() } as AgentMessage;
             const entryId = streamingEntryId ?? unsavedMessages.nextEntryId();
             updateHistory((current) => appendLocalHistoryMessage(current, stamped, entryId));
@@ -393,26 +377,11 @@ export function useSessionEvents(context: Dependencies) {
           updateHistory((current) => renameHistoryEntry(current, unsavedEntryId, savedEntryId));
           break;
         }
-        case "tool_execution_start": {
-          const id = event.toolCallId as string;
-          const name = event.toolName as string;
-          setAgentPhase((prev) => {
-            const tools = prev?.kind === "running_tools" ? [...prev.tools] : [];
-            if (!tools.some((t) => t.id === id)) tools.push({ id, name });
-            return { kind: "running_tools", tools };
-          });
+        case "tool_execution_start":
+        case "tool_execution_update":
+        case "tool_execution_end":
+          if (agentRunningRef.current) applyToolExecutionEvent(event, setLiveToolUpdates, setAgentPhase);
           break;
-        }
-        case "tool_execution_end": {
-          const id = event.toolCallId as string;
-          setAgentPhase((prev) => {
-            if (prev?.kind !== "running_tools") return prev;
-            const tools = prev.tools.filter((t) => t.id !== id);
-            if (tools.length === 0) return { kind: "waiting_model" };
-            return { kind: "running_tools", tools };
-          });
-          break;
-        }
         case "queue_update":
           setQueuedMessages({
             steering: [...((event.steering as string[] | undefined) ?? [])],
@@ -478,6 +447,7 @@ export function useSessionEvents(context: Dependencies) {
       setExtensionStatuses,
       setExtensionWidgets,
       setIsCompacting,
+      setLiveToolUpdates,
       setQueuedMessages,
       setRetryInfo,
       setSystemPrompt,

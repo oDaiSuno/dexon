@@ -7,6 +7,7 @@ import { enUS as enUSBrowserSettings, zhCN as zhCNBrowserSettings } from "./i18n
 import { enUS as enUSBrowserSettingsRows, zhCN as zhCNBrowserSettingsRows } from "./i18n/browser-settings-rows.ts";
 import { enUS as enUSChannels, zhCN as zhCNChannels } from "./i18n/channels.ts";
 import { enUS as enUSChat, zhCN as zhCNChat } from "./i18n/chat.ts";
+import { enUS as enUSChatModels, zhCN as zhCNChatModels } from "./i18n/chat-models.ts";
 import { enUS as enUSFiles, zhCN as zhCNFiles } from "./i18n/files.ts";
 import { enUS as enUSHistory, zhCN as zhCNHistory } from "./i18n/history.ts";
 import { enUS as enUSModels, zhCN as zhCNModels } from "./i18n/models.ts";
@@ -26,6 +27,7 @@ export const enUS: Record<string, string> = {
   ...enUSBrowserSettingsRows,
   ...enUSChannels,
   ...enUSChat,
+  ...enUSChatModels,
   ...enUSFiles,
   ...enUSHistory,
   ...enUSModels,
@@ -46,6 +48,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNBrowserSettingsRows,
   ...zhCNChannels,
   ...zhCNChat,
+  ...zhCNChatModels,
   ...zhCNFiles,
   ...zhCNHistory,
   ...zhCNModels,

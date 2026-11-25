@@ -165,7 +165,7 @@ test("restoring a channel session uses its saved directory and binding tool sele
   await bridge.runCommand(binding({ sessionId: "saved-channel", toolNames: ["read"] }), "reload");
   assert.equal(opened.cwd, restoredCwd);
   assert.equal(opened.sessionId, "saved-channel");
-  assert.deepEqual(await activeTools(opened), ["read"]);
+  assert.deepEqual(await activeTools(opened), ["codemode", "read"]);
 });
 
 test("new dedicated sessions and the first channel turn use current account tools, not stale bindings", async () => {
@@ -174,10 +174,11 @@ test("new dedicated sessions and the first channel turn use current account tool
     opened = session;
   });
   const current = ["read", "bash", "edit", "write", "grep", "find", "ls"];
+  const expectedActive = [...current, "codemode"].sort();
   const stale = binding({ channel: "weixin", toolNames: [] });
   const created = await bridge.newSession(stale, current);
   assert.equal(opened.sessionId, created.sessionId);
-  assert.deepEqual(await activeTools(opened), [...current].sort());
+  assert.deepEqual(await activeTools(opened), expectedActive);
   const turn = await bridge.runTurn(
     stale,
     {
@@ -196,7 +197,7 @@ test("new dedicated sessions and the first channel turn use current account tool
     current,
   );
   assert.equal(turn.finalText, "ok");
-  assert.deepEqual(await activeTools(opened), [...current].sort());
+  assert.deepEqual(await activeTools(opened), expectedActive);
 });
 
 test("tool synchronization changes a live session's active tools and its persisted preference", async () => {
@@ -206,7 +207,7 @@ test("tool synchronization changes a live session's active tools and its persist
   });
   const created = await bridge.newSession(binding(), []);
   await bridge.syncTools(binding({ sessionId: created.sessionId }), ["read"]);
-  assert.deepEqual(await activeTools(opened), ["read"]);
+  assert.deepEqual(await activeTools(opened), ["codemode", "read"]);
   assert.deepEqual(getDesktopSessionToolIntent(created.sessionId), { kind: "agent", coding: ["read"] });
 });
 

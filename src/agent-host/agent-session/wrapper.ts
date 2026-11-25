@@ -85,7 +85,7 @@ export class AgentSessionWrapper extends SessionExtensionUi {
       session: inner,
       toolchain: options.toolchain ?? null,
       intents: options.intents ?? desktopToolIntents,
-      globals: readToolGlobals,
+      globals: () => readToolGlobals(this.cwd),
     });
     this.execution = new ExecutionProfileControl(this.profile, inner, this.runPolicy, (event) => this.emit(event));
   }

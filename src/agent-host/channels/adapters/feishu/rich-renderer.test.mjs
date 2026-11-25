@@ -109,3 +109,54 @@ test("partial and hostile tool snapshots cannot crash card rendering", () => {
   assert.doesNotThrow(() => builder.renderDraft());
   assert.match(builder.renderDraft(), /tool/);
 });
+
+test("Code Mode progress replaces scripts and raw output with one restrained summary across message events", () => {
+  const builder = new FeishuRichMessageBuilder();
+  const args = { code: "privateScript();" };
+  builder.update({ type: "tool_start", toolCallId: "script", toolName: "codemode", args });
+  assert.match(builder.renderDraft(), /正在运行脚本 · 准备沙箱环境…/);
+  builder.update({
+    type: "tool_update",
+    toolCallId: "script",
+    toolName: "codemode",
+    args,
+    partialResult: {
+      details: {
+        calls: [
+          { id: "1", name: "read", args: "privateArgs", status: "ok" },
+          { id: "2", name: "bash", args: "privateArgs", status: "running" },
+        ],
+      },
+    },
+  });
+  assert.match(builder.renderDraft(), /正在运行脚本 · 已完成 1 步（当前：执行命令）/);
+  assert.doesNotMatch(builder.renderDraft(), /privateScript|privateArgs|```/);
+  builder.update({
+    type: "tool_end",
+    toolCallId: "script",
+    toolName: "codemode",
+    isError: false,
+    result: {
+      content: [{ type: "text", text: "privateOutput" }],
+      details: {
+        calls: [
+          { id: "1", name: "read", args: "privateArgs", status: "ok" },
+          { id: "2", name: "bash", args: "privateArgs", status: "ok" },
+        ],
+      },
+    },
+  });
+  builder.update({
+    type: "message",
+    phase: "end",
+    message: {
+      role: "toolResult",
+      toolCallId: "script",
+      toolName: "codemode",
+      content: [{ type: "text", text: "privateOutput" }],
+    },
+  });
+  const final = JSON.stringify(builder.renderFinal("完成").card);
+  assert.match(final, /运行脚本完成 · 调用了 2 个工具/);
+  assert.doesNotMatch(final, /privateScript|privateArgs|privateOutput|```/);
+});

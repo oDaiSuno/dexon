@@ -17,6 +17,7 @@ import { useSessionState } from "./agent-session/use-session-state";
 import { useSessionVersions } from "./agent-session/use-session-versions";
 export type {
   AgentPhase,
+  LiveToolUpdate,
   BuiltinSlashCommandResult,
   ChatInputHandle,
   CompactResultInfo,
@@ -116,6 +117,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     messages,
     entryIds,
     streamState,
+    liveToolUpdates,
     agentRunning,
     modelNames,
     modelList,
@@ -222,6 +224,7 @@ export function useAgentSession(opts: UseAgentSessionOptions) {
     messages,
     entryIds,
     streamState,
+    liveToolUpdates,
     agentRunning,
     modelNames,
     modelList,
