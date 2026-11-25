@@ -28,6 +28,7 @@ export function ChatMessages({
   toolMessageIndex,
   agentRunning,
   streamState,
+  liveToolUpdates,
   session,
   modelNames,
   messageCwd,
@@ -55,6 +56,7 @@ export function ChatMessages({
   | "toolMessageIndex"
   | "agentRunning"
   | "streamState"
+  | "liveToolUpdates"
   | "session"
   | "modelNames"
   | "messageCwd"
@@ -111,6 +113,28 @@ export function ChatMessages({
             messageRefs.current[refIndex] = el;
           };
 
+    const hasActiveToolUpdate = (message: AgentMessage): boolean => {
+      if (!liveToolUpdates || liveToolUpdates.size === 0 || message.role !== "assistant") return false;
+      if (!Array.isArray(message.content)) return false;
+      return message.content.some(
+        (block) =>
+          block &&
+          typeof block === "object" &&
+          block.type === "toolCall" &&
+          typeof block.toolCallId === "string" &&
+          liveToolUpdates.has(block.toolCallId),
+      );
+    };
+
+    const updatesForMessage = (message: AgentMessage) => (hasActiveToolUpdate(message) ? liveToolUpdates : undefined);
+
+    const updatesForFlow = (items: TurnProcessPiece["flow"]["items"]) =>
+      liveToolUpdates &&
+      liveToolUpdates.size > 0 &&
+      items.some((item) => item.kind === "toolCall" && liveToolUpdates.has(item.block.toolCallId))
+        ? liveToolUpdates
+        : undefined;
+
     const renderMessage = (
       idx: number,
       options: {
@@ -135,6 +159,7 @@ export function ChatMessages({
             message={msg}
             {...quoteInteraction}
             toolResults={toolData?.results}
+            liveToolUpdates={updatesForMessage(msg)}
             toolCallDurations={toolData?.durations}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
@@ -189,6 +214,7 @@ export function ChatMessages({
               message={piece.body}
               isStreaming={writing}
               toolResults={toolData?.results}
+              liveToolUpdates={updatesForMessage(piece.body)}
               toolCallDurations={toolData?.durations}
               cwd={messageCwd}
               onOpenFile={onOpenFile}
@@ -240,6 +266,7 @@ export function ChatMessages({
             <ProcessFlow
               environmentId={environmentId}
               items={piece.flow.items}
+              liveToolUpdates={updatesForFlow(piece.flow.items)}
               quoteStreamingEntryId={streamingMessage ? (streamState.streamingEntryId ?? "") : undefined}
               cwd={messageCwd}
               onOpenFile={onOpenFile}
@@ -269,6 +296,7 @@ export function ChatMessages({
             environmentId={environmentId}
             sessionId={session?.id}
             message={piece.message}
+            liveToolUpdates={updatesForMessage(piece.message)}
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[piece.index]}

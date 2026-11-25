@@ -1,3 +1,7 @@
+import type { EnvironmentId } from "@contract/environment";
+import type { LiveToolUpdate } from "@/hooks/agent-session/shared";
+import { isCodemodeToolName } from "@shared/codemode";
+import { CodemodeToolRow } from "./codemode-tool-row";
 import { useI18n } from "@/i18n";
 import { isAutomationChatToolName } from "@shared/automation/chat-tools";
 import { isSessionToolName } from "@shared/session-orchestration";
@@ -10,9 +14,13 @@ import { countDiffLines, toolVerbLabel, ToolGlyph } from "./tool-labels";
 import { formatToolDuration, useElapsedSince } from "./tool-elapsed";
 import type { ToolCallContent, ToolResultMessage } from "@/lib/types";
 
-interface ToolCallBlockProps {
+export interface ToolCallBlockProps {
   block: ToolCallContent;
   result?: ToolResultMessage;
+  liveUpdate?: LiveToolUpdate;
+  environmentId?: EnvironmentId;
+  cwd?: string;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   duration?: number;
   startedAt?: number;
   stateKey: string;
@@ -21,6 +29,7 @@ interface ToolCallBlockProps {
 }
 
 export function ToolCallBlock(props: ToolCallBlockProps) {
+  if (isCodemodeToolName(props.block.toolName)) return <CodemodeToolRow {...props} />;
   if (isSessionToolName(props.block.toolName)) return <SessionToolRow {...props} />;
   if (isAutomationChatToolName(props.block.toolName)) return <AutomationToolRow {...props} />;
   return <GenericToolRow {...props} />;
@@ -100,9 +109,6 @@ function GenericToolRow({
           </span>
         </button>
       </div>
-      {/* Panel must stay a DIRECT child of .chat-acc: the accordion opens via
-          `.chat-acc[data-open="true"] > .chat-acc-panel`, and the wrap is not
-          the accordion root (this nesting is what broke expansion once). */}
       <div className="chat-acc-panel">
         <div className="chat-acc-panel-clip">
           {detailMounted && (
@@ -173,7 +179,6 @@ function getToolPreview(block: ToolCallContent): string {
   const keys = Object.keys(input);
   if (keys.length === 0) return "";
 
-  // Common tool input patterns
   if ("command" in input) return String(input.command).slice(0, 120);
   if ("path" in input) return String(input.path).slice(0, 120);
   if ("file_path" in input) return String(input.file_path).slice(0, 120);

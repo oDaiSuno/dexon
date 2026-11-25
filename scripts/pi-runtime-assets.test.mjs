@@ -9,7 +9,16 @@ import { verifyPiRuntimeAssets } from "./pi-runtime-assets.mjs";
 const piPackages = ["pi-ai", "pi-agent-core", "pi-coding-agent", "pi-codemode", "pi-mcp", "pi-telemetry", "pi-tui"];
 const quickjsExtensions = ["crypto", "encoding", "headers", "structured-clone", "url"];
 
-async function packagedRuntime(t, { platform = "darwin", arch = "arm64", omit = [], version = "1.4.0", unpack } = {}) {
+async function packagedRuntime(
+  t,
+  {
+    platform = "darwin",
+    arch = "arm64",
+    omit = [],
+    version = "1.4.0",
+    unpack = "**/{@earendil-works/pi-codemode/**,quickjs-wasi/**}",
+  } = {},
+) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "dexon-pi-package-"));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const source = path.join(directory, "source");
@@ -23,6 +32,7 @@ async function packagedRuntime(t, { platform = "darwin", arch = "arm64", omit = 
     files.set(`${root}/dist/index.d.ts`, "export {};\n");
     lockfile.packages[root] = { version: "1.4.0" };
   }
+  files.set("node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js", "export {};\n");
   for (const [name, packageVersion] of [
     ["grok-mermaid", "0.2.3"],
     ["quickjs-wasi", "3.6.2"],
@@ -70,6 +80,16 @@ test("a package missing the QuickJS runtime cannot pass verification", async (t)
   assert.throws(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile), /quickjs\.wasm/);
 });
 
+test("a package missing the Code Mode worker cannot pass verification", async (t) => {
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, {
+    omit: ["node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js"],
+  });
+  assert.throws(
+    () => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile),
+    /pi-codemode\/dist\/runtime\/worker\.js/,
+  );
+});
+
 test("a package missing a QuickJS extension cannot pass verification", async (t) => {
   const { resources, platform, arch, lockfile } = await packagedRuntime(t, {
     omit: ["node_modules/quickjs-wasi/extensions/url/url.so"],
@@ -111,7 +131,9 @@ test("a package missing the directly imported typebox runtime blocks verificatio
 });
 
 test("an archive without the physical unpacked runtime files cannot pass verification", async (t) => {
-  const { resources, platform, arch, lockfile } = await packagedRuntime(t, { unpack: "**/*.{wasm,node}" });
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, {
+    unpack: "**/{@earendil-works/pi-codemode/**,quickjs-wasi/**,*.node}",
+  });
   assert.doesNotThrow(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile));
   fs.rmSync(path.join(resources, "app.asar.unpacked"), { recursive: true });
   assert.throws(() => verifyPiRuntimeAssets(resources, platform, arch, "1.4.0", lockfile), /unpacked.*quickjs\.wasm/);
@@ -124,7 +146,9 @@ test("a lockfile matching an obsolete Pi package does not override the required 
 });
 
 test("signing an unpacked native module may change its size without making the package incomplete", async (t) => {
-  const { resources, platform, arch, lockfile } = await packagedRuntime(t, { unpack: "**/*.node" });
+  const { resources, platform, arch, lockfile } = await packagedRuntime(t, {
+    unpack: "**/{@earendil-works/pi-codemode/**,quickjs-wasi/**,*.node}",
+  });
   const native = path.join(
     resources,
     "app.asar.unpacked/node_modules/@earendil-works/pi-tui/native/darwin/prebuilds/darwin-arm64/darwin-platform.node",

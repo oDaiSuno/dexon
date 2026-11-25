@@ -6,6 +6,14 @@ import type { ModelInfo, SessionDetail, SessionRuntimeState } from "@contract/ty
 import { isNearChatBottom } from "../chat-scroll-policy";
 export type SessionData = SessionDetail;
 export type AgentStateResponse = SessionRuntimeState;
+export interface LiveToolUpdate {
+  readonly toolCallId: string;
+  readonly toolName?: string;
+  readonly partialResult?: unknown;
+  readonly startedAt: number;
+  readonly endedAt?: number;
+  readonly isError?: boolean;
+}
 export interface StreamingState {
   isStreaming: boolean;
   streamingMessage: Partial<AgentMessage> | null;
@@ -112,11 +120,6 @@ export interface UseAgentSessionOptions {
   ) => void;
   onSystemPromptChange?: (prompt: string | null) => void;
   onSessionStatsPanelOpen?: () => void;
-  /**
-   * Whether the chat page is actually visible to the user. Reading-side
-   * wiring (input listeners, geometry observation, scroll pacing) pauses
-   * while false; the runtime keeps streaming. Defaults to true.
-   */
   readingVisible?: boolean;
   restoreReadingPosition?: boolean;
   expansionStores?: readonly ThinkingExpansionStore[];

@@ -73,6 +73,9 @@ files:
       - "**/*.d.ts"
 
 asar: true
+asarUnpack:
+  - "**/node_modules/@earendil-works/pi-codemode/**"
+  - "**/node_modules/quickjs-wasi/**"
 
 extraResources:
   - from: out/remote-payload

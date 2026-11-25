@@ -72,6 +72,7 @@ export function ChatWindow(props: Props) {
     toolMessageIndex,
     agentRunning,
     streamState,
+    liveToolUpdates,
     session,
     modelNames,
     environmentId,
@@ -227,6 +228,7 @@ export function ChatWindow(props: Props) {
                       toolMessageIndex={toolMessageIndex}
                       agentRunning={agentRunning}
                       streamState={streamState}
+                      liveToolUpdates={liveToolUpdates}
                       session={session}
                       modelNames={modelNames}
                       messageCwd={messageCwd}

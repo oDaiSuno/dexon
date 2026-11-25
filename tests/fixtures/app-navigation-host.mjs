@@ -30,6 +30,7 @@ export function navigationBoundary({
   browserTabs = [],
   sessionOverrides = {},
   generatedTitle = null,
+  codemodeSettings = {},
 } = {}) {
   const details = history ? navigationConversations() : [];
   if (history && forks) details.push(forkedConversation());
@@ -185,6 +186,7 @@ export function navigationBoundary({
     pluginList,
     resourceFor,
     files,
+    codemodeSettings,
     unexpected,
     state,
   });

@@ -18,6 +18,7 @@ export function verifyPiRuntimeAssets(resources, platform, arch, expectedPiVersi
     `${root}/${root === "node_modules/typebox" ? "build/index.mjs" : "dist/index.js"}`,
   ]);
   required.push(...piPackages.map((name) => `node_modules/@earendil-works/${name}/dist/index.d.ts`));
+  required.push("node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js");
   required.push("node_modules/quickjs-wasi/quickjs.wasm", "node_modules/quickjs-wasi/dist/index.d.ts");
   required.push(
     ...["crypto", "encoding", "headers", "structured-clone", "url"].map(
@@ -30,11 +31,15 @@ export function verifyPiRuntimeAssets(resources, platform, arch, expectedPiVersi
   required.push(
     `node_modules/@earendil-works/pi-tui/native/${platform}/prebuilds/${platform}-${arch}/${nativeName}.node`,
   );
+  const requiredUnpacked = new Set([
+    "node_modules/@earendil-works/pi-codemode/dist/runtime/worker.js",
+    "node_modules/quickjs-wasi/quickjs.wasm",
+  ]);
   const missing = required.filter((entry) => !entries.has(entry));
   if (missing.length > 0) throw new Error(`Packaged Pi runtime/authoring assets are missing: ${missing.join(", ")}`);
   const missingUnpacked = required.filter((entry) => {
     const metadata = statFile(asarPath, path.normalize(entry));
-    if (!metadata.unpacked) return false;
+    if (!metadata.unpacked) return requiredUnpacked.has(entry);
     try {
       const file = statSync(path.join(`${asarPath}.unpacked`, entry));
       return !file.isFile() || file.size === 0 || (!entry.endsWith(".node") && file.size !== metadata.size);

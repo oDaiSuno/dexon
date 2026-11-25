@@ -23,7 +23,7 @@ export interface ModelLike {
 
 export type ToolExposure = PiToolExposure;
 
-export type DexonToolOwner = "coding" | "browser" | "orchestration" | "automation";
+export type DexonToolOwner = "coding" | "browser" | "orchestration" | "automation" | "codemode";
 
 export interface ToolDefinitionMetadata {
   readonly defaultActive?: boolean;

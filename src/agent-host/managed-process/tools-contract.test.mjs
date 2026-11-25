@@ -71,7 +71,7 @@ test("managed process declarations follow the selected coding tools and bare ses
     session,
     toolchain: null,
     intents: new Map(),
-    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false }),
+    globals: () => ({ browserToolNames: new Set(), orchestrationEnabled: false, codemodeEnabled: false }),
   });
   const declared = () =>
     policy

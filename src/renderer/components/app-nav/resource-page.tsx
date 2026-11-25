@@ -28,6 +28,7 @@ interface ResourcePageProps {
   onPluginsReloaded?: () => void;
   channelSnapshot: ChannelsSnapshot;
   onOpenRemote: () => void;
+  onOpenFile?: (filePath: string, environmentId: EnvironmentId) => void;
   onScopeChange?: (id: EnvironmentId) => void;
 }
 
@@ -119,6 +120,7 @@ function ResourceWorkspace({
   onPluginsReloaded,
   channelSnapshot,
   onOpenRemote,
+  onOpenFile,
   onScopeChange,
 }: ResourcePageProps) {
   const library = usePluginLibrary({ environmentId, cwd, sessionId, onReloaded: onPluginsReloaded });
@@ -152,6 +154,7 @@ function ResourceWorkspace({
             canReload={sessionId !== null}
             channelSnapshot={channelSnapshot}
             onOpenRemote={onOpenRemote}
+            onOpenFile={onOpenFile}
             onAdd={() => {
               library.openAddMode();
               manage("plugins");

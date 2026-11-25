@@ -28,6 +28,8 @@ import "./chat-window.css";
 import "./notice-shelf.css";
 import "./chat-shared.css";
 import "./messages-process.css";
+import "./messages-tool.css";
+import "./messages-session.css";
 import "./messages-spinner.css";
 import "./messages-failure.css";
 import "./messages-long-prompt.css";

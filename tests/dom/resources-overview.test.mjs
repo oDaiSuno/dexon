@@ -294,6 +294,14 @@ test("same-path resource pages remount with catalogs owned by the explicitly sel
         };
       if (method === "skills.list")
         return { skills: [skill(`${environmentId}-skill`, `/skills/${environmentId}/SKILL.md`)] };
+      if (method === "codemode.get")
+        return {
+          enabled: true,
+          mode: "on",
+          configPath: `/home/${environmentId}/.pi/agent/settings.json`,
+          availability: { available: true },
+          projectOverride: null,
+        };
       throw new Error(`unexpected ${method}`);
     },
   });
@@ -321,10 +329,13 @@ test("same-path resource pages remount with catalogs owned by the explicitly sel
   assert.deepEqual(
     host.requests.map(({ environmentId, method }) => [environmentId, method]),
     [
+      ["primary", "codemode.get"],
       ["primary", "plugins.list"],
       ["primary", "skills.list"],
+      ["gpu", "codemode.get"],
       ["gpu", "plugins.list"],
       ["gpu", "skills.list"],
+      ["primary", "codemode.get"],
       ["primary", "plugins.list"],
       ["primary", "skills.list"],
     ],

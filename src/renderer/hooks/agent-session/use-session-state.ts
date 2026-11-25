@@ -19,13 +19,14 @@ import type {
   TextContent,
 } from "@/lib/types";
 import type { ContextUsageInfo, ModelCatalogScope, ModelCatalogStatus, TurnOutlineItem } from "@contract/types";
-import { useReducer, useRef, useState } from "react";
+import { useEffect, useReducer, useRef, useState } from "react";
 import { ModelChoiceLedger, useModelChoice } from "./model-choice-ledger";
 import {
   AgentEvent,
   AgentPhase,
   CompactResultInfo,
   ModelEntry,
+  LiveToolUpdate,
   QueuedMessages,
   RetryInfo,
   SelectedModel,
@@ -68,6 +69,7 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     streamingMessage: null,
     streamingEntryId: null,
   });
+  const [liveToolUpdates, setLiveToolUpdates] = useState<ReadonlyMap<string, LiveToolUpdate>>(() => new Map());
   const [agentRunning, setAgentRunning] = useState(false);
   const [modelNames, setModelNames] = useState<Record<string, string>>({});
   const [modelList, setModelList] = useState<ModelEntry[]>([]);
@@ -132,6 +134,22 @@ export function useSessionState(opts: UseAgentSessionOptions) {
   const modelListRequestGateRef = useRef(new LatestRequestGate());
   const modelListSizeRef = useRef(0);
   const sessionIdRef = useRef<string | null>(session?.id ?? null);
+  const liveToolSessionRef = useRef({ environmentId, id: session?.id ?? null, cwd: newSessionCwd });
+  useEffect(() => {
+    const previous = liveToolSessionRef.current;
+    const id = session?.id ?? null;
+    const sameEnvironment = previous.environmentId === environmentId;
+    const promoted =
+      sameEnvironment &&
+      previous.id === null &&
+      previous.cwd !== null &&
+      id === sessionIdRef.current &&
+      session?.cwd === previous.cwd;
+    if (!promoted && (!sameEnvironment || previous.id !== id || previous.cwd !== newSessionCwd)) {
+      setLiveToolUpdates(new Map());
+    }
+    liveToolSessionRef.current = { environmentId, id, cwd: newSessionCwd };
+  }, [environmentId, session?.id, session?.cwd, newSessionCwd]);
   const agentRunningRef = useRef(false);
   const handleAgentEventRef = useRef<((event: AgentEvent) => void) | null>(null);
   const initialScrollDoneRef = useRef(false);
@@ -247,6 +265,8 @@ export function useSessionState(opts: UseAgentSessionOptions) {
     agentRunningRef,
     setAgentRunning,
     setAgentPhase,
+    liveToolUpdates,
+    setLiveToolUpdates,
     setRetryInfo,
     dispatch,
     onAgentEnd,

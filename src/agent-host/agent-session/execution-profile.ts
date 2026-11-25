@@ -78,6 +78,7 @@ export function activeToolNamesFor(
   if (profile.toolNames?.length === 0) return [];
   const requested = new Set(profile.toolNames ?? availableToolNames);
   return availableToolNames.filter((name) => {
+    if (name === "codemode") return caps.codemodeEnabled;
     if (name.startsWith("browser_")) return caps.browserToolNames.has(name);
     if (isSessionToolName(name)) return caps.orchestrationEnabled;
     if (isAutomationChatToolName(name)) return caps.automationEnabled === true;

@@ -1,4 +1,4 @@
-import { createEventBus } from "@earendil-works/pi-coding-agent";
+import { createCodemodeExtension, createEventBus } from "@earendil-works/pi-coding-agent";
 import { createAutomationResultTool } from "./agent-session/automation-result-tool";
 import {
   customToolsFor,
@@ -39,6 +39,7 @@ import { desktopToolIntents } from "./session-tool-store";
 import { createDesktopBashToolDefinition, createToolchainBashOptions } from "./toolchain-bash";
 import { toolchainRuntime } from "./toolchain-runtime";
 import { createDesktopSearchToolDefinitions } from "./toolchain-search";
+import { onCodemodeSettingsChanged, refreshEffectiveCodemode } from "./codemode-settings";
 
 import { getLegacySessionToolNames } from "./agent-session/compat";
 import { EXCLUDED_SDK_TOOL_NAMES } from "./agent-session/excluded-tools";
@@ -232,11 +233,12 @@ export async function startRpcSession(
               }),
             }
           : { noExtensions: true, noSkills: true, noPromptTemplates: true, noThemes: true }),
-        extensionFactories: [
-          interactive
-            ? RunPolicy.extension(() => bridge.wrapper?.runPolicy)
-            : executionProfileExtension(() => bridge.wrapper),
-        ],
+        extensionFactories: interactive
+          ? [
+              RunPolicy.extension(() => bridge.wrapper?.runPolicy),
+              { name: "codemode", factory: createCodemodeExtension(), replaceable: true },
+            ]
+          : [executionProfileExtension(() => bridge.wrapper)],
       },
     });
     const executionContext = await toolchainRuntime.createExecutionContext({
@@ -307,12 +309,14 @@ export async function startRpcSession(
         if (definition) Object.assign(definition, { execute: replacement.execute });
       }
     }
+    if (interactive) await refreshEffectiveCodemode(cwd);
     const realSessionId = inner.sessionId as string;
     const wrapper = new AgentSessionWrapper(inner as unknown as AgentSessionLike & ToolLoadoutReader, {
       profile,
       intents: desktopToolIntents,
       toolchain: renderToolchainSection(executionContext.inventoryRevision, executionContext.summary),
     });
+    const unsubscribeCodemode = interactive ? onCodemodeSettingsChanged(() => services.settingsManager.reload()) : null;
     if (chosen.model && !chosenModel) wrapper.sessionModel.adopt(chosen.model);
     bridge.wrapper = wrapper;
     wrapper.setRuntimeDiagnostics(services.diagnostics);
@@ -322,6 +326,7 @@ export async function startRpcSession(
     if (realSessionFile) cacheSessionPath(realSessionId, realSessionFile);
 
     wrapper.onDestroy(() => {
+      unsubscribeCodemode?.();
       rememberLeafChoice(realSessionId, inner.sessionManager);
       registry.delete(realSessionId);
     });

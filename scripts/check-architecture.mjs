@@ -282,6 +282,8 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/notice-shelf.css",
   "styles/chat-shared.css",
   "styles/messages-process.css",
+  "styles/messages-tool.css",
+  "styles/messages-session.css",
   "styles/messages-spinner.css",
   "styles/messages-failure.css",
   "styles/messages-long-prompt.css",

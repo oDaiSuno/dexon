@@ -1,3 +1,4 @@
+import type { LiveToolUpdate } from "@/hooks/agent-session/shared";
 import type { EnvironmentId } from "@contract/environment";
 import { memo } from "react";
 import { ThinkingExpansionStore } from "@/lib/thinking-expansion-store";
@@ -16,6 +17,7 @@ interface Props extends QuoteInteractionProps {
   afterAssistant?: boolean;
   isStreaming?: boolean;
   toolResults?: ReadonlyMap<string, ToolResultMessage>;
+  liveToolUpdates?: ReadonlyMap<string, LiveToolUpdate>;
   toolCallDurations?: ReadonlyMap<string, number>;
   cwd?: string;
   onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
@@ -38,6 +40,7 @@ export const MessageView = memo(function MessageView({
   afterAssistant,
   isStreaming,
   toolResults,
+  liveToolUpdates,
   toolCallDurations,
   cwd,
   onOpenFile,
@@ -84,6 +87,7 @@ export const MessageView = memo(function MessageView({
         message={message as AssistantMessage}
         isStreaming={isStreaming}
         toolResults={toolResults}
+        liveToolUpdates={liveToolUpdates}
         toolCallDurations={toolCallDurations}
         cwd={cwd}
         onOpenFile={onOpenFile}
