@@ -45,6 +45,10 @@ export async function captureFinalVisuals({ window, js, click, exists, waitFor, 
       await waitFor(() => exists("button", "Default space"), "the expanded navigation");
       await click("button", "Plugins & Skills");
       await waitFor(() => exists("heading", "Plugins & Skills"), "the resources overview");
+      await waitFor(async () => {
+        const content = await js("document.body.innerText");
+        return content.includes("installed packages") && !content.includes("Loading…");
+      }, "the loaded resources overview before Manage sources");
       await settle();
       await click("button", "Manage sources");
       await click("tab", "Plugins");
