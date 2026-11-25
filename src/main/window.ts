@@ -9,6 +9,7 @@ import { applyWindowBounds, loadUiState, shouldMaximize, trackWindowState } from
 import { RendererCrashRecovery } from "./renderer-crash-recovery";
 import { installWindowShowFallback } from "./window-show-fallback";
 import { DEV_RENDERER_PORT_ARGUMENT, resolveDevRendererPort } from "../shared/dev-renderer-origin";
+import { isExternalHttpHref, normalizeExternalHref } from "../shared/external-links";
 
 const LIGHT_BACKGROUND = "#fafafa";
 const DARK_BACKGROUND = "#171717";
@@ -79,7 +80,8 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
   installWindowShowFallback(win, showWin);
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (/^https?:/i.test(url) || /^mailto:/i.test(url)) void shell.openExternal(url);
+    const safeUrl = normalizeExternalHref(url);
+    if (safeUrl) void shell.openExternal(safeUrl);
     return { action: "deny" };
   });
 
@@ -95,7 +97,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
     }
     if (!isAllowedMainNavigation(url, options.isDev, devRendererPort)) {
       event.preventDefault();
-      if (/^https?:/i.test(url)) void shell.openExternal(url);
+      if (isExternalHttpHref(url)) void shell.openExternal(url);
     }
   });
 
