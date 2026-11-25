@@ -70,7 +70,7 @@ async function desktopFixture(t, options = {}) {
             };
             export const contextBridge = { exposeInMainWorld(name, bridge) { boundary.bridge = bridge; } };
             export const app = { isPackaged: true, getPath: () => ${JSON.stringify(directory)}, getVersion: () => "1.0" };
-            export const BrowserWindow = {}; export const dialog = {}; export const nativeTheme = {};
+            export const BrowserWindow = {}; export const dialog = {}; export const nativeImage = {}; export const nativeTheme = {};
             export const Notification = {}; export const shell = {}; export const protocol = {}; export const Menu = {};
             export const clipboard = {}; export const webUtils = {};`,
             loader: "js",

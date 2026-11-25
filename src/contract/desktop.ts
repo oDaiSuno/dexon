@@ -107,6 +107,11 @@ export interface SaveTextFileOptions {
 export interface SaveBinaryFileOptions {
   base64: string;
   defaultPath?: string;
+  filters?: { name: string; extensions: string[] }[];
+}
+
+export interface CopyImageOptions {
+  base64: string;
 }
 
 export type FileContextMenuSource = "local-file-reference" | "rendered-agent-text";
@@ -222,6 +227,7 @@ export interface PiBridge {
   automationCommand: <C extends AutomationCommand>(command: C) => Promise<AutomationCommandResult<C>>;
   saveFile: (opts: SaveTextFileOptions) => Promise<string | null>;
   saveBinaryFile: (opts: SaveBinaryFileOptions) => Promise<string | null>;
+  copyImage: (opts: CopyImageOptions) => Promise<void>;
   createHtmlPreview: (content: string, filePath: string, sourceSessionId?: string | null) => Promise<string>;
   releaseHtmlPreview: (previewUrl: string) => Promise<void>;
   notifyAgentEnd: (payload: { sessionId: string; title?: string }) => void;

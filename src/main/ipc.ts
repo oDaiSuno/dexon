@@ -2,10 +2,21 @@ import { parseAutomationCommand } from "../contract/automation-commands";
 import { isRpcError } from "../contract/types";
 import type { AutomationAuthority } from "./automation-authority";
 import { dispatchEnvironmentCommand, parseEnvironmentCommand } from "./environments/environment-command";
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, Notification, shell } from "electron";
+import {
+  app,
+  BrowserWindow,
+  clipboard,
+  dialog,
+  ipcMain,
+  nativeImage,
+  nativeTheme,
+  Notification,
+  shell,
+} from "electron";
 import type { IpcMainEvent, IpcMainInvokeEvent } from "electron";
 import type {
   ChannelCredentialWrite,
+  CopyImageOptions,
   DesktopUpdateState,
   SaveBinaryFileOptions,
   SaveTextFileOptions,
@@ -300,10 +311,25 @@ export function installDesktopIpc(options: DesktopIpcOptions): void {
   trustedHandle("desktop:save-binary-file", async (event, saveOptions: SaveBinaryFileOptions) => {
     if (!saveOptions || typeof saveOptions.base64 !== "string") throw new Error("Invalid binary save payload");
     const win = BrowserWindow.fromWebContents(event.sender);
-    const result = await dialog.showSaveDialog(win ?? undefined!, { defaultPath: saveOptions.defaultPath });
+    const result = await dialog.showSaveDialog(win ?? undefined!, {
+      defaultPath: saveOptions.defaultPath,
+      ...(saveOptions.filters ? { filters: saveOptions.filters } : {}),
+    });
     if (result.canceled || !result.filePath) return null;
     await writeFile(result.filePath, Buffer.from(saveOptions.base64, "base64"));
     return result.filePath;
+  });
+  trustedHandle("desktop:copy-image", async (_event, copyOptions: CopyImageOptions) => {
+    if (!copyOptions || typeof copyOptions.base64 !== "string" || copyOptions.base64.length === 0) {
+      throw new Error("Invalid clipboard image payload");
+    }
+    const buffer = Buffer.from(copyOptions.base64, "base64");
+    if (buffer.length === 0 || buffer.length > 50 * 1024 * 1024) {
+      throw new Error("Invalid clipboard image size");
+    }
+    const image = nativeImage.createFromBuffer(buffer);
+    if (image.isEmpty()) throw new Error("Failed to decode clipboard image");
+    clipboard.writeImage(image);
   });
   trustedHandle(
     "desktop:create-html-preview",

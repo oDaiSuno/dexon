@@ -11,6 +11,7 @@ import { enUS as enUSChat, zhCN as zhCNChat } from "./i18n/chat.ts";
 import { enUS as enUSChatModels, zhCN as zhCNChatModels } from "./i18n/chat-models.ts";
 import { enUS as enUSFiles, zhCN as zhCNFiles } from "./i18n/files.ts";
 import { enUS as enUSHistory, zhCN as zhCNHistory } from "./i18n/history.ts";
+import { enUS as enUSMediaLightbox, zhCN as zhCNMediaLightbox } from "./i18n/media-lightbox.ts";
 import { enUS as enUSModels, zhCN as zhCNModels } from "./i18n/models.ts";
 import { enUS as enUSResources, zhCN as zhCNResources } from "./i18n/resources.ts";
 import { enUS as enUSSettings, zhCN as zhCNSettings } from "./i18n/settings.ts";
@@ -32,6 +33,7 @@ export const enUS: Record<string, string> = {
   ...enUSChatModels,
   ...enUSFiles,
   ...enUSHistory,
+  ...enUSMediaLightbox,
   ...enUSModels,
   ...enUSResources,
   ...enUSSettings,
@@ -54,6 +56,7 @@ export const zhCN: Record<string, string> = {
   ...zhCNChatModels,
   ...zhCNFiles,
   ...zhCNHistory,
+  ...zhCNMediaLightbox,
   ...zhCNModels,
   ...zhCNResources,
   ...zhCNSettings,
