@@ -89,9 +89,16 @@ function isFencedCodeStreaming(
   const endLine = position?.end?.line;
   if (typeof startLine !== "number" || typeof endLine !== "number" || endLine <= startLine) return true;
   const lines = streamingSource.split("\n");
+  const openingLine = lines[startLine - 1];
   const closingLine = lines[endLine - 1];
-  if (typeof closingLine !== "string") return true;
-  return !/^\s*(?:>\s*)*(?:`{3,}|~{3,})\s*$/.test(closingLine);
+  if (typeof openingLine !== "string" || typeof closingLine !== "string") return true;
+  const openMatch = /^\s*(?:>\s*)*(`{3,}|~{3,})/.exec(openingLine);
+  if (!openMatch) return true;
+  const fenceChar = openMatch[1][0];
+  const minLength = openMatch[1].length;
+  const closeMatch = /^\s*(?:>\s*)*(`{3,}|~{3,})\s*$/.exec(closingLine);
+  if (!closeMatch) return true;
+  return closeMatch[1][0] !== fenceChar || closeMatch[1].length < minLength;
 }
 
 function MarkdownCode({ className, children, node, ...props }: MarkdownComponentProps<"code">) {

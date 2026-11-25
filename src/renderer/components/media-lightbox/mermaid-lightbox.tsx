@@ -38,10 +38,20 @@ export function MermaidLightbox({ code, svg, onClose }: { code: string; svg: str
   const { copied: sourceCopied, copy: copySource } = useCopyFeedback();
   const exportWrapRef = useRef<HTMLDivElement>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewModeBtnRef = useRef<HTMLButtonElement>(null);
+  const sourceModeBtnRef = useRef<HTMLButtonElement>(null);
+  const focusAfterModeSwitchRef = useRef(false);
 
   const label = useMemo(() => extractMermaidLabel(code), [code]);
   const dimensions = useMemo(() => measureSvgDimensions(svg), [svg]);
   const lineCount = useMemo(() => code.split("\n").length, [code]);
+
+  useEffect(() => {
+    if (!focusAfterModeSwitchRef.current) return;
+    focusAfterModeSwitchRef.current = false;
+    const target = mode === "preview" ? previewModeBtnRef.current : sourceModeBtnRef.current;
+    target?.focus({ preventScroll: true });
+  }, [mode]);
 
   useEffect(() => {
     return () => {
@@ -136,23 +146,31 @@ export function MermaidLightbox({ code, svg, onClose }: { code: string; svg: str
       aria-label={t("mermaidDiagramViewMode", "Diagram view mode")}
     >
       <button
+        ref={previewModeBtnRef}
         type="button"
         className={`media-lightbox-seg-btn ${mode === "preview" ? "is-active type-label-medium" : "type-label-default"}`}
         aria-pressed={mode === "preview"}
         onClick={() => {
           setExportMenuOpen(false);
-          setMode("preview");
+          if (mode !== "preview") {
+            focusAfterModeSwitchRef.current = true;
+            setMode("preview");
+          }
         }}
       >
         {t("preview", "Preview")}
       </button>
       <button
+        ref={sourceModeBtnRef}
         type="button"
         className={`media-lightbox-seg-btn ${mode === "source" ? "is-active type-label-medium" : "type-label-default"}`}
         aria-pressed={mode === "source"}
         onClick={() => {
           setExportMenuOpen(false);
-          setMode("source");
+          if (mode !== "source") {
+            focusAfterModeSwitchRef.current = true;
+            setMode("source");
+          }
         }}
       >
         {t("source", "Source")}

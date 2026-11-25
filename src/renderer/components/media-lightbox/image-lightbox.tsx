@@ -61,7 +61,7 @@ export function ImageLightbox({
     if (!img || copyStatus === "busy") return;
     setCopyStatus("busy");
     try {
-      const pngBlob = await imageElementToPngBlob(img);
+      const pngBlob = await imageElementToPngBlob(img, src);
       await copyPngBlobToClipboard(pngBlob);
       setCopyStatus("copied");
       scheduleResetCopy();
@@ -69,7 +69,7 @@ export function ImageLightbox({
       setCopyStatus("failed");
       scheduleResetCopy();
     }
-  }, [copyStatus, scheduleResetCopy]);
+  }, [copyStatus, scheduleResetCopy, src]);
 
   const handleDownload = useCallback(async () => {
     if (downloading) return;

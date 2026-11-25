@@ -220,10 +220,28 @@ export async function svgToPngBlob(
   });
 }
 
-export async function imageElementToPngBlob(img: HTMLImageElement): Promise<Blob> {
+export async function imageElementToPngBlob(img: HTMLImageElement, fallbackSrc?: string): Promise<Blob> {
   const width = img.naturalWidth || img.width;
   const height = img.naturalHeight || img.height;
   if (width <= 0 || height <= 0) throw new Error("Image has no decoded dimensions");
+  try {
+    return await drawImageToPngBlob(img, width, height);
+  } catch (error) {
+    const src = fallbackSrc ?? img.currentSrc ?? img.src;
+    if (!src || !/^https?:/i.test(src)) throw error;
+    const corsImage = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const next = new Image();
+      next.crossOrigin = "anonymous";
+      next.referrerPolicy = "no-referrer";
+      next.onload = () => resolve(next);
+      next.onerror = () => reject(error);
+      next.src = src;
+    });
+    return await drawImageToPngBlob(corsImage, corsImage.naturalWidth || width, corsImage.naturalHeight || height);
+  }
+}
+
+async function drawImageToPngBlob(img: HTMLImageElement, width: number, height: number): Promise<Blob> {
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -301,6 +319,30 @@ export async function saveSvgText(svg: string, defaultPath: string): Promise<boo
   return true;
 }
 
+async function saveRawBlob(blob: Blob, defaultPath: string): Promise<boolean> {
+  if (window.piBridge?.saveBinaryFile) {
+    const base64 = await blobToBase64(blob);
+    const saved = await window.piBridge.saveBinaryFile({ base64, defaultPath });
+    if (saved) {
+      await window.piBridge.showItemInFolder(saved);
+      return true;
+    }
+    return false;
+  }
+  triggerBrowserDownload(blob, defaultPath);
+  return true;
+}
+
+function isSameOriginOrBlob(url: string): boolean {
+  if (url.startsWith("blob:")) return true;
+  if (typeof window === "undefined") return false;
+  try {
+    return new URL(url, window.location.href).origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
 export async function downloadMediaImage({
   src,
   fileName,
@@ -319,21 +361,22 @@ export async function downloadMediaImage({
   }
   const parsed = parseDataUrl(src);
   if (parsed) {
-    if (window.piBridge?.saveBinaryFile) {
-      const saved = await window.piBridge.saveBinaryFile({ base64: parsed.base64, defaultPath: fileName });
-      if (saved) {
-        await window.piBridge.showItemInFolder(saved);
-        return true;
-      }
-      return false;
-    }
     const { base64ToBlob } = await import("@/lib/file-blob");
-    triggerBrowserDownload(base64ToBlob(parsed.base64, parsed.mime), fileName);
-    return true;
+    return await saveRawBlob(base64ToBlob(parsed.base64, parsed.mime), fileName);
+  }
+  if (isSameOriginOrBlob(src)) {
+    try {
+      const response = await fetch(src);
+      if (response.ok) {
+        return await saveRawBlob(await response.blob(), fileName);
+      }
+    } catch {
+      void 0;
+    }
   }
   if (imageElement && imageElement.complete && imageElement.naturalWidth > 0) {
     try {
-      const pngBlob = await imageElementToPngBlob(imageElement);
+      const pngBlob = await imageElementToPngBlob(imageElement, src);
       return await savePngBlob(pngBlob, sanitizeExportFileName(fileName, "png"));
     } catch {
       void 0;

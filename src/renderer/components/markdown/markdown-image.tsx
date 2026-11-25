@@ -127,7 +127,9 @@ export function MarkdownImage({
         }}
         onClick={(event) => {
           onClick?.(event);
-          if (!event.defaultPrevented) setLightboxOpen(true);
+          if (event.defaultPrevented) return;
+          if (event.currentTarget.closest("a")) return;
+          setLightboxOpen(true);
         }}
         {...props}
       />
@@ -136,7 +138,11 @@ export function MarkdownImage({
         className="markdown-image-expand type-meta-default"
         aria-label={expandLabel}
         title={expandLabel}
-        onClick={() => setLightboxOpen(true)}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setLightboxOpen(true);
+        }}
       >
         <ExpandIcon size={12} />
         <span>{expandLabel}</span>
