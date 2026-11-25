@@ -5,6 +5,7 @@ import { isSessionOrchestrationSettings } from "../shared/session-orchestration.
 import path from "node:path";
 
 const RENDERER_WRITABLE_UI_STATE_FIELDS = new Set([
+  "language",
   "backgroundMode",
   "managedProcessesEnabled",
   "sessionOrchestration",
@@ -24,6 +25,12 @@ export function validateDesktopUiStatePatch(value: unknown): DesktopUiStatePatch
   }
 
   const validated: DesktopUiStatePatch = {};
+  if ("language" in patch) {
+    if (patch.language !== "en-US" && patch.language !== "zh-CN") {
+      throw new Error("Language must be en-US or zh-CN");
+    }
+    validated.language = patch.language;
+  }
   if ("backgroundMode" in patch) {
     if (typeof patch.backgroundMode !== "boolean") throw new Error("Background mode must be a boolean");
     validated.backgroundMode = patch.backgroundMode;
