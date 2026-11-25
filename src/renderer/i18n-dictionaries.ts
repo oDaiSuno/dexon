@@ -1,5 +1,6 @@
 import { enUS as enUSInteractiveTools, zhCN as zhCNInteractiveTools } from "./i18n/interactive-tools.ts";
 import { enUS as enUSApp, zhCN as zhCNApp } from "./i18n/app.ts";
+import { enUS as enUSAutomation, zhCN as zhCNAutomation } from "./i18n/automation.ts";
 import { enUS as enUSBrowser, zhCN as zhCNBrowser } from "./i18n/browser.ts";
 import { enUS as enUSBrowserHero, zhCN as zhCNBrowserHero } from "./i18n/browser-hero.ts";
 import { enUS as enUSBrowserPanel, zhCN as zhCNBrowserPanel } from "./i18n/browser-panel.ts";
@@ -18,6 +19,7 @@ import { enUS as enUSRemoteUx, zhCN as zhCNRemoteUx } from "./i18n/remote-ux.ts"
 
 export const enUS: Record<string, string> = {
   ...enUSApp,
+  ...enUSAutomation,
   ...enUSInteractiveTools,
   ...enUSBrowser,
   ...enUSBrowserHero,
@@ -38,6 +40,7 @@ export const enUS: Record<string, string> = {
 
 export const zhCN: Record<string, string> = {
   ...zhCNApp,
+  ...zhCNAutomation,
   ...zhCNInteractiveTools,
   ...zhCNBrowser,
   ...zhCNBrowserHero,

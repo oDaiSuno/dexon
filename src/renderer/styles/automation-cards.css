@@ -1,0 +1,286 @@
+.automation-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2-5);
+  margin: var(--space-2) 0 var(--space-3-5);
+  min-width: 0;
+}
+
+.automation-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3-5) var(--space-4);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-card);
+  background: var(--fx-surface-raised);
+  box-shadow: var(--shadow-hairline-card);
+  color: var(--fx-text-primary);
+  min-width: 0;
+  animation: chat-fade-in var(--duration-medium) var(--ease-out) both;
+}
+
+.automation-card.is-settled {
+  background: var(--fx-surface-card);
+}
+
+.automation-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.automation-card-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.automation-card-kicker {
+  color: var(--fx-text-tertiary);
+}
+
+.automation-card-title {
+  color: var(--fx-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.automation-card-subtitle {
+  color: var(--fx-text-secondary);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.automation-card-badges {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  flex-shrink: 0;
+}
+
+.automation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-chip);
+  border: 1px solid var(--fx-line-default);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
+  white-space: nowrap;
+}
+
+.automation-badge.is-success {
+  border-color: var(--fx-status-success-border);
+  background: var(--fx-status-success-soft);
+  color: var(--fx-status-success-text);
+}
+
+.automation-badge.is-warning {
+  border-color: var(--fx-status-warning-border);
+  background: var(--fx-status-warning-soft);
+  color: var(--fx-status-warning-text);
+}
+
+.automation-badge.is-danger {
+  border-color: var(--fx-status-danger-border);
+  background: var(--fx-status-danger-soft);
+  color: var(--fx-status-danger-text);
+}
+
+.automation-badge.is-accent {
+  border-color: var(--fx-accent-blue-border);
+  background: var(--fx-accent-blue-soft);
+  color: var(--fx-accent-blue-text);
+}
+
+.automation-notice {
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-row);
+  border: 1px solid var(--fx-status-warning-border);
+  background: var(--fx-status-warning-soft);
+  color: var(--fx-status-warning-text);
+}
+
+.automation-notice.is-danger {
+  border-color: var(--fx-status-danger-border);
+  background: var(--fx-status-danger-soft);
+  color: var(--fx-status-danger-text);
+}
+
+.automation-notice.is-success {
+  border-color: var(--fx-status-success-border);
+  background: var(--fx-status-success-soft);
+  color: var(--fx-status-success-text);
+}
+
+.automation-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  padding: var(--space-2-5) var(--space-3);
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-inset);
+  min-width: 0;
+}
+
+.automation-section-title {
+  color: var(--fx-text-tertiary);
+}
+
+.automation-meta-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1-5);
+  min-width: 0;
+}
+
+.automation-meta-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.automation-meta-label {
+  flex-shrink: 0;
+  color: var(--fx-text-tertiary);
+  min-width: 72px;
+}
+
+.automation-meta-value {
+  color: var(--fx-text-body);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.automation-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+}
+
+.automation-secret-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.automation-secret-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2-5);
+  border-radius: var(--radius-row);
+  border: 1px solid var(--fx-line-default);
+  background: var(--fx-surface-raised);
+}
+
+.automation-secret-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.automation-input,
+.automation-textarea,
+.automation-select {
+  flex: 1 1 200px;
+  min-width: 0;
+  padding: 6px var(--space-2-5);
+  border: 1px solid var(--fx-line-strong);
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-raised);
+  color: var(--fx-text-primary);
+}
+
+.automation-textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.automation-pre {
+  margin: 0;
+  padding: var(--space-2) var(--space-2-5);
+  border-radius: var(--radius-row);
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-line-subtle);
+  color: var(--fx-text-secondary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.automation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.automation-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1-5);
+  height: 30px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-row);
+  border: 1px solid var(--fx-line-strong);
+  background: var(--fx-surface-raised);
+  color: var(--fx-text-primary);
+  cursor: pointer;
+  transition:
+    background-color var(--duration-quick) var(--ease-smooth-out),
+    border-color var(--duration-quick) var(--ease-smooth-out);
+}
+
+.automation-btn:hover:not(:disabled) {
+  background: var(--fx-surface-raised-hover);
+}
+
+.automation-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.automation-btn.is-primary {
+  border-color: var(--fx-accent-blue-fill);
+  background: var(--fx-accent-blue-fill);
+  color: var(--fx-text-on-accent);
+}
+
+.automation-btn.is-primary:hover:not(:disabled) {
+  border-color: var(--fx-accent-blue-fill-hover);
+  background: var(--fx-accent-blue-fill-hover);
+}
+
+.automation-btn.is-danger {
+  border-color: var(--fx-status-danger);
+  background: var(--fx-status-danger);
+  color: var(--fx-text-on-danger);
+}
+
+.automation-btn.is-compact {
+  height: 24px;
+  padding: 0 var(--space-2);
+}
+
+.automation-error {
+  color: var(--fx-status-danger-text);
+  margin: 0;
+  overflow-wrap: anywhere;
+}

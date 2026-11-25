@@ -5,7 +5,12 @@ import type { DaemonAutomationSecrets } from "./daemon-automation-secrets";
 import { ChannelManager, type ChannelManagerOptions } from "./channels/channel-manager";
 import { ensureSessionEvents } from "./session-event-binding";
 import { desktopUserDataPath } from "./desktop-state-file";
-import { createAutomationRuntime, type AutomationRuntimeDeps } from "./automation";
+import {
+  clearAutomationChatHost,
+  createAutomationRuntime,
+  initializeAutomationChatHost,
+  type AutomationRuntimeDeps,
+} from "./automation";
 import { callMain } from "./parent-rpc";
 import path from "node:path";
 import { registerAuthHandlers } from "./handlers/auth";
@@ -71,6 +76,7 @@ export function registerHandlers(server: RpcServer, options: HostHandlerOptions 
     },
     ...options.automation,
   });
+  initializeAutomationChatHost({ runtime: automationRuntime, channels: channelManager });
   const automationCleanup = registerAutomationHandlers(
     server,
     automationRuntime,
@@ -92,6 +98,7 @@ export function registerHandlers(server: RpcServer, options: HostHandlerOptions 
   registerHostHandlers(server, { selfCheck: { listModels, applyPluginAction, managedProcesses } });
   return async () => {
     await automationStarted;
+    clearAutomationChatHost();
     await automationRuntime.stop();
     automationCleanup();
     await modelsCleanup();
