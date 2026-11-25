@@ -81,6 +81,54 @@
 .markdown-body a:hover {
   text-decoration-color: var(--fx-accent-blue);
 }
+.external-link-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 2px;
+  background: var(--fx-surface-raised);
+  border: 1px solid var(--fx-line-default);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-menu);
+  color: var(--fx-text-primary);
+}
+.external-link-pill-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  height: 24px;
+  padding: 0 var(--space-2-5);
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--fx-text-primary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background var(--duration-quick) var(--ease-smooth-out),
+    color var(--duration-quick) var(--ease-smooth-out);
+}
+.external-link-pill-action:hover {
+  background: var(--fx-surface-hover);
+}
+.external-link-pill-action:focus-visible {
+  outline: 2px solid var(--fx-accent-blue);
+  outline-offset: -2px;
+}
+.external-link-pill-action.is-copied {
+  color: var(--fx-status-success-text);
+}
+.external-link-pill-action.is-error {
+  color: var(--fx-status-danger-text);
+}
+.external-link-pill-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--fx-line-default);
+  flex-shrink: 0;
+}
 .markdown-body img:not(.token-chip-thumb) {
   display: block;
   max-width: 100%;

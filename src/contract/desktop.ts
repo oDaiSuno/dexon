@@ -171,6 +171,7 @@ export type StageRemoteAttachmentResult =
     };
 
 export interface DesktopUiState {
+  language?: "en-US" | "zh-CN";
   backgroundMode?: boolean;
   managedProcessesEnabled?: boolean;
   sessionOrchestration?: SessionOrchestrationSettings;

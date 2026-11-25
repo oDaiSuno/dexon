@@ -1,6 +1,7 @@
 import { copyFile, open } from "node:fs/promises";
 import path from "node:path";
 import {
+  app,
   BrowserWindow,
   clipboard,
   dialog,
@@ -10,7 +11,9 @@ import {
   type MenuItemConstructorOptions,
 } from "electron";
 import type { ShowFileContextMenuRequest, ShowFileContextMenuResult } from "../contract/desktop";
+import { normalizeExternalHref } from "../shared/external-links";
 import { getFileAssociations, openWithDialog, runOpenWith } from "./file-associations";
+import { loadUiState } from "./window-state";
 import {
   MAX_CONTEXT_TEXT_FILE_BYTES,
   validateFileContextRequest,
@@ -208,14 +211,21 @@ export async function showFileContextMenu(win: BrowserWindow, request: unknown):
   }
 }
 
+function resolveContextMenuLanguage(): ShowFileContextMenuRequest["language"] {
+  const saved = loadUiState().language;
+  if (saved === "zh-CN" || saved === "en-US") return saved;
+  return app.getLocale().toLowerCase().startsWith("zh") ? "zh-CN" : "en-US";
+}
+
 export function setupContextMenu(win: BrowserWindow): void {
   win.webContents.on("context-menu", (_event, params) => {
-    const labels = fileMenuLabels("en-US");
+    const language = resolveContextMenuLanguage();
+    const labels = fileMenuLabels(language);
     if (/^file:/i.test(params.linkURL)) {
-      void validateFileContextRequest({ href: params.linkURL, source: "rendered-agent-text", language: "en-US" })
+      void validateFileContextRequest({ href: params.linkURL, source: "rendered-agent-text", language })
         .then(async (target) => {
           if (!target || win.isDestroyed()) return;
-          const template = await buildValidatedFileContextMenu(win, target, "en-US", params);
+          const template = await buildValidatedFileContextMenu(win, target, language, params);
           if (!win.isDestroyed()) Menu.buildFromTemplate(template).popup({ window: win });
         })
         .catch(() => undefined);
@@ -223,10 +233,11 @@ export function setupContextMenu(win: BrowserWindow): void {
     }
 
     const template: MenuItemConstructorOptions[] = [];
-    if (/^https?:\/\//i.test(params.linkURL)) {
+    const externalUrl = normalizeExternalHref(params.linkURL);
+    if (externalUrl) {
       template.push(
-        { label: labels.openBrowser, click: () => void shell.openExternal(params.linkURL) },
-        { label: labels.copyLink, click: () => clipboard.writeText(params.linkURL) },
+        { label: labels.openBrowser, click: () => void shell.openExternal(externalUrl) },
+        { label: labels.copyLink, click: () => clipboard.writeText(externalUrl) },
       );
     }
     appendTextItems(template, params, win, labels);
