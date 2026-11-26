@@ -3,6 +3,7 @@ import { createSessionDetail } from "../../src/renderer/hooks/agent-session/sess
 export const navigationPaths = {
   home: "/Users/navigation-fixture",
   personal: "/Users/navigation-fixture/.dexon",
+  automations: "/Users/navigation-fixture/.dexon/automations",
   project: "/work/navigation-project",
   worktree: "/work/navigation-project-review",
   bisect: "/work/navigation-project-bisect",
@@ -173,7 +174,7 @@ export const navigationLabels = {
 export const reloadedPluginStatus = "Navigation plugin ready after explicit reload";
 export const remainingSettings = ["General", "Models", "Browser", "Developer Tools", "Servers", "About"];
 export const remainingSettingsZhCN = ["通用", "模型", "浏览器", "开发工具", "服务器连接", "关于"];
-export const railEntries = ["Show sidebar", "New session", "Plugins & Skills", "Settings"];
+export const railEntries = ["Show sidebar", "New session", "Plugins & Skills", "Automation", "Settings"];
 export const initialSkillContent = "# Personal checklist\n\nKeep the review scoped to the current space.\n";
 export const savedSkillContent = "# Personal checklist\n\nVerify the navigation before shipping.\n";
 

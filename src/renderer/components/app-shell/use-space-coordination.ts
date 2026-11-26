@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { automationProjectPath, isAutomationManagedChild } from "@/hooks/use-project-spaces";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { parseStoredSpaceCwd, resolveStartupSpace } from "@/lib/space-startup";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
-import { getActiveEnvironmentId, environmentRegistry } from "@/lib/environment-registry";
-import { workspaceStore } from "@/lib/workspace-store";
+import { getActiveEnvironmentId, environmentRegistry, useEnvironments } from "@/lib/environment-registry";
+import { workspaceStore, type WorkspaceSnapshot } from "@/lib/workspace-store";
 import { environmentAffordances } from "@/lib/environment-affordances";
 
 const defaultSpaceIo: SpaceCoordinationIo = createDefaultSpaceIo();
@@ -18,6 +19,8 @@ export interface SpaceCoordinationIo {
   readStoredSpaceCwd(): Promise<string | null>;
 
   preparePersonalSpace(): Promise<string>;
+
+  prepareAutomationSpace?(): Promise<string>;
 
   validateSpace(path: string): Promise<string>;
 
@@ -36,6 +39,11 @@ export function createDefaultSpaceIo(): SpaceCoordinationIo {
     preparePersonalSpace: async () => {
       const prepared = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).defaultCwd();
       if (!prepared?.cwd) throw new Error("Personal directory preparation failed");
+      return prepared.cwd;
+    },
+    prepareAutomationSpace: async () => {
+      const prepared = await getEnvironmentApiClient(PRIMARY_ENVIRONMENT_ID).automationCwd();
+      if (!prepared?.cwd) throw new Error("Automation directory preparation failed");
       return prepared.cwd;
     },
     validateSpace: async (path) => {
@@ -77,10 +85,36 @@ export function useSpaceCoordination({
   const decidedRef = useRef(false);
   const attemptedRef = useRef<"stored" | "personal" | null>(null);
   const storedCwdRef = useRef<string | null>(null);
+  const [attemptedCwd, setAttemptedCwd] = useState<string | null>(null);
+  const [personalCwd, setPersonalCwd] = useState<string | null>(null);
+  const [automationCwd, setAutomationCwd] = useState<string | null>(null);
+  const automationCwdRef = useRef<string | null>(null);
+  const automationRequest = useRef<Promise<string | null> | null>(null);
+  const primary = useEnvironments().find((environment) => environment.id === PRIMARY_ENVIRONMENT_ID);
+  const primaryGeneration = primary?.status.phase === "connected" ? primary.status.generation : null;
+  const prepareAutomationSpace = useCallback(() => {
+    automationRequest.current ??= Promise.resolve()
+      .then(() => io.prepareAutomationSpace?.() ?? null)
+      .catch(() => null);
+    return automationRequest.current;
+  }, [io]);
+  useEffect(() => {
+    let cancelled = false;
+    automationRequest.current = null;
+    void prepareAutomationSpace().then((cwd) => {
+      if (cancelled) return;
+      if (cwd) automationCwdRef.current = cwd;
+      setAutomationCwd(cwd);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [prepareAutomationSpace, primaryGeneration]);
 
   useEffect(
     () => () => {
       generationRef.current += 1;
+      persistVersionRef.current += 1;
     },
     [],
   );
@@ -95,7 +129,12 @@ export function useSpaceCoordination({
       const version = ++persistVersionRef.current;
       setRemembered(false);
       setRememberFailed(false);
-      void io.persistSpaceCwd(path).then(
+      const write = async () => {
+        const root = automationCwdRef.current ?? (io.prepareAutomationSpace ? await prepareAutomationSpace() : null);
+        if (persistVersionRef.current !== version) return;
+        await io.persistSpaceCwd(automationProjectPath(path, automationCwdRef.current ?? root));
+      };
+      void write().then(
         () => {
           if (persistVersionRef.current !== version) return;
           setRememberFailed(false);
@@ -108,7 +147,7 @@ export function useSpaceCoordination({
         },
       );
     },
-    [io],
+    [io, prepareAutomationSpace],
   );
 
   const commit = useCallback(
@@ -118,9 +157,6 @@ export function useSpaceCoordination({
     },
     [persist, setPhase],
   );
-
-  const [attemptedCwd, setAttemptedCwd] = useState<string | null>(null);
-  const [personalCwd, setPersonalCwd] = useState<string | null>(null);
 
   const preparePersonal = useCallback((): Promise<string | null> => {
     const generation = ++generationRef.current;
@@ -153,13 +189,16 @@ export function useSpaceCoordination({
           if (generation !== generationRef.current) return;
           commit(validated);
         },
-        (error) => {
+        async (error) => {
           if (generation !== generationRef.current) return;
-          setPhase({ phase: "unavailable", attempted: "stored", reason: errorMessage(error) });
+          const root = await prepareAutomationSpace();
+          if (generation !== generationRef.current) return;
+          if (root && isAutomationManagedChild(path, root)) commit(root);
+          else setPhase({ phase: "unavailable", attempted: "stored", reason: errorMessage(error) });
         },
       );
     },
-    [commit, io, setPhase],
+    [commit, io, prepareAutomationSpace, setPhase],
   );
 
   const [storedSpaceCwd, setStoredSpaceCwd] = useState<string | null | undefined>(undefined);
@@ -244,6 +283,8 @@ export function useSpaceCoordination({
     spacePhase,
     attemptedCwd,
     personalCwd,
+    automationCwd,
+    prepareAutomationSpace,
     remembered,
     rememberFailed,
     noteExternalCwd,
@@ -260,3 +301,18 @@ function errorMessage(error: unknown): string {
 }
 
 export type SpaceCoordination = ReturnType<typeof useSpaceCoordination>;
+
+export function useStartupSpaceSync(snapshot: WorkspaceSnapshot, spacePhase: SpacePhase, sessionFound: boolean) {
+  const synced = useRef(false);
+  useEffect(() => {
+    if (synced.current || !snapshot.loaded || spacePhase.phase !== "ready") return;
+    synced.current = true;
+    if (
+      snapshot.focus.environmentId === PRIMARY_ENVIRONMENT_ID &&
+      snapshot.focus.spaceKey === null &&
+      snapshot.focus.sessionId === null &&
+      !sessionFound
+    )
+      workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: spacePhase.cwd });
+  }, [snapshot.loaded, snapshot.focus, spacePhase, sessionFound]);
+}

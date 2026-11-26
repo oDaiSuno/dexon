@@ -6,6 +6,7 @@ import { UsageCard } from "./session-info-popover";
 import { formatUsageCost, formatUsagePercent } from "./usage-format";
 import { ServerGlyph, TopBarServerStatus } from "./top-bar-server-status";
 import { useSpaceAttribution } from "@/lib/space-attribution";
+import { useAutomationSessionIntent } from "@/lib/automation-session-intent";
 import type { SessionInfo } from "@/lib/types";
 import type { SessionStatsInfo } from "@/lib/pi-types";
 import type { SessionCopyFeedback, SessionCopyField, ContextUsageState, UsageCompaction } from "./use-session-info";
@@ -272,6 +273,15 @@ export function TopBar({
 }) {
   const { language, t } = useI18n();
   const attribution = useSpaceAttribution();
+  const intent = useAutomationSessionIntent();
+  const newSessionTitle =
+    intent?.mode === "draft"
+      ? t("autoNavNewDraftTitle", "New session · Automation draft")
+      : intent?.mode === "modify"
+        ? t("autoNavNewModifyTitle", "New session · Modify automation")
+        : intent?.mode === "adjust"
+          ? t("autoNavNewAdjustTitle", "New session · Adjust unsaved draft")
+          : t("newSessionTitle", "New session");
   const topBarRef = useRef<HTMLDivElement | null>(null);
   const usageRef = useRef<HTMLDivElement | null>(null);
   const capsuleRef = useRef<HTMLButtonElement | null>(null);
@@ -384,7 +394,7 @@ export function TopBar({
           {selectedSession ? (
             <SessionBreadcrumb session={selectedSession} compact={isMobile} />
           ) : (
-            <SessionTitle>{t("newSessionTitle", "New session")}</SessionTitle>
+            <SessionTitle>{newSessionTitle}</SessionTitle>
           )}
         </>
       )}

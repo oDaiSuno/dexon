@@ -1,4 +1,5 @@
 import { isChannelSourceCancelledType, isChannelSourceType, isRetryOutcomeType } from "./session-entry-compat";
+import { automationPromptsOnBranch } from "./automation-prompt-context";
 import type {
   AgentMessage,
   AssistantMessage,
@@ -42,6 +43,7 @@ export function withoutModelOnlyFields(message: AgentMessage): AgentMessage {
 
 export function projectDisplayMessages(path: readonly SessionEntry[]): ProjectedMessage[] {
   const retryByEntryId = retryOutcomesByEntryId(path);
+  const automationPrompts = automationPromptsOnBranch(path).byEntryId;
   const projected: ProjectedMessage[] = [];
   let pendingChannelSource: ReturnType<typeof parseChannelSourceMarker> = null;
   path.forEach((entry, pathIndex) => {
@@ -60,6 +62,8 @@ export function projectDisplayMessages(path: readonly SessionEntry[]): Projected
     if (message.role === "user") {
       message = withUserMessageSource(message, pendingChannelSource?.channel, pendingChannelSource?.attachments);
       pendingChannelSource = null;
+      const automationPrompt = automationPrompts.get(entry.id);
+      if (automationPrompt) message = { ...message, automationPrompt: automationPrompt.badge };
     }
     const retry = retryByEntryId.get(entry.id);
     const stripped = withoutModelOnlyFields(message);

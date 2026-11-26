@@ -25,7 +25,7 @@ async function collapsedNavigation(t, options = {}) {
   return scene;
 }
 
-test("collapsing populated history leaves exactly the four approved actionable rail entries", async (t) => {
+test("collapsing populated history leaves exactly the five approved actionable rail entries", async (t) => {
   const scene = await startNavigation(t);
   await waitFor(() => historyRows(scene, "Personal release notes", "Another personal conversation"));
   await click(control(scene.navigation(), "button", "Hide sidebar"));

@@ -21,8 +21,8 @@ import * as triggers from "./trigger-rows";
 import { resolveInbox } from "./inbox-rows";
 import { cancelRun, settleCancelledRun } from "./cancel-rows";
 import { recover } from "./recovery";
-import { normalizeTaskSpec, type NormalizeOptions } from "../spec/normalize";
-import { deriveRequiredGrant, hashScriptManifest } from "../spec/grant";
+import type { NormalizeOptions } from "../spec/normalize";
+import { compileTaskSpec } from "../spec/compile";
 
 export class AutomationStore {
   private constructor(private readonly adb: AutomationDatabase) {}
@@ -37,11 +37,8 @@ export class AutomationStore {
     return this.adb.onCommit(listener);
   }
   saveTask(spec: TaskSpec, opts: NormalizeOptions = {}) {
-    normalizeTaskSpec(spec, opts);
-    const hashes = opts.scriptHashes ?? hashScriptManifest(spec);
-    const plan = normalizeTaskSpec(spec, { scriptHashes: hashes });
-    const required = deriveRequiredGrant(plan, spec, { scriptHashes: hashes });
-    return this.adb.withTx(() => tasks.saveTask(this.adb, spec, plan, required));
+    const compiled = compileTaskSpec(spec, opts);
+    return this.adb.withTx(() => tasks.saveTask(this.adb, compiled.spec, compiled.plan, compiled.requiredGrant));
   }
   saveRevision(spec: TaskSpec, opts: NormalizeOptions = {}) {
     return this.saveTask(spec, opts);
@@ -119,6 +116,9 @@ export class AutomationStore {
   }
   listTasks() {
     return queries.listTasks(this.adb);
+  }
+  listTaskRevisions(taskId: string) {
+    return queries.listTaskRevisions(this.adb, taskId);
   }
   getTaskPlan(taskId: string, revision: number) {
     return queries.getTaskPlan(this.adb, taskId, revision);

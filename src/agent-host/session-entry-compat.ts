@@ -1,19 +1,11 @@
-/**
- * Backward compatibility for session entries written by the upstream
- * Pi Agent Desktop. Dexon shares the ~/.pi/agent data directory, so sessions
- * created before the rename still carry the old "pi-desktop-*" customType
- * markers.
- *
- * Read paths accept both spellings; every write uses the Dexon spelling.
- * This file is the only place where the legacy spellings may appear.
- */
-
 export const CHANNEL_SOURCE_TYPE = "dexon-channel-source";
 export const CHANNEL_SOURCE_CANCELLED_TYPE = "dexon-channel-source-cancelled";
 export const CHANNEL_ATTACHMENT_CONTEXT_TYPE = "dexon-channel-attachment-context";
 export const SESSION_TOOLS_TYPE = "dexon-session-tools";
 export const SESSION_SOURCE_TYPE = "dexon-session-source";
 export const RETRY_OUTCOME_TYPE = "dexon-retry-outcome";
+export const AUTOMATION_PROMPT_TYPE = "dexon.automation_prompt";
+export const AUTOMATION_PROMPT_CANCELLED_TYPE = "dexon.automation_prompt_cancelled";
 
 const LEGACY_CHANNEL_SOURCE_TYPE = "pi-desktop-channel-source";
 const LEGACY_CHANNEL_SOURCE_CANCELLED_TYPE = "pi-desktop-channel-source-cancelled";
@@ -44,7 +36,6 @@ export function isRetryOutcomeType(customType: string): boolean {
   return customType === RETRY_OUTCOME_TYPE;
 }
 
-/** Remove toolchain summary markers (Dexon and legacy spelling) from stored system prompts. */
 export function stripToolchainMarkers(text: string): string {
   return text
     .replace(/\n*<(?:dexon|pi-desktop)-toolchain revision="\d+">[\s\S]*?<\/(?:dexon|pi-desktop)-toolchain>\n*/g, "")

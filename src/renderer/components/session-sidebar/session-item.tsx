@@ -399,6 +399,7 @@ export function SessionItem({
               <SessionItemActionsMenu
                 at={menuAt}
                 sessionPath={session.path}
+                sealed={session.relation === "automation"}
                 onRename={startRename}
                 regenerate={regenerate}
                 onRegenerate={regenerateName}

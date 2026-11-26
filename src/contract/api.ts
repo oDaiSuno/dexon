@@ -1,9 +1,13 @@
+import type { Streams } from "./api-streams";
+export type { Streams } from "./api-streams";
 import type { HostSelfCheckReport } from "../shared/host-self-check";
 import type { FolderListing } from "./folder-browse";
 import type { SecretName, TaskSpec } from "../shared/automation/spec";
 import type {
   TaskView,
   TaskRevisionView,
+  TaskRevisionSummary,
+  TaskValidationResult,
   SaveTaskResult,
   TaskEnableRequest,
   ListRunsQuery,
@@ -18,11 +22,9 @@ import type {
   AutomationActivity,
   AutomationSecretWrite,
   SignalEmit,
-  AutomationChange,
 } from "../shared/automation/views";
 import type {
   AgentCommand,
-  AgentEvent,
   CodemodeSettingsPatch,
   CodemodeSettingsResult,
   CredentialMutationResult,
@@ -31,7 +33,6 @@ import type {
   FileContent,
   FileMeta,
   HistoryWindow,
-  LoginProgressEvent,
   DefaultThinkingLevel,
   ModelDefaultsResult,
   ModelPreferencesResult,
@@ -42,7 +43,6 @@ import type {
   ProviderChannelTestResult,
   ProviderChannelsResult,
   ProviderStatus,
-  RunningStateEvent,
   SessionDetail,
   SessionInfo,
   SessionNamingModelRef,
@@ -65,24 +65,18 @@ import type { SessionLiveStatus, SessionModelRef } from "../shared/session-orche
 import type {
   ChannelAccountConfig,
   ChannelBinding,
-  ChannelBindingChange,
   ChannelLoginEvent,
   ChannelLoginStartRequest,
   ChannelProbeResult,
   ChannelsSnapshot,
-  ChannelStatus,
-  ChannelPairingRequest,
-  ChannelActivity,
   ChannelId,
   ChannelTestSendResult,
 } from "../shared/channel-types";
 import type { ToolCapabilityId, ToolProvider } from "../shared/toolchains/types";
 import type { EnvironmentDescriptor } from "./environment";
 import type {
-  ManagedProcessChangedEvent,
   ManagedProcessLogStream,
   ManagedProcessLogWindow,
-  ManagedProcessOutputEvent,
   ManagedProcessPublicInfo,
   ManagedProcessReadParams,
   ManagedProcessWaitParams,
@@ -96,6 +90,8 @@ export type GenerateTitleParams =
 export interface Api {
   "automation.listTasks": { params: { cwd?: string } | void; result: { tasks: readonly TaskView[] } };
   "automation.getTask": { params: { taskId: string; revision?: number }; result: { task: TaskRevisionView } };
+  "automation.validateTask": { params: { spec: unknown }; result: TaskValidationResult };
+  "automation.listRevisions": { params: { taskId: string }; result: { revisions: readonly TaskRevisionSummary[] } };
   "automation.saveTask": { params: { spec: TaskSpec }; result: SaveTaskResult };
   "automation.enableTask": { params: TaskEnableRequest; result: { task: TaskView }; access: "gatekeeper" };
   "automation.disableTask": { params: { taskId: string }; result: { task: TaskView } };
@@ -487,38 +483,10 @@ export interface Api {
       reason?: "missing" | "not-directory" | "denied" | "io-error";
     };
   };
+  "system.automationCwd": { params: void; result: { cwd: string } };
   "system.defaultCwd": { params: void; result: { cwd: string } };
   "system.allowRoot": { params: { path: string }; result: { ok: true } };
   "system.runningCount": { params: void; result: { count: number; sessionIds: string[] } };
-}
-
-export interface Streams {
-  "automation.changed": AutomationChange;
-  "agent.events": AgentEvent;
-  "agent.running": RunningStateEvent;
-  "auth.login": LoginProgressEvent;
-  "sessions.changed": {
-    cwd: string | null;
-    sessionId?: string;
-    session?: SessionInfo;
-    deleted?: boolean;
-    fullRefresh?: boolean;
-    cause?: "live-append" | "mutation" | "external";
-  };
-  "files.changed": {
-    path: string;
-    event: "connected" | "change" | "error";
-    mtime?: string;
-    size?: number;
-    message?: string;
-  };
-  "channels.status": ChannelStatus;
-  "channels.login": ChannelLoginEvent;
-  "channels.pairing": ChannelPairingRequest;
-  "channels.binding": ChannelBindingChange;
-  "channels.activity": ChannelActivity;
-  "processes.changed": ManagedProcessChangedEvent;
-  "processes.output": ManagedProcessOutputEvent;
 }
 
 export type ApiMethod = keyof Api;

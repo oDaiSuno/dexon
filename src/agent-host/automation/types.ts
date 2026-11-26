@@ -2,6 +2,8 @@ import type { TaskSpec, DesktopConsent } from "../../shared/automation/spec";
 import type {
   TaskView,
   TaskRevisionView,
+  TaskRevisionSummary,
+  TaskValidationResult,
   RunSummaryView,
   RunDetailView,
   InboxItem,
@@ -48,12 +50,14 @@ export interface AutomationRuntime {
   activity(): AutomationActivity;
   start(): Promise<void>;
   stop(): Promise<void>;
+  validateTask(rawSpec: unknown): Promise<TaskValidationResult>;
   saveTask(spec: TaskSpec | unknown): Promise<SaveTaskResult>;
   enableTask(request: EnableTaskRequest): TaskView;
   disableTask(taskId: string): TaskView;
   deleteTask(taskId: string): void;
   listTasks(query?: { readonly cwd?: string }): readonly TaskView[];
   getTask(taskId: string, revision?: number): TaskRevisionView;
+  listTaskRevisions(taskId: string): TaskRevisionSummary[];
   startRun(request: FireRequest): FireResult;
   cancelRun(runId: string): Promise<RunSummaryView>;
   listRuns(query?: ListRunsQuery): readonly RunSummaryView[];

@@ -134,8 +134,11 @@ test("a typed composer draft follows local-to-remote-to-local card navigation wh
     ],
     reply(environmentId, method, params) {
       const remote = environmentId === "gpu";
-      if (method === "system.home") return { home: remote ? "/home/remote" : "/home/local" };
+      const home = remote ? "/home/remote" : "/home/local";
+      if (method === "system.home") return { home };
       if (method === "system.defaultCwd") return { cwd: SHARED_ROOT };
+      if (method === "system.automationCwd") return { cwd: `${home}/.dexon/automations` };
+      if (method === "automation.listInbox") return { items: [] };
       if (method === "system.validateCwd") return { ok: true, path: params.path };
       if (method === "sessions.list") return { sessions: [], runningSessionIds: [], sessionStatuses: {} };
       if (method === "models.sessionNaming.get") return { enabled: true, model: null, configured: true };

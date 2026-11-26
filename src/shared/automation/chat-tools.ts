@@ -19,7 +19,7 @@ export function isAutomationChatToolName(name: string): name is AutomationChatTo
   return AUTOMATION_CHAT_TOOL_NAME_SET.has(name);
 }
 
-export const AUTOMATION_GUIDE_TOPICS = ["core", "triggers", "steps", "expressions", "recipes"] as const;
+export const AUTOMATION_GUIDE_TOPICS = ["playbook", "core", "triggers", "steps", "expressions", "recipes"] as const;
 export type AutomationGuideTopic = (typeof AUTOMATION_GUIDE_TOPICS)[number];
 
 export const AUTOMATION_USER_ACTIONS = [

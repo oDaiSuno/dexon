@@ -66,6 +66,7 @@ export interface ChatInputProps extends ModelPickerStatus, QuoteInteractionProps
   draftKey?: string;
   promptHistory?: readonly RecallablePrompt[];
   cwd?: string | null;
+  isEmptyNew?: boolean;
   visible?: boolean;
   remote?: ComposerRemote | null;
   navigation?: ComposerNavigation;

@@ -9,7 +9,7 @@ import { loadHandlersModule, captureHandlers, root } from "./handlers-test-suppo
 
 test("registerHandlers exposes every contract method exactly once", async () => {
   const { handlers } = await captureHandlers();
-  assert.equal(Object.keys(handlers).length, 117);
+  assert.equal(Object.keys(handlers).length, 120);
   for (const method of [
     "host.selfCheck",
     "host.ping",
@@ -17,6 +17,8 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "projects.browse",
     "automation.listTasks",
     "automation.saveTask",
+    "automation.validateTask",
+    "automation.listRevisions",
     "automation.enableTask",
     "automation.resolveInbox",
     "automation.resolveAttention",
@@ -58,6 +60,7 @@ test("registerHandlers exposes every contract method exactly once", async () => 
     "processes.restart",
     "processes.export",
     "processes.clearFinished",
+    "system.automationCwd",
     "system.allowRoot",
   ]) {
     assert.equal(typeof handlers[method], "function", `${method} must be registered`);

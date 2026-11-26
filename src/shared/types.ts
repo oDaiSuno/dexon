@@ -1,7 +1,6 @@
+import type { AutomationPromptBadge } from "./automation/prompt-context";
 import type { QuestionDraft, QuestionnaireRequest } from "./interactive-tools";
 import type { SessionRelation, SessionSourceRef } from "./session-orchestration";
-
-// Types mirrored from pi-mono coding-agent session-manager
 
 export interface SessionHeader {
   type: "session";
@@ -22,7 +21,6 @@ export interface SessionEntryBase {
 export interface TextContent {
   type: "text";
   text: string;
-  /** UI transport metadata for content omitted from an initial history page. */
   deferredContent?: DeferredContentRef;
 }
 
@@ -41,14 +39,12 @@ export interface ImageContent {
     data?: string;
     url?: string;
   };
-  /** UI transport metadata for binary content omitted from an initial history page. */
   deferredContent?: DeferredContentRef;
 }
 
 export interface ThinkingContent {
   type: "thinking";
   thinking: string;
-  /** UI transport metadata for oversized reasoning omitted from an initial history page. */
   deferredContent?: DeferredContentRef;
 }
 
@@ -57,7 +53,6 @@ export interface ToolCallContent {
   toolCallId: string;
   toolName: string;
   input: Record<string, unknown>;
-  /** UI transport metadata for oversized tool input omitted from an initial history page. */
   deferredContent?: DeferredContentRef;
 }
 
@@ -66,11 +61,10 @@ export type AssistantContentBlock = TextContent | ImageContent | ThinkingContent
 export interface UserMessage {
   role: "user";
   content: string | (TextContent | ImageContent)[];
-  /** UI-only origin metadata. It is never projected into the model prompt. */
   channelSource?: "weixin" | "telegram" | "feishu";
-  /** UI-only attachment metadata retained by channel source markers. */
   channelAttachments?: ChannelMessageAttachment[];
   sessionSource?: SessionSourceRef;
+  automationPrompt?: AutomationPromptBadge;
   syntheticSource?: "branch_summary";
   versions?: { entryIds: string[]; index: number };
   timestamp?: number;
@@ -379,20 +373,16 @@ export interface SessionInfo {
   modified: string;
   messageCount: number;
   firstMessage: string;
-  parentSessionId?: string; // set if this session was forked from another
+  parentSessionId?: string;
   relation?: SessionRelation;
   createdBySessionId?: string;
-  /** Main repo root shared by all worktrees of this cwd (cwd itself for non-git dirs).
-   *  Always set by the server; optional because the client builds transient
-   *  SessionInfo objects before the first refresh. Fall back to cwd. */
   projectRoot?: string;
-  /** Branch name when cwd is a linked git worktree (not the main checkout) */
   worktreeBranch?: string;
 }
 
 export interface SessionContext {
   messages: AgentMessage[];
-  entryIds: string[]; // parallel to messages — the session entry id for each message
+  entryIds: string[];
   thinkingLevel: string;
   model: { provider: string; modelId: string } | null;
 }

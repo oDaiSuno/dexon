@@ -10,6 +10,12 @@ import type {
 import { isCodemodeToolName } from "../../shared/codemode";
 import { stripQuoteCoordinatesFromMessages } from "../../shared/quote-tokens";
 import { isAutomationChatReady } from "../automation";
+import { withAutomationPromptContext } from "../automation-prompt-context";
+import {
+  clearAutomationPromptQueue,
+  observeAutomationPromptInput,
+  startAutomationPromptMessage,
+} from "./automation-prompt-queue";
 import { browserCapabilityRuntime } from "../browser-capability-runtime";
 import { browserToolNamesForSnapshot } from "../browser-tools";
 import { isCodemodeEnabledForCwd } from "../codemode-settings";
@@ -218,10 +224,13 @@ export class RunPolicy {
           if (plan.toolchain) event.systemPromptOptions.sections[plan.toolchain.name] = plan.toolchain.body;
           return undefined;
         });
-        pi.on("context", (event) => ({
-          messages: stripQuoteCoordinatesFromMessages(
-            stripLegacyChannelPrompts(event.messages) as typeof event.messages,
-          ) as typeof event.messages,
+        pi.on("input", (event, ctx) => observeAutomationPromptInput(event, ctx.sessionManager));
+        pi.on("message_start", (event, ctx) => startAutomationPromptMessage(event.message, ctx.sessionManager));
+        pi.on("agent_settled", (_event, ctx) => clearAutomationPromptQueue(ctx.sessionManager));
+        pi.on("context", (event, ctx) => ({
+          messages: withAutomationPromptContext(event.messages, ctx?.sessionManager, (messages) =>
+            stripQuoteCoordinatesFromMessages(stripLegacyChannelPrompts(messages) as typeof messages),
+          ),
         }));
       },
     };

@@ -233,7 +233,7 @@ export function exactCoverageFailures(label, expected, actual, options = {}) {
 export function analyzeContractCoverage(sources) {
   const apiMethods = extractInterfaceProperties("api.ts", sources.api, "Api");
   const handlers = extractServerHandlersFromSources(sources.handlers);
-  const streamContract = extractInterfaceProperties("api.ts", sources.api, "Streams");
+  const streamContract = extractInterfaceProperties("api-streams.ts", sources.streams ?? sources.api, "Streams");
   const emittedTopics = extractStreamTopics(sources.streamSources);
   const bridgeContract = extractInterfaceProperties("desktop.ts", sources.desktop, "PiBridge");
   const bridgeImplementation = extractTypedObjectProperties("preload.ts", sources.preload, "bridge", "PiBridge");
@@ -307,6 +307,7 @@ export function loadContractSources(root) {
     .map((file) => ({ name: file, source: read(file) }));
   return {
     api: read("src/contract/api.ts"),
+    streams: read("src/contract/api-streams.ts"),
 
     handlers: streamSources,
     streamSources,

@@ -1,7 +1,9 @@
+import { homedir } from "node:os";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
 import type { AutomationRuntime } from "../automation";
 import type { DaemonAutomationSecrets } from "../daemon-automation-secrets";
+import { cleanupAutomationTask } from "../automation-task-cleanup";
 import {
   invalid,
   object,
@@ -15,10 +17,15 @@ import {
 
 export type AutomationSecretOwner = { kind: "desktop-main" } | { kind: "host"; store: DaemonAutomationSecrets };
 
+export interface AutomationHandlerDeps {
+  readonly getHome?: () => string;
+}
+
 export function registerAutomationHandlers(
   server: RpcServer,
   runtime: AutomationRuntime,
   owner: AutomationSecretOwner,
+  deps: AutomationHandlerDeps = {},
 ): () => void {
   const unsubscribe = runtime.subscribe((change) => server.emit("automation.changed", "*", change));
   const secretStore = () => {
@@ -52,6 +59,8 @@ export function registerAutomationHandlers(
         task: runtime.getTask(text(body.taskId), body.revision === undefined ? undefined : integer(body.revision, 1)),
       };
     },
+    "automation.validateTask": async (params) => runtime.validateTask(object(params).spec),
+    "automation.listRevisions": (params) => ({ revisions: runtime.listTaskRevisions(text(object(params).taskId)) }),
     "automation.saveTask": async (params) => runtime.saveTask(object(params).spec),
     "automation.enableTask": (params) => {
       const body = object(params);
@@ -71,8 +80,15 @@ export function registerAutomationHandlers(
       };
     },
     "automation.disableTask": (params) => ({ task: runtime.disableTask(text(object(params).taskId)) }),
-    "automation.deleteTask": (params) => {
-      runtime.deleteTask(text(object(params).taskId));
+    "automation.deleteTask": async (params) => {
+      const taskId = text(object(params).taskId);
+      const task = runtime.listTasks().find((entry) => entry.id === taskId);
+      runtime.deleteTask(taskId);
+      if (task) {
+        await cleanupAutomationTask(server, taskId, task.cwd, (deps.getHome ?? homedir)(), () =>
+          runtime.listTasks().map((remaining) => remaining.cwd),
+        );
+      }
       return { ok: true };
     },
     "automation.startRun": (params) => {

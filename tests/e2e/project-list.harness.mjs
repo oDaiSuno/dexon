@@ -146,7 +146,7 @@ async function runFirst(folders) {
     assert.doesNotMatch(await page("text"), /UI crashed|Cannot connect to Agent Host/);
     window.show();
     window.setContentSize(1280, 760);
-    await waitFor(sameOrder(["Default space"]), "only the default space in the project list");
+    await waitFor(sameOrder(["Default space", "Automation space"]), "only the pinned spaces in the project list");
     assert.equal(fs.statSync(folders.personal).isDirectory(), true, "the default space folder was created");
     return { order: await page("order") };
   });
@@ -157,38 +157,47 @@ async function runFirst(folders) {
     await backToDefault();
     await openFolder(folders.gamma);
     await backToDefault();
-    await waitFor(sameOrder(["Default space", "gamma", "beta", "alpha"]), "newest folders right below the default");
+    await waitFor(
+      sameOrder(["Default space", "Automation space", "gamma", "beta", "alpha"]),
+      "newest folders right below the pinned spaces",
+    );
     const order = await page("order");
     return { order };
   });
   await scene("03-drag-reorder", async () => {
     await drag("alpha", "gamma");
-    await waitFor(sameOrder(["Default space", "alpha", "gamma", "beta"]), "alpha dragged above gamma");
+    await waitFor(
+      sameOrder(["Default space", "Automation space", "alpha", "gamma", "beta"]),
+      "alpha dragged above gamma",
+    );
     const order = await page("order");
     return { order };
   });
   await scene("04-drag-cancelled", async () => {
     await drag("beta", "alpha", { cancel: true });
     await drag("gamma", null, { outside: true });
-    assert.deepEqual(await page("order"), ["Default space", "alpha", "gamma", "beta"]);
+    assert.deepEqual(await page("order"), ["Default space", "Automation space", "alpha", "gamma", "beta"]);
     const order = await page("order");
     return { order };
   });
   await scene("05-drag-above-default-refused", async () => {
     await drag("beta", "Default space");
-    assert.equal((await page("order"))[0], "Default space");
+    assert.deepEqual((await page("order")).slice(0, 2), ["Default space", "Automation space"]);
     await js("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
     const current = JSON.stringify(await page("order"));
     assert.ok(
-      current === JSON.stringify(["Default space", "alpha", "gamma", "beta"]) ||
-        current === JSON.stringify(["Default space", "beta", "alpha", "gamma"]),
-      `a drop above the default space either changes nothing or lands right below it: ${current}`,
+      current === JSON.stringify(["Default space", "Automation space", "alpha", "gamma", "beta"]) ||
+        current === JSON.stringify(["Default space", "Automation space", "beta", "alpha", "gamma"]),
+      `a drop above the default space either changes nothing or lands right below the pinned spaces: ${current}`,
     );
     const order = await page("order");
-    if (order[1] === "beta") {
+    if (order[2] === "beta") {
       await drag("alpha", "beta");
       await drag("gamma", "beta");
-      await waitFor(sameOrder(["Default space", "alpha", "gamma", "beta"]), "the order restored for the restart");
+      await waitFor(
+        sameOrder(["Default space", "Automation space", "alpha", "gamma", "beta"]),
+        "the order restored for the restart",
+      );
     }
     fs.renameSync(folders.gamma, folders.gammaMoved);
     return { orderAfterDrop: order, finalOrder: await page("order") };
@@ -200,7 +209,10 @@ async function runSecond(folders) {
     await waitFor(() => page("exists", { role: "button", name: "Show file panel" }), "a healthy App", 15000);
     window.show();
     window.setContentSize(1280, 760);
-    await waitFor(sameOrder(["Default space", "alpha", "gamma", "beta"]), "the saved order after a real restart");
+    await waitFor(
+      sameOrder(["Default space", "Automation space", "alpha", "gamma", "beta"]),
+      "the saved order after a real restart",
+    );
     const order = await page("order");
     return { order };
   });
@@ -225,7 +237,7 @@ async function runSecond(folders) {
       "the missing folder note",
     );
     await click("menuitem", "Close project");
-    await waitFor(sameOrder(["Default space", "alpha", "beta"]), "gamma closed");
+    await waitFor(sameOrder(["Default space", "Automation space", "alpha", "beta"]), "gamma closed");
     const order = await page("order");
     return { order };
   });

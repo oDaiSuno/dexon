@@ -10,6 +10,7 @@ import { useI18n } from "@/i18n";
 import { useTheme } from "@/hooks/useTheme";
 import { formatTime } from "./shared";
 import { UserMessageBubble } from "./user-message-bubble";
+import { AutomationPromptPill } from "./automation-prompt-pill";
 import { UserMessageEditor, type EditDraft, type EditDraftHandlers } from "./user-message-editor";
 import { UserMessageFooter } from "./user-message-footer";
 import type { ImageContent, TextContent, UserMessage } from "@/lib/types";
@@ -109,6 +110,7 @@ export function UserMessageView({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {message.automationPrompt && <AutomationPromptPill badge={message.automationPrompt} />}
       {editing ? (
         <UserMessageEditor
           key={`${sessionId ?? ""}:${entryId}`}

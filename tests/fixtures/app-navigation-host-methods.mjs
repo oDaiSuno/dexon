@@ -41,6 +41,13 @@ export function createNavigationHostMethods({
           throw new Error(personalPrepareReason);
         }
         return { cwd: navigationPaths.personal };
+      case "system.automationCwd":
+        existingFolders.add(navigationPaths.automations);
+        return { cwd: navigationPaths.automations };
+      case "automation.listInbox":
+        return { items: [] };
+      case "automation.listTasks":
+        return { tasks: [] };
       case "system.validateCwd":
         if (missingFolders.has(params.path)) return { ok: false, error: missingFolders.get(params.path) };
         return { ok: true, path: params.path };

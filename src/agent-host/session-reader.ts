@@ -27,6 +27,7 @@ import { locateSessionProject, type LocatedProject } from "./session-project";
 import { RECENT_INDEX_REFRESH_TTL_MS, sessionIndex } from "./session-index";
 import { isAllowedRootsWatcherHealthy } from "../shared/allowed-roots";
 import { withSessionOrigin } from "./session-origin-store";
+import { automationPromptsOnBranch } from "./automation-prompt-context";
 
 export { getAgentDir };
 
@@ -179,6 +180,7 @@ export function buildSessionContext(
   const thinkingLevel = branch.thinkingLevel ?? "off";
   if (branch.path.length === 0) return { messages: [], entryIds: [], thinkingLevel, model: branch.model };
 
+  const automationPrompts = automationPromptsOnBranch(branch.path).byEntryId;
   const messages: AgentMessage[] = [];
   const entryIds: string[] = [];
   let pendingChannelSource: ChannelSourceMarker | null = null;
@@ -204,6 +206,8 @@ export function buildSessionContext(
       if (m.role === "user") {
         m = withUserMessageSource(m, pendingChannelSource?.channel, pendingChannelSource?.attachments);
         if (pendingSessionSource) m = { ...m, sessionSource: pendingSessionSource };
+        const automationPrompt = automationPrompts.get(e.id);
+        if (automationPrompt) m = { ...m, automationPrompt: automationPrompt.badge };
         pendingChannelSource = null;
         pendingSessionSource = null;
       }
@@ -339,7 +343,11 @@ export function entryToUiMessage(entry: SessionEntry): AgentMessage | null {
     case "message": {
       const displayMessage = toDisplayMessage(entry.message);
       if (!displayMessage) return null;
-      const message = normalizeToolCalls(displayMessage);
+      let message = normalizeToolCalls(displayMessage);
+      if (message.role === "user" && "automationPrompt" in message) {
+        message = { ...message };
+        delete message.automationPrompt;
+      }
       const entryCompletionTimeMs = parseEntryTimestamp(entry.timestamp);
       return entryCompletionTimeMs !== undefined ? { ...message, timestamp: entryCompletionTimeMs } : message;
     }

@@ -1,11 +1,12 @@
-import { qualifySessionKey, type EnvironmentView } from "@contract/environment";
+import { PRIMARY_ENVIRONMENT_ID, qualifySessionKey, type EnvironmentView } from "@contract/environment";
 import { projectKeyOf, type ProjectKey } from "@shared/project-space-state";
 import type { MountedSpace, WorkspaceFocus } from "@/lib/workspace-store";
 import type { SessionInfo } from "@/lib/types";
 import { COUNTED_ACTIVITIES, PULSE_ACTIVITIES, type SessionActivity } from "@/lib/session-tree-status";
 import { buildSidebarActivity, type ProjectActivity } from "@/lib/sidebar-activity";
 import { presentConnection, type ConnectionPresentation } from "@/lib/connection-presentation";
-import { spaceFolderName } from "@/lib/space-identity";
+import { automationSpaceFolder, defaultSpaceFolder, isAutomationSpace, spaceFolderName } from "@/lib/space-identity";
+import { automationProjectKey, automationProjectPath } from "@/hooks/use-project-spaces";
 
 export interface ProjectSpaceDirectory {
   readonly environment: EnvironmentView;
@@ -37,6 +38,7 @@ export function buildProjectSpaceRows({
   focus,
   missing = new Set(),
   pinned = null,
+  automationCwd = null,
   projectName,
   now,
 }: {
@@ -45,17 +47,27 @@ export function buildProjectSpaceRows({
   focus: WorkspaceFocus;
   missing?: ReadonlySet<string>;
   pinned?: ProjectKey | null;
+  automationCwd?: string | null;
   projectName?: (space: MountedSpace) => string;
   now: number;
 }): ProjectSpaceRow[] {
   const byEnvironment = new Map(directories.map((directory) => [directory.environment.id, directory]));
+  const primaryHome = byEnvironment.get(PRIMARY_ENVIRONMENT_ID)?.environment.descriptor?.platform.home ?? "";
+  const automationFolder = automationSpaceFolder(automationCwd, defaultSpaceFolder(null, primaryHome));
+  let currentKey = automationProjectKey(focus.spaceKey, automationFolder);
   const byProject = new Map<ProjectKey, SessionInfo[]>();
   for (const directory of directories) {
     const environmentId = directory.environment.id;
     for (const session of directory.sessions) {
-      const path = session.projectRoot ?? session.cwd;
+      const cwd = automationProjectPath(session.cwd, automationFolder, environmentId);
+      const path =
+        cwd === automationFolder
+          ? cwd
+          : automationProjectPath(session.projectRoot ?? cwd, automationFolder, environmentId);
       if (!path) continue;
       const key = projectKeyOf({ environmentId, path });
+      if (path === automationFolder && focus.environmentId === environmentId && focus.sessionId === session.id)
+        currentKey = key;
       const members = byProject.get(key);
       if (members) members.push(session);
       else byProject.set(key, [session]);
@@ -69,6 +81,9 @@ export function buildProjectSpaceRows({
     const missingFolder = missing.has(space.key);
     const group = { key: space.key, root: space.path, sessions, missing: missingFolder };
     const sidebar = buildSidebarActivity([group], directory.activity, () => name);
+    const homeDir = directory.environment.descriptor?.platform.home ?? "";
+    const builtIn =
+      space.environmentId === PRIMARY_ENVIRONMENT_ID && isAutomationSpace(space.path, automationCwd, homeDir);
     return [
       {
         ...space,
@@ -79,12 +94,12 @@ export function buildProjectSpaceRows({
         sessions,
         sessionActivity: directory.activity,
         activity: sidebar.project(space.key),
-        current: focus.environmentId === space.environmentId && focus.spaceKey === space.key,
-        pinned: space.key === pinned,
+        current: focus.environmentId === space.environmentId && currentKey === space.key,
+        pinned: space.key === pinned || builtIn,
         missing: missingFolder,
         loading: directory.loading,
         error: directory.error,
-        homeDir: directory.environment.descriptor?.platform.home ?? "",
+        homeDir,
       },
     ];
   });

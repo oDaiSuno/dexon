@@ -1,5 +1,8 @@
 import { useId, useState, type MouseEvent, type ReactNode } from "react";
+import { PRIMARY_ENVIRONMENT_ID, parseQualifiedProjectKey } from "@contract/environment";
 import type { ConnectionPresentation } from "@/lib/connection-presentation";
+import { hasAutomationFolderShape } from "@/lib/space-identity";
+import { AutomationFolderIcon } from "./nav-icons";
 import { ProjectHostCapsule, ServerGlyph } from "./project-host-capsule";
 import { faceEmphasized, ProjectRowTrail, type ProjectRowFace } from "./project-row-status";
 
@@ -46,6 +49,20 @@ function MissingFolderGlyph() {
     >
       <path d="M3 8a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" strokeDasharray="3 2.4" />
     </svg>
+  );
+}
+
+function AutomationGlyph() {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        flexShrink: 0,
+        color: "var(--fx-text-secondary)",
+      }}
+    >
+      <AutomationFolderIcon size={17} />
+    </span>
   );
 }
 
@@ -115,6 +132,10 @@ export function ProjectRow({
     ? { kind: "missing" }
     : (face ?? { kind: open ? "open" : "closed-quiet", totalSessions: count });
   const isMissing = resolvedFace.kind === "missing";
+  const builtInAutomation =
+    !remote &&
+    (spaceKey === undefined || parseQualifiedProjectKey(spaceKey)?.environmentId === PRIMARY_ENVIRONMENT_ID) &&
+    hasAutomationFolderShape(path);
   const emphasized = faceEmphasized(resolvedFace);
   const active = hovered || focused;
   const action = actions?.(active);
@@ -202,6 +223,8 @@ export function ProjectRow({
             >
               <ServerGlyph />
             </span>
+          ) : builtInAutomation ? (
+            <AutomationGlyph />
           ) : (
             <FolderGlyph open={open} />
           )}

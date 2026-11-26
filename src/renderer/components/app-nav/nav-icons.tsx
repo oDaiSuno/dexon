@@ -35,6 +35,26 @@ export function PluginsIcon({ size }: { size: number }) {
   );
 }
 
+export function AutomationIcon({ size }: { size: number }) {
+  return (
+    <NavIcon size={size}>
+      <rect x="3" y="3" width="6" height="6" rx="1.5" />
+      <rect x="15" y="15" width="6" height="6" rx="1.5" />
+      <circle cx="18" cy="6" r="3" />
+      <path d="M9 6h6M18 9v6M6 9v6a3 3 0 0 0 3 3h6" />
+    </NavIcon>
+  );
+}
+
+export function AutomationFolderIcon({ size }: { size: number }) {
+  return (
+    <NavIcon size={size}>
+      <path d="M20 20H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2Z" />
+      <path d="m13 10-4 5h3l-1 3 5-5h-3l1-3Z" />
+    </NavIcon>
+  );
+}
+
 export function SettingsIcon({ size }: { size: number }) {
   return (
     <NavIcon size={size}>

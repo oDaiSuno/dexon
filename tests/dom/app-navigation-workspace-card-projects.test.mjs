@@ -33,6 +33,7 @@ test("the card lists every project the sidebar has open, default space first, wi
   const menu = await openCard(scene);
   assert.deepEqual(projectRowNames(scene), [
     "Default space",
+    "Automation space",
     "navigation-project",
     "terminal-only-project",
     "removed-project",

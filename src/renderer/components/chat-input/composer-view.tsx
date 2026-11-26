@@ -1,6 +1,6 @@
 import type { EnvironmentId } from "@contract/environment";
 import type { ModelPickerStatus } from "./model-picker-state";
-import type { MutableRefObject, RefObject } from "react";
+import type { MutableRefObject, ReactNode, RefObject } from "react";
 import { useI18n } from "@/i18n";
 import type { CompactResultInfo, QueuedMessages } from "@/hooks/useAgentSession";
 import type { ModelCatalogStatus } from "@contract/types";
@@ -36,6 +36,8 @@ import { WorkspaceTrigger } from "./workspace-trigger";
 import type { FileIndexEntry } from "@/lib/file-fuzzy";
 
 export interface ComposerViewProps extends ModelPickerStatus {
+  automationReference?: ReactNode;
+  automationStarters?: ReactNode;
   environmentId: EnvironmentId;
   sendGate: SendGate;
   sessionFolderMissing?: ChatInputProps["sessionFolderMissing"];
@@ -291,6 +293,7 @@ export function ComposerView(props: ComposerViewProps) {
         )}
 
         <ComposerEnvironmentStrip />
+        {props.automationReference}
 
         <div data-composer-anchor style={{ position: "relative" }}>
           <PlusMenuLayer
@@ -463,6 +466,7 @@ export function ComposerView(props: ComposerViewProps) {
             onSoundToggle={onSoundToggle}
           />
         </div>
+        {props.automationStarters}
       </div>
     </div>
   );

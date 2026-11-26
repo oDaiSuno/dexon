@@ -298,6 +298,7 @@ export function createEnvironmentApiClient(connection: EnvironmentApiTransport) 
     listWorktrees: (projectRoot: string) => call("worktrees.list", { projectRoot }),
     validateCwd: (path: string) => call("system.validateCwd", { path }),
     defaultCwd: () => call("system.defaultCwd"),
+    automationCwd: () => call("system.automationCwd"),
     getHome: () => call("system.home"),
     listFiles: (path: string) => call("files.list", { path }),
     readFile: (path: string, sourceSessionId?: string) => call("files.read", { path, sourceSessionId }),

@@ -1,6 +1,8 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useMemo, useState, type RefObject } from "react";
 import { getEnvironmentApiClient } from "@/lib/api-client";
-import { defaultSpaceFolder } from "@/lib/space-identity";
+import { automationSpaceFolder, defaultSpaceFolder } from "@/lib/space-identity";
+import { automationProjectPath, useAutomationProjectSpaces } from "@/hooks/use-project-spaces";
+import { useI18n } from "@/i18n";
 import type { ProjectSpaceRef } from "@shared/project-space-state";
 import type { SessionInfo } from "@/lib/types";
 import { PRIMARY_ENVIRONMENT_ID } from "@contract/environment";
@@ -32,6 +34,7 @@ export function useShellSpace(props: {
     onBranchSwitched,
   } = props;
   const spaceFrozen = selectedSession !== null && selectedSession.id === spaceFrozenSessionId;
+  const { t } = useI18n();
 
   const environment = useActiveEnvironment();
   const environments = useEnvironments();
@@ -72,21 +75,36 @@ export function useShellSpace(props: {
     },
   });
 
-  const openProjects = useProjectSpaces({
-    defaultSpace: coordination.personalCwd ?? defaultSpaceFolder(null, isPrimary ? space.homeDir : localHomeDir),
-    currentProject: isPrimary
-      ? ((selectedSession && !spaceFrozen
-          ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd))
-          : null) ??
-        space.workspace.selectedProject ??
-        coordination.attemptedCwd)
-      : null,
+  const personalFolder = defaultSpaceFolder(coordination.personalCwd, isPrimary ? space.homeDir : localHomeDir);
+  const automationFolder = automationSpaceFolder(coordination.automationCwd, personalFolder);
+  const currentCwd = automationProjectPath(space.workspace.selectedCwd ?? "", automationFolder, environment.id);
+  const currentProject =
+    currentCwd === automationFolder
+      ? currentCwd
+      : automationProjectPath(
+          (selectedSession && !spaceFrozen
+            ? (selectedSession.projectRoot ?? space.workspace.projectRootFor(selectedSession.cwd))
+            : null) ??
+            space.workspace.selectedProject ??
+            coordination.attemptedCwd ??
+            "",
+          automationFolder,
+          environment.id,
+        );
+  const projects = useProjectSpaces({
+    defaultSpace: personalFolder,
+    currentProject: isPrimary ? currentProject || null : null,
     refreshKey,
     onCloseCurrent: space.handleReturnToPersonalSpace,
   });
+  const openProjects = useAutomationProjectSpaces({
+    projects,
+    automationCwd: coordination.automationCwd,
+    personalCwd: coordination.personalCwd,
+  });
 
   const { spaces, isMissing } = openProjects;
-  const card = useWorkspaceCard({
+  const workspaceCard = useWorkspaceCard({
     environmentId: environment.id,
     workspace: space.workspace,
     open: space.workspace.wtDropdownOpen,
@@ -102,6 +120,27 @@ export function useShellSpace(props: {
     onSwitched: onBranchSwitched,
   });
 
+  const automationLabel = t("autoNavSpaceName", "Automation space");
+  const card = useMemo(() => {
+    const browsedAutomation =
+      workspaceCard.browsedEnvironmentId === PRIMARY_ENVIRONMENT_ID &&
+      automationProjectPath(workspaceCard.folder, automationFolder) === automationFolder;
+    return {
+      ...workspaceCard,
+      projects: workspaceCard.projects.map((project) =>
+        project.environmentId === PRIMARY_ENVIRONMENT_ID &&
+        automationProjectPath(project.path, automationFolder) === automationFolder
+          ? {
+              ...project,
+              name: automationLabel,
+              current: isPrimary && currentProject === automationFolder,
+              browsed: browsedAutomation,
+            }
+          : project,
+      ),
+      browsedName: browsedAutomation ? automationLabel : workspaceCard.browsedName,
+    };
+  }, [workspaceCard, automationFolder, automationLabel, isPrimary, currentProject]);
   const composerWorkspace = useComposerWorkspace({
     environmentId: environment.id,
     workspace: space.workspace,

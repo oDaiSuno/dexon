@@ -58,6 +58,7 @@ export function useChatWindow({
   const { t } = useI18n();
   const [mountCapturedEnvironmentId] = useState(getActiveEnvironmentId);
   const environmentId = session?.environmentId ?? explicitEnvironmentId ?? mountCapturedEnvironmentId;
+  const isSealed = session?.relation === "automation";
   const messageRenderKeys = useRef(new MessageRenderKeyRegistry()).current;
   const assistantBlockCache = useRef(new AssistantBlockCache()).current;
   const messageRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -177,14 +178,14 @@ export function useChatWindow({
     viewport,
   });
   const selectionQuote = useSelectionQuote({
-    visible: visible && messages.length > 0,
+    visible: visible && !isSealed && messages.length > 0,
     sessionId: session?.id ?? null,
     scrollContainerRef,
     chatInputRef,
   });
   const compaction = useMemo(
     () =>
-      session || isNew
+      (session || isNew) && !isSealed
         ? {
             isCompacting,
             disabled: agentRunning && !isCompacting,
@@ -193,7 +194,7 @@ export function useChatWindow({
             abort: handleAbortCompaction,
           }
         : null,
-    [session, isNew, isCompacting, agentRunning, compactError, handleCompact, handleAbortCompaction],
+    [session, isNew, isSealed, isCompacting, agentRunning, compactError, handleCompact, handleAbortCompaction],
   );
 
   useSessionReporting({
@@ -225,7 +226,10 @@ export function useChatWindow({
     [chatInputRef, dropEditFiles],
   );
 
-  const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(onDrop, visible);
+  const { isDragOver, handleDragEnter, handleDragOver, handleDragLeave, handleDrop } = useDragDrop(
+    onDrop,
+    visible && !isSealed,
+  );
 
   const visibleMessages = messages.filter((m) => m.role === "user" || m.role === "assistant");
 
@@ -309,7 +313,7 @@ export function useChatWindow({
     viewport,
   });
 
-  const isEmptyNew = isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;
+  const isEmptyNew = !isSealed && isNew && messages.length === 0 && !streamState.isStreaming && !agentRunning;
 
   const messageCwd = session?.cwd ?? newSessionCwd ?? undefined;
 
@@ -332,8 +336,9 @@ export function useChatWindow({
     [channelSnapshot, onChannelSnapshotChange, sessionId],
   );
 
-  const chatInputElement = (
+  const chatInputElement = isSealed ? null : (
     <ChatInput
+      isEmptyNew={isEmptyNew}
       environmentId={environmentId}
       sessionFolderMissing={sessionFolderMissing}
       missingFolderRecovery={missingFolderRecovery}
@@ -405,6 +410,7 @@ export function useChatWindow({
     handleDrop,
     isDragOver,
     isEmptyNew,
+    isSealed,
     t,
     notices,
     dismissNotice,

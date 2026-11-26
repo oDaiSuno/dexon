@@ -1,6 +1,8 @@
+import { homedir } from "node:os";
 import type { AutomationToolDetails } from "../../../shared/automation/chat-tools";
 import type { RunPhase } from "../../../shared/automation/phases";
 import type { TaskView } from "../../../shared/automation/views";
+import { automationWorkspaceRoot } from "../../automation-workspace";
 import type { AutomationChatHostContext } from "./context";
 
 const PREVIEW_MAX_CHARS = 1_024;
@@ -218,6 +220,7 @@ export async function inspectAutomation(
         payload: {
           view: "capabilities",
           cwd: sessionCwd,
+          managedAutomationRoot: automationWorkspaceRoot(homedir()),
           runtimeStatus: ctx.runtime.status(),
           activity: ctx.runtime.activity(),
           channels: accounts,

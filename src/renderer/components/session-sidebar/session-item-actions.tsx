@@ -42,6 +42,7 @@ const VIEWPORT_MARGIN = 8;
 export function SessionItemActionsMenu({
   at,
   sessionPath,
+  sealed = false,
   onRename,
   regenerate,
   onRegenerate,
@@ -49,6 +50,7 @@ export function SessionItemActionsMenu({
 }: {
   at: { x: number; y: number } | null;
   sessionPath: string;
+  sealed?: boolean;
   onRename: (event: ReactMouseEvent) => void;
   regenerate: "ready" | "unavailable";
   onRegenerate: (event: ReactMouseEvent) => void;
@@ -91,24 +93,28 @@ export function SessionItemActionsMenu({
       style={at ? { position: "fixed", left, top, right: "auto", transformOrigin: "top left" } : undefined}
     >
       <div className="session-menu-list">
-        <button type="button" role="menuitem" className="session-menu-item type-body-large" onClick={onRename}>
-          <span className="session-menu-item-icon">
-            <PencilLineGlyph />
-          </span>
-          <span className="session-menu-item-label">{t("rename", "Rename")}</span>
-        </button>
-        <button
-          type="button"
-          role="menuitem"
-          className="session-menu-item type-body-large"
-          disabled={regenerate === "unavailable"}
-          onClick={onRegenerate}
-        >
-          <span className="session-menu-item-icon session-menu-item-icon--accent">
-            <SessionNamingGlyph size={15} />
-          </span>
-          <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
-        </button>
+        {!sealed && (
+          <>
+            <button type="button" role="menuitem" className="session-menu-item type-body-large" onClick={onRename}>
+              <span className="session-menu-item-icon">
+                <PencilLineGlyph />
+              </span>
+              <span className="session-menu-item-label">{t("rename", "Rename")}</span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="session-menu-item type-body-large"
+              disabled={regenerate === "unavailable"}
+              onClick={onRegenerate}
+            >
+              <span className="session-menu-item-icon session-menu-item-icon--accent">
+                <SessionNamingGlyph size={15} />
+              </span>
+              <span className="session-menu-item-label">{t("regenerateSessionName", "Regenerate name")}</span>
+            </button>
+          </>
+        )}
         <button
           type="button"
           role="menuitem"
