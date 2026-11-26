@@ -188,7 +188,7 @@ async function run() {
   await click("navigation", "button", "Hide sidebar");
   await waitFor("window.pulseProof.rail().width === 52");
   const rail = await js("window.pulseProof.rail()");
-  assert.equal(rail.buttons, 4);
+  assert.equal(rail.buttons, 5);
   assert.equal(rail.dot, true);
   assert.match(rail.status, /1 waiting for your answer/);
   await capture("rail", rail);

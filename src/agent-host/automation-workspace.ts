@@ -67,25 +67,38 @@ export async function prepareAutomationWorkspaceRoot(
 }
 
 async function resolveDirectory(targetPath: string): Promise<string> {
-  let current = targetPath;
+  const parsed = path.parse(targetPath);
+  if (!parsed.root) throw new Error(`${targetPath} is not an absolute path`);
+  let current = await realpath(parsed.root);
+  const rest = targetPath.slice(parsed.root.length);
+  const segments = rest.split(/[/\\]+/).filter((segment) => segment.length > 0 && segment !== ".");
   const missing: string[] = [];
-  while (true) {
-    let info;
-    try {
-      info = await lstat(current);
-    } catch (error) {
-      const parent = path.dirname(current);
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || parent === current) throw error;
-      missing.unshift(path.basename(current));
-      current = parent;
+  for (const segment of segments) {
+    if (segment === "..") {
+      if (missing.length > 0) throw Object.assign(new Error(`${targetPath} does not exist`), { code: "ENOENT" });
+      current = path.dirname(current);
       continue;
     }
-    const canonical = await realpath(current);
-    if (!(await lstat(canonical)).isDirectory() || (!info.isDirectory() && !info.isSymbolicLink())) {
-      throw new Error(`${current} is not a directory`);
+    if (missing.length > 0) {
+      missing.push(segment);
+      continue;
     }
-    return path.join(canonical, ...missing);
+    const next = path.join(current, segment);
+    let info;
+    try {
+      info = await lstat(next);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      missing.push(segment);
+      continue;
+    }
+    const canonical = await realpath(next);
+    if (!(await lstat(canonical)).isDirectory() || (!info.isDirectory() && !info.isSymbolicLink())) {
+      throw new Error(`${next} is not a directory`);
+    }
+    current = canonical;
   }
+  return path.join(current, ...missing);
 }
 
 function directoriesOverlap(left: string, right: string): boolean {
