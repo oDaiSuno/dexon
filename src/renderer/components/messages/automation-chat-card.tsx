@@ -6,6 +6,7 @@ import { useI18n } from "@/i18n";
 import { getEnvironmentConnection } from "@/lib/environment-registry";
 import { AutomationActionSubCard } from "./automation-action-subcards";
 import { AutomationPermissionsSection } from "./automation-card-permissions";
+import { OpenInAutomationButton } from "./automation-card-links";
 
 export interface SurfacedAutomationCard {
   readonly key: string;
@@ -227,8 +228,9 @@ export function AutomationChatCardView({
         )}
         {error && <p className="automation-error type-label-default">{error}</p>}
 
-        {!isEnabledNow && !isSuperseded && !isDeleted && (
-          <div className="automation-actions">
+        <div className="automation-actions">
+          {!isDeleted && <OpenInAutomationButton environmentId={environmentId} taskId={card.taskId} />}
+          {!isEnabledNow && !isSuperseded && !isDeleted && (
             <button
               type="button"
               className="automation-btn is-primary type-label-medium"
@@ -239,8 +241,8 @@ export function AutomationChatCardView({
                 ? t("automationCardEnabling", "Opening desktop confirmation…")
                 : t("automationCardReviewEnable", "Review & Enable")}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </section>
     );
   }

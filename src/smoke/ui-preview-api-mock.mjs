@@ -56,6 +56,7 @@ export const setModelDefaults = unsupported("setModelDefaults");
 export const listWorktrees = unsupported("listWorktrees");
 export const validateCwd = unsupported("validateCwd");
 export const defaultCwd = unsupported("defaultCwd");
+export const automationCwd = unsupported("automationCwd");
 export const getHome = unsupported("getHome");
 export const listFiles = unsupported("listFiles");
 export const readFile = unsupported("readFile");

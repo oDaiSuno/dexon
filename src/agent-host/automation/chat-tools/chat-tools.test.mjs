@@ -1,154 +1,9 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { validateToolArguments } from "@earendil-works/pi-ai";
-import { importTestBundle } from "#test-bundle";
-
-const loaded = await importTestBundle("automation-chat-tools", {
-  packages: "external",
-  stdin: {
-    contents: `export * from "./src/agent-host/automation/index";
-      export { deriveRequiredGrant } from "./src/agent-host/automation/spec/grant";
-      export { assertTaskSpec } from "./src/agent-host/automation/spec/validate";
-      export { normalizeTaskSpec } from "./src/agent-host/automation/spec/normalize";
-      export { setBrowserSessionSource } from "./src/agent-host/browser-tools";
-      export { activeToolNamesFor, customToolsFor } from "./src/agent-host/agent-session/execution-profile";
-      export { AUTOMATION_CHAT_TOOL_NAMES, readAutomationChatCard } from "./src/shared/automation/chat-tools";`,
-    resolveDir: process.cwd(),
-    loader: "ts",
-  },
-});
-
-function createChannelsSnapshot() {
-  return {
-    accounts: [
-      {
-        id: "feishu-main",
-        channel: "feishu",
-        name: "Team Feishu",
-        enabled: true,
-        configured: true,
-        dmPolicy: "allowlist",
-        allowFrom: ["ou_user_1"],
-        groupPolicy: "allowlist",
-        groupIds: ["oc_group_1"],
-        groupAllowFrom: [],
-        requireMention: true,
-        toolNames: [],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-      {
-        id: "disabled-tg",
-        channel: "telegram",
-        name: "Disabled Bot",
-        enabled: false,
-        configured: true,
-        dmPolicy: "pairing",
-        allowFrom: [],
-        groupPolicy: "disabled",
-        groupIds: [],
-        groupAllowFrom: [],
-        requireMention: true,
-        toolNames: [],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-    ],
-    statuses: [{ channel: "feishu", accountId: "feishu-main", state: "running", connected: true }],
-    pairings: [],
-    bindings: [
-      {
-        id: "b1",
-        channel: "feishu",
-        accountId: "feishu-main",
-        peerKind: "dm",
-        peerId: "ou_bound_user",
-        cwd: "/work",
-        toolNames: [],
-        createdAt: "2026-01-01T00:00:00.000Z",
-        lastUsedAt: "2026-01-01T00:00:00.000Z",
-      },
-    ],
-    activities: [],
-  };
-}
-
-function sampleSpec(cwd, id = "daily-check", extra = {}) {
-  return {
-    schema: "dexon.automation/v1",
-    id,
-    name: "Daily Check",
-    cwd,
-    triggers: [{ id: "manual", kind: "manual" }],
-    steps: [
-      {
-        id: "fetch",
-        kind: "action",
-        call: {
-          action: "http.request",
-          with: {
-            method: "GET",
-            url: { origin: "https://api.example.com", path: "/status" },
-            secretHeaders: { Authorization: "api.token" },
-            effect: "read",
-          },
-        },
-      },
-      {
-        id: "approve",
-        kind: "wait",
-        wait: {
-          kind: "approval",
-          title: "Approve next action?",
-          prompt: "Confirm sending notification",
-        },
-      },
-    ],
-    ...extra,
-  };
-}
-
-async function setupFixture(t) {
-  const base = mkdtempSync(path.join(tmpdir(), "dexon-automation-chat-tools-"));
-  const cwd = path.join(base, "workspace");
-  const dataDir = path.join(base, "automation");
-  mkdirSync(cwd);
-  mkdirSync(dataDir);
-  const runtime = loaded.createAutomationRuntime({
-    dataDirectory: dataDir,
-    channels: { deliver: async () => ({ delivered: true }) },
-    agentSessions: { launch: async () => ({ status: "ok", output: {} }) },
-    secrets: { read: async () => "secret-token" },
-    fetch: async () =>
-      new globalThis.Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      }),
-  });
-  await runtime.start();
-  t.after(async () => {
-    await runtime.stop();
-    rmSync(base, { recursive: true, force: true });
-  });
-  const host = {
-    runtime,
-    channels: { snapshot: async () => createChannelsSnapshot() },
-  };
-  const tools = new Map(loaded.createAutomationChatToolDefinitions(cwd, host).map((tool) => [tool.name, tool]));
-  const callTool = async (name, input, sessionManager = { getSessionId: () => "desktop-session" }) => {
-    const tool = tools.get(name);
-    assert.ok(tool, `missing tool ${name}`);
-    const result = await tool.execute("call-1", input, undefined, undefined, { sessionManager });
-    return {
-      json: JSON.parse(result.content[0].text),
-      details: result.details,
-    };
-  };
-  return { cwd, runtime, host, tools, callTool };
-}
+import { loaded, sampleSpec, setupFixture } from "./chat-tools-test-support.mjs";
 
 test("every guide recipe passes real backend validation and normalization", () => {
   const recipes = Object.values(loaded.AUTOMATION_GUIDE_RECIPES);
@@ -167,6 +22,46 @@ test("every guide recipe passes real backend validation and normalization", () =
   const built = loaded.buildAutomationGuide(["core", "triggers", "steps", "expressions", "recipes"]);
   assert.equal(built.schema, "dexon.automation/v1");
   assert.match(built.guide, /dexon\.automation\/v1/);
+});
+
+test("automation guide defaults to the playbook and accepts it through the public tool schema", async (t) => {
+  const { tools, callTool } = await setupFixture(t);
+  const defaults = await callTool("automation_guide", {});
+  assert.deepEqual(defaults.json.topics, ["playbook", "core", "recipes"]);
+  assert.match(defaults.json.guide, /^## Playbook/);
+  assert.equal(defaults.details.summary, "playbook, core, recipes");
+
+  const guideTool = tools.get("automation_guide");
+  assert.match(guideTool.description, /playbook/i);
+  assert.match(tools.get("automation_inspect").promptGuidelines.join("\n"), /playbook/);
+  const input = validateToolArguments(guideTool, {
+    type: "toolCall",
+    id: "tc-guide-playbook",
+    name: "automation_guide",
+    arguments: { topics: ["playbook"] },
+  });
+  const selected = await callTool("automation_guide", input);
+  assert.deepEqual(selected.json.topics, ["playbook"]);
+  assert.match(
+    selected.json.guide,
+    /schedule.*condition.*absolute.*cwd.*key steps.*external writes.*approvals.*notification target/is,
+  );
+  assert.match(selected.json.guide, /only.*missing.*avoid.*questionnaire/is);
+  assert.match(selected.json.guide, /existing repository.*confirm.*real absolute path.*never.*fabricat/is);
+  assert.match(selected.json.guide, /standalone.*<managedAutomationRoot>\/<taskId>.*capabilities/is);
+  assert.match(selected.json.guide, /approval.*before.*destructive.*mutating.*unless.*explicit.*unattended/is);
+  assert.match(selected.json.guide, /secret.*name.*configure_secret.*never.*values/is);
+  assert.match(selected.json.guide, /automation_validate.*before.*automation_save_draft/is);
+  assert.match(selected.json.guide, /updating.*enabled.*pauses.*triggers.*until.*user.*enables.*revision/is);
+});
+
+test("capabilities expose the managed automation root independently of the session cwd", async (t) => {
+  const { cwd, tools, callTool } = await setupFixture(t);
+  const caps = await callTool("automation_inspect", { view: "capabilities" });
+  assert.equal(caps.json.managedAutomationRoot, path.join(homedir(), ".dexon", "automations"));
+  assert.equal(caps.json.cwd, cwd);
+  assert.notEqual(caps.json.managedAutomationRoot, cwd);
+  assert.match(tools.get("automation_inspect").description, /managedAutomationRoot/);
 });
 
 test("chat tools inspect capabilities, validate, save draft without enabling, stop, and propose user actions", async (t) => {

@@ -29,6 +29,31 @@ export interface TaskRevisionView {
   readonly createdAtMs: number;
 }
 
+export interface TaskRevisionSummary {
+  readonly taskId: string;
+  readonly revision: number;
+  readonly planHash: string;
+  readonly requiredGrant: RequiredGrant;
+  readonly createdAtMs: number;
+  readonly isCurrent: boolean;
+  readonly isEnabled: boolean;
+  readonly wasGranted: boolean;
+  readonly runCount: number;
+}
+
+export interface TaskValidationIssue {
+  readonly path: string;
+  readonly message: string;
+}
+
+export interface TaskValidationResult {
+  readonly valid: boolean;
+  readonly issues: readonly TaskValidationIssue[];
+  readonly spec?: TaskSpec;
+  readonly planHash?: string;
+  readonly requiredGrant?: RequiredGrant;
+}
+
 export interface RunSummaryView {
   readonly id: string;
   readonly taskId: string;

@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from "react";
 import type { SessionInfo } from "@/lib/types";
+import type { AutomationSidebarBadge } from "@/lib/automation-badge-store";
 import type { SessionLiveStatus } from "@shared/session-orchestration";
 import { useI18n } from "@/i18n";
 import type { ListedProject } from "@/lib/session-list";
@@ -16,7 +17,7 @@ import { ProjectSwitcherPopover } from "./project-switcher-popover";
 import { NavTopBar } from "./nav-top-bar";
 import { spaceFolderName } from "@/lib/space-identity";
 import { worktreePathsEqual } from "@shared/worktree-path";
-import { NewSessionIcon, PluginsIcon } from "./nav-icons";
+import { AutomationIcon, NewSessionIcon, PluginsIcon } from "./nav-icons";
 import { RailButton, SettingsButton, UpdateButton } from "./nav-sidebar-buttons";
 import appIconUrl from "../../../../build/icon.png";
 import { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH } from "@/lib/layout-preferences";
@@ -24,7 +25,8 @@ import { APP_VERSION } from "@/lib/app-version";
 
 export { NAV_EXPANDED_WIDTH, NAV_RAIL_WIDTH };
 
-export type NavPage = "chat" | "resources";
+export type NavPage = "chat" | "resources" | "automation";
+type AutomationBadge = Pick<AutomationSidebarBadge, "count" | "severity">;
 
 const ENTRY_ROW_HEIGHT = 36;
 const NAV_ICON_SIZE = 18;
@@ -34,6 +36,7 @@ type MainEntry = {
   label: string;
   icon: ReactNode;
   page?: NavPage;
+  badge?: AutomationBadge;
   onClick: () => void;
 };
 
@@ -42,6 +45,7 @@ export function NavSidebar({
   visible = true,
   page,
   settingsOpen = false,
+  automationBadge,
   spaceName: spaceNameProp,
   spacePath,
   sessions,
@@ -97,6 +101,7 @@ export function NavSidebar({
   visible?: boolean;
   page: NavPage;
   settingsOpen?: boolean;
+  automationBadge?: AutomationBadge;
   spaceName?: string;
   spacePath: string;
   sessions: SessionInfo[];
@@ -176,6 +181,31 @@ export function NavSidebar({
     unreadSessionIds,
   });
 
+  const badge = automationBadge && automationBadge.severity !== "none" ? automationBadge : undefined;
+  const entries: MainEntry[] = [
+    {
+      id: "new-session",
+      label: t("newSession", "New session"),
+      icon: <NewSessionIcon size={NAV_ICON_SIZE} />,
+      onClick: onNewSession,
+    },
+    {
+      id: "resources",
+      label: t("navPluginsSkills", "Plugins & Skills"),
+      icon: <PluginsIcon size={NAV_ICON_SIZE} />,
+      page: "resources",
+      onClick: () => onNavigate("resources"),
+    },
+    {
+      id: "automation",
+      label: t("autoNavAutomation", "Automation"),
+      icon: <AutomationIcon size={NAV_ICON_SIZE} />,
+      page: "automation",
+      badge,
+      onClick: () => onNavigate("automation"),
+    },
+  ];
+
   if (!expanded) {
     return (
       <nav
@@ -214,16 +244,17 @@ export function NavSidebar({
           height={20}
           style={{ borderRadius: "var(--radius-chip)", flexShrink: 0 }}
         />
-        <RailButton label={t("newSession", "New session")} onClick={onNewSession}>
-          <NewSessionIcon size={NAV_ICON_SIZE} />
-        </RailButton>
-        <RailButton
-          label={t("navPluginsSkills", "Plugins & Skills")}
-          onClick={() => onNavigate("resources")}
-          active={currentPage === "resources"}
-        >
-          <PluginsIcon size={NAV_ICON_SIZE} />
-        </RailButton>
+        {entries.map((entry) => (
+          <RailButton
+            key={entry.id}
+            label={entry.badge ? `${entry.label} (${entry.badge.count})` : entry.label}
+            onClick={entry.onClick}
+            active={entry.page === currentPage}
+          >
+            {entry.icon}
+            {entry.badge && <AutomationEntryBadge badge={entry.badge} rail />}
+          </RailButton>
+        ))}
         <span style={{ flex: 1 }} />
         <div
           style={{
@@ -240,22 +271,6 @@ export function NavSidebar({
       </nav>
     );
   }
-
-  const entries: MainEntry[] = [
-    {
-      id: "new-session",
-      label: t("newSession", "New session"),
-      icon: <NewSessionIcon size={NAV_ICON_SIZE} />,
-      onClick: onNewSession,
-    },
-    {
-      id: "resources",
-      label: t("navPluginsSkills", "Plugins & Skills"),
-      icon: <PluginsIcon size={NAV_ICON_SIZE} />,
-      page: "resources",
-      onClick: () => onNavigate("resources"),
-    },
-  ];
 
   return (
     <nav
@@ -295,7 +310,7 @@ export function NavSidebar({
               key={entry.id}
               type="button"
               data-nav-entry
-              aria-label={entry.label}
+              aria-label={entry.badge ? `${entry.label} (${entry.badge.count})` : entry.label}
               aria-current={current ? "page" : undefined}
               className={selected ? "type-body-large-medium" : "type-body-large"}
               onMouseEnter={() => setActiveEntry(index)}
@@ -339,6 +354,7 @@ export function NavSidebar({
               >
                 {entry.label}
               </span>
+              {entry.badge && <AutomationEntryBadge badge={entry.badge} />}
             </button>
           );
         })}
@@ -452,5 +468,32 @@ export function NavSidebar({
         )}
       </div>
     </nav>
+  );
+}
+
+function AutomationEntryBadge({ badge, rail = false }: { badge: AutomationBadge; rail?: boolean }) {
+  const danger = badge.severity === "danger";
+  return (
+    <span
+      aria-hidden="true"
+      className="type-meta-micro"
+      style={{
+        position: rail ? "absolute" : undefined,
+        top: rail ? 0 : undefined,
+        right: rail ? -4 : undefined,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: 16,
+        height: 16,
+        padding: "0 var(--space-1)",
+        flexShrink: 0,
+        borderRadius: "var(--radius-status)",
+        background: danger ? "var(--fx-status-danger-soft)" : "var(--fx-status-warning-soft)",
+        color: danger ? "var(--fx-status-danger-text)" : "var(--fx-status-warning-text)",
+      }}
+    >
+      {badge.count > 99 ? "99+" : badge.count}
+    </span>
   );
 }

@@ -1,4 +1,12 @@
 import { isRpcError } from "@contract/types";
+import { parseAutomationPromptPayload } from "@shared/automation/prompt-context";
+import { buildAutomationPromptPayload } from "@/components/chat-input/automation-prompt-builder";
+import { environmentRegistry } from "@/lib/environment-registry";
+import {
+  clearAutomationSessionIntent,
+  getAutomationSessionIntent,
+  setAutomationSessionIntent,
+} from "@/lib/automation-session-intent";
 import { promptIntentText, readPromptIntent } from "@shared/prompt-intent";
 import { quoteTitleText } from "@shared/quote-tokens";
 import { canSendToEnvironment } from "@/lib/space-attribution";
@@ -120,8 +128,42 @@ export function useSessionActions(context: Dependencies) {
   const handleSend = useCallback(
     async (message: string) => {
       const trimmedMessage = message.trim();
-      if (!trimmedMessage || sessionFolderMissing || agentRunning || agentRunningRef.current) return { ok: false };
+      if (
+        !trimmedMessage ||
+        sessionFolderMissing ||
+        session?.relation === "automation" ||
+        agentRunning ||
+        agentRunningRef.current
+      )
+        return { ok: false };
       if (!canSendToEnvironment(environmentId) || (!session && !(isNew && newSessionCwd))) return { ok: false };
+      const automationIntent = isNew ? getAutomationSessionIntent() : null;
+      if (automationIntent?.environmentId && automationIntent.environmentId !== environmentId) {
+        addNotice({
+          type: "error",
+          message: t("autoChatEnvironmentMismatch", "Switch to the task's environment before sending this request."),
+        });
+        return { ok: false };
+      }
+      const automationPrompt = automationIntent
+        ? parseAutomationPromptPayload(
+            buildAutomationPromptPayload(automationIntent, {
+              cwd: newSessionCwd ?? session?.cwd ?? "",
+              environmentLabel:
+                environmentRegistry.getEnvironments().find((item) => item.id === environmentId)?.label ?? environmentId,
+            }),
+          )
+        : null;
+      if (automationIntent && !automationPrompt) {
+        addNotice({
+          type: "error",
+          message: t(
+            "autoChatInvalidContext",
+            "The automation reference is too large or invalid. Remove it and try again.",
+          ),
+        });
+        return { ok: false };
+      }
       const client = getEnvironmentApiClient(environmentId);
       const intent = readPromptIntent(message);
       const isConversationTurn = intent.kind !== "command";
@@ -131,9 +173,11 @@ export function useSessionActions(context: Dependencies) {
         role: "user",
         content: message,
         timestamp: Date.now(),
+        ...(automationPrompt ? { automationPrompt: automationPrompt.badge } : {}),
       };
       const userMsgEntryId = unsavedMessages.nextEntryId();
       updateHistory((current) => appendLocalHistoryMessage(current, userMsg, userMsgEntryId));
+      if (automationPrompt) clearAutomationSessionIntent();
       optimisticUserMessageKeyRef.current = userMessageKey(userMsg);
       promptRunIdRef.current = promptRunId;
       agentRunningRef.current = true;
@@ -174,6 +218,7 @@ export function useSessionActions(context: Dependencies) {
             await client.agentCommand(sid, {
               type: "prompt",
               message,
+              ...(automationPrompt ? { automationPrompt } : {}),
             });
             promoteNewSession(1, quoteTitleText(promptIntentText(intent)));
             if (shouldAutoTitleMessage(message, environmentId)) {
@@ -190,6 +235,7 @@ export function useSessionActions(context: Dependencies) {
           await client.agentCommand(session.id, {
             type: "prompt",
             message,
+            ...(automationPrompt ? { automationPrompt } : {}),
           });
         }
         if (!sentSessionId)
@@ -199,6 +245,7 @@ export function useSessionActions(context: Dependencies) {
         }
         return { ok: true };
       } catch (e) {
+        if (automationIntent && !getAutomationSessionIntent()) setAutomationSessionIntent(automationIntent);
         if (session && isRpcError(e) && e.code === "MISSING_SESSION_CWD")
           setMissingSessionKey(`${environmentId}\0${session.id}`);
         console.error("Failed to send message:", e);

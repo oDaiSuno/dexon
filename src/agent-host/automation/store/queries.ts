@@ -3,6 +3,7 @@ import type { Json, ConfirmedGrant } from "../../../shared/automation/spec";
 import type {
   TaskView,
   TaskRevisionView,
+  TaskRevisionSummary,
   RunSummaryView,
   RunDetailView,
   InboxItem,
@@ -33,6 +34,40 @@ export function listTasks(adb: AutomationDatabase): readonly TaskView[] {
   return (adb.db.prepare("SELECT * FROM tasks ORDER BY created_at_ms DESC, id").all() as unknown as TaskRow[]).map(
     taskView,
   );
+}
+export function listTaskRevisions(adb: AutomationDatabase, taskId: string): TaskRevisionSummary[] {
+  const rows = adb.db
+    .prepare(
+      `SELECT r.task_id, r.revision, r.plan_hash, r.required_grant_json, r.created_at_ms,
+        t.current_revision, t.enabled_revision, g.revision AS granted_revision,
+        (SELECT COUNT(*) FROM runs WHERE task_id = r.task_id AND revision = r.revision) AS run_count
+      FROM task_revisions r
+      JOIN tasks t ON t.id = r.task_id
+      LEFT JOIN grants g ON g.task_id = r.task_id AND g.revision = r.revision
+      WHERE r.task_id = ? ORDER BY r.revision DESC`,
+    )
+    .all(taskId) as unknown as Array<{
+    task_id: string;
+    revision: number;
+    plan_hash: string;
+    required_grant_json: string;
+    created_at_ms: number;
+    current_revision: number;
+    enabled_revision: number | null;
+    granted_revision: number | null;
+    run_count: number;
+  }>;
+  return rows.map((row) => ({
+    taskId: row.task_id,
+    revision: row.revision,
+    planHash: row.plan_hash,
+    requiredGrant: parseJson<TaskRevisionSummary["requiredGrant"]>(row.required_grant_json),
+    createdAtMs: row.created_at_ms,
+    isCurrent: row.current_revision === row.revision,
+    isEnabled: row.enabled_revision === row.revision,
+    wasGranted: row.granted_revision !== null,
+    runCount: row.run_count,
+  }));
 }
 export function getRevisionRow(adb: AutomationDatabase, taskId: string, revision: number): RevisionRow | null {
   return (

@@ -284,3 +284,26 @@
   margin: 0;
   overflow-wrap: anywhere;
 }
+
+.automation-prompt-pill {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-1-5);
+  max-width: 100%;
+  margin-bottom: var(--space-2);
+  padding: var(--space-1-5) var(--space-2-5);
+  border: 1px solid var(--fx-accent-blue-border);
+  border-radius: var(--radius-chip);
+  background: var(--fx-accent-blue-soft);
+  color: var(--fx-accent-blue-text);
+  overflow-wrap: anywhere;
+}
+
+.automation-prompt-pill svg {
+  flex-shrink: 0;
+}
+
+.automation-prompt-pill-host {
+  color: var(--fx-text-secondary);
+}

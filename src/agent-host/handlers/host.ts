@@ -2,6 +2,7 @@ import { homedir } from "os";
 import path from "path";
 import type { RpcServer } from "../../contract/rpc";
 import { RpcError } from "../../contract/types";
+import { prepareAutomationWorkspaceRoot } from "../automation-workspace";
 import { allowFileRoot } from "../file-access";
 import { validateExistingDirectory } from "../file-access-core";
 import { preparePersonalDirectory } from "../personal-directory";
@@ -56,6 +57,18 @@ export function registerHostHandlers(server: RpcServer, deps: HostHandlerDeps = 
 
     "system.defaultCwd": async () => {
       const prepared = preparePersonalDirectory({ home: getHome() });
+      if (!prepared.ok) {
+        throw new RpcError({
+          code: prepared.reason === "not-directory" ? "CONFLICT" : "INTERNAL",
+          message: prepared.error,
+        });
+      }
+      allowFileRoot(prepared.canonicalPath);
+      return { cwd: prepared.path };
+    },
+
+    "system.automationCwd": async () => {
+      const prepared = await prepareAutomationWorkspaceRoot(getHome());
       if (!prepared.ok) {
         throw new RpcError({
           code: prepared.reason === "not-directory" ? "CONFLICT" : "INTERNAL",

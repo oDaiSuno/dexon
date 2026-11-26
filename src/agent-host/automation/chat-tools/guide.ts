@@ -137,6 +137,15 @@ export const AUTOMATION_GUIDE_RECIPES: Readonly<Record<string, TaskSpec>> = {
 };
 
 const SECTIONS: Readonly<Record<AutomationGuideTopic, string>> = {
+  playbook: [
+    "## Playbook: From intent to a safe draft",
+    "- Clarify only missing decisions: schedule/timezone or condition, target absolute `cwd`, key steps, external writes and approvals, and notification target. Reuse known context, ask concisely, and avoid a blanket questionnaire.",
+    "- For an existing repository, confirm its real absolute path with the user or workspace inspection; never fabricate it or assume the current session directory is the target.",
+    '- For a standalone task, default `cwd` to `<managedAutomationRoot>/<taskId>` using `managedAutomationRoot` from `automation_inspect(view: "capabilities")`.',
+    '- Place an approval wait step (`wait.kind: "approval"`) before destructive or mutating external actions and gate each write on `approved: true`, unless the user explicitly authorizes those unattended writes. Enabling a task is not blanket permission for unattended writes.',
+    '- Reference secrets by lowercase name and use `automation_request_user_action(action: "configure_secret")` for secure entry; never request or include secret values in chat or specs.',
+    "- Always call `automation_validate` and fix all issues before `automation_save_draft`; saving never enables a task. Explain that updating an enabled task with a new draft pauses its triggers until the user enables the new revision.",
+  ].join("\n"),
   core: [
     "## Core (`dexon.automation/v1`)",
     '- Required top-level fields: `schema: "dexon.automation/v1"`, `id` (unique non-empty string, recommend kebab-case), `name`, `cwd` (absolute path), `triggers` (non-empty array), `steps` (non-empty array).',
@@ -195,7 +204,8 @@ export function buildAutomationGuide(topics?: readonly AutomationGuideTopic[]): 
   readonly topics: readonly AutomationGuideTopic[];
   readonly guide: string;
 } {
-  const selected: readonly AutomationGuideTopic[] = topics && topics.length > 0 ? topics : ["core", "recipes"];
+  const selected: readonly AutomationGuideTopic[] =
+    topics && topics.length > 0 ? topics : ["playbook", "core", "recipes"];
   return {
     schema: "dexon.automation/v1",
     topics: selected,

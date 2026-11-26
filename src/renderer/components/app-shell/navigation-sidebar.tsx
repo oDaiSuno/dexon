@@ -10,13 +10,20 @@ import { ProjectReconnectContext } from "../app-nav/project-menu";
 import { subscribeResourcesRequest } from "@/lib/settings-request";
 import type { ResourceTab, ResourceView } from "../app-nav/resource-page";
 import { useEnvironmentDirectories } from "../session-sidebar/use-environment-directories";
-import { isPersonalSpace, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
+import {
+  automationSpaceFolder,
+  defaultSpaceFolder,
+  isAutomationSpace,
+  isPersonalSpace,
+  spaceDisplayName,
+  spaceFolderName,
+} from "@/lib/space-identity";
+import { automationProjectKey, automationProjectPath, useProjectSpaceExpansion } from "@/hooks/use-project-spaces";
+import { useAutomationSidebarBadge } from "@/lib/automation-badge-store";
 import { createTemporarySessionId } from "@/lib/temporary-session-id";
 import { requestProjectSwitcher } from "@/lib/project-switcher-request";
-import { sessionAncestorIds } from "@/lib/session-tree";
 import { copyText } from "@/lib/clipboard";
 import { presentConnection } from "@/lib/connection-presentation";
-import type { RevealRequest } from "../app-nav/nav-history";
 import { buildProjectSpaceRows } from "../app-nav/project-space-rows";
 import { NavSidebar, type NavPage } from "../app-nav/nav-sidebar";
 import { useSoftwareUpdate } from "../settings/use-software-update";
@@ -122,6 +129,7 @@ export function NavigationSidebar({
 }) {
   const { t } = useI18n();
   const softwareUpdate = useSoftwareUpdate();
+  const automationBadge = useAutomationSidebarBadge();
   const snapshot = useSyncExternalStore(
     workspaceStore.subscribe,
     workspaceStore.getSnapshot,
@@ -129,9 +137,6 @@ export function NavigationSidebar({
   );
   const activeEnvironment = useActiveEnvironment();
   const [mobileReady, setMobileReady] = useState(false);
-  const [expandedSessionIds, setExpandedSessionIds] = useState<ReadonlySet<string>>(() => new Set());
-  const [expandedProjects, setExpandedProjects] = useState<ReadonlyMap<string, boolean>>(() => new Map());
-  const [revealRequest, setRevealRequest] = useState<RevealRequest | null>(null);
   const [spaceError, setSpaceError] = useState<string | null>(null);
   const [remotePickerOpen, setRemotePickerOpen] = useState(false);
   const pickerOrigin = useRef<string | null>(null);
@@ -160,16 +165,29 @@ export function NavigationSidebar({
     onSelectSession,
     onInitialRestoreDone,
   });
-  const currentProject = selectedProject ?? selectedCwd ?? coordination.attemptedCwd ?? "";
+  const automationFolder = automationSpaceFolder(
+    coordination.automationCwd,
+    defaultSpaceFolder(coordination.personalCwd, homeDir),
+  );
+  const currentCwd = automationProjectPath(selectedCwd ?? "", automationFolder, activeEnvironment.id);
+  const currentProject =
+    currentCwd === automationFolder
+      ? currentCwd
+      : automationProjectPath(
+          selectedProject ?? selectedCwd ?? coordination.attemptedCwd ?? "",
+          automationFolder,
+          activeEnvironment.id,
+        );
+  const focusedKey = automationProjectKey(snapshot.focus.spaceKey, automationFolder);
+  const projectKey = currentProject
+    ? projectKeyOf({ environmentId: activeEnvironment.id, path: currentProject })
+    : null;
   const currentKey =
-    (openProjects.spaces.some((space) => space.key === snapshot.focus.spaceKey) ? snapshot.focus.spaceKey : null) ??
-    (currentProject ? projectKeyOf({ environmentId: activeEnvironment.id, path: currentProject }) : null);
-  useEffect(() => {
-    if (currentKey)
-      setExpandedProjects((current) =>
-        current.get(currentKey) === false ? new Map(current).set(currentKey, true) : current,
-      );
-  }, [currentKey]);
+    currentCwd === automationFolder
+      ? projectKey
+      : ((openProjects.spaces.some((space) => space.key === focusedKey) ? focusedKey : null) ?? projectKey);
+  const { expandedSessionIds, expandedProjects, revealRequest, toggleExpand, toggleProject, revealSession } =
+    useProjectSpaceExpansion({ currentKey, automationCwd: automationFolder, directories });
   const expanded = isMobile || open;
   const hidden = isMobile && !open;
   const updatePhase = softwareUpdate.state?.phase;
@@ -179,39 +197,6 @@ export function NavigationSidebar({
     if (expanded) resetWorktreeDropdownForOutsideClick();
     onToggle();
   }, [expanded, onToggle, resetWorktreeDropdownForOutsideClick]);
-  const toggleExpand = useCallback(
-    (sessionId: string) =>
-      setExpandedSessionIds((current) => {
-        const next = new Set(current);
-        if (!next.delete(sessionId)) next.add(sessionId);
-        return next;
-      }),
-    [],
-  );
-  const toggleProject = useCallback(
-    (key: string, nextOpen: boolean) => setExpandedProjects((current) => new Map(current).set(key, nextOpen)),
-    [],
-  );
-  const revealSession = useCallback(
-    (session: SessionInfo, introducedAncestorIds?: readonly string[]) => {
-      const environmentId = session.environmentId;
-      const root = session.projectRoot ?? session.cwd;
-      if (root && introducedAncestorIds === undefined)
-        setExpandedProjects((current) => new Map(current).set(projectKeyOf({ environmentId, path: root }), true));
-      const members = directories.find((item) => item.environment.id === environmentId)?.sessions ?? [];
-      const ancestors = (introducedAncestorIds ?? sessionAncestorIds(members, session.id)).map((id) =>
-        qualifySessionKey(environmentId, id),
-      );
-      setExpandedSessionIds((current) => {
-        if (ancestors.every((id) => current.has(id))) return current;
-        const next = new Set(current);
-        for (const id of ancestors) next.add(id);
-        return next;
-      });
-      setRevealRequest((previous) => ({ seq: (previous?.seq ?? 0) + 1, sessionId: session.id, environmentId }));
-    },
-    [directories],
-  );
   const shownDirectory = directories.find((item) => item.environment.id === activeEnvironment.id);
   const shownSession = shownDirectory?.sessions.find((session) => session.id === shownSessionId);
   useShownSessionReveal(
@@ -302,14 +287,19 @@ export function NavigationSidebar({
   }, [onOpenSettings]);
   const spacePath = selectedCwd ?? coordination.attemptedCwd ?? "";
   const personal = (path: string) => isPersonalSpace(path, coordination.personalCwd, homeDir);
+  const automation = (path: string) =>
+    isAutomationSpace(automationProjectPath(path, automationFolder), automationFolder, homeDir);
   const projectName = (path: string) =>
-    spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Default space"));
+    automation(path)
+      ? t("autoNavSpaceName", "Automation space")
+      : spaceDisplayName(path, coordination.personalCwd, homeDir, t("personalSpace", "Default space"));
   const rows = buildProjectSpaceRows({
     spaces: openProjects.spaces,
     directories,
     focus: { ...snapshot.focus, spaceKey: currentKey },
     missing: openProjects.missing,
     pinned: openProjects.pinned,
+    automationCwd: automationFolder,
     now: Date.now(),
     projectName: (space) =>
       space.key === openProjects.pinned
@@ -374,9 +364,12 @@ export function NavigationSidebar({
           visible={!hidden}
           page={page}
           settingsOpen={settingsOpen}
+          automationBadge={{ count: automationBadge.count, severity: automationBadge.severity }}
           spaceName={
             spacePath && !(activeEnvironment.id === PRIMARY_ENVIRONMENT_ID && personal(spacePath))
-              ? spaceFolderName(spacePath)
+              ? activeEnvironment.id === PRIMARY_ENVIRONMENT_ID
+                ? projectName(spacePath)
+                : spaceFolderName(spacePath)
               : undefined
           }
           spacePath={spacePath}
@@ -385,7 +378,7 @@ export function NavigationSidebar({
           selectedEnvironmentId={activeEnvironment.id}
           currentProject={currentProject}
           projectName={activeEnvironment.id === PRIMARY_ENVIRONMENT_ID ? projectName : spaceFolderName}
-          isPinnedProject={personal}
+          isPinnedProject={(path) => personal(path) || automation(path)}
           expandedProjects={expandedProjects}
           onToggleProject={toggleProject}
           canMoveProject={openProjects.canMove}

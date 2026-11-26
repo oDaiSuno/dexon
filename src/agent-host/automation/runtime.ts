@@ -1,9 +1,12 @@
 import { existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
+import { homedir } from "node:os";
 import { RpcError } from "../../contract/types";
 import { AUTOMATION_DRIVER_STOP_GRACE_MS, AUTOMATION_PROBE_STOP_GRACE_MS } from "../../shared/shutdown-budget";
 import { AutomationStore, systemClock } from "./store";
-import { assertTaskSpec } from "./spec/validate";
+import { assertTaskSpec, SpecValidationError } from "./spec/validate";
+import { compileTaskSpec } from "./spec/compile";
+import { automationWorkspaceRoot, ensureManagedTaskDirectory } from "../automation-workspace";
 import { DriverPool } from "./driver-pool";
 import { AutomationScheduler } from "./scheduler";
 import { createStepExecutors } from "./exec/executors";
@@ -147,7 +150,38 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
       });
       return stopping;
     },
+    async validateTask(rawSpec) {
+      assertReady();
+      try {
+        const { spec, requiredGrant } = compileTaskSpec(rawSpec);
+        return { valid: true, issues: [], spec, planHash: requiredGrant.planHash, requiredGrant };
+      } catch (error) {
+        return {
+          valid: false,
+          issues:
+            error instanceof SpecValidationError
+              ? error.issues.map(({ path, message }) => ({ path, message }))
+              : [{ path: "$", message: error instanceof Error ? error.message : String(error) }],
+        };
+      }
+    },
     async saveTask(spec) {
+      assertReady();
+      if (spec !== null && typeof spec === "object" && !Array.isArray(spec) && "cwd" in spec) {
+        const cwd = spec.cwd;
+        if (typeof cwd === "string" && path.isAbsolute(cwd)) {
+          const home = homedir();
+          const relative = path.relative(automationWorkspaceRoot(home), cwd);
+          if (
+            relative !== "" &&
+            relative !== ".." &&
+            !relative.startsWith(`..${path.sep}`) &&
+            !path.isAbsolute(relative)
+          ) {
+            await ensureManagedTaskDirectory(home, cwd);
+          }
+        }
+      }
       assertReady();
       assertTaskSpec(spec);
       const db = available();
@@ -175,6 +209,9 @@ export function createAutomationRuntime(deps: AutomationRuntimeDeps): Automation
           ?.listTasks()
           .filter((task) => query.cwd === undefined || task.cwd === query.cwd) ?? []
       );
+    },
+    listTaskRevisions(taskId) {
+      return peekStore()?.listTaskRevisions(taskId) ?? [];
     },
     getTask(taskId, revision) {
       const db = peekStore();

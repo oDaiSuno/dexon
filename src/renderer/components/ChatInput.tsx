@@ -4,10 +4,17 @@ import { useI18n } from "@/i18n";
 import { useActiveEnvironment, useEnvironments } from "@/lib/environment-registry";
 import { environmentAffordances } from "@/lib/environment-affordances";
 import { useSendGate } from "@/lib/space-attribution";
+import {
+  clearAutomationSessionIntent,
+  getAutomationSessionIntent,
+  setAutomationSessionIntent,
+} from "@/lib/automation-session-intent";
 import { sessionClientErrorMessage } from "@/lib/session-error-message";
 import { modelSupportsImages } from "@/lib/model-selection";
 import { ComposerView } from "./chat-input/composer-view";
-import { Button } from "./form-controls";
+import { AutomationComposerReference } from "./chat-input/automation-composer-reference";
+import { AutomationStarterCards } from "./chat-input/automation-starter-cards";
+import { RemoteUploadStatus } from "./chat-input/remote-upload-status";
 import { groupModelOptions, type ModelOption } from "./chat-input/model-catalog";
 import { buildPromptHistory, localCommandsFor, recordLocalCommand } from "./chat-input/prompt-history";
 import { useComposerAttachments } from "./chat-input/use-composer-attachments";
@@ -82,6 +89,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
     promptHistory,
     draftKey,
     cwd,
+    isEmptyNew = false,
     visible = true,
     remote,
     navigation,
@@ -143,6 +151,7 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
   const handleSend = useCallback(async () => {
     if (!visible || isStreaming) return;
     if (!sendGate.allowed) return;
+    const automationIntent = isEmptyNew ? getAutomationSessionIntent() : null;
     const ticket = draft.submit();
     if (!ticket) return;
     onAudioUnlock?.();
@@ -155,16 +164,21 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
           return;
         }
       }
-      const settled = await Promise.resolve(onSend(serializeComposerQuotesForSend(ticket.message)));
+      const settledPromise = Promise.resolve(onSend(serializeComposerQuotesForSend(ticket.message)));
+      if (automationIntent && getAutomationSessionIntent() === automationIntent) clearAutomationSessionIntent();
+      const settled = await settledPromise;
       if (submissionRejected(settled)) {
+        if (automationIntent && getAutomationSessionIntent() === null) setAutomationSessionIntent(automationIntent);
         draft.restoreFailed(ticket, "send", null);
       }
     } catch (error) {
+      if (automationIntent && getAutomationSessionIntent() === null) setAutomationSessionIntent(automationIntent);
       draft.restoreFailed(ticket, "send", typeof error === "string" ? error : sessionClientErrorMessage(error, t, ""));
     }
   }, [
     attachments.attachmentTokens.length,
     draft,
+    isEmptyNew,
     isStreaming,
     onAudioUnlock,
     onBuiltinCommand,
@@ -251,6 +265,19 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
       observeComposerChange(change);
     },
     [closePlusMenu, draft, observeComposerChange],
+  );
+
+  const fillAutomationPrompt = useCallback(
+    (prompt: string, onlyIfEmpty = false) => {
+      if (!visible) return;
+      const editor = editableRef.current;
+      if (onlyIfEmpty && (editor?.getValue() ?? draft.shown).trim()) return;
+      if (editor) editor.replaceAll(prompt);
+      else draft.edit(prompt);
+      dismissSuggestions();
+      closeTransientMenus();
+    },
+    [closeTransientMenus, dismissSuggestions, draft, visible],
   );
 
   const controls = useComposerControls({
@@ -343,38 +370,12 @@ export const ChatInput = forwardRef<ChatInputHandle, ChatInputProps>(function Ch
 
   return (
     <>
-      {visible && attachments.remoteUploads.length > 0 && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="type-label-default"
-          style={{
-            display: "grid",
-            gap: "var(--space-1)",
-            padding: "var(--space-2) var(--space-3)",
-            color: "var(--fx-text-secondary)",
-          }}
-        >
-          {attachments.remoteUploads.map((upload) => (
-            <div key={upload.id} style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-              <span style={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>
-                {upload.file.name} ·{" "}
-                {(upload.status === "uploading"
-                  ? t("remoteAttachmentUploading", "Uploading to {environment}")
-                  : t("remoteAttachmentUploadFailed", "Upload to {environment} failed")
-                ).replace("{environment}", attachments.remoteUploadDestination)}
-                {upload.message && ` · ${upload.message}`}
-              </span>
-              {upload.status === "failed" && (
-                <Button variant="ghost" onClick={() => attachments.retryRemoteUpload(upload.id)}>
-                  {t("retry", "Retry")}
-                </Button>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+      {visible && <RemoteUploadStatus attachments={attachments} />}
       <ComposerView
+        automationReference={
+          isEmptyNew ? <AutomationComposerReference visible={visible} onFillPrompt={fillAutomationPrompt} /> : undefined
+        }
+        automationStarters={isEmptyNew ? <AutomationStarterCards onFillPrompt={fillAutomationPrompt} /> : undefined}
         environmentId={environmentId}
         sendGate={sendGate}
         sessionFolderMissing={sessionFolderMissing}

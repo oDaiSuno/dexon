@@ -78,6 +78,7 @@ export function ChatMessages({
     const streaming = streamState.streamingMessage;
     const streamingMessage = streaming?.role === "assistant" ? (streaming as AssistantMessage) : undefined;
     const replyInProgress = agentRunning || streamState.isStreaming;
+    const isSealed = session?.relation === "automation";
     const shownMessages: AgentMessage[] = streamingMessage ? [...messages, streamingMessage] : messages;
     const shownEntryIds: string[] = streamingMessage ? [...entryIds, streamState.streamingEntryId ?? ""] : entryIds;
 
@@ -164,9 +165,9 @@ export function ChatMessages({
             cwd={messageCwd}
             onOpenFile={onOpenFile}
             entryId={entryIds[idx]}
-            editDraft={editDraft}
-            editHandlers={editHandlers}
-            onSwitchVersion={handleSwitchVersion}
+            editDraft={isSealed ? null : editDraft}
+            editHandlers={isSealed ? undefined : editHandlers}
+            onSwitchVersion={isSealed ? undefined : handleSwitchVersion}
             agentRunning={agentRunning}
             onLoadDeferredContent={loadDeferredContent}
             afterAssistant={prevIsAssistant}
@@ -351,7 +352,7 @@ export function ChatMessages({
           key={messageRenderKeys.screenKey(messageRenderKeys.keyFor(messages[idx], entryIds[idx], "turn"))}
           footer={isLiveTurn ? null : layout.footer}
           modelNames={modelNames}
-          onFork={agentRunning || isNew ? undefined : handleFork}
+          onFork={agentRunning || isNew || isSealed ? undefined : handleFork}
           forking={layout.footer?.forkEntryId !== undefined && forkingEntryId === layout.footer.forkEntryId}
         >
           {layout.pieces.map((piece, index) =>

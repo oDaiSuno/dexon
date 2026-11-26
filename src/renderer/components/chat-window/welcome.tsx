@@ -1,5 +1,7 @@
 import { type NoticeItem } from "@/hooks/useAgentSession";
 import { useI18n } from "@/i18n";
+import { useAutomationSessionIntent } from "@/lib/automation-session-intent";
+import { AutomationWelcome } from "./automation-welcome";
 import appIconUrl from "../../../../build/icon.png";
 import { NoticeShelf } from "./status";
 export function Welcome({
@@ -10,6 +12,17 @@ export function Welcome({
   onDismissNotice: (id: string) => void;
 }) {
   const { t } = useI18n();
+  const automationIntent = useAutomationSessionIntent();
+  if (automationIntent) {
+    return (
+      <div className="auto-chat-welcome-region relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
+        <div className="chat-content-column">
+          <AutomationWelcome intent={automationIntent} />
+          <NoticeShelf notices={notices} onDismiss={onDismissNotice} align="center" />
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
       <div className="chat-content-column flex flex-col items-center">

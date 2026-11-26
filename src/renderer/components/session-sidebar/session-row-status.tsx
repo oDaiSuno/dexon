@@ -32,6 +32,7 @@ function countPhrase(activity: CountedActivity, count: number, t: Translate): st
 }
 
 function relationPhrase(relation: SessionRelation, t: Translate): string {
+  if (relation === "automation") return t("autoNavRelationAutomation", "Automation run");
   return relation === "delegate"
     ? t("sessionRelationDelegate", "Created by session")
     : t("sessionRelationFork", "Forked session");

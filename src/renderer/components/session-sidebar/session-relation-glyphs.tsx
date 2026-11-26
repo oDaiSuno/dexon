@@ -94,6 +94,16 @@ export function DelegateSessionGlyph({ size = 14 }: { size?: number }) {
   );
 }
 
+export function AutomationSessionGlyph({ size = 14 }: { size?: number }) {
+  return (
+    <RowIcon size={size}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </RowIcon>
+  );
+}
+
 export function SessionRelationGlyph({ relation, size }: { relation: SessionRelation; size?: number }) {
+  if (relation === "automation") return <AutomationSessionGlyph size={size} />;
   return relation === "delegate" ? <DelegateSessionGlyph size={size} /> : <ForkSessionGlyph size={size} />;
 }

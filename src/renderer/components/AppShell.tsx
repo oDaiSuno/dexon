@@ -11,8 +11,11 @@ import { ThinkingExpansionRegistry } from "@/lib/thinking-expansion-store";
 import { SessionProfiler } from "./SessionProfiler";
 import type { ChatInputHandle } from "./ChatInput";
 import type { ChatAppearancePreferences } from "@shared/chat-appearance";
-import { useWorkspaceNavigation } from "./app-shell/use-workspace-navigation";
-import { useSpaceCoordination } from "./app-shell/use-space-coordination";
+import { useAutomationNavigation, useWorkspaceNavigation } from "./app-shell/use-workspace-navigation";
+import { useSpaceCoordination, useStartupSpaceSync } from "./app-shell/use-space-coordination";
+import { useAutomationProjectSpaces } from "@/hooks/use-project-spaces";
+import { AutomationPage } from "@/components/automation/AutomationPage";
+import { clearAutomationSessionIntent } from "@/lib/automation-session-intent";
 import { EXPLORER_TAB_ID, useRightPanelDock } from "./app-shell/use-right-panel-dock";
 import { useBrowserAuthorization } from "./app-shell/use-browser-authorization";
 import { useChannelSnapshot } from "./app-shell/use-channel-snapshot";
@@ -27,8 +30,8 @@ import { ResourcePage } from "./app-nav/resource-page";
 import { RemotePage } from "./app-nav/remote-page";
 import { useMissingFolderRecovery } from "./app-shell/use-missing-folder-recovery";
 import { useShellSpace } from "./app-shell/use-shell-space";
-import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
-import { resolveWorkspaceLocation, workspaceStore } from "@/lib/workspace-store";
+import type { EnvironmentId } from "@contract/environment";
+import { resolveWorkspaceLocation } from "@/lib/workspace-store";
 export function AppShell({
   chatAppearance,
   chatAppearanceSaving,
@@ -50,34 +53,17 @@ export function AppShell({
   const readingPositionRegistryRef = useRef(new ReadingPositionRegistry());
   const collapseMobileSidebar = useCallback(() => setSidebarOpen(false), []);
   const openSidebarForSwitchSession = useCallback(() => setSidebarOpen(true), []);
-  const {
-    settingsOpen,
-    settingsInitialTab,
-    settingsEnvironmentId,
-    settingsNavigationRequestId,
-    openSettings,
-    closeSettings,
-  } = useSettingsDialog();
-  const {
-    page,
-    setPage,
-    resourceTab,
-    setResourceTab,
-    resourceView,
-    setResourceView,
-    resourcesEnvironmentId,
-    setResourcesEnvironmentId,
-    remoteOpen,
-    setRemoteOpen,
-    handleNavigate,
-    openRemote,
-  } = useSidebarNavigation(
+  const settings = useSettingsDialog();
+  const { settingsOpen, openSettings, closeSettings } = settings;
+  const sidebar = useSidebarNavigation(
     useCallback(() => {
+      clearAutomationSessionIntent();
       setActiveTopPanel(null);
       if (isMobile) setSidebarOpen(false);
       closeSettings();
     }, [isMobile, closeSettings]),
   );
+  const { page, setPage, setRemoteOpen, handleNavigate, openRemote } = sidebar;
   const showChatPage = useCallback(() => {
     closeSettings();
     setRemoteOpen(false);
@@ -110,41 +96,18 @@ export function AppShell({
       readingPositionRegistryRef.current.delete(sessionId);
     }, []),
   });
-  const {
-    environmentId,
-    workspaceSnapshot,
-    selectedSession,
-    spaceFrozenSessionId,
-    newSessionCwd,
-    location: navigationLocation,
-    sessionKey,
-    refreshKey,
-    initialSessionId,
-    initialSessionRestored,
-    handleCwdChange,
-    handleSelectSession,
-    handleNewSession,
-    handleSessionCreated,
-    handleSessionForked,
-    handleSessionDeleted,
-    handleInitialRestoreDone,
-    bumpSessionKey,
-    bumpRefresh,
-  } = navigation;
-  const sessionSpaceCwd =
-    selectedSession === null
-      ? (newSessionCwd ?? null)
-      : selectedSession.id === spaceFrozenSessionId
-        ? null
-        : selectedSession.cwd;
+  const { environmentId, workspaceSnapshot, selectedSession, spaceFrozenSessionId, newSessionCwd, refreshKey } =
+    navigation;
+  const sessionSpaceCwd = selectedSession?.id === spaceFrozenSessionId ? null : (selectedSession?.cwd ?? newSessionCwd);
   const coordination = useSpaceCoordination({
-    sessionIntent: initialSessionId,
-    sessionResolved: initialSessionRestored,
+    sessionIntent: navigation.initialSessionId,
+    sessionResolved: navigation.initialSessionRestored,
     sessionFound: selectedSession !== null,
     sessionCwd: sessionSpaceCwd,
   });
   const handleOpenSettings = useCallback(
     (tab: SettingsTab = "general") => {
+      clearAutomationSessionIntent();
       setActiveTopPanel(null);
       if (isMobile) setSidebarOpen(false);
       openSettings(tab);
@@ -152,66 +115,68 @@ export function AppShell({
     [isMobile, openSettings],
   );
   const openResources = useCallback(() => handleNavigate("resources"), [handleNavigate]);
-  const openModelSettings = useCallback(() => {
-    setActiveTopPanel(null);
-    if (isMobile) setSidebarOpen(false);
-    openSettings("models");
-  }, [isMobile, openSettings]);
+  const openModelSettings = useCallback(() => handleOpenSettings("models"), [handleOpenSettings]);
   const composerNavigation = useMemo(
     () => ({ openResources, openRemote, openModelSettings }),
     [openResources, openRemote, openModelSettings],
   );
   const onResources = page === "resources";
-  const remoteShown = onResources && remoteOpen && !settingsOpen;
-  const mainCovered = settingsOpen || remoteShown;
-  const mainSuspended = onResources || settingsOpen;
+  const remoteShown = onResources && sidebar.remoteOpen && !settingsOpen;
+  const automationShown = page === "automation" && !settingsOpen;
+  const mainCovered = settingsOpen || remoteShown || automationShown;
+  const mainSuspended = page !== "chat" || settingsOpen;
   const [explorerRefreshKey, setExplorerRefreshKey] = useState(0);
+  const { bumpRefresh } = navigation;
   const handleExplorerRefresh = useCallback(() => {
     bumpRefresh();
     setExplorerRefreshKey((k) => k + 1);
   }, [bumpRefresh]);
-  const { space, openProjects, composerWorkspace } = useShellSpace({
+  const newSessionLocation = !selectedSession && newSessionCwd ? { environmentId, path: newSessionCwd } : null;
+  const {
+    space,
+    openProjects: projects,
+    composerWorkspace,
+  } = useShellSpace({
     refreshKey,
     coordination,
     selectedSession,
     spaceFrozenSessionId,
-    location: selectedSession === null && newSessionCwd ? { environmentId, path: newSessionCwd } : navigationLocation,
+    location: newSessionLocation ?? navigation.location,
     chatInputRef,
-    onCwdCommitted: handleCwdChange,
+    onCwdCommitted: navigation.handleCwdChange,
     onBranchSwitched: handleExplorerRefresh,
   });
+  const openProjects = useAutomationProjectSpaces({
+    projects,
+    automationCwd: coordination.automationCwd,
+    personalCwd: coordination.personalCwd,
+  });
+  const { automationTarget, consumeAutomationTarget, overviewResetKey, handleSidebarNavigate, handleCloseAutomation } =
+    useAutomationNavigation({
+      page,
+      settingsOpen,
+      automationCwd: coordination.automationCwd,
+      prepareAutomationSpace: coordination.prepareAutomationSpace,
+      onNavigate: handleNavigate,
+      onShowChat: showChatPage,
+      onNewSession: navigation.handleNewSession,
+      onOpenSession: navigation.openSessionById,
+    });
   const folderRecovery = useMissingFolderRecovery({
     session: selectedSession,
     workspace: space.workspace,
     coordination,
-    onNewSession: handleNewSession,
+    onNewSession: navigation.handleNewSession,
     onOpenSettings: () => handleOpenSettings("servers"),
   });
-  const startupSpaceSyncedRef = useRef(false);
-  useEffect(() => {
-    if (startupSpaceSyncedRef.current || !workspaceSnapshot.loaded || coordination.spacePhase.phase !== "ready") return;
-    startupSpaceSyncedRef.current = true;
-    if (
-      workspaceSnapshot.focus.environmentId === PRIMARY_ENVIRONMENT_ID &&
-      workspaceSnapshot.focus.spaceKey === null &&
-      workspaceSnapshot.focus.sessionId === null &&
-      selectedSession === null
-    ) {
-      workspaceStore.openSpace({ environmentId: PRIMARY_ENVIRONMENT_ID, path: coordination.spacePhase.cwd });
-    }
-  }, [workspaceSnapshot.loaded, workspaceSnapshot.focus, coordination.spacePhase, selectedSession]);
+  useStartupSpaceSync(workspaceSnapshot, coordination.spacePhase, selectedSession !== null);
   const location = resolveWorkspaceLocation(workspaceSnapshot, selectedSession, openProjects.spaces);
-  const draftLocation =
-    selectedSession === null && newSessionCwd
-      ? { environmentId, path: newSessionCwd }
-      : selectedSession === null
-        ? location
-        : null;
+  const draftLocation = selectedSession === null ? (newSessionLocation ?? location) : null;
   const activeLocation = draftLocation ?? location;
   const settingsTarget =
-    settingsEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
+    settings.settingsEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
   const resourcesTarget =
-    resourcesEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
+    sidebar.resourcesEnvironmentId ?? activeLocation?.environmentId ?? workspaceSnapshot.focus.environmentId;
   const resourcesCwd =
     activeLocation?.environmentId === resourcesTarget
       ? activeLocation.path
@@ -229,7 +194,6 @@ export function AppShell({
   });
   const channels = useChannelSnapshot();
   const info = useSessionInfo();
-  const handleAgentEnd = handleExplorerRefresh;
   const handleAtMention = useCallback((relativePath: string, isDir: boolean) => {
     chatInputRef.current?.insertText(buildAtMentionText(relativePath, isDir));
   }, []);
@@ -257,14 +221,11 @@ export function AppShell({
     onShowChat: showChatPage,
     onOpenFile: handleOpenFile,
   });
-
   const effectiveNewSessionCwd = draftLocation?.path ?? null;
   const showChat = selectedSession !== null || effectiveNewSessionCwd !== null;
-  const showPlaceholder = initialSessionRestored && !showChat;
-
+  const showPlaceholder = navigation.initialSessionRestored && !showChat;
   const explorerCwd = activeLocation?.path ?? null;
   const authorizationRequest = authorization.browserAuthorization;
-
   const previousExplorer = useRef({ environmentId, path: explorerCwd, isMobile });
   useEffect(() => {
     const before = previousExplorer.current;
@@ -285,7 +246,7 @@ export function AppShell({
           onClose={collapseMobileSidebar}
           page={page}
           settingsOpen={settingsOpen}
-          onNavigate={handleNavigate}
+          onNavigate={handleSidebarNavigate}
           onOpenSettings={handleOpenSettings}
           coordination={coordination}
           homeDir={space.homeDir}
@@ -294,11 +255,11 @@ export function AppShell({
           onReturnToPersonalSpace={space.handleReturnToPersonalSpace}
           openProjects={openProjects}
           shownSessionId={mainSuspended ? null : (selectedSession?.id ?? null)}
-          onSelectSession={handleSelectSession}
-          onNewSession={handleNewSession}
-          initialSessionId={initialSessionId}
-          onInitialRestoreDone={handleInitialRestoreDone}
-          onSessionDeleted={handleSessionDeleted}
+          onSelectSession={navigation.handleSelectSession}
+          onNewSession={navigation.handleNewSession}
+          initialSessionId={navigation.initialSessionId}
+          onInitialRestoreDone={navigation.handleInitialRestoreDone}
+          onSessionDeleted={navigation.handleSessionDeleted}
         />
 
         <div
@@ -320,6 +281,14 @@ export function AppShell({
               currentSessionId={selectedSession?.id ?? null}
             />
           )}
+          {automationShown && (
+            <AutomationPage
+              initialTarget={automationTarget}
+              onConsumeTarget={consumeAutomationTarget}
+              overviewResetKey={overviewResetKey}
+              onClose={handleCloseAutomation}
+            />
+          )}
           {settingsOpen && (
             <SettingsConfig
               environmentId={settingsTarget}
@@ -328,8 +297,8 @@ export function AppShell({
                 authorizationSettingsSessionId ??
                 (selectedSession?.environmentId === settingsTarget ? selectedSession.id : null)
               }
-              initialTab={settingsInitialTab}
-              navigationRequestId={settingsNavigationRequestId}
+              initialTab={settings.settingsInitialTab}
+              navigationRequestId={settings.settingsNavigationRequestId}
               onClose={closeSettings}
               onModelsChanged={() => setModelsRefreshKey((key) => key + 1)}
               chatAppearance={chatAppearance}
@@ -359,10 +328,7 @@ export function AppShell({
               projectName={space.project?.name ?? null}
               activeTopPanel={activeTopPanel}
               onToggleTopPanel={toggleTopPanel}
-              sessionStats={info.sessionStats}
-              contextUsage={info.contextUsage}
-              modelId={info.modelId}
-              compaction={info.compaction}
+              {...info}
               copyFeedback={info.sessionCopyFeedback}
               onCopyField={info.handleCopySessionField}
               trailing={
@@ -382,21 +348,21 @@ export function AppShell({
               {onResources && (
                 <ResourcePage
                   environmentId={resourcesTarget}
-                  onScopeChange={setResourcesEnvironmentId}
+                  onScopeChange={sidebar.setResourcesEnvironmentId}
                   cwd={resourcesCwd}
                   sessionId={selectedSession?.environmentId === resourcesTarget ? selectedSession.id : null}
-                  view={resourceView}
-                  onViewChange={setResourceView}
-                  activeTab={resourceTab}
-                  onTabChange={setResourceTab}
-                  onPluginsReloaded={bumpSessionKey}
+                  view={sidebar.resourceView}
+                  onViewChange={sidebar.setResourceView}
+                  activeTab={sidebar.resourceTab}
+                  onTabChange={sidebar.setResourceTab}
+                  onPluginsReloaded={navigation.bumpSessionKey}
                   channelSnapshot={channels.channelSnapshot}
                   onOpenRemote={openRemote}
                   onOpenFile={handleOpenLinkedFile}
                 />
               )}
               {showChat ? (
-                <SessionProfiler key={`${environmentId}:${sessionKey}`} id="ChatWindow">
+                <SessionProfiler key={`${environmentId}:${navigation.sessionKey}`} id="ChatWindow">
                   <ChatWindow
                     visible={!mainSuspended}
                     environmentId={environmentId}
@@ -408,9 +374,9 @@ export function AppShell({
                     missingFolderRecovery={folderRecovery.recovery}
                     readingPositions={readingPositionRegistryRef.current}
                     newSessionCwd={effectiveNewSessionCwd}
-                    onAgentEnd={handleAgentEnd}
-                    onSessionCreated={handleSessionCreated}
-                    onSessionForked={handleSessionForked}
+                    onAgentEnd={handleExplorerRefresh}
+                    onSessionCreated={navigation.handleSessionCreated}
+                    onSessionForked={navigation.handleSessionForked}
                     modelsRefreshKey={modelsRefreshKey}
                     chatInputRef={chatInputRef}
                     onSessionStatsChange={info.setSessionStats}
@@ -439,18 +405,10 @@ export function AppShell({
         </div>
 
         <RightPanelDock
-          activeFileTabId={dock.activeFileTabId}
-          fileTabs={dock.fileTabs}
-          dispatchFileTab={dock.dispatchFileTab}
-          rightPanelOpen={dock.rightPanelOpen}
-          rightPanelWidth={dock.rightPanelWidth}
-          rightPanelBounds={dock.rightPanelBounds}
-          rightPanelResizing={dock.rightPanelResizing}
+          {...dock}
           onResizeStart={dock.handleRightPanelResizeStart}
           onResizeKeyDown={dock.handleRightPanelResizeKeyDown}
-          managedProcessCount={dock.managedProcessCount}
           onManagedProcessCountChange={dock.setManagedProcessCount}
-          managedProcessAttention={dock.managedProcessAttention}
           selectedSessionId={selectedSession?.id ?? null}
           settingsOpen={settingsOpen}
           browserAuthorizationOpen={Boolean(authorization.browserAuthorization)}

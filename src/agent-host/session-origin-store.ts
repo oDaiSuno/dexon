@@ -102,6 +102,10 @@ export class SessionOriginStore {
     return Object.hasOwn(sessions, normalizedId) ? structuredClone(sessions[normalizedId]) : undefined;
   }
 
+  list(): Readonly<Record<string, SessionOriginRecord>> {
+    return structuredClone(this.load().sessions);
+  }
+
   delete(sessionId: string): void {
     const normalizedId = sessionId.trim();
     if (!normalizedId) return;
@@ -218,6 +222,7 @@ export async function flushSessionOrigins(): Promise<void> {
 
 export const sessionOriginStore = {
   get: getSessionOrigin,
+  list: (): Readonly<Record<string, SessionOriginRecord>> => getDefaultStore().list(),
   set(sessionId: string, record: SessionOriginRecord): void {
     getDefaultStore().set(sessionId, record);
   },

@@ -1,6 +1,12 @@
 import type { InteractiveReceipt, InteractiveSnapshot } from "../../shared/interactive-tools";
 import type { SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import { SessionManager } from "@earendil-works/pi-coding-agent";
+import { parseAutomationPromptPayload } from "../../shared/automation/prompt-context";
+import {
+  clearAutomationPromptQueue,
+  prepareAutomationPrompt,
+  type AutomationPromptPreparation,
+} from "./automation-prompt-queue";
 import type { AgentMessage, ExtensionUiResponse, ExtensionWidgetItem, SessionEntry } from "../../shared/types";
 import { browserAgentRuntime } from "../browser-agent-runtime";
 import { describeLiveContextUsage } from "../session-context-usage";
@@ -46,19 +52,25 @@ interface PromptTurn {
   message: string;
   images?: PromptImage[];
   streamingBehavior?: "steer" | "followUp";
-  beforePrompt?: () => Promise<void>;
+  beforePrompt?: () => Promise<AutomationPromptPreparation | void>;
 }
 
 function startPromptTurn(context: SessionCommandContext, turn: PromptTurn): void {
   const { message, images, streamingBehavior, beforePrompt } = turn;
   if (!streamingBehavior) browserAgentRuntime.beginTurn(context.sessionId, "local");
   const invokePrompt = async () => {
-    if (beforePrompt) await beforePrompt();
-    return promptOnChosenModel(context, message, {
+    const preparation = await beforePrompt?.();
+    const options = {
       ...(images?.length ? { images } : {}),
       ...(streamingBehavior ? { streamingBehavior } : {}),
-      source: "rpc",
-    });
+      ...(preparation ? { preflightResult: preparation.observe } : {}),
+      source: "rpc" as const,
+    };
+    try {
+      return await promptOnChosenModel(context, message, options);
+    } finally {
+      preparation?.finish();
+    }
   };
   const operation = streamingBehavior ? invokePrompt() : context.enqueueTurn(invokePrompt);
   operation
@@ -129,11 +141,13 @@ export async function sendSessionCommand(
   switch (type) {
     case "prompt": {
       await context.assertModelUsable();
-      // Fire and forget — events come via subscribe
+      const automationPrompt = parseAutomationPromptPayload(command.automationPrompt);
       startPromptTurn(context, {
         message: command.message as string,
         images: command.images as PromptImage[] | undefined,
         streamingBehavior: command.streamingBehavior as "steer" | "followUp" | undefined,
+        beforePrompt: async () =>
+          prepareAutomationPrompt(context.inner.sessionManager, command.message as string, automationPrompt),
       });
       return null;
     }
@@ -280,9 +294,6 @@ export async function sendSessionCommand(
     case "set_thinking_level": {
       const level = command.level as string;
       context.inner.setThinkingLevel(level);
-      // setThinkingLevel clamps xhigh→high for models where supportsXhigh()===false.
-      // If the model has DeepSeek thinking compat (reasoningEffortMap maps xhigh→max),
-      // force the state back so the compat layer can use it correctly.
       if (
         level === "xhigh" &&
         (context.inner.model as { compat?: { thinkingFormat?: string } } | null)?.compat?.thinkingFormat ===
@@ -329,20 +340,25 @@ export async function sendSessionCommand(
     }
 
     case "clear_queue": {
-      // Full clear only: pi has no single-item dequeue, and clear+requeue
-      // races against the agent loop pulling messages mid-flight.
-      return context.inner.clearQueue();
+      const cleared = context.inner.clearQueue();
+      clearAutomationPromptQueue(context.inner.sessionManager);
+      return cleared;
     }
 
-    case "steer": {
-      const steerImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
-      await context.inner.steer(command.message as string, steerImages?.length ? steerImages : undefined);
-      return null;
-    }
-
+    case "steer":
     case "follow_up": {
-      const followImages = command.images as Array<{ type: "image"; data: string; mimeType: string }> | undefined;
-      await context.inner.followUp(command.message as string, followImages?.length ? followImages : undefined);
+      const message = command.message as string;
+      const images = command.images as PromptImage[] | undefined;
+      const preparation = prepareAutomationPrompt(context.inner.sessionManager, message, null);
+      try {
+        const disposition =
+          type === "steer"
+            ? await context.inner.steer(message, images?.length ? images : undefined)
+            : await context.inner.followUp(message, images?.length ? images : undefined);
+        preparation.observe(disposition);
+      } finally {
+        preparation.finish();
+      }
       return null;
     }
 

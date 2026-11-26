@@ -291,6 +291,13 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/messages-stream.css",
   "styles/tool-cards.css",
   "styles/automation-cards.css",
+  "styles/automation-page.css",
+  "styles/automation-drawer.css",
+  "styles/automation-runs.css",
+  "styles/automation-editor-fields.css",
+  "styles/automation-run-timeline.css",
+  "styles/automation-editor.css",
+  "styles/automation-detail.css",
 ];
 function checkCssWiring() {
   const failures = [];

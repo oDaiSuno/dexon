@@ -28,6 +28,7 @@ after(restoreGlobals);
 after(installBrowserEvents());
 
 const DEFAULT = "Default space";
+const AUTOMATION = "Automation space";
 const PROJECT = "navigation-project";
 const EMPTY = "empty-project";
 const SWITCHER = "Switch or add project";
@@ -57,7 +58,11 @@ function expandedRows(scene) {
 
 async function ready(t, options = saved) {
   const scene = await startNavigation(t, options);
-  await waitFor(() => assert.equal(projectOrder(scene).length, 3));
+  const order =
+    options.language === "zh-CN"
+      ? ["默认空间", "自动化任务空间", PROJECT, EMPTY]
+      : [DEFAULT, AUTOMATION, PROJECT, EMPTY];
+  await waitFor(() => assert.deepEqual(projectOrder(scene), order));
   return scene;
 }
 
@@ -96,13 +101,15 @@ function placeButton(t, element, box) {
   });
 }
 
-test("every project row but the default space offers the same actions menu, and the current project is no different", async (t) => {
+test("only ordinary project rows offer the same actions menu, and the current project is no different", async (t) => {
   const scene = await ready(t);
-  assert.equal(
-    roles(projectItem(scene, DEFAULT), "button", `Actions for ${DEFAULT}`).length,
-    0,
-    "the default space row has no actions menu: it can be neither moved nor closed",
-  );
+  for (const name of [DEFAULT, AUTOMATION]) {
+    assert.equal(
+      roles(projectItem(scene, name), "button", `Actions for ${name}`).length,
+      0,
+      `${name} has no actions menu: pinned spaces can be neither moved nor closed`,
+    );
+  }
   for (const name of [PROJECT, EMPTY]) {
     const menu = await projectMenu(scene, name);
     assert.deepEqual(
@@ -266,11 +273,13 @@ test("Collapse all projects folds every open row, the ones opened by hand includ
   const scene = await ready(t);
   assert.deepEqual(
     expandedRows(scene),
-    { [DEFAULT]: "false", [PROJECT]: "true", [EMPTY]: "false" },
+    { [DEFAULT]: "false", [AUTOMATION]: "false", [PROJECT]: "true", [EMPTY]: "false" },
     "the current project is open before anyone touches a row",
   );
   await click(control(projectItem(scene, DEFAULT), "button", DEFAULT));
   await waitFor(() => assert.equal(expandedRows(scene)[DEFAULT], "true"), "the default space is opened by hand");
+  await click(control(projectItem(scene, AUTOMATION), "button", AUTOMATION));
+  await waitFor(() => assert.equal(expandedRows(scene)[AUTOMATION], "true"), "the automation space is opened by hand");
   await click(control(projectItem(scene, EMPTY), "button", EMPTY));
   await waitFor(() => assert.equal(expandedRows(scene)[EMPTY], "true"), "a second project is opened by hand");
   control(scene.history(), "button", COLLAPSE_ALL);
@@ -278,7 +287,7 @@ test("Collapse all projects folds every open row, the ones opened by hand includ
   await waitFor(() =>
     assert.deepEqual(
       expandedRows(scene),
-      { [DEFAULT]: "false", [PROJECT]: "false", [EMPTY]: "false" },
+      { [DEFAULT]: "false", [AUTOMATION]: "false", [PROJECT]: "false", [EMPTY]: "false" },
       "every row folds: the current one and the ones opened by hand",
     ),
   );
@@ -290,7 +299,12 @@ test("Expand current project opens only the current row, and the button keeps fo
   await click(control(scene.history(), "button", COLLAPSE_ALL));
   await click(await waitFor(() => control(scene.history(), "button", EXPAND_CURRENT)));
   await waitFor(() =>
-    assert.deepEqual(expandedRows(scene), { [DEFAULT]: "false", [PROJECT]: "true", [EMPTY]: "false" }),
+    assert.deepEqual(expandedRows(scene), {
+      [DEFAULT]: "false",
+      [AUTOMATION]: "false",
+      [PROJECT]: "true",
+      [EMPTY]: "false",
+    }),
   );
   control(scene.history(), "button", COLLAPSE_ALL);
   await click(control(scene.history(), "button", COLLAPSE_ALL));
@@ -316,7 +330,12 @@ test("while the session search has text the folding button is greyed out, and it
   await input(box, "");
   await scene.settled();
   assert.equal(control(scene.history(), "button", COLLAPSE_ALL).disabled, false, "the button is usable again");
-  assert.deepEqual(expandedRows(scene), { [DEFAULT]: "false", [PROJECT]: "true", [EMPTY]: "false" });
+  assert.deepEqual(expandedRows(scene), {
+    [DEFAULT]: "false",
+    [AUTOMATION]: "false",
+    [PROJECT]: "true",
+    [EMPTY]: "false",
+  });
 });
 
 test("folding rows changes nothing else: the list, its order, the current project and the conversation open beside it all stay", async (t) => {
@@ -326,7 +345,12 @@ test("folding rows changes nothing else: the list, its order, the current projec
   await expectProjectConversationStillOpen(scene, order);
   await click(control(scene.history(), "button", COLLAPSE_ALL));
   await waitFor(() =>
-    assert.deepEqual(expandedRows(scene), { [DEFAULT]: "false", [PROJECT]: "false", [EMPTY]: "false" }),
+    assert.deepEqual(expandedRows(scene), {
+      [DEFAULT]: "false",
+      [AUTOMATION]: "false",
+      [PROJECT]: "false",
+      [EMPTY]: "false",
+    }),
   );
   await expectProjectConversationStillOpen(scene, order);
   await click(await waitFor(() => control(scene.history(), "button", EXPAND_CURRENT)));
@@ -343,7 +367,7 @@ test("a project the folding button folded away opens itself when the card switch
   await waitFor(() =>
     assert.deepEqual(
       expandedRows(scene),
-      { [DEFAULT]: "false", [PROJECT]: "false", [EMPTY]: "false" },
+      { [DEFAULT]: "false", [AUTOMATION]: "false", [PROJECT]: "false", [EMPTY]: "false" },
       "Collapse all projects folds the row opened by hand as well",
     ),
   );
@@ -351,7 +375,7 @@ test("a project the folding button folded away opens itself when the card switch
   await waitFor(() =>
     assert.deepEqual(
       expandedRows(scene),
-      { [DEFAULT]: "false", [PROJECT]: "false", [EMPTY]: "true" },
+      { [DEFAULT]: "false", [AUTOMATION]: "false", [PROJECT]: "false", [EMPTY]: "true" },
       "the project switched to opens again; the one just left and the rest keep the state they had",
     ),
   );
@@ -366,7 +390,7 @@ test("a row opened by hand stays open when another project is entered from the c
   await waitFor(() =>
     assert.deepEqual(
       expandedRows(scene),
-      { [DEFAULT]: "true", [PROJECT]: "false", [EMPTY]: "true" },
+      { [DEFAULT]: "true", [AUTOMATION]: "false", [PROJECT]: "false", [EMPTY]: "true" },
       "the project just entered opens, the row opened by hand keeps its own state, and the project left behind follows the old rule",
     ),
   );
@@ -378,13 +402,18 @@ test("a project left behind that was never folded by hand folds back like any ot
   await waitFor(() =>
     assert.deepEqual(
       expandedRows(scene),
-      { [DEFAULT]: "false", [PROJECT]: "false", [EMPTY]: "true" },
+      { [DEFAULT]: "false", [AUTOMATION]: "false", [PROJECT]: "false", [EMPTY]: "true" },
       "leaving a project folds it back: only the current project is open by default",
     ),
   );
   await switchTo(scene, PROJECT, P.project);
   await waitFor(() =>
-    assert.deepEqual(expandedRows(scene), { [DEFAULT]: "false", [PROJECT]: "true", [EMPTY]: "false" }),
+    assert.deepEqual(expandedRows(scene), {
+      [DEFAULT]: "false",
+      [AUTOMATION]: "false",
+      [PROJECT]: "true",
+      [EMPTY]: "false",
+    }),
   );
 });
 

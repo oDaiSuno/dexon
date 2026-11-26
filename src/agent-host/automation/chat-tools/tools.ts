@@ -25,7 +25,7 @@ import { requestAutomationUserAction, type RequestUserActionInput } from "./user
 type ToolContext = { sessionManager: { getSessionId(): string } };
 
 const AUTOMATION_PROMPT_GUIDELINES = [
-  "Before authoring or editing an automation task spec, call automation_guide once in the session and call automation_inspect(view: 'capabilities') if the task uses messaging channels or workspace scripts.",
+  "Before authoring or editing an automation task spec, load automation_guide with the 'playbook' and needed schema topics once in the session. Follow the playbook and call automation_inspect(view: 'capabilities') to choose the task cwd and any messaging targets.",
   "Always call automation_validate before automation_save_draft. Stop and ask the user if validation fails 3 times in a row.",
   "Never ask the user to paste secret values (tokens, passwords, API keys) into chat. Reference secrets by lowercase name matching /^[a-z0-9._-]{1,80}$/ and use automation_request_user_action(action: 'configure_secret') so the user enters them in the secure desktop vault.",
   "You cannot enable tasks, approve wait steps, resolve ambiguous side effects, delete tasks, or trigger runs directly; hand those to the user via automation_save_draft or automation_request_user_action.",
@@ -117,7 +117,7 @@ export function createAutomationChatToolDefinitions(
       name: "automation_inspect",
       label: "inspect automation",
       description:
-        "Read-only inspection of automation state in the current environment. Use view 'tasks' to list tasks, 'task' to read a task's full spec and grants, 'runs' to list recent runs (summary only), 'run' to inspect one run (pass stepIndex to read a specific step's full output/error), 'inbox' to list pending approvals and attention items, or 'capabilities' to discover the current workspace cwd and configured messaging channel targets (accountId and peerId). Never returns secret values or enumerates the secret vault.",
+        "Read-only inspection of automation state in the current environment. Use view 'tasks' to list tasks, 'task' to read a task's full spec and grants, 'runs' to list recent runs (summary only), 'run' to inspect one run (pass stepIndex to read a specific step's full output/error), 'inbox' to list pending approvals and attention items, or 'capabilities' to discover the current workspace cwd, managedAutomationRoot for standalone task directories, and configured messaging channel targets (accountId and peerId). Never returns secret values or enumerates the secret vault.",
       promptSnippet: "automation_inspect: read automation tasks, runs, step errors, inbox items, or available channels",
       promptGuidelines: AUTOMATION_PROMPT_GUIDELINES,
       parameters: Type.Object(
@@ -203,8 +203,8 @@ export function createAutomationChatToolDefinitions(
       name: "automation_guide",
       label: "read automation guide",
       description:
-        "Load the exact dexon.automation/v1 specification reference, field constraints, and validated examples on demand. Call this before writing or modifying a task spec unless you have already loaded the needed topics in this session.",
-      promptSnippet: "automation_guide: load exact dexon.automation/v1 schema rules and recipes before authoring",
+        "Load the automation authoring playbook, exact dexon.automation/v1 specification reference, field constraints, and validated examples on demand. Before writing or modifying a task spec, load 'playbook' and any needed schema topics not yet loaded in this session.",
+      promptSnippet: "automation_guide: load the authoring playbook, exact schema rules, and recipes before authoring",
       parameters: Type.Object(
         {
           topics: Type.Optional(
@@ -213,7 +213,7 @@ export function createAutomationChatToolDefinitions(
               maxItems: AUTOMATION_GUIDE_TOPICS.length,
               uniqueItems: true,
               description:
-                "Reference sections to load (defaults to ['core', 'recipes']). 'core': top-level structure, limits, secrets, effects, concurrency; 'triggers': manual, schedule, watch; 'steps': agent, http.request, channel.send, script.run, waits; 'expressions': $ref, $tmpl, conditions; 'recipes': complete validated examples.",
+                "Reference sections to load (defaults to ['playbook', 'core', 'recipes']). 'playbook': clarify intent, choose cwd, approvals, secrets, safe draft workflow; 'core': top-level structure, limits, secrets, effects, concurrency; 'triggers': manual, schedule, watch; 'steps': agent, http.request, channel.send, script.run, waits; 'expressions': $ref, $tmpl, conditions; 'recipes': complete validated examples.",
             }),
           ),
         },

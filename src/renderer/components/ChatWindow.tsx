@@ -10,6 +10,7 @@ import { ReaderActionProvider } from "./chat-window/reader-action";
 import { TurnNavigator } from "./chat-window/turn-navigator";
 import { useChatWindow } from "./chat-window/use-chat-window";
 import { Welcome } from "./chat-window/welcome";
+import { AutomationSealedBanner } from "./chat-window/automation-sealed-banner";
 import { ReconnectBanner } from "./chat-window/reconnect-banner";
 import { ToolCardDock } from "./interactive-tools/tool-card-dock";
 import { RetryCountdownLine } from "./messages/FailureLine";
@@ -51,6 +52,7 @@ export function ChatWindow(props: Props) {
     handleDrop,
     isDragOver,
     isEmptyNew,
+    isSealed,
     t,
     notices,
     dismissNotice,
@@ -105,7 +107,7 @@ export function ChatWindow(props: Props) {
   } = useChatWindow(props);
   const jumpPending = turnJump.jumpTarget !== null;
 
-  if (loading && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
+  if (!isSealed && loading && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-text-secondary)" }}>
@@ -115,7 +117,7 @@ export function ChatWindow(props: Props) {
     );
   }
 
-  if (error && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
+  if (!isSealed && error && sendGate.allowed && messages.length === 0 && !sessionLoadReconnecting) {
     return (
       <div hidden={!visible} aria-hidden={!visible} inert={!visible ? true : undefined}>
         <div className="flex h-full items-center justify-center" style={{ color: "var(--fx-status-danger-text)" }}>
@@ -296,36 +298,42 @@ export function ChatWindow(props: Props) {
         </>
       )}
 
-      <div
-        className="chat-input-transition-dock relative z-[2] w-full flex-shrink-0 self-center"
-        data-position={isEmptyNew ? "welcome" : "conversation"}
-      >
-        {!isEmptyNew && belowEditorWidgets.length > 0 && (
+      {isSealed && session ? (
+        <AutomationSealedBanner sessionId={session.id} />
+      ) : (
+        <div
+          className="chat-input-transition-dock relative z-[2] w-full flex-shrink-0 self-center"
+          data-position={isEmptyNew ? "welcome" : "conversation"}
+        >
+          {!isEmptyNew && belowEditorWidgets.length > 0 && (
+            <div
+              style={{
+                padding: `0 ${CHAT_COLUMN_PADDING}px`,
+                paddingRight: CHAT_COLUMN_PADDING,
+              }}
+            >
+              <div className="chat-content-column">
+                <ExtensionWidgets widgets={belowEditorWidgets} />
+              </div>
+            </div>
+          )}
           <div
             style={{
-              padding: `0 ${CHAT_COLUMN_PADDING}px`,
+              paddingLeft: CHAT_COLUMN_PADDING,
               paddingRight: CHAT_COLUMN_PADDING,
             }}
           >
             <div className="chat-content-column">
-              <ExtensionWidgets widgets={belowEditorWidgets} />
+              <ToolCardDock store={interactiveTools} visible={visible} />
             </div>
           </div>
-        )}
-        <div
-          style={{
-            paddingLeft: CHAT_COLUMN_PADDING,
-            paddingRight: CHAT_COLUMN_PADDING,
-          }}
-        >
-          <div className="chat-content-column">
-            <ToolCardDock store={interactiveTools} visible={visible} />
-          </div>
+          {chatInputElement}
         </div>
-        {chatInputElement}
-      </div>
+      )}
 
-      <div className="chat-input-bottom-spacer" data-expanded={isEmptyNew ? "true" : "false"} aria-hidden="true" />
+      {!isSealed && (
+        <div className="chat-input-bottom-spacer" data-expanded={isEmptyNew ? "true" : "false"} aria-hidden="true" />
+      )}
     </div>
   );
 }

@@ -28,6 +28,7 @@ import { accessibleName } from "../support/dom-queries.mjs";
 after(restoreGlobals);
 
 const DEFAULT = "Default space";
+const AUTOMATION = "Automation space";
 const PROJECT = "navigation-project";
 const EMPTY = "empty-project";
 const REMOVED = "removed-project";
@@ -36,16 +37,16 @@ const ADD_FROM_FOLDER = "Add project space from folder…";
 const saved = (...folders) => ({ openProjects: folders });
 const P = navigationPaths;
 
-test("on first launch the project list holds only the default space, even though other folders have conversations", async (t) => {
+test("on first launch the project list holds only the pinned spaces, even though other folders have conversations", async (t) => {
   const scene = await startNavigation(t);
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   await scene.settled();
-  assert.deepEqual(projectOrder(scene), [DEFAULT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]);
 });
 
 test("a saved project list is shown in its saved order and a folder used only from the terminal does not appear", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.empty, P.project));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
   await scene.settled();
   assert.equal(projectOrder(scene).includes(TERMINAL), false);
 });
@@ -56,20 +57,20 @@ test("a saved project without any conversation keeps its row and shows zero sess
   assert.match(row.textContent, /\b0\b/);
 });
 
-test("the default space is always the first row even when the saved list omits it", async (t) => {
+test("the default and automation spaces are always the first two rows even when the saved list omits them", async (t) => {
   const scene = await startNavigation(t, saved(P.project));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
 });
 
-test("a folder chosen with the system picker joins the list right below the default space and is still there after reopening", async (t) => {
+test("a folder chosen with the system picker joins the list right below the pinned spaces and is still there after reopening", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.empty));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY]));
   scene.external.desktop.selectedDirectory = P.project;
   await click(control(await scene.menu(DEFAULT), "menuitem", ADD_FROM_FOLDER));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
   assert.equal(await scene.currentFolder(), P.project);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
 });
 
 test("a folder path typed in the project switcher joins the list and becomes the current project", async (t) => {
@@ -79,77 +80,77 @@ test("a folder path typed in the project switcher joins the list and becomes the
   await input(search, P.empty);
   await waitFor(() => control(card, "menuitem", `Open ${P.empty}`));
   await keyDown(search, "Enter");
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY]));
   assert.equal(await scene.currentFolder(), P.empty);
 });
 
 test("opening a folder that is already in the list neither duplicates nor moves it", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.empty, P.project));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
   scene.external.desktop.selectedDirectory = P.project;
   await click(control(await scene.menu(DEFAULT), "menuitem", ADD_FROM_FOLDER));
   await waitFor(async () => assert.equal(await scene.currentFolder(), P.project));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
 });
 
 test("a session link to a conversation outside the list adds its project and moves there", async (t) => {
   const scene = await startNavigation(t);
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   await act(async () => scene.external.deepLink("terminal-only-history"));
   await waitFor(() => visibleText(scene.container, "Terminal only conversation marker"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, TERMINAL]));
   assert.equal(await scene.currentFolder(), P.terminalOnly);
 });
 
 test("an explicit startup session outside the list adds its project and opens there", async (t) => {
   const scene = await startNavigation(t, { initialSession: "terminal-only-history" });
   await waitFor(() => visibleText(scene.container, "Terminal only conversation marker"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, TERMINAL]));
 });
 
 test("a remembered space from before the list existed is added to the list", async (t) => {
   const scene = await startNavigation(t, { lastSpaceCwd: P.project });
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
   assert.equal(await scene.currentFolder(), P.project);
 });
 
 test("moving to another worktree of a listed project adds no row of its own", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
   await click(await waitFor(() => control(scene.history(), "button", "Review branch notes")));
   await waitFor(async () => assert.equal(await scene.currentFolder(), P.worktree));
-  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]);
 });
 
 test("cancelling the system picker leaves the list unchanged", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
   scene.external.desktop.selectedDirectory = null;
   await click(control(await scene.menu(DEFAULT), "menuitem", ADD_FROM_FOLDER));
   await waitFor(() => assert.equal(scene.external.desktop.directoryRequests, 1));
   await scene.settled();
-  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]);
 });
 
 test("closing a project that is not current removes its row and keeps the current space", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project, P.empty));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY]));
   assert.equal(await scene.currentFolder(), P.personal);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, EMPTY]));
 });
 
 test("closing the current project from its row returns to the default space, and it stays closed after reopening", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
   await waitFor(() => control(scene.workspace(), "button", PROJECT));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   await waitFor(() => control(scene.workspace(), "button", DEFAULT));
   assert.equal(await scene.currentFolder(), P.personal);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION]));
   assert.equal(await reopened.currentFolder(), P.personal);
 });
 
@@ -164,29 +165,31 @@ test("the project switcher card of the current project offers no way to close it
   );
   await keyDown(card, "Escape");
   await scene.settled();
-  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]);
 });
 
 test("a closed project brings its conversations back when its folder is opened again", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   scene.external.desktop.selectedDirectory = P.project;
   await click(control(await scene.menu(DEFAULT), "menuitem", ADD_FROM_FOLDER));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
   await waitFor(() => control(scene.history(), "button", "Project release notes"));
 });
 
-test("the default space row offers no ⋯, whether or not it is the current project", async (t) => {
+test("the pinned space rows offer no ⋯ when another project is current", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
   await waitFor(() => control(scene.workspace(), "button", PROJECT));
-  const row = projectItem(scene, DEFAULT);
-  await hover(row);
-  assert.equal(
-    roles(row, "button", `Actions for ${DEFAULT}`).length,
-    0,
-    "the default space cannot be moved or closed, so its row has no ⋯",
-  );
+  for (const name of [DEFAULT, AUTOMATION]) {
+    const row = projectItem(scene, name);
+    await hover(row);
+    assert.equal(
+      roles(row, "button", `Actions for ${name}`).length,
+      0,
+      `${name} cannot be moved or closed, so its row has no ⋯`,
+    );
+  }
 });
 
 test("the project card of the current default space offers no Close project", async (t) => {
@@ -200,13 +203,13 @@ test("a project with a running conversation cannot be closed", async (t) => {
   const menu = await projectMenu(scene, PROJECT);
   unavailableAction(menu, "Close project");
   await keyDown(menu, "Escape");
-  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]);
 });
 
 test("the project switcher search does not find a closed project", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   const card = await scene.menu(DEFAULT);
   await input(control(card, "searchbox", "Search or open a project…"), PROJECT);
   await scene.settled();
@@ -218,7 +221,7 @@ test("a listed folder that no longer exists keeps its place, says Folder not fou
     ...saved(P.personal, P.removed, P.project),
     unavailableSpaces: { [P.removed]: "gone" },
   });
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, REMOVED, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, REMOVED, PROJECT]));
   const row = await waitFor(() => {
     const item = projectItem(scene, REMOVED);
     assert.ok(textBlocks(item).includes("Folder not found"));
@@ -226,7 +229,7 @@ test("a listed folder that no longer exists keeps its place, says Folder not fou
   });
   assert.doesNotMatch(row.textContent, /\d/);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, REMOVED, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, REMOVED, PROJECT]));
 });
 
 test("the menu of a missing folder explains that its sessions are kept and closing it is the only way to remove it", async (t) => {
@@ -238,7 +241,7 @@ test("the menu of a missing folder explains that its sessions are kept and closi
   const menu = await projectMenu(scene, REMOVED);
   visibleText(menu, "This folder was moved or deleted. Its sessions are kept.");
   await click(enabledAction(menu, "Close project"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
 });
 
 test("a missing folder can be expanded to read its old conversations but opening one does not move there", async (t) => {
@@ -277,18 +280,18 @@ test("a folder that disappears is marked missing after the Switch Session comman
 
 test("Move down and Move up swap a project with its neighbour and the order survives reopening", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project, P.empty));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Move down"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Move up"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Move down"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
 });
 
-test("the first movable project cannot move above the default space and the last project cannot move down", async (t) => {
+test("the first movable project cannot move above the pinned spaces and the last project cannot move down", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project, P.empty));
   const first = await projectMenu(scene, PROJECT);
   unavailableAction(first, "Move up");
@@ -302,26 +305,26 @@ test("the first movable project cannot move above the default space and the last
 
 test("two moves made while the first save is still pending end in the right order after reopening", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project, P.empty, P.terminalOnly));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY, TERMINAL]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY, TERMINAL]));
   await scene.settled();
   const firstSave = scene.external.hold("desktop.setUiState");
   await click(enabledAction(await projectMenu(scene, PROJECT), "Move down"));
   await waitFor(() => assert.ok(firstSave.reached()));
   await click(enabledAction(await projectMenu(scene, PROJECT), "Move down"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, TERMINAL, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, TERMINAL, PROJECT]));
   firstSave.release();
   await scene.settled();
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, EMPTY, TERMINAL, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, EMPTY, TERMINAL, PROJECT]));
 });
 
-test("in Chinese the list names the default space 默认空间 and its menus read 上移, 下移, 关闭项目 and 找不到文件夹", async (t) => {
+test("in Chinese the list names the pinned spaces 默认空间 and 自动化任务空间 and its menus read 上移, 下移, 关闭项目 and 找不到文件夹", async (t) => {
   const scene = await startNavigation(t, {
     language: "zh-CN",
     ...saved(P.personal, P.project, P.removed),
     unavailableSpaces: { [P.removed]: "gone" },
   });
-  await waitFor(() => assert.deepEqual(projectOrder(scene), ["默认空间", PROJECT, REMOVED]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), ["默认空间", "自动化任务空间", PROJECT, REMOVED]));
   await waitFor(() => assert.ok(textBlocks(projectItem(scene, REMOVED)).includes("找不到文件夹")));
   const menu = await projectMenu(scene, PROJECT);
   enabledAction(menu, "下移");
@@ -331,14 +334,14 @@ test("in Chinese the list names the default space 默认空间 and its menus rea
 
 test("a project added by a session link is still listed after going back to the default space and reopening", async (t) => {
   const scene = await startNavigation(t);
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION]));
   await act(async () => scene.external.deepLink("terminal-only-history"));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, TERMINAL]));
   await click(control(await scene.menu(TERMINAL), "menuitem", "Back to default space"));
   await waitFor(async () => assert.equal(await scene.currentFolder(), P.personal));
-  assert.deepEqual(projectOrder(scene), [DEFAULT, TERMINAL]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, TERMINAL]);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, TERMINAL]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, TERMINAL]));
 });
 
 async function sendFirstMessage(scene) {
@@ -361,19 +364,19 @@ async function sendFirstMessage(scene) {
 
 test("a conversation started in a worktree of a listed project adds no row for that checkout", async (t) => {
   const scene = await startNavigation(t, { ...saved(P.personal, P.project), lastSpaceCwd: P.project });
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]));
   await click(await waitFor(() => control(scene.history(), "button", "Review branch notes")));
   await waitFor(async () => assert.equal(await scene.currentFolder(), P.worktree));
   await sendFirstMessage(scene);
   await scene.settled();
-  assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT]);
+  assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT]);
   const reopened = await scene.reload();
-  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(reopened), [DEFAULT, AUTOMATION, PROJECT]));
 });
 
 test("the arrow keys move through the usable actions of another project's menu and the focused action still works", async (t) => {
   const scene = await startNavigation(t, saved(P.personal, P.project, P.empty));
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, PROJECT, EMPTY]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, PROJECT, EMPTY]));
   const menu = await projectMenu(scene, PROJECT);
   const focused = () => dom.window.document.activeElement;
   await keyDown(menu, "ArrowDown");
@@ -384,5 +387,5 @@ test("the arrow keys move through the usable actions of another project's menu a
   await keyDown(focused(), "ArrowUp");
   assert.equal(accessibleName(focused()), "Move down");
   await click(focused());
-  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, EMPTY, PROJECT]));
+  await waitFor(() => assert.deepEqual(projectOrder(scene), [DEFAULT, AUTOMATION, EMPTY, PROJECT]));
 });

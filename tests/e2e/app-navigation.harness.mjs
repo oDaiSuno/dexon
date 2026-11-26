@@ -308,6 +308,7 @@ async function run() {
     await waitFor(() => exists("button", "Show sidebar"), "the collapsed rail");
     const measurement = await navigationWidth(52);
     assert.equal(await exists("button", nativeHistoryTitle), false, "the former history row is not exposed");
+    assert.equal(measurement.buttons.length, 5);
     assert.deepEqual(caseless(measurement.buttons), caseless(railEntries));
     await focusByTab("Show sidebar");
     const focusOrder = [];

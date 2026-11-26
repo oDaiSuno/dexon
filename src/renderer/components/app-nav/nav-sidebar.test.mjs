@@ -430,21 +430,22 @@ test("while Settings is open, the Settings entry is the current page instead of 
   }
 });
 
-test("collapsed navigation exposes only the four approved entries and no history", async (t) => {
+test("collapsed navigation exposes only the five approved entries and no history", async (t) => {
   const { props, calls } = baseProps({ expanded: false });
   const view = await mount(t, NavSidebar, props);
   const controls = [...view.container.querySelectorAll("button")];
   assert.deepEqual(
     controls.map((control) => control.getAttribute("aria-label")),
-    ["Show sidebar", "New session", "Plugins & Skills", "Settings"],
+    ["Show sidebar", "New session", "Plugins & Skills", "Automation", "Settings"],
   );
   assert.doesNotMatch(view.container.textContent, /History|alpha render bug|Chat/);
   assert.equal(view.container.querySelector("img").getAttribute("aria-hidden"), "true");
   await click(button(view.container, "New session"));
   await click(button(view.container, "Plugins & Skills"));
+  await click(button(view.container, "Automation"));
   await click(button(view.container, "Settings"));
   assert.equal(calls.newSession, 1);
-  assert.deepEqual(calls.navigate, ["resources"]);
+  assert.deepEqual(calls.navigate, ["resources", "automation"]);
   assert.equal(calls.settings, 1);
 });
 
@@ -467,7 +468,7 @@ test("collapsing and expanding navigation through its buttons resets the session
   assert.match(view.container.textContent, /beta unrelated/);
 });
 
-test("the four-button 52px rail announces true active session counts with the most urgent corner dot", async (t) => {
+test("the five-button 52px rail announces true active session counts with the most urgent corner dot", async (t) => {
   const { props, calls } = baseProps({
     expanded: false,
     liveStatuses: {
@@ -479,7 +480,7 @@ test("the four-button 52px rail announces true active session counts with the mo
   const view = await mount(t, NavSidebar, props);
   const rail = byRole(view.container, "navigation", "Main navigation");
   assert.equal(rail.style.width, "52px");
-  assert.equal(allByRole(rail, "button").length, 4);
+  assert.equal(allByRole(rail, "button").length, 5);
   const toggle = button(rail, "Show sidebar");
   assert.equal(toggle.getAttribute("aria-description"), "1 waiting for your answer · 1 failed · 1 running");
   const dot = toggle.querySelector('[aria-hidden="true"][data-activity]');

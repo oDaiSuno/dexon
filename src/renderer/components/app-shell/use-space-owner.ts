@@ -8,7 +8,8 @@ import { abbreviateHomePath } from "@/lib/display-path";
 import { copyText } from "@/lib/clipboard";
 import { getEnvironmentApiClient } from "@/lib/api-client";
 import { useActiveEnvironment, useActiveEnvironmentAffordances } from "@/lib/environment-registry";
-import { spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
+import { automationSpaceFolder, defaultSpaceFolder, spaceDisplayName, spaceFolderName } from "@/lib/space-identity";
+import { automationProjectPath } from "@/hooks/use-project-spaces";
 import { useSessionProjectRoots } from "@/lib/session-catalog";
 import { useProjectWorkspace } from "../session-sidebar/project-workspace";
 import { useDraftCarry } from "./use-draft-carry";
@@ -119,6 +120,16 @@ export function useSpaceOwner(props: {
   const personalLabel = t("personalSpace", "Default space");
   const composerProjectPath = sessionLocation?.projectPath ?? spacePath;
   const composerEnvironmentId = sessionLocation?.environmentId ?? environment.id;
+  const automationFolder = automationSpaceFolder(
+    coordination.automationCwd,
+    defaultSpaceFolder(coordination.personalCwd, homeDir),
+  );
+  const automationLabel = t("autoNavSpaceName", "Automation space");
+  const automationProject =
+    composerEnvironmentId === PRIMARY_ENVIRONMENT_ID &&
+    (automationProjectPath(sessionLocation?.cwd ?? workspace.selectedCwd ?? "", automationFolder) ===
+      automationFolder ||
+      automationProjectPath(composerProjectPath ?? "", automationFolder) === automationFolder);
   const project = useMemo(
     () =>
       composerProjectPath
@@ -126,12 +137,22 @@ export function useSpaceOwner(props: {
             path: composerProjectPath,
             name:
               composerEnvironmentId === PRIMARY_ENVIRONMENT_ID
-                ? spaceDisplayName(composerProjectPath, coordination.personalCwd, homeDir, personalLabel)
+                ? automationProject
+                  ? automationLabel
+                  : spaceDisplayName(composerProjectPath, coordination.personalCwd, homeDir, personalLabel)
                 : spaceFolderName(composerProjectPath),
             displayPath: abbreviateHomePath(composerProjectPath, homeDir),
           }
         : null,
-    [composerProjectPath, composerEnvironmentId, coordination.personalCwd, homeDir, personalLabel],
+    [
+      composerProjectPath,
+      composerEnvironmentId,
+      coordination.personalCwd,
+      homeDir,
+      personalLabel,
+      automationProject,
+      automationLabel,
+    ],
   );
 
   const location = useSessionLocation(sessionLocation?.environmentId ?? environment.id, sessionLocation?.cwd ?? null);

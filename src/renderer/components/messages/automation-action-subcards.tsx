@@ -5,6 +5,12 @@ import type { Json } from "@shared/automation/spec";
 import { ATTENTION_ACTIONS, type AttentionAction, type TaskView } from "@shared/automation/views";
 import { useI18n } from "@/i18n";
 import { getEnvironmentConnection } from "@/lib/environment-registry";
+import {
+  AutomationAttentionOutputField,
+  EmitSignalSubCard,
+  OpenInAutomationButton,
+  parseOptionalJsonOutput,
+} from "./automation-card-links";
 
 type ActionSubCard = Extract<
   AutomationChatCard,
@@ -60,6 +66,7 @@ export function AutomationActionSubCard({
   const [attentionAction, setAttentionAction] = useState<AttentionAction>(
     card.kind === "resolve_attention" && card.suggestedAction ? card.suggestedAction : "retry",
   );
+  const [attentionOutputJson, setAttentionOutputJson] = useState("");
 
   if (card.kind === "start_run") {
     const startRun = async () => {
@@ -129,8 +136,9 @@ export function AutomationActionSubCard({
         )}
         {error && <p className="automation-error type-label-default">{error}</p>}
 
-        {!statusMessage && (
-          <div className="automation-actions">
+        <div className="automation-actions">
+          {liveTask !== null && <OpenInAutomationButton environmentId={environmentId} taskId={card.taskId} />}
+          {!statusMessage && (
             <button
               type="button"
               className="automation-btn is-primary type-label-medium"
@@ -139,8 +147,8 @@ export function AutomationActionSubCard({
             >
               {busy ? t("automationCardRunning", "Starting…") : t("automationCardRunNow", "Run now")}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </section>
     );
   }
@@ -190,6 +198,7 @@ export function AutomationActionSubCard({
 
         {!isDeleted && (
           <div className="automation-actions">
+            <OpenInAutomationButton environmentId={environmentId} taskId={card.taskId} />
             {confirmingDelete ? (
               <>
                 <button
@@ -303,26 +312,29 @@ export function AutomationActionSubCard({
         )}
         {error && <p className="automation-error type-label-default">{error}</p>}
 
-        {!settled && (
-          <div className="automation-actions">
-            <button
-              type="button"
-              className="automation-btn type-label-medium"
-              disabled={busy}
-              onClick={() => void submitApproval(false)}
-            >
-              {t("automationCardReject", "Reject")}
-            </button>
-            <button
-              type="button"
-              className="automation-btn is-primary type-label-medium"
-              disabled={busy}
-              onClick={() => void submitApproval(true)}
-            >
-              {t("automationCardApprove", "Approve")}
-            </button>
-          </div>
-        )}
+        <div className="automation-actions">
+          <OpenInAutomationButton environmentId={environmentId} taskId={card.taskId} runId={card.runId} />
+          {!settled && (
+            <>
+              <button
+                type="button"
+                className="automation-btn type-label-medium"
+                disabled={busy}
+                onClick={() => void submitApproval(false)}
+              >
+                {t("automationCardReject", "Reject")}
+              </button>
+              <button
+                type="button"
+                className="automation-btn is-primary type-label-medium"
+                disabled={busy}
+                onClick={() => void submitApproval(true)}
+              >
+                {t("automationCardApprove", "Approve")}
+              </button>
+            </>
+          )}
+        </div>
       </section>
     );
   }
@@ -333,6 +345,15 @@ export function AutomationActionSubCard({
       if (typeof window === "undefined" || typeof window.piBridge?.automationCommand !== "function") {
         setError(t("automationCardUnavailable", "Desktop authorization bridge is unavailable in this window."));
         return;
+      }
+      let output: Json | undefined;
+      if (attentionAction === "mark_succeeded") {
+        const parsed = parseOptionalJsonOutput(attentionOutputJson);
+        if (!parsed.ok) {
+          setError(t("automationCardInvalidJson", "Enter valid JSON before submitting."));
+          return;
+        }
+        output = parsed.value;
       }
       setBusy(true);
       setError(null);
@@ -345,7 +366,11 @@ export function AutomationActionSubCard({
             stepIndex: card.stepIndex,
             expectedVersion: card.expectedVersion,
             requestId: makeRequestId("chat-attention"),
-            resolution: { kind: "attention", action: attentionAction },
+            resolution: {
+              kind: "attention",
+              action: attentionAction,
+              ...(output !== undefined ? { output } : {}),
+            },
           },
         });
         if (result.outcome === "resolved") {
@@ -406,13 +431,18 @@ export function AutomationActionSubCard({
           </div>
         )}
 
+        {!settled && attentionAction === "mark_succeeded" && (
+          <AutomationAttentionOutputField value={attentionOutputJson} onChange={setAttentionOutputJson} />
+        )}
+
         {statusMessage && (
           <div className={`automation-notice is-${statusMessage.tone} type-label-default`}>{statusMessage.text}</div>
         )}
         {error && <p className="automation-error type-label-default">{error}</p>}
 
-        {!settled && (
-          <div className="automation-actions">
+        <div className="automation-actions">
+          <OpenInAutomationButton environmentId={environmentId} taskId={card.taskId} runId={card.runId} />
+          {!settled && (
             <button
               type="button"
               className="automation-btn is-primary type-label-medium"
@@ -421,73 +451,11 @@ export function AutomationActionSubCard({
             >
               {t("automationCardAttentionSubmit", "Review & Resolve")}
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </section>
     );
   }
 
-  const sendSignal = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const connection = getEnvironmentConnection(environmentId);
-      const { woke } = await connection.call("automation.emitSignal", {
-        taskId: card.taskId,
-        name: card.signalName,
-        key: card.signalKey,
-        eventId: makeRequestId("chat-signal"),
-        payload: card.payload,
-      });
-      setStatusMessage({
-        tone: "success",
-        text: t("automationCardSignalSent", "Signal sent ({count} woken)").replace("{count}", String(woke)),
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <section className={`automation-card${statusMessage ? " is-settled" : ""}`}>
-      <div className="automation-card-head">
-        <div className="automation-card-heading">
-          <span className="automation-card-kicker type-meta-caps">
-            {t("automationCardSignalTitle", "Send signal to automation")}
-          </span>
-          <span className="automation-card-title type-heading">{card.taskName}</span>
-          <p className="automation-card-subtitle type-body-default">{card.reason}</p>
-        </div>
-        <span className="automation-badge type-mono-meta">
-          {t("automationCardSignalMeta", "Signal {name} · key {key}")
-            .replace("{name}", card.signalName)
-            .replace("{key}", card.signalKey)}
-        </span>
-      </div>
-
-      {card.payload !== null && (
-        <pre className="automation-pre type-mono-code">{JSON.stringify(card.payload, null, 2)}</pre>
-      )}
-
-      {statusMessage && (
-        <div className={`automation-notice is-${statusMessage.tone} type-label-default`}>{statusMessage.text}</div>
-      )}
-      {error && <p className="automation-error type-label-default">{error}</p>}
-
-      {!statusMessage && (
-        <div className="automation-actions">
-          <button
-            type="button"
-            className="automation-btn is-primary type-label-medium"
-            disabled={busy}
-            onClick={() => void sendSignal()}
-          >
-            {t("automationCardSignalSend", "Send signal")}
-          </button>
-        </div>
-      )}
-    </section>
-  );
+  return <EmitSignalSubCard environmentId={environmentId} card={card} makeRequestId={makeRequestId} />;
 }

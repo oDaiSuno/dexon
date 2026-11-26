@@ -48,6 +48,8 @@ async function start(
   const filesHost = (external, environmentId) => ({
     ...external.host,
     call(method, params) {
+      if (method === "system.automationCwd") return { cwd: P.automations };
+      if (method === "automation.listInbox") return { items: [] };
       if (method === "projects.browse") return folderListing(params.path ?? primaryCwd);
       if (method === "files.list") return { entries: [{ name: "selected.txt", isDir: false, size: 1 }] };
       if (method === "files.read") {

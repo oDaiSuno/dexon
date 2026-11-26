@@ -30,11 +30,11 @@ for (const status of ["running", "awaiting_input", "error"]) {
     const menu = await projectMenu(scene, "navigation-project");
     if (status === "error") {
       await click(enabledAction(menu, "Close project"));
-      await waitFor(() => assert.deepEqual(projectOrder(scene), ["Default space"]));
+      await waitFor(() => assert.deepEqual(projectOrder(scene), ["Default space", "Automation space"]));
     } else {
       unavailableAction(menu, "Close project");
       await keyDown(menu, "Escape");
-      assert.deepEqual(projectOrder(scene), ["Default space", "navigation-project"]);
+      assert.deepEqual(projectOrder(scene), ["Default space", "Automation space", "navigation-project"]);
     }
   });
 }
@@ -47,7 +47,8 @@ test("the full App rail follows live urgency while excluding activity outside th
   const navigation = scene.navigation();
   const toggle = control(navigation, "button", "Show sidebar");
   assert.equal(navigation.style.width, "52px");
-  assert.equal(roles(navigation, "button").length, 4);
+  assert.equal(roles(navigation, "button").length, 5);
+  control(navigation, "button", "Automation");
   for (const [statuses, expectedColor, expectedPhrase] of [
     [{ "project-history": "running", "terminal-only-history": "awaiting_input" }, "var(--fx-accent-blue)", "1 running"],
     [{ "project-history": "running", "personal-history": "error" }, "var(--fx-status-danger)", "1 failed · 1 running"],
@@ -63,7 +64,7 @@ test("the full App rail follows live urgency while excluding activity outside th
     assert.equal(dot.style.background, expectedColor);
     assert.equal(dot.style.top, "3px");
     assert.equal(dot.style.right, "3px");
-    assert.equal(roles(navigation, "button").length, 4);
+    assert.equal(roles(navigation, "button").length, 5);
   }
   await act(async () => scene.external.running([], {}));
   await waitFor(() => assert.equal(toggle.querySelector("[data-activity]"), null));
