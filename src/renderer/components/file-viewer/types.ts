@@ -5,4 +5,5 @@ export interface FileViewerProps {
   filePath: string;
   cwd?: string;
   sourceSessionId?: string | null;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
 }

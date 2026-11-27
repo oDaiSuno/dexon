@@ -6,7 +6,7 @@ import { ImageViewer } from "./file-viewer/image-viewer";
 import { TextFileViewer } from "./file-viewer/text-file-viewer";
 import type { FileViewerProps } from "./file-viewer/types";
 
-export function FileViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
+export function FileViewer({ filePath, cwd, sourceSessionId, environmentId, onOpenFile }: FileViewerProps) {
   const identity = qualifyProjectKey(environmentId, filePath);
   if (isImagePath(filePath)) {
     return (
@@ -48,6 +48,7 @@ export function FileViewer({ filePath, cwd, sourceSessionId, environmentId }: Fi
       filePath={filePath}
       cwd={cwd}
       sourceSessionId={sourceSessionId}
+      onOpenFile={onOpenFile}
     />
   );
 }
