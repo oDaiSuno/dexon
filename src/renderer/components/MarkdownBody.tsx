@@ -21,12 +21,12 @@ import { environmentAffordances } from "@/lib/environment-affordances";
 import { PRIMARY_ENVIRONMENT_ID, type EnvironmentId } from "@contract/environment";
 import { CodeBlock, MermaidBlock, type CodeBlockVariant } from "./markdown/code-block";
 import {
-  closeExternalLinkPopover,
-  ExternalLinkPopover,
+  closeLinkPopover,
+  LinkPopover,
   openExternalLinkUrl,
-  toggleExternalLinkPopover,
-  useActiveExternalLink,
-} from "./markdown/external-link-popover";
+  toggleLinkPopover,
+  useActiveLinkPopover,
+} from "./markdown/link-popover";
 import { MarkdownImage } from "./markdown/markdown-image";
 import { normalizeExternalHref } from "@shared/external-links";
 
@@ -128,54 +128,59 @@ function MarkdownPre({ children }: MarkdownComponentProps<"pre">) {
   return <>{children}</>;
 }
 
+function hasSelectedText(anchor: HTMLAnchorElement): boolean {
+  const selection = anchor.ownerDocument.defaultView?.getSelection();
+  return Boolean(selection && !selection.isCollapsed && selection.toString().trim().length > 0);
+}
+
 function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownComponentProps<"a">) {
-  const { cwd, onOpenFile, environmentId = PRIMARY_ENVIRONMENT_ID } = useContext(MarkdownRenderContext);
+  const { cwd, imageBasePath, onOpenFile, environmentId = PRIMARY_ENVIRONMENT_ID } = useContext(MarkdownRenderContext);
   const { language, t } = useI18n();
   const affordances = environmentAffordances(useEnvironments().find((view) => view.id === environmentId));
   const [menuError, setMenuError] = useState(false);
   const anchorRef = useRef<HTMLAnchorElement>(null);
-  const activeExternalLink = useActiveExternalLink(anchorRef);
-  const filePath = resolveLocalFileHref(href, cwd);
+  const activePopover = useActiveLinkPopover(anchorRef);
+  const filePath = resolveLocalFileHref(href, cwd, imageBasePath ?? cwd);
   const externalHref = !filePath ? normalizeExternalHref(href) : null;
-  if (!filePath || !onOpenFile) {
+
+  if (!filePath) {
     if (externalHref) {
+      const openExternal = () => openExternalLinkUrl(externalHref);
       const handleExternalClick = (event: MouseEvent<HTMLAnchorElement>) => {
         if (event.defaultPrevented || event.button !== 0) return;
-        const selection = event.currentTarget.ownerDocument.defaultView?.getSelection();
-        if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
+        if (hasSelectedText(event.currentTarget)) {
           event.preventDefault();
-          closeExternalLinkPopover();
+          closeLinkPopover();
           return;
         }
         if (event.metaKey || event.ctrlKey) {
           event.preventDefault();
-          closeExternalLinkPopover();
-          void openExternalLinkUrl(externalHref).catch(() => undefined);
+          closeLinkPopover();
+          void openExternal().catch(() => undefined);
           return;
         }
         if (event.shiftKey || event.altKey) return;
         event.preventDefault();
-        toggleExternalLinkPopover(
-          event.currentTarget,
-          externalHref,
-          event.detail > 0 ? { x: event.clientX, y: event.clientY } : undefined,
-        );
+        toggleLinkPopover({
+          kind: "external",
+          anchor: event.currentTarget,
+          copyValue: externalHref,
+          openTitle: externalHref,
+          onOpen: openExternal,
+          clickPoint: event.detail > 0 ? { x: event.clientX, y: event.clientY } : undefined,
+        });
       };
       return (
         <>
           <a ref={anchorRef} href={href} title={props.title ?? externalHref} {...props} onClick={handleExternalClick}>
             {children}
           </a>
-          {activeExternalLink && <ExternalLinkPopover active={activeExternalLink} />}
+          {activePopover && <LinkPopover active={activePopover} />}
         </>
       );
     }
     return (
-      <a
-        href={href}
-        {...props}
-        onClick={filePath && !affordances.isPrimary ? (event) => event.preventDefault() : undefined}
-      >
+      <a href={href} {...props}>
         {children}
       </a>
     );
@@ -183,21 +188,48 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
 
   const hrefText = typeof href === "string" ? href : "";
   const revealInFolder = /^file:/i.test(hrefText) || /^[a-zA-Z]:[\\/]/.test(hrefText) || hrefText.startsWith("/");
+  const canRevealInFolder =
+    revealInFolder && affordances.revealInFileManager && Boolean(window.piBridge?.showItemInFolder);
+  const openLocal =
+    canRevealInFolder || onOpenFile
+      ? async () => {
+          if (canRevealInFolder && window.piBridge?.showItemInFolder) {
+            await window.piBridge.showItemInFolder(filePath);
+            return;
+          }
+          onOpenFile?.(filePath, environmentId);
+        }
+      : undefined;
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.defaultPrevented || event.button !== 0) return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-    const target = event.currentTarget.getAttribute("target");
-    if (target && target !== "_self") return;
-    event.preventDefault();
-    if (revealInFolder && affordances.revealInFileManager && window.piBridge?.showItemInFolder) {
-      void window.piBridge.showItemInFolder(filePath);
+    if (hasSelectedText(event.currentTarget)) {
+      event.preventDefault();
+      closeLinkPopover();
       return;
     }
-    onOpenFile(filePath, environmentId);
+    const target = event.currentTarget.getAttribute("target");
+    if (target && target !== "_self") return;
+    if (event.metaKey || event.ctrlKey) {
+      event.preventDefault();
+      closeLinkPopover();
+      if (openLocal) void openLocal().catch(() => undefined);
+      return;
+    }
+    if (event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    toggleLinkPopover({
+      kind: "local",
+      anchor: event.currentTarget,
+      copyValue: filePath,
+      openTitle: filePath,
+      onOpen: openLocal,
+      clickPoint: event.detail > 0 ? { x: event.clientX, y: event.clientY } : undefined,
+    });
   };
 
   const handleContextMenu = (event: MouseEvent<HTMLAnchorElement>) => {
+    closeLinkPopover();
     if (event.defaultPrevented || !affordances.revealInFileManager || !window.piBridge?.showFileContextMenu) return;
     event.preventDefault();
     const request = window.piBridge.showFileContextMenu({
@@ -211,9 +243,17 @@ function MarkdownAnchor({ href, children, node: _node, ...props }: MarkdownCompo
 
   return (
     <>
-      <a href={href} {...props} onClick={handleClick} onContextMenu={handleContextMenu}>
+      <a
+        ref={anchorRef}
+        href={href}
+        title={props.title ?? filePath}
+        {...props}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
         {children}
       </a>
+      {activePopover && <LinkPopover active={activePopover} />}
       {menuError && (
         <span role="status" className="type-label-default" style={{ marginLeft: 4, color: "var(--fx-status-danger)" }}>
           {t("fileContextMenuUnavailable", "The file menu could not be opened.")}

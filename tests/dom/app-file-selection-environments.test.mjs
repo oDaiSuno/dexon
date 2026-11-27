@@ -258,6 +258,10 @@ test("a message file link reaches the actual App file tab with its session envir
     [...scene.container.querySelectorAll("a")].find((node) => node.textContent === "selected remote file"),
   );
   await click(link);
+  const openButton = await waitFor(() =>
+    dom.window.document.body.querySelector(`[data-link-popover] button[title="${P.project}/selected.txt"]`),
+  );
+  await click(openButton);
   await scene.selected("gpu", P.project);
   assert.deepEqual(scene.fileReads, [
     { environmentId: "gpu", path: `${P.project}/selected.txt`, sourceSessionId: "remote-file-session" },

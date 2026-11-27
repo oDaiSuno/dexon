@@ -25,7 +25,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AppLanguage } from "@/i18n";
-import { getRelativeFilePath } from "@/lib/file-paths";
+import { getFileName, getRelativeFilePath } from "@/lib/file-paths";
 import { BrowserDock } from "../browser/BrowserDock";
 import { FileExplorer } from "../FileExplorer";
 import { isPathChanged, useChangedPaths } from "../file-explorer/use-changed-paths";
@@ -291,6 +291,14 @@ export function RightPanelDock({
             filePath={activeFileTab.filePath}
             cwd={explorerCwd ?? undefined}
             sourceSessionId={activeFileTab.sourceSessionId}
+            onOpenFile={(path, targetEnvironmentId) =>
+              onOpenFile(
+                path,
+                getFileName(path),
+                activeFileTab.sourceSessionId,
+                targetEnvironmentId ?? activeFileTab.environmentId,
+              )
+            }
           />
         ) : (
           <div className="right-panel-empty type-label-default">

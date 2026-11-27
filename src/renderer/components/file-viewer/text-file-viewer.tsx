@@ -18,7 +18,7 @@ const PLACEHOLDER_STYLE = {
   justifyContent: "center",
 } as const;
 
-export function TextFileViewer({ filePath, cwd, sourceSessionId, environmentId }: FileViewerProps) {
+export function TextFileViewer({ filePath, cwd, sourceSessionId, environmentId, onOpenFile }: FileViewerProps) {
   const { t } = useI18n();
   const {
     loadState,
@@ -56,6 +56,7 @@ export function TextFileViewer({ filePath, cwd, sourceSessionId, environmentId }
       filePath={filePath}
       cwd={cwd}
       sourceSessionId={sourceSessionId}
+      onOpenFile={onOpenFile}
       data={loadState.data}
       headContent={headContent}
       hasDiff={hasDiff}
@@ -82,6 +83,7 @@ export function TextFileReady({
   filePath,
   cwd,
   sourceSessionId,
+  onOpenFile,
   data,
   headContent,
   hasDiff,
@@ -132,6 +134,7 @@ export function TextFileReady({
         filePath={filePath}
         cwd={cwd}
         sourceSessionId={sourceSessionId}
+        onOpenFile={onOpenFile}
         data={data}
         headContent={headContent}
         hasDiff={hasDiff}
