@@ -12,32 +12,46 @@ import { useCopyFeedback } from "@/hooks/useCopyFeedback";
 import { useI18n } from "@/i18n";
 import { normalizeExternalHref } from "@shared/external-links";
 
-export interface ExternalLinkRect {
+export type LinkPopoverKind = "external" | "local";
+
+export interface LinkPopoverRect {
   readonly top: number;
   readonly bottom: number;
   readonly left: number;
   readonly right: number;
 }
 
-export interface ExternalLinkPoint {
+export interface LinkPopoverPoint {
   readonly x: number;
   readonly y: number;
 }
 
-export interface ActiveExternalLink {
-  readonly href: string;
+export interface LinkPopoverRequest {
+  readonly kind: LinkPopoverKind;
   readonly anchor: HTMLAnchorElement;
-  readonly anchorRect: ExternalLinkRect;
+  readonly copyValue: string;
+  readonly openTitle: string;
+  readonly onOpen?: () => Promise<void> | void;
+  readonly clickPoint?: LinkPopoverPoint;
+}
+
+export interface ActiveLinkPopover {
+  readonly kind: LinkPopoverKind;
+  readonly copyValue: string;
+  readonly openTitle: string;
+  readonly onOpen?: () => Promise<void> | void;
+  readonly anchor: HTMLAnchorElement;
+  readonly anchorRect: LinkPopoverRect;
   readonly keyboardTriggered: boolean;
 }
 
-export interface ExternalLinkPopoverPosition {
+export interface LinkPopoverPosition {
   readonly top: number;
   readonly left: number;
   readonly placement: "above" | "below";
 }
 
-let activeExternalLink: ActiveExternalLink | null = null;
+let activeLinkPopover: ActiveLinkPopover | null = null;
 const listeners = new Set<() => void>();
 
 function notifyListeners(): void {
@@ -51,7 +65,7 @@ function subscribe(listener: () => void): () => void {
   };
 }
 
-function rectFromDomRect(rect: DOMRect): ExternalLinkRect {
+function rectFromDomRect(rect: DOMRect): LinkPopoverRect {
   return {
     top: rect.top,
     bottom: rect.bottom,
@@ -60,13 +74,13 @@ function rectFromDomRect(rect: DOMRect): ExternalLinkRect {
   };
 }
 
-function distanceToRect(point: ExternalLinkPoint, rect: DOMRect): number {
+function distanceToRect(point: LinkPopoverPoint, rect: DOMRect): number {
   const dx = point.x < rect.left ? rect.left - point.x : point.x > rect.right ? point.x - rect.right : 0;
   const dy = point.y < rect.top ? rect.top - point.y : point.y > rect.bottom ? point.y - rect.bottom : 0;
   return dx * dx + dy * dy;
 }
 
-function pickAnchorRect(anchor: HTMLAnchorElement, clickPoint?: ExternalLinkPoint): ExternalLinkRect {
+function pickAnchorRect(anchor: HTMLAnchorElement, clickPoint?: LinkPopoverPoint): LinkPopoverRect {
   const rects = Array.from(anchor.getClientRects()).filter((rect) => rect.width > 0 || rect.height > 0);
   if (rects.length === 0) return rectFromDomRect(anchor.getBoundingClientRect());
   if (!clickPoint) return rectFromDomRect(rects[0]);
@@ -82,20 +96,20 @@ function pickAnchorRect(anchor: HTMLAnchorElement, clickPoint?: ExternalLinkPoin
   return rectFromDomRect(best);
 }
 
-export function computeExternalLinkPopoverPosition(params: {
-  anchorRect: ExternalLinkRect;
+export function computeLinkPopoverPosition(params: {
+  anchorRect: LinkPopoverRect;
   viewportWidth: number;
   viewportHeight: number;
   popoverWidth: number;
   popoverHeight: number;
   gap?: number;
   margin?: number;
-}): ExternalLinkPopoverPosition {
+}): LinkPopoverPosition {
   const { anchorRect, viewportWidth, viewportHeight, popoverWidth, popoverHeight, gap = 6, margin = 8 } = params;
   const maxTop = Math.max(margin, viewportHeight - popoverHeight - margin);
   const maxLeft = Math.max(margin, viewportWidth - popoverWidth - margin);
   let top = anchorRect.top - popoverHeight - gap;
-  let placement: ExternalLinkPopoverPosition["placement"] = "above";
+  let placement: LinkPopoverPosition["placement"] = "above";
   if (top < margin) {
     top = anchorRect.bottom + gap;
     placement = "below";
@@ -119,42 +133,40 @@ export async function openExternalLinkUrl(href: string): Promise<void> {
   if (!opened) throw new Error("External window could not be opened");
 }
 
-export function closeExternalLinkPopover(expectedAnchor?: HTMLAnchorElement | null): void {
-  if (!activeExternalLink) return;
-  if (expectedAnchor && activeExternalLink.anchor !== expectedAnchor) return;
-  activeExternalLink = null;
+export function closeLinkPopover(expectedAnchor?: HTMLAnchorElement | null): void {
+  if (!activeLinkPopover) return;
+  if (expectedAnchor && activeLinkPopover.anchor !== expectedAnchor) return;
+  activeLinkPopover = null;
   notifyListeners();
 }
 
-export function toggleExternalLinkPopover(
-  anchor: HTMLAnchorElement,
-  href: string,
-  clickPoint?: ExternalLinkPoint,
-): void {
-  const safeHref = normalizeExternalHref(href);
-  if (!safeHref) return;
-  if (activeExternalLink?.anchor === anchor) {
-    closeExternalLinkPopover(anchor);
+export function toggleLinkPopover(request: LinkPopoverRequest): void {
+  if (!request.copyValue) return;
+  if (activeLinkPopover?.anchor === request.anchor) {
+    closeLinkPopover(request.anchor);
     return;
   }
-  activeExternalLink = {
-    href: safeHref,
-    anchor,
-    anchorRect: pickAnchorRect(anchor, clickPoint),
-    keyboardTriggered: clickPoint === undefined,
+  activeLinkPopover = {
+    kind: request.kind,
+    copyValue: request.copyValue,
+    openTitle: request.openTitle,
+    onOpen: request.onOpen,
+    anchor: request.anchor,
+    anchorRect: pickAnchorRect(request.anchor, request.clickPoint),
+    keyboardTriggered: request.clickPoint === undefined,
   };
   notifyListeners();
 }
 
-export function useActiveExternalLink(anchorRef: RefObject<HTMLAnchorElement | null>): ActiveExternalLink | null {
+export function useActiveLinkPopover(anchorRef: RefObject<HTMLAnchorElement | null>): ActiveLinkPopover | null {
   return useSyncExternalStore(
     subscribe,
-    () => (activeExternalLink && activeExternalLink.anchor === anchorRef.current ? activeExternalLink : null),
+    () => (activeLinkPopover && activeLinkPopover.anchor === anchorRef.current ? activeLinkPopover : null),
     () => null,
   );
 }
 
-export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) {
+export function LinkPopover({ active }: { active: ActiveLinkPopover }) {
   const { t } = useI18n();
   const { copied, copy } = useCopyFeedback(1_200);
   const [copyFailed, setCopyFailed] = useState(false);
@@ -170,11 +182,11 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
   useLayoutEffect(() => {
     const view = active.anchor.ownerDocument.defaultView;
     if (!view || !active.anchor.isConnected) {
-      closeExternalLinkPopover(active.anchor);
+      closeLinkPopover(active.anchor);
       return;
     }
     const pillRect = popoverRef.current?.getBoundingClientRect();
-    const next = computeExternalLinkPopoverPosition({
+    const next = computeLinkPopoverPosition({
       anchorRect: active.anchorRect,
       viewportWidth: view.innerWidth,
       viewportHeight: view.innerHeight,
@@ -186,7 +198,7 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
 
   useEffect(() => {
     const anchor = active.anchor;
-    return () => closeExternalLinkPopover(anchor);
+    return () => closeLinkPopover(anchor);
   }, [active.anchor]);
 
   useEffect(() => {
@@ -203,21 +215,21 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
     const onPointerDown = (event: MouseEvent) => {
       const target = event.target as Node | null;
       if (target && (popoverRef.current?.contains(target) || active.anchor.contains(target))) return;
-      closeExternalLinkPopover(active.anchor);
+      closeLinkPopover(active.anchor);
     };
-    const onDismiss = () => closeExternalLinkPopover(active.anchor);
+    const onDismiss = () => closeLinkPopover(active.anchor);
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       const shouldRefocus = popoverRef.current?.contains(doc.activeElement);
-      closeExternalLinkPopover(active.anchor);
+      closeLinkPopover(active.anchor);
       if (shouldRefocus && active.anchor.isConnected) active.anchor.focus();
     };
     const onSelectionChange = () => {
       const selection = view.getSelection();
       if (selection && !selection.isCollapsed && selection.toString().trim().length > 0) {
-        closeExternalLinkPopover(active.anchor);
+        closeLinkPopover(active.anchor);
       }
     };
 
@@ -240,22 +252,23 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
   const handleCopy = async () => {
     setOpenFailed(false);
     setCopyFailed(false);
-    const ok = await copy(active.href);
+    const ok = await copy(active.copyValue);
     if (!ok) setCopyFailed(true);
   };
 
   const handleOpen = async () => {
+    if (!active.onOpen) return;
     setOpenFailed(false);
     try {
-      await openExternalLinkUrl(active.href);
-      closeExternalLinkPopover(active.anchor);
+      await active.onOpen();
+      closeLinkPopover(active.anchor);
     } catch {
       setOpenFailed(true);
     }
   };
 
   const handlePopoverKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+    if ((event.key === "ArrowRight" || event.key === "ArrowLeft") && openButtonRef.current) {
       event.preventDefault();
       const next =
         event.currentTarget.ownerDocument.activeElement === copyButtonRef.current
@@ -268,13 +281,16 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
   const doc = active.anchor.ownerDocument;
   if (!doc.body) return null;
 
+  const copyLabel = active.kind === "local" ? t("copyPath", "Copy path") : t("externalLinkCopy", "Copy");
+
   return createPortal(
     <div
       ref={popoverRef}
       role="dialog"
       aria-label={t("externalLinkActions", "Link actions")}
       className="external-link-pill type-label-medium"
-      data-external-link-popover=""
+      data-link-popover=""
+      data-link-kind={active.kind}
       data-quote-ignore=""
       style={{ position: "fixed", zIndex: 1000, ...position }}
       onMouseDown={(event) => event.preventDefault()}
@@ -316,35 +332,37 @@ export function ExternalLinkPopover({ active }: { active: ActiveExternalLink }) 
             <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
           </svg>
         )}
-        <span>
-          {copied ? t("copied", "Copied") : copyFailed ? t("copyFailed", "Copy failed") : t("externalLinkCopy", "Copy")}
-        </span>
+        <span>{copied ? t("copied", "Copied") : copyFailed ? t("copyFailed", "Copy failed") : copyLabel}</span>
       </button>
-      <span className="external-link-pill-divider" aria-hidden="true" />
-      <button
-        ref={openButtonRef}
-        type="button"
-        className={`external-link-pill-action${openFailed ? " is-error" : ""}`}
-        title={active.href}
-        onClick={() => void handleOpen()}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M15 3h6v6" />
-          <path d="M10 14 21 3" />
-          <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-        </svg>
-        <span>{openFailed ? t("externalLinkOpenFailed", "Open failed") : t("externalLinkOpen", "Open")}</span>
-      </button>
+      {active.onOpen && (
+        <>
+          <span className="external-link-pill-divider" aria-hidden="true" />
+          <button
+            ref={openButtonRef}
+            type="button"
+            className={`external-link-pill-action${openFailed ? " is-error" : ""}`}
+            title={active.openTitle}
+            onClick={() => void handleOpen()}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M15 3h6v6" />
+              <path d="M10 14 21 3" />
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            </svg>
+            <span>{openFailed ? t("externalLinkOpenFailed", "Open failed") : t("externalLinkOpen", "Open")}</span>
+          </button>
+        </>
+      )}
     </div>,
     doc.body,
   );

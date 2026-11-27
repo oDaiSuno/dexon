@@ -242,6 +242,12 @@ for (const [kind, message] of [
     const link = view.container.querySelector(kind === "user attachment" ? ".token-chip" : "a");
     assert.ok(link);
     await click(link);
+    if (kind !== "user attachment") {
+      const openButton = await waitFor(() =>
+        dom.window.document.body.querySelector('[data-link-popover] button[title="/same/selected.txt"]'),
+      );
+      await click(openButton);
+    }
     await waitFor(() => assert.match(view.container.textContent, /gpu linked content \/same\/selected.txt/));
     const reads = host.requests.filter((request) => request.method === "files.read");
     assert.deepEqual(

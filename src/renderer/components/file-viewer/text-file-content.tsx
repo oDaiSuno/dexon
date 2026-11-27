@@ -20,6 +20,7 @@ export interface TextFileContentProps {
   filePath: string;
   cwd?: string;
   sourceSessionId?: string | null;
+  onOpenFile?: (filePath: string, environmentId?: EnvironmentId) => void;
   data: TextFileData;
   headContent: string | null;
   hasDiff: boolean;
@@ -36,6 +37,7 @@ export function TextFileContent({
   filePath,
   cwd,
   sourceSessionId,
+  onOpenFile,
   data,
   headContent,
   hasDiff,
@@ -74,6 +76,7 @@ export function TextFileContent({
             cwd={cwd}
             imageBasePath={getParentFilePath(filePath)}
             sourceSessionId={sourceSessionId}
+            onOpenFile={onOpenFile}
             codeBlockVariant="plain"
             mathMode="file"
           >
