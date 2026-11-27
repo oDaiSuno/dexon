@@ -124,7 +124,26 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: var(--space-4);
+}
+.auto-page-task-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.auto-page-vsep {
+  display: inline-block;
+  width: 1px;
+  height: 18px;
+  background: var(--fx-line-default);
+}
+.auto-page-more-btn.ui-button {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  background: var(--fx-surface-raised);
 }
 .auto-page-toggle-label {
   display: inline-flex;
@@ -138,7 +157,7 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-3);
-  color: var(--fx-text-tertiary);
+  color: var(--fx-text-secondary);
 }
 .auto-page-working-directory {
   overflow-wrap: anywhere;
@@ -146,7 +165,11 @@
 .auto-page-trigger {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-1-5);
+  gap: 5px;
+}
+.auto-page-trigger > svg {
+  color: var(--fx-text-tertiary);
+  flex-shrink: 0;
 }
 .auto-page-tabs {
   display: flex;
@@ -158,25 +181,53 @@
   border: 0;
   border-bottom: 2px solid var(--fx-surface-hover-clear);
   border-radius: 0;
-  padding: var(--space-3) 0;
+  padding: var(--space-2-5) 2px;
   background: var(--fx-surface-hover-clear);
-  color: var(--fx-text-tertiary);
+  color: var(--fx-text-secondary);
 }
 .auto-page-tabs .ui-button[aria-selected="true"] {
   border-bottom-color: var(--fx-text-primary);
   color: var(--fx-text-primary);
 }
+.auto-page-tab-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
+}
 .auto-page-draft-banner {
   display: flex;
   justify-content: space-between;
-  align-items: stretch;
+  align-items: center;
   flex-wrap: wrap;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-4);
+  padding: 12px 16px;
   border: 1px solid var(--fx-status-warning-border);
   border-radius: var(--radius-card);
   background: var(--fx-status-warning-soft);
   color: var(--fx-status-warning-text);
+}
+.auto-page-draft-lead {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+  flex: 1;
+}
+.auto-page-draft-lead > svg {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.auto-page-draft-lead h2 {
+  color: var(--fx-text-primary);
+}
+.auto-page-draft-lead p {
+  margin: 0;
 }
 .auto-page-overflow {
   position: relative;
@@ -218,13 +269,17 @@
   text-align: left;
 }
 .auto-page-table th {
-  padding: var(--space-3) var(--space-4);
+  padding: 9px 18px;
   color: var(--fx-text-tertiary);
   background: var(--fx-surface-card);
   white-space: nowrap;
 }
+.auto-page-table th:last-child,
+.auto-page-table td:last-child {
+  text-align: right;
+}
 .auto-page-table td {
-  padding: var(--space-4);
+  padding: 14px 18px;
   border-top: 1px solid var(--fx-line-subtle);
   vertical-align: middle;
 }
@@ -246,4 +301,49 @@
 .auto-page-text-button.ui-button:hover {
   color: var(--fx-accent-blue-text);
   background: var(--fx-surface-hover-clear);
+}
+.auto-page-task-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.auto-page-task-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-control);
+  background: var(--fx-surface-inset);
+  color: var(--fx-text-secondary);
+  flex-shrink: 0;
+}
+.auto-page-task-icon[data-active="true"] {
+  background: var(--fx-accent-blue-soft);
+  color: var(--fx-accent-blue-text);
+}
+.auto-page-task-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.auto-page-latest-run {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.auto-page-icon-btn.ui-button {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 7px;
+  border-color: transparent;
+  background: var(--fx-surface-card);
+}
+.auto-page-icon-btn.ui-button:hover:not(:disabled) {
+  background: var(--fx-surface-selected);
 }

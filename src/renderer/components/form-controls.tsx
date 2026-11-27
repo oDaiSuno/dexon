@@ -113,23 +113,29 @@ export function TextInput({
   placeholder,
   mono,
   onBlur,
+  className,
+  "aria-label": ariaLabel,
 }: {
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   mono?: boolean;
   onBlur?: () => void;
+  className?: string;
+  "aria-label"?: string;
 }) {
   const controlId = useFieldControlId();
+  const baseClass = className?.includes("type-") ? "ui-input" : inputClassName(mono);
 
   return (
     <input
       id={controlId}
+      aria-label={ariaLabel}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       onBlur={onBlur}
       placeholder={placeholder}
-      className={inputClassName(mono)}
+      className={className ? `${baseClass} ${className}` : baseClass}
       data-mono={mono || undefined}
     />
   );

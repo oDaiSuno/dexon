@@ -117,25 +117,37 @@ function RunDetail({ environmentId, taskId, runId }: AutomationRunDetailProps) {
         <OfflineHostNotice environmentId={environmentId} />
         <header className="auto-page-run-header">
           <div className="auto-page-run-heading">
-            <Button variant="ghost" onClick={backToTask}>
-              <AutomationIcon name="left" />
-              {taskName}
-            </Button>
-            <h1 className="type-title-section">
-              {t("autoPageRunTitle", "Run")} <span className="type-mono-number">{runId}</span>
-            </h1>
-            <div className="auto-page-run-badges">
+            <div className="auto-page-run-title-row">
+              <h1 className="type-title-page">
+                {t("autoPageRunTitle", "Run")} <span className="type-mono-number-strong">{runId}</span>
+              </h1>
               {run && <StatusPill phase={run.phase} waitKind={waitingStep?.waitKind} />}
               <HostChip environmentId={environmentId} />
             </div>
+            {run && (
+              <div className="auto-page-run-meta-strip type-label-default">
+                <span>{triggerLabel}</span>
+                <span className="type-mono-label">
+                  {t("autoPageRunRevision", "Revision")} v{run.revision}
+                </span>
+                <span className="type-mono-label auto-page-run-muted">
+                  {formatDateTime(run.admittedAtMs ?? run.createdAtMs)}
+                </span>
+                <span className={`type-mono-label-strong${active ? " auto-page-warning" : " auto-page-run-muted"}`}>
+                  {t("autoPageRunDuration", "Elapsed")}{" "}
+                  {formatDuration(run.admittedAtMs ?? run.createdAtMs, run.endedAtMs)}
+                </span>
+                {run.laneKey !== null && <span className="type-mono-meta auto-page-run-muted">{run.laneKey}</span>}
+              </div>
+            )}
           </div>
           <div className="auto-page-run-actions">
-            <Button disabled={!online || loading} busy={loading} onClick={changed}>
+            <Button variant="ghost" disabled={!online || loading} busy={loading} onClick={changed}>
               {t("autoPageRunRefresh", "Refresh")}
             </Button>
             {active && run?.phase !== "cancelling" && (
-              <Button variant="danger" disabled={!online || cancelBusy} onClick={() => setCancelConfirm(true)}>
-                <AutomationIcon name="close" />
+              <Button disabled={!online || cancelBusy} onClick={() => setCancelConfirm(true)}>
+                <AutomationIcon name="square" size={13} />
                 {t("autoPageRunCancel", "Cancel this run")}
               </Button>
             )}
@@ -186,42 +198,6 @@ function RunDetail({ environmentId, taskId, runId }: AutomationRunDetailProps) {
         )}
         {run && (
           <>
-            <dl className="auto-page-run-metadata type-label-default">
-              <div>
-                <dt>{t("autoPageRunTrigger", "Trigger")}</dt>
-                <dd>{triggerLabel}</dd>
-              </div>
-              <div>
-                <dt>{t("autoPageRunRevision", "Revision")}</dt>
-                <dd className="type-mono-label">{`v${run.revision}`}</dd>
-              </div>
-              <div>
-                <dt>{t("autoPageRunCreated", "Triggered at")}</dt>
-                <dd>{formatDateTime(run.createdAtMs)}</dd>
-              </div>
-              <div>
-                <dt>{t("autoPageRunStarted", "Started at")}</dt>
-                <dd>{formatDateTime(run.admittedAtMs)}</dd>
-              </div>
-              <div>
-                <dt>{t("autoPageRunDuration", "Elapsed")}</dt>
-                <dd className="type-mono-label">
-                  {formatDuration(run.admittedAtMs ?? run.createdAtMs, run.endedAtMs)}
-                </dd>
-              </div>
-              {run.endedAtMs !== null && (
-                <div>
-                  <dt>{t("autoPageRunEnded", "Ended at")}</dt>
-                  <dd>{formatDateTime(run.endedAtMs)}</dd>
-                </div>
-              )}
-              {run.laneKey !== null && (
-                <div>
-                  <dt>{t("autoPageRunLane", "Concurrency lane")}</dt>
-                  <dd className="type-mono-label">{run.laneKey}</dd>
-                </div>
-              )}
-            </dl>
             {run.phase === "pending" && (
               <p className="auto-page-run-notice type-body-default" role="status">
                 {t(

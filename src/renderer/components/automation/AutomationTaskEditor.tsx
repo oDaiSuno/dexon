@@ -162,13 +162,26 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
                 className="auto-page-editor-title-fields"
                 disabled={editor.busy || editor.loading || editor.loadFailed || mode === "raw"}
               >
-                <Field label={t("autoPageEditorTaskName", "Task title")}>
-                  <TextInput value={draft.name} onChange={(name) => updateDraft({ ...draft, name })} />
-                </Field>
+                <div className="auto-page-editor-title-row">
+                  <TextInput
+                    className="auto-page-editor-title-input type-title-hero"
+                    aria-label={t("autoPageEditorTaskName", "Task title")}
+                    value={draft.name}
+                    onChange={(name) => updateDraft({ ...draft, name })}
+                  />
+                  <span className="auto-page-editor-title-pencil" aria-hidden="true">
+                    <AutomationIcon name="pencil" size={14} />
+                  </span>
+                </div>
                 {!editor.savedTaskId ? (
-                  <Field label={t("autoPageEditorTaskId", "Stable task ID")}>
+                  <div className="auto-page-editor-id-row">
+                    <span className="auto-page-editor-muted type-meta-default">
+                      {t("autoPageEditorTaskId", "Stable task ID")}
+                    </span>
                     <TextInput
                       mono
+                      className="auto-page-editor-id-input"
+                      aria-label={t("autoPageEditorTaskId", "Stable task ID")}
                       value={draft.id}
                       onChange={(id) =>
                         updateDraft({
@@ -181,9 +194,9 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
                         })
                       }
                     />
-                  </Field>
+                  </div>
                 ) : (
-                  <code className="auto-page-editor-muted type-mono-label">{editor.savedTaskId}</code>
+                  <code className="auto-page-editor-muted type-mono-meta">{editor.savedTaskId}</code>
                 )}
               </fieldset>
               <div className="auto-page-editor-header-actions">
@@ -197,7 +210,7 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
                   }
                   onClick={adjustWithAi}
                 >
-                  <AutomationIcon name="sparkles" />
+                  <AutomationIcon name="sparkles" size={14} />
                   {t("autoPageEditorAiAdjust", "Let AI adjust")}
                 </Button>
                 <div className="auto-page-editor-mode" role="group" aria-label={t("autoPageEditorMode", "Editor mode")}>
@@ -209,7 +222,7 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
                       aria-pressed={mode === next}
                       onClick={() => switchMode(next)}
                     >
-                      {next === "raw" && <AutomationIcon name="code" />}
+                      {next === "raw" && <AutomationIcon name="code" size={13} />}
                       {next === "visual"
                         ? t("autoPageEditorVisualMode", "Visual editor")
                         : t("autoPageEditorRawMode", "Raw configuration")}
@@ -222,47 +235,58 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
               className="auto-page-editor-target"
               disabled={editor.busy || editor.loading || editor.loadFailed || mode === "raw"}
             >
-              <Field label={t("autoPageEditorHost", "Target host")}>
-                <NativeSelect
-                  value={editor.environmentId}
-                  disabled={!!editor.savedTaskId}
-                  onChange={(event) => {
-                    void editor.selectHost(event.target.value);
-                  }}
-                >
-                  {!hosts.some((entry) => entry.environment.id === editor.environmentId) && (
-                    <option value={editor.environmentId}>{editor.environmentId}</option>
-                  )}
-                  {hosts.map((entry) => (
-                    <option
-                      key={entry.environment.id}
-                      value={entry.environment.id}
-                      disabled={entry.status !== "online"}
+              <div className="auto-page-editor-pickers">
+                <div className="auto-page-editor-host-picker">
+                  <NativeSelect
+                    aria-label={t("autoPageEditorHost", "Target host")}
+                    value={editor.environmentId}
+                    disabled={!!editor.savedTaskId}
+                    onChange={(event) => {
+                      void editor.selectHost(event.target.value);
+                    }}
+                  >
+                    {!hosts.some((entry) => entry.environment.id === editor.environmentId) && (
+                      <option value={editor.environmentId}>{editor.environmentId}</option>
+                    )}
+                    {hosts.map((entry) => (
+                      <option
+                        key={entry.environment.id}
+                        value={entry.environment.id}
+                        disabled={entry.status !== "online"}
+                      >
+                        {entry.environment.label}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                  <HostChip environmentId={editor.environmentId} />
+                </div>
+                <span className="auto-page-vsep" aria-hidden="true" />
+                <div className="auto-page-editor-cwd-picker">
+                  <AutomationIcon name="folder" size={13} />
+                  <TextInput
+                    mono
+                    aria-label={t("autoPageEditorWorkingDirectory", "Working directory")}
+                    value={draft.cwd}
+                    onChange={(cwd) => updateDraft({ ...draft, cwd })}
+                  />
+                  {editor.environmentId === "primary" && (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        void window.piBridge
+                          .selectDirectory()
+                          .then((cwd) => {
+                            if (cwd) updateDraft({ ...draft, cwd });
+                          })
+                          .catch((failure: unknown) => editor.setError(editorError(failure)));
+                      }}
                     >
-                      {entry.environment.label}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <HostChip environmentId={editor.environmentId} />
-              <Field label={t("autoPageEditorWorkingDirectory", "Working directory")}>
-                <TextInput mono value={draft.cwd} onChange={(cwd) => updateDraft({ ...draft, cwd })} />
-              </Field>
-              {editor.environmentId === "primary" && (
-                <Button
-                  onClick={() => {
-                    void window.piBridge
-                      .selectDirectory()
-                      .then((cwd) => {
-                        if (cwd) updateDraft({ ...draft, cwd });
-                      })
-                      .catch((failure: unknown) => editor.setError(editorError(failure)));
-                  }}
-                >
-                  {t("autoPageEditorChooseDirectory", "Choose folder")}
-                </Button>
-              )}
-              <p className="auto-page-editor-target-hint type-label-default">
+                      {t("autoPageEditorChooseDirectory", "Choose folder")}
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <p className="auto-page-editor-target-hint type-meta-default">
                 {editor.savedTaskId
                   ? t(
                       "autoPageEditorHostLocked",
@@ -408,43 +432,45 @@ export function AutomationTaskEditor(props: AutomationTaskEditorProps) {
             </fieldset>
           </div>
           <footer className="auto-page-editor-footer">
-            <div className="auto-page-editor-stack">
-              <p
-                role="status"
-                className={
-                  editor.error
-                    ? "auto-page-editor-error type-label-medium"
-                    : editor.canEnable
-                      ? "auto-page-editor-valid type-label-medium"
-                      : "auto-page-editor-muted type-label-medium"
-                }
-              >
-                {editor.error || status}
-              </p>
-              <span className="auto-page-editor-muted type-label-default">
-                {editor.dirty
-                  ? t("autoPageEditorUnsaved", "Unsaved changes")
-                  : t("autoPageEditorNoUnsaved", "No unsaved changes")}
-              </span>
-            </div>
-            <div className="auto-page-editor-footer-actions">
-              {editor.savedTaskId && (
-                <Button variant="ghost" disabled={editor.busy} onClick={backToTask}>
-                  {t("autoPageEditorViewTask", "View task")}
+            <div className="auto-page-editor-footer-inner">
+              <div className="auto-page-editor-stack">
+                <p
+                  role="status"
+                  className={
+                    editor.error
+                      ? "auto-page-editor-error type-label-medium"
+                      : editor.canEnable
+                        ? "auto-page-editor-valid type-label-medium"
+                        : "auto-page-editor-muted type-label-medium"
+                  }
+                >
+                  {editor.error || status}
+                </p>
+                <span className="auto-page-editor-muted type-meta-default">
+                  {editor.dirty
+                    ? t("autoPageEditorUnsaved", "Unsaved changes")
+                    : t("autoPageEditorNoUnsaved", "No unsaved changes")}
+                </span>
+              </div>
+              <div className="auto-page-editor-footer-actions">
+                {editor.savedTaskId && (
+                  <Button variant="ghost" disabled={editor.busy} onClick={backToTask}>
+                    {t("autoPageEditorViewTask", "View task")}
+                  </Button>
+                )}
+                <Button disabled={!editor.canSave} busy={editor.busy} onClick={() => void editor.save(false)}>
+                  {t("autoPageEditorSaveDraft", "Save draft")}
                 </Button>
-              )}
-              <Button disabled={!editor.canSave} busy={editor.busy} onClick={() => void editor.save(false)}>
-                {t("autoPageEditorSaveDraft", "Save draft")}
-              </Button>
-              <Button
-                variant="primary"
-                disabled={!editor.canEnable}
-                busy={editor.busy}
-                onClick={() => void editor.save(true)}
-              >
-                <AutomationIcon name="check" />
-                {t("autoPageEditorReviewEnable", "Review and enable")}
-              </Button>
+                <Button
+                  variant="primary"
+                  disabled={!editor.canEnable}
+                  busy={editor.busy}
+                  onClick={() => void editor.save(true)}
+                >
+                  <AutomationIcon name="shield" size={14} />
+                  {t("autoPageEditorReviewEnable", "Review and enable")}
+                </Button>
+              </div>
             </div>
           </footer>
         </div>
