@@ -291,6 +291,7 @@ const EXPECTED_CSS_IMPORT_ORDER = [
   "styles/messages-stream.css",
   "styles/tool-cards.css",
   "styles/automation-cards.css",
+  "styles/automation-chat.css",
   "styles/automation-page.css",
   "styles/automation-drawer.css",
   "styles/automation-runs.css",

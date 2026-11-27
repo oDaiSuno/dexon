@@ -1,29 +1,24 @@
 import { useState } from "react";
 import { useI18n } from "@/i18n";
-import { Button, Field, NativeSelect, TextInput } from "@/components/form-controls";
+import { Button, NativeSelect, TextInput } from "@/components/form-controls";
 import { PageTopBar } from "@/components/page-top-bar";
 import { requestAutomationAiSession } from "@/lib/automation-request";
-import { EmptyState, HostChip, OfflineHostNotice } from "./automation-atoms";
+import { EmptyState, HostChip, OfflineHostNotice, StatusPill } from "./automation-atoms";
 import { useAutomationWorkspace } from "./automation-context";
 import { AutomationIcon } from "./automation-icons";
 import { createStarterTemplates } from "./automation-templates";
 import { AutomationRunList } from "./AutomationRunList";
 import { OverviewTaskTable } from "./overview-task-table";
 
-type HostFilter = "all" | "local" | "remotes";
-
 export function AutomationOverview() {
   const { t } = useI18n();
   const { hosts, tasks, runs, inbox, loading, nativeConsentPending, navigate, openInbox, openVault, onClose } =
     useAutomationWorkspace();
-  const [hostFilter, setHostFilter] = useState<HostFilter>("all");
   const [environmentId, setEnvironmentId] = useState("");
   const [cwd, setCwd] = useState("");
   const [search, setSearch] = useState("");
   const [tab, setTab] = useState<"tasks" | "runs">("tasks");
-  const matchesHost = (id: string) =>
-    (!environmentId || id === environmentId) &&
-    (hostFilter === "all" || (hostFilter === "local" ? id === "primary" : id !== "primary"));
+  const matchesHost = (id: string) => !environmentId || id === environmentId;
   const hostTasks = tasks.filter((entry) => matchesHost(entry.environmentId));
   const directories = [...new Set(hostTasks.map((entry) => entry.task.cwd).filter(Boolean))].sort();
   const query = search.trim().toLocaleLowerCase();
@@ -59,7 +54,7 @@ export function AutomationOverview() {
     })
     .slice()
     .sort((a, b) => Number(b.item.kind === "attention") - Number(a.item.kind === "attention"));
-  const selectedEnvironment = environmentId || (hostFilter === "local" ? "primary" : undefined);
+  const selectedEnvironment = environmentId || undefined;
   const editorEnvironment = selectedEnvironment ?? "primary";
   const editorUnavailable =
     Boolean(nativeConsentPending) ||
@@ -77,16 +72,25 @@ export function AutomationOverview() {
       ...(cwd ? { cwd } : {}),
     });
   };
-  const selectGroup = (value: HostFilter) => {
-    setHostFilter(value);
-    setEnvironmentId("");
+  const selectEnvironment = (id: string) => {
+    setEnvironmentId(id);
     setCwd("");
   };
-  const groups: { value: HostFilter; label: string }[] = [
-    { value: "all", label: t("autoPageOverviewAllHosts", "All hosts") },
-    { value: "local", label: t("autoPageOverviewLocal", "Local") },
-    { value: "remotes", label: t("autoPageOverviewRemotes", "Remotes") },
-  ];
+  const remoteHosts = hosts.filter((host) => host.environment.id !== "primary");
+  const localTaskCount = tasks.filter((entry) => entry.environmentId === "primary").length;
+  const pendingToneFor = (id: string) => {
+    const items = inbox.filter((entry) => entry.environmentId === id);
+    if (items.some((entry) => entry.item.kind === "attention")) return "danger";
+    if (items.length) return "warning";
+    return undefined;
+  };
+  const hostDotTone = (status: string) => {
+    if (status === "online") return "success";
+    if (status === "connecting" || status === "backoff") return "warning";
+    if (status === "blocked") return "danger";
+    return "muted";
+  };
+
   return (
     <section className="auto-page auto-page-overview">
       <PageTopBar
@@ -96,21 +100,21 @@ export function AutomationOverview() {
         onBack={onClose}
       />
       <div className="auto-page-scroll">
-        <div className="auto-page-content">
+        <div className="auto-page-content auto-page-column">
           <header className="auto-page-header">
             <div className="auto-page-stack-tight">
-              <h1 className="type-title-large">{t("autoPageOverviewAutomation", "Automation")}</h1>
-              <p className="type-body-default auto-page-muted">
+              <h1 className="type-title-hero">{t("autoPageOverviewAutomation", "Automation")}</h1>
+              <p className="type-body-default auto-page-secondary">
                 {t("autoPageOverviewSubtitle", "Manage tasks, review decisions, and follow runs across your hosts.")}
               </p>
             </div>
             <div className="auto-page-actions">
               <Button disabled={Boolean(nativeConsentPending)} onClick={() => openVault(selectedEnvironment)}>
-                <AutomationIcon name="key" />
+                <AutomationIcon name="key" size={14} />
                 {t("autoPageOverviewVault", "Secret vault")}
               </Button>
               <Button disabled={Boolean(nativeConsentPending)} onClick={draftWithAi}>
-                <AutomationIcon name="sparkles" />
+                <AutomationIcon name="sparkles" size={14} />
                 {t("autoPageOverviewAiDraft", "Draft with AI")}
               </Button>
               <Button
@@ -133,96 +137,71 @@ export function AutomationOverview() {
                   })
                 }
               >
-                <AutomationIcon name="plus" />
+                <AutomationIcon name="plus" size={14} />
                 {t("autoPageOverviewNewTask", "New task")}
               </Button>
             </div>
           </header>
-          <div className="auto-page-stack">
+          <div className="auto-page-toolbar">
             <div
-              className="auto-page-filter-pills"
+              className="auto-page-scope-bar"
               role="group"
               aria-label={t("autoPageOverviewHostFilter", "Filter by host")}
             >
-              {groups.map((group) => {
-                const accepts = (id: string) =>
-                  group.value === "all" || (group.value === "local" ? id === "primary" : id !== "primary");
-                const items = inbox.filter((entry) => accepts(entry.environmentId));
-                const tone = items.some((entry) => entry.item.kind === "attention")
-                  ? "danger"
-                  : items.length
-                    ? "warning"
-                    : undefined;
+              <Button variant="ghost" aria-pressed={!environmentId} onClick={() => selectEnvironment("")}>
+                {t("autoPageOverviewAllShort", "All")}
+                <span className="type-mono-meta auto-page-muted">{tasks.length}</span>
+              </Button>
+              <Button
+                variant="ghost"
+                aria-pressed={environmentId === "primary"}
+                onClick={() => selectEnvironment("primary")}
+              >
+                <AutomationIcon name="laptop" size={12} />
+                {t("autoPageOverviewLocal", "Local")}
+                <span className="type-mono-meta auto-page-muted">{localTaskCount}</span>
+                {pendingToneFor("primary") && (
+                  <span className="auto-page-dot" data-tone={pendingToneFor("primary")} aria-hidden="true" />
+                )}
+              </Button>
+              {remoteHosts.map((host) => {
+                const pendingTone = pendingToneFor(host.environment.id);
                 return (
                   <Button
-                    key={group.value}
+                    key={host.environment.id}
                     variant="ghost"
-                    aria-pressed={hostFilter === group.value && !environmentId}
-                    onClick={() => selectGroup(group.value)}
+                    aria-pressed={environmentId === host.environment.id}
+                    onClick={() => selectEnvironment(host.environment.id)}
                   >
-                    {tone && (
-                      <span
-                        className="auto-page-dot"
-                        data-tone={tone}
-                        aria-label={
-                          tone === "danger"
-                            ? t("autoPageOverviewAttention", "Result needs review")
-                            : t("autoPageOverviewApproval", "Approval required")
-                        }
-                      />
-                    )}
-                    {group.label}
-                    <span className="type-meta-default">
-                      {tasks.filter((entry) => accepts(entry.environmentId)).length}
-                    </span>
+                    <span className="auto-page-dot" data-tone={hostDotTone(host.status)} aria-hidden="true" />
+                    <span className="type-mono-label">{host.environment.label}</span>
+                    {pendingTone && <span className="auto-page-dot" data-tone={pendingTone} aria-hidden="true" />}
                   </Button>
                 );
               })}
             </div>
-            <div className="auto-page-toolbar">
-              <Field label={t("autoPageOverviewHost", "Host")}>
-                <NativeSelect
-                  value={environmentId}
-                  onChange={(event) => {
-                    setEnvironmentId(event.target.value);
-                    setCwd("");
-                  }}
-                >
-                  <option value="">{t("autoPageOverviewGroupHosts", "All hosts in group")}</option>
-                  {hosts
-                    .filter(
-                      (host) =>
-                        hostFilter === "all" ||
-                        (hostFilter === "local"
-                          ? host.environment.id === "primary"
-                          : host.environment.id !== "primary"),
-                    )
-                    .map((host) => (
-                      <option key={host.environment.id} value={host.environment.id}>
-                        {host.environment.id === "primary"
-                          ? t("autoPageOverviewLocal", "Local")
-                          : host.environment.label}
-                      </option>
-                    ))}
-                </NativeSelect>
-              </Field>
-              <Field label={t("autoPageOverviewWorkingDirectory", "Working directory")}>
-                <NativeSelect value={cwd} onChange={(event) => setCwd(event.target.value)}>
-                  <option value="">{t("autoPageOverviewAllDirectories", "All working directories")}</option>
-                  {directories.map((directory) => (
-                    <option key={directory} value={directory}>
-                      {directory}
-                    </option>
-                  ))}
-                </NativeSelect>
-              </Field>
-              <Field label={t("autoPageOverviewSearch", "Search")}>
+            <div className="auto-page-toolbar-filters">
+              <NativeSelect
+                aria-label={t("autoPageOverviewWorkingDirectory", "Working directory")}
+                value={cwd}
+                onChange={(event) => setCwd(event.target.value)}
+              >
+                <option value="">{t("autoPageOverviewAllDirectories", "All working directories")}</option>
+                {directories.map((directory) => (
+                  <option key={directory} value={directory}>
+                    {directory}
+                  </option>
+                ))}
+              </NativeSelect>
+              <div className="auto-page-search-wrap">
+                <AutomationIcon name="search" size={13} />
                 <TextInput
+                  aria-label={t("autoPageOverviewSearch", "Search")}
                   value={search}
                   onChange={setSearch}
                   placeholder={t("autoPageOverviewSearchPlaceholder", "Search tasks, paths, or runs")}
                 />
-              </Field>
+              </div>
             </div>
           </div>
           {hosts
@@ -237,46 +216,63 @@ export function AutomationOverview() {
           )}
           {visibleInbox.length > 0 && (
             <section className="auto-page-stack" aria-label={t("autoPageOverviewInbox", "Needs your attention")}>
-              <h2 className="type-title-small">
-                {t("autoPageOverviewInbox", "Needs your attention")} · {visibleInbox.length}
-              </h2>
-              {visibleInbox.map((entry) => (
-                <div
-                  className="auto-page-inbox-card"
-                  data-tone={entry.item.kind === "attention" ? "danger" : "warning"}
-                  key={`${entry.environmentId}:${entry.item.runId}:${entry.item.stepIndex}`}
-                >
-                  <AutomationIcon name={entry.item.kind === "attention" ? "alert" : "key"} />
-                  <div className="auto-page-stack-tight">
-                    <span className="type-body-medium">
-                      {entry.item.kind === "attention"
-                        ? t("autoPageOverviewAttention", "Result needs review")
-                        : t("autoPageOverviewApproval", "Approval required")}
-                    </span>
-                    <span className="type-body-default">
-                      {entry.item.taskName || entry.item.taskId} ·{" "}
-                      {entry.item.kind === "approval" ? entry.item.title : entry.item.stepId}
-                    </span>
-                    <HostChip environmentId={entry.environmentId} />
-                  </div>
-                  <Button
-                    disabled={
-                      Boolean(nativeConsentPending) ||
-                      hosts.find((host) => host.environment.id === entry.environmentId)?.status !== "online"
-                    }
-                    onClick={() => openInbox(entry)}
-                  >
-                    {t("autoPageOverviewReview", "Review")}
-                  </Button>
-                </div>
-              ))}
+              <div className="auto-page-inline">
+                <h2 className="type-heading">{t("autoPageOverviewInbox", "Needs your attention")}</h2>
+                <span className="auto-page-count-pill type-mono-meta">{visibleInbox.length}</span>
+                <span className="type-label-default auto-page-muted">
+                  {t("autoPageOverviewInboxHint", "Aggregated across hosts; hides automatically once resolved")}
+                </span>
+              </div>
+              <div className="auto-page-inbox-list">
+                {visibleInbox.map((entry) => {
+                  const isAttention = entry.item.kind === "attention";
+                  return (
+                    <div
+                      className="auto-page-inbox-card"
+                      data-tone={isAttention ? "danger" : "warning"}
+                      key={`${entry.environmentId}:${entry.item.runId}:${entry.item.stepIndex}`}
+                    >
+                      <div className="auto-page-inbox-lead">
+                        <span className="auto-page-inbox-icon" aria-hidden="true">
+                          <AutomationIcon name={isAttention ? "alert" : "shield"} size={16} />
+                        </span>
+                        <div className="auto-page-stack-tight">
+                          <div className="auto-page-inline">
+                            <span className="type-body-medium">{entry.item.taskName || entry.item.taskId}</span>
+                            <StatusPill
+                              phase={isAttention ? "attention" : "waiting"}
+                              waitKind={isAttention ? undefined : "approval"}
+                            />
+                            <HostChip environmentId={entry.environmentId} />
+                          </div>
+                          <span className="type-label-default auto-page-secondary">
+                            {entry.item.kind === "approval" ? entry.item.title : entry.item.stepId}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant={isAttention ? "danger" : "secondary"}
+                        disabled={
+                          Boolean(nativeConsentPending) ||
+                          hosts.find((host) => host.environment.id === entry.environmentId)?.status !== "online"
+                        }
+                        onClick={() => openInbox(entry)}
+                      >
+                        {isAttention
+                          ? t("autoPageOverviewVerifyCta", "Verify result")
+                          : t("autoPageOverviewApproveCta", "Approve")}
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
             </section>
           )}
           {empty ? (
             <>
-              <section className="auto-page-hero auto-page-stack">
-                <AutomationIcon name="sparkles" size={32} />
-                <h2 className="type-title-large">
+              <section className="auto-page-hero">
+                <AutomationIcon name="sparkles" size={28} />
+                <h2 className="type-title-section">
                   {t("autoPageOverviewHeroTitle", "Put recurring work on autopilot")}
                 </h2>
                 <p className="type-body-default auto-page-muted">
@@ -287,7 +283,7 @@ export function AutomationOverview() {
                 </p>
                 <div className="auto-page-actions">
                   <Button variant="primary" disabled={Boolean(nativeConsentPending)} onClick={draftWithAi}>
-                    <AutomationIcon name="sparkles" />
+                    <AutomationIcon name="sparkles" size={14} />
                     {t("autoPageOverviewAiDraft", "Draft with AI")}
                   </Button>
                   <Button
@@ -300,14 +296,23 @@ export function AutomationOverview() {
               </section>
               <div className="auto-page-template-grid">
                 {templates.map((template) => (
-                  <article className="auto-page-template auto-page-stack" key={template.id}>
-                    <AutomationIcon
-                      name={
-                        template.id === "endpoint-monitor" ? "server" : template.id === "log-summary" ? "code" : "clock"
-                      }
-                    />
-                    <h3 className="type-body-large-medium">{template.name}</h3>
-                    <p className="type-body-default auto-page-muted">{template.description}</p>
+                  <article className="auto-page-template" key={template.id}>
+                    <span className="auto-page-task-icon" aria-hidden="true">
+                      <AutomationIcon
+                        name={
+                          template.id === "endpoint-monitor"
+                            ? "radio"
+                            : template.id === "log-summary"
+                              ? "code"
+                              : "clock"
+                        }
+                        size={15}
+                      />
+                    </span>
+                    <div className="auto-page-stack-tight">
+                      <h3 className="type-body-large-medium">{template.name}</h3>
+                      <p className="type-body-default auto-page-muted">{template.description}</p>
+                    </div>
                     <Button
                       disabled={editorUnavailable}
                       onClick={() =>
@@ -315,7 +320,7 @@ export function AutomationOverview() {
                       }
                     >
                       {t("autoPageOverviewUseTemplate", "Use template")}
-                      <AutomationIcon name="right" />
+                      <AutomationIcon name="right" size={14} />
                     </Button>
                   </article>
                 ))}
@@ -323,13 +328,29 @@ export function AutomationOverview() {
             </>
           ) : (
             <section className="auto-page-stack">
-              <div className="auto-page-tabs" role="group" aria-label={t("autoPageOverviewView", "Automation view")}>
-                <Button variant="ghost" aria-pressed={tab === "tasks"} onClick={() => setTab("tasks")}>
-                  {t("autoPageOverviewTasks", "Tasks")} · {visibleTasks.length}
-                </Button>
-                <Button variant="ghost" aria-pressed={tab === "runs"} onClick={() => setTab("runs")}>
-                  {t("autoPageOverviewRunLog", "Run log")} · {visibleRuns.length}
-                </Button>
+              <div className="auto-page-list-header">
+                <div className="auto-page-list-title">
+                  <h2 className="type-heading">
+                    {tab === "tasks" ? t("autoPageOverviewTasks", "Tasks") : t("autoPageOverviewRunLog", "Run log")}
+                  </h2>
+                  <span className="type-mono-meta auto-page-muted">
+                    {tab === "tasks" ? visibleTasks.length : visibleRuns.length}
+                  </span>
+                </div>
+                <div
+                  className="auto-page-segmented"
+                  role="group"
+                  aria-label={t("autoPageOverviewView", "Automation view")}
+                >
+                  <Button variant="ghost" aria-pressed={tab === "tasks"} onClick={() => setTab("tasks")}>
+                    <AutomationIcon name="list" size={13} />
+                    {t("autoPageOverviewTasks", "Tasks")}
+                  </Button>
+                  <Button variant="ghost" aria-pressed={tab === "runs"} onClick={() => setTab("runs")}>
+                    <AutomationIcon name="history" size={13} />
+                    {t("autoPageOverviewRunLog", "Run log")}
+                  </Button>
+                </div>
               </div>
               {tab === "runs" ? (
                 <AutomationRunList runs={visibleRuns} completed />

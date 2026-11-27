@@ -15,7 +15,10 @@ export function Welcome({
   const automationIntent = useAutomationSessionIntent();
   if (automationIntent) {
     return (
-      <div className="auto-chat-welcome-region relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5">
+      <div
+        className="auto-chat-welcome-region relative z-[1] flex min-h-0 flex-[1_1_0] flex-col items-center justify-end overflow-y-auto px-4 pb-5"
+        data-mode={automationIntent.mode}
+      >
         <div className="chat-content-column">
           <AutomationWelcome intent={automationIntent} />
           <NoticeShelf notices={notices} onDismiss={onDismissNotice} align="center" />

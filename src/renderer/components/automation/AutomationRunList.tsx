@@ -4,6 +4,7 @@ import { Button } from "@/components/form-controls";
 import { EmptyState, HostChip, PhaseFilters, StatusPill } from "./automation-atoms";
 import { useAutomationWorkspace, type HostedRun } from "./automation-context";
 import { formatDateTime, formatDuration, formatRelativeTime, matchesPhaseFilter } from "./automation-format";
+import { AutomationIcon } from "./automation-icons";
 
 export function AutomationRunList({
   runs,
@@ -22,6 +23,7 @@ export function AutomationRunList({
       (entry) =>
         entry.environmentId === environmentId && entry.item.runId === run.id && entry.item.kind === "attention",
     ) ?? inbox.find((entry) => entry.environmentId === environmentId && entry.item.runId === run.id);
+  const pendingCount = runs.filter((entry) => Boolean(reviewFor(entry))).length;
   const visible = runs
     .filter((entry) => (filter === "pending" ? Boolean(reviewFor(entry)) : matchesPhaseFilter(entry.run.phase, filter)))
     .slice()
@@ -29,19 +31,26 @@ export function AutomationRunList({
 
   return (
     <div className="auto-page-stack">
-      <PhaseFilters value={filter} onChange={setFilter} completed={completed} />
+      <PhaseFilters
+        value={filter}
+        onChange={setFilter}
+        completed={completed}
+        pendingCount={pendingCount}
+        trailing={
+          <span className="type-meta-default auto-page-muted">{t("autoPageOverviewSortDesc", "Newest first")}</span>
+        }
+      />
       {visible.length === 0 ? (
         <EmptyState>{t("autoPageOverviewNoRuns", "No runs match this view.")}</EmptyState>
       ) : (
         <div className="auto-page-table-scroll">
           <table className="auto-page-table auto-page-run-table">
             <thead>
-              <tr className="type-label-default">
+              <tr className="type-meta-caps">
                 <th scope="col">{t("autoPageOverviewStatus", "Status")}</th>
                 <th scope="col">{t("autoPageOverviewTaskRun", "Task / run")}</th>
                 {showHost && <th scope="col">{t("autoPageOverviewHost", "Host")}</th>}
                 <th scope="col">{t("autoPageOverviewStarted", "Created")}</th>
-                <th scope="col">{t("autoPageOverviewDuration", "Duration")}</th>
                 <th scope="col">{t("autoPageOverviewActions", "Actions")}</th>
               </tr>
             </thead>
@@ -55,8 +64,12 @@ export function AutomationRunList({
                 const unavailable =
                   nativeConsentPending !== null ||
                   hosts.find((host) => host.environment.id === environmentId)?.status !== "online";
+                const isAttention = review?.item.kind === "attention";
                 return (
-                  <tr key={`${environmentId}:${run.id}`}>
+                  <tr
+                    key={`${environmentId}:${run.id}`}
+                    onClick={() => navigate({ view: "run", environmentId, taskId: run.taskId, runId: run.id })}
+                  >
                     <td>
                       <StatusPill
                         phase={run.phase}
@@ -65,16 +78,26 @@ export function AutomationRunList({
                     </td>
                     <td>
                       <div className="auto-page-stack-tight">
-                        <Button
-                          variant="ghost"
-                          className="auto-page-text-button"
-                          onClick={() => navigate({ view: "run", environmentId, taskId: run.taskId, runId: run.id })}
-                        >
-                          {task?.task.name || run.taskId}
-                        </Button>
-                        <span className="type-meta-default auto-page-muted">
-                          v{run.revision} · {run.id}
-                        </span>
+                        <div className="auto-page-inline">
+                          <Button
+                            variant="ghost"
+                            className="auto-page-text-button type-mono-label-strong"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate({ view: "run", environmentId, taskId: run.taskId, runId: run.id });
+                            }}
+                          >
+                            {showHost ? `${task?.task.name || run.taskId} · ${run.id}` : run.id}
+                          </Button>
+                          <span className="type-label-default auto-page-secondary">v{run.revision}</span>
+                        </div>
+                        {review && (
+                          <span
+                            className={`type-label-default ${isAttention ? "auto-page-error" : "auto-page-warning"}`}
+                          >
+                            {review.item.kind === "approval" ? review.item.title : review.item.stepId}
+                          </span>
+                        )}
                       </div>
                     </td>
                     {showHost && (
@@ -82,18 +105,34 @@ export function AutomationRunList({
                         <HostChip environmentId={environmentId} />
                       </td>
                     )}
-                    <td className="type-meta-default">
+                    <td className="type-mono-meta auto-page-muted">
                       <time dateTime={new Date(run.createdAtMs).toISOString()} title={formatDateTime(run.createdAtMs)}>
                         {formatRelativeTime(run.createdAtMs)}
                       </time>
+                      {" · "}
+                      {formatDuration(run.admittedAtMs, run.endedAtMs)}
                     </td>
-                    <td className="type-mono-meta">{formatDuration(run.admittedAtMs, run.endedAtMs)}</td>
                     <td>
-                      {review && (
-                        <Button variant="ghost" disabled={unavailable} onClick={() => openInbox(review)}>
-                          {t("autoPageOverviewReview", "Review")}
-                        </Button>
-                      )}
+                      <div className="auto-page-row">
+                        {review ? (
+                          <Button
+                            variant={isAttention ? "danger" : "secondary"}
+                            disabled={unavailable}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openInbox(review);
+                            }}
+                          >
+                            {isAttention
+                              ? t("autoPageOverviewVerifyCta", "Verify result")
+                              : t("autoPageOverviewApproveCta", "Approve")}
+                          </Button>
+                        ) : (
+                          <span className="auto-page-muted" aria-hidden="true">
+                            <AutomationIcon name="right" size={14} />
+                          </span>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

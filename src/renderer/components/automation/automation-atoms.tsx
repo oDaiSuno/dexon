@@ -9,11 +9,17 @@ import { formatJson } from "./automation-format";
 export function HostChip({ environmentId }: { environmentId: string }) {
   const { t } = useI18n();
   const host = useAutomationWorkspace().hosts.find((entry) => entry.environment.id === environmentId);
+  const isLocal = environmentId === "primary";
   const status = host?.status ?? "offline";
   return (
-    <span className="auto-page-host type-meta-default" data-status={status} title={host?.error ?? environmentId}>
-      <span className="auto-page-dot" aria-hidden="true" />
-      {environmentId === "primary" ? t("autoPageLocal", "Local") : (host?.environment.label ?? environmentId)}
+    <span
+      className="auto-page-host type-mono-meta"
+      data-status={status}
+      data-local={isLocal ? "true" : undefined}
+      title={host?.error ?? environmentId}
+    >
+      {isLocal ? <AutomationIcon name="laptop" size={12} /> : <span className="auto-page-dot" aria-hidden="true" />}
+      {isLocal ? t("autoPageLocal", "Local") : (host?.environment.label ?? environmentId)}
     </span>
   );
 }
@@ -112,31 +118,45 @@ export function PhaseFilters({
   value,
   onChange,
   completed = false,
+  pendingCount = 0,
+  trailing,
 }: {
   value: string;
   onChange: (value: string) => void;
   completed?: boolean;
+  pendingCount?: number;
+  trailing?: ReactNode;
 }) {
   const { t } = useI18n();
   const options = [
     { value: "all", label: t("autoPageFilterAll", "All") },
-    { value: "pending", label: t("autoPageFilterPending", "Needs action") },
+    { value: "pending", label: t("autoPageFilterPending", "Needs action"), count: pendingCount },
     { value: "running", label: t("autoPageFilterRunning", "In progress") },
     ...(completed ? [{ value: "completed", label: t("autoPageFilterCompleted", "Completed") }] : []),
     { value: "incomplete", label: t("autoPageFilterIncomplete", "Incomplete") },
   ];
   return (
-    <div className="auto-page-filter-pills" role="group" aria-label={t("autoPagePhaseFilter", "Filter by run status")}>
-      {options.map((option) => (
-        <Button
-          key={option.value}
-          variant="ghost"
-          aria-pressed={value === option.value}
-          onClick={() => onChange(option.value)}
-        >
-          {option.label}
-        </Button>
-      ))}
+    <div className="auto-page-filter-row">
+      <div
+        className="auto-page-filter-pills"
+        role="group"
+        aria-label={t("autoPagePhaseFilter", "Filter by run status")}
+      >
+        {options.map((option) => (
+          <Button
+            key={option.value}
+            variant="ghost"
+            aria-pressed={value === option.value}
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+            {"count" in option && option.count ? (
+              <span className="auto-page-warning type-mono-meta">{option.count}</span>
+            ) : null}
+          </Button>
+        ))}
+      </div>
+      {trailing}
     </div>
   );
 }

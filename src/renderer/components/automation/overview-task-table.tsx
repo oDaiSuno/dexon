@@ -3,7 +3,7 @@ import { useI18n } from "@/i18n";
 import { Button, Toggle } from "@/components/form-controls";
 import { HostChip, StatusPill } from "./automation-atoms";
 import { type HostedTask, useAutomationWorkspace } from "./automation-context";
-import { formatDateTime, formatRelativeTime, formatTrigger } from "./automation-format";
+import { formatDateTime, formatRelativeTime, formatTrigger, isActivePhase } from "./automation-format";
 import { AutomationIcon } from "./automation-icons";
 
 export function OverviewTaskTable({ tasks }: { tasks: readonly HostedTask[] }) {
@@ -58,7 +58,7 @@ export function OverviewTaskTable({ tasks }: { tasks: readonly HostedTask[] }) {
       <div className="auto-page-table-scroll">
         <table className="auto-page-table auto-page-task-table">
           <thead>
-            <tr className="type-label-default">
+            <tr className="type-meta-caps">
               <th scope="col">{t("autoPageOverviewTask", "Task")}</th>
               <th scope="col">{t("autoPageOverviewHost", "Host")}</th>
               <th scope="col">{t("autoPageOverviewLatestRun", "Latest run")}</th>
@@ -69,61 +69,80 @@ export function OverviewTaskTable({ tasks }: { tasks: readonly HostedTask[] }) {
             {tasks.map((entry) => {
               const { environmentId, task, revision, latestRun } = entry;
               const enabled = task.enabledRevision !== null;
-              const unavailable =
-                Boolean(busy || nativeConsentPending) ||
-                hosts.find((host) => host.environment.id === environmentId)?.status !== "online";
+              const isDraftPaused = task.enabledRevision !== task.currentRevision;
+              const hostStatus = hosts.find((host) => host.environment.id === environmentId)?.status ?? "offline";
+              const unavailable = Boolean(busy || nativeConsentPending) || hostStatus !== "online";
               const manual = revision?.source.triggers.some((trigger) => trigger.kind === "manual");
+              const hasWatch = revision?.source.triggers.some((trigger) => trigger.kind === "watch");
+              const hasSchedule = revision?.source.triggers.some((trigger) => trigger.kind === "schedule");
+              const running = Boolean(latestRun && isActivePhase(latestRun.phase));
+              const iconName = hasWatch ? "radio" : hasSchedule ? "clock" : "shield";
               return (
                 <tr key={`${environmentId}:${task.id}`}>
                   <td>
-                    <div className="auto-page-stack-tight">
-                      <Button
-                        variant="ghost"
-                        className="auto-page-text-button"
-                        onClick={() => navigate({ view: "task", environmentId, taskId: task.id })}
+                    <div className="auto-page-task-cell">
+                      <span
+                        className="auto-page-task-icon"
+                        data-active={running ? "true" : undefined}
+                        aria-hidden="true"
                       >
-                        {task.name || task.id}
-                      </Button>
-                      <span className="type-meta-default auto-page-muted">
-                        v{task.currentRevision} ·{" "}
-                        {task.enabledRevision === task.currentRevision
-                          ? t("autoPageOverviewEnabled", "Enabled")
-                          : t("autoPageOverviewPausedDraft", "Paused · Draft")}
-                        {enabled && task.enabledRevision !== task.currentRevision && (
-                          <>
-                            {" "}
-                            · {t("autoPageOverviewOlderEnabled", "Older revision enabled")} v{task.enabledRevision}
-                          </>
-                        )}
+                        <AutomationIcon name={iconName} size={15} />
                       </span>
-                      <span className="type-meta-default auto-page-muted">
-                        {revision?.source.triggers.map(formatTrigger).join(" · ") ||
-                          t("autoPageOverviewTriggersUnavailable", "Trigger details unavailable")}
-                      </span>
-                      <span className="type-mono-meta auto-page-muted">{task.cwd}</span>
+                      <div className="auto-page-stack-tight">
+                        <div className="auto-page-inline">
+                          <Button
+                            variant="ghost"
+                            className="auto-page-text-button type-body-medium"
+                            onClick={() => navigate({ view: "task", environmentId, taskId: task.id })}
+                          >
+                            {task.name || task.id}
+                          </Button>
+                          {isDraftPaused && (
+                            <span className="automation-badge is-warning type-meta-micro">
+                              {t("autoPageOverviewPausedDraft", "Paused · Draft")} v{task.currentRevision}
+                            </span>
+                          )}
+                          {enabled && task.enabledRevision !== task.currentRevision && (
+                            <span className="type-meta-default auto-page-muted">
+                              {t("autoPageOverviewOlderEnabled", "Older revision enabled")} v{task.enabledRevision}
+                            </span>
+                          )}
+                        </div>
+                        <div className="auto-page-task-meta">
+                          <span className="type-label-default auto-page-secondary">
+                            {revision?.source.triggers.map(formatTrigger).join(" · ") ||
+                              t("autoPageOverviewTriggersUnavailable", "Trigger details unavailable")}
+                          </span>
+                          <span className="type-label-default auto-page-muted" aria-hidden="true">
+                            ·
+                          </span>
+                          <span className="type-mono-meta auto-page-muted">{task.cwd}</span>
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>
                     <HostChip environmentId={environmentId} />
                   </td>
                   <td>
-                    {latestRun ? (
-                      <div className="auto-page-stack-tight">
-                        <Button
-                          variant="ghost"
-                          className="auto-page-text-button"
-                          onClick={() => navigate({ view: "run", environmentId, taskId: task.id, runId: latestRun.id })}
-                        >
-                          <StatusPill phase={latestRun.phase} />
-                        </Button>
+                    {hostStatus !== "online" ? (
+                      <StatusPill phase="offline" />
+                    ) : latestRun ? (
+                      <Button
+                        variant="ghost"
+                        className="auto-page-text-button auto-page-latest-run"
+                        onClick={() => navigate({ view: "run", environmentId, taskId: task.id, runId: latestRun.id })}
+                      >
+                        <StatusPill phase={latestRun.phase} />
                         <time
-                          className="type-meta-default auto-page-muted"
+                          className="type-mono-meta auto-page-muted"
                           dateTime={new Date(latestRun.createdAtMs).toISOString()}
                           title={formatDateTime(latestRun.createdAtMs)}
                         >
                           {formatRelativeTime(latestRun.createdAtMs)}
                         </time>
-                      </div>
+                        <AutomationIcon name="right" size={13} />
+                      </Button>
                     ) : (
                       <span className="type-meta-default auto-page-muted">
                         {t("autoPageOverviewNeverRun", "Not run yet")}
@@ -134,12 +153,13 @@ export function OverviewTaskTable({ tasks }: { tasks: readonly HostedTask[] }) {
                     <div className="auto-page-row">
                       <Button
                         variant="ghost"
+                        className="auto-page-icon-btn"
                         aria-label={t("autoPageOverviewRunManually", "Run manually")}
                         title={t("autoPageOverviewRunManually", "Run manually")}
                         disabled={unavailable || !enabled || !manual || task.enabledRevision !== task.currentRevision}
                         onClick={() => startTask(entry)}
                       >
-                        <AutomationIcon name="play" />
+                        <AutomationIcon name="play" size={13} />
                       </Button>
                       <Toggle
                         checked={enabled}
@@ -174,7 +194,7 @@ export function OverviewTaskTable({ tasks }: { tasks: readonly HostedTask[] }) {
           onClose={() => setDisabling(null)}
         >
           <div className="auto-page-stack">
-            <h2 id="auto-page-overview-pause-title" className="type-title-small">
+            <h2 id="auto-page-overview-pause-title" className="type-title-dialog">
               {t("autoPageOverviewPauseTitle", "Pause this task?")}
             </h2>
             <p className="type-body-medium">{disabling.task.name}</p>

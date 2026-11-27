@@ -5,7 +5,7 @@ import { PageTopBar } from "@/components/page-top-bar";
 import { requestAutomationAiSession, type AutomationTaskTab } from "@/lib/automation-request";
 import { EmptyState, HostChip, OfflineHostNotice, StatusPill } from "./automation-atoms";
 import { useAutomationWorkspace } from "./automation-context";
-import { formatJson, formatTrigger } from "./automation-format";
+import { formatTrigger } from "./automation-format";
 import { AutomationIcon } from "./automation-icons";
 import { AutomationRunList } from "./AutomationRunList";
 import { DeleteTaskDialog } from "./DeleteTaskDialog";
@@ -162,6 +162,12 @@ function TaskDetailContent({ environmentId, taskId, tab = "runs" }: TaskDetailPr
 
   const modifyWithAi = () => {
     if (!task || !revision || !online || pending) return;
+    const triggerSummary = revision.source.triggers.map(formatTrigger).join(" + ");
+    const stepSummary = revision.source.steps.map((step) => step.title || step.id).join(" → ");
+    const summaryParts = [
+      triggerSummary,
+      stepSummary ? `${revision.source.steps.length} · ${stepSummary}` : `${revision.source.steps.length}`,
+    ].filter(Boolean);
     requestAutomationAiSession({
       mode: "modify",
       environmentId,
@@ -171,7 +177,7 @@ function TaskDetailContent({ environmentId, taskId, tab = "runs" }: TaskDetailPr
       revision: task.currentRevision,
       enabledRevision: task.enabledRevision,
       environmentLabel: host?.environment.label ?? environmentId,
-      summary: formatJson({ source: revision.source, requiredGrant: revision.requiredGrant }),
+      summary: summaryParts.join(" · "),
     });
   };
 
@@ -211,147 +217,145 @@ function TaskDetailContent({ environmentId, taskId, tab = "runs" }: TaskDetailPr
               <header className="auto-page-task-header auto-page-stack">
                 <div className="auto-page-task-heading">
                   <div className="auto-page-stack-tight">
-                    <h1 className="auto-page-title type-title-page">{title}</h1>
                     <div className="auto-page-inline">
+                      <h1 className="auto-page-title type-title-hero">{title}</h1>
                       <StatusPill phase={enabled ? "enabled" : "paused"} />
-                      <span className="type-label-default">
-                        {!enabled && t("autoPageTaskDraftLabel", "Draft")} v{task.currentRevision}
-                      </span>
+                      {!enabled && (
+                        <span className="automation-badge is-warning type-meta-micro">
+                          {t("autoPageTaskDraftLabel", "Draft")} v{task.currentRevision}
+                        </span>
+                      )}
+                    </div>
+                    <div className="auto-page-task-metadata type-label-default">
                       <HostChip environmentId={environmentId} />
+                      <span className="auto-page-trigger">
+                        <AutomationIcon name="folder" size={13} />
+                        <span className="auto-page-working-directory type-mono-label" title={task.cwd}>
+                          {task.cwd}
+                        </span>
+                      </span>
+                      {revision?.source.triggers.length ? (
+                        <span className="auto-page-trigger">
+                          <AutomationIcon name="clock" size={13} />
+                          {revision.source.triggers.map(formatTrigger).join(" · ")}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
-                  <label className="auto-page-toggle-label type-label-medium">
-                    <span>{t("autoPageTaskEnableToggle", "Enable task")}</span>
+                  <div className="auto-page-task-actions">
                     <Toggle
                       checked={enabled}
+                      aria-label={t("autoPageTaskEnableToggle", "Enable task")}
                       disabled={unavailable || !revision}
                       onChange={() => {
                         if (enabled) setPauseOpen(true);
                         else void enable();
                       }}
                     />
-                  </label>
-                </div>
-                {revision?.source.description && <p className="type-body-default">{revision.source.description}</p>}
-                <div className="auto-page-task-metadata type-meta-default">
-                  <span className="auto-page-working-directory type-mono-label" title={task.cwd}>
-                    {task.cwd}
-                  </span>
-                  {revision?.source.triggers.map((trigger) => (
-                    <span key={trigger.id} className="auto-page-trigger">
-                      <AutomationIcon name="clock" />
-                      {formatTrigger(trigger)}
-                    </span>
-                  ))}
-                </div>
-                <div className="auto-page-actions">
-                  <Button
-                    variant="primary"
-                    disabled={unavailable || !enabled || !revision}
-                    onClick={() => startTask(entry)}
-                  >
-                    <AutomationIcon name="play" />
-                    {t("autoPageTaskRun", "Run now")}
-                  </Button>
-                  <Button
-                    disabled={unavailable || !revision}
-                    title={
-                      !online
-                        ? t("autoPageTaskAiOffline", "Reconnect this host to modify the task with AI.")
-                        : undefined
-                    }
-                    onClick={modifyWithAi}
-                  >
-                    <AutomationIcon name="sparkles" />
-                    {t("autoPageTaskModifyAi", "Modify with AI")}
-                  </Button>
-                  <Button
-                    disabled={unavailable || !revision}
-                    onClick={() => navigate({ view: "editor", environmentId, taskId })}
-                  >
-                    <AutomationIcon name="code" />
-                    {t("autoPageTaskEdit", "Edit definition")}
-                  </Button>
-                  <div
-                    ref={overflowRef}
-                    className="auto-page-overflow"
-                    onKeyDown={(event) => {
-                      if (event.key !== "Escape" || !moreOpen) return;
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setMoreOpen(false);
-                      overflowRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
-                    }}
-                    onBlur={(event) => {
-                      if (!event.currentTarget.contains(event.relatedTarget)) setMoreOpen(false);
-                    }}
-                  >
+                    <span className="auto-page-vsep" aria-hidden="true" />
                     <Button
-                      variant="ghost"
-                      aria-label={t("autoPageTaskMore", "More task actions")}
-                      aria-expanded={moreOpen}
-                      aria-haspopup="menu"
-                      disabled={pending}
-                      onClick={() => setMoreOpen((value) => !value)}
+                      disabled={unavailable || !revision}
+                      title={
+                        !online
+                          ? t("autoPageTaskAiOffline", "Reconnect this host to modify the task with AI.")
+                          : undefined
+                      }
+                      onClick={modifyWithAi}
                     >
-                      <AutomationIcon name="more" />
+                      <AutomationIcon name="sparkles" size={14} />
+                      {t("autoPageTaskModifyAi", "Modify with AI")}
                     </Button>
-                    {moreOpen && (
-                      <div className="auto-page-overflow-menu" role="menu">
-                        <Button
-                          role="menuitem"
-                          variant="danger"
-                          disabled={unavailable}
-                          onClick={() => {
-                            setMoreOpen(false);
-                            setDeleteOpen(true);
-                          }}
-                        >
-                          <AutomationIcon name="trash" />
-                          {t("autoPageTaskDelete", "Delete task")}
-                        </Button>
-                      </div>
-                    )}
+                    <Button
+                      disabled={unavailable || !revision}
+                      onClick={() => navigate({ view: "editor", environmentId, taskId })}
+                    >
+                      <AutomationIcon name="pencil" size={14} />
+                      {t("autoPageTaskEdit", "Edit definition")}
+                    </Button>
+                    <Button
+                      variant="primary"
+                      disabled={unavailable || !enabled || !revision}
+                      onClick={() => startTask(entry)}
+                    >
+                      <AutomationIcon name="play" size={14} />
+                      {t("autoPageTaskRun", "Run now")}
+                    </Button>
+                    <div
+                      ref={overflowRef}
+                      className="auto-page-overflow"
+                      onKeyDown={(event) => {
+                        if (event.key !== "Escape" || !moreOpen) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setMoreOpen(false);
+                        overflowRef.current?.querySelector<HTMLButtonElement>('[aria-haspopup="menu"]')?.focus();
+                      }}
+                      onBlur={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget)) setMoreOpen(false);
+                      }}
+                    >
+                      <Button
+                        className="auto-page-more-btn"
+                        aria-label={t("autoPageTaskMore", "More task actions")}
+                        aria-expanded={moreOpen}
+                        aria-haspopup="menu"
+                        disabled={pending}
+                        onClick={() => setMoreOpen((value) => !value)}
+                      >
+                        <AutomationIcon name="more" size={15} />
+                      </Button>
+                      {moreOpen && (
+                        <div className="auto-page-overflow-menu" role="menu">
+                          <Button
+                            role="menuitem"
+                            variant="danger"
+                            disabled={unavailable}
+                            onClick={() => {
+                              setMoreOpen(false);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <AutomationIcon name="trash" size={14} />
+                            {t("autoPageTaskDelete", "Delete task")}
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
+                {revision?.source.description && (
+                  <p className="type-body-default auto-page-secondary">{revision.source.description}</p>
+                )}
                 {!online && (
-                  <p className="type-meta-default">
+                  <p className="type-meta-default auto-page-muted">
                     {t("autoPageTaskAiOffline", "Reconnect this host to modify the task with AI.")}
                   </p>
                 )}
               </header>
               {!enabled && (
                 <section
-                  className="auto-page-draft-banner auto-page-stack"
+                  className="auto-page-draft-banner"
                   aria-label={t("autoPageTaskDraftBanner", "Draft not enabled")}
                 >
-                  <div className="auto-page-section-heading">
-                    <h2 className="type-body-medium">
-                      {t("autoPageTaskDraftBanner", "Draft not enabled")} · v{task.currentRevision}
-                    </h2>
-                    <Button
-                      variant="primary"
-                      busy={busy}
-                      disabled={unavailable || !revision}
-                      onClick={() => void enable()}
-                    >
-                      <AutomationIcon name="key" />
-                      {t("autoPageTaskEnable", "Enable revision")}
-                    </Button>
+                  <div className="auto-page-draft-lead">
+                    <AutomationIcon name="shield" size={16} />
+                    <div className="auto-page-stack-tight">
+                      <h2 className="type-body-medium">
+                        {t("autoPageTaskDraftBanner", "Draft not enabled")} · v{task.currentRevision}
+                      </h2>
+                      <p className="type-label-default">
+                        {t(
+                          "autoPageTaskDraftExplanation",
+                          "This revision is not enabled. Automatic triggers are paused. Existing runs continue with their original revision and permissions.",
+                        )}
+                      </p>
+                      {revision && <TaskPermissionSummary grant={revision.requiredGrant} />}
+                    </div>
                   </div>
-                  <p className="type-body-default">
-                    {t(
-                      "autoPageTaskDraftExplanation",
-                      "This revision is not enabled. Automatic triggers are paused. Existing runs continue with their original revision and permissions.",
-                    )}
-                  </p>
-                  <p className="type-meta-default">
-                    {t(
-                      "autoPageTaskNativeEnableHint",
-                      "Enabling requires your approval in the system confirmation window.",
-                    )}
-                  </p>
-                  {revision && <TaskPermissionSummary grant={revision.requiredGrant} />}
+                  <Button busy={busy} disabled={unavailable || !revision} onClick={() => void enable()}>
+                    <AutomationIcon name="shield" size={14} />
+                    {t("autoPageTaskEnable", "Enable revision")} v{task.currentRevision}
+                  </Button>
                 </section>
               )}
               {!revision && (
@@ -382,6 +386,17 @@ function TaskDetailContent({ environmentId, taskId, tab = "runs" }: TaskDetailPr
                     onClick={() => navigate({ view: "task", environmentId, taskId, tab: option.id })}
                   >
                     {option.label}
+                    {option.id === "runs" && (
+                      <span className="auto-page-tab-count type-mono-meta">{taskRuns.runs.length}</span>
+                    )}
+                    {option.id === "flow" && revision && (
+                      <span className="type-mono-meta auto-page-muted">{revision.source.steps.length}</span>
+                    )}
+                    {option.id === "revisions" && (
+                      <span className="type-mono-meta auto-page-muted">
+                        {task.currentRevision > 1 ? `v1–v${task.currentRevision}` : `v${task.currentRevision}`}
+                      </span>
+                    )}
                   </Button>
                 ))}
               </div>

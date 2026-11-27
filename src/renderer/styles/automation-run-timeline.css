@@ -4,34 +4,47 @@
 .auto-page-run-step:not(:last-child)::before {
   content: "";
   position: absolute;
-  top: var(--space-8);
+  top: 36px;
   bottom: 0;
-  left: var(--space-4);
-  width: 1px;
+  left: 10px;
+  width: 2px;
   background: var(--fx-line-default);
 }
 .auto-page-run-step-marker {
   z-index: 1;
 }
 .auto-page-run-step[data-phase="succeeded"] .auto-page-run-step-marker {
-  color: var(--fx-status-success-text);
-  background: var(--fx-status-success-soft);
-  border-color: var(--fx-status-success-border);
+  color: var(--fx-text-on-accent);
+  background: var(--fx-status-success);
+  border-color: var(--fx-status-success);
 }
 .auto-page-run-step:is([data-phase="failed"], [data-phase="attention"]) .auto-page-run-step-marker {
   color: var(--fx-status-danger-text);
   background: var(--fx-status-danger-soft);
+  border-color: var(--fx-status-danger);
+}
+.auto-page-run-step:is([data-phase="failed"], [data-phase="attention"]) .auto-page-run-step-content {
   border-color: var(--fx-status-danger-border);
 }
 .auto-page-run-step[data-phase="running"] .auto-page-run-step-marker {
   color: var(--fx-accent-blue-text);
   background: var(--fx-accent-blue-soft);
+  border-color: var(--fx-accent-blue);
+}
+.auto-page-run-step[data-phase="running"] .auto-page-run-step-content {
   border-color: var(--fx-accent-blue-border);
 }
 .auto-page-run-step:is([data-phase="waiting"], [data-phase="backoff"]) .auto-page-run-step-marker {
-  color: var(--fx-status-warning-text);
+  color: var(--fx-status-warning);
   background: var(--fx-status-warning-soft);
+  border-color: var(--fx-status-warning);
+}
+.auto-page-run-step:is([data-phase="waiting"], [data-phase="backoff"]) .auto-page-run-step-content {
   border-color: var(--fx-status-warning-border);
+}
+.auto-page-run-step[data-phase="pending"] .auto-page-run-step-content {
+  background: var(--fx-surface-card);
+  border-color: var(--fx-line-subtle);
 }
 .auto-page-run-notice[data-tone="success"] {
   color: var(--fx-status-success-text);

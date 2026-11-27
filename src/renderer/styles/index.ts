@@ -37,6 +37,7 @@ import "./messages-long-prompt.css";
 import "./messages-stream.css";
 import "./tool-cards.css";
 import "./automation-cards.css";
+import "./automation-chat.css";
 import "./automation-page.css";
 import "./automation-drawer.css";
 import "./automation-runs.css";
